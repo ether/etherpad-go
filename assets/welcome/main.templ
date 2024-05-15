@@ -1,0 +1,23 @@
+package welcome
+
+
+templ Page() {
+<html lang="en">
+
+    <head>
+        <link rel="stylesheet" href="/css/welcome/main.css" />
+        <link rel="stylesheet" href="/css/skin/index.css" />
+        <script src="/js/welcome/main.js"></script>
+        <title>Etherpad-Go</title>
+    </head>
+	<div id="wrapper">
+	    <div id="inner">
+              <label id="label" for="padname" data-l10n-id="index.openPad"></label>
+             <form action="#" id="go2Name">
+                    <input type="text" id="padname" maxlength="50" autofocus x-webkit-speech/>
+                    <button type="submit">OK</button>
+             </form>
+	    </div>
+	</div>
+	</html>
+}
