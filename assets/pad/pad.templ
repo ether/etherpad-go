@@ -4,27 +4,19 @@ import (
     padModel "github.com/ether/etherpad-go/lib/models"
 )
 
-templ Editbar(name padModel.Model) {
-  <div id="editbar" class="toolbar">
-        <div id="toolbar-overlay"></div>
+templ EditBar() {
+      <div id="editbar" class="toolbar">
+          <div id="toolbar-overlay"></div>
 
-        <ul class="menu_left" role="toolbar">
-        </ul>
-        <ul class="menu_right" role="toolbar">
-        </ul>
-        <span class="show-more-icon-btn"></span>
-    </div>
+          <ul class="menu_left" role="toolbar">
+          </ul>
+          <ul class="menu_right" role="toolbar">
+          </ul>
+          <span class="show-more-icon-btn"></span> <!-- use on small screen to display hidden toolbar buttons -->
+      </div>
 }
 
-
-templ EditContainerBox() {
-      <div id="editorcontainerbox" class="flex-layout">
-          <!--                                      -->
-          <!--  PAD EDITOR (in iframe)              -->
-          <!--                                      -->
-
-          <div id="editorcontainer" class="editorcontainer"></div>
-
+templ EditorLoadingBox() {
           <div id="editorloadingbox">
             <div id="permissionDenied">
               <p data-l10n-id="pad.permissionDenied" class="editorloadingbox-message">
@@ -32,7 +24,7 @@ templ EditContainerBox() {
               </p>
             </div>
             <p data-l10n-id="pad.loading" id="loading" class="editorloadingbox-message">
-              <img src='/images/brand.svg' class='etherpadBrand'/><br/>
+              <img src='../static/img/brand.svg' class='etherpadBrand'/><br/>
               Loading...
             </p>
             <noscript>
@@ -43,62 +35,121 @@ templ EditContainerBox() {
               </p>
             </noscript>
           </div>
-       </div>
 }
 
-templ ImportExportPop() {
-      <div id="import_export" class="popup"><div class="popup-content">
-          <h1 data-l10n-id="pad.importExport.import_export"></h1>
-          <div class="acl-write">
-              <h2 data-l10n-id="pad.importExport.import"></h2>
-              <div class="importmessage" id="importmessageabiword" data-l10n-id="pad.importExport.abiword.innerHTML"></div><br/>
-              <form id="importform" method="post" action="" target="importiframe" enctype="multipart/form-data">
-                  <div class="importformdiv" id="importformfilediv">
-                      <input type="file" name="file" size="10" id="importfileinput"/>
-                      <div class="importmessage" id="importmessagefail"></div>
-                  </div>
-                  <div id="import"></div>
-                  <div class="importmessage" id="importmessagesuccess" data-l10n-id="pad.importExport.importSuccessful"></div>
-                  <div class="importformdiv" id="importformsubmitdiv">
-                      <span class="nowrap">
-                          <input type="submit" class="btn btn-primary" name="submit" value="Import Now" disabled="disabled" id="importsubmitinput"/>
-                          <div alt="" id="importstatusball" class="loadingAnimation" align="top"></div>
-                      </span>
-                  </div>
-              </form>
-          </div>
-          <div id="exportColumn">
-              <h2 data-l10n-id="pad.importExport.export"></h2>
-              <a id="exportetherpada" target="_blank" class="exportlink">
-                <span class="exporttype buttonicon buttonicon-file-powerpoint" id="exportetherpad" data-l10n-id="pad.importExport.exportetherpad"></span>
-              </a>
-              <a id="exporthtmla" target="_blank" class="exportlink">
-                <span class="exporttype buttonicon buttonicon-file-code" id="exporthtml" data-l10n-id="pad.importExport.exporthtml"></span>
-              </a>
-              <a id="exportplaina" target="_blank" class="exportlink">
-                <span class="exporttype buttonicon buttonicon-file" id="exportplain" data-l10n-id="pad.importExport.exportplain"></span>
-              </a>
-              <a id="exportworda" target="_blank" class="exportlink">
-                <span class="exporttype buttonicon buttonicon-file-word" id="exportword" data-l10n-id="pad.importExport.exportword"></span>
-              </a>
-              <a id="exportpdfa" target="_blank" class="exportlink">
-                <span class="exporttype buttonicon buttonicon-file-pdf" id="exportpdf" data-l10n-id="pad.importExport.exportpdf"></span>
-              </a>
-              <a id="exportopena" target="_blank" class="exportlink">
-                <span class="exporttype buttonicon buttonicon-file-alt" id="exportopen" data-l10n-id="pad.importExport.exportopen"></span>
-              </a>
-          </div>
-      </div>
-      </div>
+templ SettingsPopup() {
+          <div id="settings" class="popup"><div class="popup-content">
+              <h1 data-l10n-id="pad.settings.padSettings"></h1>
+              <h2 data-l10n-id="pad.settings.myView"></h2>
+              <p class="hide-for-mobile">
+                  <input type="checkbox" id="options-stickychat"/>
+                  <label for="options-stickychat" data-l10n-id="pad.settings.stickychat"></label>
+              </p>
+              <p class="hide-for-mobile">
+                  <input type="checkbox" id="options-chatandusers" onClick="chat.chatAndUsers();"/>
+                  <label for="options-chatandusers" data-l10n-id="pad.settings.chatandusers"></label>
+              </p>
+              <p>
+                  <input type="checkbox" id="options-colorscheck"/>
+                  <label for="options-colorscheck" data-l10n-id="pad.settings.colorcheck"></label>
+              </p>
+              <p>
+                  <input type="checkbox" id="options-linenoscheck" checked/>
+                  <label for="options-linenoscheck" data-l10n-id="pad.settings.linenocheck"></label>
+              </p>
+              <p>
+                  <input type="checkbox" id="options-rtlcheck"/>
+                  <label for="options-rtlcheck" data-l10n-id="pad.settings.rtlcheck"></label>
+              </p>
+
+              <div class="dropdowns-container">
+                <p class="dropdown-line">
+                  <label for="viewfontmenu" data-l10n-id="pad.settings.fontType">Font type:</label>
+                  <select id="viewfontmenu">
+                    <option value="" data-l10n-id="pad.settings.fontType.normal">Normal</option>
+                  </select>
+                </p>
+
+                <p class="dropdown-line">
+                  <label for="languagemenu" data-l10n-id="pad.settings.language">Language:</label>
+                  <select id="languagemenu">
+                      <option value="<%=lang%>"></option>
+                  </select>
+                </p>
+              </div>
+
+              <h2 data-l10n-id="pad.settings.about">About</h2>
+              <span data-l10n-id="pad.settings.poweredBy">Powered by</span>
+              <a href="https://etherpad.org">Etherpad</a>
+          </div></div>
 }
 
+templ EmbedPopup() {
+          <div id="embed" class="popup"><div class="popup-content">
+              <h1 data-l10n-id="pad.share"></h1>
+              <div id="embedreadonly" class="acl-write">
+                  <input type="checkbox" id="readonlyinput"/>
+                  <label for="readonlyinput" data-l10n-id="pad.share.readonly"></label>
+              </div>
+              <div id="linkcode">
+                  <h2 data-l10n-id="pad.share.link"></h2>
+                  <input id="linkinput" type="text" value="" onclick="this.select()"/>
+              </div>
+              <div id="embedcode">
+                  <h2 data-l10n-id="pad.share.emebdcode"></h2>
+                  <input id="embedinput" type="text" value="" onclick="this.select()"/>
+              </div>
+          </div></div>
+}
+
+
+templ ImportExportPopup() {
+          <div id="import_export" class="popup"><div class="popup-content">
+              <h1 data-l10n-id="pad.importExport.import_export"></h1>
+              <div class="acl-write">
+                  <h2 data-l10n-id="pad.importExport.import"></h2>
+                  <div class="importmessage" id="importmessageabiword" data-l10n-id="pad.importExport.abiword.innerHTML"></div><br/>
+                  <form id="importform" method="post" action="" target="importiframe" enctype="multipart/form-data">
+                      <div class="importformdiv" id="importformfilediv">
+                          <input type="file" name="file" size="10" id="importfileinput"/>
+                          <div class="importmessage" id="importmessagefail"></div>
+                      </div>
+                      <div id="import"></div>
+                      <div class="importmessage" id="importmessagesuccess" data-l10n-id="pad.importExport.importSuccessful"></div>
+                      <div class="importformdiv" id="importformsubmitdiv">
+                          <span class="nowrap">
+                              <input type="submit" class="btn btn-primary" name="submit" value="Import Now" disabled="disabled" id="importsubmitinput"/>
+                              <div alt="" id="importstatusball" class="loadingAnimation" align="top"></div>
+                          </span>
+                      </div>
+                  </form>
+              </div>
+              <div id="exportColumn">
+                  <h2 data-l10n-id="pad.importExport.export"></h2>
+                  <a id="exportetherpada" target="_blank" class="exportlink">
+                    <span class="exporttype buttonicon buttonicon-file-powerpoint" id="exportetherpad" data-l10n-id="pad.importExport.exportetherpad"></span>
+                  </a>
+                  <a id="exporthtmla" target="_blank" class="exportlink">
+                    <span class="exporttype buttonicon buttonicon-file-code" id="exporthtml" data-l10n-id="pad.importExport.exporthtml"></span>
+                  </a>
+                  <a id="exportplaina" target="_blank" class="exportlink">
+                    <span class="exporttype buttonicon buttonicon-file" id="exportplain" data-l10n-id="pad.importExport.exportplain"></span>
+                  </a>
+                  <a id="exportworda" target="_blank" class="exportlink">
+                    <span class="exporttype buttonicon buttonicon-file-word" id="exportword" data-l10n-id="pad.importExport.exportword"></span>
+                  </a>
+                  <a id="exportpdfa" target="_blank" class="exportlink">
+                    <span class="exporttype buttonicon buttonicon-file-pdf" id="exportpdf" data-l10n-id="pad.importExport.exportpdf"></span>
+                  </a>
+                  <a id="exportopena" target="_blank" class="exportlink">
+                    <span class="exporttype buttonicon buttonicon-file-alt" id="exportopen" data-l10n-id="pad.importExport.exportopen"></span>
+                  </a>
+              </div>
+          </div></div>
+}
 
 
 templ ConnectivityPopup() {
-          <!-- -->
-          <!-- CONNECTIVITY POPUP (when you get disconnected) -->
-          <!--                                                -->
-
           <div id="connectivity" class="popup"><div class="popup-content">
               <div class="connected visible">
                 <h2 data-l10n-id="pad.modals.connected"></h2>
@@ -106,7 +157,7 @@ templ ConnectivityPopup() {
               <div class="reconnecting">
                 <h1 data-l10n-id="pad.modals.reconnecting"></h1>
                 <i class='buttonicon buttonicon-spin5 icon-spin'>
-                  <img src='/images/brand.svg' class='etherpadBrand'/><br/>
+                  <img src='../static/img/brand.svg' class='etherpadBrand'/><br/>
                 </i>
               </div>
               <div class="userdup">
@@ -175,49 +226,8 @@ templ ConnectivityPopup() {
 }
 
 
-templ EmbedPopup(){
-
-      <div id="embed" class="popup"><div class="popup-content">
-          <h1 data-l10n-id="pad.share"></h1>
-          <div id="embedreadonly" class="acl-write">
-              <input type="checkbox" id="readonlyinput"/>
-              <label for="readonlyinput" data-l10n-id="pad.share.readonly"></label>
-          </div>
-          <div id="linkcode">
-              <h2 data-l10n-id="pad.share.link"></h2>
-              <input id="linkinput" type="text" value="" onclick="this.select()"/>
-          </div>
-          <div id="embedcode">
-              <h2 data-l10n-id="pad.share.emebdcode"></h2>
-              <input id="embedinput" type="text" value="" onclick="this.select()"/>
-          </div>
-      </div></div>
-}
-
-
-
-
-templ PadHeader() {
-    <head>
-        <title>Pad</title>
-          <meta charset="utf-8"/>
-          <meta name="robots" content="noindex, nofollow"/>
-          <meta name="referrer" content="no-referrer"/>
-          <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0"/>
-          <link rel="shortcut icon" href="/images/favicon.ico"/>
-          <link rel="stylesheet" href="/css/static/pad.css"/>
-          <link href="/css/skin/pad.css" rel="stylesheet"/>
-           <style title="dynamicsyntax"></style>
-    </head>
-}
-
-
-templ UserPopup() {
-            <!-- -->
-            <!-- USERS POPUP (set username, color, see other users names & color) -->
-            <!--                                                                  -->
-
-            <div id="users" class="popup"><div class="popup-content">
+templ UserPopup(){
+           <div id="users" class="popup"><div class="popup-content">
                 <div id="connectionstatus"></div>
                 <div id="myuser">
                     <div id="mycolorpicker" class="popup"><div class="popup-content">
@@ -240,14 +250,17 @@ templ UserPopup() {
                 </div>
                 <div id="userlistbuttonarea"></div>
             </div></div>
+
 }
 
-templ ChatIcon() {
+
+templ ChatPopup(){
         <div id="chaticon" class="visible" onclick="chat.show();return false;" title="Chat (Alt C)">
             <span id="chatlabel" data-l10n-id="pad.chat"></span>
             <span class="buttonicon buttonicon-chat"></span>
             <span id="chatcounter">0</span>
         </div>
+
 }
 
 
@@ -255,9 +268,9 @@ templ ChatBox() {
         <div id="chatbox">
           <div class="chat-content">
             <div id="titlebar">
-             <h1 id="titlelabel" data-l10n-id="pad.chat"></h1>
+              <h1 id="titlelabel" data-l10n-id="pad.chat"></h1>
               <a id="titlecross" class="hide-reduce-btn" onClick="chat.hide();return false;">-&nbsp;</a>
-              <a id="titlesticky" class="stick-to-screen-btn" onClick="chat.stickToScreen(true);return false;" data-l10n-id="pad.chat.stick.title">█&nbsp;&nbsp;</a>
+              <a id="titlesticky" class="stick-to-screen-btn" onClick="chat.stickToScreen(true);return false;" data-l10n-id="pad.chat.stick.title">█&nbsp;&nbsp</a>
             </div>
             <div id="chattext" class="thin-scrollbar" aria-live="polite" aria-relevant="additions removals text" role="log" aria-atomic="false">
                 <div alt="loading.." id="chatloadmessagesball" class="chatloadmessages loadingAnimation" align="top"></div>
@@ -270,22 +283,37 @@ templ ChatBox() {
             </div>
           </div>
         </div>
-
 }
 
 
-templ Greeting(pad padModel.Model) {
+
+templ Greeting(pad padModel.Model, jsScript string) {
   <html>
-    @PadHeader()
+  <head>
+    <title>Pad: {pad.Name}</title>
+    <script type="module" src={jsScript}></script>
+    <script>
+        const $ = require('jquery')
+    </script>
+    <link  href="/css/skin/pad.css" rel="stylesheet"/>
+    <link href="/css/static/pad.css" rel="stylesheet"/>
+    <script type="text/javascript" src="/js/vendors/html10n.js"></script>
+    <script type="text/javascript" src="/js/vendors/l10n.js"></script>
+  </head>
   <body>
-    @Editbar(pad)
-    @EditContainerBox()
-    @ImportExportPop()
-    @ConnectivityPopup()
-    @EmbedPopup()
-    <div class="sticky-container">
-           @UserPopup()
-            @ChatIcon()
+  @EditBar()
+    <div id="editorcontainerbox" class="flex-layout">
+              <div id="editorcontainer" class="editorcontainer"></div>
+
+            @EditorLoadingBox()
+            @SettingsPopup()
+            @ImportExportPopup()
+      <div class="sticky-container">
+            @UserPopup()
+            @ChatPopup()
+            @ChatBox()
+      </div>
+
 
     </div>
   </body>
