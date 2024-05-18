@@ -1,0 +1,30 @@
+{
+  "name": "ui",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 3000",
+    "build": "tsc && vite build  --outDir ../assets/js/pad --emptyOutDir",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.12",
+    "typescript": "^5.2.2",
+    "vite": "^5.2.0"
+  },
+  "dependencies": {
+    "@rollup/plugin-commonjs": "^25.0.7",
+    "js-cookie": "^3.0.5",
+    "quill": "^2.0.2",
+    "quill-cursors": "^4.0.2",
+    "security": "^1.0.0",
+    "tinycon": "^0.6.8",
+    "underscore": "^1.13.6",
+    "unorm": "^1.6.0",
+    "vite-plugin-require": "^1.1.14",
+    "y-quill": "^1.0.0",
+    "y-websocket": "^2.0.3",
+    "yjs": "^13.6.15"
+  }
+}
