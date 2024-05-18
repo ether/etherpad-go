@@ -19,6 +19,7 @@
     "quill": "^2.0.2",
     "quill-cursors": "^4.0.2",
     "security": "^1.0.0",
+    "socket.io-client": "^4.7.5",
     "tinycon": "^0.6.8",
     "underscore": "^1.13.6",
     "unorm": "^1.6.0",

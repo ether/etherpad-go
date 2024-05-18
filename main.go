@@ -14,11 +14,13 @@ func main() {
 	cssDir := http.FileServer(http.Dir("./assets/css"))
 	jsDir := http.FileServer(http.Dir("./assets/js"))
 	imagesDir := http.FileServer(http.Dir("./assets/images"))
+	pluginDir := http.FileServer(http.Dir("./plugins"))
 
 	http.Handle("/css/", http.StripPrefix("/css/", cssDir))
 	http.Handle("/js/", http.StripPrefix("/js/", jsDir))
 	http.Handle("/images/", http.StripPrefix("/images/", imagesDir))
 
+	http.Handle("/pluginfw/", http.StripPrefix("/pluginfw", pluginDir))
 	http.HandleFunc("/p/*", pad.HandlePadOpen)
 
 	http.Handle("/", templ.Handler(component))

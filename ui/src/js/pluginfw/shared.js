@@ -35,7 +35,7 @@ const loadFn = (path, hookName) => {
 
 const extractHooks = (parts, hookSetName, normalizer) => {
   const hooks = {};
-  for (const part of parts) {
+  for (const part of parts||[]) {
     for (const [hookName, regHookFnName] of Object.entries(part[hookSetName] || {})) {
       /* On the server side, you can't just
        * require("pluginname/whatever") if the plugin is installed as
@@ -53,6 +53,8 @@ const extractHooks = (parts, hookSetName, normalizer) => {
       }
       let hookFn;
       try {
+        console.log("Loading hook", hookFnName, hookName)
+
         hookFn = loadFn(hookFnName, hookName);
         if (!hookFn) throw new Error('Not a function');
       } catch (err) {
