@@ -6,8 +6,13 @@ package ws
 
 import (
 	"bytes"
+	"encoding/json"
+	"github.com/ether/etherpad-go/lib/pad"
+	"github.com/ether/etherpad-go/lib/utils"
+	"github.com/oklog/ulid/v2"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -43,9 +48,10 @@ type Client struct {
 
 	// The websocket connection.
 	conn *websocket.Conn
-
 	// Buffered channel of outbound messages.
 	send chan []byte
+
+	sessionId string
 }
 
 // readPump pumps messages from the websocket connection to the hub.
@@ -70,54 +76,20 @@ func (c *Client) readPump() {
 			break
 		}
 		message = bytes.TrimSpace(bytes.Replace(message, newline, space, -1))
-		println("Message is", string(message[:]))
-		c.hub.broadcast <- message
-	}
-}
+		decodedMessage := string(message[:])
 
-// writePump pumps messages from the hub to the websocket connection.
-//
-// A goroutine running writePump is started for each connection. The
-// application ensures that there is at most one writer to a connection by
-// executing all writes from this goroutine.
-func (c *Client) writePump() {
-	ticker := time.NewTicker(pingPeriod)
-	defer func() {
-		ticker.Stop()
-		c.conn.Close()
-	}()
-	for {
-		select {
-		case message, ok := <-c.send:
-			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
-			if !ok {
-				// The hub closed the channel.
-				c.conn.WriteMessage(websocket.CloseMessage, []byte{})
-				return
-			}
-
-			w, err := c.conn.NextWriter(websocket.TextMessage)
+		if strings.Contains(decodedMessage, "CLIENT_READY") {
+			var clientReady ClientReady
+			err := json.Unmarshal(message, &clientReady)
 			if err != nil {
-				return
-			}
-			w.Write(message)
-
-			// Add queued chat messages to the current websocket message.
-			n := len(c.send)
-			for i := 0; i < n; i++ {
-				w.Write(newline)
-				w.Write(<-c.send)
+				println("Error unmarshalling", err)
 			}
 
-			if err := w.Close(); err != nil {
-				return
-			}
-		case <-ticker.C:
-			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
-			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
-				return
-			}
+			pad.HandleClientReadyMessage(clientReady)
+
 		}
+
+		c.hub.broadcast <- message
 	}
 }
 
@@ -129,7 +101,8 @@ func ServeWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 		log.Println(err)
 		return
 	}
-	client := &Client{hub: hub, conn: conn, send: make(chan []byte, 256)}
+	client := &Client{hub: hub, conn: conn, send: make(chan []byte, 256), sessionId: ulid.Make().String()}
+	utils.SessionStore[client.sessionId] = utils.Session{}
 	client.hub.register <- client
 	client.readPump()
 }
