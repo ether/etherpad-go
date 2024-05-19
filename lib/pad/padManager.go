@@ -81,6 +81,9 @@ func (m *Manager) GetPad(padID string, text *string, author *author.Author) (*pa
 		return cachedPad, nil
 	}
 
-	var newPad = NewPad(padID, text, author)
+	// try to load pad
+	var newPad = pad.NewPad(padID)
 
+	// initialize the pad
+	newPad.Init(text, author.Id)
 }

@@ -5,6 +5,7 @@ import "github.com/ether/etherpad-go/lib/models/db"
 type PadMethods interface {
 	DoesPadExist(padID string) bool
 	CreatePad(padID string) bool
+	GetPad(padID string) (db.PadDB, error)
 	GetReadonlyPad(padId string) (string, error)
 	CreatePad2ReadOnly(padId string, readonlyId string)
 	CreateReadOnly2Pad(padId string, readonlyId string)

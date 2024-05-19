@@ -121,7 +121,7 @@ func (a *APool) eachAttrib(attribConv AttributeIterator) {
 	}
 }
 
-func (a *APool) getAttrib(num int) Attribute {
+func (a *APool) GetAttrib(num int) Attribute {
 	pair, ok := a.numToAttrib[num]
 	if !ok {
 		return pair
