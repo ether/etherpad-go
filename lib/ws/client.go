@@ -7,6 +7,7 @@ package ws
 import (
 	"bytes"
 	"encoding/json"
+	"github.com/ether/etherpad-go/lib/models/ws"
 	"github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/utils"
 	"github.com/oklog/ulid/v2"
@@ -32,15 +33,15 @@ const (
 	maxMessageSize = 512
 )
 
-var (
-	newline = []byte{'\n'}
-	space   = []byte{' '}
-)
-
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
 }
+
+var (
+	newline = []byte{'\n'}
+	space   = []byte{' '}
+)
 
 // Client is a middleman between the websocket connection and the hub.
 type Client struct {
@@ -51,7 +52,7 @@ type Client struct {
 	// Buffered channel of outbound messages.
 	send chan []byte
 
-	sessionId string
+	SessionId string
 }
 
 // readPump pumps messages from the websocket connection to the hub.
@@ -79,13 +80,13 @@ func (c *Client) readPump() {
 		decodedMessage := string(message[:])
 
 		if strings.Contains(decodedMessage, "CLIENT_READY") {
-			var clientReady ClientReady
+			var clientReady ws.ClientReady
 			err := json.Unmarshal(message, &clientReady)
 			if err != nil {
 				println("Error unmarshalling", err)
 			}
 
-			pad.HandleClientReadyMessage(clientReady)
+			pad.HandleClientReadyMessage(clientReady, c)
 
 		}
 
@@ -101,8 +102,8 @@ func ServeWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 		log.Println(err)
 		return
 	}
-	client := &Client{hub: hub, conn: conn, send: make(chan []byte, 256), sessionId: ulid.Make().String()}
-	utils.SessionStore[client.sessionId] = utils.Session{}
+	client := &Client{hub: hub, conn: conn, send: make(chan []byte, 256), SessionId: ulid.Make().String()}
+	utils.SessionStore[client.SessionId] = utils.Session{}
 	client.hub.register <- client
 	client.readPump()
 }

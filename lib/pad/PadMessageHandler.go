@@ -2,7 +2,8 @@ package pad
 
 import (
 	"github.com/ether/etherpad-go/lib/author"
-	"github.com/ether/etherpad-go/lib/ws"
+	"github.com/ether/etherpad-go/lib/models/ws"
+	"github.com/ether/etherpad-go/lib/utils"
 	"regexp"
 )
 
@@ -24,8 +25,8 @@ func init() {
 	colorRegEx, _ = regexp.Compile("^#(?:[0-9A-F]{3}){1,2}$")
 }
 
-func HandleClientReadyMessage(ready ws.ClientReady) {
-
+func HandleClientReadyMessage(ready ws.ClientReady, client ClientType) {
+	var sessionInfo = utils.SessionStore[client.GetSessionID()]
 	var authSession = AuthSession{
 		PadID: ready.Data.PadID,
 		Token: ready.Data.Token,
@@ -53,5 +54,9 @@ func HandleClientReadyMessage(ready ws.ClientReady) {
 		authorManager.SetAuthorColor(authSession.PadID, *ready.Data.UserInfo.ColorId)
 	}
 
-	authorManager.GetAuthor()
+	var foundAuthor = authorManager.GetAuthor(sessionInfo.Author)
+
+	var pad = padManager.GetPad(authSession.PadID, nil, &foundAuthor)
+
+	pad.
 }

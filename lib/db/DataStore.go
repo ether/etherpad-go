@@ -1,14 +1,25 @@
 package db
 
+import "github.com/ether/etherpad-go/lib/models/db"
+
 type PadMethods interface {
 	DoesPadExist(padID string) bool
 	CreatePad(padID string) bool
 	GetReadonlyPad(padId string) (string, error)
 	CreatePad2ReadOnly(padId string, readonlyId string)
 	CreateReadOnly2Pad(padId string, readonlyId string)
+	GetReadOnly2Pad(id string) string
+}
+
+type AuthorMethods interface {
+	GetAuthor(author string) (db.AuthorDB, error)
+	GetAuthorByMapperKeyAndMapperValue(key string, value string) (db.AuthorDB, error)
+	SaveAuthor(author db.AuthorDB)
+	SaveAuthorName(authorId string, authorName string)
+	SaveAuthorColor(authorId string, authorColor string)
 }
 
 type DataStore interface {
 	PadMethods
-	GetReadOnly2Pad(id string) string
+	AuthorMethods
 }
