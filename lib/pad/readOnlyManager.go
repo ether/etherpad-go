@@ -35,7 +35,7 @@ func (r *ReadOnlyManager) getPadId(readonlyId string) string {
 	return r.Store.GetReadOnly2Pad(readonlyId)
 }
 
-func (r *ReadOnlyManager) getIds(id *string) IdRequest {
+func (r *ReadOnlyManager) GetIds(id *string) IdRequest {
 	readonly := r.isReadOnlyID(id)
 	var readOnlyPadId string
 	if readonly {

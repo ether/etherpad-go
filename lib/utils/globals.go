@@ -1,5 +1,7 @@
 package utils
 
+import "github.com/ether/etherpad-go/lib/db"
+
 type Session struct {
 	Author   string
 	PadId    string
@@ -74,3 +76,5 @@ var ColorPalette = []string{
 	"#f8d2a0",
 	"#b3b3e6",
 }
+
+var DataStore db.DataStore

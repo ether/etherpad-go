@@ -8,7 +8,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"github.com/ether/etherpad-go/lib/models/ws"
-	"github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/utils"
 	"github.com/oklog/ulid/v2"
 	"log"
@@ -86,7 +85,7 @@ func (c *Client) readPump() {
 				println("Error unmarshalling", err)
 			}
 
-			pad.HandleClientReadyMessage(clientReady, c)
+			HandleClientReadyMessage(clientReady, c)
 
 		}
 

@@ -10,7 +10,7 @@ import (
 )
 
 type Manager struct {
-	db db.DataStore
+	Db db.DataStore
 }
 
 type Author struct {
@@ -22,11 +22,11 @@ type Author struct {
 }
 
 func (m *Manager) SetAuthorColor(author string, colorId string) {
-	m.db.SaveAuthorColor(author, colorId)
+	m.Db.SaveAuthorColor(author, colorId)
 }
 
 func (m *Manager) mapAuthorWithDBKey(key string, value string) Author {
-	author, err := m.db.GetAuthorByMapperKeyAndMapperValue(key, value)
+	author, err := m.Db.GetAuthorByMapperKeyAndMapperValue(key, value)
 
 	if err != nil {
 		return m.CreateAuthor(nil)
@@ -67,7 +67,7 @@ func (m *Manager) CreateAuthor(name *string) Author {
 		Timestamp: time.Now().Unix(),
 	}
 
-	m.db.SaveAuthor(db2.AuthorDB{
+	m.Db.SaveAuthor(db2.AuthorDB{
 		Name:      author.Name,
 		ColorId:   author.ColorId,
 		PadIDs:    author.PadIDs,
@@ -80,7 +80,7 @@ func (m *Manager) CreateAuthor(name *string) Author {
 }
 
 func (m *Manager) saveAuthor(author Author) {
-	m.db.SaveAuthor(db2.AuthorDB{
+	m.Db.SaveAuthor(db2.AuthorDB{
 		Name:    author.Name,
 		ColorId: author.ColorId,
 		PadIDs:  author.PadIDs,
@@ -92,7 +92,7 @@ func (m *Manager) saveAuthor(author Author) {
  * @param {String} author The id of the author
  */
 func (m *Manager) GetAuthorName(authorId string) string {
-	author, err := m.db.GetAuthor(authorId)
+	author, err := m.Db.GetAuthor(authorId)
 
 	if err != nil {
 		return ""
@@ -103,7 +103,7 @@ func (m *Manager) GetAuthorName(authorId string) string {
 
 func (m *Manager) SetAuthorName(authorId string, authorName string) {
 
-	m.db.SaveAuthorName(authorId, authorName)
+	m.Db.SaveAuthorName(authorId, authorName)
 }
 
 /**
@@ -111,7 +111,7 @@ func (m *Manager) SetAuthorName(authorId string, authorName string) {
  * @param {String} authorID The id of the author
  */
 func (m *Manager) ListPadsOfAuthor(authorId string) ([]string, error) {
-	author, err := m.db.GetAuthor(authorId)
+	author, err := m.Db.GetAuthor(authorId)
 
 	if err != nil {
 		return nil, errors.New("Author not found")
@@ -126,8 +126,8 @@ func (m *Manager) ListPadsOfAuthor(authorId string) ([]string, error) {
 	return pads, nil
 }
 
-func (m *Manager) addPad(authorId string, padId string) {
-	retrievedAuthor, err := m.db.GetAuthor(authorId)
+func (m *Manager) AddPad(authorId string, padId string) {
+	retrievedAuthor, err := m.Db.GetAuthor(authorId)
 
 	if err != nil {
 		return
@@ -153,7 +153,7 @@ func (m *Manager) addPad(authorId string, padId string) {
  * @param {String} padID The id of the pad the author contributes to
  */
 func (m *Manager) removePad(authorId string, padId string) {
-	retrievedAuthor, err := m.db.GetAuthor(authorId)
+	retrievedAuthor, err := m.Db.GetAuthor(authorId)
 
 	if err != nil {
 		return
@@ -179,7 +179,7 @@ func (m *Manager) removePad(authorId string, padId string) {
 }
 
 func (m *Manager) GetAuthor(authorId string) Author {
-	author, err := m.db.GetAuthor(authorId)
+	author, err := m.Db.GetAuthor(authorId)
 
 	if err != nil {
 		return Author{}

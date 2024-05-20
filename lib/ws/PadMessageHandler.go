@@ -1,8 +1,9 @@
-package pad
+package ws
 
 import (
 	"github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/models/ws"
+	"github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/utils"
 	"regexp"
 )
@@ -14,29 +15,29 @@ type AuthSession struct {
 	ReadOnly      bool
 }
 
-var padManager *Manager
-var readOnlyManager *ReadOnlyManager
+var padManager *pad.Manager
+var readOnlyManager *pad.ReadOnlyManager
 var authorManager *author.Manager
 var colorRegEx *regexp.Regexp
 
 func init() {
-	padManager = &Manager{}
-	readOnlyManager = &ReadOnlyManager{}
+	padManager = &pad.Manager{}
+	readOnlyManager = &pad.ReadOnlyManager{}
 	colorRegEx, _ = regexp.Compile("^#(?:[0-9A-F]{3}){1,2}$")
 }
 
-func HandleClientReadyMessage(ready ws.ClientReady, client ClientType) {
-	var sessionInfo = utils.SessionStore[client.GetSessionID()]
+func HandleClientReadyMessage(ready ws.ClientReady, client pad.ClientType) {
+	var sessionInfo = utils.SessionStore[client.(Client).SessionId]
 	var authSession = AuthSession{
 		PadID: ready.Data.PadID,
 		Token: ready.Data.Token,
 	}
 
-	if !padManager.doesPadExist(ready.Data.PadID) {
+	if !padManager.DoesPadExist(ready.Data.PadID) {
 		authSession.PadID = padManager.SanitizePadId(ready.Data.PadID)
 	}
 
-	var padIds = readOnlyManager.getIds(&authSession.PadID)
+	var padIds = readOnlyManager.GetIds(&authSession.PadID)
 	authSession.PadID = padIds.PadId
 	authSession.ReadOnlyPadId = &padIds.ReadOnlyPadId
 	authSession.ReadOnly = padIds.ReadOnly
@@ -56,7 +57,5 @@ func HandleClientReadyMessage(ready ws.ClientReady, client ClientType) {
 
 	var foundAuthor = authorManager.GetAuthor(sessionInfo.Author)
 
-	var pad = padManager.GetPad(authSession.PadID, nil, &foundAuthor)
-
-	pad.
+	var _, _ = padManager.GetPad(authSession.PadID, nil, &foundAuthor)
 }

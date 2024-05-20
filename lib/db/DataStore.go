@@ -8,7 +8,8 @@ import (
 type PadMethods interface {
 	DoesPadExist(padID string) bool
 	CreatePad(padID string) bool
-	SaveRevision(padId string, rev db.RevisionDB, text *apool.AText)
+	GetPadIds() []string
+	SaveRevision(padId string, rev int, changeset string, text apool.APool)
 	GetPad(padID string) (db.PadDB, error)
 	GetReadonlyPad(padId string) (string, error)
 	CreatePad2ReadOnly(padId string, readonlyId string)

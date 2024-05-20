@@ -2,8 +2,10 @@ package pad
 
 import (
 	"github.com/ether/etherpad-go/lib/apool"
+	"github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/changeset"
 	"github.com/ether/etherpad-go/lib/db"
+	"github.com/ether/etherpad-go/lib/utils"
 	"regexp"
 	"slices"
 )
@@ -13,12 +15,16 @@ var regex2 *regexp.Regexp
 var regex3 *regexp.Regexp
 var regex4 *regexp.Regexp
 
+var authorManager author.Manager
+
 func init() {
 	regex1, _ = regexp.Compile("\r\n")
 	regex2, _ = regexp.Compile("\r")
 	regex3, _ = regexp.Compile("\t")
 	regex4, _ = regexp.Compile("\xa0")
-
+	authorManager = author.Manager{
+		Db: utils.DataStore,
+	}
 }
 
 type Pad struct {
@@ -123,5 +129,14 @@ func (p *Pad) appendRevision(cs string, authorId *string) int {
 		}, nil)
 	}
 
-	p.db.SaveRevision(p.Id, p.Head, cs, p.apool())
+	p.db.SaveRevision(p.Id, p.Head, cs, *p.apool())
+
+	if authorId != nil {
+		var clonedAuthorId = *authorId
+		if clonedAuthorId != "" {
+			authorManager.AddPad(*authorId, p.Id)
+		}
+	}
+
+	return p.Head
 }
