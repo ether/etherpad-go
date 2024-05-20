@@ -8,7 +8,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"github.com/ether/etherpad-go/lib/models/ws"
-	"github.com/ether/etherpad-go/lib/utils"
 	"github.com/oklog/ulid/v2"
 	"log"
 	"net/http"
@@ -49,8 +48,8 @@ type Client struct {
 	// The websocket connection.
 	conn *websocket.Conn
 	// Buffered channel of outbound messages.
-	send chan []byte
-
+	Send      chan []byte
+	Room      string
 	SessionId string
 }
 
@@ -61,7 +60,7 @@ type Client struct {
 // reads from this goroutine.
 func (c *Client) readPump() {
 	defer func() {
-		c.hub.unregister <- c
+		c.hub.Unregister <- c
 		c.conn.Close()
 	}()
 	c.conn.SetReadLimit(maxMessageSize)
@@ -89,8 +88,16 @@ func (c *Client) readPump() {
 
 		}
 
-		c.hub.broadcast <- message
+		c.hub.Broadcast <- message
 	}
+}
+
+func (c *Client) Leave() {
+	HubGlob.Unregister <- c
+}
+
+func (c *Client) SendUserDupMessage() {
+	c.Send <- []byte(`{"disconnect":"userdup"}`)
 }
 
 // serveWs handles websocket requests from the peer.
@@ -101,8 +108,8 @@ func ServeWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 		log.Println(err)
 		return
 	}
-	client := &Client{hub: hub, conn: conn, send: make(chan []byte, 256), SessionId: ulid.Make().String()}
-	utils.SessionStore[client.SessionId] = utils.Session{}
-	client.hub.register <- client
+	client := &Client{hub: hub, conn: conn, Send: make(chan []byte, 256), SessionId: ulid.Make().String()}
+	SessionStore[client.SessionId] = Session{}
+	client.hub.Register <- client
 	client.readPump()
 }

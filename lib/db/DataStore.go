@@ -17,6 +17,10 @@ type PadMethods interface {
 	GetReadOnly2Pad(id string) string
 }
 
+type PadMetaData interface {
+	GetPadMetaData(padId string, revNum int) (db.PadMetaData, error)
+}
+
 type AuthorMethods interface {
 	GetAuthor(author string) (db.AuthorDB, error)
 	GetAuthorByMapperKeyAndMapperValue(key string, value string) (db.AuthorDB, error)
@@ -28,4 +32,5 @@ type AuthorMethods interface {
 type DataStore interface {
 	PadMethods
 	AuthorMethods
+	PadMetaData
 }

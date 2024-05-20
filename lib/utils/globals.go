@@ -2,14 +2,6 @@ package utils
 
 import "github.com/ether/etherpad-go/lib/db"
 
-type Session struct {
-	Author   string
-	PadId    string
-	revision int
-}
-
-var SessionStore = make(map[string]Session)
-
 var ColorPalette = []string{
 	"#ffc7c7",
 	"#fff1c7",

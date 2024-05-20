@@ -60,10 +60,10 @@ func main() {
 
 	http.Handle("/", templ.Handler(component))
 
-	hub := ws.NewHub()
-	go hub.Run()
+	ws.HubGlob = ws.NewHub()
+	go ws.HubGlob.Run()
 	http.HandleFunc("/socket.io/*", func(w http.ResponseWriter, r *http.Request) {
-		ws.ServeWs(hub, w, r)
+		ws.ServeWs(ws.HubGlob, w, r)
 	})
 
 	// use a OnConnect handler for incoming "connection" messages

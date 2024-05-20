@@ -5,6 +5,7 @@ import (
 	"github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/changeset"
 	"github.com/ether/etherpad-go/lib/db"
+	db2 "github.com/ether/etherpad-go/lib/models/db"
 	"github.com/ether/etherpad-go/lib/utils"
 	"regexp"
 	"slices"
@@ -139,4 +140,25 @@ func (p *Pad) appendRevision(cs string, authorId *string) int {
 	}
 
 	return p.Head
+}
+
+func (p *Pad) GetAllAuthors() []string {
+	var authorIds = make([]string, 0)
+
+	for k, v := range p.Pool.NumToAttrib {
+		if p.Pool.NumToAttrib[k].Key == "author" && p.Pool.NumToAttrib[k].Value != "" {
+			authorIds = append(authorIds, v.Value)
+		}
+	}
+	return authorIds
+}
+
+func (p *Pad) GetPadMetaData(revNum int) db2.PadMetaData {
+	meta, err := p.db.GetPadMetaData(p.Id, revNum)
+
+	if err != nil {
+		panic("error retrieving meta data")
+	}
+
+	return meta
 }

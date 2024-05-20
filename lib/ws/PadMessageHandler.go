@@ -4,7 +4,6 @@ import (
 	"github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/models/ws"
 	"github.com/ether/etherpad-go/lib/pad"
-	"github.com/ether/etherpad-go/lib/utils"
 	"regexp"
 )
 
@@ -26,8 +25,9 @@ func init() {
 	colorRegEx, _ = regexp.Compile("^#(?:[0-9A-F]{3}){1,2}$")
 }
 
-func HandleClientReadyMessage(ready ws.ClientReady, client pad.ClientType) {
-	var sessionInfo = utils.SessionStore[client.(Client).SessionId]
+func HandleClientReadyMessage(ready ws.ClientReady, client *Client) {
+
+	var sessionInfo = SessionStore[client.SessionId]
 	var authSession = AuthSession{
 		PadID: ready.Data.PadID,
 		Token: ready.Data.Token,
@@ -57,5 +57,39 @@ func HandleClientReadyMessage(ready ws.ClientReady, client pad.ClientType) {
 
 	var foundAuthor = authorManager.GetAuthor(sessionInfo.Author)
 
-	var _, _ = padManager.GetPad(authSession.PadID, nil, &foundAuthor)
+	var retrievedPad, _ = padManager.GetPad(authSession.PadID, nil, &foundAuthor)
+
+	var authors = retrievedPad.GetAllAuthors()
+
+	var _ = retrievedPad.GetPadMetaData(retrievedPad.Head)
+
+	var historicalAuthorData = make(map[string]author.Author, 0)
+
+	for _, a := range authors {
+		var retrievedAuthor = authorManager.GetAuthor(a)
+		historicalAuthorData[a] = retrievedAuthor
+	}
+
+	var roomSockets = GetRoomSockets(authSession.PadID)
+
+	for _, socket := range roomSockets {
+		if socket.SessionId == client.SessionId {
+			var sinfo = SessionStore[socket.SessionId]
+			if sinfo.Author == sessionInfo.Author {
+				SessionStore[socket.SessionId] = Session{}
+
+				client.Leave()
+			}
+		}
+	}
+}
+
+func GetRoomSockets(padID string) []Client {
+	var sockets = make([]Client, 0)
+	for k := range HubGlob.clients {
+		if SessionStore[k.SessionId].PadId == padID {
+			sockets = append(sockets, *k)
+		}
+	}
+	return sockets
 }

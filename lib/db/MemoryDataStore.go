@@ -12,6 +12,11 @@ type MemoryDataStore struct {
 	pad2Readonly map[string]string
 }
 
+func (m MemoryDataStore) GetPadMetaData(padId string, revNum int) (db.PadMetaData, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
 func (m MemoryDataStore) GetPadIds() []string {
 	//TODO implement me
 	panic("implement me")
