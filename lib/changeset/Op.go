@@ -1,4 +1,4 @@
-package pad
+package changeset
 
 import (
 	"github.com/ether/etherpad-go/lib/utils"
@@ -40,7 +40,7 @@ func (op *Op) String() string {
 	return op.Attribs + l + op.OpCode + utils.NumToString(op.Chars)
 }
 
-func copyOp(op1 Op, op2 *Op) {
+func copyOp(op1 Op, op2 *Op) *Op {
 	if op2 != nil {
 		op2.OpCode = op1.OpCode
 		op2.Chars = op1.Chars
@@ -53,7 +53,9 @@ func copyOp(op1 Op, op2 *Op) {
 			Lines:   op1.Lines,
 			Attribs: op1.Attribs,
 		}
+		return op2
 	}
+	return nil
 }
 
 func (op *Op) clearOp() {

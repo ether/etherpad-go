@@ -1,4 +1,4 @@
-package pad
+package changeset
 
 type SmartOpAssembler struct {
 	minusAssem   MergingOpAssembler

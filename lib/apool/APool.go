@@ -1,6 +1,8 @@
-package pad
+package apool
 
-import "errors"
+import (
+	"errors"
+)
 
 type APool struct {
 	numToAttrib map[int]Attribute
@@ -16,7 +18,7 @@ func NewAPool() *APool {
 	}
 }
 
-func (a *APool) putAttrib(attrib Attribute, dontAddIfAbsent *bool) int {
+func (a *APool) PutAttrib(attrib Attribute, dontAddIfAbsent *bool) int {
 	var val, ok = a.attribToNum[attrib]
 	if ok {
 		return val
@@ -117,7 +119,7 @@ type AttributeIterator func(attributeKey *string, attributeValue *string)
  */
 func (a *APool) eachAttrib(attribConv AttributeIterator) {
 	for _, attrib := range a.numToAttrib {
-		attribConv(&attrib.key, &attrib.value)
+		attribConv(&attrib.Key, &attrib.Value)
 	}
 }
 
@@ -127,9 +129,4 @@ func (a *APool) GetAttrib(num int) Attribute {
 		return pair
 	}
 	return pair
-}
-
-type AText struct {
-	text    string
-	attribs string
 }

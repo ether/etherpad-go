@@ -1,21 +1,28 @@
-package pad
+package changeset
 
 import (
-	"github.com/ether/etherpad-go/lib/models/pad"
+	"github.com/ether/etherpad-go/lib/apool"
 	"strings"
 )
 
 type AttributeMap struct {
-	pool  pad.APool
+	pool  apool.APool
 	attrs map[string]string
 }
 
-func FromString(s string, pool pad.APool) AttributeMap {
+func NewAttributeMap(pool apool.APool) AttributeMap {
+	return AttributeMap{
+		pool:  pool,
+		attrs: make(map[string]string),
+	}
+}
+
+func FromString(s string, pool apool.APool) AttributeMap {
 	var AttrMap = AttributeMap{
 		pool:  pool,
 		attrs: make(map[string]string),
 	}
-	AttrMap.UpdateFromString(s)
+	AttrMap.UpdateFromString(s, nil)
 
 	return AttrMap
 }
@@ -26,7 +33,7 @@ func FromString(s string, pool pad.APool) AttributeMap {
  *     key is removed from this map (if present).
  * @returns {AttributeMap} `this` (for chaining).
  */
-func (a *AttributeMap) Update(entries []pad.Attribute, emptyValueISDelete *bool) *AttributeMap {
+func (a *AttributeMap) Update(entries []apool.Attribute, emptyValueISDelete *bool) *AttributeMap {
 	if emptyValueISDelete == nil {
 		*emptyValueISDelete = false
 	}
@@ -44,6 +51,14 @@ func (a *AttributeMap) Update(entries []pad.Attribute, emptyValueISDelete *bool)
 	return a
 }
 
+func (a *AttributeMap) ToArray() []apool.Attribute {
+	var attribs = make([]apool.Attribute, 0)
+	for key, value := range a.attrs {
+		attribs = append(attribs, apool.Attribute{Key: key, Value: value})
+	}
+	return attribs
+}
+
 /**
  * @param {AttributeString} str - The attribute string identifying the attributes to insert into
  *     this map.
@@ -51,6 +66,15 @@ func (a *AttributeMap) Update(entries []pad.Attribute, emptyValueISDelete *bool)
  *     key is removed from this map (if present).
  * @returns {AttributeMap} `this` (for chaining).
  */
-func (a *AttributeMap) UpdateFromString(key string) AttributeMap {
-	return a.Update()
+func (a *AttributeMap) UpdateFromString(key string, emptyValueIsDelete *bool) *AttributeMap {
+
+	if emptyValueIsDelete == nil {
+		*emptyValueIsDelete = false
+	}
+	var attribs = AttribsFromString(key, &a.pool)
+	return a.Update(attribs, emptyValueIsDelete)
+}
+
+func (a *AttributeMap) String() string {
+	return AttribsToString(a.ToArray(), &a.pool)
 }

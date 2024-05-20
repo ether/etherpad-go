@@ -1,4 +1,4 @@
-package pad
+package changeset
 
 type StringAssembler struct {
 	str string

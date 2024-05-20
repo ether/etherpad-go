@@ -1,9 +1,11 @@
 package db
 
-import "github.com/ether/etherpad-go/lib/models/pad"
+import (
+	"github.com/ether/etherpad-go/lib/apool"
+)
 
 type PadDB struct {
 	ID     string
 	RevNum int
-	Pool   *pad.APool
+	Pool   *apool.APool
 }

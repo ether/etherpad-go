@@ -1,11 +1,11 @@
-package pad
+package changeset
 
 type OpAssembler struct {
 	serialized string
 }
 
 func NewOpAssembler() OpAssembler {
-	return &OpAssembler{
+	return OpAssembler{
 		serialized: "",
 	}
 }

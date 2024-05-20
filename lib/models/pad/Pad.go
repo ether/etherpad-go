@@ -1,12 +1,12 @@
 package pad
 
 import (
+	"github.com/ether/etherpad-go/lib/apool"
+	"github.com/ether/etherpad-go/lib/changeset"
 	"github.com/ether/etherpad-go/lib/db"
 	"regexp"
 	"slices"
-	"strings"
 )
-
 
 var regex1 *regexp.Regexp
 var regex2 *regexp.Regexp
@@ -15,12 +15,11 @@ var regex4 *regexp.Regexp
 
 func init() {
 	regex1, _ = regexp.Compile("\r\n")
-	regex2,_ = regexp.Compile("\r")
-	regex3,_ = regexp.Compile("\t")
-	regex4,_ = regexp.Compile("\xa0")
+	regex2, _ = regexp.Compile("\r")
+	regex3, _ = regexp.Compile("\t")
+	regex4, _ = regexp.Compile("\xa0")
 
 }
-
 
 type Pad struct {
 	db             db.DataStore
@@ -29,25 +28,25 @@ type Pad struct {
 	Head           int
 	PublicStatus   bool
 	savedRevisions []Revision
-	Pool           APool
+	Pool           apool.APool
+	AText          apool.AText
 }
 
 func NewPad(id string) Pad {
 	p := new(Pad)
 	p.Id = id
-	p.Pool = *NewAPool()
+	p.Pool = *apool.NewAPool()
 	p.Head = -1
 	p.ChatHead = -1
 	p.PublicStatus = false
 	p.savedRevisions = make([]Revision, 0)
-
+	p.AText = changeset.MakeAText("\n", nil)
 	return *p
 }
 
-func (p *Pad) apool() *APool {
+func (p *Pad) apool() *apool.APool {
 	return &p.Pool
 }
-
 
 func cleanText(context string) *string {
 	var newStr = regex1.ReplaceAllString(context, "\n")
@@ -57,7 +56,12 @@ func cleanText(context string) *string {
 	return &newStr
 }
 
-func (p *Pad) Init(text *string, author string) {
+func (p *Pad) Init(text *string, author *string) {
+	if author == nil {
+		author = new(string)
+		*author = ""
+	}
+
 	var pad, err = p.db.GetPad(p.Id)
 
 	if err == nil {
@@ -69,10 +73,9 @@ func (p *Pad) Init(text *string, author string) {
 			var context = "Pad.Init"
 			text = cleanText(context)
 		}
-		var firstChangeset = 
-
+		var firstChangeset, _ = changeset.MakeSplice("\n", 0, 0, *text, nil, nil)
+		p.appendRevision(firstChangeset, author)
 	}
-
 }
 
 func (p *Pad) getHeadRevisionNumber() int {
@@ -98,6 +101,27 @@ func (p *Pad) getPublicStatus() bool {
 	return p.PublicStatus
 }
 
-func (p *Pad) appendRevision(rev Revision) {
-	p.savedRevisions = append(p.savedRevisions, rev)
+func (p *Pad) appendRevision(cs string, authorId *string) int {
+	if authorId == nil {
+		authorId = new(string)
+		*authorId = ""
+	}
+	var newAText = changeset.ApplyToAText(cs, p.AText, p.Pool)
+
+	if newAText.Text == p.AText.Text && newAText.Attribs == p.AText.Attribs && p.Head != -1 {
+		return p.Head
+	}
+
+	apool.CopyAText(newAText, p.AText)
+
+	p.Head++
+
+	if authorId != nil {
+		p.Pool.PutAttrib(apool.Attribute{
+			Key:   "author",
+			Value: *authorId,
+		}, nil)
+	}
+
+	p.db.SaveRevision(p.Id, p.Head, cs, p.apool())
 }
