@@ -6,7 +6,6 @@ import (
 	"github.com/ether/etherpad-go/lib/changeset"
 	"github.com/ether/etherpad-go/lib/db"
 	db2 "github.com/ether/etherpad-go/lib/models/db"
-	"github.com/ether/etherpad-go/lib/utils"
 	"regexp"
 	"slices"
 )
@@ -23,9 +22,7 @@ func init() {
 	regex2, _ = regexp.Compile("\r")
 	regex3, _ = regexp.Compile("\t")
 	regex4, _ = regexp.Compile("\xa0")
-	authorManager = author.Manager{
-		Db: utils.GetDB(),
-	}
+	authorManager = author.NewManager()
 }
 
 type Pad struct {
@@ -140,7 +137,7 @@ func (p *Pad) appendRevision(cs string, authorId *string) int {
 		}, nil)
 	}
 
-	p.db.SaveRevision(p.Id, p.Head, cs, *p.apool())
+	p.db.SaveRevision(p.Id, p.Head, cs, p.AText, *p.apool())
 
 	if authorId != nil {
 		var clonedAuthorId = *authorId
@@ -163,7 +160,7 @@ func (p *Pad) GetAllAuthors() []string {
 	return authorIds
 }
 
-func (p *Pad) GetPadMetaData(revNum int) db2.PadMetaData {
+func (p *Pad) GetPadMetaData(revNum int) *db2.PadMetaData {
 	meta, err := p.db.GetPadMetaData(p.Id, revNum)
 
 	if err != nil {

@@ -9,5 +9,6 @@ type PadDB struct {
 	RevNum         int
 	Pool           *apool.APool
 	AText          *apool.AText
-	savedRevisions []string
+	SavedRevisions []string
+	ReadOnlyId     string
 }

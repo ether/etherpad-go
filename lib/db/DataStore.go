@@ -9,8 +9,8 @@ type PadMethods interface {
 	DoesPadExist(padID string) bool
 	CreatePad(padID string, padDB db.PadDB) bool
 	GetPadIds() []string
-	SaveRevision(padId string, rev int, changeset string, text apool.APool)
-	GetPad(padID string) (db.PadDB, error)
+	SaveRevision(padId string, rev int, changeset string, text apool.AText, pool apool.APool)
+	GetPad(padID string) (*db.PadDB, error)
 	GetReadonlyPad(padId string) (string, error)
 	CreatePad2ReadOnly(padId string, readonlyId string)
 	CreateReadOnly2Pad(padId string, readonlyId string)
@@ -18,12 +18,12 @@ type PadMethods interface {
 }
 
 type PadMetaData interface {
-	GetPadMetaData(padId string, revNum int) (db.PadMetaData, error)
+	GetPadMetaData(padId string, revNum int) (*db.PadMetaData, error)
 }
 
 type AuthorMethods interface {
-	GetAuthor(author string) (db.AuthorDB, error)
-	GetAuthorByMapperKeyAndMapperValue(key string, value string) (db.AuthorDB, error)
+	GetAuthor(author string) (*db.AuthorDB, error)
+	GetAuthorByMapperKeyAndMapperValue(key string, value string) (*db.AuthorDB, error)
 	SaveAuthor(author db.AuthorDB)
 	SaveAuthorName(authorId string, authorName string)
 	SaveAuthorColor(authorId string, authorColor string)

@@ -13,6 +13,12 @@ type Manager struct {
 	Db db.DataStore
 }
 
+func NewManager() Manager {
+	return Manager{
+		Db: utils.GetDB(),
+	}
+}
+
 type Author struct {
 	Id        string
 	Name      *string
