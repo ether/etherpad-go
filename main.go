@@ -5,9 +5,7 @@ import (
 	_ "fmt"
 	"github.com/a-h/templ"
 	"github.com/ether/etherpad-go/assets/welcome"
-	"github.com/ether/etherpad-go/lib/db"
 	"github.com/ether/etherpad-go/lib/pad"
-	"github.com/ether/etherpad-go/lib/utils"
 	"github.com/ether/etherpad-go/lib/ws"
 	"github.com/gorilla/securecookie"
 	"github.com/gorilla/sessions"
@@ -85,7 +83,6 @@ func main() {
 	})
 
 	err := http.ListenAndServe(":3000", nil)
-	utils.DataStore = db.NewMemoryDataStore()
 	if err != nil {
 		return
 	}

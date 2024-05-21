@@ -7,7 +7,7 @@ import (
 
 type PadMethods interface {
 	DoesPadExist(padID string) bool
-	CreatePad(padID string) bool
+	CreatePad(padID string, padDB db.PadDB) bool
 	GetPadIds() []string
 	SaveRevision(padId string, rev int, changeset string, text apool.APool)
 	GetPad(padID string) (db.PadDB, error)

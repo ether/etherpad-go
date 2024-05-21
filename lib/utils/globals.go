@@ -69,4 +69,12 @@ var ColorPalette = []string{
 	"#b3b3e6",
 }
 
-var DataStore db.DataStore
+var datastore db.DataStore
+
+func GetDB() db.DataStore {
+	if datastore == nil {
+		datastore = db.NewMemoryDataStore()
+	}
+
+	return datastore
+}

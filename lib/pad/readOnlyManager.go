@@ -16,6 +16,12 @@ type IdRequest struct {
 	ReadOnly      bool
 }
 
+func NewReadOnlyManager() *ReadOnlyManager {
+	return &ReadOnlyManager{
+		Store: utils.GetDB(),
+	}
+}
+
 func (r *ReadOnlyManager) isReadOnlyID(id *string) bool {
 	return strings.HasPrefix(*id, "r.")
 }

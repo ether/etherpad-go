@@ -5,7 +5,9 @@ import (
 )
 
 type PadDB struct {
-	ID     string
-	RevNum int
-	Pool   *apool.APool
+	ID             string
+	RevNum         int
+	Pool           *apool.APool
+	AText          *apool.AText
+	savedRevisions []string
 }

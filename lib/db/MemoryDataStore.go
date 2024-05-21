@@ -36,7 +36,7 @@ func (m MemoryDataStore) DoesPadExist(padID string) bool {
 	return ok
 }
 
-func (m MemoryDataStore) CreatePad(padID string) bool {
+func (m MemoryDataStore) CreatePad(padID string, padDB db.PadDB) bool {
 	//TODO implement me
 	panic("implement me")
 }

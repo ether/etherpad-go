@@ -24,7 +24,7 @@ func NewList() List {
 		_cachedList: make([]string, 0),
 		_list:       make(map[string]interface{}),
 		_loaded:     false,
-		db:          utils.DataStore,
+		db:          utils.GetDB(),
 	}
 }
 
@@ -90,15 +90,14 @@ type Manager struct {
 	store db.DataStore
 }
 
-func (m *Manager) DoesPadExist(padID string) bool {
-	return m.store.DoesPadExist(padID)
+func NewManager() Manager {
+	return Manager{
+		store: utils.GetDB(),
+	}
 }
 
-func (m *Manager) createPad(padID string) bool {
-	if !m.store.CreatePad(padID) {
-
-	}
-	return true
+func (m *Manager) DoesPadExist(padID string) bool {
+	return m.store.DoesPadExist(padID)
 }
 
 func (m *Manager) isValidPadId(padID string) bool {

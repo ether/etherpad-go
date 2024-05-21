@@ -24,7 +24,7 @@ func init() {
 	regex3, _ = regexp.Compile("\t")
 	regex4, _ = regexp.Compile("\xa0")
 	authorManager = author.Manager{
-		Db: utils.DataStore,
+		Db: utils.GetDB(),
 	}
 }
 
@@ -82,7 +82,17 @@ func (p *Pad) Init(text *string, author *string) {
 		}
 		var firstChangeset, _ = changeset.MakeSplice("\n", 0, 0, *text, nil, nil)
 		p.appendRevision(firstChangeset, author)
+		p.save()
 	}
+}
+
+func (p *Pad) save() {
+	p.db.CreatePad(p.Id, db2.PadDB{
+		Pool:   &p.Pool,
+		ID:     p.Id,
+		RevNum: p.Head,
+		AText:  &p.AText,
+	})
 }
 
 func (p *Pad) getHeadRevisionNumber() int {

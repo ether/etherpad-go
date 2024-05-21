@@ -14,14 +14,14 @@ type AuthSession struct {
 	ReadOnly      bool
 }
 
-var padManager *pad.Manager
+var padManager pad.Manager
 var readOnlyManager *pad.ReadOnlyManager
 var authorManager *author.Manager
 var colorRegEx *regexp.Regexp
 
 func init() {
-	padManager = &pad.Manager{}
-	readOnlyManager = &pad.ReadOnlyManager{}
+	padManager = pad.NewManager()
+	readOnlyManager = pad.NewReadOnlyManager()
 	colorRegEx, _ = regexp.Compile("^#(?:[0-9A-F]{3}){1,2}$")
 }
 
