@@ -7,22 +7,13 @@ import (
 	"github.com/ether/etherpad-go/lib/db"
 	db2 "github.com/ether/etherpad-go/lib/models/db"
 	"github.com/ether/etherpad-go/lib/utils"
-	"regexp"
 	"slices"
+	"strings"
 )
-
-var regex1 *regexp.Regexp
-var regex2 *regexp.Regexp
-var regex3 *regexp.Regexp
-var regex4 *regexp.Regexp
 
 var authorManager author.Manager
 
 func init() {
-	regex1, _ = regexp.Compile("\r\n")
-	regex2, _ = regexp.Compile("\r")
-	regex3, _ = regexp.Compile("\t")
-	regex4, _ = regexp.Compile("\xa0")
 	authorManager = author.NewManager()
 }
 
@@ -55,11 +46,11 @@ func (p *Pad) apool() *apool.APool {
 }
 
 func cleanText(context string) *string {
-	var newStr = regex1.ReplaceAllString(context, "\n")
-	newStr = regex2.ReplaceAllString(newStr, "\n")
-	newStr = regex3.ReplaceAllString(newStr, "        ")
-	newStr = regex4.ReplaceAllString(newStr, " ")
-	return &newStr
+	context = strings.ReplaceAll(context, "\r\n", "\n")
+	context = strings.ReplaceAll(context, "\r", "\n")
+	context = strings.ReplaceAll(context, "\t", "        ")
+	context = strings.ReplaceAll(context, "\xa0", " ")
+	return &context
 }
 
 func (p *Pad) Init(text *string, author *string) {

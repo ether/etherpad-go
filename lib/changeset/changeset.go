@@ -2,8 +2,10 @@ package changeset
 
 import (
 	"errors"
+	"fmt"
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/utils"
+	"reflect"
 	"regexp"
 	"slices"
 	"strings"
@@ -20,11 +22,11 @@ func opsFromText(opcode string, text string, attribs interface{}, pool *apool.AP
 	var opsToReturn = make([]Op, 0)
 	var op = NewOp(&opcode)
 
-	if attribs == nil {
+	if attribs == nil || reflect.ValueOf(attribs).Kind() == reflect.Ptr {
 		attribs = []apool.Attribute{}
 	}
 
-	switch attribs.(type) {
+	switch v := attribs.(type) {
 	case string:
 		op.Attribs = attribs.(string)
 	case []apool.Attribute:
@@ -32,7 +34,7 @@ func opsFromText(opcode string, text string, attribs interface{}, pool *apool.AP
 		var attribMap = NewAttributeMap(pool)
 		op.Attribs = attribMap.Update(attribs.([]apool.Attribute), &emptyValueIsDelete).String()
 	default:
-		panic("Invalid attribs type")
+		fmt.Printf("Unknown argument type: %T\n", v)
 	}
 	var lastNewLinePos = strings.LastIndex(text, "\n")
 	if lastNewLinePos < 0 {

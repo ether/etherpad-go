@@ -57,8 +57,13 @@ func (m *MemoryDataStore) SaveRevision(padId string, rev int, changeset string, 
 }
 
 func (m *MemoryDataStore) GetPad(padID string) (*db.PadDB, error) {
-	//TODO implement me
-	panic("implement me")
+	pad, ok := m.padStore[padID]
+
+	if !ok {
+		return nil, errors.New("Pad not found")
+	}
+
+	return &pad, nil
 }
 
 func (m *MemoryDataStore) GetReadonlyPad(padId string) (string, error) {
