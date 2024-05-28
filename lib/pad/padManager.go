@@ -104,15 +104,15 @@ func (m *Manager) isValidPadId(padID string) bool {
 	return padRegex.MatchString(padID)
 }
 
-func (m *Manager) SanitizePadId(padID string) string {
+func (m *Manager) SanitizePadId(padID string) (*string, error) {
 	if m.isValidPadId(padID) {
-		return padID
+		return &padID, nil
 	}
-	return padID
+	return nil, errors.New("Invalid pad id")
 }
 
 func (m *Manager) GetPad(padID string, text *string, author *author.Author) (*pad.Pad, error) {
-	if m.isValidPadId(padID) {
+	if !m.isValidPadId(padID) {
 		return nil, errors.New("Invalid pad id")
 	}
 

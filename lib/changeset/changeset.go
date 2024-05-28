@@ -19,12 +19,17 @@ type Changeset struct {
 func opsFromText(opcode string, text string, attribs interface{}, pool *apool.APool) []Op {
 	var opsToReturn = make([]Op, 0)
 	var op = NewOp(&opcode)
+
+	if attribs == nil {
+		attribs = []apool.Attribute{}
+	}
+
 	switch attribs.(type) {
 	case string:
 		op.Attribs = attribs.(string)
 	case []apool.Attribute:
 		var emptyValueIsDelete = opcode == "+"
-		var attribMap = NewAttributeMap(*pool)
+		var attribMap = NewAttributeMap(pool)
 		op.Attribs = attribMap.Update(attribs.([]apool.Attribute), &emptyValueIsDelete).String()
 	default:
 		panic("Invalid attribs type")

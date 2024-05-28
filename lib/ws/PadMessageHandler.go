@@ -35,7 +35,13 @@ func HandleClientReadyMessage(ready ws.ClientReady, client *Client) {
 	}
 
 	if !padManager.DoesPadExist(ready.Data.PadID) {
-		authSession.PadID = padManager.SanitizePadId(ready.Data.PadID)
+		var padId, err = padManager.SanitizePadId(ready.Data.PadID)
+
+		if err != nil {
+			println("Error sanitizing pad id", err.Error())
+			return
+		}
+		authSession.PadID = *padId
 	}
 
 	var padIds = readOnlyManager.GetIds(&authSession.PadID)
@@ -58,7 +64,11 @@ func HandleClientReadyMessage(ready ws.ClientReady, client *Client) {
 
 	var foundAuthor = authorManager.GetAuthor(sessionInfo.Author)
 
-	var retrievedPad, _ = padManager.GetPad(authSession.PadID, nil, &foundAuthor)
+	var retrievedPad, err = padManager.GetPad(authSession.PadID, nil, &foundAuthor)
+
+	if err != nil {
+		println("Error getting pad")
+	}
 
 	var authors = retrievedPad.GetAllAuthors()
 

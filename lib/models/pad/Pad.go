@@ -6,6 +6,7 @@ import (
 	"github.com/ether/etherpad-go/lib/changeset"
 	"github.com/ether/etherpad-go/lib/db"
 	db2 "github.com/ether/etherpad-go/lib/models/db"
+	"github.com/ether/etherpad-go/lib/utils"
 	"regexp"
 	"slices"
 )
@@ -39,6 +40,7 @@ type Pad struct {
 func NewPad(id string) Pad {
 	p := new(Pad)
 	p.Id = id
+	p.db = utils.GetDB()
 	p.Pool = *apool.NewAPool()
 	p.Head = -1
 	p.ChatHead = -1

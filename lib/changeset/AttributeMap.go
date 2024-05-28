@@ -6,11 +6,11 @@ import (
 )
 
 type AttributeMap struct {
-	pool  apool.APool
+	pool  *apool.APool
 	attrs map[string]string
 }
 
-func NewAttributeMap(pool apool.APool) AttributeMap {
+func NewAttributeMap(pool *apool.APool) AttributeMap {
 	return AttributeMap{
 		pool:  pool,
 		attrs: make(map[string]string),
@@ -19,7 +19,7 @@ func NewAttributeMap(pool apool.APool) AttributeMap {
 
 func FromString(s string, pool apool.APool) AttributeMap {
 	var AttrMap = AttributeMap{
-		pool:  pool,
+		pool:  &pool,
 		attrs: make(map[string]string),
 	}
 	AttrMap.UpdateFromString(s, nil)
@@ -71,10 +71,10 @@ func (a *AttributeMap) UpdateFromString(key string, emptyValueIsDelete *bool) *A
 	if emptyValueIsDelete == nil {
 		*emptyValueIsDelete = false
 	}
-	var attribs = AttribsFromString(key, &a.pool)
+	var attribs = AttribsFromString(key, a.pool)
 	return a.Update(attribs, emptyValueIsDelete)
 }
 
 func (a *AttributeMap) String() string {
-	return AttribsToString(a.ToArray(), &a.pool)
+	return AttribsToString(a.ToArray(), a.pool)
 }
