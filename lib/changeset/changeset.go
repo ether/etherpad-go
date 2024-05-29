@@ -144,19 +144,34 @@ func ApplyToText(cs string, text string) (*string, error) {
 	var strIter = NewStringIterator(text)
 	var assem = NewStringAssembler()
 
-	var deserializedOp, _ = DeserializeOps(unpacked.Ops)
-	switch deserializedOp.OpCode {
-	case "=":
-		assem.Append(strIter.Take(deserializedOp.Chars))
-		break
-	case "-":
-		strIter.Skip(deserializedOp.Chars)
-		break
-	case "+":
-		assem.Append(bankIter.Take(deserializedOp.Chars))
-		break
-	default:
-		return nil, errors.New("invalid op type")
+	var deserializedOp, err = DeserializeOps(unpacked.Ops)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, op := range *deserializedOp {
+		switch op.OpCode {
+		case "+":
+			if op.Lines != len(strings.Split(bankIter.Peek(op.Chars), "\n"))-1 {
+				return nil, errors.New("newline count is wrong in op +; cs:${cs} and text:${str}")
+			}
+			assem.Append(bankIter.Take(op.Chars))
+			break
+		case "-":
+			if op.Lines != len(strings.Split(strIter.Peek(op.Chars), "\n"))-1 {
+				return nil, errors.New("newline count is wrong in op -; cs:${cs} and text:${str}")
+			}
+			strIter.Skip(op.Chars)
+			break
+		case "=":
+			if op.Lines != len(strings.Split(strIter.Peek(op.Chars), "\n"))-1 {
+				return nil, errors.New("newline count is wrong in op -; cs:${cs} and text:${str}")
+			}
+			assem.Append(strIter.Take(op.Chars))
+			break
+		default:
+			return nil, errors.New("invalid op type")
+		}
 	}
 	assem.Append(strIter.Take(strIter.Remaining()))
 	var stringRep = assem.String()
@@ -169,33 +184,47 @@ func ApplyZip(in1 string, in2 string, callback func(*Op, *Op) Op) string {
 
 	var assem = NewSmartOpAssembler()
 
-	for ops1.OpCode != "" || ops2.OpCode != "" {
-		var op = callback(ops1, ops2)
-		assem.Append(op)
+	for len(*ops1) > 0 && len(*ops2) > 0 {
+		var op1 = (*ops1)[0]
+		var op2 = (*ops2)[0]
+		var res = callback(&op1, &op2)
+		if res.OpCode != "" {
+			assem.Append(res)
+		}
+		if op1.OpCode == "" {
+			*ops1 = (*ops1)[1:]
+		}
+		if op2.OpCode == "" {
+			*ops2 = (*ops2)[1:]
+		}
 	}
 	assem.EndDocument()
 	return assem.String()
 }
 
-func DeserializeOps(ops string) (*Op, error) {
+func DeserializeOps(ops string) (*[]Op, error) {
 	var regex = regexp.MustCompile("((?:\\*[0-9a-z]+)*)(?:\\|([0-9a-z]+))?([-+=])([0-9a-z]+)|(.)")
-	var matches = regex.FindAllString(ops, -1)
+	var matches = regex.FindAllStringSubmatch(ops, -1)
+	var opsToReturn = make([]Op, 0)
 
-	if matches[5] == "$" {
-		return nil, errors.New("no valid op found")
+	for _, match := range matches {
+		if match[5] == "$" {
+			return nil, errors.New("no valid op found")
+		}
+
+		var op = NewOp(&match[3])
+
+		if len(match[2]) > 0 {
+			op.Lines, _ = utils.ParseNum(match[2])
+		} else {
+			op.Lines = 0
+		}
+
+		op.Chars, _ = utils.ParseNum(match[4])
+		op.Attribs = match[1]
+		opsToReturn = append(opsToReturn, op)
 	}
-
-	var op = NewOp(&matches[3])
-
-	if len(matches[2]) > 0 {
-		op.Lines, _ = utils.ParseNum(matches[2])
-	} else {
-		op.Lines = 0
-	}
-
-	op.Chars, _ = utils.ParseNum(matches[4])
-	op.Attribs = matches[1]
-	return &op, nil
+	return &opsToReturn, nil
 }
 
 func ComposeAttributes(attribs1 string, attribs2 string, resultIsMutation bool, pool apool.APool) string {

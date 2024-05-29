@@ -12,7 +12,7 @@ type StringIterator struct {
 }
 
 func NewStringIterator(str string) StringIterator {
-	return StringIterator{curIndex: 0, newLines: utils.CountLines(str, '\n') - 1, str: str}
+	return StringIterator{curIndex: 0, newLines: utils.CountLines(str, '\n'), str: str}
 }
 
 func (si *StringIterator) Remaining() int {
@@ -20,7 +20,7 @@ func (si *StringIterator) Remaining() int {
 }
 
 func (si *StringIterator) AssertRemaining(n int) error {
-	if n <= si.Remaining() {
+	if n > si.Remaining() {
 		return errors.New("not enough characters remaining")
 	}
 	return nil
@@ -34,7 +34,7 @@ func (si *StringIterator) Take(n int) string {
 	}
 
 	var s = si.str[si.curIndex : si.curIndex+n]
-	si.newLines -= utils.CountLines(s, '\n') - 1
+	si.newLines -= utils.CountLines(s, '\n')
 	si.curIndex += n
 	return s
 }
