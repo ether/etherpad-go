@@ -100,7 +100,7 @@ func (c *Client) SendUserDupMessage() {
 	c.Send <- []byte(`{"disconnect":"userdup"}`)
 }
 
-// serveWs handles websocket requests from the peer.
+// ServeWs serveWs handles websocket requests from the peer.
 func ServeWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 	println("Serving ws", r.URL.Path)
 	conn, err := upgrader.Upgrade(w, r, nil)

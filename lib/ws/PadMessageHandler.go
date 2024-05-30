@@ -74,7 +74,7 @@ func HandleClientReadyMessage(ready ws.ClientReady, client *Client) {
 
 	var _ = retrievedPad.GetPadMetaData(retrievedPad.Head)
 
-	var historicalAuthorData = make(map[string]author.Author, 0)
+	var historicalAuthorData = make(map[string]author.Author)
 
 	for _, a := range authors {
 		var retrievedAuthor = authorManager.GetAuthor(a)
