@@ -18,7 +18,7 @@ type Changeset struct {
 	CharBank string
 }
 
-func opsFromText(opcode string, text string, attribs interface{}, pool *apool.APool) []Op {
+func OpsFromText(opcode string, text string, attribs interface{}, pool *apool.APool) []Op {
 	var opsToReturn = make([]Op, 0)
 	var op = NewOp(&opcode)
 
@@ -87,9 +87,9 @@ func MakeSplice(orig string, start int, ndel int, ins string, attribs *string, p
 	var assem = NewSmartOpAssembler()
 	var opsGenerated = make([]Op, 0)
 
-	var equalOps = opsFromText("=", orig[:start], "", nil)
-	var deletedOps = opsFromText("-", deleted, "", nil)
-	var insertedOps = opsFromText("+", ins, attribs, pool)
+	var equalOps = OpsFromText("=", orig[:start], "", nil)
+	var deletedOps = OpsFromText("-", deleted, "", nil)
+	var insertedOps = OpsFromText("+", ins, attribs, pool)
 
 	opsGenerated = append(opsGenerated, equalOps...)
 	opsGenerated = append(opsGenerated, deletedOps...)
@@ -342,7 +342,7 @@ func ApplyToAText(cs string, atext apool.AText, pool apool.APool) apool.AText {
 
 func MakeAttribution(text string) string {
 	var assem = NewSmartOpAssembler()
-	for _, i := range opsFromText("+", text, nil, nil) {
+	for _, i := range OpsFromText("+", text, nil, nil) {
 		assem.Append(i)
 	}
 

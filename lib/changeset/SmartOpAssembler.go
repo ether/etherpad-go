@@ -53,7 +53,7 @@ func (sm *SmartOpAssembler) Append(op Op) {
 		}
 		sm.plusAssem.Append(op)
 		sm.lengthChange += op.Chars
-	} else if op.OpCode == "" {
+	} else if op.OpCode == "=" {
 		if sm.lastOpcode != "=" {
 			sm.flushPlusMinus()
 		}

@@ -34,7 +34,7 @@ func (op *Op) String() string {
 	if op.Lines == 0 {
 		l = ""
 	} else {
-		l = utils.NumToString(op.Lines)
+		l = "|" + utils.NumToString(op.Lines)
 	}
 
 	return op.Attribs + l + op.OpCode + utils.NumToString(op.Chars)

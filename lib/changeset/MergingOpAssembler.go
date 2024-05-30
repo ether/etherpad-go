@@ -18,10 +18,10 @@ func (m *MergingOpAssembler) flush(isEndDocument bool) {
 		return
 	}
 	if isEndDocument && m.bufOp.OpCode == "=" && m.bufOp.Attribs == "" {
-		return
+		// final merged keep, leave it implicit
 	} else {
 		m.assem.Append(m.bufOp)
-		if m.bufOpAdditionalCharsAfterNewline > 0 {
+		if m.bufOpAdditionalCharsAfterNewline != 0 {
 			m.bufOp.Chars = m.bufOpAdditionalCharsAfterNewline
 			m.bufOp.Lines = 0
 			m.assem.Append(m.bufOp)
