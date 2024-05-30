@@ -18,6 +18,42 @@ type Changeset struct {
 	CharBank string
 }
 
+func OpsFromAText(atext apool.AText) *[]Op {
+	var lastOp *Op = nil
+	var attribs, _ = DeserializeOps(atext.Attribs)
+	var opsToReturn = make([]Op, 0)
+
+	for _, op := range *attribs {
+		if lastOp != nil {
+			opsToReturn = append(opsToReturn, *lastOp)
+		}
+		lastOp = &op
+	}
+
+	if lastOp == nil {
+		return nil
+	}
+	// exclude final newline
+
+	if lastOp.Lines <= 1 {
+		lastOp.Lines = 0
+		lastOp.Chars--
+	} else {
+		lastNewlineIndex := strings.LastIndex(atext.Text, "\n")
+		nextToLastNewlineEnd := strings.LastIndex(atext.Text[:lastNewlineIndex], "\n") + 1
+		lastLineLength := len(atext.Text) - nextToLastNewlineEnd - 1
+		lastOp.Lines--
+		lastOp.Chars -= lastLineLength + 1
+		opsToReturn = append(opsToReturn, *copyOp(*lastOp, nil))
+		lastOp.Lines = 0
+		lastOp.Chars = lastLineLength
+	}
+	if lastOp.Chars != 0 {
+		opsToReturn = append(opsToReturn, *lastOp)
+	}
+	return &opsToReturn
+}
+
 func OpsFromText(opcode string, text string, attribs interface{}, pool *apool.APool) []Op {
 	var opsToReturn = make([]Op, 0)
 	var op = NewOp(&opcode)

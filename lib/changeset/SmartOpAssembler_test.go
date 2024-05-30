@@ -1,6 +1,7 @@
 package changeset
 
 import (
+	"github.com/ether/etherpad-go/lib/apool"
 	"testing"
 )
 
@@ -91,4 +92,84 @@ func TestSmartAssembler_Ignore_Minus_Ops_With_Ops_Chars0(t *testing.T) {
 	if assembler.String() != "-k" {
 		t.Error("Expected -k, got ", assembler.String())
 	}
+}
+
+func TestSmartAssembler_Clear_Should_Empty_Internal_Assembler(t *testing.T) {
+	const x = "-c*3*4+6|3=az*asdf0*1*2*3+1=1-1+1*0+1=1-1+1|c=c-1"
+
+	var ops, err = DeserializeOps(x)
+	if err != nil {
+		t.Error(err)
+	}
+
+	var assembler = NewSmartOpAssembler()
+	var opsExtracted = *ops
+	nextElement, opsExtracted := opsExtracted[0], opsExtracted[1:]
+	assembler.Append(nextElement)
+	nextElement, opsExtracted = opsExtracted[0], opsExtracted[1:]
+	assembler.Append(nextElement)
+	nextElement, opsExtracted = opsExtracted[0], opsExtracted[1:]
+	assembler.Append(nextElement)
+	assembler.Clear()
+	nextElement, opsExtracted = opsExtracted[0], opsExtracted[1:]
+	assembler.Append(nextElement)
+	nextElement, opsExtracted = opsExtracted[0], opsExtracted[1:]
+	assembler.Append(nextElement)
+	assembler.Clear()
+
+	for _, op := range opsExtracted {
+		assembler.Append(op)
+	}
+
+	assembler.EndDocument()
+	if assembler.String() != "-1+1*0+1=1-1+1|c=c-1" {
+		t.Error("Expected -1+1*0+1=1-1+1|c=c-1, got ", assembler.String())
+	}
+}
+
+func testAppendATextToAssembler(t *testing.T, testId int, atext apool.AText, correctOps string) {
+	var assembler = NewSmartOpAssembler()
+	var ops = OpsFromAText(atext)
+
+	for _, op := range *ops {
+		assembler.Append(op)
+	}
+	if assembler.String() != correctOps {
+		t.Errorf("Test %d: Expected %s, got %s", testId, correctOps, assembler.String())
+	}
+}
+
+func TestAppendATextToAssembler(t *testing.T) {
+	testAppendATextToAssembler(t, 1, apool.AText{
+		Text:    "\n",
+		Attribs: "|1+1",
+	}, "")
+	testAppendATextToAssembler(t, 2, apool.AText{
+		Text:    "\n\n",
+		Attribs: "|2+2",
+	}, "|1+1")
+	testAppendATextToAssembler(t, 3, apool.AText{
+		Text:    "\n\n",
+		Attribs: "*x|2+2",
+	}, "*x|1+1")
+	testAppendATextToAssembler(t, 4, apool.AText{
+		Text:    "\n\n",
+		Attribs: "*x|1+1|1+1",
+	}, "*x|1+1")
+	testAppendATextToAssembler(t, 5, apool.AText{
+		Text:    "foo\n",
+		Attribs: "|1+4",
+	}, "+3")
+	testAppendATextToAssembler(t, 6, apool.AText{
+		Text:    "\nfoo\n",
+		Attribs: "|2+5",
+	}, "|1+1+3")
+	testAppendATextToAssembler(t, 7, apool.AText{
+		Text:    "\nfoo\n",
+		Attribs: "*x|2+5",
+	}, "*x|1+1*x+3")
+	testAppendATextToAssembler(t, 8, apool.AText{
+		Text:    "\n\n\nfoo\n",
+		Attribs: "|2+2*x|2+5",
+	}, "|2+2*x|1+1*x+3")
 }
