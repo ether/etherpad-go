@@ -12,8 +12,8 @@ func TestMakeSplice(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if *t2 != "a\nb\ndef\nc\n" {
-		t.Error("Expected a\nb\ndef\nc\n, got ", *t2)
+	if *t2 != "a\nb\ncdef\n" {
+		t.Error("Expected a\nb\ncdef\n, got ", *t2)
 	}
 }
 

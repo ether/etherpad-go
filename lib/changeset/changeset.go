@@ -161,13 +161,17 @@ func ApplyToText(cs string, text string) (*string, error) {
 			if op.Lines != len(strings.Split(strIter.Peek(op.Chars), "\n"))-1 {
 				return nil, errors.New("newline count is wrong in op -; cs:${cs} and text:${str}")
 			}
-			strIter.Skip(op.Chars)
+			err := strIter.Skip(op.Chars)
+			if err != nil {
+				return nil, err
+			}
 			break
 		case "=":
 			if op.Lines != len(strings.Split(strIter.Peek(op.Chars), "\n"))-1 {
 				return nil, errors.New("newline count is wrong in op -; cs:${cs} and text:${str}")
 			}
-			assem.Append(strIter.Take(op.Chars))
+			var iter = strIter.Take(op.Chars)
+			assem.Append(iter)
 			break
 		default:
 			return nil, errors.New("invalid op type")
