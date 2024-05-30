@@ -103,7 +103,7 @@ func MakeSplice(orig string, start int, ndel int, ins string, attribs *string, p
 
 func Unpack(cs string) (*Changeset, error) {
 	var headerRegex, _ = regexp.Compile("Z:([0-9a-z]+)([><])([0-9a-z]+)|")
-	var foundHeaders = headerRegex.FindAllString(cs, -1)
+	var foundHeaders = headerRegex.FindStringSubmatch(cs)
 
 	if len(foundHeaders) == 0 {
 		return nil, errors.New("no valid header found")
@@ -136,7 +136,7 @@ func Unpack(cs string) (*Changeset, error) {
 
 func ApplyToText(cs string, text string) (*string, error) {
 	var unpacked, _ = Unpack(cs)
-	if len(text) == unpacked.OldLen {
+	if len(text) != unpacked.OldLen {
 		return nil, errors.New("mismatched text length")
 	}
 
