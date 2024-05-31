@@ -40,6 +40,7 @@ func sessionMiddleware(h http.HandlerFunc) http.HandlerFunc {
 }
 
 func main() {
+
 	server := sio.NewServer()
 	store = sessions.NewCookieStore(securecookie.GenerateRandomKey(32))
 
@@ -52,7 +53,10 @@ func main() {
 	http.Handle("/css/", http.StripPrefix("/css/", cssDir))
 	http.Handle("/js/", http.StripPrefix("/js/", jsDir))
 	http.Handle("/images/", http.StripPrefix("/images/", imagesDir))
+	http.HandleFunc("/pluginfw/plugin-definitions.json", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
 
+	})
 	http.Handle("/pluginfw/", http.StripPrefix("/pluginfw", pluginDir))
 	http.Handle("/p/*", sessionMiddleware(pad.HandlePadOpen))
 
