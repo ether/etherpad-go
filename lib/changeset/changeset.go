@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -400,5 +401,45 @@ func MakeAText(str string, attribs *string) apool.AText {
 	return apool.AText{
 		Text:    str,
 		Attribs: aTextAttrib,
+	}
+}
+
+func CloneAText(atext apool.AText) apool.AText {
+	return apool.AText{
+		Text:    atext.Text,
+		Attribs: atext.Attribs,
+	}
+}
+
+func moveOpsToNewPool(cs string, oldPool apool.APool, newPool apool.APool) string {
+	var dollarPos = strings.Index(cs, "$")
+	if dollarPos < 0 {
+		dollarPos = len(cs)
+	}
+
+	var upToDollar = cs[:dollarPos]
+	var fromDollar = cs[dollarPos:]
+	var regex = regexp.MustCompile("\\*([0-9a-z]+)")
+	var resultingString = regex.ReplaceAllStringFunc(upToDollar, func(match string) string {
+		oldNum, _ := strconv.ParseInt(match[1:], 36, 64) // Parse the number from base 36 to base 10
+		pair := oldPool.GetAttrib(int(oldNum))
+
+		newNum := newPool.PutAttrib(pair, nil)
+		return "*" + strconv.FormatInt(int64(newNum), 36)
+	}) + fromDollar
+	return resultingString
+}
+
+type PrepareForWireStruct struct {
+	Translated string
+	Pool       apool.APool
+}
+
+func PrepareForWire(cs string, pool apool.APool) PrepareForWireStruct {
+	var newPool = apool.NewAPool()
+	var newCS = moveOpsToNewPool(cs, pool, *newPool)
+	return PrepareForWireStruct{
+		Pool:       *newPool,
+		Translated: newCS,
 	}
 }

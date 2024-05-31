@@ -2,6 +2,7 @@ package ws
 
 import (
 	"github.com/ether/etherpad-go/lib/author"
+	"github.com/ether/etherpad-go/lib/changeset"
 	"github.com/ether/etherpad-go/lib/models/ws"
 	"github.com/ether/etherpad-go/lib/pad"
 	"regexp"
@@ -88,11 +89,19 @@ func HandleClientReadyMessage(ready ws.ClientReady, client *Client) {
 			var sinfo = SessionStore[socket.SessionId]
 			if sinfo.Author == sessionInfo.Author {
 				SessionStore[socket.SessionId] = Session{}
-
 				client.Leave()
 			}
 		}
 	}
+
+	if ready.Data.Reconnect != nil && *ready.Data.Reconnect {
+
+	} else {
+		var atext = changeset.CloneAText(retrievedPad.AText)
+		var attribsForWire = changeset.PrepareForWire(atext.Attribs, retrievedPad.Pool)
+		atext.Attribs = attribsForWire.Translated
+	}
+
 }
 
 func GetRoomSockets(padID string) []Client {

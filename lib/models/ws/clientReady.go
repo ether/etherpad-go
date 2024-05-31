@@ -11,5 +11,6 @@ type ClientReady struct {
 			ColorId *string `json:"colorId"`
 			Name    *string `json:"name"`
 		} `json:"userInfo"`
+		Reconnect *bool `json:"reconnect"`
 	} `json:"data"`
 }
