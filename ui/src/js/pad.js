@@ -296,6 +296,7 @@ const handshake = async () => {
   });
 
   socket.on('message', (obj) => {
+    console.log("Incoming message is", obj)
     // the access was not granted, give the user a message
     if (obj.accessStatus) {
       if (obj.accessStatus === 'deny') {
@@ -309,6 +310,7 @@ const handshake = async () => {
         }
       }
     } else if (!receivedClientVars && obj.type === 'CLIENT_VARS') {
+      console.log("Received client vars")
       receivedClientVars = true;
       window.clientVars = obj.data;
       if (window.clientVars.sessionRefreshInterval) {
@@ -334,6 +336,7 @@ const handshake = async () => {
   await Promise.all([
     new Promise((resolve) => {
       const h = (obj) => {
+        console.log("Incoming message is")
         if (obj.accessStatus || obj.type !== 'CLIENT_VARS') return;
         socket.off('message', h);
         resolve();

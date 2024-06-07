@@ -113,12 +113,12 @@ func (m *Manager) SanitizePadId(padID string) (*string, error) {
 
 func (m *Manager) GetPad(padID string, text *string, author *author.Author) (*pad.Pad, error) {
 	if !m.isValidPadId(padID) {
-		return nil, errors.New("Invalid pad id")
+		return nil, errors.New("invalid pad id")
 	}
 
 	if text != nil {
 		if len(*text) > 100000 {
-			return nil, errors.New("Text is too long")
+			return nil, errors.New("text is too long")
 		}
 	}
 

@@ -17,6 +17,12 @@ export class SocketIoWrapper {
                 }
             }, 200)
         }
+        this.socket.onmessage = (e)=>{
+            const arr = JSON.parse(e.data)
+            this.eventCallbacks[arr[0]].forEach(f=>{
+                f(arr[1])
+            })
+        }
     }
 
 
@@ -33,6 +39,7 @@ export class SocketIoWrapper {
     }
 
     public on(event: string, callback: Function) {
+        console.log(event)
         if (this.eventCallbacks[event]) {
             this.eventCallbacks[event].push(callback)
         } else {
@@ -42,5 +49,9 @@ export class SocketIoWrapper {
 
     public emit(event: string, data: any) {
         this.socket.send(JSON.stringify({event, data}))
+    }
+
+    public off() {
+        console.log("Off")
     }
 }

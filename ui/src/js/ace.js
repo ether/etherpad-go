@@ -27,8 +27,12 @@
 const hooks = require('./pluginfw/hooks');
 const makeCSSManager = require('./cssmanager').makeCSSManager;
 const pluginUtils = require('./pluginfw/shared');
-
-const debugLog = (...args) => {};
+const Ace2Inner = require('./ace2_inner')
+const clientPlugins = require('./pluginfw/client_plugins')
+const debugLog = (...args) => {
+  console.log(args)
+};
+const jQuery = require('./rjquery')
 
 // The inner and outer iframe's locations are about:blank, so relative URLs are relative to that.
 // Firefox and Chrome seem to do what the developer intends if given a relative URL, but Safari
@@ -257,7 +261,7 @@ const Ace2Editor = function () {
 
     // <head> tag
     addStyleTagsFor(innerDocument, includedCSS);
-    const requireKernel = innerDocument.createElement('script');
+    /*const requireKernel = innerDocument.createElement('script');
     requireKernel.type = 'text/javascript';
     requireKernel.src =
         absUrl(`../static/js/require-kernel.js?v=${clientVars.randomVersionString}`);
@@ -269,7 +273,7 @@ const Ace2Editor = function () {
       script.src = absUrl(`../javascripts/lib/ep_etherpad-lite/static/js/${module}.js` +
                           `?callback=require.define&v=${clientVars.randomVersionString}`);
       innerDocument.head.appendChild(script);
-    }
+    }*/
     const innerStyle = innerDocument.createElement('style');
     innerStyle.type = 'text/css';
     innerStyle.title = 'dynamicsyntax';
@@ -286,19 +290,19 @@ const Ace2Editor = function () {
     innerDocument.body.appendChild(innerDocument.createTextNode('\u00A0')); // &nbsp;
 
     debugLog('Ace2Editor.init() waiting for require kernel load');
-    await eventFired(requireKernel, 'load');
+    //await eventFired(requireKernel, 'load');
     debugLog('Ace2Editor.init() require kernel loaded');
-    const require = innerWindow.require;
+    /*const require = innerWindow.require;
     require.setRootURI(absUrl('../javascripts/src'));
     require.setLibraryURI(absUrl('../javascripts/lib'));
-    require.setGlobalKeyPath('require');
+    require.setGlobalKeyPath('require');*/
 
     // intentially moved before requiring client_plugins to save a 307
-    innerWindow.Ace2Inner = require('./ace2_inner');
-    innerWindow.plugins = require('./pluginfw/client_plugins');
+    innerWindow.Ace2Inner = Ace2Inner;
+    innerWindow.plugins = clientPlugins;
     innerWindow.plugins.adoptPluginsFromAncestorsOf(innerWindow);
 
-    innerWindow.$ = innerWindow.jQuery = require('./rjquery').jQuery;
+    innerWindow.$ = innerWindow.jQuery = jQuery.jQuery;
 
     debugLog('Ace2Editor.init() waiting for plugins');
     await new Promise((resolve, reject) => innerWindow.plugins.ensure(

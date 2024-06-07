@@ -70,6 +70,7 @@ const init = () => {
 
     // route the incoming messages
     socket.on('message', (message) => {
+      console.log("Incoming message is")
       if (message.type === 'CLIENT_VARS') {
         handleClientVars(message);
       } else if (message.accessStatus) {

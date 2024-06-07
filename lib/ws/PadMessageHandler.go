@@ -1,10 +1,13 @@
 package ws
 
 import (
+	"encoding/json"
 	"github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/changeset"
 	"github.com/ether/etherpad-go/lib/models/ws"
 	"github.com/ether/etherpad-go/lib/pad"
+	"github.com/ether/etherpad-go/lib/settings"
+	"github.com/gorilla/websocket"
 	"regexp"
 )
 
@@ -64,8 +67,23 @@ func HandleClientReadyMessage(ready ws.ClientReady, client *Client) {
 	}
 
 	var foundAuthor = authorManager.GetAuthor(sessionInfo.Author)
+	var arr = make([]interface{}, 2)
+	arr[0] = "message"
+	arr[1] = Message{
+		Data: settings.NewClientVars(),
+		Type: "CLIENT_VARS",
+	}
+	var encoded, err1 = json.Marshal(arr)
+
+	if err1 != nil {
+		println(err1.Error())
+	}
+
+	client.conn.WriteMessage(websocket.TextMessage, encoded)
 
 	var retrievedPad, err = padManager.GetPad(authSession.PadID, nil, &foundAuthor)
+
+	println("Hello world")
 
 	if err != nil {
 		println("Error getting pad")
@@ -100,8 +118,11 @@ func HandleClientReadyMessage(ready ws.ClientReady, client *Client) {
 		var atext = changeset.CloneAText(retrievedPad.AText)
 		var attribsForWire = changeset.PrepareForWire(atext.Attribs, retrievedPad.Pool)
 		atext.Attribs = attribsForWire.Translated
-	}
+		/*var clientVars settings.ClientVars = settings.ClientVars{
+			SkinName: "",
+		}*/
 
+	}
 }
 
 func GetRoomSockets(padID string) []Client {
