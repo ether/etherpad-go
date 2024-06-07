@@ -4,7 +4,7 @@ import commonjs from '@rollup/plugin-commonjs';
 
 export default defineConfig({
     build:{
-      minify: false
+      minify: true
     },
     resolve: {
         alias: {
@@ -15,7 +15,6 @@ export default defineConfig({
             commonjs({
                 requireReturnsDefault: 'auto', // <---- this solves default issue
             }),
-
             // vite4
             // vitePluginRequire.default()
         ],

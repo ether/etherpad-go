@@ -6,6 +6,7 @@ import (
 	"github.com/a-h/templ"
 	"github.com/ether/etherpad-go/assets/welcome"
 	"github.com/ether/etherpad-go/lib/pad"
+	"github.com/ether/etherpad-go/lib/plugins"
 	"github.com/ether/etherpad-go/lib/ws"
 	"github.com/gorilla/securecookie"
 	"github.com/gorilla/sessions"
@@ -53,6 +54,7 @@ func main() {
 	http.Handle("/css/", http.StripPrefix("/css/", cssDir))
 	http.Handle("/js/", http.StripPrefix("/js/", jsDir))
 	http.Handle("/images/", http.StripPrefix("/images/", imagesDir))
+	http.HandleFunc("GET /pluginfw/plugin-definitions.json", plugins.ReturnPluginResponse)
 	http.HandleFunc("/pluginfw/plugin-definitions.json", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 

@@ -2,6 +2,7 @@ package plugins
 
 import (
 	"encoding/json"
+	"net/http"
 	"os"
 	"path"
 )
@@ -59,4 +60,23 @@ func LoadPlugin(plugin Plugin, plugins map[string]Plugin, parts map[string]Part)
 		part.FullName = &fullName
 		parts[*part.FullName] = part
 	}
+}
+
+type ClientPlugin struct {
+	Plugins map[string]string `json:"plugins"`
+	Parts   []string          `json:"parts"`
+}
+
+func ReturnPluginResponse(w http.ResponseWriter, r *http.Request) {
+	var clientPlugins = ClientPlugin{
+		Plugins: map[string]string{},
+		Parts:   make([]string, 0),
+	}
+	var clPlugin, _ = json.Marshal(clientPlugins)
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_, err := w.Write(clPlugin)
+	if err != nil {
+		return
+	}
+
 }
