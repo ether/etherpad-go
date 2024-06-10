@@ -9,7 +9,7 @@ type PadMethods interface {
 	DoesPadExist(padID string) bool
 	CreatePad(padID string, padDB db.PadDB) bool
 	GetPadIds() []string
-	SaveRevision(padId string, rev int, changeset string, text apool.AText, pool apool.APool)
+	SaveRevision(padId string, rev int, changeset string, text apool.AText, pool apool.APool, authorId *string, timestamp int)
 	GetPad(padID string) (*db.PadDB, error)
 	GetReadonlyPad(padId string) (string, error)
 	CreatePad2ReadOnly(padId string, readonlyId string)

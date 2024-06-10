@@ -9,6 +9,7 @@ import (
 	"github.com/ether/etherpad-go/lib/utils"
 	"slices"
 	"strings"
+	"time"
 )
 
 var authorManager author.Manager
@@ -62,9 +63,8 @@ func (p *Pad) Init(text *string, author *string) {
 	var pad, err = p.db.GetPad(p.Id)
 
 	if err == nil {
-		if pad.Pool != nil {
-			p.Pool = *pad.Pool
-		}
+		var padMetaData = pad.SavedRevisions[pad.RevNum].PadDBMeta
+		p.Pool = *padMetaData.Pool
 	} else {
 		if text == nil {
 			var context = "Pad.Init"
@@ -78,10 +78,9 @@ func (p *Pad) Init(text *string, author *string) {
 
 func (p *Pad) save() {
 	p.db.CreatePad(p.Id, db2.PadDB{
-		Pool:   &p.Pool,
-		ID:     p.Id,
-		RevNum: p.Head,
-		AText:  &p.AText,
+		SavedRevisions: make(map[int]db2.PadRevision),
+		ID:             p.Id,
+		RevNum:         p.Head,
 	})
 }
 
@@ -130,7 +129,9 @@ func (p *Pad) appendRevision(cs string, authorId *string) int {
 		}, nil)
 	}
 
-	p.db.SaveRevision(p.Id, p.Head, cs, p.AText, *p.apool())
+	// Save pad
+	p.save()
+	p.db.SaveRevision(p.Id, p.Head, cs, p.AText, *p.apool(), authorId, int(time.Now().UnixNano()/int64(time.Millisecond)))
 
 	if authorId != nil {
 		var clonedAuthorId = *authorId
@@ -157,7 +158,7 @@ func (p *Pad) GetPadMetaData(revNum int) *db2.PadMetaData {
 	meta, err := p.db.GetPadMetaData(p.Id, revNum)
 
 	if err != nil {
-		panic("error retrieving meta data")
+		return nil
 	}
 
 	return meta

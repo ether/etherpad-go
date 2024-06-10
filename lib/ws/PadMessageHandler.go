@@ -82,11 +82,9 @@ func HandleClientReadyMessage(ready ws.ClientReady, client *Client) {
 	client.conn.WriteMessage(websocket.TextMessage, encoded)
 
 	var retrievedPad, err = padManager.GetPad(authSession.PadID, nil, &foundAuthor)
-
-	println("Hello world")
-
 	if err != nil {
 		println("Error getting pad")
+		return
 	}
 
 	var authors = retrievedPad.GetAllAuthors()

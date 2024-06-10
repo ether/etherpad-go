@@ -14,8 +14,21 @@ type MemoryDataStore struct {
 }
 
 func (m *MemoryDataStore) GetPadMetaData(padId string, revNum int) (*db.PadMetaData, error) {
-	//TODO implement me
-	panic("implement me")
+	var retrievedPad, ok = m.padStore[padId]
+
+	if !ok {
+		panic("Pad not found")
+	}
+	var rev, found = retrievedPad.SavedRevisions[revNum]
+
+	if !found {
+		return nil, errors.New("revision not found")
+	}
+
+	return &db.PadMetaData{
+		Author:    rev.PadDBMeta.Author,
+		Timestamp: rev.PadDBMeta.Timestamp,
+	}, nil
 }
 
 func (m *MemoryDataStore) GetPadIds() []string {
@@ -45,15 +58,23 @@ func (m *MemoryDataStore) CreatePad(padID string, padDB db.PadDB) bool {
 	return true
 }
 
-func (m *MemoryDataStore) SaveRevision(padId string, rev int, changeset string, text apool.AText, pool apool.APool) {
+func (m *MemoryDataStore) SaveRevision(padId string, rev int, changeset string,
+	text apool.AText, pool apool.APool, authorId *string, timestamp int) {
 	var retrievedPad, ok = m.padStore[padId]
 	if !ok {
 		panic("Pad not found")
 	}
 	retrievedPad.RevNum = rev
-	retrievedPad.AText = &text
-	retrievedPad.Pool = &pool
-	retrievedPad.SavedRevisions = append(m.padStore[padId].SavedRevisions, changeset)
+
+	retrievedPad.SavedRevisions[rev] = db.PadRevision{
+		Content: changeset,
+		PadDBMeta: db.PadDBMeta{
+			Pool:      &pool,
+			AText:     &text,
+			Author:    authorId,
+			Timestamp: timestamp,
+		},
+	}
 }
 
 func (m *MemoryDataStore) GetPad(padID string) (*db.PadDB, error) {

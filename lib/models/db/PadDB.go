@@ -7,8 +7,18 @@ import (
 type PadDB struct {
 	ID             string
 	RevNum         int
-	Pool           *apool.APool
-	AText          *apool.AText
-	SavedRevisions []string
+	SavedRevisions map[int]PadRevision
 	ReadOnlyId     string
+}
+
+type PadRevision struct {
+	Content   string
+	PadDBMeta PadDBMeta
+}
+
+type PadDBMeta struct {
+	Author    *string
+	Timestamp int
+	Pool      *apool.APool
+	AText     *apool.AText
 }
