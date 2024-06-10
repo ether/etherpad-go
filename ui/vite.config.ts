@@ -4,7 +4,7 @@ import commonjs from '@rollup/plugin-commonjs';
 
 export default defineConfig({
     build:{
-      minify: true
+      minify: false
     },
     resolve: {
         alias: {

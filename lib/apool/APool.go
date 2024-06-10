@@ -24,7 +24,7 @@ func (a *APool) PutAttrib(attrib Attribute, dontAddIfAbsent *bool) int {
 		return val
 	}
 
-	if *dontAddIfAbsent {
+	if dontAddIfAbsent != nil && *dontAddIfAbsent {
 		return -1
 	}
 

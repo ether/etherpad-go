@@ -224,19 +224,27 @@ func ApplyZip(in1 string, in2 string, callback func(*Op, *Op) Op) string {
 	var ops2, _ = DeserializeOps(in2)
 
 	var assem = NewSmartOpAssembler()
+	var ops1Counter = 0
+	var ops2Counter = 0
+	for len(*ops1) > ops1Counter || len(*ops2) > ops2Counter {
+		var opsToUse1 Op
+		if len(*ops1) == ops1Counter {
+			opsToUse1 = NewOp(nil)
+		} else {
+			opsToUse1 = (*ops1)[ops1Counter]
+			ops1Counter++
+		}
 
-	for len(*ops1) > 0 && len(*ops2) > 0 {
-		var op1 = (*ops1)[0]
-		var op2 = (*ops2)[0]
-		var res = callback(&op1, &op2)
+		var opsToUse2 Op
+		if len(*ops2) == ops2Counter {
+			opsToUse2 = NewOp(nil)
+		} else {
+			opsToUse2 = (*ops2)[ops2Counter]
+			ops2Counter++
+		}
+		var res = callback(&opsToUse1, &opsToUse2)
 		if res.OpCode != "" {
 			assem.Append(res)
-		}
-		if op1.OpCode == "" {
-			*ops1 = (*ops1)[1:]
-		}
-		if op2.OpCode == "" {
-			*ops2 = (*ops2)[1:]
 		}
 	}
 	assem.EndDocument()
