@@ -108,7 +108,7 @@ func (m *Manager) SanitizePadId(padID string) (*string, error) {
 	if m.isValidPadId(padID) {
 		return &padID, nil
 	}
-	return nil, errors.New("Invalid pad id")
+	return nil, errors.New("invalid pad id")
 }
 
 func (m *Manager) GetPad(padID string, text *string, author *author.Author) (*pad.Pad, error) {
