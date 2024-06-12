@@ -197,7 +197,7 @@ const Ace2Editor = function () {
     //   - Safari behaves like Chrome.
     // srcdoc is avoided because Firefox's Content Security Policy engine does not properly handle
     // 'self' with nested srcdoc iframes: https://bugzilla.mozilla.org/show_bug.cgi?id=1721296
-    outerFrame.src = '../static/empty.html';
+    outerFrame.src = '/html/empty.html';
     info.frame = outerFrame;
     document.getElementById(containerId).appendChild(outerFrame);
     const outerWindow = outerFrame.contentWindow;
@@ -244,7 +244,7 @@ const Ace2Editor = function () {
     innerFrame.allowTransparency = true; // for IE
     // The iframe MUST have a src or srcdoc property to avoid browser quirks. See the comment above
     // outerFrame.srcdoc.
-    innerFrame.src = 'empty.html';
+    innerFrame.src = '/html/empty.html';
     outerDocument.body.insertBefore(innerFrame, outerDocument.body.firstChild);
     const innerWindow = innerFrame.contentWindow;
 

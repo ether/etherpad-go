@@ -13,8 +13,10 @@ exports.update = (cb) => {
   // which appears to fix the issue.
   const callback = () => setTimeout(cb, 0);
 
+  console.log(      `${exports.baseURL}pluginfw/plugin-definitions.json?v=${clientVars.randomVersionString}`
+  )
   jQuery.getJSON(
-      `${exports.baseURL}pluginfw/plugin-definitions.json?v=${clientVars.randomVersionString}`
+      `/pluginfw/plugin-definitions.json?v=${clientVars.randomVersionString}`
   ).done((data) => {
     defs.plugins = data.plugins;
     defs.parts = data.parts;

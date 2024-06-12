@@ -6701,8 +6701,11 @@ shared.clientPluginNames = () => {
   exports.ensure = (cb2) => !defs2.loaded ? exports.update(cb2) : cb2();
   exports.update = (cb2) => {
     const callback = () => setTimeout(cb2, 0);
-    jQuery.getJSON(
+    console.log(
       `${exports.baseURL}pluginfw/plugin-definitions.json?v=${clientVars.randomVersionString}`
+    );
+    jQuery.getJSON(
+      `/pluginfw/plugin-definitions.json?v=${clientVars.randomVersionString}`
     ).done((data) => {
       defs2.plugins = data.plugins;
       defs2.parts = data.parts;
@@ -18446,7 +18449,7 @@ function requireAce() {
       outerFrame.name = "ace_outer";
       outerFrame.frameBorder = 0;
       outerFrame.title = "Ether";
-      outerFrame.src = "../static/empty.html";
+      outerFrame.src = "/html/empty.html";
       info.frame = outerFrame;
       document.getElementById(containerId).appendChild(outerFrame);
       const outerWindow = outerFrame.contentWindow;
@@ -18480,7 +18483,7 @@ function requireAce() {
       innerFrame.scrolling = "no";
       innerFrame.frameBorder = 0;
       innerFrame.allowTransparency = true;
-      innerFrame.src = "empty.html";
+      innerFrame.src = "/html/empty.html";
       outerDocument.body.insertBefore(innerFrame, outerDocument.body.firstChild);
       const innerWindow = innerFrame.contentWindow;
       debugLog("Ace2Editor.init() waiting for inner frame");

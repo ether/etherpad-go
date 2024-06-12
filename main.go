@@ -47,12 +47,14 @@ func main() {
 
 	component := welcome.Page()
 	cssDir := http.FileServer(http.Dir("./assets/css"))
+	htmlDir := http.FileServer(http.Dir("./assets/html"))
 	jsDir := http.FileServer(http.Dir("./assets/js"))
 	imagesDir := http.FileServer(http.Dir("./assets/images"))
 	pluginDir := http.FileServer(http.Dir("./plugins"))
 
 	http.Handle("/css/", http.StripPrefix("/css/", cssDir))
 	http.Handle("/js/", http.StripPrefix("/js/", jsDir))
+	http.Handle("/html/", http.StripPrefix("/html/", htmlDir))
 	http.Handle("/images/", http.StripPrefix("/images/", imagesDir))
 	http.HandleFunc("GET /pluginfw/plugin-definitions.json", plugins.ReturnPluginResponse)
 	http.HandleFunc("/pluginfw/plugin-definitions.json", func(w http.ResponseWriter, r *http.Request) {
