@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	_ "fmt"
 	"github.com/a-h/templ"
 	"github.com/ether/etherpad-go/assets/welcome"
+	"github.com/ether/etherpad-go/lib/locales"
 	"github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/plugins"
 	"github.com/ether/etherpad-go/lib/ws"
@@ -54,9 +56,15 @@ func main() {
 	pluginDir := http.FileServer(http.Dir("./plugins"))
 
 	http.Handle("/css/", http.StripPrefix("/css/", cssDir))
+	http.HandleFunc("GET /locales.json", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		var marshalledLocales, _ = json.Marshal(locales.Locales)
+		w.Write(marshalledLocales)
+	})
 	http.Handle("/js/", http.StripPrefix("/js/", jsDir))
 	http.Handle("/html/", http.StripPrefix("/html/", htmlDir))
 	http.Handle("/font/", http.StripPrefix("/font/", fontDir))
+	http.Handle("/locales/", http.StripPrefix("/locales/", http.FileServer(http.Dir("./assets/locales"))))
 	http.Handle("/images/", http.StripPrefix("/images/", imagesDir))
 	http.HandleFunc("GET /pluginfw/plugin-definitions.json", plugins.ReturnPluginResponse)
 	http.HandleFunc("/pluginfw/plugin-definitions.json", func(w http.ResponseWriter, r *http.Request) {
