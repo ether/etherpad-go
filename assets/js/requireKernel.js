@@ -1,4 +1,4 @@
-export var require = /* eslint-disable strict */ (() => {
+var require = /* eslint-disable strict */ (() => {
     // The contents of this file are evaluated as the right-hand side of an assignment expression
     // (this file is not loaded as a module or in a <script> element). Because of this unusual
     // evaluation, strict mode cannot be enabled outside the IIFE.

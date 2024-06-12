@@ -261,19 +261,22 @@ const Ace2Editor = function () {
 
     // <head> tag
     addStyleTagsFor(innerDocument, includedCSS);
-    const requireKernel = innerDocument.createElement('script');
+    /*const requireKernel = innerDocument.createElement('script');
     requireKernel.type = 'text/javascript';
     requireKernel.src =
-        absUrl(`../static/js/require-kernel.js?v=${clientVars.randomVersionString}`);
+        absUrl(`/js/requireKernel.js?v=${clientVars.randomVersionString}`);
     innerDocument.head.appendChild(requireKernel);
     // Pre-fetch modules to improve load performance.
-    /*for (const module of ['ace2_inner', 'ace2_common']) {
+    for (const module of ['ace2_inner', 'ace2_common']) {
       const script = innerDocument.createElement('script');
       script.type = 'text/javascript';
-      script.src = absUrl(`../javascripts/lib/ep_etherpad-lite/static/js/${module}.js` +
+      script.src = absUrl(`/js/${module}.js` +
                           `?callback=require.define&v=${clientVars.randomVersionString}`);
       innerDocument.head.appendChild(script);
     }*/
+
+
+
     const innerStyle = innerDocument.createElement('style');
     innerStyle.type = 'text/css';
     innerStyle.title = 'dynamicsyntax';
@@ -292,7 +295,17 @@ const Ace2Editor = function () {
 
     const require = requireKernel.require;
     debugLog('Ace2Editor.init() waiting for require kernel load');
-    await eventFired(requireKernel, 'load');
+    await eventFired({
+      addEventListener: (e, a)=>{
+        console.log("Events are",e,a)
+        if(e === "load") {
+          a()
+        }
+      },
+      removeEventListener: (e,a)=>{
+
+      }
+    }, 'load');
     debugLog('Ace2Editor.init() require kernel loaded');
     require.setRootURI(absUrl('../javascripts/src'));
     require.setLibraryURI(absUrl('../javascripts/lib'));
@@ -301,7 +314,8 @@ const Ace2Editor = function () {
     // intentially moved before requiring client_plugins to save a 307
     innerWindow.Ace2Inner = Ace2Inner;
     innerWindow.plugins = clientPlugins;
-    innerWindow.plugins.adoptPluginsFromAncestorsOf(innerWindow);
+    innerWindow.require = require
+    innerWindow.plugins.adoptPluginsFromAncestorsOf(require);
 
     innerWindow.$ = innerWindow.jQuery = window.$
 
@@ -309,10 +323,13 @@ const Ace2Editor = function () {
     await new Promise((resolve, reject) => innerWindow.plugins.ensure(
         (err) => err != null ? reject(err) : resolve()));
     debugLog('Ace2Editor.init() waiting for Ace2Inner.init()');
+
+    const iframe = document.getElementsByName("ace_outer")[0]
+    console.log(iframe)
     await innerWindow.Ace2Inner.init(info, {
       inner: makeCSSManager(innerStyle.sheet),
       outer: makeCSSManager(outerStyle.sheet),
-      parent: makeCSSManager(document.querySelector('style[title="dynamicsyntax"]').sheet),
+      parent: makeCSSManager(iframe.contentWindow.document.querySelector('style[title="dynamicsyntax"]').sheet),
     });
     debugLog('Ace2Editor.init() Ace2Inner.init() returned');
     loaded = true;

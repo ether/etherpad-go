@@ -6714,26 +6714,24 @@ shared.clientPluginNames = () => {
       callback();
     });
   };
-  const adoptPluginsFromAncestorsOf = (frame) => {
-    let parentRequire = null;
-    try {
-      while (frame = frame.parent) {
-        if (typeof frame.require !== "undefined") {
-          parentRequire = frame.require;
-          break;
-        }
-      }
-    } catch (error) {
-      console.error(error);
-    }
-    if (!parentRequire)
+  const adoptPluginsFromAncestorsOf = (require3) => {
+    if (!require3)
       throw new Error("Parent plugins could not be found.");
-    const ancestorPluginDefs = parentRequire("ep_etherpad-lite/static/js/pluginfw/plugin_defs");
+    const ancestorPluginDefs = {
+      hooks: {},
+      loaded: true,
+      parts: [],
+      plugins: {}
+    };
     defs2.hooks = ancestorPluginDefs.hooks;
     defs2.loaded = ancestorPluginDefs.loaded;
     defs2.parts = ancestorPluginDefs.parts;
     defs2.plugins = ancestorPluginDefs.plugins;
-    const ancestorPlugins = parentRequire("ep_etherpad-lite/static/js/pluginfw/client_plugins");
+    const ancestorPlugins = {
+      baseURL: "/",
+      ensure: (cb2) => !defs2.loaded ? exports.update(cb2) : cb2(),
+      update: exports.update
+    };
     exports.baseURL = ancestorPlugins.baseURL;
     exports.ensure = ancestorPlugins.ensure;
     exports.update = ancestorPlugins.update;
@@ -13306,7 +13304,7 @@ function requireAttributeManager() {
   const Changeset2 = requireChangeset();
   const ChangesetUtils2 = requireChangesetUtils();
   const attributes2 = requireAttributes();
-  const _2 = requireUnderscore();
+  const underscore2 = indexAll;
   const lineMarkerAttribute = "lmkr";
   const DEFAULT_LINE_ATTRIBUTES = ["author", "lmkr", "insertorder", "start"];
   const lineAttributes = [lineMarkerAttribute, "list"];
@@ -13317,7 +13315,7 @@ function requireAttributeManager() {
   };
   AttributeManager.DEFAULT_LINE_ATTRIBUTES = DEFAULT_LINE_ATTRIBUTES;
   AttributeManager.lineAttributes = lineAttributes;
-  AttributeManager.prototype = _2(AttributeManager.prototype).extend({
+  AttributeManager.prototype = underscore2.default(AttributeManager.prototype).extend({
     applyChangeset(changeset) {
       if (!this.applyChangesetCallback)
         return changeset;
@@ -13574,7 +13572,7 @@ function requireAttributeManager() {
         return;
       }
       ChangesetUtils2.buildKeepToStartOfRange(this.rep, builder, [lineNum, 0]);
-      const countAttribsWithMarker = _2.chain(attribs).filter((a) => !!a[1]).map((a) => a[0]).difference(DEFAULT_LINE_ATTRIBUTES).size().value();
+      const countAttribsWithMarker = underscore2.chain(attribs).filter((a) => !!a[1]).map((a) => a[0]).difference(DEFAULT_LINE_ATTRIBUTES).size().value();
       if (hasMarker && !countAttribsWithMarker) {
         ChangesetUtils2.buildRemoveRange(this.rep, builder, [lineNum, 0], [lineNum, 1]);
       } else {
@@ -15059,9 +15057,10 @@ function requireAce2_inner() {
     };
     const outerWin = window.parent;
     const outerDoc = outerWin.document;
-    const sideDiv = outerDoc.getElementById("sidediv");
-    const lineMetricsDiv = outerDoc.getElementById("linemetricsdiv");
-    const sideDivInner = outerDoc.getElementById("sidedivinner");
+    const iframe = document.getElementsByName("ace_outer")[0];
+    const sideDiv = iframe.contentWindow.document.getElementById("sidediv");
+    const lineMetricsDiv = iframe.contentWindow.document.getElementById("linemetricsdiv");
+    const sideDivInner = iframe.contentWindow.document.getElementById("sidedivinner");
     const appendNewSideDivLine = () => {
       const lineDiv = outerDoc.createElement("div");
       sideDivInner.appendChild(lineDiv);
@@ -17814,304 +17813,501 @@ ${shortNewText.slice(0, -1)}`;
   };
   return ace2_inner;
 }
-(() => {
-  let A = null;
-  const g = {}, h = {}, w = {}, u = {}, E = [];
-  let $2 = 0, L = 2;
-  const f = [];
-  let d = false, R, y, S, _2, p;
-  const M = 60 * 1e3;
-  function v(e) {
-    this.name = "CircularDependencyError", this.message = e;
-  }
-  v.prototype = Error.prototype;
-  function c(e) {
-    this.name = "ArgumentError", this.message = e;
-  }
-  c.prototype = Error.prototype;
-  const m = (e, t) => Object.prototype.hasOwnProperty.call(e, t), O = (...e) => f.push(...e), k = () => {
-    try {
-      for (; f.length; )
-        f.shift()();
-      d = false;
-    } finally {
-      d = f.length > 0, f.length && setTimeout(k, 0);
+var require2 = (
+  /* eslint-disable strict */
+  (() => {
+    let main = null;
+    const modules = {};
+    const definitions = {};
+    const loadingModules = {};
+    const definitionWaiters = {};
+    const fetchRequests = [];
+    let currentRequests = 0;
+    let maximumRequests = 2;
+    const deferred = [];
+    let deferredScheduled = false;
+    let syncLock = void 0;
+    let globalKeyPath = void 0;
+    let rootURI = void 0;
+    let libraryURI = void 0;
+    let libraryLookupComponent = void 0;
+    const JSONP_TIMEOUT = 60 * 1e3;
+    function CircularDependencyError(message) {
+      this.name = "CircularDependencyError";
+      this.message = message;
     }
-  }, x = () => {
-    !d && f.length > 0 && (R ? (d = true, setTimeout(k, 0)) : k());
-  }, B = (e) => {
-    try {
-      d = true, e(), d = false, x();
-    } finally {
-      d = false, f.length && setTimeout(x, 0);
+    CircularDependencyError.prototype = Error.prototype;
+    function ArgumentError(message) {
+      this.name = "ArgumentError";
+      this.message = message;
     }
-  }, b = (e) => {
-    const t = e.split("/"), n = [];
-    let o;
-    for (let s = 0, r = t.length; s < r; s++)
-      switch (o = t[s], o) {
-        case "":
-          (s === 0 || s === r - 1) && n.push(o);
-          break;
-        case ".":
-          break;
-        case "..":
-          if (n.length > 1 || n.length === 1 && n[0] !== "" && n[0] !== ".") {
-            n.pop();
-            break;
-          }
-        default:
-          n.push(o);
-      }
-    return n.join("/");
-  }, C = (e, t) => {
-    let n = e;
-    return e.charAt(0) === "." && (e.charAt(1) === "/" || e.charAt(1) === "." && e.charAt(2) === "/") && (t ? t.charAt(t.length - 1) !== "/" && (t += "/") : t = "", n = t + e), n;
-  }, J = (e) => {
-    if (!e)
-      throw new c("Invalid root URI.");
-    S = e.charAt(e.length - 1) === "/" ? e.slice(0, -1) : e;
-  }, Q = (e) => {
-    _2 = e.charAt(e.length - 1) === "/" ? e : `${e}/`;
-  }, z = (e) => {
-    if (e = e && e.toString(), !e)
-      p = void 0;
-    else {
-      if (e.match(/\//))
-        throw new c("Invalid path component.");
-      p = e;
-    }
-  }, Y = (e, t) => {
-    if (e = b(e), e.charAt(0) !== "/" && p) {
-      const n = [], o = t.split("/");
-      for (; o.length > 1; ) {
-        o[o.length - 1] === p && o.pop();
-        const s = b(C(`./${p}/${e}`, `${o.join("/")}/`));
-        n.push(s), o.pop();
-      }
-      return n.push(e), n;
-    } else
-      return [b(C(e, t))];
-  }, P = (e) => {
-    const t = e.split("/");
-    for (let n = 0, o = t.length; n < o; n++)
-      t[n] = encodeURIComponent(t[n]);
-    if (e = t.join("/"), e.charAt(0) === "/") {
-      if (!S)
-        throw new Error(`Attempt to retrieve the root module "${e}" but no root URI is defined.`);
-      return S + e;
-    } else {
-      if (!_2)
-        throw new Error(`Attempt to retrieve the library module "${e}" but no libary URI is defined.`);
-      return _2 + e;
-    }
-  }, Z = (e) => ({
-    [e]: (t) => t()
-  })[e], U = (e, ...t) => {
-    const n = Function.bind(null, ...t);
-    return Z(e)(n);
-  }, ee = (e) => {
-    if (e = parseInt(e), e > 0)
-      L = e, D();
-    else
-      throw new c("Value must be a positive integer.");
-  }, te = (e) => {
-    y = e;
-  };
-  let I = null;
-  const F = () => {
-    if (typeof window > "u")
-      return null;
-    for (let e = window; I == null && ({ clientVars: { randomVersionString: I } = {} } = e, e !== window.top); e = e.parent)
-      ;
-    return I;
-  }, ne = (e, t, n) => {
-    F() && (e += `&v=${F()}`);
-    const o = new XMLHttpRequest(), s = (r) => {
-      r.status === 200 ? n(void 0, r.responseText) : n(true, void 0);
-    };
-    o.open("GET", e, !!t), t ? (o.onreadystatechange = (r) => {
-      o.readyState === 4 && s(o);
-    }, o.send(null)) : (o.send(null), s(o));
-  }, K = (e, t) => {
-    const n = y, o = (r, i) => {
-      if (r)
-        q(e, null);
-      else if (n)
-        U(`(bundle ${e})`, i)();
-      else {
-        const a = U(`(module ${e})`, "require", "exports", "module", i);
-        q(e, a);
+    ArgumentError.prototype = Error.prototype;
+    const hasOwnProperty2 = (object2, key) => Object.prototype.hasOwnProperty.call(object2, key);
+    const defer2 = (...fns) => deferred.push(...fns);
+    const _flushDefer = () => {
+      try {
+        while (deferred.length) {
+          const continuation = deferred.shift();
+          continuation();
+        }
+        deferredScheduled = false;
+      } finally {
+        deferredScheduled = deferred.length > 0;
+        deferred.length && setTimeout(_flushDefer, 0);
       }
     };
-    let s = P(e);
-    n && (s += `?callback=${encodeURIComponent(`${y}.define`)}`), ne(s, t, o);
-  }, oe = (e) => {
-    const t = document.head || document.getElementsByTagName("head")[0] || document.documentElement, n = document.createElement("script");
-    if (n.async !== void 0 ? n.async = "true" : n.defer = "true", n.type = "application/javascript", n.src = `${P(e)}?callback=${encodeURIComponent(y)}.define`, M < 1 / 0) {
-      const o = setTimeout(() => q(e, null), M);
-      u[e].unshift(() => clearTimeout(o));
-    }
-    t.insertBefore(n, t.firstChild);
-  }, se = (e, t) => {
-    m(u, e) ? u[e].push(t) : (u[e] = [t], re(e));
-  }, re = (e) => {
-    E.push(e), D();
-  }, D = () => {
-    if (E.length > 0 && $2 < L) {
-      const e = E.pop();
-      $2++, u[e].unshift(
-        () => {
-          $2--, D();
+    const flushDefer = () => {
+      if (!deferredScheduled && deferred.length > 0) {
+        if (syncLock) {
+          deferredScheduled = true;
+          setTimeout(_flushDefer, 0);
+        } else {
+          _flushDefer();
         }
-      ), y && typeof document < "u" && document.readyState && /^loaded|complete$/.test(document.readyState) ? oe(e) : K(e, true);
-    }
-  }, ie = (e, t) => {
-    K(e, false), t();
-  }, le = (e) => m(g, e), ce = (e, t) => {
-    if (le(e)) {
-      const n = g[e];
-      t(n);
-    } else {
-      if (m(w, e))
-        throw new v("Encountered circular dependency.");
-      if (T(e))
-        if (h[e] === null)
-          t(null);
-        else {
-          const n = h[e], o = {
-            id: e,
-            exports: {}
-          }, s = H(e);
-          A || (A = o);
-          try {
-            w[e] = true, n(s, o.exports, o), g[e] = o, delete w[e], t(o);
-          } finally {
-            delete w[e];
-          }
-        }
-      else
-        throw new Error("Attempt to load undefined module.");
-    }
-  }, N = (e, t, n) => {
-    const o = e.endsWith(".js") ? [""] : e.endsWith("/") ? ["index.js"] : [".js", "/index.js", ""], s = o.length, r = (i) => {
-      if (i < s) {
-        const a = e + o[i], W = () => {
-          ce(
-            a,
-            (X) => {
-              X === null ? r(i + 1) : n(X);
+      }
+    };
+    const flushDeferAfter = (f) => {
+      try {
+        deferredScheduled = true;
+        f();
+        deferredScheduled = false;
+        flushDefer();
+      } finally {
+        deferredScheduled = false;
+        deferred.length && setTimeout(flushDefer, 0);
+      }
+    };
+    const normalizePath = (path) => {
+      const pathComponents1 = path.split("/");
+      const pathComponents2 = [];
+      let component;
+      for (let i = 0, ii = pathComponents1.length; i < ii; i++) {
+        component = pathComponents1[i];
+        switch (component) {
+          case "":
+            if (i === 0 || i === ii - 1) {
+              pathComponents2.push(component);
             }
-          );
-        };
-        T(a) ? W() : t(a, W);
-      } else
-        n(null);
+            break;
+          case ".":
+            break;
+          case "..":
+            if (pathComponents2.length > 1 || pathComponents2.length === 1 && pathComponents2[0] !== "" && pathComponents2[0] !== ".") {
+              pathComponents2.pop();
+              break;
+            }
+          default:
+            pathComponents2.push(component);
+        }
+      }
+      return pathComponents2.join("/");
     };
-    r(0);
-  }, ue = (e, t) => {
-    O(
-      () => {
-        N(e, se, t);
-      }
-    );
-  }, fe = (e) => {
-    let t;
-    const n = R;
-    R = true, e === "async" && (e = "async/lib/async"), e === "underscore" && (e = "underscore/underscore"), e === "unorm" && (e = "unorm/lib/unorm");
-    try {
-      N(
-        e,
-        ie,
-        (o) => {
-          t = o;
+    const fullyQualifyPath = (path, basePath) => {
+      let fullyQualifiedPath = path;
+      if (path.charAt(0) === "." && (path.charAt(1) === "/" || path.charAt(1) === "." && path.charAt(2) === "/")) {
+        if (!basePath) {
+          basePath = "";
+        } else if (basePath.charAt(basePath.length - 1) !== "/") {
+          basePath += "/";
         }
-      );
-    } finally {
-      R = n;
-    }
-    return t;
-  }, T = (e) => m(h, e), V = (e, t) => {
-    if (typeof e != "string" || !(typeof t == "function" || t === null))
-      throw new c("Definition must be a (string, function) pair.");
-    T(e) || (h[e] = t);
-  }, de = (e) => {
-    if (typeof e != "object")
-      throw new c("Mapping must be an object.");
-    for (const t in e)
-      m(e, t) && V(t, e[t]);
-  }, q = (...e) => {
-    let t;
-    if (e.length === 1)
-      [t] = e, de(t);
-    else if (e.length === 2) {
-      const [n, o] = e;
-      V(n, o), t = {
-        [n]: o
-      };
-    } else
-      throw new c(`Expected 1 or 2 arguments, but got ${e.length}.`);
-    for (const n in t)
-      m(t, n) && m(u, n) && (O(...u[n]), delete u[n]);
-    x();
-  }, G = (e, t, n) => {
-    const o = Y(e, n);
-    if (t === void 0) {
-      let s;
-      for (let r = 0, i = o.length; r < i && !s; r++) {
-        const a = o[r];
-        s = fe(a);
+        fullyQualifiedPath = basePath + path;
       }
-      if (!s)
-        throw new Error(`The module at "${e}" does not exist.`);
-      return s.exports;
-    } else {
-      if (typeof t != "function")
-        throw new c("Continuation must be a function.");
-      B(
-        () => {
-          const s = () => {
-            const r = o.shift();
-            return ue(
-              r,
-              (i) => {
-                i || o.length === 0 ? t(i && i.exports) : s();
-              }
-            );
-          };
-          s();
-        }
-      );
-    }
-  }, me = (...e) => (l._designatedRequire || G)(...e), j = (e, t, n) => {
-    t = t.toString();
-    const o = b(C(t, e));
-    return me(o, n, e);
-  }, ae = (e, t, n) => {
-    if (typeof n != "function")
-      throw new c("Final argument must be a continuation.");
-    {
-      const o = t.map((i) => i.toString()), s = [], r = (i) => {
-        s.push(i), t.length > 0 ? j(e, t.shift(), r) : n(...s);
-      };
-      for (let i = 0; i < t.length; i++)
-        j(e, o[i], r);
-    }
-  }, H = (e) => {
-    e = e.replace(/[^/]+$/, "");
-    const t = (...n) => {
-      if (n.length > 2) {
-        const o = n.pop();
-        return ae(e, n, o);
+      return fullyQualifiedPath;
+    };
+    const setRootURI = (URI) => {
+      if (!URI) {
+        throw new ArgumentError("Invalid root URI.");
+      }
+      rootURI = URI.charAt(URI.length - 1) === "/" ? URI.slice(0, -1) : URI;
+    };
+    const setLibraryURI = (URI) => {
+      libraryURI = URI.charAt(URI.length - 1) === "/" ? URI : `${URI}/`;
+    };
+    const setLibraryLookupComponent = (component) => {
+      component = component && component.toString();
+      if (!component) {
+        libraryLookupComponent = void 0;
+      } else if (component.match(/\//)) {
+        throw new ArgumentError("Invalid path component.");
       } else {
-        const [o, s] = n;
-        return j(e, o, s);
+        libraryLookupComponent = component;
       }
     };
-    return t.main = A, t;
-  }, l = H("/");
-  return l._modules = g, l._definitions = h, l._designatedRequire = G, l.define = q, l.setRequestMaximum = ee, l.setGlobalKeyPath = te, l.setRootURI = J, l.setLibraryURI = Q, l.setLibraryLookupComponent = z, l;
-})();
+    const searchPathsForModulePath = (path, basePath) => {
+      path = normalizePath(path);
+      if (path.charAt(0) !== "/" && libraryLookupComponent) {
+        const paths = [];
+        const components = basePath.split("/");
+        while (components.length > 1) {
+          if (components[components.length - 1] === libraryLookupComponent) {
+            components.pop();
+          }
+          const searchPath = normalizePath(fullyQualifyPath(
+            `./${libraryLookupComponent}/${path}`,
+            `${components.join("/")}/`
+          ));
+          paths.push(searchPath);
+          components.pop();
+        }
+        paths.push(path);
+        return paths;
+      } else {
+        return [normalizePath(fullyQualifyPath(path, basePath))];
+      }
+    };
+    const uriForModulePath = (path) => {
+      const components = path.split("/");
+      for (let i = 0, ii = components.length; i < ii; i++) {
+        components[i] = encodeURIComponent(components[i]);
+      }
+      path = components.join("/");
+      if (path.charAt(0) === "/") {
+        if (!rootURI) {
+          throw new Error(
+            `Attempt to retrieve the root module "${path}" but no root URI is defined.`
+          );
+        }
+        return rootURI + path;
+      } else {
+        if (!libraryURI) {
+          throw new Error(
+            `Attempt to retrieve the library module "${path}" but no libary URI is defined.`
+          );
+        }
+        return libraryURI + path;
+      }
+    };
+    const stackDecorator = (name) => ({ [name]: (f) => f() })[name];
+    const compileFunction = (name, ...args) => {
+      const f = Function.bind(null, ...args);
+      return stackDecorator(name)(f);
+    };
+    const setRequestMaximum = (value) => {
+      value = parseInt(value);
+      if (value > 0) {
+        maximumRequests = value;
+        checkScheduledfetchDefines();
+      } else {
+        throw new ArgumentError("Value must be a positive integer.");
+      }
+    };
+    const setGlobalKeyPath = (value) => {
+      globalKeyPath = value;
+    };
+    let randomVersionString = null;
+    const getRandomVersionString = () => {
+      if (typeof window === "undefined")
+        return null;
+      for (let win = window; randomVersionString == null; win = win.parent) {
+        ({ clientVars: { randomVersionString } = {} } = win);
+        if (win === window.top)
+          break;
+      }
+      return randomVersionString;
+    };
+    const getXHR = (uri, async, callback) => {
+      if (getRandomVersionString()) {
+        uri += `&v=${getRandomVersionString()}`;
+      }
+      const request = new XMLHttpRequest();
+      const onComplete = (request2) => {
+        if (request2.status === 200) {
+          callback(void 0, request2.responseText);
+        } else {
+          callback(true, void 0);
+        }
+      };
+      request.open("GET", uri, !!async);
+      if (async) {
+        request.onreadystatechange = (event) => {
+          if (request.readyState === 4) {
+            onComplete(request);
+          }
+        };
+        request.send(null);
+      } else {
+        request.send(null);
+        onComplete(request);
+      }
+    };
+    const fetchDefineXHR = (path, async) => {
+      const _globalKeyPath = globalKeyPath;
+      const callback = (error, text) => {
+        if (error) {
+          define(path, null);
+        } else if (_globalKeyPath) {
+          compileFunction(`(bundle ${path})`, text)();
+        } else {
+          const def = compileFunction(`(module ${path})`, "require", "exports", "module", text);
+          define(path, def);
+        }
+      };
+      let uri = uriForModulePath(path);
+      if (_globalKeyPath) {
+        uri += `?callback=${encodeURIComponent(`${globalKeyPath}.define`)}`;
+      }
+      getXHR(uri, async, callback);
+    };
+    const fetchDefineJSONP = (path) => {
+      const head = document.head || document.getElementsByTagName("head")[0] || document.documentElement;
+      const script = document.createElement("script");
+      if (script.async !== void 0) {
+        script.async = "true";
+      } else {
+        script.defer = "true";
+      }
+      script.type = "application/javascript";
+      script.src = `${uriForModulePath(path)}?callback=${encodeURIComponent(globalKeyPath)}.define`;
+      if (JSONP_TIMEOUT < Infinity) {
+        const timeoutId = setTimeout(() => define(path, null), JSONP_TIMEOUT);
+        definitionWaiters[path].unshift(() => clearTimeout(timeoutId));
+      }
+      head.insertBefore(script, head.firstChild);
+    };
+    const fetchModule = (path, continuation) => {
+      if (hasOwnProperty2(definitionWaiters, path)) {
+        definitionWaiters[path].push(continuation);
+      } else {
+        definitionWaiters[path] = [continuation];
+        schedulefetchDefine(path);
+      }
+    };
+    const schedulefetchDefine = (path) => {
+      fetchRequests.push(path);
+      checkScheduledfetchDefines();
+    };
+    const checkScheduledfetchDefines = () => {
+      if (fetchRequests.length > 0 && currentRequests < maximumRequests) {
+        const fetchRequest = fetchRequests.pop();
+        currentRequests++;
+        definitionWaiters[fetchRequest].unshift(() => {
+          currentRequests--;
+          checkScheduledfetchDefines();
+        });
+        if (globalKeyPath && typeof document !== "undefined" && document.readyState && /^loaded|complete$/.test(document.readyState)) {
+          fetchDefineJSONP(fetchRequest);
+        } else {
+          fetchDefineXHR(fetchRequest, true);
+        }
+      }
+    };
+    const fetchModuleSync = (path, continuation) => {
+      fetchDefineXHR(path, false);
+      continuation();
+    };
+    const moduleIsLoaded = (path) => hasOwnProperty2(modules, path);
+    const loadModule = (path, continuation) => {
+      if (!moduleIsLoaded(path)) {
+        if (hasOwnProperty2(loadingModules, path)) {
+          throw new CircularDependencyError("Encountered circular dependency.");
+        } else if (!moduleIsDefined(path)) {
+          throw new Error("Attempt to load undefined module.");
+        } else if (definitions[path] === null) {
+          continuation(null);
+        } else {
+          const definition = definitions[path];
+          const _module = { id: path, exports: {} };
+          const _require = requireRelativeTo(path);
+          if (!main) {
+            main = _module;
+          }
+          try {
+            loadingModules[path] = true;
+            definition(_require, _module.exports, _module);
+            modules[path] = _module;
+            delete loadingModules[path];
+            continuation(_module);
+          } finally {
+            delete loadingModules[path];
+          }
+        }
+      } else {
+        const module = modules[path];
+        continuation(module);
+      }
+    };
+    const _moduleAtPath = (path, fetchFunc, continuation) => {
+      const suffixes = path.endsWith(".js") ? [""] : path.endsWith("/") ? ["index.js"] : [".js", "/index.js", ""];
+      const ii = suffixes.length;
+      const _find = (i) => {
+        if (i < ii) {
+          const path_ = path + suffixes[i];
+          const after2 = () => {
+            loadModule(path_, (module) => {
+              if (module === null) {
+                _find(i + 1);
+              } else {
+                continuation(module);
+              }
+            });
+          };
+          if (!moduleIsDefined(path_)) {
+            fetchFunc(path_, after2);
+          } else {
+            after2();
+          }
+        } else {
+          continuation(null);
+        }
+      };
+      _find(0);
+    };
+    const moduleAtPath = (path, continuation) => {
+      defer2(() => {
+        _moduleAtPath(path, fetchModule, continuation);
+      });
+    };
+    const moduleAtPathSync = (path) => {
+      let module;
+      const oldSyncLock = syncLock;
+      syncLock = true;
+      if (path === "async") {
+        path = "async/lib/async";
+      }
+      if (path === "underscore") {
+        path = "underscore/underscore";
+      }
+      if (path === "unorm") {
+        path = "unorm/lib/unorm";
+      }
+      try {
+        _moduleAtPath(path, fetchModuleSync, (_module) => {
+          module = _module;
+        });
+      } finally {
+        syncLock = oldSyncLock;
+      }
+      return module;
+    };
+    const moduleIsDefined = (path) => hasOwnProperty2(definitions, path);
+    const defineModule = (path, module) => {
+      if (typeof path !== "string" || !(typeof module === "function" || module === null)) {
+        throw new ArgumentError("Definition must be a (string, function) pair.");
+      }
+      if (moduleIsDefined(path))
+        ;
+      else {
+        definitions[path] = module;
+      }
+    };
+    const defineModules = (moduleMap) => {
+      if (typeof moduleMap !== "object") {
+        throw new ArgumentError("Mapping must be an object.");
+      }
+      for (const path in moduleMap) {
+        if (hasOwnProperty2(moduleMap, path)) {
+          defineModule(path, moduleMap[path]);
+        }
+      }
+    };
+    const define = (...args) => {
+      let moduleMap;
+      if (args.length === 1) {
+        [moduleMap] = args;
+        defineModules(moduleMap);
+      } else if (args.length === 2) {
+        const [path, module] = args;
+        defineModule(path, module);
+        moduleMap = { [path]: module };
+      } else {
+        throw new ArgumentError(`Expected 1 or 2 arguments, but got ${args.length}.`);
+      }
+      for (const path in moduleMap) {
+        if (hasOwnProperty2(moduleMap, path) && hasOwnProperty2(definitionWaiters, path)) {
+          defer2(...definitionWaiters[path]);
+          delete definitionWaiters[path];
+        }
+      }
+      flushDefer();
+    };
+    const _designatedRequire = (path, continuation, relativeTo) => {
+      const paths = searchPathsForModulePath(path, relativeTo);
+      if (continuation === void 0) {
+        let module;
+        for (let i = 0, ii = paths.length; i < ii && !module; i++) {
+          const path2 = paths[i];
+          module = moduleAtPathSync(path2);
+        }
+        if (!module) {
+          throw new Error(`The module at "${path}" does not exist.`);
+        }
+        return module.exports;
+      } else {
+        if (!(typeof continuation === "function")) {
+          throw new ArgumentError("Continuation must be a function.");
+        }
+        flushDeferAfter(() => {
+          const search = () => {
+            const path2 = paths.shift();
+            return moduleAtPath(path2, (module) => {
+              if (module || paths.length === 0) {
+                continuation(module && module.exports);
+              } else {
+                search();
+              }
+            });
+          };
+          search();
+        });
+      }
+    };
+    const designatedRequire = (...args) => (rootRequire._designatedRequire || _designatedRequire)(...args);
+    const requireRelative = (basePath, qualifiedPath, continuation) => {
+      qualifiedPath = qualifiedPath.toString();
+      const path = normalizePath(fullyQualifyPath(qualifiedPath, basePath));
+      return designatedRequire(path, continuation, basePath);
+    };
+    const requireRelativeN = (basePath, qualifiedPaths, continuation) => {
+      if (!(typeof continuation === "function")) {
+        throw new ArgumentError("Final argument must be a continuation.");
+      } else {
+        const _qualifiedPaths = qualifiedPaths.map((p) => p.toString());
+        const results = [];
+        const _require = (result2) => {
+          results.push(result2);
+          if (qualifiedPaths.length > 0) {
+            requireRelative(basePath, qualifiedPaths.shift(), _require);
+          } else {
+            continuation(...results);
+          }
+        };
+        for (let i = 0; i < qualifiedPaths.length; i++) {
+          requireRelative(basePath, _qualifiedPaths[i], _require);
+        }
+      }
+    };
+    const requireRelativeTo = (basePath) => {
+      basePath = basePath.replace(/[^/]+$/, "");
+      const require3 = (...args) => {
+        if (args.length > 2) {
+          const continuation = args.pop();
+          const qualifiedPaths = args;
+          return requireRelativeN(basePath, qualifiedPaths, continuation);
+        } else {
+          const [qualifiedPath, continuation] = args;
+          return requireRelative(basePath, qualifiedPath, continuation);
+        }
+      };
+      require3.main = main;
+      return require3;
+    };
+    const rootRequire = requireRelativeTo("/");
+    rootRequire._modules = modules;
+    rootRequire._definitions = definitions;
+    rootRequire._designatedRequire = _designatedRequire;
+    rootRequire.define = define;
+    rootRequire.setRequestMaximum = setRequestMaximum;
+    rootRequire.setGlobalKeyPath = setGlobalKeyPath;
+    rootRequire.setRootURI = setRootURI;
+    rootRequire.setLibraryURI = setLibraryURI;
+    rootRequire.setLibraryLookupComponent = setLibraryLookupComponent;
+    return rootRequire;
+  })()
+);
+const requireKernel = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+  __proto__: null,
+  require: require2
+}, Symbol.toStringTag, { value: "Module" }));
 var hasRequiredAce;
 function requireAce() {
   if (hasRequiredAce)
@@ -18122,6 +18318,7 @@ function requireAce() {
   const pluginUtils = shared;
   const Ace2Inner = requireAce2_inner();
   const clientPlugins = client_plugins;
+  const requireKernel$1 = requireKernel;
   const debugLog = (...args) => {
     console.log(args);
   };
@@ -18289,10 +18486,6 @@ function requireAce() {
       const innerDocument = innerWindow.document;
       innerDocument.documentElement.classList.add("inner-editor", ...skinVariants);
       addStyleTagsFor(innerDocument, includedCSS);
-      const requireKernel = innerDocument.createElement("script");
-      requireKernel.type = "text/javascript";
-      requireKernel.src = absUrl(`../static/js/require-kernel.js?v=${clientVars.randomVersionString}`);
-      innerDocument.head.appendChild(requireKernel);
       const innerStyle = innerDocument.createElement("style");
       innerStyle.type = "text/css";
       innerStyle.title = "dynamicsyntax";
@@ -18306,26 +18499,38 @@ function requireAce() {
       innerDocument.body.classList.add("innerdocbody");
       innerDocument.body.setAttribute("spellcheck", "false");
       innerDocument.body.appendChild(innerDocument.createTextNode(" "));
-      const require2 = requireKernel.require;
+      const require3 = requireKernel$1.require;
       debugLog("Ace2Editor.init() waiting for require kernel load");
-      await eventFired(requireKernel, "load");
+      await eventFired({
+        addEventListener: (e, a) => {
+          console.log("Events are", e, a);
+          if (e === "load") {
+            a();
+          }
+        },
+        removeEventListener: (e, a) => {
+        }
+      }, "load");
       debugLog("Ace2Editor.init() require kernel loaded");
-      require2.setRootURI(absUrl("../javascripts/src"));
-      require2.setLibraryURI(absUrl("../javascripts/lib"));
-      require2.setGlobalKeyPath("require");
+      require3.setRootURI(absUrl("../javascripts/src"));
+      require3.setLibraryURI(absUrl("../javascripts/lib"));
+      require3.setGlobalKeyPath("require");
       innerWindow.Ace2Inner = Ace2Inner;
       innerWindow.plugins = clientPlugins;
-      innerWindow.plugins.adoptPluginsFromAncestorsOf(innerWindow);
+      innerWindow.require = require3;
+      innerWindow.plugins.adoptPluginsFromAncestorsOf(require3);
       innerWindow.$ = innerWindow.jQuery = window.$;
       debugLog("Ace2Editor.init() waiting for plugins");
       await new Promise((resolve, reject2) => innerWindow.plugins.ensure(
         (err) => err != null ? reject2(err) : resolve()
       ));
       debugLog("Ace2Editor.init() waiting for Ace2Inner.init()");
+      const iframe = document.getElementsByName("ace_outer")[0];
+      console.log(iframe);
       await innerWindow.Ace2Inner.init(info, {
         inner: makeCSSManager(innerStyle.sheet),
         outer: makeCSSManager(outerStyle.sheet),
-        parent: makeCSSManager(document.querySelector('style[title="dynamicsyntax"]').sheet)
+        parent: makeCSSManager(iframe.contentWindow.document.querySelector('style[title="dynamicsyntax"]').sheet)
       });
       debugLog("Ace2Editor.init() Ace2Inner.init() returned");
       loaded = true;

@@ -27,29 +27,33 @@ exports.update = (cb) => {
   });
 };
 
-const adoptPluginsFromAncestorsOf = (frame) => {
+const adoptPluginsFromAncestorsOf = (require) => {
   // Bind plugins with parent;
   let parentRequire = null;
   try {
-    while ((frame = frame.parent)) {
-      if (typeof (frame.require) !== 'undefined') {
-        parentRequire = frame.require;
-        break;
-      }
-    }
   } catch (error) {
     // Silence (this can only be a XDomain issue).
     console.error(error);
   }
 
-  if (!parentRequire) throw new Error('Parent plugins could not be found.');
+  if (!require) throw new Error('Parent plugins could not be found.');
 
-  const ancestorPluginDefs = parentRequire('ep_etherpad-lite/static/js/pluginfw/plugin_defs');
+  const ancestorPluginDefs = {
+    hooks:{},
+    loaded: true,
+    parts: [],
+    plugins:{}
+  }
+
   defs.hooks = ancestorPluginDefs.hooks;
   defs.loaded = ancestorPluginDefs.loaded;
   defs.parts = ancestorPluginDefs.parts;
   defs.plugins = ancestorPluginDefs.plugins;
-  const ancestorPlugins = parentRequire('ep_etherpad-lite/static/js/pluginfw/client_plugins');
+  const ancestorPlugins = {
+    baseURL: "/",
+    ensure: (cb)=>!defs.loaded ? exports.update(cb):cb(),
+    update: exports.update
+  }
   exports.baseURL = ancestorPlugins.baseURL;
   exports.ensure = ancestorPlugins.ensure;
   exports.update = ancestorPlugins.update;

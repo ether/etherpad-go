@@ -61,9 +61,11 @@ function Ace2Inner(editorInfo, cssManagers) {
 
   const outerWin = window.parent;
   const outerDoc = outerWin.document;
-  const sideDiv = outerDoc.getElementById('sidediv');
-  const lineMetricsDiv = outerDoc.getElementById('linemetricsdiv');
-  const sideDivInner = outerDoc.getElementById('sidedivinner');
+  const iframe = document.getElementsByName("ace_outer")[0]
+
+  const sideDiv = iframe.contentWindow.document.getElementById('sidediv');
+  const lineMetricsDiv = iframe.contentWindow.document.getElementById('linemetricsdiv');
+  const sideDivInner = iframe.contentWindow.document.getElementById('sidedivinner');
   const appendNewSideDivLine = () => {
     const lineDiv = outerDoc.createElement('div');
     sideDivInner.appendChild(lineDiv);
