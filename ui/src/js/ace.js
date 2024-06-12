@@ -170,7 +170,7 @@ const Ace2Editor = function () {
   });
 
   this.init = async function (containerId, initialCode) {
-    debugLog('Ace2Editor.init()');
+    debugLog('Ace2Editor.init() with', initialCode);
     this.importText(initialCode);
 
     const includedCSS = [

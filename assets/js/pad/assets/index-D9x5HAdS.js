@@ -14775,7 +14775,7 @@ function requireScroll() {
   function Scroll(outerWin) {
     this.scrollSettings = parent.parent.clientVars.scrollWhenFocusLineIsOutOfViewport;
     this.outerWin = outerWin;
-    this.doc = this.outerWin.document;
+    this.doc = this.outerWin.contentDocument;
     this.rootDocument = parent.parent.document;
   }
   Scroll.prototype.scrollWhenCaretIsInTheLastLineOfViewportWhenNecessary = function(rep, isScrollableEvent, innerHeight) {
@@ -15051,16 +15051,17 @@ function requireAce2_inner() {
     const FORMATTING_STYLES = ["bold", "italic", "underline", "strikethrough"];
     const SELECT_BUTTON_CLASS = "selected";
     let thisAuthor = "";
+    const outerWin = document.getElementsByName("ace_outer")[0];
+    const targetDoc = outerWin.contentWindow.document.getElementsByName("ace_inner")[0].contentWindow.document;
+    const targetBody = targetDoc.body;
     let disposed = false;
     const focus = () => {
       window.focus();
     };
-    const outerWin = window.parent;
-    const outerDoc = outerWin.document;
-    const iframe = document.getElementsByName("ace_outer")[0];
-    const sideDiv = iframe.contentWindow.document.getElementById("sidediv");
-    const lineMetricsDiv = iframe.contentWindow.document.getElementById("linemetricsdiv");
-    const sideDivInner = iframe.contentWindow.document.getElementById("sidedivinner");
+    const outerDoc = outerWin.contentWindow.document;
+    const sideDiv = outerDoc.getElementById("sidediv");
+    const lineMetricsDiv = outerDoc.getElementById("linemetricsdiv");
+    const sideDivInner = outerDoc.getElementById("sidedivinner");
     const appendNewSideDivLine = () => {
       const lineDiv = outerDoc.createElement("div");
       sideDivInner.appendChild(lineDiv);
@@ -15371,7 +15372,7 @@ function requireAce2_inner() {
     };
     const setWraps = (newVal) => {
       doesWrap = newVal;
-      document.body.classList.toggle("doesWrap", doesWrap);
+      targetBody.classList.toggle("doesWrap", doesWrap);
       scheduler.setTimeout(() => {
         inCallStackIfNecessary("setWraps", () => {
           fastIncorp();
@@ -15397,7 +15398,7 @@ function requireAce2_inner() {
       }
     };
     const setTextFace = (face) => {
-      document.body.style.fontFamily = face;
+      targetBody.style.fontFamily = face;
       lineMetricsDiv.style.fontFamily = face;
     };
     const recreateDOM = () => {
@@ -15405,8 +15406,8 @@ function requireAce2_inner() {
     };
     const setEditable = (newVal) => {
       isEditable = newVal;
-      document.body.contentEditable = isEditable ? "true" : "false";
-      document.body.classList.toggle("static", !isEditable);
+      targetBody.contentEditable = isEditable ? "true" : "false";
+      targetBody.classList.toggle("static", !isEditable);
     };
     const enforceEditability = () => setEditable(isEditable);
     const importText = (text, undoable, dontProcess) => {
@@ -15449,6 +15450,7 @@ function requireAce2_inner() {
         atext.text = "\n";
       }
       fastIncorp();
+      window.console.log(rep);
       const oldLen = rep.lines.totalWidth();
       const numLines = rep.lines.length();
       const upToLastLine = rep.lines.offsetOfIndex(numLines - 1);
@@ -15553,8 +15555,8 @@ function requireAce2_inner() {
     editorInfo.ace_setProperty = (key, value) => {
       const setters = {
         wraps: setWraps,
-        showsauthorcolors: (val) => document.body.classList.toggle("authorColors", !!val),
-        showsuserselections: (val) => document.body.classList.toggle("userSelections", !!val),
+        showsauthorcolors: (val) => targetBody.classList.toggle("authorColors", !!val),
+        showsuserselections: (val) => targetBody.classList.toggle("userSelections", !!val),
         showslinenumbers: (value2) => {
           hasLineNumbers = !!value2;
           sideDiv.parentNode.classList.toggle("line-numbers-hidden", !hasLineNumbers);
@@ -15567,8 +15569,8 @@ function requireAce2_inner() {
         styled: setStyled,
         textface: setTextFace,
         rtlistrue: (value2) => {
-          document.body.classList.toggle("rtl", value2);
-          document.body.classList.toggle("ltr", !value2);
+          targetBody.classList.toggle("rtl", value2);
+          targetBody.classList.toggle("ltr", !value2);
           document.documentElement.dir = value2 ? "rtl" : "ltr";
         }
       };
@@ -15765,10 +15767,10 @@ function requireAce2_inner() {
     };
     clearObservedChanges();
     const getCleanNodeByKey = (key) => {
-      let n = document.getElementById(key);
+      let n = targetDoc.getElementById(key);
       while (n && isNodeDirty(n)) {
         n.id = "";
-        n = document.getElementById(key);
+        n = targetDoc.getElementById(key);
       }
       return n;
     };
@@ -15834,11 +15836,11 @@ function requireAce2_inner() {
       }
     };
     const observeSuspiciousNodes = () => {
-      if (document.body.getElementsByTagName) {
-        const elts = document.body.getElementsByTagName("style");
+      if (targetBody.getElementsByTagName) {
+        const elts = targetBody.getElementsByTagName("style");
         for (const elt of elts) {
           const n = topLevel(elt);
-          if (n && n.parentNode === document.body) {
+          if (n && n.parentNode === targetBody) {
             observeChangesAroundNode(n);
           }
         }
@@ -15850,8 +15852,8 @@ function requireAce2_inner() {
       currentCallStack.isUserChange = true;
       if (window.DEBUG_DONT_INCORP)
         return false;
-      if (!document.body.firstChild) {
-        document.body.innerHTML = "<div><!-- --></div>";
+      if (!targetBody.firstChild) {
+        targetBody.innerHTML = "<div><!-- --></div>";
       }
       observeChangesAroundSelection();
       observeSuspiciousNodes();
@@ -15870,7 +15872,7 @@ function requireAce2_inner() {
         j++;
       }
       if (!dirtyRangesCheckOut) {
-        for (const bodyNode of document.body.childNodes) {
+        for (const bodyNode of targetBody.childNodes) {
           if (bodyNode.tagName && (!bodyNode.id || !rep.lines.containsKey(bodyNode.id))) {
             observeChangesAroundNode(bodyNode);
           }
@@ -15889,9 +15891,9 @@ function requireAce2_inner() {
         const range2 = dirtyRanges[i];
         a = range2[0];
         b = range2[1];
-        let firstDirtyNode = a === 0 && document.body.firstChild || getCleanNodeByKey(rep.lines.atIndex(a - 1).key).nextSibling;
+        let firstDirtyNode = a === 0 && targetBody.firstChild || getCleanNodeByKey(rep.lines.atIndex(a - 1).key).nextSibling;
         firstDirtyNode = firstDirtyNode && isNodeDirty(firstDirtyNode) && firstDirtyNode;
-        let lastDirtyNode = b === rep.lines.length() && document.body.lastChild || getCleanNodeByKey(rep.lines.atIndex(b).key).previousSibling;
+        let lastDirtyNode = b === rep.lines.length() && targetBody.lastChild || getCleanNodeByKey(rep.lines.atIndex(b).key).previousSibling;
         lastDirtyNode = lastDirtyNode && isNodeDirty(lastDirtyNode) && lastDirtyNode;
         if (firstDirtyNode && lastDirtyNode) {
           const cc = makeContentCollector(isStyled, browser2, rep.apool, className2Author);
@@ -15961,7 +15963,7 @@ function requireAce2_inner() {
           callstack: currentCallStack,
           editorInfo,
           rep,
-          root: document.body,
+          root: targetBody,
           point: selection.startPoint,
           documentAttributeManager
         });
@@ -15972,7 +15974,7 @@ function requireAce2_inner() {
           callstack: currentCallStack,
           editorInfo,
           rep,
-          root: document.body,
+          root: targetBody,
           point: selection.endPoint,
           documentAttributeManager
         });
@@ -16030,9 +16032,9 @@ function requireAce2_inner() {
         info.prepareForAdd();
         entry.lineMarker = info.lineMarker;
         if (!nodeToAddAfter) {
-          document.body.insertBefore(node, document.body.firstChild);
+          targetBody.insertBefore(node, targetBody.firstChild);
         } else {
-          document.body.insertBefore(node, nodeToAddAfter.nextSibling);
+          targetBody.insertBefore(node, nodeToAddAfter.nextSibling);
         }
         nodeToAddAfter = node;
         info.notifyAdded();
@@ -16123,7 +16125,7 @@ function requireAce2_inner() {
     };
     const nodeText = (n) => n.textContent || n.nodeValue || "";
     const getLineAndCharForPoint = (point) => {
-      if (point.node === document.body) {
+      if (point.node === targetBody) {
         if (point.index === 0) {
           return [0, 0];
         } else {
@@ -16140,7 +16142,7 @@ function requireAce2_inner() {
           col = nodeText(n).length;
         }
         let parNode, prevSib;
-        while ((parNode = n.parentNode) !== document.body) {
+        while ((parNode = n.parentNode) !== targetBody) {
           if (prevSib = n.previousSibling) {
             n = prevSib;
             col += nodeText(n).length;
@@ -16188,7 +16190,7 @@ function requireAce2_inner() {
         }
         insertDomLines(nodeToAddAfter, lineEntries.map((entry) => entry.domInfo));
         for (const k of keysToDelete) {
-          const n = document.getElementById(k);
+          const n = targetDoc.getElementById(k);
           n.parentNode.removeChild(n);
         }
         if (rep.selStart && rep.selStart[0] >= startLine && rep.selStart[0] <= startLine + deleteCount || rep.selEnd && rep.selEnd[0] >= startLine && rep.selEnd[0] <= startLine + deleteCount) {
@@ -16730,7 +16732,7 @@ ${shortNewText.slice(0, -1)}`;
             if (!a || !b)
               return false;
             if (a === true && b === true)
-              return !document.body.firstChild;
+              return !targetBody.firstChild;
             if (a === true && b.previousSibling)
               return false;
             if (b === true && a.nextSibling)
@@ -16847,7 +16849,7 @@ ${shortNewText.slice(0, -1)}`;
       setAssoc(n, "dirtiness", { nodeId: uniqueId2(n), knownHTML: n.innerHTML });
     };
     const isNodeDirty = (n) => {
-      if (n.parentNode !== document.body)
+      if (n.parentNode !== targetBody)
         return true;
       const data = getAssoc(n, "dirtiness");
       if (!data)
@@ -17299,7 +17301,7 @@ ${shortNewText.slice(0, -1)}`;
                 rep.selEnd[0] = linesCount - 1;
               }
               updateBrowserSelectionFromRep();
-              const myselection = document.getSelection();
+              const myselection = targetDoc.getSelection();
               let caretOffsetTop = myselection.focusNode.parentNode.offsetTop || myselection.focusNode.offsetTop;
               if (caretOffsetTop === -1)
                 caretOffsetTop = myselection.focusNode.offsetTop;
@@ -17389,10 +17391,10 @@ ${shortNewText.slice(0, -1)}`;
           };
           if (isNodeText(p.node) && p.index === p.maxIndex) {
             let n = p.node;
-            while (!n.nextSibling && n !== document.body && n.parentNode !== document.body) {
+            while (!n.nextSibling && n !== targetBody && n.parentNode !== targetBody) {
               n = n.parentNode;
             }
-            if (n.nextSibling && !(typeof n.nextSibling.tagName === "string" && n.nextSibling.tagName.toLowerCase() === "br") && n !== p.node && n !== document.body && n.parentNode !== document.body) {
+            if (n.nextSibling && !(typeof n.nextSibling.tagName === "string" && n.nextSibling.tagName.toLowerCase() === "br") && n !== p.node && n !== targetBody && n.parentNode !== targetBody) {
               p.node = n.nextSibling;
               p.maxIndex = nodeMaxIndex(p.node);
               p.index = 0;
@@ -17426,7 +17428,7 @@ ${shortNewText.slice(0, -1)}`;
             browserSelection.collapse(end.container, end.offset);
             browserSelection.extend(start.container, start.offset);
           } else {
-            const range2 = document.createRange();
+            const range2 = targetDoc.createRange();
             range2.setStart(start.container, start.offset);
             range2.setEnd(end.container, end.offset);
             browserSelection.removeAllRanges();
@@ -17488,7 +17490,7 @@ ${shortNewText.slice(0, -1)}`;
       const pointFromRangeBound = (container, offset) => {
         if (!isInBody(container)) {
           return {
-            node: document.body,
+            node: targetBody,
             index: 0,
             maxIndex: 1
           };
@@ -17564,14 +17566,14 @@ ${shortNewText.slice(0, -1)}`;
       $2(document).on("click", handleClick);
       $2(outerDoc).on("click", hideEditBarDropdowns);
       let suppressPasteOnLink = null;
-      $2(document.body).on("auxclick", (e) => {
+      $2(targetBody).on("auxclick", (e) => {
         if (e.originalEvent.button === 1 && (e.target.a || e.target.localName === "a")) {
           suppressPasteOnLink = scheduler.setTimeout(() => {
             suppressPasteOnLink = null;
           }, 0);
         }
       });
-      $2(document.body).on("paste", (e) => {
+      $2(targetBody).on("paste", (e) => {
         if (suppressPasteOnLink != null && (e.target.a || e.target.localName === "a")) {
           scheduler.clearTimeout(suppressPasteOnLink);
           suppressPasteOnLink = null;
@@ -17596,7 +17598,7 @@ ${shortNewText.slice(0, -1)}`;
           const lineBeforeSelection = firstLineSelected.previousSibling;
           const lineAfterSelection = lastLineSelected.nextSibling;
           const neighbor = lineBeforeSelection || lineAfterSelection;
-          neighbor.appendChild(document.createElement("style"));
+          neighbor.appendChild(targetDoc.createElement("style"));
         }
         hooks$1.callAll("aceDrop", {
           editorInfo,
@@ -17617,9 +17619,9 @@ ${shortNewText.slice(0, -1)}`;
       });
     };
     const topLevel = (n) => {
-      if (!n || n === document.body)
+      if (!n || n === targetBody)
         return null;
-      while (n.parentNode !== document.body) {
+      while (n.parentNode !== targetBody) {
         n = n.parentNode;
       }
       return n;
@@ -17739,15 +17741,15 @@ ${shortNewText.slice(0, -1)}`;
     const updateLineNumbers = () => {
       const lineOffsets = [];
       const lineHeights = [];
-      const innerdocbodyStyles = getComputedStyle(document.body);
+      const innerdocbodyStyles = getComputedStyle(targetBody);
       const defaultLineHeight = parseInt(innerdocbodyStyles["line-height"]);
-      for (const docLine of document.body.children) {
+      for (const docLine of targetBody.children) {
         let h;
         const nextDocLine = docLine.nextElementSibling;
         if (nextDocLine) {
           if (lineOffsets.length === 0) {
             h = nextDocLine.offsetTop - parseInt(
-              window.getComputedStyle(document.body).getPropertyValue("padding-top").split("px")[0]
+              window.getComputedStyle(targetBody).getPropertyValue("padding-top").split("px")[0]
             );
           } else {
             h = nextDocLine.offsetTop - docLine.offsetTop;
@@ -17783,14 +17785,14 @@ ${shortNewText.slice(0, -1)}`;
       await $2.ready;
       inCallStack("setup", () => {
         if (browser2.firefox)
-          $2(document.body).addClass("mozilla");
+          $2(targetBody).addClass("mozilla");
         if (browser2.safari)
-          $2(document.body).addClass("safari");
-        document.body.classList.toggle("authorColors", true);
-        document.body.classList.toggle("doesWrap", doesWrap);
+          $2(targetBody).addClass("safari");
+        targetBody.classList.toggle("authorColors", true);
+        targetBody.classList.toggle("doesWrap", doesWrap);
         enforceEditability();
-        while (document.body.firstChild)
-          document.body.removeChild(document.body.firstChild);
+        while (targetBody.firstChild)
+          targetBody.removeChild(targetBody.firstChild);
         const oneEntry = createDomLineEntry("");
         doRepLineSplice(0, rep.lines.length(), [oneEntry]);
         insertDomLines(null, [oneEntry.domInfo]);
@@ -18427,7 +18429,7 @@ function requireAce() {
       info = null;
     });
     this.init = async function(containerId, initialCode) {
-      debugLog("Ace2Editor.init()");
+      debugLog("Ace2Editor.init() with", initialCode);
       this.importText(initialCode);
       const includedCSS = [
         `../static/css/iframe_editor.css?v=${clientVars.randomVersionString}`,
