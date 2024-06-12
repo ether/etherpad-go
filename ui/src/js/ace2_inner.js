@@ -53,12 +53,13 @@ function Ace2Inner(editorInfo, cssManagers) {
 
   let thisAuthor = '';
   const outerWin = document.getElementsByName("ace_outer")[0]
-  const targetDoc = outerWin.contentWindow.document.getElementsByName("ace_inner")[0].contentWindow.document
+  const targetWindow = outerWin.contentWindow.document.getElementsByName("ace_inner")[0].contentWindow
+  const targetDoc = targetWindow.document
   const targetBody = targetDoc.body
   let disposed = false;
 
   const focus = () => {
-    window.focus();
+    targetWindow.focus();
   };
 
   const outerDoc = outerWin.contentWindow.document;
@@ -137,9 +138,9 @@ function Ace2Inner(editorInfo, cssManagers) {
   let hasLineNumbers = true;
   let isStyled = true;
 
-  let console = (DEBUG && window.console);
+  let console = (DEBUG && targetWindow.console);
 
-  if (!window.console) {
+  if (!targetWindow.console) {
     const names = [
       'log',
       'debug',
@@ -998,7 +999,7 @@ function Ace2Inner(editorInfo, cssManagers) {
 
     currentCallStack.isUserChange = true;
 
-    if (DEBUG && window.DONT_INCORP || window.DEBUG_DONT_INCORP) return false;
+    if (DEBUG && targetWindow.DONT_INCORP || targetWindow.DEBUG_DONT_INCORP) return false;
 
     // returns true if dom changes were made
     if (!targetBody.firstChild) {
@@ -2258,7 +2259,7 @@ function Ace2Inner(editorInfo, cssManagers) {
       }
       if (n && isLink(n)) {
         try {
-          window.open(n.href, '_blank', 'noopener,noreferrer');
+          targetWindow.open(n.href, '_blank', 'noopener,noreferrer');
         } catch (e) {
           // absorb "user canceled" error in IE for certain prompts
         }
@@ -2270,7 +2271,7 @@ function Ace2Inner(editorInfo, cssManagers) {
   };
 
   const hideEditBarDropdowns = () => {
-    window.parent.parent.padeditbar.toggleDropDown('none');
+    targetWindow.parent.parent.padeditbar.toggleDropDown('none');
   };
 
   const renumberList = (lineNum) => {
@@ -3004,7 +3005,7 @@ function Ace2Inner(editorInfo, cssManagers) {
         };
       }
     };
-    const browserSelection = window.getSelection();
+    const browserSelection = targetWindow.getSelection();
     if (browserSelection) {
       browserSelection.removeAllRanges();
       if (selection) {
@@ -3079,7 +3080,7 @@ function Ace2Inner(editorInfo, cssManagers) {
     // each of which has node (a magicdom node), index, and maxIndex.  If the node
     // is a text node, maxIndex is the length of the text; else maxIndex is 1.
     // index is between 0 and maxIndex, inclusive.
-    const browserSelection = window.getSelection();
+    const browserSelection = targetWindow.getSelection();
     if (!browserSelection || browserSelection.type === 'None' ||
         browserSelection.rangeCount === 0) {
       return null;
@@ -3147,7 +3148,7 @@ function Ace2Inner(editorInfo, cssManagers) {
           browserSelection.anchorOffset === range.endOffset,
     };
 
-    if (selection.startPoint.node.ownerDocument !== window.document) {
+    if (selection.startPoint.node.ownerDocument !== targetWindow.document) {
       return null;
     }
 
@@ -3451,7 +3452,7 @@ function Ace2Inner(editorInfo, cssManagers) {
           // included on the first line. The default stylesheet doesn't add
           // extra margins/padding, but plugins might.
           h = nextDocLine.offsetTop - parseInt(
-              window.getComputedStyle(targetBody)
+              targetWindow.getComputedStyle(targetBody)
                   .getPropertyValue('padding-top').split('px')[0]);
         } else {
           h = nextDocLine.offsetTop - docLine.offsetTop;
@@ -3468,7 +3469,7 @@ function Ace2Inner(editorInfo, cssManagers) {
         // use that for displaying the side div line number inline with the first line
         // of content -- This is used in ep_headings, ep_font_size etc. where the line
         // height is increased.
-        const elementStyle = window.getComputedStyle(docLine.firstChild);
+        const elementStyle = targetWindow.getComputedStyle(docLine.firstChild);
         const lineHeight = parseInt(elementStyle.getPropertyValue('line-height'));
         const marginBottom = parseInt(elementStyle.getPropertyValue('margin-bottom'));
         lineHeights.push(lineHeight + marginBottom);

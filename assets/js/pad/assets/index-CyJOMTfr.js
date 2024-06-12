@@ -15052,11 +15052,12 @@ function requireAce2_inner() {
     const SELECT_BUTTON_CLASS = "selected";
     let thisAuthor = "";
     const outerWin = document.getElementsByName("ace_outer")[0];
-    const targetDoc = outerWin.contentWindow.document.getElementsByName("ace_inner")[0].contentWindow.document;
+    const targetWindow = outerWin.contentWindow.document.getElementsByName("ace_inner")[0].contentWindow;
+    const targetDoc = targetWindow.document;
     const targetBody = targetDoc.body;
     let disposed = false;
     const focus = () => {
-      window.focus();
+      targetWindow.focus();
     };
     const outerDoc = outerWin.contentWindow.document;
     const sideDiv = outerDoc.getElementById("sidediv");
@@ -15124,7 +15125,7 @@ function requireAce2_inner() {
     let hasLineNumbers = true;
     let isStyled = true;
     let console2 = DEBUG;
-    if (!window.console) {
+    if (!targetWindow.console) {
       const names = [
         "log",
         "debug",
@@ -15850,7 +15851,7 @@ function requireAce2_inner() {
       if (currentCallStack.domClean)
         return false;
       currentCallStack.isUserChange = true;
-      if (window.DEBUG_DONT_INCORP)
+      if (targetWindow.DEBUG_DONT_INCORP)
         return false;
       if (!targetBody.firstChild) {
         targetBody.innerHTML = "<div><!-- --></div>";
@@ -16872,7 +16873,7 @@ ${shortNewText.slice(0, -1)}`;
         }
         if (n && isLink(n)) {
           try {
-            window.open(n.href, "_blank", "noopener,noreferrer");
+            targetWindow.open(n.href, "_blank", "noopener,noreferrer");
           } catch (e) {
           }
           evt.preventDefault();
@@ -16881,7 +16882,7 @@ ${shortNewText.slice(0, -1)}`;
       hideEditBarDropdowns();
     };
     const hideEditBarDropdowns = () => {
-      window.parent.parent.padeditbar.toggleDropDown("none");
+      targetWindow.parent.parent.padeditbar.toggleDropDown("none");
     };
     const renumberList = (lineNum) => {
       let type = getLineListType(lineNum);
@@ -17417,7 +17418,7 @@ ${shortNewText.slice(0, -1)}`;
           };
         }
       };
-      const browserSelection = window.getSelection();
+      const browserSelection = targetWindow.getSelection();
       if (browserSelection) {
         browserSelection.removeAllRanges();
         if (selection) {
@@ -17476,7 +17477,7 @@ ${shortNewText.slice(0, -1)}`;
         return 1;
     };
     const getSelection = () => {
-      const browserSelection = window.getSelection();
+      const browserSelection = targetWindow.getSelection();
       if (!browserSelection || browserSelection.type === "None" || browserSelection.rangeCount === 0) {
         return null;
       }
@@ -17532,7 +17533,7 @@ ${shortNewText.slice(0, -1)}`;
         endPoint: pointFromRangeBound(range2.endContainer, range2.endOffset),
         focusAtStart: (range2.startContainer !== range2.endContainer || range2.startOffset !== range2.endOffset) && browserSelection.anchorNode && browserSelection.anchorNode === range2.endContainer && browserSelection.anchorOffset === range2.endOffset
       };
-      if (selection.startPoint.node.ownerDocument !== window.document) {
+      if (selection.startPoint.node.ownerDocument !== targetWindow.document) {
         return null;
       }
       return selection;
@@ -17749,7 +17750,7 @@ ${shortNewText.slice(0, -1)}`;
         if (nextDocLine) {
           if (lineOffsets.length === 0) {
             h = nextDocLine.offsetTop - parseInt(
-              window.getComputedStyle(targetBody).getPropertyValue("padding-top").split("px")[0]
+              targetWindow.getComputedStyle(targetBody).getPropertyValue("padding-top").split("px")[0]
             );
           } else {
             h = nextDocLine.offsetTop - docLine.offsetTop;
@@ -17759,7 +17760,7 @@ ${shortNewText.slice(0, -1)}`;
         }
         lineOffsets.push(h);
         if (docLine.clientHeight !== defaultLineHeight) {
-          const elementStyle = window.getComputedStyle(docLine.firstChild);
+          const elementStyle = targetWindow.getComputedStyle(docLine.firstChild);
           const lineHeight = parseInt(elementStyle.getPropertyValue("line-height"));
           const marginBottom = parseInt(elementStyle.getPropertyValue("margin-bottom"));
           lineHeights.push(lineHeight + marginBottom);
@@ -18432,13 +18433,13 @@ function requireAce() {
       debugLog("Ace2Editor.init() with", initialCode);
       this.importText(initialCode);
       const includedCSS = [
-        `../static/css/iframe_editor.css?v=${clientVars.randomVersionString}`,
-        `../static/css/pad.css?v=${clientVars.randomVersionString}`,
+        `../css/static/iframe_editor.css?v=${clientVars.randomVersionString}`,
+        `../cs/static/pad.css?v=${clientVars.randomVersionString}`,
         ...hooks$1.callAll("aceEditorCSS").map(
           // Allow urls to external CSS - http(s):// and //some/path.css
           (p) => /\/\//.test(p) ? p : `../static/plugins/${p}`
         ),
-        `../static/skins/${clientVars.skinName}/pad.css?v=${clientVars.randomVersionString}`
+        `../css/skin/pad.css?v=${clientVars.randomVersionString}`
       ];
       const skinVariants = clientVars.skinVariants.split(" ").filter((x) => x !== "");
       const outerFrame = document.createElement("iframe");
