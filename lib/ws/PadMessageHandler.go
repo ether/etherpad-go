@@ -67,19 +67,6 @@ func HandleClientReadyMessage(ready ws.ClientReady, client *Client) {
 	}
 
 	var foundAuthor = authorManager.GetAuthor(sessionInfo.Author)
-	var arr = make([]interface{}, 2)
-	arr[0] = "message"
-	arr[1] = Message{
-		Data: settings.NewClientVars(),
-		Type: "CLIENT_VARS",
-	}
-	var encoded, err1 = json.Marshal(arr)
-
-	if err1 != nil {
-		println(err1.Error())
-	}
-
-	client.conn.WriteMessage(websocket.TextMessage, encoded)
 
 	var retrievedPad, err = padManager.GetPad(authSession.PadID, nil, &foundAuthor)
 	if err != nil {
@@ -116,9 +103,14 @@ func HandleClientReadyMessage(ready ws.ClientReady, client *Client) {
 		var atext = changeset.CloneAText(retrievedPad.AText)
 		var attribsForWire = changeset.PrepareForWire(atext.Attribs, retrievedPad.Pool)
 		atext.Attribs = attribsForWire.Translated
-		/*var clientVars settings.ClientVars = settings.ClientVars{
-			SkinName: "",
-		}*/
+		var arr = make([]interface{}, 2)
+		arr[0] = "message"
+		arr[1] = Message{
+			Data: settings.NewClientVars(),
+			Type: "CLIENT_VARS",
+		}
+		var encoded, _ = json.Marshal(arr)
+		client.conn.WriteMessage(websocket.TextMessage, encoded)
 
 	}
 }

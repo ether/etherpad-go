@@ -3,6 +3,7 @@ package settings
 import (
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/utils"
+	"time"
 )
 
 type AccountPrivs struct {
@@ -46,9 +47,28 @@ type ScrollWhenFocusLineIsOutOfViewport struct {
 	PercentageToScrollWhenUserPressesArrowUp int                                          `json:"percentageToScrollWhenUserPressesArrowUp"`
 }
 
+type PluginInMessagePackage struct {
+	Name     string `json:"name"`
+	Path     string `json:"path"`
+	RealPath string `json:"realPath"`
+	Version  string `json:"version"`
+}
+
+type PartInMessage struct {
+	FullName string            `json:"full_name"`
+	Hooks    map[string]string `json:"hooks"`
+	Name     string            `json:"name"`
+	Plugin   string            `json:"plugin"`
+}
+
+type PluginInMessage struct {
+	Package PluginInMessagePackage `json:"package"`
+	Parts   []PartInMessage        `json:"parts"`
+}
+
 type RootPlugin struct {
-	Plugins map[string]string
-	Parts   map[string]string
+	Plugins map[string]PluginInMessage `json:"plugins"`
+	Parts   map[string]PartInMessage   `json:"parts"`
 }
 
 type ClientVars struct {
@@ -73,12 +93,12 @@ type ClientVars struct {
 	NumConnectedUsers                  int                                `json:"numConnectedUsers"`
 	ReadOnlyId                         string                             `json:"readOnlyId"`
 	ReadOnly                           bool                               `json:"readOnly"`
-	ServerTimeStamp                    int                                `json:"serverTimestamp"`
+	ServerTimeStamp                    int64                              `json:"serverTimestamp"`
 	SessionRefreshInterval             int                                `json:"sessionRefreshInterval"`
 	UserId                             string                             `json:"userId"`
-	AbiwordAvailable                   bool                               `json:"abiwordAvailable"`
-	SOfficeAvailable                   bool                               `json:"sofficeAvailable"`
-	ExportAvailable                    bool                               `json:"exportAvailable"`
+	AbiwordAvailable                   string                             `json:"abiwordAvailable"`
+	SOfficeAvailable                   string                             `json:"sofficeAvailable"`
+	ExportAvailable                    string                             `json:"exportAvailable"`
 	Plugins                            RootPlugin                         `json:"plugins"`
 	Parts                              map[string]interface{}             `json:"parts"`
 	IndentationOnNewLine               bool                               `json:"indentationOnNewLine"`
@@ -131,6 +151,36 @@ func NewClientVars() ClientVars {
 	padShortCutEnabled["pageUp"] = true
 	padShortCutEnabled["pageDown"] = true
 
+	var rootPlugin = RootPlugin{
+		Plugins: make(map[string]PluginInMessage),
+		Parts:   make(map[string]PartInMessage),
+	}
+
+	var plugins = utils.GetPlugins()
+	for s := range plugins {
+		var rawParts = utils.GetParts()
+		var convertedParts = make([]PartInMessage, 0)
+		for part := range rawParts {
+			if rawParts[part].Plugin != nil && *rawParts[part].Plugin == s {
+				convertedParts = append(convertedParts, PartInMessage{
+					Name:     rawParts[part].Name,
+					Plugin:   *rawParts[part].Plugin,
+					Hooks:    rawParts[part].Hooks,
+					FullName: *rawParts[part].FullName,
+				})
+			}
+		}
+		rootPlugin.Plugins[s] = PluginInMessage{
+			Parts: convertedParts,
+			Package: PluginInMessagePackage{
+				Name:     plugins[s].Name,
+				Path:     plugins[s].Path,
+				RealPath: plugins[s].RealPath,
+				Version:  plugins[s].Version,
+			},
+		}
+	}
+
 	return ClientVars{
 		SkinName:            "colibris",
 		SkinVariants:        "super-light-toolbar super-light-editor light-background",
@@ -160,7 +210,7 @@ func NewClientVars() ClientVars {
 		ColorPalette:           utils.ColorPalette,
 		ClientIP:               "127.0.0.1",
 		PadId:                  "test",
-		UserColor:              45,
+		UserColor:              1,
 		PadOptions:             padOptions,
 		PadShortcutEnabled:     padShortCutEnabled,
 		InitialTitle:           "Pad: test",
@@ -169,12 +219,12 @@ func NewClientVars() ClientVars {
 		NumConnectedUsers:      0,
 		ReadOnlyId:             "r.933623002a5d8341fbbdea37ce89f008",
 		ReadOnly:               false,
-		ServerTimeStamp:        1717759035617,
+		ServerTimeStamp:        int64(time.Now().Second()),
 		SessionRefreshInterval: 86400000,
 		UserId:                 "a.HrYdUXxHc5IqRn7R",
-		AbiwordAvailable:       false,
-		SOfficeAvailable:       false,
-		ExportAvailable:        false,
+		AbiwordAvailable:       "no",
+		SOfficeAvailable:       "no",
+		ExportAvailable:        "no",
 		IndentationOnNewLine:   true,
 		ScrollWhenFocusLineIsOutOfViewport: ScrollWhenFocusLineIsOutOfViewport{
 			Percentage: ScrollWhenFocusLineIsOutOfViewportPercentage{
@@ -185,6 +235,6 @@ func NewClientVars() ClientVars {
 			ScrollWhenCaretIsInTheLastLineOfViewport: false,
 			PercentageToScrollWhenUserPressesArrowUp: 0,
 		},
-		Plugins: RootPlugin{},
+		Plugins: rootPlugin,
 	}
 }
