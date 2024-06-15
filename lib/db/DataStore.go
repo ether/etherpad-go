@@ -11,10 +11,10 @@ type PadMethods interface {
 	GetPadIds() []string
 	SaveRevision(padId string, rev int, changeset string, text apool.AText, pool apool.APool, authorId *string, timestamp int)
 	GetPad(padID string) (*db.PadDB, error)
-	GetReadonlyPad(padId string) (string, error)
+	GetReadonlyPad(padId string) (*string, error)
 	CreatePad2ReadOnly(padId string, readonlyId string)
 	CreateReadOnly2Pad(padId string, readonlyId string)
-	GetReadOnly2Pad(id string) string
+	GetReadOnly2Pad(id string) *string
 }
 
 type PadMetaData interface {

@@ -112,6 +112,15 @@ func (m *Manager) SetAuthorName(authorId string, authorName string) {
 	m.Db.SaveAuthorName(authorId, authorName)
 }
 
+func (m *Manager) GetAuthorId(token string) string {
+	return m.GetAuthor4Token(token).ID
+}
+
+func (m *Manager) GetAuthor4Token(token string) *db2.AuthorDB {
+	var author, _ = m.Db.GetAuthorByMapperKeyAndMapperValue("token2author", token)
+	return author
+}
+
 /**
  * Returns an array of all pads this author contributed to
  * @param {String} authorID The id of the author

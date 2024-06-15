@@ -89,13 +89,13 @@ func (m *MemoryDataStore) GetPad(padID string) (*db.PadDB, error) {
 	return &pad, nil
 }
 
-func (m *MemoryDataStore) GetReadonlyPad(padId string) (string, error) {
+func (m *MemoryDataStore) GetReadonlyPad(padId string) (*string, error) {
 	pad, ok := m.padStore[padId]
 
 	if !ok {
-		return "", nil
+		return nil, nil
 	}
-	return pad.ReadOnlyId, nil
+	return &pad.ReadOnlyId, nil
 }
 
 func (m *MemoryDataStore) CreatePad2ReadOnly(padId string, readonlyId string) {
@@ -106,8 +106,14 @@ func (m *MemoryDataStore) CreateReadOnly2Pad(padId string, readonlyId string) {
 	m.readonly2Pad[padId] = readonlyId
 }
 
-func (m *MemoryDataStore) GetReadOnly2Pad(id string) string {
-	return m.readonly2Pad[id]
+func (m *MemoryDataStore) GetReadOnly2Pad(id string) *string {
+	res, ok := m.readonly2Pad[id]
+
+	if !ok {
+		return nil
+	}
+
+	return &res
 }
 
 func (m *MemoryDataStore) GetAuthor(author string) (*db.AuthorDB, error) {

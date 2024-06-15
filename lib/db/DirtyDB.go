@@ -138,7 +138,7 @@ func (d SQLiteDB) GetPad(padID string) (*db.PadDB, error) {
 	return &padDB, nil
 }
 
-func (d SQLiteDB) GetReadonlyPad(padId string) (string, error) {
+func (d SQLiteDB) GetReadonlyPad(padId string) (*string, error) {
 	var resultedSQL, args, err = sq.
 		Select("id").
 		From("pad").
@@ -157,10 +157,10 @@ func (d SQLiteDB) GetReadonlyPad(padId string) (string, error) {
 	var readonlyId string
 	for query.Next() {
 		query.Scan(&readonlyId)
-		return readonlyId, nil
+		return &readonlyId, nil
 	}
 
-	return "", nil
+	return nil, nil
 }
 
 func (d SQLiteDB) CreatePad2ReadOnly(padId string, readonlyId string) {
@@ -197,7 +197,7 @@ func (d SQLiteDB) CreateReadOnly2Pad(padId string, readonlyId string) {
 	}
 }
 
-func (d SQLiteDB) GetReadOnly2Pad(id string) string {
+func (d SQLiteDB) GetReadOnly2Pad(id string) *string {
 	var resultedSQL, _, err = sq.
 		Select("id").
 		From("pad").
@@ -216,10 +216,10 @@ func (d SQLiteDB) GetReadOnly2Pad(id string) string {
 	var padId string
 	for query.Next() {
 		query.Scan(&padId)
-		return padId
+		return &padId
 	}
 
-	return ""
+	return nil
 }
 
 func (d SQLiteDB) GetAuthor(author string) (*db.AuthorDB, error) {
