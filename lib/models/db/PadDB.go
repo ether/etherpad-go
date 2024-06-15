@@ -5,10 +5,12 @@ import (
 )
 
 type PadDB struct {
-	ID             string
-	RevNum         int
-	SavedRevisions map[int]PadRevision
-	ReadOnlyId     string
+	RevNum         int                 `json:"head"`
+	SavedRevisions map[int]PadRevision `json:"savedRevisions"`
+	ReadOnlyId     string              `json:"readOnlyId"`
+	Pool           apool.APool         `json:"pool"`
+	ChatHead       int                 `json:"chatHead"`
+	PublicStatus   bool                `json:"publicStatus"`
 }
 
 type PadRevision struct {

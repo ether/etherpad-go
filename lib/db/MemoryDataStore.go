@@ -11,6 +11,7 @@ type MemoryDataStore struct {
 	authorStore  map[string]db.AuthorDB
 	readonly2Pad map[string]string
 	pad2Readonly map[string]string
+	authorMapper map[string]string
 }
 
 func (m *MemoryDataStore) GetPadMetaData(padId string, revNum int) (*db.PadMetaData, error) {
@@ -45,6 +46,7 @@ func NewMemoryDataStore() *MemoryDataStore {
 		authorStore:  make(map[string]db.AuthorDB),
 		pad2Readonly: make(map[string]string),
 		readonly2Pad: make(map[string]string),
+		authorMapper: make(map[string]string),
 	}
 }
 
@@ -97,18 +99,15 @@ func (m *MemoryDataStore) GetReadonlyPad(padId string) (string, error) {
 }
 
 func (m *MemoryDataStore) CreatePad2ReadOnly(padId string, readonlyId string) {
-	//TODO implement me
-	panic("implement me")
+	m.pad2Readonly[padId] = readonlyId
 }
 
 func (m *MemoryDataStore) CreateReadOnly2Pad(padId string, readonlyId string) {
-	//TODO implement me
-	panic("implement me")
+	m.readonly2Pad[padId] = readonlyId
 }
 
 func (m *MemoryDataStore) GetReadOnly2Pad(id string) string {
-	//TODO implement me
-	panic("implement me")
+	return m.readonly2Pad[id]
 }
 
 func (m *MemoryDataStore) GetAuthor(author string) (*db.AuthorDB, error) {
@@ -122,23 +121,21 @@ func (m *MemoryDataStore) GetAuthor(author string) (*db.AuthorDB, error) {
 }
 
 func (m *MemoryDataStore) GetAuthorByMapperKeyAndMapperValue(key string, value string) (*db.AuthorDB, error) {
-	//TODO implement me
-	panic("implement me")
+	return nil, nil
 }
 
 func (m *MemoryDataStore) SaveAuthor(author db.AuthorDB) {
-	//TODO implement me
-	panic("implement me")
+	m.authorStore[author.ID] = author
 }
 
 func (m *MemoryDataStore) SaveAuthorName(authorId string, authorName string) {
-	//TODO implement me
-	panic("implement me")
+	var retrievedAuthor, _ = m.authorStore[authorId]
+	retrievedAuthor.Name = &authorName
 }
 
 func (m *MemoryDataStore) SaveAuthorColor(authorId string, authorColor string) {
-	//TODO implement me
-	panic("implement me")
+	var retrievedAuthor, _ = m.authorStore[authorId]
+	retrievedAuthor.ColorId = authorColor
 }
 
 var _ DataStore = (*MemoryDataStore)(nil)

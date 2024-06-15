@@ -3,7 +3,7 @@ package db
 type AuthorDB struct {
 	ID        string
 	Name      *string
-	ColorId   int
+	ColorId   string
 	PadIDs    map[string]struct{}
 	Timestamp int64
 }

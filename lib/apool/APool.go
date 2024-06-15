@@ -5,16 +5,17 @@ import (
 )
 
 type APool struct {
-	NumToAttrib map[int]Attribute
-	AttribToNum map[Attribute]int
-	nextNum     int
+	NumToAttrib    map[int]Attribute `json:"-"`
+	NumToAttribRaw map[int][]string  `json:"numToAttrib"`
+	AttribToNum    map[Attribute]int `json:"-"`
+	NextNum        int               `json:"nextNum"`
 }
 
 func NewAPool() *APool {
 	return &APool{
 		NumToAttrib: make(map[int]Attribute),
 		AttribToNum: make(map[Attribute]int),
-		nextNum:     0,
+		NextNum:     0,
 	}
 }
 
@@ -28,29 +29,22 @@ func (a *APool) PutAttrib(attrib Attribute, dontAddIfAbsent *bool) int {
 		return -1
 	}
 
-	a.nextNum++
-	a.AttribToNum[attrib] = a.nextNum
-	a.NumToAttrib[a.nextNum] = attrib
+	a.NextNum++
+	a.AttribToNum[attrib] = a.NextNum
+	a.NumToAttrib[a.NextNum] = attrib
 
-	return a.nextNum
+	return a.NextNum
 }
 
-/**
- * Replace the contents of this attribute pool with values from a previous call to `toJsonable`.
- *
- * @param {Jsonable} obj - Object returned by `toJsonable` containing the attributes and their
- *     identifiers. WARNING: This function takes ownership of the object (it does not make a deep
- *     copy). Use the `clone()` method to copy a pool -- do NOT do
- *     `new AttributePool().fromJsonable(pool.toJsonable())` to copy because the resulting shared
- *     state will lead to pool corruption.
- */
-func (a *APool) fromJsonable(obj APool) *APool {
-	a.NumToAttrib = obj.NumToAttrib
+// FromJsonable /**
+func (a *APool) FromJsonable(obj APool) *APool {
 	a.AttribToNum = make(map[Attribute]int)
-	a.nextNum = obj.nextNum
-
-	for num, attrib := range a.NumToAttrib {
-		a.AttribToNum[attrib] = num
+	a.NextNum = obj.NextNum
+	a.NumToAttribRaw = obj.NumToAttribRaw
+	for num, attrib := range obj.NumToAttribRaw {
+		var entry = FromJsonAble(attrib)
+		a.NumToAttrib[num] = entry
+		a.AttribToNum[entry] = num
 	}
 
 	return a
@@ -63,11 +57,15 @@ func (a *APool) fromJsonable(obj APool) *APool {
  *     a pool -- do NOT do `new AttributePool().fromJsonable(pool.toJsonable())` to copy because
  *     the resulting shared state will lead to pool corruption.
  */
-func (a *APool) toJsonable() APool {
-	return APool{
-		NumToAttrib: a.NumToAttrib,
-		nextNum:     a.nextNum,
+func (a *APool) ToJsonable() APool {
+	var jsonAbleMap = make(map[int][]string)
+	for s := range a.NumToAttrib {
+		var attrib = a.NumToAttrib[s]
+		var entry = attrib.ToJsonAble()
+		jsonAbleMap[s] = entry
 	}
+	a.NumToAttribRaw = jsonAbleMap
+	return *a
 }
 
 func (a *APool) clone() APool {
@@ -83,7 +81,7 @@ func (a *APool) clone() APool {
 		newPool.NumToAttrib[num] = attrib
 	}
 
-	newPool.nextNum = a.nextNum
+	newPool.NextNum = a.NextNum
 	return newPool
 }
 
@@ -91,17 +89,17 @@ func (a *APool) clone() APool {
  * Asserts that the data in the pool is consistent. Throws if inconsistent.
  */
 func (a *APool) check() error {
-	if a.nextNum < 0 {
+	if a.NextNum < 0 {
 		return errors.New("nextNum is negative")
 	}
-	if len(a.AttribToNum) != a.nextNum {
+	if len(a.AttribToNum) != a.NextNum {
 		return errors.New("nextNum is not equal to the number of attributes")
 	}
-	if len(a.NumToAttrib) != a.nextNum {
+	if len(a.NumToAttrib) != a.NextNum {
 		return errors.New("nextNum is not equal to the number of attributes")
 	}
 
-	for i := 0; i < a.nextNum; i++ {
+	for i := 0; i < a.NextNum; i++ {
 		if _, ok := a.NumToAttrib[i]; !ok {
 			return errors.New("attribute not found")
 		}

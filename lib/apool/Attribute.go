@@ -1,8 +1,8 @@
 package apool
 
 type Attribute struct {
-	Key   string
-	Value string
+	Key   string `json:"key"`
+	Value string `json:"value"`
 }
 
 func CmpAttribute(a, b Attribute) int {
@@ -19,4 +19,18 @@ func CmpAttribute(a, b Attribute) int {
 		return 1
 	}
 	return 0
+}
+
+func (a *Attribute) ToJsonAble() []string {
+	var result = make([]string, 2)
+	result[0] = a.Key
+	result[1] = a.Value
+	return result
+}
+
+func FromJsonAble(convertable []string) Attribute {
+	return Attribute{
+		Key:   convertable[0],
+		Value: convertable[1],
+	}
 }

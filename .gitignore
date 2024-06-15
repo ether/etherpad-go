@@ -2,3 +2,4 @@
 *_templ.go
 
 settings.json
+*.db

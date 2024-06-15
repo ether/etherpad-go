@@ -80,7 +80,7 @@ var datastore db.DataStore
 
 func GetDB() db.DataStore {
 	if datastore == nil {
-		datastore = db.NewMemoryDataStore()
+		datastore, _ = db.NewDirtyDB("test.db")
 	}
 
 	return datastore
