@@ -5,6 +5,7 @@ import (
 	"github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/db"
 	"github.com/ether/etherpad-go/lib/models/pad"
+	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/ether/etherpad-go/lib/utils"
 	"regexp"
 )
@@ -129,7 +130,7 @@ func (m *Manager) GetPad(padID string, text *string, author *author.Author) (*pa
 	}
 
 	// try to load pad
-	var newPad = pad.NewPad(padID)
+	var newPad = pad.NewPad(padID, &settings.SettingsDisplayed.DefaultPadText)
 
 	// initialize the pad
 	newPad.Init(text, &author.Id)

@@ -44,7 +44,8 @@ func LoadPlugin(plugin Plugin, plugins map[string]Plugin, parts map[string]Part)
 
 	bytes, err := os.ReadFile(pluginPath)
 	if err != nil {
-		panic(err)
+		println("Error reading plugin file")
+		return
 	}
 	var pluginDef PluginDef
 	err = json.Unmarshal(bytes, &pluginDef)

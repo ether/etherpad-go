@@ -106,7 +106,7 @@ func HandleClientReadyMessage(ready ws.ClientReady, client *Client) {
 		var arr = make([]interface{}, 2)
 		arr[0] = "message"
 		arr[1] = Message{
-			Data: settings.NewClientVars(),
+			Data: settings.NewClientVars(*retrievedPad),
 			Type: "CLIENT_VARS",
 		}
 		var encoded, _ = json.Marshal(arr)

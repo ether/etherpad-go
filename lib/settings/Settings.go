@@ -156,8 +156,6 @@ func isZero(v reflect.Value) bool {
 func init() {
 	settings, err := os.ReadFile("settings.json")
 	settings = stripComments(settings)
-	var settingsString = string(settings)
-	println(settingsString)
 	SettingsDisplayed = newDefaultSettings()
 
 	if err != nil {

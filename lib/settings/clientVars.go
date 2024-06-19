@@ -2,6 +2,7 @@ package settings
 
 import (
 	"github.com/ether/etherpad-go/lib/apool"
+	"github.com/ether/etherpad-go/lib/models/pad"
 	"github.com/ether/etherpad-go/lib/utils"
 	"time"
 )
@@ -106,7 +107,7 @@ type ClientVars struct {
 	InitialChangesets                  []string                           `json:"initialChangesets"`
 }
 
-func NewClientVars() ClientVars {
+func NewClientVars(pad pad.Pad) ClientVars {
 	var historyData = make(map[string]CollabAuthor)
 	historyData["a.HrYdUXxHc5IqRn7R"] = CollabAuthor{
 		Name:    "test",
@@ -194,10 +195,10 @@ func NewClientVars() ClientVars {
 		SavedRevisions:               make([]string, 0),
 		CollabClientVars: CollabClientVars{
 			InitialAttributedText: InitialAttributedText{
-				Text:    "Welcome to Etherpad!\n\nThis pad text is synchronized as you type, so that everyone viewing this page sees the same text. This allows you to collaborate seamlessly on documents!\n\nEtherpad on Github: https://github.com/ether/etherpad-lite\nWarning: DirtyDB is used. This is not recommended for production. -- To suppress these warning messages change suppressErrorsInPadText to true in your settings.json\n\n",
-				Attribs: "|7+b6",
+				Text:    pad.AText.Text,
+				Attribs: pad.AText.Attribs,
 			},
-			PadId:                "test",
+			PadId:                pad.Id,
 			ClientIP:             "127.0.0.1",
 			HistoricalAuthorData: historyData,
 			Apool: APool{
@@ -209,11 +210,11 @@ func NewClientVars() ClientVars {
 		},
 		ColorPalette:           utils.ColorPalette,
 		ClientIP:               "127.0.0.1",
-		PadId:                  "test",
+		PadId:                  pad.Id,
 		UserColor:              1,
 		PadOptions:             padOptions,
 		PadShortcutEnabled:     padShortCutEnabled,
-		InitialTitle:           "Pad: test",
+		InitialTitle:           "Pad: " + pad.Id,
 		Opts:                   map[string]interface{}{},
 		ChatHead:               -1,
 		NumConnectedUsers:      0,

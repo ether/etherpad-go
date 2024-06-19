@@ -29,7 +29,7 @@ type Pad struct {
 	AText          apool.AText
 }
 
-func NewPad(id string) Pad {
+func NewPad(id string, text *string) Pad {
 	p := new(Pad)
 	p.Id = id
 	p.db = utils.GetDB()
@@ -38,7 +38,12 @@ func NewPad(id string) Pad {
 	p.ChatHead = -1
 	p.PublicStatus = false
 	p.savedRevisions = make([]Revision, 0)
-	p.AText = changeset.MakeAText("\n", nil)
+	if text == nil {
+		text = new(string)
+		*text = ""
+	}
+
+	p.AText = changeset.MakeAText(*text, nil)
 	return *p
 }
 
@@ -46,7 +51,7 @@ func (p *Pad) apool() *apool.APool {
 	return &p.Pool
 }
 
-func cleanText(context string) *string {
+func CleanText(context string) *string {
 	context = strings.ReplaceAll(context, "\r\n", "\n")
 	context = strings.ReplaceAll(context, "\r", "\n")
 	context = strings.ReplaceAll(context, "\t", "        ")
@@ -68,7 +73,7 @@ func (p *Pad) Init(text *string, author *string) {
 	} else {
 		if text == nil {
 			var context = "Pad.Init"
-			text = cleanText(context)
+			text = CleanText(context)
 		}
 		var firstChangeset, _ = changeset.MakeSplice("\n", 0, 0, *text, nil, nil)
 		p.appendRevision(firstChangeset, author)

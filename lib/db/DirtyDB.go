@@ -46,6 +46,7 @@ func (d SQLiteDB) DoesPadExist(padID string) bool {
 		println(err.Error())
 	}
 
+	defer query.Close()
 	return query.Next()
 }
 
@@ -97,6 +98,8 @@ func (d SQLiteDB) GetPadIds() []string {
 		padIds = append(padIds, strings.TrimPrefix(padId, "pad:"))
 	}
 
+	defer query.Close()
+
 	return padIds
 }
 
@@ -117,6 +120,7 @@ func (d SQLiteDB) GetPad(padID string) (*db.PadDB, error) {
 	}
 
 	query, err := d.sqlDB.Query(resultedSQL, args...)
+	defer query.Close()
 	if err != nil {
 		return nil, err
 	}
@@ -142,7 +146,7 @@ func (d SQLiteDB) GetReadonlyPad(padId string) (*string, error) {
 	var resultedSQL, args, err = sq.
 		Select("id").
 		From("pad").
-		Where(sq.Eq{"id": fmt.Sprintf(readOnlyPrefix, padId)}).
+		Where(sq.Eq{"id": fmt.Sprintf(pad2readonly, padId)}).
 		ToSql()
 
 	if err != nil {
@@ -160,11 +164,13 @@ func (d SQLiteDB) GetReadonlyPad(padId string) (*string, error) {
 		return &readonlyId, nil
 	}
 
-	return nil, nil
+	defer query.Close()
+
+	return nil, errors.New("no read only id found")
 }
 
 func (d SQLiteDB) CreatePad2ReadOnly(padId string, readonlyId string) {
-	var resultedSQL, _, err = sq.
+	var resultedSQL, args, err = sq.
 		Insert("pad").
 		Columns("id", "data").
 		Values(fmt.Sprintf(pad2readonly, padId), readonlyId).
@@ -174,24 +180,25 @@ func (d SQLiteDB) CreatePad2ReadOnly(padId string, readonlyId string) {
 		panic(err)
 	}
 
-	_, err = d.sqlDB.Exec(resultedSQL)
+	_, err = d.sqlDB.Exec(resultedSQL, args...)
 	if err != nil {
 		panic(err)
 	}
 }
 
 func (d SQLiteDB) CreateReadOnly2Pad(padId string, readonlyId string) {
-	var resultedSQL, _, err = sq.
+	var resultedSQL, args, err = sq.
 		Insert("pad").
 		Columns("id", "data").
-		Values(fmt.Sprintf(readonly2pad, padId), readonlyId).
+		Values(fmt.Sprintf(readonly2pad, readonlyId), padId).
 		ToSql()
 
 	if err != nil {
 		panic(err)
 	}
 
-	_, err = d.sqlDB.Exec(resultedSQL)
+	_, err = d.sqlDB.Exec(resultedSQL, args...)
+
 	if err != nil {
 		panic(err)
 	}
@@ -218,6 +225,7 @@ func (d SQLiteDB) GetReadOnly2Pad(id string) *string {
 		query.Scan(&padId)
 		return &padId
 	}
+	defer query.Close()
 
 	return nil
 }
@@ -257,6 +265,7 @@ func (d SQLiteDB) GetAuthorByMapperKeyAndMapperValue(key string, value string) (
 			return nil, err
 		}
 	}
+	defer query.Close()
 
 	return &authorDB, nil
 }
@@ -326,6 +335,7 @@ func (d SQLiteDB) GetPadMetaData(padId string, revNum int) (*db.PadMetaData, err
 			return nil, err
 		}
 	}
+	defer query.Close()
 
 	return &padMetaData, nil
 }

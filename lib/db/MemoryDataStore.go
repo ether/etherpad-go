@@ -103,7 +103,7 @@ func (m *MemoryDataStore) CreatePad2ReadOnly(padId string, readonlyId string) {
 }
 
 func (m *MemoryDataStore) CreateReadOnly2Pad(padId string, readonlyId string) {
-	m.readonly2Pad[padId] = readonlyId
+	m.readonly2Pad[readonlyId] = padId
 }
 
 func (m *MemoryDataStore) GetReadOnly2Pad(id string) *string {
