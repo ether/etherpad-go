@@ -29,7 +29,7 @@ type Pad struct {
 	AText          apool.AText
 }
 
-func NewPad(id string, text *string) Pad {
+func NewPad(id string) Pad {
 	p := new(Pad)
 	p.Id = id
 	p.db = utils.GetDB()
@@ -38,12 +38,8 @@ func NewPad(id string, text *string) Pad {
 	p.ChatHead = -1
 	p.PublicStatus = false
 	p.savedRevisions = make([]Revision, 0)
-	if text == nil {
-		text = new(string)
-		*text = ""
-	}
 
-	p.AText = changeset.MakeAText(*text, nil)
+	p.AText = changeset.MakeAText("\n", nil)
 	return *p
 }
 
@@ -71,10 +67,6 @@ func (p *Pad) Init(text *string, author *string) {
 		var padMetaData = pad.SavedRevisions[pad.RevNum].PadDBMeta
 		p.Pool = *padMetaData.Pool
 	} else {
-		if text == nil {
-			var context = "Pad.Init"
-			text = CleanText(context)
-		}
 		var firstChangeset, _ = changeset.MakeSplice("\n", 0, 0, *text, nil, nil)
 		p.appendRevision(firstChangeset, author)
 		p.save()
@@ -86,6 +78,7 @@ func (p *Pad) save() {
 		SavedRevisions: make(map[int]db2.PadRevision),
 		RevNum:         p.Head,
 		Pool:           p.Pool.ToJsonable(),
+		AText:          p.AText,
 	})
 }
 

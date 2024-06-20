@@ -6,7 +6,7 @@ import (
 	"github.com/ether/etherpad-go/lib/changeset"
 	"github.com/ether/etherpad-go/lib/models/ws"
 	"github.com/ether/etherpad-go/lib/pad"
-	"github.com/ether/etherpad-go/lib/settings"
+	"github.com/ether/etherpad-go/lib/settings/clientVars"
 	"github.com/gorilla/websocket"
 	"regexp"
 )
@@ -106,7 +106,7 @@ func HandleClientReadyMessage(ready ws.ClientReady, client *Client) {
 		var arr = make([]interface{}, 2)
 		arr[0] = "message"
 		arr[1] = Message{
-			Data: settings.NewClientVars(*retrievedPad),
+			Data: clientVars.NewClientVars(*retrievedPad),
 			Type: "CLIENT_VARS",
 		}
 		var encoded, _ = json.Marshal(arr)

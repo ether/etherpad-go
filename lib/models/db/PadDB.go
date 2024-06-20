@@ -11,6 +11,7 @@ type PadDB struct {
 	Pool           apool.APool         `json:"pool"`
 	ChatHead       int                 `json:"chatHead"`
 	PublicStatus   bool                `json:"publicStatus"`
+	AText          apool.AText         `json:"atext"`
 }
 
 type PadRevision struct {

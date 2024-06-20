@@ -2,6 +2,7 @@ package settings
 
 import (
 	"encoding/json"
+	clientVars2 "github.com/ether/etherpad-go/lib/models/clientVars"
 	"os"
 	"reflect"
 	"regexp"
@@ -39,40 +40,40 @@ type User struct {
 
 type Settings struct {
 	Root                               *string
-	Title                              string                                       `json:"title"`
-	Favicon                            string                                       `json:"favicon"`
-	SkinName                           string                                       `json:"skinName"`
-	SkinVariants                       string                                       `json:"skinVariants"`
-	IP                                 string                                       `json:"ip"`
-	Port                               string                                       `json:"port"`
-	SuppressErrorsInPadText            bool                                         `json:"suppressErrorsInPadText"`
-	SSL                                bool                                         `json:"ssl"`
-	DBType                             string                                       `json:"dbType"`
-	DBSettings                         DBSettings                                   `json:"dbSettings"`
-	DefaultPadText                     string                                       `json:"defaultPadText"`
-	PadOptions                         PadOptions                                   `json:"padOptions"`
-	PadShortCutEnabled                 PadShortCutEnabled                           `json:"padShortCutEnabled"`
-	Toolbar                            Toolbar                                      `json:"toolbar"`
-	RequireSession                     bool                                         `json:"requireSession"`
-	EditOnly                           bool                                         `json:"editOnly"`
-	MaxAge                             int                                          `json:"maxAge"`
-	Minify                             bool                                         `json:"minify"`
-	Abiword                            *string                                      `json:"abiword"`
-	SOffice                            *string                                      `json:"soffice"`
-	AllowUnknownFileEnds               bool                                         `json:"allowUnknownFileEnds"`
-	LogLevel                           string                                       `json:"logLevel"`
-	DisableIPLogging                   bool                                         `json:"disableIPLogging"`
-	AutomaticReconnectionTimeout       int                                          `json:"automaticReconnectionTimeout"`
-	LoadTest                           bool                                         `json:"loadTest"`
-	DumpOnCleanExit                    bool                                         `json:"dumpOnCleanExit"`
-	IndentationOnNewLine               bool                                         `json:"indentationOnNewLine"`
-	SessionKey                         *string                                      `json:"SessionKey"`
-	TrustProxy                         bool                                         `json:"trustProxy"`
-	RequireAuthentication              bool                                         `json:"requireAuthentication"`
-	RequireAuthorization               bool                                         `json:"requireAuthorization"`
-	Users                              *User                                        `json:"users"`
-	ShowSettingsInAdminPage            bool                                         `json:"showSettingsInAdminPage"`
-	ScrollWhenFocusLineIsOutOfViewport ScrollWhenFocusLineIsOutOfViewportPercentage `json:"scrollWhenFocusLineIsOutOfViewport"`
+	Title                              string                                         `json:"title"`
+	Favicon                            string                                         `json:"favicon"`
+	SkinName                           string                                         `json:"skinName"`
+	SkinVariants                       string                                         `json:"skinVariants"`
+	IP                                 string                                         `json:"ip"`
+	Port                               string                                         `json:"port"`
+	SuppressErrorsInPadText            bool                                           `json:"suppressErrorsInPadText"`
+	SSL                                bool                                           `json:"ssl"`
+	DBType                             string                                         `json:"dbType"`
+	DBSettings                         DBSettings                                     `json:"dbSettings"`
+	DefaultPadText                     string                                         `json:"defaultPadText"`
+	PadOptions                         PadOptions                                     `json:"padOptions"`
+	PadShortCutEnabled                 PadShortCutEnabled                             `json:"padShortCutEnabled"`
+	Toolbar                            Toolbar                                        `json:"toolbar"`
+	RequireSession                     bool                                           `json:"requireSession"`
+	EditOnly                           bool                                           `json:"editOnly"`
+	MaxAge                             int                                            `json:"maxAge"`
+	Minify                             bool                                           `json:"minify"`
+	Abiword                            *string                                        `json:"abiword"`
+	SOffice                            *string                                        `json:"soffice"`
+	AllowUnknownFileEnds               bool                                           `json:"allowUnknownFileEnds"`
+	LogLevel                           string                                         `json:"logLevel"`
+	DisableIPLogging                   bool                                           `json:"disableIPLogging"`
+	AutomaticReconnectionTimeout       int                                            `json:"automaticReconnectionTimeout"`
+	LoadTest                           bool                                           `json:"loadTest"`
+	DumpOnCleanExit                    bool                                           `json:"dumpOnCleanExit"`
+	IndentationOnNewLine               bool                                           `json:"indentationOnNewLine"`
+	SessionKey                         *string                                        `json:"SessionKey"`
+	TrustProxy                         bool                                           `json:"trustProxy"`
+	RequireAuthentication              bool                                           `json:"requireAuthentication"`
+	RequireAuthorization               bool                                           `json:"requireAuthorization"`
+	Users                              *User                                          `json:"users"`
+	ShowSettingsInAdminPage            bool                                           `json:"showSettingsInAdminPage"`
+	ScrollWhenFocusLineIsOutOfViewport clientVars2.ScrollWhenFocusLineIsOutOfViewport `json:"scrollWhenFocusLineIsOutOfViewport"`
 }
 
 var SettingsDisplayed Settings

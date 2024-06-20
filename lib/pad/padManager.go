@@ -130,9 +130,13 @@ func (m *Manager) GetPad(padID string, text *string, author *author.Author) (*pa
 	}
 
 	// try to load pad
-	var newPad = pad.NewPad(padID, &settings.SettingsDisplayed.DefaultPadText)
+	var newPad = pad.NewPad(padID)
 
 	// initialize the pad
+	if text == nil {
+		text = &settings.SettingsDisplayed.DefaultPadText
+	}
+
 	newPad.Init(text, &author.Id)
 	globalPadCache.SetPad(padID, &newPad)
 

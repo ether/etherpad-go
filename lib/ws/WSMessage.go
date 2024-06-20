@@ -1,8 +1,10 @@
 package ws
 
-import "github.com/ether/etherpad-go/lib/settings"
+import (
+	clientVars2 "github.com/ether/etherpad-go/lib/models/clientVars"
+)
 
 type Message struct {
-	Data settings.ClientVars `json:"data"`
-	Type string              `json:"type"`
+	Data clientVars2.ClientVars `json:"data"`
+	Type string                 `json:"type"`
 }

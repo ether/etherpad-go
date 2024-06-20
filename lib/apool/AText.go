@@ -1,8 +1,8 @@
 package apool
 
 type AText struct {
-	Text    string
-	Attribs string
+	Text    string `json:"text"`
+	Attribs string `json:"attribs"`
 }
 
 func CopyAText(atext1 AText, atext2 AText) {
