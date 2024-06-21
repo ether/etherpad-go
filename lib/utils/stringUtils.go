@@ -1,7 +1,7 @@
 package utils
 
 import (
-	"crypto/rand"
+	randc "crypto/rand"
 	"encoding/hex"
 	"math/big"
 	"strconv"
@@ -10,7 +10,7 @@ import (
 
 func RandomString(length int) string {
 	bytes := make([]byte, length)
-	rand.Read(bytes)
+	randc.Read(bytes)
 	return hex.EncodeToString(bytes)
 }
 

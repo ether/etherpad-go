@@ -59,6 +59,19 @@ func (a *AttributeMap) ToArray() []apool.Attribute {
 	return attribs
 }
 
+func (a *AttributeMap) Size() int {
+	return len(a.attrs)
+}
+
+func (a *AttributeMap) Set(key string, value string) *AttributeMap {
+	a.attrs[key] = value
+	return a
+}
+
+func (a *AttributeMap) Get(key string) string {
+	return a.attrs[key]
+}
+
 /**
  * @param {AttributeString} str - The attribute string identifying the attributes to insert into
  *     this map.

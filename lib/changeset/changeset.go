@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/utils"
+	"math"
 	"reflect"
 	"regexp"
 	"slices"
@@ -354,6 +355,43 @@ func DeserializeOps(ops string) (*[]Op, error) {
 		opsToReturn = append(opsToReturn, op)
 	}
 	return &opsToReturn, nil
+}
+
+func Compose(cs1 string, cs2 string, pool apool.APool) {
+	var unpacked1, _ = Unpack(cs1)
+	var unpacked2, _ = Unpack(cs2)
+	var len1 = unpacked1.OldLen
+	var len2 = unpacked1.NewLen
+
+	if len2 != unpacked2.OldLen {
+		panic("mismatched new length in cs2")
+	}
+
+	var len3 = unpacked2.NewLen
+	var bankIter1 = NewStringIterator(unpacked1.CharBank)
+	var bankIter2 = NewStringIterator(unpacked2.CharBank)
+	var bankAssem = NewStringAssembler()
+
+	var newOps = ApplyZip(unpacked1.Ops, unpacked2.Ops, func(op1, op2 *Op) Op {
+		var op1code = op1.OpCode
+		var op2code = op2.OpCode
+
+		if op1code == "+" && op2code == "-" {
+			bankIter1.Skip(int(math.Min(float64(op1.Chars), float64(op2.Chars))))
+		}
+
+		var opOut, _ = SlicerZipperFunc(*op1, *op2, pool)
+
+		if opOut.OpCode == "+" {
+			bankAssem.Append(bankIter2.Take(opOut.Chars))
+		} else {
+			bankAssem.Append(bankIter1.Take(opOut.Chars))
+		}
+
+		return *opOut
+	})
+
+	Pack(len1, len3, newOps, bankAssem.String())
 }
 
 func ComposeAttributes(attribs1 string, attribs2 string, resultIsMutation bool, pool apool.APool) string {

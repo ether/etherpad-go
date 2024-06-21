@@ -127,11 +127,75 @@ func runApplyToAttributionTest(testId int, attribs []string, cs string, inAttr s
 
 	if err != nil {
 		t.Error("CheckRep threw an error" + err.Error())
+		return
 	}
 
 	var result = ApplyToAttribution(*resCS, inAttr, p)
 
 	if result != outCorrect {
 		t.Error("Error comparing attributions " + result + " vs " + outCorrect)
+	}
+}
+
+func TestCompose(t *testing.T) {
+	/*var _ = apool.NewAPool()
+	var _ = test.RandomMultiline(10, 20) + "\n"*/
+}
+
+func TestSlicerZipperFunc(t *testing.T) {
+	var numToAttrib = make(map[int]apool.Attribute)
+	var attribToNum = make(map[apool.Attribute]int)
+
+	var attrib1 = apool.Attribute{
+		Key:   "bold",
+		Value: "",
+	}
+
+	var attrib2 = apool.Attribute{
+		Key:   "bold",
+		Value: "true",
+	}
+
+	attribToNum[attrib1] = 0
+	attribToNum[attrib2] = 1
+	numToAttrib[0] = apool.Attribute{
+		Key:   "bold",
+		Value: "",
+	}
+
+	numToAttrib[1] = apool.Attribute{
+		Key:   "bold",
+		Value: "true",
+	}
+
+	var pool = apool.APool{
+		NumToAttrib: numToAttrib,
+		NextNum:     2,
+		AttribToNum: attribToNum,
+	}
+
+	var op1 = Op{
+		OpCode:  "+",
+		Chars:   1,
+		Lines:   0,
+		Attribs: "",
+	}
+
+	var op2 = Op{
+		OpCode:  "-",
+		Chars:   1,
+		Lines:   0,
+		Attribs: "",
+	}
+
+	ops, err := SlicerZipperFunc(op1, op2, pool)
+
+	if err != nil {
+		t.Error("Error in SlicerZipperFunc " + err.Error())
+		return
+	}
+
+	if ops.OpCode != "" && ops.Chars != 0 && ops.Lines != 0 && ops.Attribs != "" {
+		t.Error("Expected empty string, got ", ops)
 	}
 }

@@ -19,6 +19,14 @@ func NewAPool() *APool {
 	}
 }
 
+type EachAttribFunc func(attrib Attribute)
+
+func (a *APool) EachAttrib(f EachAttribFunc) {
+	for _, attrib := range a.NumToAttrib {
+		f(attrib)
+	}
+}
+
 func (a *APool) PutAttrib(attrib Attribute, dontAddIfAbsent *bool) int {
 	var val, ok = a.AttribToNum[attrib]
 	if ok {
@@ -29,11 +37,12 @@ func (a *APool) PutAttrib(attrib Attribute, dontAddIfAbsent *bool) int {
 		return -1
 	}
 
+	var num = a.NextNum
 	a.NextNum++
 	a.AttribToNum[attrib] = a.NextNum
 	a.NumToAttrib[a.NextNum] = attrib
 
-	return a.NextNum
+	return num
 }
 
 // FromJsonable /**
