@@ -116,7 +116,7 @@ func (p *Pad) appendRevision(cs string, authorId *string) int {
 		return p.Head
 	}
 
-	apool.CopyAText(newAText, p.AText)
+	apool.CopyAText(newAText, &p.AText)
 
 	p.Head++
 

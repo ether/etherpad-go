@@ -5,7 +5,7 @@ type AText struct {
 	Attribs string `json:"attribs"`
 }
 
-func CopyAText(atext1 AText, atext2 AText) {
+func CopyAText(atext1 AText, atext2 *AText) {
 	atext2.Attribs = atext1.Attribs
 	atext2.Text = atext1.Text
 }

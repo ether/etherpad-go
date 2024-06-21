@@ -51,17 +51,32 @@ func (d SQLiteDB) DoesPadExist(padID string) bool {
 }
 
 func (d SQLiteDB) CreatePad(padID string, padDB db.PadDB) bool {
+
+	_, notFound := d.GetPad(padID)
+
 	var marshalled, err = json.Marshal(padDB)
 
 	if err != nil {
 		panic(err)
 	}
 
-	var resultedSQL, args, err1 = sq.
-		Insert("pad").
-		Columns("id", "data").
-		Values(fmt.Sprintf(padPrefix, padID), string(marshalled)).ToSql()
+	var resultedSQL string
+	var args []interface{}
+	var err1 error
 
+	if notFound != nil {
+		resultedSQL, args, err1 = sq.
+			Insert("pad").
+			Columns("id", "data").
+			Values(fmt.Sprintf(padPrefix, padID), string(marshalled)).ToSql()
+	} else {
+		resultedSQL, args, err1 = sq.
+			Update("pad").
+			Set("data", string(marshalled)).
+			Where(sq.Eq{
+				"id": padID,
+			}).ToSql()
+	}
 	if err1 != nil {
 		panic(err)
 	}

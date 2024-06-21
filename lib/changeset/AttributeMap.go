@@ -67,12 +67,14 @@ func (a *AttributeMap) ToArray() []apool.Attribute {
  * @returns {AttributeMap} `this` (for chaining).
  */
 func (a *AttributeMap) UpdateFromString(key string, emptyValueIsDelete *bool) *AttributeMap {
-
+	var localEmptyValueIsDelete bool
 	if emptyValueIsDelete == nil {
-		*emptyValueIsDelete = false
+		localEmptyValueIsDelete = false
+	} else {
+		localEmptyValueIsDelete = *emptyValueIsDelete
 	}
 	var attribs = AttribsFromString(key, a.pool)
-	return a.Update(attribs, emptyValueIsDelete)
+	return a.Update(attribs, &localEmptyValueIsDelete)
 }
 
 func (a *AttributeMap) String() string {

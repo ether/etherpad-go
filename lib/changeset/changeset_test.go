@@ -1,6 +1,10 @@
 package changeset
 
-import "testing"
+import (
+	"github.com/ether/etherpad-go/lib/apool"
+	"strings"
+	"testing"
+)
 
 func TestMakeSplice(t *testing.T) {
 	var testString = "a\nb\nc\n"
@@ -14,6 +18,22 @@ func TestMakeSplice(t *testing.T) {
 	}
 	if *t2 != "a\nb\ncdef\n" {
 		t.Error("Expected a\nb\ncdef\n, got ", *t2)
+	}
+}
+
+func TestMakeSpliceAtEnd(t *testing.T) {
+	var orig = "123"
+	var ins = "456"
+	var splice, err = MakeSplice(orig, len(orig), 0, ins, nil, nil)
+
+	if err != nil {
+		t.Error("Error making splice" + err.Error())
+	}
+
+	atext, err := ApplyToText(splice, orig)
+
+	if *atext != orig+ins {
+		t.Error("They need to be the same")
 	}
 }
 
@@ -78,5 +98,40 @@ func TestOpsFromTextWithPlus(t *testing.T) {
 
 	if ops[0].Chars != 3 {
 		t.Error("Expected 3, got ", ops[0].Chars)
+	}
+}
+
+func TestApplyToAttribution(t *testing.T) {
+	runApplyToAttributionTest(1, []string{"bold,", "bold,true"},
+		"Z:7>3-1*0=1*1=1=3+4$abcd", "+1*1+1|1+5", "+1*1+1|1+8", t)
+	runApplyToAttributionTest(2,
+		[]string{"bold,", "bold,true"},
+		"Z:g<4*1|1=6*1=5-4$", "|2+g", "*1|1+6*1+5|1+1", t)
+}
+
+func createPool(attribs []string) apool.APool {
+	var foundPool = apool.NewAPool()
+	for _, attrib := range attribs {
+		var splitAttrib = strings.Split(attrib, ",")
+		foundPool.PutAttrib(apool.Attribute{
+			Key:   splitAttrib[0],
+			Value: splitAttrib[1],
+		}, nil)
+	}
+	return *foundPool
+}
+
+func runApplyToAttributionTest(testId int, attribs []string, cs string, inAttr string, outCorrect string, t *testing.T) {
+	var p = createPool(attribs)
+	var resCS, err = CheckRep(cs)
+
+	if err != nil {
+		t.Error("CheckRep threw an error" + err.Error())
+	}
+
+	var result = ApplyToAttribution(*resCS, inAttr, p)
+
+	if result != outCorrect {
+		t.Error("Error comparing attributions " + result + " vs " + outCorrect)
 	}
 }

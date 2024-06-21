@@ -171,6 +171,86 @@ func Unpack(cs string) (*Changeset, error) {
 
 }
 
+func CheckRep(cs string) (*string, error) {
+	var unpacked, err = Unpack(cs)
+
+	if err != nil {
+		return nil, err
+	}
+
+	var oldLen = unpacked.OldLen
+	var newLen = unpacked.NewLen
+	var ops = unpacked.Ops
+	var charBank = unpacked.CharBank
+
+	var assem = NewSmartOpAssembler()
+	var oldPos = 0
+	var calcNewLen = 0
+
+	extractedOps, err := DeserializeOps(ops)
+
+	if err != nil {
+		return nil, err
+	}
+
+	for _, o := range *extractedOps {
+		switch o.OpCode {
+		case "=":
+			{
+				oldPos += o.Chars
+				calcNewLen += o.Chars
+			}
+		case "-":
+			{
+				oldPos += o.Chars
+				if !(oldPos <= oldLen) {
+					return nil, errors.New("oldPos > oldLen in changeset")
+				}
+			}
+		case "+":
+			{
+				if !(len(charBank) >= o.Chars) {
+					return nil, errors.New("invalid changeset: not enough chars in charBank")
+				}
+				var chars = charBank[0:o.Chars]
+				var nlines = utils.CountLines(chars, '\n')
+				if !(nlines == o.Lines) {
+					return nil, errors.New("invalid changeset: number of newlines in insert op does not match the charBank")
+				}
+
+				if !(o.Lines == 0 || strings.HasSuffix(chars, "\n")) {
+					return nil, errors.New("invalid changeset: multiline insert op does not end with a new line")
+				}
+
+				charBank = charBank[o.Chars:]
+				calcNewLen += o.Chars
+				if !(calcNewLen <= newLen) {
+					return nil, errors.New("CalcNewLen > NewLen in cs")
+				}
+			}
+		default:
+			return nil, errors.New("invalid changeset: Unknown opcode")
+		}
+		assem.Append(o)
+	}
+
+	calcNewLen += oldLen - oldPos
+	if !(calcNewLen == newLen) {
+		return nil, errors.New("invalid changeset claimed length does not match actual length")
+	}
+
+	if !(charBank == "") {
+		return nil, errors.New("Invalid changeset excess characters in the charbank")
+	}
+	assem.EndDocument()
+
+	var noramlized = Pack(oldLen, calcNewLen, assem.String(), unpacked.CharBank)
+	if !(noramlized == cs) {
+		return nil, errors.New("invalid changeset: not in canonical form")
+	}
+	return &cs, nil
+}
+
 func ApplyToText(cs string, text string) (*string, error) {
 	var unpacked, _ = Unpack(cs)
 	if len(text) != unpacked.OldLen {
@@ -305,7 +385,7 @@ func SlicerZipperFunc(attOp Op, csOp Op, pool apool.APool) (*Op, error) {
 	} else {
 		var opsToIterate = []Op{attOp, csOp}
 		for _, op := range opsToIterate {
-			if op.Chars > op.Lines {
+			if !(op.Chars >= op.Lines) {
 				return nil, errors.New("op has more characters than lines")
 			}
 		}
@@ -370,7 +450,12 @@ func SlicerZipperFunc(attOp Op, csOp Op, pool apool.APool) (*Op, error) {
 func ApplyToAttribution(cs string, astr string, pool apool.APool) string {
 	var unpacked, _ = Unpack(cs)
 	return ApplyZip(astr, unpacked.Ops, func(op1, op2 *Op) Op {
-		res, _ := SlicerZipperFunc(*op1, *op2, pool)
+		res, err := SlicerZipperFunc(*op1, *op2, pool)
+
+		if err != nil {
+			println("Error is" + err.Error())
+		}
+
 		return *res
 	})
 }
