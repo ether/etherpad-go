@@ -6,8 +6,8 @@ import (
 	"testing"
 )
 
-func prepareAttribPool(t *testing.T) (apool.APool, [][]string) {
-	var attribs = [][]string{[]string{"foo", "bar"}, []string{"baz", "bif"}}
+func PrepareAttribPool(t *testing.T) (apool.APool, [][]string) {
+	var attribs = [][]string{{"foo", "bar"}, {"baz", "bif"}}
 	var pool = apool.NewAPool()
 	for i, attrib := range attribs {
 		var nextNum = pool.PutAttrib(apool.FromJsonAble(attrib), nil)
@@ -19,7 +19,7 @@ func prepareAttribPool(t *testing.T) (apool.APool, [][]string) {
 }
 
 func TestSet(t *testing.T) {
-	var p, _ = prepareAttribPool(t)
+	var p, _ = PrepareAttribPool(t)
 	var m = NewAttributeMap(&p)
 	if m.Size() != 0 {
 		t.Error("Expected 0, got ", m.Size())
@@ -38,7 +38,7 @@ func TestSet(t *testing.T) {
 
 func getPoolSize(t *testing.T) int {
 	var n = 0
-	var pool, _ = prepareAttribPool(t)
+	var pool, _ = PrepareAttribPool(t)
 
 	pool.EachAttrib(func(attrib apool.Attribute) {
 		n++
@@ -48,7 +48,7 @@ func getPoolSize(t *testing.T) int {
 }
 
 func TestReuseAttribsFromPool(t *testing.T) {
-	var pool, attribs = prepareAttribPool(t)
+	var pool, attribs = PrepareAttribPool(t)
 	if getPoolSize(t) != len(attribs) {
 		t.Error("Expected ", len(attribs), ", got ", getPoolSize(t))
 	}
@@ -65,5 +65,18 @@ func TestReuseAttribsFromPool(t *testing.T) {
 	if m.String() != "*0" {
 		// TODO fixme this is wrong
 		t.Error("Expected *0, got ", m.String())
+	}
+}
+
+func TestInsertNewAttributesInThePool(t *testing.T) {
+	var pool, attribs = PrepareAttribPool(t)
+	var m = NewAttributeMap(&pool)
+	if getPoolSize(t) != len(attribs) {
+		t.Error("Expected ", len(attribs), ", got ", getPoolSize(t))
+	}
+
+	m.Set("k", "v")
+	if m.Size() != len(attribs)+1 {
+		t.Error("Expected ", len(attribs)+1, ", got ", getPoolSize(t))
 	}
 }

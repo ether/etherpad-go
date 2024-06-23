@@ -65,6 +65,7 @@ func (a *AttributeMap) Size() int {
 
 func (a *AttributeMap) Set(key string, value string) *AttributeMap {
 	a.attrs[key] = value
+	a.pool.PutAttrib(apool.Attribute{Key: key, Value: value}, nil)
 	return a
 }
 
@@ -86,10 +87,14 @@ func (a *AttributeMap) UpdateFromString(key string, emptyValueIsDelete *bool) *A
 	} else {
 		localEmptyValueIsDelete = *emptyValueIsDelete
 	}
-	var attribs = AttribsFromString(key, a.pool)
+	var attribs = AttribsFromString(key, *a.pool)
 	return a.Update(attribs, &localEmptyValueIsDelete)
 }
 
 func (a *AttributeMap) String() string {
-	return AttribsToString(a.ToArray(), a.pool)
+	resolvedString, err := AttribsToString(a.ToArray(), a.pool)
+	if err != nil {
+		return ""
+	}
+	return *resolvedString
 }

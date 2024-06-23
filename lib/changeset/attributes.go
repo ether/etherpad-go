@@ -15,6 +15,15 @@ func init() {
 	regex, _ = regexp.Compile("\\*([0-9a-z]+)|.")
 }
 
+func StringToAttrib(attrib []string) (*apool.Attribute, error) {
+
+	if len(attrib) != 2 {
+		return nil, errors.New("invalid attribute")
+	}
+
+	return &apool.Attribute{Key: attrib[0], Value: attrib[1]}, nil
+}
+
 func DecodeAttribString(s string) ([]int, error) {
 	if s == "" {
 		return nil, nil
@@ -48,20 +57,34 @@ func checkAttribNum(n int) error {
 	return nil
 }
 
-func encodeAttribString(attribNums []int) string {
+func encodeAttribString(attribNums []int) (*string, error) {
 	var str string
 	for _, num := range attribNums {
-		str += "*" + strings.ToLower(strconv.FormatInt(int64(num), 36))
+		var encodedInt = int64(num)
+
+		if encodedInt < 0 {
+			return nil, errors.New("Attrib number is negative")
+		}
+
+		str += "*" + strings.ToLower(strconv.FormatInt(encodedInt, 36))
 	}
-	return str
+	return &str, nil
 }
 
-func attribsFromNums(attribNums []int, pool *apool.APool) []apool.Attribute {
+func attribsFromNums(attribNums []int, pool apool.APool) (*[]apool.Attribute, error) {
 	var attribs []apool.Attribute
 	for _, num := range attribNums {
-		attribs = append(attribs, pool.GetAttrib(num))
+		if num < 0 {
+			return nil, errors.New("attrib number is negative")
+		}
+		attrib, err := pool.GetAttrib(num)
+		if err != nil {
+			return nil, err
+		}
+
+		attribs = append(attribs, *attrib)
 	}
-	return attribs
+	return &attribs, nil
 }
 
 func attribsToNums(attribs []apool.Attribute, pool *apool.APool) []int {
@@ -72,15 +95,19 @@ func attribsToNums(attribs []apool.Attribute, pool *apool.APool) []int {
 	return nums
 }
 
-func AttribsFromString(str string, pool *apool.APool) []apool.Attribute {
+func AttribsFromString(str string, pool apool.APool) []apool.Attribute {
 	attribNums, err := DecodeAttribString(str)
 	if err != nil {
 		return nil
 	}
-	return attribsFromNums(attribNums, pool)
+	attribs, err := attribsFromNums(attribNums, pool)
+	if err != nil {
+		return nil
+	}
+	return *attribs
 }
 
-func AttribsToString(attribs []apool.Attribute, pool *apool.APool) string {
+func AttribsToString(attribs []apool.Attribute, pool *apool.APool) (*string, error) {
 	return encodeAttribString(attribsToNums(attribs, pool))
 }
 

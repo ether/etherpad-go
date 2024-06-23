@@ -39,8 +39,8 @@ func (a *APool) PutAttrib(attrib Attribute, dontAddIfAbsent *bool) int {
 
 	var num = a.NextNum
 	a.NextNum++
-	a.AttribToNum[attrib] = a.NextNum
-	a.NumToAttrib[a.NextNum] = attrib
+	a.AttribToNum[attrib] = num
+	a.NumToAttrib[num] = attrib
 
 	return num
 }
@@ -130,10 +130,10 @@ func (a *APool) eachAttrib(attribConv AttributeIterator) {
 	}
 }
 
-func (a *APool) GetAttrib(num int) Attribute {
+func (a *APool) GetAttrib(num int) (*Attribute, error) {
 	pair, ok := a.NumToAttrib[num]
 	if !ok {
-		return pair
+		return nil, errors.New("Attrib not found")
 	}
-	return pair
+	return &pair, nil
 }

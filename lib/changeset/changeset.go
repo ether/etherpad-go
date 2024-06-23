@@ -553,9 +553,13 @@ func moveOpsToNewPool(cs string, oldPool apool.APool, newPool apool.APool) strin
 	var regex = regexp.MustCompile("\\*([0-9a-z]+)")
 	var resultingString = regex.ReplaceAllStringFunc(upToDollar, func(match string) string {
 		oldNum, _ := strconv.ParseInt(match[1:], 36, 64) // Parse the number from base 36 to base 10
-		pair := oldPool.GetAttrib(int(oldNum))
+		pair, err := oldPool.GetAttrib(int(oldNum))
 
-		newNum := newPool.PutAttrib(pair, nil)
+		if err != nil {
+			panic(err)
+		}
+
+		newNum := newPool.PutAttrib(*pair, nil)
 		return "*" + strconv.FormatInt(int64(newNum), 36)
 	}) + fromDollar
 	return resultingString
