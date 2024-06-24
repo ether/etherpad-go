@@ -133,7 +133,7 @@ func (a *APool) eachAttrib(attribConv AttributeIterator) {
 func (a *APool) GetAttrib(num int) (*Attribute, error) {
 	pair, ok := a.NumToAttrib[num]
 	if !ok {
-		return nil, errors.New("Attrib not found")
+		return nil, errors.New("attrib not found")
 	}
 	return &pair, nil
 }
