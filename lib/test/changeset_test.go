@@ -1,18 +1,21 @@
-package changeset
+package test
 
 import (
 	"github.com/ether/etherpad-go/lib/apool"
+	"github.com/ether/etherpad-go/lib/changeset"
+	"regexp"
+	"slices"
 	"strings"
 	"testing"
 )
 
 func TestMakeSplice(t *testing.T) {
 	var testString = "a\nb\nc\n"
-	var splicedText, _ = MakeSplice(testString, 5, 0, "def", nil, nil)
+	var splicedText, _ = changeset.MakeSplice(testString, 5, 0, "def", nil, nil)
 	if splicedText != "Z:6>3|2=4=1+3$def" {
 		t.Error("Expected Z:6>3|2=4=1+3$def, got ", splicedText)
 	}
-	var t2, err = ApplyToText(splicedText, testString)
+	var t2, err = changeset.ApplyToText(splicedText, testString)
 	if err != nil {
 		t.Error(err)
 	}
@@ -24,13 +27,13 @@ func TestMakeSplice(t *testing.T) {
 func TestMakeSpliceAtEnd(t *testing.T) {
 	var orig = "123"
 	var ins = "456"
-	var splice, err = MakeSplice(orig, len(orig), 0, ins, nil, nil)
+	var splice, err = changeset.MakeSplice(orig, len(orig), 0, ins, nil, nil)
 
 	if err != nil {
 		t.Error("Error making splice" + err.Error())
 	}
 
-	atext, err := ApplyToText(splice, orig)
+	atext, err := changeset.ApplyToText(splice, orig)
 
 	if *atext != orig+ins {
 		t.Error("They need to be the same")
@@ -39,7 +42,7 @@ func TestMakeSpliceAtEnd(t *testing.T) {
 
 func TestOpsFromTextWithEqual(t *testing.T) {
 	var teststring = "a\nb\nc\n"
-	var ops = OpsFromText("=", teststring[0:5], nil, nil)
+	var ops = changeset.OpsFromText("=", teststring[0:5], nil, nil)
 	if len(ops) != 2 {
 		t.Error("Expected 2, got ", len(ops))
 	}
@@ -70,7 +73,7 @@ func TestOpsFromTextWithEqual(t *testing.T) {
 }
 
 func TestOpsFromTextWithMinus(t *testing.T) {
-	var ops = OpsFromText("-", "", nil, nil)
+	var ops = changeset.OpsFromText("-", "", nil, nil)
 
 	if len(ops) != 1 {
 		t.Error("Expected 1, got ", len(ops))
@@ -86,7 +89,7 @@ func TestOpsFromTextWithMinus(t *testing.T) {
 }
 
 func TestOpsFromTextWithPlus(t *testing.T) {
-	var ops = OpsFromText("+", "def", nil, nil)
+	var ops = changeset.OpsFromText("+", "def", nil, nil)
 
 	if len(ops) != 1 {
 		t.Error("Expected 1, got ", len(ops))
@@ -123,14 +126,14 @@ func createPool(attribs []string) apool.APool {
 
 func runApplyToAttributionTest(testId int, attribs []string, cs string, inAttr string, outCorrect string, t *testing.T) {
 	var p = createPool(attribs)
-	var resCS, err = CheckRep(cs)
+	var resCS, err = changeset.CheckRep(cs)
 
 	if err != nil {
 		t.Error("CheckRep threw an error" + err.Error())
 		return
 	}
 
-	var result = ApplyToAttribution(*resCS, inAttr, p)
+	var result = changeset.ApplyToAttribution(*resCS, inAttr, p)
 
 	if result != outCorrect {
 		t.Error("Error comparing attributions " + result + " vs " + outCorrect)
@@ -174,21 +177,21 @@ func TestSlicerZipperFunc(t *testing.T) {
 		AttribToNum: attribToNum,
 	}
 
-	var op1 = Op{
+	var op1 = changeset.Op{
 		OpCode:  "+",
 		Chars:   1,
 		Lines:   0,
 		Attribs: "",
 	}
 
-	var op2 = Op{
+	var op2 = changeset.Op{
 		OpCode:  "-",
 		Chars:   1,
 		Lines:   0,
 		Attribs: "",
 	}
 
-	ops, err := SlicerZipperFunc(op1, op2, pool)
+	ops, err := changeset.SlicerZipperFunc(op1, op2, pool)
 
 	if err != nil {
 		t.Error("Error in SlicerZipperFunc " + err.Error())
@@ -198,4 +201,82 @@ func TestSlicerZipperFunc(t *testing.T) {
 	if ops.OpCode != "" && ops.Chars != 0 && ops.Lines != 0 && ops.Attribs != "" {
 		t.Error("Expected empty string, got ", ops)
 	}
+}
+
+func stringToOps(str string) string {
+	var assem = changeset.NewMergingOpAssembler()
+	var opCode = "+"
+	var o = changeset.NewOp(&opCode)
+	o.Chars = 1
+
+	for i := 0; i < len(str); i++ {
+		var char = str[i]
+		if char == '\n' {
+			o.Lines = 1
+		} else {
+			o.Lines = 0
+		}
+
+		if char == 'a' || char == 'b' {
+			o.Attribs = "*" + string(char)
+		} else {
+			o.Attribs = ""
+		}
+		assem.Append(o)
+	}
+
+	return assem.String()
+}
+
+func testSplitJoinAttributionLines(t *testing.T) {
+	var regexSplitLines = regexp.MustCompile("[^\n]*\n")
+	var doc = `hsdxvuhehpo
+
+
+lkrfrk
+
+
+ezaxyidzrqi
+ivmxtsnewx
+imme
+`
+	var theJoined = stringToOps(doc)
+
+	var expectedSplit = []string{
+		"|1+c", "|1+1",
+		"|1+1", "|1+7",
+		"|1+1", "|1+1",
+		"+2*a+1|1+9", "|1+b",
+		"|1+5",
+	}
+
+	if theJoined != "|6+n+2*a+1|3+p" {
+		t.Error("Error in stringToOps")
+	}
+
+	var theSplitTemporary = regexSplitLines.FindAllString(theJoined, -1)
+	var theSplit = make([]string, len(theSplitTemporary))
+	for i, v := range theSplitTemporary {
+		theSplit[i] = stringToOps(v)
+	}
+
+	var res, err = changeset.SplitAttributionLines(theJoined, doc)
+	var res2 = changeset.JoinAttributionLines(theSplit)
+
+	if err != nil {
+		t.Error("Error in SplitAttributionLines " + err.Error())
+	}
+
+	if !slices.Equal(res, expectedSplit) {
+		t.Error("Error in SplitAttributionLines")
+	}
+
+	if res2 != theJoined {
+		t.Error("Error in JoinAttributionLines")
+	}
+
+}
+
+func TestSplitJoinAttributionLines(t *testing.T) {
+	testSplitJoinAttributionLines(t)
 }

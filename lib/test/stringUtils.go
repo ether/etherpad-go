@@ -1,6 +1,12 @@
 package test
 
-/*func randomInlineString(length int) string {
+import (
+	"github.com/ether/etherpad-go/lib/changeset"
+	"github.com/ether/etherpad-go/lib/utils"
+	"math/rand/v2"
+)
+
+func randomInlineString(length int) string {
 	var txt = changeset.NewStringAssembler()
 	for i := 0; i < length; i++ {
 		txt.Append(utils.NumToString(rand.IntN(26) + 97))
@@ -32,4 +38,3 @@ func RandomMultiline(approxMaxLines int, approxMaxCols int) string {
 	}
 	return txt.String()
 }
-*/

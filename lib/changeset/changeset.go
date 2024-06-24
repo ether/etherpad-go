@@ -578,3 +578,55 @@ func PrepareForWire(cs string, pool apool.APool) PrepareForWireStruct {
 		Translated: newCS,
 	}
 }
+
+func SplitAttributionLines(attrOps string, text string) ([]string, error) {
+	var assem = NewMergingOpAssembler()
+	var lines = make([]string, 0)
+	var pos = 0
+	appendOp := func(op Op) {
+		assem.Append(op)
+		if op.Lines > 0 {
+			lines = append(lines, assem.String())
+			assem.Clear()
+		}
+		pos += op.Chars
+	}
+
+	var deserializedOps, _ = DeserializeOps(attrOps)
+
+	for _, op := range *deserializedOps {
+		var numChars = op.Chars
+		var numLines = op.Lines
+		for numLines > 1 {
+			var newlineEnd = strings.Index(text[pos:], "\n") + 1
+			if !(newlineEnd > 0) {
+				return nil, errors.New("newLineEnd <= 0 in splitAttributionLines")
+			}
+			op.Chars = newlineEnd - pos
+			op.Lines = 1
+			appendOp(op)
+			numChars -= op.Chars
+			numLines -= op.Lines
+		}
+
+		if numLines == 1 {
+			op.Chars = numChars
+			op.Lines = 1
+		}
+		appendOp(op)
+	}
+
+	return lines, nil
+}
+
+func JoinAttributionLines(theAlines []string) string {
+	var assem = NewMergingOpAssembler()
+
+	for _, line := range theAlines {
+		var deserializedOps, _ = DeserializeOps(line)
+		for _, op := range *deserializedOps {
+			assem.Append(op)
+		}
+	}
+	return assem.String()
+}
