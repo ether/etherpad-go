@@ -2,6 +2,7 @@ package changeset
 
 import (
 	"github.com/ether/etherpad-go/lib/apool"
+	"slices"
 	"strings"
 )
 
@@ -51,14 +52,6 @@ func (a *AttributeMap) Update(entries []apool.Attribute, emptyValueISDelete *boo
 	return a
 }
 
-func (a *AttributeMap) ToArray() []apool.Attribute {
-	var attribs = make([]apool.Attribute, 0)
-	for key, value := range a.attrs {
-		attribs = append(attribs, apool.Attribute{Key: key, Value: value})
-	}
-	return attribs
-}
-
 func (a *AttributeMap) Size() int {
 	return len(a.attrs)
 }
@@ -92,9 +85,18 @@ func (a *AttributeMap) UpdateFromString(key string, emptyValueIsDelete *bool) *A
 }
 
 func (a *AttributeMap) String() string {
-	resolvedString, err := AttribsToString(a.ToArray(), a.pool)
+	resolvedString, err := AttribsToString(a.sortAttribs(), a.pool)
 	if err != nil {
 		return ""
 	}
 	return *resolvedString
+}
+
+func (a *AttributeMap) sortAttribs() []apool.Attribute {
+	var copiedSlice = make([]apool.Attribute, 0)
+	for key, value := range a.attrs {
+		copiedSlice = append(copiedSlice, apool.Attribute{Key: key, Value: value})
+	}
+	slices.SortFunc(copiedSlice, apool.CmpAttribute)
+	return copiedSlice
 }

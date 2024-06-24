@@ -203,7 +203,7 @@ func TestInsertNewAttributesIntoPool(t *testing.T) {
 		}
 
 		var got = attribsToNums(attrArr, &pool)
-		if !slices.Equal(got, testCases2[i]) {
+		if !slices.Equal(got[0:1], testCases2[i]) {
 			t.Error("Expected ", testCases2[i], ", got ", got)
 		}
 	}

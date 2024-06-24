@@ -4,7 +4,6 @@ import (
 	"errors"
 	"github.com/ether/etherpad-go/lib/apool"
 	"regexp"
-	"slices"
 	"strconv"
 	"strings"
 )
@@ -109,8 +108,4 @@ func AttribsFromString(str string, pool apool.APool) []apool.Attribute {
 
 func AttribsToString(attribs []apool.Attribute, pool *apool.APool) (*string, error) {
 	return encodeAttribString(attribsToNums(attribs, pool))
-}
-
-func SortAttribs(attribs []apool.Attribute) {
-	slices.SortFunc(attribs, apool.CmpAttribute)
 }

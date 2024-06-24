@@ -7,7 +7,7 @@ import (
 )
 
 func PrepareAttribPool(t *testing.T) (apool.APool, [][]string) {
-	var attribs = [][]string{{"foo", "bar"}, {"baz", "bif"}}
+	var attribs = [][]string{{"foo", "bar"}, {"baz", "bif"}, {"emptyValue", ""}}
 	var pool = apool.NewAPool()
 	for i, attrib := range attribs {
 		var nextNum = pool.PutAttrib(apool.FromJsonAble(attrib), nil)
@@ -71,12 +71,24 @@ func TestReuseAttribsFromPool(t *testing.T) {
 func TestInsertNewAttributesInThePool(t *testing.T) {
 	var pool, attribs = PrepareAttribPool(t)
 	var m = NewAttributeMap(&pool)
-	if getPoolSize(t) != len(attribs) {
+	if getPoolSize(t) != 3 {
 		t.Error("Expected ", len(attribs), ", got ", getPoolSize(t))
 	}
 
 	m.Set("k", "v")
-	if m.Size() != len(attribs)+1 {
-		t.Error("Expected ", len(attribs)+1, ", got ", getPoolSize(t))
+	if m.Size() != 1 {
+		t.Error("Expected 1, got ", m.Size())
 	}
+
+	if m.Get("k") != "v" {
+		t.Error("Expected v, got ", m.Get("k"))
+	}
+	var counter = 0
+	m.pool.EachAttrib(func(attrib apool.Attribute) {
+		counter++
+	})
+	if counter != 4 {
+		t.Error("Expected 4, got ", counter)
+	}
+
 }
