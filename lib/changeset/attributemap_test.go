@@ -63,7 +63,6 @@ func TestReuseAttribsFromPool(t *testing.T) {
 	}
 
 	if m.String() != "*0" {
-		// TODO fixme this is wrong
 		t.Error("Expected *0, got ", m.String())
 	}
 }

@@ -104,6 +104,32 @@ func TestOpsFromTextWithPlus(t *testing.T) {
 	}
 }
 
+func TestUnpackChangeset(t *testing.T) {
+	var cs = "Z:z>1|2=m=b*0|1+1$\n"
+	var unpacked, err = changeset.Unpack(cs)
+
+	if err != nil {
+		t.Error("Error unpacking changeset " + err.Error())
+		return
+	}
+
+	if unpacked.OldLen != 35 {
+		t.Error("Expected 35, got ", unpacked.OldLen)
+	}
+
+	if unpacked.NewLen != 36 {
+		t.Error("Expected 36, got ", unpacked.NewLen)
+	}
+
+	if unpacked.Ops != "|2=m=b*0|1+1" {
+		t.Error("Expected |2=m=b*0|1+1, got ", unpacked.Ops)
+	}
+
+	if unpacked.CharBank != "\n" {
+		t.Error("Expected \n, got ", unpacked.CharBank)
+	}
+}
+
 func TestApplyToAttribution(t *testing.T) {
 	runApplyToAttributionTest(1, []string{"bold,", "bold,true"},
 		"Z:7>3-1*0=1*1=1=3+4$abcd", "+1*1+1|1+5", "+1*1+1|1+8", t)
@@ -133,16 +159,69 @@ func runApplyToAttributionTest(testId int, attribs []string, cs string, inAttr s
 		return
 	}
 
-	var result = changeset.ApplyToAttribution(*resCS, inAttr, p)
+	result := changeset.ApplyToAttribution(*resCS, inAttr, p)
 
 	if result != outCorrect {
-		t.Error("Error comparing attributions " + result + " vs " + outCorrect)
+		t.Error("Error comparing attributions original: " + *resCS + " " + result + " vs " + outCorrect)
 	}
 }
 
 func TestCompose(t *testing.T) {
-	/*var _ = apool.NewAPool()
-	var _ = test.RandomMultiline(10, 20) + "\n"*/
+	var p = apool.NewAPool()
+	var startText = "\n\n\ntxs\nlyqizxohxosniewgzmf\nn\nieztehfrnd\nmdzr\n"
+
+	var x1 = []string{
+		"Z:19>q|1=1|4+s+8|2=2=2|1-2-8|2=e=1-2|1=8=4+2$\nkcaekgsd\njyu\nukkrfvsmufpjo\ncjabwrrdef",
+		"\n\nkcaekgsd\njyu\nukkrfvsmufpjo\ncjabwrrd\n\ntxxosniewgzmf\nn\nitehfrnd\nmdzref\n",
+	}
+
+	var change1 = x1[0]
+	var text1 = x1[1]
+
+	var x2 = []string{
+		"Z:1z<1b|2=2+1=5|1-4-3+3|1=1=2-1+2=7|6-13-6$fthonw",
+		"\n\nfkcaektho\nuknwrfvsmuf\n",
+	}
+
+	var change2 = x2[0]
+	var text2 = x2[1]
+
+	var x3 = []string{
+		"Z:o>l|2=2=2-3=2|4+j|1=3=b+5$\nmhlmmeqvexugyrd\n\n\nsebed",
+		"\n\nfkkt\nmhlmmeqvexugyrd\n\n\nho\nuknwrfvsmufsebed\n",
+	}
+
+	var change3 = x3[0]
+	var text3 = x3[1]
+
+	var change12, _ = changeset.CheckRep(changeset.Compose(change1, change2, *p))
+
+	var change23, _ = changeset.CheckRep(changeset.Compose(change2, change3, *p))
+
+	var change123, _ = changeset.CheckRep(changeset.Compose(*change12, change3, *p))
+	var change123a, _ = changeset.CheckRep(changeset.Compose(change1, *change23, *p))
+
+	if change123a != change123 {
+		t.Error("Error in Compose")
+	}
+
+	appliedText1, _ := changeset.ApplyToText(*change123, startText)
+
+	if *appliedText1 != text2 {
+		t.Error("Error in ApplyToText")
+	}
+
+	appliedText2, _ := changeset.ApplyToText(*change23, text1)
+
+	if *appliedText2 != text3 {
+		t.Error("Error in ApplyToText")
+	}
+
+	appliedText3, _ := changeset.ApplyToText(*change123, startText)
+
+	if *appliedText3 != text3 {
+		t.Error("Error in ApplyToText")
+	}
 }
 
 func TestSlicerZipperFunc(t *testing.T) {

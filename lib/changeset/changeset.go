@@ -304,6 +304,8 @@ func ApplyZip(in1 string, in2 string, callback func(*Op, *Op) Op) string {
 	var ops1, _ = DeserializeOps(in1)
 	var ops2, _ = DeserializeOps(in2)
 
+	//FIXME in der Funktion kommen die Werte schon falsch raus
+
 	var assem = NewSmartOpAssembler()
 	var ops1Counter = 0
 	var ops2Counter = 0
@@ -357,7 +359,7 @@ func DeserializeOps(ops string) (*[]Op, error) {
 	return &opsToReturn, nil
 }
 
-func Compose(cs1 string, cs2 string, pool apool.APool) {
+func Compose(cs1 string, cs2 string, pool apool.APool) string {
 	var unpacked1, _ = Unpack(cs1)
 	var unpacked2, _ = Unpack(cs2)
 	var len1 = unpacked1.OldLen
@@ -391,7 +393,7 @@ func Compose(cs1 string, cs2 string, pool apool.APool) {
 		return *opOut
 	})
 
-	Pack(len1, len3, newOps, bankAssem.String())
+	return Pack(len1, len3, newOps, bankAssem.String())
 }
 
 func ComposeAttributes(attribs1 string, attribs2 string, resultIsMutation bool, pool apool.APool) string {

@@ -68,6 +68,34 @@ func TestSmartOpAssembler_Merge_ConsecutiveOps2(t *testing.T) {
 	}
 }
 
+func TestSmartOpAssemblerMergeConsecutiveEqualWithMultiline(t *testing.T) {
+	const x = "-c*3*4=6*2*4|1=1*3*4|9=f*3*4|2=2*3*4=a*3*4=1=k=5"
+	var assembler = NewSmartOpAssembler()
+	ops, _ := DeserializeOps(x)
+	for _, op := range *ops {
+		assembler.Append(op)
+	}
+
+	assembler.EndDocument()
+	if assembler.String() != "-c*3*4=6*2*4|1=1*3*4|b=h*3*4=b" {
+		t.Error("Expected -c*3*4=6*2*4|1=1*3*4|b=h*3*4=b, got ", assembler.String())
+	}
+}
+
+func TestSmartOpAssemlerIgnorePlusOpsWithOpsChars0(t *testing.T) {
+	const x = "-c*3*4+6*3*4+0*3*4+1+0*3*4+1"
+	var assembler = NewSmartOpAssembler()
+	ops, _ := DeserializeOps(x)
+	for _, op := range *ops {
+		assembler.Append(op)
+	}
+
+	assembler.EndDocument()
+	if assembler.String() != "-c*3*4+8" {
+		t.Error("Expected -c*3*4+8, got ", assembler.String())
+	}
+}
+
 func TestSmartOpAssembler_Merge_Consecutive_Equals_Ops_Without_Multiline(t *testing.T) {
 	var x = "-c*3*4=6*2*4=1*3*4=f*3*4=2*3*4=a=k=5"
 	var assembler = NewSmartOpAssembler()
