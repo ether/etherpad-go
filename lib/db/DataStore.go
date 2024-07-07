@@ -29,6 +29,9 @@ type AuthorMethods interface {
 	SaveAuthorColor(authorId string, authorColor string)
 }
 
+type SessionMethods interface {
+}
+
 type DataStore interface {
 	PadMethods
 	AuthorMethods

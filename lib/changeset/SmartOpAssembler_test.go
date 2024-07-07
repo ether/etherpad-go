@@ -201,3 +201,26 @@ func TestAppendATextToAssembler(t *testing.T) {
 		Attribs: "|2+2*x|2+5",
 	}, "|2+2*x|1+1*x+3")
 }
+
+func TestSmartOpAssemblerClearShouldEmptyInternalAssemblers(t *testing.T) {
+	const x = "-c*3*4+6|3=az*asdf0*1*2*3+1=1-1+1*0+1=1-1+1|c=c-1"
+	var ops, _ = DeserializeOps(x)
+
+	var assembler = NewSmartOpAssembler()
+	assembler.Append((*ops)[0])
+	assembler.Append((*ops)[1])
+	assembler.Append((*ops)[2])
+	assembler.Clear()
+	assembler.Append((*ops)[3])
+	assembler.Append((*ops)[4])
+	assembler.Clear()
+	var remainingIter = (*ops)[5:]
+	for _, op := range remainingIter {
+		assembler.Append(op)
+	}
+	assembler.EndDocument()
+
+	if assembler.String() != "-1+1*0+1=1-1+1|c=c-1" {
+		t.Error("Expected -1+1*0+1=1-1+1|c=c-1, got ", assembler.String())
+	}
+}

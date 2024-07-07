@@ -359,3 +359,23 @@ imme
 func TestSplitJoinAttributionLines(t *testing.T) {
 	testSplitJoinAttributionLines(t)
 }
+
+func TestComposeAttributes(t *testing.T) {
+	var p = apool.NewAPool()
+	p.PutAttrib(apool.Attribute{
+		Key:   "bold",
+		Value: "",
+	}, nil)
+	p.PutAttrib(apool.Attribute{
+		Key:   "bold",
+		Value: "true",
+	}, nil)
+	var cs1, _ = changeset.CheckRep("Z:2>1*1+1*1=1$x")
+	var cs2, _ = changeset.CheckRep("Z:3>0*0|1=3$")
+	var comp = changeset.Compose(*cs1, *cs2, *p)
+	var cs12, _ = changeset.CheckRep(comp)
+
+	if *cs12 != "Z:2>1+1*0|1=2$x" {
+		t.Error("Error in ComposeAttributes")
+	}
+}

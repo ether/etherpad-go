@@ -17,6 +17,11 @@ func NewSessionManager() *SessionManager {
 	}
 }
 
+func (sm *SessionManager) doesSessionExist(sessionID string) bool {
+	//var session = sm.db.GetSession(sessionID)
+	return false
+}
+
 func (sm *SessionManager) findAuthorID(groupId string, sessionCookie *string) *string {
 	if sessionCookie == nil {
 		return nil
