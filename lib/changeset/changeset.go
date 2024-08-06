@@ -437,7 +437,7 @@ func SlicerZipperFunc(attOp *Op, csOp *Op, pool apool.APool) (*Op, error) {
 		copyOp(*attOp, &opOut)
 		attOp.OpCode = ""
 	} else if csOp.OpCode == "+" {
-		copyOp(*attOp, &opOut)
+		copyOp(*csOp, &opOut)
 		csOp.OpCode = ""
 	} else {
 		var opsToIterate = []Op{*attOp, *csOp}

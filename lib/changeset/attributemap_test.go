@@ -89,5 +89,16 @@ func TestInsertNewAttributesInThePool(t *testing.T) {
 	if counter != 4 {
 		t.Error("Expected 4, got ", counter)
 	}
+}
 
+func TestFromString(t *testing.T) {
+	var pool, attribs = PrepareAttribPool(t)
+
+	var got = FromString("*0*1*2", pool)
+	for _, attr := range attribs {
+		var res = got.Get(attr[0])
+		if res != attr[1] {
+			t.Error("key, value are diferent")
+		}
+	}
 }

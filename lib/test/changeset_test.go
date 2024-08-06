@@ -270,7 +270,7 @@ func TestSlicerZipperFunc(t *testing.T) {
 		Attribs: "",
 	}
 
-	ops, err := changeset.SlicerZipperFunc(op1, op2, pool)
+	ops, err := changeset.SlicerZipperFunc(&op1, &op2, pool)
 
 	if err != nil {
 		t.Error("Error in SlicerZipperFunc " + err.Error())
