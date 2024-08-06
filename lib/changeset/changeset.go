@@ -397,7 +397,24 @@ func Compose(cs1 string, cs2 string, pool apool.APool) string {
 }
 
 func ComposeAttributes(attribs1 string, attribs2 string, resultIsMutation bool, pool apool.APool) string {
+	// att1 and att2 are strings like "*3*f*1c", asMutation is a boolean.
+	// Sometimes attribute (key,value) pairs are treated as attribute presence
+	// information, while other times they are treated as operations that
+	// mutate a set of attributes, and this affects whether an empty value
+	// is a deletion or a change.
+	// Examples, of the form (att1Items, att2Items, resultIsMutation) -> result
+	// ([], [(bold, )], true) -> [(bold, )]
+	// ([], [(bold, )], false) -> []
+	// ([], [(bold, true)], true) -> [(bold, true)]
+	// ([], [(bold, true)], false) -> [(bold, true)]
+	// ([(bold, true)], [(bold, )], true) -> [(bold, )]
+	// ([(bold, true)], [(bold, )], false) -> []
+	// pool can be null if att2 has no attributes.
 	if attribs1 == "" && resultIsMutation {
+		// In the case of a mutation (i.e. composing two exportss),
+		// an att2 composed with an empy att1 is just att2.  If att1
+		// is part of an attribution string, then att2 may remove
+		// attributes that are already gone, so don't do this optimization.
 		return attribs2
 	}
 	if attribs2 == "" {
@@ -408,22 +425,22 @@ func ComposeAttributes(attribs1 string, attribs2 string, resultIsMutation bool, 
 	return attrMap.UpdateFromString(attribs2, &negatedResultIsMutation).String()
 }
 
-func SlicerZipperFunc(attOp Op, csOp Op, pool apool.APool) (*Op, error) {
+func SlicerZipperFunc(attOp *Op, csOp *Op, pool apool.APool) (*Op, error) {
 	var opOut = NewOp(nil)
 	if attOp.OpCode == "" {
-		copyOp(csOp, &opOut)
+		copyOp(*csOp, &opOut)
 		csOp.OpCode = ""
 	} else if csOp.OpCode == "" {
-		copyOp(attOp, &opOut)
+		copyOp(*attOp, &opOut)
 		attOp.OpCode = ""
 	} else if attOp.OpCode == "-" {
-		copyOp(attOp, &opOut)
+		copyOp(*attOp, &opOut)
 		attOp.OpCode = ""
 	} else if csOp.OpCode == "+" {
-		copyOp(attOp, &opOut)
+		copyOp(*attOp, &opOut)
 		csOp.OpCode = ""
 	} else {
-		var opsToIterate = []Op{attOp, csOp}
+		var opsToIterate = []Op{*attOp, *csOp}
 		for _, op := range opsToIterate {
 			if !(op.Chars >= op.Lines) {
 				return nil, errors.New("op has more characters than lines")
@@ -490,7 +507,7 @@ func SlicerZipperFunc(attOp Op, csOp Op, pool apool.APool) (*Op, error) {
 func ApplyToAttribution(cs string, astr string, pool apool.APool) string {
 	var unpacked, _ = Unpack(cs)
 	return ApplyZip(astr, unpacked.Ops, func(op1, op2 *Op) Op {
-		res, err := SlicerZipperFunc(*op1, *op2, pool)
+		res, err := SlicerZipperFunc(op1, op2, pool)
 
 		if err != nil {
 			println("Error is" + err.Error())
