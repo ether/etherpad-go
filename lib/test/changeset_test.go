@@ -1,6 +1,7 @@
 package test
 
 import (
+	"fmt"
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/changeset"
 	"regexp"
@@ -162,7 +163,7 @@ func runApplyToAttributionTest(testId int, attribs []string, cs string, inAttr s
 	result := changeset.ApplyToAttribution(*resCS, inAttr, p)
 
 	if result != outCorrect {
-		t.Error("Error comparing attributions original: " + *resCS + " " + result + " vs " + outCorrect)
+		t.Error(testId, "Error comparing attributions original: "+*resCS+" "+result+" vs "+outCorrect)
 	}
 }
 
@@ -378,4 +379,47 @@ func TestComposeAttributes(t *testing.T) {
 	if *cs12 != "Z:2>1+1*0|1=2$x" {
 		t.Error("Error in ComposeAttributes")
 	}
+}
+
+func TestDeserializeOps(t *testing.T) {
+	var changesetToCheck = "-1*0=1*1=1=3+4"
+	res, err := changeset.DeserializeOps(changesetToCheck)
+	if err != nil {
+		t.Error("Error should be nil")
+	}
+
+	if len(*res) != 5 {
+		t.Error("too short", len(*res))
+	}
+}
+
+// Utility function to print full match details
+func printMatchDetails(matches [][]string, input string) {
+	for i, match := range matches {
+		fmt.Printf("Match %d is:\n", i)
+		for j, group := range match {
+			if i == 0 {
+				// Full Match
+				fmt.Printf("  '%v'\n", group)
+			} else {
+				fmt.Printf("  Group %d: '%v'\n", j, group)
+			}
+		}
+		fmt.Printf("  index: %d\n", matchIndex(input, match[0]))
+	}
+}
+
+// Helper function to find match index
+func matchIndex(input, match string) int {
+	return regexp.MustCompile(regexp.QuoteMeta(match)).FindStringIndex(input)[0]
+}
+
+func TestRegexMatcher(t *testing.T) {
+	input := "+1*1+1|1+5"
+	pattern := `((?:\*[0-9a-z]+)*)(?:\|([0-9a-z]+))?([-+=])([0-9a-z]+)|(.)`
+	regex := regexp.MustCompile(pattern)
+
+	var i = regex.FindAllStringSubmatch(input, -1)
+	printMatchDetails(i, input)
+
 }

@@ -304,54 +304,85 @@ func ApplyZip(in1 string, in2 string, callback func(*Op, *Op) Op) string {
 	var ops1, _ = DeserializeOps(in1)
 	var ops2, _ = DeserializeOps(in2)
 
+	var ops1Iterator = Iterator[Op]{
+		ops: *ops1,
+	}
+
+	var ops2Iterator = Iterator[Op]{
+		ops: *ops2,
+	}
+
 	//FIXME in der Funktion kommen die Werte schon falsch raus
 
 	var assem = NewSmartOpAssembler()
-	var ops1Counter = 0
-	var ops2Counter = 0
-	for len(*ops1) > ops1Counter || len(*ops2) > ops2Counter {
-		var opsToUse1 Op
-		if len(*ops1) == ops1Counter {
-			opsToUse1 = NewOp(nil)
-		} else {
-			opsToUse1 = (*ops1)[ops1Counter]
-			ops1Counter++
+
+	for {
+
+		op1, done1 := ops1Iterator.Next()
+		op2, done2 := ops2Iterator.Next()
+
+		if done1 && done2 {
+			break
 		}
 
-		var opsToUse2 Op
-		if len(*ops2) == ops2Counter {
-			opsToUse2 = NewOp(nil)
-		} else {
-			opsToUse2 = (*ops2)[ops2Counter]
-			ops2Counter++
+		if done1 && done2 {
+			break
 		}
-		var res = callback(&opsToUse1, &opsToUse2)
-		if res.OpCode != "" {
-			assem.Append(res)
+
+		if done1 {
+			var op1Temp = NewOp(nil)
+			op1 = &op1Temp
+		}
+
+		if done2 {
+			var op2Temp = NewOp(nil)
+			op2 = &op2Temp
+		}
+
+		if !done1 && op1.OpCode == "" {
+			op1, done1 = ops1Iterator.Next()
+		}
+		if !done2 && op2.OpCode == "" {
+			op2, done2 = ops2Iterator.Next()
+		}
+
+		opOut := callback(op1, op2)
+		if opOut.OpCode != "" {
+			assem.Append(opOut)
 		}
 	}
 	assem.EndDocument()
 	return assem.String()
 }
 
+// Helper function to find match index
+func matchIndex(input, match string) int {
+	return regexp.MustCompile(regexp.QuoteMeta(match)).FindStringIndex(input)[0]
+}
+
 func DeserializeOps(ops string) (*[]Op, error) {
-	var regex = regexp.MustCompile("((?:\\*[0-9a-z]+)*)(?:\\|([0-9a-z]+))?([-+=])([0-9a-z]+)|(.)")
-	var matches = regex.FindAllStringSubmatch(ops, -1)
+	var regex = regexp.MustCompile(`((?:\*[0-9a-z]+)*)(?:\|([0-9a-z]+))?([-+=])([0-9a-z]+)|(.)`)
 	var opsToReturn = make([]Op, 0)
+	matches := regex.FindAllStringSubmatch(ops, -1)
 
 	for _, match := range matches {
 		if match[5] == "$" {
-			return nil, errors.New("no valid op found")
+			continue
 		}
+		if match[5] != "" {
+			panic("Invalid operation")
+		}
+		var opMatch = match[3]
+		var op = NewOp(&opMatch)
 
-		var op = NewOp(&match[3])
-
-		if len(match[2]) > 0 {
-			op.Lines, _ = utils.ParseNum(match[2])
+		var lines string
+		if match[2] != "" {
+			lines = match[2]
 		} else {
-			op.Lines = 0
+			lines = "0"
 		}
 
+		op.Lines, _ = utils.ParseNum(lines)
 		op.Chars, _ = utils.ParseNum(match[4])
 		op.Attribs = match[1]
 		opsToReturn = append(opsToReturn, op)
