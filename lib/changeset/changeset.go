@@ -382,7 +382,7 @@ func Compose(cs1 string, cs2 string, pool apool.APool) string {
 			bankIter1.Skip(int(math.Min(float64(op1.Chars), float64(op2.Chars))))
 		}
 
-		var opOut, _ = SlicerZipperFunc(*op1, *op2, pool)
+		var opOut, _ = SlicerZipperFunc(op1, op2, pool)
 
 		if opOut.OpCode == "+" {
 			bankAssem.Append(bankIter2.Take(opOut.Chars))
