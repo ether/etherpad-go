@@ -52,6 +52,11 @@ func (a *AttributeMap) Update(entries []apool.Attribute, emptyValueISDelete *boo
 	return a
 }
 
+func (a *AttributeMap) Has(key string) bool {
+	_, ok := a.attrs[key]
+	return ok
+}
+
 func (a *AttributeMap) Size() int {
 	return len(a.attrs)
 }

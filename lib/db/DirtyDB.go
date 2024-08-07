@@ -17,6 +17,23 @@ type SQLiteDB struct {
 	sqlDB *sql.DB
 }
 
+func (d SQLiteDB) GetRevision(padId string, rev int) (*db.PadSingleRevision, error) {
+	query, err := d.sqlDB.Query("SELECT * FROM padRev WHERE id = ? AND rev = ?", padId, rev)
+	if err != nil {
+		println("Error getting revision", err)
+	}
+
+	defer query.Close()
+
+	for query.Next() {
+		var revisionDB db.PadSingleRevision
+		query.Scan(&revisionDB.PadId, &revisionDB.RevNum, &revisionDB.Changeset, &revisionDB.AText.Text, &revisionDB.AText.Attribs, &revisionDB.AuthorId, &revisionDB.Timestamp)
+		return &revisionDB, nil
+	}
+
+	return nil, errors.New("revision not found")
+}
+
 const padPrefix = "pad:%s"
 const readOnlyPrefix = "readonly2pad:%s"
 const authorPrefix = "author:%s"
@@ -118,8 +135,22 @@ func (d SQLiteDB) GetPadIds() []string {
 	return padIds
 }
 
-func (d SQLiteDB) SaveRevision(padId string, rev int, changeset string, text apool.AText, pool apool.APool, authorId *string, timestamp int) {
+func (d SQLiteDB) SaveRevision(padId string, rev int, changeset string, text apool.AText, pool apool.APool, authorId *string, timestamp int) error {
+	toSql, i, err := sq.Insert("padRev").Columns("id", "rev", "changeset", "atextText", "atextAttribs", "authorId", "timestamp").
+		Values(padId, rev, changeset, text.Text, text.Attribs, *authorId, timestamp).
+		ToSql()
 
+	if err != nil {
+		return err
+	}
+
+	_, err = d.sqlDB.Exec(toSql, i)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (d SQLiteDB) GetPad(padID string) (*db.PadDB, error) {
@@ -363,6 +394,10 @@ func NewDirtyDB(path string) (*SQLiteDB, error) {
 	}
 
 	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS pad (id TEXT PRIMARY KEY, data TEXT)")
+	if err != nil {
+		panic(err)
+	}
+	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS padRev(id TEXT, rev INTEGER, changeset TEXT, atextText TEXT, atextAttribs TEXT, authorId TEXT, timestamp INTEGER, PRIMARY KEY (id, rev))")
 	if err != nil {
 		panic(err)
 	}

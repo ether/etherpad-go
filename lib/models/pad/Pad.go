@@ -47,6 +47,10 @@ func (p *Pad) apool() *apool.APool {
 	return &p.Pool
 }
 
+func (p *Pad) Text() string {
+	return p.AText.Text
+}
+
 func CleanText(context string) *string {
 	context = strings.ReplaceAll(context, "\r\n", "\n")
 	context = strings.ReplaceAll(context, "\r", "\n")
@@ -68,13 +72,13 @@ func (p *Pad) Init(text *string, author *string) {
 		p.Pool = *padMetaData.Pool
 	} else {
 		var firstChangeset, _ = changeset.MakeSplice("\n", 0, 0, *text, nil, nil)
-		p.appendRevision(firstChangeset, author)
+		p.AppendRevision(firstChangeset, author)
 		p.save()
 	}
 }
 
-func (p *Pad) GetRevision(revNumber int) {
-	p.db.GetRevision(p.Id, revNumber)
+func (p *Pad) GetRevision(revNumber int) (*db2.PadSingleRevision, error) {
+	return p.db.GetRevision(p.Id, revNumber)
 }
 
 func (p *Pad) save() {
@@ -109,7 +113,7 @@ func (p *Pad) getPublicStatus() bool {
 	return p.PublicStatus
 }
 
-func (p *Pad) appendRevision(cs string, authorId *string) int {
+func (p *Pad) AppendRevision(cs string, authorId *string) int {
 	if authorId == nil {
 		authorId = new(string)
 		*authorId = ""

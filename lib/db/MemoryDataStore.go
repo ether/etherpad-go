@@ -14,6 +14,11 @@ type MemoryDataStore struct {
 	authorMapper map[string]string
 }
 
+func (m *MemoryDataStore) GetRevision(padId string, rev int) (*db.PadSingleRevision, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
 func (m *MemoryDataStore) GetPadMetaData(padId string, revNum int) (*db.PadMetaData, error) {
 	var retrievedPad, ok = m.padStore[padId]
 
@@ -61,7 +66,7 @@ func (m *MemoryDataStore) CreatePad(padID string, padDB db.PadDB) bool {
 }
 
 func (m *MemoryDataStore) SaveRevision(padId string, rev int, changeset string,
-	text apool.AText, pool apool.APool, authorId *string, timestamp int) {
+	text apool.AText, pool apool.APool, authorId *string, timestamp int) error {
 	var retrievedPad, ok = m.padStore[padId]
 	if !ok {
 		panic("Pad not found")
@@ -77,13 +82,14 @@ func (m *MemoryDataStore) SaveRevision(padId string, rev int, changeset string,
 			Timestamp: timestamp,
 		},
 	}
+	return nil
 }
 
 func (m *MemoryDataStore) GetPad(padID string) (*db.PadDB, error) {
 	pad, ok := m.padStore[padID]
 
 	if !ok {
-		return nil, errors.New("Pad not found")
+		return nil, errors.New("pad not found")
 	}
 
 	return &pad, nil

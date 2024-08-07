@@ -139,6 +139,10 @@ func MakeSplice(orig string, start int, ndel int, ins string, attribs *string, p
 	return Pack(len(orig), len(orig)+len(ins)-ndel, assem.String(), ins), nil
 }
 
+func Identity(n int) string {
+	return Pack(n, n, "", "")
+}
+
 func Unpack(cs string) (*Changeset, error) {
 	var headerRegex, _ = regexp.Compile("Z:([0-9a-z]+)([><])([0-9a-z]+)|")
 	var foundHeaders = headerRegex.FindStringSubmatch(cs)
@@ -170,6 +174,250 @@ func Unpack(cs string) (*Changeset, error) {
 		cs[opsEnd+1:],
 	}, nil
 
+}
+
+func AttributeTester(attribPair apool.Attribute, pool *apool.APool) func(arg *string) bool {
+	var never = func(arg *string) bool {
+		return false
+	}
+
+	if pool == nil {
+		return never
+	}
+
+	var trueVal = true
+	var attribNum = pool.PutAttrib(attribPair, &trueVal)
+	if attribNum < 0 {
+		return never
+	}
+
+	var re = regexp.MustCompile("\\*" + strconv.FormatInt(int64(attribNum), 36) + "(?!\\w)")
+	return func(attribs *string) bool {
+		return re.MatchString(*attribs)
+	}
+}
+
+func replaceAttributes(att2 string, callback func(match string) string) (string, map[string]string, error) {
+	re := regexp.MustCompile(`\*([0-9a-z]+)`)
+	atts := make(map[string]string)
+
+	result := re.ReplaceAllStringFunc(att2, callback)
+
+	return result, atts, nil
+}
+
+func followAttributes(att1 string, att2 string, pool *apool.APool) string {
+	// The merge of two sets of attribute changes to the same text
+	// takes the lexically-earlier value if there are two values
+	// for the same key.  Otherwise, all key/value changes from
+	// both attribute sets are taken.  This operation is the "follow",
+	// so a set of changes is produced that can be applied to att1
+	// to produce the merged set.
+	if att2 == "" && pool == nil {
+		return ""
+	}
+
+	if att1 == "" {
+		return att2
+	}
+
+	var atts = make(map[string]string)
+	replaceAttributes(att2, func(a string) string {
+		parsedNum, _ := utils.ParseNum(a)
+		var attrib, _ = pool.GetAttrib(parsedNum)
+		atts[attrib.Key] = attrib.Value
+		return ""
+	})
+	replaceAttributes(att1, func(a string) string {
+		parsedNum, _ := utils.ParseNum(a)
+		var attrib, _ = pool.GetAttrib(parsedNum)
+		var res, ok = atts[attrib.Key]
+
+		if ok && attrib.Value <= res {
+			delete(atts, attrib.Key)
+		}
+		return ""
+	})
+
+	var buf = NewStringAssembler()
+	for key, value := range atts {
+		buf.Append("*")
+		buf.Append(utils.NumToString(pool.PutAttrib(apool.Attribute{
+			Key:   key,
+			Value: value,
+		}, nil)))
+	}
+
+	return buf.String()
+}
+
+func Follow(c string, rebasedChangeset string, reverseInsertOrder bool, pool *apool.APool) string {
+	var unpacked1, _ = Unpack(c)
+	var unpacked2, _ = Unpack(rebasedChangeset)
+
+	var len1 = unpacked1.OldLen
+	var len2 = unpacked2.NewLen
+	if len1 != len2 {
+		panic("mismatched lengths in follow")
+	}
+
+	var chars1 = NewStringIterator(unpacked1.CharBank)
+	var chars2 = NewStringIterator(unpacked2.CharBank)
+
+	var oldLen = unpacked1.NewLen
+	var oldPos = 0
+	var newLen = 0
+
+	hasInsertFirst := func(attrib string) bool {
+		return AttributeTester(apool.Attribute{
+			Key:   "insertorder",
+			Value: "first",
+		}, pool)(&attrib)
+	}
+
+	newOps := ApplyZip(unpacked1.Ops, unpacked2.Ops, func(op1, op2 *Op) Op {
+		var opOut = NewOp(nil)
+		if op1.OpCode == "+" || op2.OpCode == "+" {
+			var whichToDo int
+
+			if op2.OpCode != "+" {
+				whichToDo = 1
+			} else if op1.OpCode != "+" {
+				whichToDo = 2
+			} else {
+				var firstChar1 = chars1.Peek(1)
+				var firstChar2 = chars2.Peek(1)
+
+				var insertFirst1 = hasInsertFirst(op1.Attribs)
+				var insertFirst2 = hasInsertFirst(op2.Attribs)
+
+				if insertFirst1 && !insertFirst2 {
+					whichToDo = 1
+				} else if insertFirst2 && !insertFirst1 {
+					whichToDo = 2
+				} else if firstChar1 == "\n" && firstChar2 != "\n" {
+					whichToDo = 2
+				} else if firstChar1 != "\n" && firstChar2 == "\n" {
+					whichToDo = 1
+				} else if reverseInsertOrder {
+					// break symmetry:
+					whichToDo = 2
+				} else {
+					whichToDo = 1
+				}
+			}
+
+			if whichToDo == 1 {
+				err := chars1.Skip(op1.Chars)
+				if err != nil {
+					panic(err)
+				}
+				opOut.OpCode = "="
+				opOut.Lines = op1.Lines
+				opOut.Chars = op1.Chars
+				opOut.Attribs = ""
+				op1.OpCode = ""
+			} else {
+				// whichToDo == 2
+				chars2.Skip(op2.Chars)
+				copyOp(*op2, &opOut)
+				op2.OpCode = ""
+			}
+		} else if op1.OpCode == "-" {
+			if op2.OpCode != "" {
+				op1.OpCode = ""
+			} else if op1.Chars <= op2.Chars {
+				op2.Chars -= op1.Chars
+				op2.Lines -= op1.Lines
+				op1.OpCode = ""
+
+				if op2.Chars == 0 {
+					op2.OpCode = ""
+				}
+			} else {
+				op1.Chars -= op2.Chars
+				op1.Lines -= op2.Lines
+				op2.OpCode = ""
+			}
+		} else if op2.OpCode == "-" {
+			copyOp(*op2, &opOut)
+
+			if op1.OpCode == "" {
+				op2.OpCode = ""
+			} else if op2.Chars <= op1.Chars {
+				// delete part or all of a keep
+				op1.Chars -= op2.Chars
+				op1.Lines -= op2.Lines
+				op2.OpCode = ""
+				if op1.Chars == 0 {
+					op1.OpCode = ""
+				}
+			} else {
+				// delete all of a keep, and keep going
+				opOut.Lines = op1.Lines
+				opOut.Chars = op1.Chars
+				op2.Lines -= op1.Lines
+				op2.Chars -= op1.Chars
+				op1.OpCode = ""
+			}
+		} else if op1.OpCode == "" {
+			copyOp(*op2, &opOut)
+			op2.OpCode = ""
+		} else if op2.OpCode == "" {
+			// @NOTE: Critical bugfix for EPL issue #1625. We do not copy op1 here
+			// in order to prevent attributes from leaking into result changesets.
+			// copyOp(op1, opOut);
+			op1.OpCode = ""
+		} else {
+			// both keeps
+			opOut.OpCode = ""
+			opOut.Attribs = followAttributes(op1.Attribs, op2.Attribs, pool)
+			if op1.Chars <= op2.Chars {
+				opOut.Chars = op1.Chars
+				opOut.Lines = op1.Lines
+				op2.Chars -= op1.Chars
+				op2.Lines -= op1.Lines
+				op1.OpCode = ""
+				if op2.Chars == 0 {
+					op2.OpCode = ""
+				}
+			} else {
+				opOut.Chars = op2.Chars
+				opOut.Lines = op2.Lines
+				op1.Chars -= op2.Chars
+				op1.Lines -= op2.Lines
+				op2.OpCode = ""
+			}
+		}
+
+		switch {
+		case opOut.OpCode == "=":
+			{
+				oldPos += opOut.Chars
+				newLen += opOut.Chars
+				break
+			}
+		case opOut.OpCode == "-":
+			{
+				oldPos += opOut.Chars
+				break
+			}
+		case opOut.OpCode == "+":
+			{
+				newLen += opOut.Chars
+				break
+			}
+		}
+		return opOut
+	})
+
+	newLen += oldLen - oldPos
+	return Pack(oldLen, newLen, newOps, unpacked2.CharBank)
+}
+
+func OldLen(cs string) int {
+	var unpacked, _ = Unpack(cs)
+	return unpacked.OldLen
 }
 
 func CheckRep(cs string) (*string, error) {
@@ -622,7 +870,7 @@ type PrepareForWireStruct struct {
 
 func PrepareForWire(cs string, pool apool.APool) PrepareForWireStruct {
 	var newPool = apool.NewAPool()
-	var newCS = moveOpsToNewPool(cs, pool, *newPool)
+	var newCS = MoveOpsToNewPool(cs, pool, *newPool)
 	return PrepareForWireStruct{
 		Pool:       *newPool,
 		Translated: newCS,

@@ -19,6 +19,15 @@ type PadRevision struct {
 	PadDBMeta PadDBMeta
 }
 
+type PadSingleRevision struct {
+	PadId     string
+	RevNum    int
+	Changeset string
+	AText     apool.AText
+	AuthorId  *string
+	Timestamp int
+}
+
 type PadDBMeta struct {
 	Author    *string
 	Timestamp int

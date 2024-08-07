@@ -10,6 +10,8 @@ import (
 	"github.com/ether/etherpad-go/lib/settings/clientVars"
 	"github.com/gorilla/websocket"
 	"regexp"
+	"slices"
+	"strings"
 )
 
 type AuthSession struct {
@@ -93,6 +95,7 @@ func handleUserChanges(task Task) {
 
 	if errWhenDeserializing != nil {
 		println("error when deserializing ops")
+		return
 	}
 
 	for _, op := range *deserializedOps {
@@ -118,9 +121,98 @@ func handleUserChanges(task Task) {
 
 	for r < retrievedPad.Head {
 		r++
-		retrievedPad.GetRevision(r)
+		var revisionPad, _ = retrievedPad.GetRevision(r)
+
+		if revisionPad.Changeset == task.message.Data.Changeset && revisionPad.AuthorId == &session.Author {
+			// Assume this is a retransmission of an already applied changeset.
+			unpackedChangeset, _ = changeset.Unpack(task.message.Data.Changeset)
+			rebasedChangeset = changeset.Identity(unpackedChangeset.OldLen)
+		}
+		// At this point, both "c" (from the pad) and "changeset" (from the
+		// client) are relative to revision r - 1. The follow function
+		// rebases "changeset" so that it is relative to revision r
+		// and can be applied after "c".
+		rebasedChangeset = changeset.Follow(revisionPad.Changeset, rebasedChangeset, false, &retrievedPad.Pool)
 	}
 
+	prevText := retrievedPad.Text()
+
+	if changeset.OldLen(rebasedChangeset) != len(prevText) {
+		panic("Can't apply changeset to pad text")
+	}
+
+	var newRev = retrievedPad.AppendRevision(rebasedChangeset, &session.Author)
+
+	var rangeForRevs = make([]int, 2)
+	rangeForRevs[0] = r
+	rangeForRevs[1] = r + 1
+
+	if !slices.Contains(rangeForRevs, newRev) {
+		panic("Revision number is not within range")
+	}
+
+	var correctionChangeset = correctMarkersInPad(retrievedPad.AText, retrievedPad.Pool)
+	if correctionChangeset != nil {
+		retrievedPad.AppendRevision(*correctionChangeset, &session.Author)
+	}
+
+	// Make sure the pad always ends with an empty line.
+	if strings.LastIndex(retrievedPad.Text(), "\n") != len(retrievedPad.Text())-1 {
+		var nlChangeset, _ = changeset.MakeSplice(retrievedPad.Text(), len(retrievedPad.Text())-1, 0, "\n", nil, nil)
+		retrievedPad.AppendRevision(nlChangeset, &session.Author)
+	}
+
+	if session.revision != r {
+		println("Revision mismatch")
+	}
+
+	// TODO hier weiterschreiben
+
+}
+
+func correctMarkersInPad(atext apool.AText, apool apool.APool) *string {
+	var text = atext.Text
+
+	// collect char positions of line markers (e.g. bullets) in new atext
+	// that aren't at the start of a line
+	var badMarkers = make([]int, 0)
+	var offset = 0
+
+	deserializedOps, _ := changeset.DeserializeOps(atext.Attribs)
+
+	for _, op := range *deserializedOps {
+		var attribs = changeset.FromString(op.Attribs, apool)
+		var hasMarker = changeset.HasAttrib(attribs)
+
+		if hasMarker {
+			for i := 0; i < op.Chars; i++ {
+				if offset > 0 && text[offset-1] != '\n' {
+					badMarkers = append(badMarkers, offset)
+				}
+				offset++
+			}
+		} else {
+			offset += op.Chars
+		}
+	}
+
+	if len(badMarkers) == 0 {
+		return nil
+	}
+
+	// create changeset that removes these bad markers
+	offset = 0
+
+	var builder = changeset.NewBuilder(len(text))
+
+	for _, i := range badMarkers {
+		builder.KeepText(text[offset:i], changeset.KeepArgs{}, nil)
+		builder.Remove(1, 0)
+		offset = i + 1
+	}
+
+	var stringifierBuilder = builder.ToString()
+	return &stringifierBuilder
 }
 
 func HandleClientReadyMessage(ready ws.ClientReady, client *Client) {
