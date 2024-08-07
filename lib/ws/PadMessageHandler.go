@@ -2,6 +2,7 @@ package ws
 
 import (
 	"encoding/json"
+	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/changeset"
 	"github.com/ether/etherpad-go/lib/models/ws"
@@ -18,6 +19,11 @@ type AuthSession struct {
 	ReadOnly      bool
 }
 
+type SessionInfo struct {
+	sessionId string
+	padId     string
+}
+
 var padManager pad.Manager
 var readOnlyManager *pad.ReadOnlyManager
 var authorManager author.Manager
@@ -28,6 +34,93 @@ func init() {
 	readOnlyManager = pad.NewReadOnlyManager()
 	authorManager = author.NewManager()
 	colorRegEx, _ = regexp.Compile("^#(?:[0-9A-F]{3}){1,2}$")
+}
+
+type Task struct {
+	socket  SessionInfo
+	message ws.UserChange
+}
+
+var PadChannels = NewChannelOperator()
+
+type ChannelOperator struct {
+	channels map[string]chan Task
+}
+
+func NewChannelOperator() ChannelOperator {
+	return ChannelOperator{
+		channels: make(map[string]chan Task),
+	}
+}
+
+func (c *ChannelOperator) AddToQueue(ch string, t Task) {
+	var _, ok = PadChannels.channels[ch]
+
+	if !ok {
+		PadChannels.channels[ch] = make(chan Task)
+		go func() {
+			for {
+				var incomingTask = <-PadChannels.channels[ch]
+				handleUserChanges(incomingTask)
+			}
+		}()
+	}
+
+	PadChannels.channels[ch] <- t
+}
+
+func handleUserChanges(task Task) {
+	var wireApool = apool.NewAPool()
+	wireApool.FromJsonable(apool.APool{
+		NextNum:        task.message.Data.Apool.NextNum,
+		NumToAttribRaw: task.message.Data.Apool.NumToAttrib,
+	})
+	var session = SessionStore[task.socket.sessionId]
+
+	var retrievedPad, _ = padManager.GetPad(session.PadId, nil, &session.Author)
+	_, err := changeset.CheckRep(task.message.Data.Changeset)
+
+	if err != nil {
+		return
+	}
+
+	unpackedChangeset, err := changeset.Unpack(task.message.Data.Changeset)
+
+	if err != nil {
+		println("Error retrieving changeset", err)
+	}
+	deserializedOps, errWhenDeserializing := changeset.DeserializeOps(unpackedChangeset.Ops)
+
+	if errWhenDeserializing != nil {
+		println("error when deserializing ops")
+	}
+
+	for _, op := range *deserializedOps {
+		// + can add text with attribs
+		// = can change or add attribs
+		// - can have attribs, but they are discarded and don't show up in the attribs -
+		// but do show up in the pool
+
+		// Besides verifying the author attribute, this serves a second purpose:
+		// AttributeMap.fromString() ensures that all attribute numbers are valid (it will throw if
+		// an attribute number isn't in the pool).
+		fromString := changeset.FromString(op.Attribs, *wireApool)
+		var opAuthorId = fromString.Get("author")
+
+		if opAuthorId != "" && opAuthorId != session.Author {
+			println("Wrong author tried to submit changeset")
+		}
+	}
+
+	rebasedChangeset := changeset.MoveOpsToNewPool(task.message.Data.Changeset, *wireApool, retrievedPad.Pool)
+
+	var r = task.message.Data.BaseRev
+
+	for r < retrievedPad.Head {
+		r++
+		retrievedPad.GetRevision(r)
+	}
+
 }
 
 func HandleClientReadyMessage(ready ws.ClientReady, client *Client) {
@@ -68,7 +161,7 @@ func HandleClientReadyMessage(ready ws.ClientReady, client *Client) {
 
 	var foundAuthor = authorManager.GetAuthor(sessionInfo.Author)
 
-	var retrievedPad, err = padManager.GetPad(authSession.PadID, nil, &foundAuthor)
+	var retrievedPad, err = padManager.GetPad(authSession.PadID, nil, &foundAuthor.Id)
 	if err != nil {
 		println("Error getting pad")
 		return

@@ -73,6 +73,10 @@ func (p *Pad) Init(text *string, author *string) {
 	}
 }
 
+func (p *Pad) GetRevision(revNumber int) {
+	p.db.GetRevision(p.Id, revNumber)
+}
+
 func (p *Pad) save() {
 	p.db.CreatePad(p.Id, db2.PadDB{
 		SavedRevisions: make(map[int]db2.PadRevision),

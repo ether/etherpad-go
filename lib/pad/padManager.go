@@ -2,7 +2,6 @@ package pad
 
 import (
 	"errors"
-	"github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/db"
 	"github.com/ether/etherpad-go/lib/models/pad"
 	"github.com/ether/etherpad-go/lib/settings"
@@ -112,7 +111,7 @@ func (m *Manager) SanitizePadId(padID string) (*string, error) {
 	return nil, errors.New("invalid pad id")
 }
 
-func (m *Manager) GetPad(padID string, text *string, author *author.Author) (*pad.Pad, error) {
+func (m *Manager) GetPad(padID string, text *string, authorId *string) (*pad.Pad, error) {
 	if !m.isValidPadId(padID) {
 		return nil, errors.New("invalid pad id")
 	}
@@ -137,7 +136,7 @@ func (m *Manager) GetPad(padID string, text *string, author *author.Author) (*pa
 		text = &settings.SettingsDisplayed.DefaultPadText
 	}
 
-	newPad.Init(text, &author.Id)
+	newPad.Init(text, authorId)
 	globalPadCache.SetPad(padID, &newPad)
 
 	return &newPad, nil

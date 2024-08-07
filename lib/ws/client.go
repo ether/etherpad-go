@@ -85,6 +85,7 @@ func (c *Client) readPump() {
 			}
 
 			HandleClientReadyMessage(clientReady, c)
+		} else if strings.Contains(decodedMessage, "USER_CHANGES") {
 
 		}
 
