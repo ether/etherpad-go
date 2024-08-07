@@ -339,6 +339,10 @@ func ApplyZip(in1 string, in2 string, callback func(*Op, *Op) Op) string {
 			op2 = &op2Temp
 		}
 
+		if op1.OpCode == "" && op2.OpCode == "" {
+			break
+		}
+
 		opOut := callback(op1, op2)
 		if opOut.OpCode != "" {
 			assem.Append(opOut)

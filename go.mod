@@ -5,11 +5,13 @@ go 1.22.3
 require (
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/a-h/templ v0.2.707
+	github.com/google/go-cmp v0.6.0
 	github.com/gorilla/securecookie v1.1.2
 	github.com/gorilla/sessions v1.2.2
 	github.com/gorilla/websocket v1.5.1
 	github.com/njones/socketio v0.1.4
 	github.com/oklog/ulid/v2 v2.1.0
+	modernc.org/sqlite v1.30.1
 )
 
 require (
@@ -21,7 +23,6 @@ require (
 	github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 // indirect
 	github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
-	github.com/mattn/go-sqlite3 v1.14.22 // indirect
 	github.com/ncruces/go-strftime v0.1.9 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/vmihailenco/msgpack v4.0.4+incompatible // indirect
@@ -36,7 +37,6 @@ require (
 	modernc.org/libc v1.52.1 // indirect
 	modernc.org/mathutil v1.6.0 // indirect
 	modernc.org/memory v1.8.0 // indirect
-	modernc.org/sqlite v1.30.1 // indirect
 	modernc.org/strutil v1.2.0 // indirect
 	modernc.org/token v1.1.0 // indirect
 	nhooyr.io/websocket v1.8.7 // indirect
