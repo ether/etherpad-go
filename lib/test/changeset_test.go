@@ -423,3 +423,60 @@ func TestRegexMatcher(t *testing.T) {
 	printMatchDetails(i, input)
 
 }
+
+func TestRegexMatcher2(t *testing.T) {
+	input := "-1*0=1*1=1=3+4"
+	pattern := `((?:\*[0-9a-z]+)*)(?:\|([0-9a-z]+))?([-+=])([0-9a-z]+)|(.)`
+	regex := regexp.MustCompile(pattern)
+	var i = regex.FindAllStringSubmatch(input, -1)
+
+	// First regex matching
+	if i[0][0] != "-1" && i[0][1] != "" && i[0][2] != "" && i[0][3] != "-" && i[0][4] != "1" && i[0][5] != "" {
+		t.Error("Not correctly resolved")
+	}
+
+	if i[1][0] != "*0=1" && i[1][1] != "*0" && i[1][2] != "" && i[1][3] != "=" && i[1][4] != "1" && i[1][5] != "" {
+		t.Error("Not correctly resolved")
+	}
+
+	if len(i) != 5 {
+		t.Error("Too short")
+	}
+}
+
+func TestRegexMatcher3(t *testing.T) {
+	input := "+1*1+1|1+5"
+	pattern := `((?:\*[0-9a-z]+)*)(?:\|([0-9a-z]+))?([-+=])([0-9a-z]+)|(.)`
+	regex := regexp.MustCompile(pattern)
+	var i = regex.FindAllStringSubmatch(input, -1)
+
+	if len(i) != 3 {
+		t.Error("Wrong length")
+	}
+}
+
+func TestSerializeChangeset(t *testing.T) {
+	input := "+1*1+1|1+5"
+	var ops, _ = changeset.DeserializeOps(input)
+	var deserializedOps = *ops
+	if deserializedOps[0].OpCode != "+" &&
+		deserializedOps[0].Chars != 1 &&
+		deserializedOps[0].Lines != 0 &&
+		deserializedOps[0].Attribs != "" {
+		t.Error("Invalid deserialized")
+	}
+
+	if deserializedOps[1].OpCode != "" &&
+		deserializedOps[1].Chars != 1 &&
+		deserializedOps[1].Lines != 0 &&
+		deserializedOps[1].Attribs != "" {
+		t.Error("Invalid deserialized")
+	}
+
+	if deserializedOps[2].OpCode != "+" &&
+		deserializedOps[2].Chars != 5 &&
+		deserializedOps[2].Lines != 1 &&
+		deserializedOps[2].Attribs != "" {
+		t.Error("Invalid deserialized")
+	}
+}

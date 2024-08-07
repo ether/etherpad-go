@@ -304,6 +304,7 @@ func ApplyZip(in1 string, in2 string, callback func(*Op, *Op) Op) string {
 	var ops1, _ = DeserializeOps(in1)
 	var ops2, _ = DeserializeOps(in2)
 
+	var assem = NewSmartOpAssembler()
 	var ops1Iterator = Iterator[Op]{
 		ops: *ops1,
 	}
@@ -311,22 +312,21 @@ func ApplyZip(in1 string, in2 string, callback func(*Op, *Op) Op) string {
 	var ops2Iterator = Iterator[Op]{
 		ops: *ops2,
 	}
-
-	//FIXME in der Funktion kommen die Werte schon falsch raus
-
-	var assem = NewSmartOpAssembler()
-
+	// Process both ops slices concurrently
+	op1, done1 := ops1Iterator.Next()
+	op2, done2 := ops2Iterator.Next()
+	var counter = 0
 	for {
-
-		op1, done1 := ops1Iterator.Next()
-		op2, done2 := ops2Iterator.Next()
-
+		counter += 1
 		if done1 && done2 {
 			break
 		}
 
-		if done1 && done2 {
-			break
+		if !done1 && op1.OpCode == "" {
+			op1, done1 = ops1Iterator.Next()
+		}
+		if !done2 && op2.OpCode == "" {
+			op2, done2 = ops2Iterator.Next()
 		}
 
 		if done1 {
@@ -337,13 +337,6 @@ func ApplyZip(in1 string, in2 string, callback func(*Op, *Op) Op) string {
 		if done2 {
 			var op2Temp = NewOp(nil)
 			op2 = &op2Temp
-		}
-
-		if !done1 && op1.OpCode == "" {
-			op1, done1 = ops1Iterator.Next()
-		}
-		if !done2 && op2.OpCode == "" {
-			op2, done2 = ops2Iterator.Next()
 		}
 
 		opOut := callback(op1, op2)
@@ -471,7 +464,7 @@ func SlicerZipperFunc(attOp *Op, csOp *Op, pool apool.APool) (*Op, error) {
 		copyOp(*csOp, &opOut)
 		csOp.OpCode = ""
 	} else {
-		var opsToIterate = []Op{*attOp, *csOp}
+		var opsToIterate = []*Op{attOp, csOp}
 		for _, op := range opsToIterate {
 			if !(op.Chars >= op.Lines) {
 				return nil, errors.New("op has more characters than lines")
@@ -512,9 +505,12 @@ func SlicerZipperFunc(attOp *Op, csOp *Op, pool apool.APool) (*Op, error) {
 				opOut.OpCode = "="
 			}
 		}
-		slices.SortFunc(opsToIterate, func(a, b Op) int {
-			return a.Chars - b.Chars
-		})
+
+		// Sort ascending
+		if opsToIterate[0].Chars > opsToIterate[1].Chars {
+			opsToIterate = []*Op{csOp, attOp}
+		}
+
 		var fullyConsumedOp = opsToIterate[0]
 		var partiallyConsumedOp = opsToIterate[1]
 
