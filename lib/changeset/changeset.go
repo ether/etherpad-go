@@ -558,7 +558,7 @@ func ApplyToAText(cs string, atext apool.AText, pool apool.APool) apool.AText {
 
 	return apool.AText{
 		Text:    *text,
-		Attribs: ApplyToAttribution(cs, attribs, pool),
+		Attribs: attribs,
 	}
 }
 
