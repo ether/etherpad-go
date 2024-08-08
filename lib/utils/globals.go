@@ -3,6 +3,8 @@ package utils
 import (
 	"github.com/ether/etherpad-go/lib/db"
 	plugins2 "github.com/ether/etherpad-go/lib/plugins"
+	"github.com/ether/etherpad-go/lib/settings"
+	"os"
 )
 
 func init() {
@@ -80,7 +82,22 @@ var datastore db.DataStore
 
 func GetDB() db.DataStore {
 	if datastore == nil {
-		datastore, _ = db.NewDirtyDB("test.db")
+
+		if settings.SettingsDisplayed.DBType == "dirty" {
+			datastore, _ = db.NewDirtyDB("test.db")
+		} else {
+			var typeDB, ok = os.LookupEnv("ETHERPAD_DB_TYPE")
+
+			if ok {
+				datastore = db.NewMemoryDataStore()
+			} else {
+				if typeDB == "memory" {
+					datastore = db.NewMemoryDataStore()
+				} else {
+					datastore, _ = db.NewDirtyDB("test.db")
+				}
+			}
+		}
 	}
 
 	return datastore

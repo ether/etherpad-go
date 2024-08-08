@@ -9,8 +9,14 @@ import (
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/models/db"
 	_ "modernc.org/sqlite"
+	"os"
 	"strings"
 )
+
+func init() {
+	println("Init")
+	os.Setenv("ETHERPAD_DB_TYPE", "memory")
+}
 
 type SQLiteDB struct {
 	path  string
@@ -318,7 +324,7 @@ func (d SQLiteDB) GetAuthorByMapperKeyAndMapperValue(key string, value string) (
 
 func (d SQLiteDB) SaveAuthor(author db.AuthorDB) {
 	var marshalled, _ = json.Marshal(author)
-	var resultedSQL, _, err = sq.
+	var resultedSQL, i, err = sq.
 		Insert("pad").
 		Columns("id", "data").
 		Values(fmt.Sprintf(authorPrefix, author.ID), string(marshalled)).
@@ -328,7 +334,7 @@ func (d SQLiteDB) SaveAuthor(author db.AuthorDB) {
 		panic(err)
 	}
 
-	_, err = d.sqlDB.Exec(resultedSQL)
+	_, err = d.sqlDB.Exec(resultedSQL, i...)
 	if err != nil {
 		panic(err)
 	}

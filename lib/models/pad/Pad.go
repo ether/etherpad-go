@@ -1,6 +1,7 @@
 package pad
 
 import (
+	"errors"
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/changeset"
@@ -61,7 +62,7 @@ func CleanText(context string) *string {
 	return &context
 }
 
-func (p *Pad) Init(text *string, author *string) {
+func (p *Pad) Init(text *string, author *string) error {
 	if author == nil {
 		author = new(string)
 		*author = ""
@@ -73,14 +74,22 @@ func (p *Pad) Init(text *string, author *string) {
 		var padMetaData = pad.SavedRevisions[pad.RevNum].PadDBMeta
 		p.Pool = *padMetaData.Pool
 	} else {
-		var padDefaultText = "text"
-		var context = DefaultContent{
-			Type:    &padDefaultText,
-			Content: &settings.SettingsDisplayed.DefaultPadText,
-			Pad:     p,
-		}
+		if text == nil {
+			var padDefaultText = "text"
+			var context = DefaultContent{
+				AuthorId: author,
+				Type:     &padDefaultText,
+				Content:  &settings.SettingsDisplayed.DefaultPadText,
+				Pad:      p,
+			}
+			text = &settings.SettingsDisplayed.DefaultPadText
+			hooks.HookInstance.ExecuteHooks(hooks.PadDefaultContentString, context)
 
-		hooks.HookInstance.ExecuteHooks(hooks.PadDefaultContentString, context)
+			if *context.Type != "text" {
+				return errors.New("unsupported content type" + *context.Type)
+			}
+
+		}
 
 		var firstChangeset, _ = changeset.MakeSplice("\n", 0, 0, *text, nil, nil)
 		p.AppendRevision(firstChangeset, author)
@@ -90,6 +99,7 @@ func (p *Pad) Init(text *string, author *string) {
 	hooks.HookInstance.ExecuteHooks(hooks.PadLoadString, Load{
 		Pad: p,
 	})
+	return nil
 }
 
 func (p *Pad) GetRevision(revNumber int) (*db2.PadSingleRevision, error) {

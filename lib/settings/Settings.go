@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	clientVars2 "github.com/ether/etherpad-go/lib/models/clientVars"
 	"os"
+	"path/filepath"
 	"reflect"
 	"regexp"
 )
@@ -155,7 +156,37 @@ func isZero(v reflect.Value) bool {
 }
 
 func init() {
-	settings, err := os.ReadFile("settings.json")
+	var pathToSettings string
+
+	for i := 0; i < 10; i++ {
+		var builtPath = ""
+		for j := 0; j < i; j++ {
+			builtPath += "../"
+		}
+
+		var assetDir string
+
+		if i == 0 {
+			assetDir = "./assets"
+		} else {
+			assetDir = "assets"
+		}
+
+		path, err := filepath.Abs(builtPath + assetDir)
+
+		_, err = os.Stat(path)
+
+		if err == nil {
+			pathToSettings, _ = filepath.Abs(builtPath)
+			break
+		}
+
+		if i == 9 {
+			panic("Error finding root")
+		}
+	}
+	var settingsFilePath = filepath.Join(pathToSettings, "settings.json")
+	settings, err := os.ReadFile(settingsFilePath)
 	settings = stripComments(settings)
 	SettingsDisplayed = newDefaultSettings()
 

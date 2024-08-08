@@ -47,7 +47,7 @@ func TestPadDefaultingToSettingsText(t *testing.T) {
 	var retrievedPad, _ = manager.GetPad("test", nil, &padAuthor.Id)
 	var padText = settings.SettingsDisplayed.DefaultPadText
 
-	if retrievedPad.AText.Text != padText {
+	if retrievedPad.AText.Text != padText+"\n" {
 		t.Error("Error setting pad text to default pad text")
 	}
 }
@@ -72,6 +72,60 @@ func TestRunWhenAPadIsCreated(t *testing.T) {
 	var _, _ = padManager.GetPad("test", nil, nil)
 	if !called {
 		t.Error("Default pad content string hook should be called")
+	}
+}
+
+func TestNotCalledWithSpecificText(t *testing.T) {
+	var called = false
+	hooks.HookInstance.EnqueueHook(hooks.PadDefaultContentString, func(hookName string, ctx any) {
+		called = true
+	})
+	var padManager = NewManager()
+	var padText = "test"
+	var _, _ = padManager.GetPad("test", &padText, nil)
+	if called {
+		t.Error("Default pad content string hook should be called")
+	}
+}
+
+func TestDefaultsToSettingsPadText(t *testing.T) {
+	var padManager = NewManager()
+	hooks.HookInstance.EnqueueHook(hooks.PadDefaultContentString, func(hookName string, ctx any) {
+		if *ctx.(pad.DefaultContent).Type != "text" {
+			t.Error("wrong type")
+		}
+
+		if *ctx.(pad.DefaultContent).Content != settings.SettingsDisplayed.DefaultPadText {
+			t.Error("Default pad text should be settings pad text")
+		}
+	})
+
+	padManager.GetPad("test", nil, nil)
+}
+
+func TestPassesEmptyAuthorIdIfNotProvided(t *testing.T) {
+	padManager := NewManager()
+	var authorId string
+	hooks.HookInstance.EnqueueHook(hooks.PadDefaultContentString, func(hookName string, ctx any) {
+		authorId = *ctx.(pad.DefaultContent).AuthorId
+	})
+
+	padManager.GetPad("test", nil, nil)
+	if authorId != "" {
+		t.Error("Author id should be empty")
+	}
+}
+
+func TestPassesAuthorIdIfProvided(t *testing.T) {
+	padManager := NewManager()
+	var authorId string
+	hooks.HookInstance.EnqueueHook(hooks.PadDefaultContentString, func(hookName string, ctx any) {
+		authorId = *ctx.(pad.DefaultContent).AuthorId
+	})
+	var authorIdProvided = "123"
+	padManager.GetPad("test", nil, &authorIdProvided)
+	if authorId != "123" {
+		t.Error("Author id should be 123")
 	}
 }
 
@@ -155,5 +209,4 @@ func TestUnpack(t *testing.T) {
 
 		return *slicer
 	})
-
 }

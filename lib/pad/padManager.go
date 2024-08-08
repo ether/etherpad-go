@@ -4,7 +4,6 @@ import (
 	"errors"
 	"github.com/ether/etherpad-go/lib/db"
 	"github.com/ether/etherpad-go/lib/models/pad"
-	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/ether/etherpad-go/lib/utils"
 	"regexp"
 )
@@ -132,9 +131,6 @@ func (m *Manager) GetPad(padID string, text *string, authorId *string) (*pad.Pad
 	var newPad = pad.NewPad(padID)
 
 	// initialize the pad
-	if text == nil {
-		text = &settings.SettingsDisplayed.DefaultPadText
-	}
 
 	newPad.Init(text, authorId)
 	globalPadCache.SetPad(padID, &newPad)
