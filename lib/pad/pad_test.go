@@ -4,6 +4,7 @@ import (
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/changeset"
+	"github.com/ether/etherpad-go/lib/hooks"
 	"github.com/ether/etherpad-go/lib/models/pad"
 	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/google/go-cmp/cmp"
@@ -37,17 +38,16 @@ func TestCleanText(t *testing.T) {
 
 func TestPadDefaultingToSettingsText(t *testing.T) {
 	var padAuthor = author.Author{
-		"123",
-		nil,
-		"1",
-		make(map[string]struct{}),
-		123,
+		Id:        "123",
+		ColorId:   "1",
+		PadIDs:    make(map[string]struct{}),
+		Timestamp: 123,
 	}
 	manager := NewManager()
-	var pad, _ = manager.GetPad("test", nil, &padAuthor)
+	var retrievedPad, _ = manager.GetPad("test", nil, &padAuthor.Id)
 	var padText = settings.SettingsDisplayed.DefaultPadText
 
-	if pad.AText.Text != padText {
+	if retrievedPad.AText.Text != padText {
 		t.Error("Error setting pad text to default pad text")
 	}
 }
@@ -60,6 +60,18 @@ func TestApplyToAText(t *testing.T) {
 	}, *pool)
 	if newText.Text != "Welcome to Etherpad\n" || newText.Attribs != "|1+k" {
 		t.Error("Error ", newText.Attribs)
+	}
+}
+
+func TestRunWhenAPadIsCreated(t *testing.T) {
+	var called = false
+	hooks.HookInstance.EnqueueHook(hooks.PadDefaultContentString, func(hookName string, ctx any) {
+		called = true
+	})
+	var padManager = NewManager()
+	var _, _ = padManager.GetPad("test", nil, nil)
+	if !called {
+		t.Error("Default pad content string hook should be called")
 	}
 }
 

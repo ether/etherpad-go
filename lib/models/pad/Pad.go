@@ -5,7 +5,9 @@ import (
 	"github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/changeset"
 	"github.com/ether/etherpad-go/lib/db"
+	"github.com/ether/etherpad-go/lib/hooks"
 	db2 "github.com/ether/etherpad-go/lib/models/db"
+	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/ether/etherpad-go/lib/utils"
 	"slices"
 	"strings"
@@ -71,10 +73,23 @@ func (p *Pad) Init(text *string, author *string) {
 		var padMetaData = pad.SavedRevisions[pad.RevNum].PadDBMeta
 		p.Pool = *padMetaData.Pool
 	} else {
+		var padDefaultText = "text"
+		var context = DefaultContent{
+			Type:    &padDefaultText,
+			Content: &settings.SettingsDisplayed.DefaultPadText,
+			Pad:     p,
+		}
+
+		hooks.HookInstance.ExecuteHooks(hooks.PadDefaultContentString, context)
+
 		var firstChangeset, _ = changeset.MakeSplice("\n", 0, 0, *text, nil, nil)
 		p.AppendRevision(firstChangeset, author)
 		p.save()
 	}
+
+	hooks.HookInstance.ExecuteHooks(hooks.PadLoadString, Load{
+		Pad: p,
+	})
 }
 
 func (p *Pad) GetRevision(revNumber int) (*db2.PadSingleRevision, error) {
