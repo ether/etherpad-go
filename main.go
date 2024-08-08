@@ -67,6 +67,8 @@ func main() {
 	})
 
 	app.Use("/p/", func(c *fiber.Ctx) error {
+		c.Path()
+
 		var _, err = cookieStore.Get(c)
 		if err != nil {
 			println("Error with session")
@@ -87,7 +89,7 @@ func main() {
 	go ws.HubGlob.Run()
 	app.Get("/socket.io/*", func(c *fiber.Ctx) error {
 		return adaptor.HTTPHandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-			ws.ServeWs(ws.HubGlob, writer, request)
+			ws.ServeWs(ws.HubGlob, writer, request, cookieStore, c)
 		})(c)
 	})
 

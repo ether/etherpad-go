@@ -5,6 +5,8 @@ import (
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/changeset"
+	"github.com/ether/etherpad-go/lib/models/db"
+	pad2 "github.com/ether/etherpad-go/lib/models/pad"
 	"github.com/ether/etherpad-go/lib/models/ws"
 	"github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/settings/clientVars"
@@ -74,19 +76,19 @@ func (c *ChannelOperator) AddToQueue(ch string, t Task) {
 func handleUserChanges(task Task) {
 	var wireApool = apool.NewAPool()
 	wireApool.FromJsonable(apool.APool{
-		NextNum:        task.message.Data.Apool.NextNum,
-		NumToAttribRaw: task.message.Data.Apool.NumToAttrib,
+		NextNum:        task.message.Data.Data.Apool.NextNum,
+		NumToAttribRaw: task.message.Data.Data.Apool.NumToAttrib,
 	})
-	var session = SessionStore[task.socket.SessionId]
+	var session = SessionStoreInstance.getSession(task.socket.SessionId)
 
 	var retrievedPad, _ = padManager.GetPad(session.PadId, nil, &session.Author)
-	_, err := changeset.CheckRep(task.message.Data.Changeset)
+	_, err := changeset.CheckRep(task.message.Data.Data.Changeset)
 
 	if err != nil {
 		return
 	}
 
-	unpackedChangeset, err := changeset.Unpack(task.message.Data.Changeset)
+	unpackedChangeset, err := changeset.Unpack(task.message.Data.Data.Changeset)
 
 	if err != nil {
 		println("Error retrieving changeset", err)
@@ -115,17 +117,17 @@ func handleUserChanges(task Task) {
 		}
 	}
 
-	rebasedChangeset := changeset.MoveOpsToNewPool(task.message.Data.Changeset, *wireApool, retrievedPad.Pool)
+	rebasedChangeset := changeset.MoveOpsToNewPool(task.message.Data.Data.Changeset, *wireApool, retrievedPad.Pool)
 
-	var r = task.message.Data.BaseRev
+	var r = task.message.Data.Data.BaseRev
 
 	for r < retrievedPad.Head {
 		r++
 		var revisionPad, _ = retrievedPad.GetRevision(r)
 
-		if revisionPad.Changeset == task.message.Data.Changeset && revisionPad.AuthorId == &session.Author {
+		if revisionPad.Changeset == task.message.Data.Data.Changeset && revisionPad.AuthorId == &session.Author {
 			// Assume this is a retransmission of an already applied changeset.
-			unpackedChangeset, _ = changeset.Unpack(task.message.Data.Changeset)
+			unpackedChangeset, _ = changeset.Unpack(task.message.Data.Data.Changeset)
 			rebasedChangeset = changeset.Identity(unpackedChangeset.OldLen)
 		}
 		// At this point, both "c" (from the pad) and "changeset" (from the
@@ -167,7 +169,93 @@ func handleUserChanges(task Task) {
 		println("Revision mismatch")
 	}
 
-	// TODO hier weiterschreiben
+	// The client assumes that ACCEPT_COMMIT and NEW_CHANGES messages arrive in order. Make sure we
+	// have already sent any previous ACCEPT_COMMIT and NEW_CHANGES messages.
+	var arr = make([]interface{}, 2)
+	arr[0] = "message"
+	arr[1] = AcceptCommitMessage{
+		Type: "COLLABROOM",
+		Data: AcceptCommitData{
+			Type:   "ACCEPT_COMMIT",
+			NewRev: newRev,
+		},
+	}
+	var bytes, _ = json.Marshal(arr)
+	err = task.socket.conn.WriteMessage(websocket.TextMessage, bytes)
+	if err != nil {
+		println("error writing message")
+		return
+	}
+
+	session.revision = newRev
+
+	if newRev != r {
+		session.Time = retrievedPad.GetRevisionDate(newRev)
+	}
+	updatePadClients(retrievedPad)
+}
+
+func updatePadClients(pad *pad2.Pad) {
+	var roomSockets = GetRoomSockets(pad.Id)
+	if len(roomSockets) == 0 {
+		return
+	}
+	// since all clients usually get the same set of changesets, store them in local cache
+	// to remove unnecessary roundtrip to the datalayer
+	// NB: note below possibly now accommodated via the change to promises/async
+	// TODO: in REAL world, if we're working without datalayer cache,
+	// all requests to revisions will be fired
+	// BEFORE first result will be landed to our cache object.
+	// The solution is to replace parallel processing
+	// via async.forEach with sequential for() loop. There is no real
+	// benefits of running this in parallel,
+	// but benefit of reusing cached revision object is HUGE
+	var revCache = make(map[int]*db.PadSingleRevision)
+
+	for _, socket := range roomSockets {
+		if !SessionStoreInstance.hasSession(socket.SessionId) {
+			return
+		}
+
+		var sessionInfo = SessionStoreInstance.getSession(socket.SessionId)
+		for sessionInfo.revision < pad.Head {
+			var r = sessionInfo.revision + 1
+			var revision, ok = revCache[r]
+			if !ok {
+				revCache[r], _ = pad.GetRevision(r)
+				revision = revCache[r]
+			}
+
+			var authorString = revision.AuthorId
+			var revChangeset = revision.Changeset
+			var curentTime = revision.Timestamp
+			var forWire = changeset.PrepareForWire(revChangeset, pad.Pool)
+
+			var msg = NewChangesMessage{
+				Type: "COLLABROOM",
+				Data: NewChangesMessageData{
+					Changeset:   forWire.Translated,
+					Type:        "NEW_CHANGES",
+					NewRev:      r,
+					APool:       forWire.Pool,
+					Author:      *authorString,
+					CurrentTime: curentTime,
+					TimeDelta:   curentTime - sessionInfo.Time,
+				},
+			}
+			var arr = make([]interface{}, 2)
+			arr[0] = "message"
+			arr[1] = msg
+			var newChangesMsg, _ = json.Marshal(arr)
+
+			err := socket.conn.WriteMessage(websocket.TextMessage, newChangesMsg)
+
+			if err != nil {
+				println("Failed to notify user of new revision")
+			}
+
+		}
+	}
 
 }
 
@@ -218,26 +306,29 @@ func correctMarkersInPad(atext apool.AText, apool apool.APool) *string {
 
 func HandleClientReadyMessage(ready ws.ClientReady, client *Client) {
 
-	var sessionInfo = SessionStore[client.SessionId]
-	var authSession = AuthSession{
-		PadID: ready.Data.PadID,
-		Token: ready.Data.Token,
+	var isSessionInfo = SessionStoreInstance.hasSession(client.SessionId)
+
+	if !isSessionInfo {
+		println("message from an unknown connection")
+		return
 	}
 
-	if !padManager.DoesPadExist(ready.Data.PadID) {
+	var thisSession = SessionStoreInstance.addHandleClientInformation(client.SessionId, ready.Data.PadID, ready.Data.Token)
+
+	if !padManager.DoesPadExist(thisSession.Auth.PadId) {
 		var padId, err = padManager.SanitizePadId(ready.Data.PadID)
 
 		if err != nil {
 			println("Error sanitizing pad id", err.Error())
 			return
 		}
-		authSession.PadID = *padId
+		thisSession.PadId = *padId
 	}
 
-	var padIds = readOnlyManager.GetIds(&authSession.PadID)
-	authSession.PadID = padIds.PadId
-	authSession.ReadOnlyPadId = &padIds.ReadOnlyPadId
-	authSession.ReadOnly = padIds.ReadOnly
+	var padIds = readOnlyManager.GetIds(&thisSession.Auth.PadId)
+	thisSession.PadId = padIds.PadId
+	thisSession.ReadOnlyPadId = padIds.ReadOnlyPadId
+	thisSession.ReadOnly = padIds.ReadOnly
 
 	if ready.Data.UserInfo.ColorId != nil && !colorRegEx.MatchString(*ready.Data.UserInfo.ColorId) {
 		println("Invalid color id")
@@ -245,16 +336,16 @@ func HandleClientReadyMessage(ready ws.ClientReady, client *Client) {
 	}
 
 	if ready.Data.UserInfo.Name != nil {
-		authorManager.SetAuthorName(authSession.PadID, *ready.Data.UserInfo.Name)
+		authorManager.SetAuthorName(thisSession.PadId, *ready.Data.UserInfo.Name)
 	}
 
 	if ready.Data.UserInfo.ColorId != nil {
-		authorManager.SetAuthorColor(authSession.PadID, *ready.Data.UserInfo.ColorId)
+		authorManager.SetAuthorColor(thisSession.PadId, *ready.Data.UserInfo.ColorId)
 	}
 
-	var foundAuthor = authorManager.GetAuthor(sessionInfo.Author)
+	var foundAuthor = authorManager.GetAuthor(thisSession.Author)
 
-	var retrievedPad, err = padManager.GetPad(authSession.PadID, nil, &foundAuthor.Id)
+	var retrievedPad, err = padManager.GetPad(thisSession.PadId, nil, &foundAuthor.Id)
 	if err != nil {
 		println("Error getting pad")
 		return
@@ -271,15 +362,24 @@ func HandleClientReadyMessage(ready ws.ClientReady, client *Client) {
 		historicalAuthorData[a] = retrievedAuthor
 	}
 
-	var roomSockets = GetRoomSockets(authSession.PadID)
+	var roomSockets = GetRoomSockets(thisSession.PadId)
 
-	for _, socket := range roomSockets {
-		if socket.SessionId == client.SessionId {
-			var sinfo = SessionStore[socket.SessionId]
-			if sinfo.Author == sessionInfo.Author {
-				SessionStore[socket.SessionId] = Session{}
-				client.Leave()
+	for _, otherSocket := range roomSockets {
+		if otherSocket.SessionId == client.SessionId {
+			continue
+		}
+		var sinfo = SessionStoreInstance.getSession(otherSocket.SessionId)
+
+		if sinfo.Author == thisSession.Author {
+			SessionStoreInstance.resetSession(otherSocket.SessionId)
+			otherSocket.Leave()
+			var arr = make([]interface{}, 2)
+			arr[0] = "message"
+			arr[1] = UserDupMessage{
+				Disconnect: "userdup",
 			}
+			var encoded, _ = json.Marshal(arr)
+			otherSocket.conn.WriteMessage(websocket.TextMessage, encoded)
 		}
 	}
 
@@ -304,7 +404,7 @@ func HandleClientReadyMessage(ready ws.ClientReady, client *Client) {
 func GetRoomSockets(padID string) []Client {
 	var sockets = make([]Client, 0)
 	for k := range HubGlob.clients {
-		if SessionStore[k.SessionId].PadId == padID {
+		if SessionStoreInstance.getSession(k.SessionId).PadId == padID {
 			sockets = append(sockets, *k)
 		}
 	}

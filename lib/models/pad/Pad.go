@@ -109,6 +109,12 @@ func (p *Pad) getSavedRevisionsList() []int {
 	return savedRevisions
 }
 
+func (p *Pad) GetRevisionDate(rev int) int {
+	revision, _ := p.db.GetRevision(p.Id, rev)
+
+	return revision.Timestamp
+}
+
 func (p *Pad) getPublicStatus() bool {
 	return p.PublicStatus
 }

@@ -31,6 +31,7 @@ type AuthorMethods interface {
 }
 
 type SessionMethods interface {
+	GetSessionById(sessionID string)
 }
 
 type DataStore interface {

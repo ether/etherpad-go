@@ -8,7 +8,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"github.com/ether/etherpad-go/lib/models/ws"
-	"github.com/oklog/ulid/v2"
+	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/session"
 	"log"
 	"net/http"
 	"strings"
@@ -44,7 +45,6 @@ var (
 // Client is a middleman between the websocket connection and the hub.
 type Client struct {
 	hub *Hub
-
 	// The websocket connection.
 	conn *websocket.Conn
 	// Buffered channel of outbound messages.
@@ -86,15 +86,15 @@ func (c *Client) readPump() {
 
 			HandleClientReadyMessage(clientReady, c)
 		} else if strings.Contains(decodedMessage, "USER_CHANGES") {
-			var clientReady ws.UserChange
-			err := json.Unmarshal(message, &clientReady)
+			var userchange ws.UserChange
+			err := json.Unmarshal(message, &userchange)
 
 			if err != nil {
 				println("Error marshalling user changes")
 			}
 
 			PadChannels.AddToQueue(c.Room, Task{
-				message: clientReady,
+				message: userchange,
 				socket:  c,
 			})
 		}
@@ -112,15 +112,20 @@ func (c *Client) SendUserDupMessage() {
 }
 
 // ServeWs serveWs handles websocket requests from the peer.
-func ServeWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
-	println("Serving ws", r.URL.Path)
+func ServeWs(hub *Hub, w http.ResponseWriter, r *http.Request, sessionStore *session.Store, fiber *fiber.Ctx) {
+	store, err := sessionStore.Get(fiber)
+
+	if err != nil {
+		fiber.SendString("Error estabilishing socket conn")
+	}
+
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println(err)
 		return
 	}
-	client := &Client{hub: hub, conn: conn, Send: make(chan []byte, 256), SessionId: ulid.Make().String()}
-	SessionStore[client.SessionId] = Session{}
+	client := &Client{hub: hub, conn: conn, Send: make(chan []byte, 256), SessionId: store.ID()}
+	SessionStoreInstance.initSession(store.ID())
 	client.hub.Register <- client
 	client.readPump()
 }
