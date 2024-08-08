@@ -10,7 +10,9 @@ import (
 	"github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/plugins"
 	"github.com/ether/etherpad-go/lib/ws"
-	"github.com/gorilla/securecookie"
+	"github.com/gofiber/adaptor/v2"
+	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/session"
 	"github.com/gorilla/sessions"
 	sio "github.com/njones/socketio"
 	ser "github.com/njones/socketio/serialize"
@@ -43,43 +45,50 @@ func sessionMiddleware(h http.HandlerFunc) http.HandlerFunc {
 }
 
 func main() {
-
+	app := fiber.New()
+	var cookieStore = session.New()
 	server := sio.NewServer()
-	store = sessions.NewCookieStore(securecookie.GenerateRandomKey(32))
 
 	component := welcome.Page()
-	cssDir := http.FileServer(http.Dir("./assets/css"))
-	htmlDir := http.FileServer(http.Dir("./assets/html"))
-	fontDir := http.FileServer(http.Dir("./assets/font"))
-	jsDir := http.FileServer(http.Dir("./assets/js"))
-	imagesDir := http.FileServer(http.Dir("./assets/images"))
-	pluginDir := http.FileServer(http.Dir("./plugins"))
 
-	http.Handle("/css/", http.StripPrefix("/css/", cssDir))
-	http.HandleFunc("GET /locales.json", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
+	app.Static("/css/", "./assets/css")
+	app.Static("/html/", "./assets/html")
+	app.Static("/font/", "./assets/font")
+	app.Static("/js/", "./assets/js")
+	app.Static("/locales", "./assets/locales")
+	app.Static("/images", "./assets/images")
+	app.Static("/pluginfw/plugin-definitions.json", "./assets/plugin/plugin-definitions.json")
+
+	app.Get("/locales.json", func(c *fiber.Ctx) error {
+		var respHeaders = c.GetRespHeaders()
+		respHeaders["Content-Type"] = []string{"application/json"}
 		var marshalledLocales, _ = json.Marshal(locales.Locales)
-		w.Write(marshalledLocales)
+		return c.Send(marshalledLocales)
 	})
-	http.Handle("/js/", http.StripPrefix("/js/", jsDir))
-	http.Handle("/html/", http.StripPrefix("/html/", htmlDir))
-	http.Handle("/font/", http.StripPrefix("/font/", fontDir))
-	http.Handle("/locales/", http.StripPrefix("/locales/", http.FileServer(http.Dir("./assets/locales"))))
-	http.Handle("/images/", http.StripPrefix("/images/", imagesDir))
-	http.HandleFunc("GET /pluginfw/plugin-definitions.json", plugins.ReturnPluginResponse)
-	http.HandleFunc("/pluginfw/plugin-definitions.json", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 
+	app.Use("/p/", func(c *fiber.Ctx) error {
+		var _, err = cookieStore.Get(c)
+		if err != nil {
+			println("Error with session")
+		}
+
+		return c.Next()
 	})
-	http.Handle("/pluginfw/", http.StripPrefix("/pluginfw", pluginDir))
-	http.Handle("/p/*", sessionMiddleware(pad.HandlePadOpen))
 
-	http.Handle("/", templ.Handler(component))
+	app.Get("/pluginfw/plugin-definitions.json", plugins.ReturnPluginResponse)
+	app.Static("/favicon.ico", "./assets/images/favicon.ico")
+	app.Get("/p/*", pad.HandlePadOpen)
+
+	app.Get("/", func(c *fiber.Ctx) error {
+		return adaptor.HTTPHandler(templ.Handler(component))(c)
+	})
 
 	ws.HubGlob = ws.NewHub()
 	go ws.HubGlob.Run()
-	http.HandleFunc("/socket.io/*", func(w http.ResponseWriter, r *http.Request) {
-		ws.ServeWs(ws.HubGlob, w, r)
+	app.Get("/socket.io/*", func(c *fiber.Ctx) error {
+		return adaptor.HTTPHandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+			ws.ServeWs(ws.HubGlob, writer, request)
+		})(c)
 	})
 
 	// use a OnConnect handler for incoming "connection" messages
@@ -100,7 +109,7 @@ func main() {
 		return nil
 	})
 
-	err := http.ListenAndServe(":3000", nil)
+	err := app.Listen(":3000")
 	if err != nil {
 		return
 	}

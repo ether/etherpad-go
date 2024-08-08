@@ -39,7 +39,7 @@ func init() {
 }
 
 type Task struct {
-	socket  SessionInfo
+	socket  *Client
 	message ws.UserChange
 }
 
@@ -77,7 +77,7 @@ func handleUserChanges(task Task) {
 		NextNum:        task.message.Data.Apool.NextNum,
 		NumToAttribRaw: task.message.Data.Apool.NumToAttrib,
 	})
-	var session = SessionStore[task.socket.sessionId]
+	var session = SessionStore[task.socket.SessionId]
 
 	var retrievedPad, _ = padManager.GetPad(session.PadId, nil, &session.Author)
 	_, err := changeset.CheckRep(task.message.Data.Changeset)
@@ -142,7 +142,8 @@ func handleUserChanges(task Task) {
 	}
 
 	var newRev = retrievedPad.AppendRevision(rebasedChangeset, &session.Author)
-
+	// The head revision will either stay the same or increase by 1 depending on whether the
+	// changeset has a net effect.
 	var rangeForRevs = make([]int, 2)
 	rangeForRevs[0] = r
 	rangeForRevs[1] = r + 1

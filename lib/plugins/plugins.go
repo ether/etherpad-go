@@ -2,7 +2,7 @@ package plugins
 
 import (
 	"encoding/json"
-	"net/http"
+	"github.com/gofiber/fiber/v2"
 	"os"
 	"path"
 )
@@ -68,16 +68,13 @@ type ClientPlugin struct {
 	Parts   []string          `json:"parts"`
 }
 
-func ReturnPluginResponse(w http.ResponseWriter, r *http.Request) {
+func ReturnPluginResponse(c *fiber.Ctx) error {
 	var clientPlugins = ClientPlugin{
 		Plugins: map[string]string{},
 		Parts:   make([]string, 0),
 	}
-	var clPlugin, _ = json.Marshal(clientPlugins)
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	_, err := w.Write(clPlugin)
-	if err != nil {
-		return
-	}
 
+	var clPlugin, _ = json.Marshal(clientPlugins)
+	c.GetRespHeaders()["Content-Type"] = []string{"application/json"}
+	return c.Send(clPlugin)
 }

@@ -175,7 +175,7 @@ const Ace2Editor = function () {
 
     const includedCSS = [
       `../css/static/iframe_editor.css?v=${clientVars.randomVersionString}`,
-      `../cs/static/pad.css?v=${clientVars.randomVersionString}`,
+      `../css/static/pad.css?v=${clientVars.randomVersionString}`,
       ...hooks.callAll('aceEditorCSS').map(
           // Allow urls to external CSS - http(s):// and //some/path.css
           (p) => /\/\//.test(p) ? p : `../static/plugins/${p}`),

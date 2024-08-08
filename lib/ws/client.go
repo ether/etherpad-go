@@ -86,7 +86,17 @@ func (c *Client) readPump() {
 
 			HandleClientReadyMessage(clientReady, c)
 		} else if strings.Contains(decodedMessage, "USER_CHANGES") {
+			var clientReady ws.UserChange
+			err := json.Unmarshal(message, &clientReady)
 
+			if err != nil {
+				println("Error marshalling user changes")
+			}
+
+			PadChannels.AddToQueue(c.Room, Task{
+				message: clientReady,
+				socket:  c,
+			})
 		}
 
 		c.hub.Broadcast <- message

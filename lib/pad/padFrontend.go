@@ -3,13 +3,14 @@ package pad
 import (
 	"github.com/a-h/templ"
 	"github.com/ether/etherpad-go/lib/models"
-	"net/http"
+	"github.com/gofiber/adaptor/v2"
+	"github.com/gofiber/fiber/v2"
 	"os"
 	"strings"
 )
 import padAsset "github.com/ether/etherpad-go/assets/pad"
 
-func HandlePadOpen(w http.ResponseWriter, r *http.Request) {
+func HandlePadOpen(c *fiber.Ctx) error {
 	pad := models.Model{
 		Name: "test",
 	}
@@ -26,6 +27,5 @@ func HandlePadOpen(w http.ResponseWriter, r *http.Request) {
 
 	padComp := padAsset.Greeting(pad, jsFilePath)
 
-	templ.Handler(padComp).ServeHTTP(w, r)
-
+	return adaptor.HTTPHandler(templ.Handler(padComp))(c)
 }
