@@ -52,6 +52,27 @@ func TestPadDefaultingToSettingsText(t *testing.T) {
 	}
 }
 
+func TestUseProvidedContent(t *testing.T) {
+	var want = "hello world"
+	if want == settings.SettingsDisplayed.DefaultPadText {
+		return
+	}
+	hooks.HookInstance.EnqueueHook(hooks.PadDefaultContentString, func(hookName string, ctx any) {
+		var content = ctx.(pad.DefaultContent)
+
+		var emptyString = ""
+		content.Content = &emptyString
+		content.Content = &want
+	})
+
+	var padManager = NewManager()
+	var createdPad, _ = padManager.GetPad("test", nil, nil)
+	var createdText = createdPad.Text()
+	if createdText != want {
+		t.Error("Error modifying text")
+	}
+}
+
 func TestApplyToAText(t *testing.T) {
 	var pool = apool.NewAPool()
 	var newText = changeset.ApplyToAText("Z:1>j+j$Welcome to Etherpad", apool.AText{

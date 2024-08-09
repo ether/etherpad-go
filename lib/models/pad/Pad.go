@@ -76,13 +76,13 @@ func (p *Pad) Init(text *string, author *string) error {
 	} else {
 		if text == nil {
 			var padDefaultText = "text"
+			text = &settings.SettingsDisplayed.DefaultPadText
 			var context = DefaultContent{
 				AuthorId: author,
 				Type:     &padDefaultText,
-				Content:  &settings.SettingsDisplayed.DefaultPadText,
+				Content:  text,
 				Pad:      p,
 			}
-			text = &settings.SettingsDisplayed.DefaultPadText
 			hooks.HookInstance.ExecuteHooks(hooks.PadDefaultContentString, context)
 
 			if *context.Type != "text" {
