@@ -282,8 +282,27 @@ func (d SQLiteDB) GetReadOnly2Pad(id string) *string {
 	return nil
 }
 
+func (d SQLiteDB) SetAuthorByToken(token, authorId string) error {
+	var resulltedSQL, arg, _ = sq.
+		Insert("token2author").
+		Columns("token,author").
+		Values(token, authorId).ToSql()
+
+	_, err := d.sqlDB.Exec(resulltedSQL, arg...)
+
+	if err != nil {
+		panic(err)
+	}
+
+	return nil
+}
+
+/**
+ * Returns the Author Obj of the author
+ * @param {String} author The id of the author
+ */
 func (d SQLiteDB) GetAuthor(author string) (*db.AuthorDB, error) {
-	var authorString, err = d.GetAuthorByMapperKeyAndMapperValue("authorID", author)
+	var authorString, err = d.GetAuthor(author)
 
 	if err != nil {
 		return nil, err
@@ -292,11 +311,11 @@ func (d SQLiteDB) GetAuthor(author string) (*db.AuthorDB, error) {
 	return authorString, nil
 }
 
-func (d SQLiteDB) GetAuthorByMapperKeyAndMapperValue(key string, value string) (*db.AuthorDB, error) {
+func (d SQLiteDB) GetAuthorByToken(token string) (*string, error) {
 	var resultedSQL, args, err = sq.
-		Select("data").
-		From("pad").
-		Where(sq.Eq{"id": fmt.Sprintf(authorPrefix, value)}).
+		Select("author").
+		From("token2author").
+		Where(sq.Eq{"id": token}).
 		ToSql()
 
 	if err != nil {
@@ -308,18 +327,20 @@ func (d SQLiteDB) GetAuthorByMapperKeyAndMapperValue(key string, value string) (
 		panic(err)
 	}
 
-	var authorDB db.AuthorDB
+	var authorID *string
 	for query.Next() {
-		var data string
-		query.Scan(&data)
-		err = json.Unmarshal([]byte(data), &authorDB)
+		query.Scan(authorID)
 		if err != nil {
 			return nil, err
 		}
 	}
 	defer query.Close()
 
-	return &authorDB, nil
+	if authorID == nil {
+		return nil, errors.New("author for token not found")
+	}
+
+	return authorID, nil
 }
 
 func (d SQLiteDB) SaveAuthor(author db.AuthorDB) {
@@ -407,6 +428,16 @@ func NewDirtyDB(path string) (*SQLiteDB, error) {
 	if err != nil {
 		panic(err)
 	}
+
+	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS token2author(token TEXT PRIMARY KEY, author TEXT)")
+
+	if err != nil {
+		panic(err)
+	}
+
+	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS globalAuthorPads(id TEXT NOT NULL, padID TEXT NOT NULL,  PRIMARY KEY(id, padID) )")
+
+	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS globalAuthor(id TEXT PRIMARY KEY, colorId INTEGER, name TEXT, timestamp BIGINT)")
 
 	return &SQLiteDB{
 		path:  path,

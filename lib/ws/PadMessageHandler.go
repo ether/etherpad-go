@@ -9,7 +9,9 @@ import (
 	pad2 "github.com/ether/etherpad-go/lib/models/pad"
 	"github.com/ether/etherpad-go/lib/models/ws"
 	"github.com/ether/etherpad-go/lib/pad"
+	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/ether/etherpad-go/lib/settings/clientVars"
+	"github.com/gofiber/fiber/v2"
 	"github.com/gorilla/websocket"
 	"regexp"
 	"slices"
@@ -32,12 +34,14 @@ var padManager pad.Manager
 var readOnlyManager *pad.ReadOnlyManager
 var authorManager author.Manager
 var colorRegEx *regexp.Regexp
+var securityManager pad.SecurityManager
 
 func init() {
 	padManager = pad.NewManager()
 	readOnlyManager = pad.NewReadOnlyManager()
 	authorManager = author.NewManager()
 	colorRegEx, _ = regexp.Compile("^#(?:[0-9A-F]{3}){1,2}$")
+	securityManager = pad.NewSecurityManager()
 }
 
 type Task struct {
@@ -256,7 +260,54 @@ func updatePadClients(pad *pad2.Pad) {
 
 		}
 	}
+}
 
+func handleMessage(message any, client *Client, ctx *fiber.Ctx) {
+	var isSessionInfo = SessionStoreInstance.hasSession(client.SessionId)
+
+	if !isSessionInfo {
+		println("message from an unknown connection")
+		return
+	}
+
+	castedMessage, ok := message.(ws.ClientReady)
+	var thisSession = SessionStoreInstance.getSession(client.SessionId)
+
+	if ok {
+		thisSession = SessionStoreInstance.addHandleClientInformation(client.SessionId, castedMessage.Data.PadID, castedMessage.Data.Token)
+
+		if !padManager.DoesPadExist(thisSession.Auth.PadId) {
+			var padId, err = padManager.SanitizePadId(castedMessage.Data.PadID)
+
+			if err != nil {
+				println("Error sanitizing pad id", err.Error())
+				return
+			}
+			thisSession.PadId = *padId
+		}
+
+		var padIds = readOnlyManager.GetIds(&thisSession.Auth.PadId)
+		thisSession.PadId = padIds.PadId
+		thisSession.ReadOnlyPadId = padIds.ReadOnlyPadId
+		thisSession.ReadOnly = padIds.ReadOnly
+	}
+
+	var auth = thisSession.Auth
+
+	if auth == nil {
+		var ip string
+		if settings.SettingsDisplayed.DisableIPLogging {
+			ip = "ANONYMOUS"
+		} else {
+			ip = ctx.IP()
+		}
+		println("pre-CLIENT_READY message from IP " + ip)
+		return
+	}
+
+	// FIXME hier
+
+	thisSession.Author = securityManager.CheckAccess(auth.PadId, auth.SessionId, auth.Token)
 }
 
 func correctMarkersInPad(atext apool.AText, apool apool.APool) *string {
@@ -304,32 +355,7 @@ func correctMarkersInPad(atext apool.AText, apool apool.APool) *string {
 	return &stringifierBuilder
 }
 
-func HandleClientReadyMessage(ready ws.ClientReady, client *Client) {
-
-	var isSessionInfo = SessionStoreInstance.hasSession(client.SessionId)
-
-	if !isSessionInfo {
-		println("message from an unknown connection")
-		return
-	}
-
-	var thisSession = SessionStoreInstance.addHandleClientInformation(client.SessionId, ready.Data.PadID, ready.Data.Token)
-
-	if !padManager.DoesPadExist(thisSession.Auth.PadId) {
-		var padId, err = padManager.SanitizePadId(ready.Data.PadID)
-
-		if err != nil {
-			println("Error sanitizing pad id", err.Error())
-			return
-		}
-		thisSession.PadId = *padId
-	}
-
-	var padIds = readOnlyManager.GetIds(&thisSession.Auth.PadId)
-	thisSession.PadId = padIds.PadId
-	thisSession.ReadOnlyPadId = padIds.ReadOnlyPadId
-	thisSession.ReadOnly = padIds.ReadOnly
-
+func HandleClientReadyMessage(ready ws.ClientReady, client *Client, thisSession *Session) {
 	if ready.Data.UserInfo.ColorId != nil && !colorRegEx.MatchString(*ready.Data.UserInfo.ColorId) {
 		println("Invalid color id")
 		ready.Data.UserInfo.ColorId = nil

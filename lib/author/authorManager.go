@@ -31,19 +31,24 @@ func (m *Manager) SetAuthorColor(author string, colorId string) {
 	m.Db.SaveAuthorColor(author, colorId)
 }
 
-func (m *Manager) mapAuthorWithDBKey(key string, value string) Author {
-	author, err := m.Db.GetAuthorByMapperKeyAndMapperValue(key, value)
+func (m *Manager) mapAuthorWithDBKey(token string) *Author {
+	author, err := m.Db.GetAuthorByToken(token)
 
 	if err != nil {
-		return m.CreateAuthor(nil)
+		// there is no author with this mapper, so create one
+		var authorCreated = m.CreateAuthor(nil)
+		// create the token2author relation
+		m.Db.SetAuthorByToken(token, authorCreated.Id)
+		// return the author
+		return &Author{
+			Id: authorCreated.Id,
+		}
 	}
 
-	return Author{
-		Id:        author.ID,
-		Timestamp: author.Timestamp,
-		Name:      author.Name,
-		ColorId:   author.ColorId,
-		PadIDs:    author.PadIDs,
+	// there is an author with this mapper
+	// update the timestamp of this author
+	return &Author{
+		Id: *author,
 	}
 }
 
@@ -52,7 +57,7 @@ func (m *Manager) mapAuthorWithDBKey(key string, value string) Author {
  * @param {String} authorMapper The mapper
  * @param {String} name The name of the author (optional)
  */
-func (m *Manager) CreateAuthorIfNotExistsFor(authorMapper string, name *string) Author {
+/*func (m *Manager) CreateAuthorIfNotExistsFor(authorMapper string, name *string) Author {
 	var author = m.mapAuthorWithDBKey("mapper2author", authorMapper)
 
 	if name != nil {
@@ -60,7 +65,7 @@ func (m *Manager) CreateAuthorIfNotExistsFor(authorMapper string, name *string) 
 	}
 
 	return author
-}
+}*/
 
 func (m *Manager) CreateAuthor(name *string) Author {
 	authorId := utils.RandomString(16)
@@ -113,11 +118,11 @@ func (m *Manager) SetAuthorName(authorId string, authorName string) {
 }
 
 func (m *Manager) GetAuthorId(token string) string {
-	return m.GetAuthor4Token(token).ID
+	return *m.GetAuthor4Token(token)
 }
 
-func (m *Manager) GetAuthor4Token(token string) *db2.AuthorDB {
-	var author, _ = m.Db.GetAuthorByMapperKeyAndMapperValue("token2author", token)
+func (m *Manager) GetAuthor4Token(token string) *string {
+	var author, _ = m.Db.GetAuthorByToken(token)
 	return author
 }
 

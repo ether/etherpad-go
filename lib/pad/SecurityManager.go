@@ -12,6 +12,7 @@ type SecurityManager struct {
 	ReadOnlyManager *ReadOnlyManager
 	PadManager      Manager
 	AuthorManager   author.Manager
+	SessionManager  *SessionManager
 }
 
 func NewSecurityManager() SecurityManager {
@@ -19,6 +20,7 @@ func NewSecurityManager() SecurityManager {
 		ReadOnlyManager: NewReadOnlyManager(),
 		PadManager:      NewManager(),
 		AuthorManager:   author.NewManager(),
+		SessionManager:  NewSessionManager(),
 	}
 }
 
@@ -48,7 +50,35 @@ func (s *SecurityManager) CheckAccess(padId *string, sessionCookie *string, toke
 		if userSettings == nil {
 			return nil, errors.New("userSettings is nil")
 		}
-		// TODO implement later
+		if !userSettings.CanCreate {
+			canCreate = false
+		}
+
+		if userSettings.ReadOnly {
+			canCreate = false
+		}
+
+		var padAuthzs *map[string]string
+		if userSettings.PadAuthorizations == nil {
+			var padAuthzMap = make(map[string]string)
+			padAuthzs = &padAuthzMap
+		} else {
+			padAuthzs = userSettings.PadAuthorizations
+		}
+		var unwrappedMap = *padAuthzs
+		var entry = unwrappedMap[*padId]
+		var level, err = NormalizeAuthzLevel(entry)
+
+		if err != nil {
+			println("Access denied: unauthorized")
+			return nil, err
+		}
+
+		if level != nil {
+			if *level != "create" {
+				canCreate = false
+			}
+		}
 	}
 
 	var padExists = s.PadManager.DoesPadExist(*padId)
@@ -57,8 +87,16 @@ func (s *SecurityManager) CheckAccess(padId *string, sessionCookie *string, toke
 		return nil, errors.New("pad does not exist and can't be created due to settings")
 	}
 
-	if token != nil && !utils.IsValidAuthorToken(*token) {
-		return nil, errors.New("Invalid author token")
+	var splittedPadId = strings.Split(*padId, "$")[0]
+
+	var sessionAuthorID = s.SessionManager.findAuthorID(splittedPadId, sessionCookie)
+
+	if settings.SettingsDisplayed.RequireSession && sessionAuthorID == nil {
+		return nil, errors.New("access denied: HTTP API session is required")
+	}
+
+	if sessionAuthorID == nil && token != nil && !utils.IsValidAuthorToken(*token) {
+		return nil, errors.New("invalid author token")
 	}
 
 	var grantedAccess = GrantedAccess{
@@ -68,6 +106,20 @@ func (s *SecurityManager) CheckAccess(padId *string, sessionCookie *string, toke
 
 	if !strings.Contains(*padId, "$") {
 		return &grantedAccess, nil
+	}
+
+	if !padExists {
+		if sessionAuthorID == nil {
+			return nil, errors.New("access denied: must have an HTTP API session to create a group pad")
+		}
+		// Creating a group pad, so there is no public status to check.
+		return &grantedAccess, nil
+	}
+
+	var pad, _ = s.PadManager.GetPad(*padId, nil, nil)
+
+	if !pad.PublicStatus && sessionAuthorID == nil {
+		return nil, errors.New("must have an HTTP API session to access private group pads")
 	}
 
 	return &grantedAccess, nil

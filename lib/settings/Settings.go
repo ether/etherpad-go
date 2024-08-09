@@ -37,6 +37,9 @@ type Toolbar struct {
 }
 
 type User struct {
+	Password *string `json:"password"`
+	IsAdmin  *bool   `json:"isAdmin"`
+	Username *string `json:"-"`
 }
 
 type Settings struct {
@@ -72,7 +75,7 @@ type Settings struct {
 	TrustProxy                         bool                                           `json:"trustProxy"`
 	RequireAuthentication              bool                                           `json:"requireAuthentication"`
 	RequireAuthorization               bool                                           `json:"requireAuthorization"`
-	Users                              *User                                          `json:"users"`
+	Users                              map[string]User                                `json:"users"`
 	ShowSettingsInAdminPage            bool                                           `json:"showSettingsInAdminPage"`
 	ScrollWhenFocusLineIsOutOfViewport clientVars2.ScrollWhenFocusLineIsOutOfViewport `json:"scrollWhenFocusLineIsOutOfViewport"`
 }

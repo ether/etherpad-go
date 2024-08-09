@@ -14,6 +14,11 @@ type MemoryDataStore struct {
 	authorMapper map[string]string
 }
 
+func (m *MemoryDataStore) SetAuthorByToken(token string, author string) error {
+	//TODO implement me
+	panic("implement me")
+}
+
 func (m *MemoryDataStore) GetRevision(padId string, rev int) (*db.PadSingleRevision, error) {
 	//TODO implement me
 	panic("implement me")
@@ -99,7 +104,7 @@ func (m *MemoryDataStore) GetReadonlyPad(padId string) (*string, error) {
 	pad, ok := m.padStore[padId]
 
 	if !ok {
-		return nil, nil
+		return nil, errors.New("read only id not found")
 	}
 	return &pad.ReadOnlyId, nil
 }
@@ -132,7 +137,7 @@ func (m *MemoryDataStore) GetAuthor(author string) (*db.AuthorDB, error) {
 	return &retrievedAuthor, nil
 }
 
-func (m *MemoryDataStore) GetAuthorByMapperKeyAndMapperValue(key string, value string) (*db.AuthorDB, error) {
+func (m *MemoryDataStore) GetAuthorByToken(token string) (*string, error) {
 	return nil, nil
 }
 

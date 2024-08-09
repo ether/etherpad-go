@@ -24,7 +24,8 @@ type PadMetaData interface {
 
 type AuthorMethods interface {
 	GetAuthor(author string) (*db.AuthorDB, error)
-	GetAuthorByMapperKeyAndMapperValue(key string, value string) (*db.AuthorDB, error)
+	GetAuthorByToken(token string) (*string, error)
+	SetAuthorByToken(token string, author string) error
 	SaveAuthor(author db.AuthorDB)
 	SaveAuthorName(authorId string, authorName string)
 	SaveAuthorColor(authorId string, authorColor string)
