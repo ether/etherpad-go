@@ -306,8 +306,21 @@ func handleMessage(message any, client *Client, ctx *fiber.Ctx) {
 	}
 
 	// FIXME hier
+	var grantedAccess, err = securityManager.CheckAccess(&auth.PadId, auth.SessionId, auth.Token)
 
-	thisSession.Author = securityManager.CheckAccess(auth.PadId, auth.SessionId, auth.Token)
+	if err != nil {
+		var arr = make([]interface{}, 2)
+		arr[0] = "message"
+		arr[1] = AccessStatusMessage{
+			AccessStatus: err.Error(),
+		}
+		var messageToSend, _ = json.Marshal(arr)
+
+		client.conn.WriteMessage(websocket.TextMessage, messageToSend)
+		println("Error checking access", err)
+		return
+	}
+
 }
 
 func correctMarkersInPad(atext apool.AText, apool apool.APool) *string {

@@ -3,6 +3,7 @@ package db
 import (
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/models/db"
+	session2 "github.com/ether/etherpad-go/lib/models/session"
 )
 
 type PadMethods interface {
@@ -32,11 +33,14 @@ type AuthorMethods interface {
 }
 
 type SessionMethods interface {
-	GetSessionById(sessionID string)
+	GetSessionById(sessionID string) *session2.Session
+	SetSessionById(sessionID string, session session2.Session)
+	RemoveSessionById(sessionID string) *session2.Session
 }
 
 type DataStore interface {
 	PadMethods
 	AuthorMethods
 	PadMetaData
+	SessionMethods
 }

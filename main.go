@@ -13,6 +13,7 @@ import (
 	"github.com/gofiber/adaptor/v2"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/session"
+	"github.com/gofiber/storage/sqlite3/v2"
 	"github.com/gorilla/sessions"
 	sio "github.com/njones/socketio"
 	ser "github.com/njones/socketio/serialize"
@@ -45,10 +46,15 @@ func sessionMiddleware(h http.HandlerFunc) http.HandlerFunc {
 }
 
 func main() {
+	var sessionSqlite = sqlite3.New(sqlite3.Config{
+		Database: "./test.db",
+	})
 	app := fiber.New()
-	var cookieStore = session.New()
+	var cookieStore = session.New(session.Config{
+		KeyLookup: "cookie:express_sid",
+		Storage:   sessionSqlite,
+	})
 	server := sio.NewServer()
-
 	component := welcome.Page()
 
 	app.Static("/css/", "./assets/css")

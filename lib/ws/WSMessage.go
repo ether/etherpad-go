@@ -38,3 +38,7 @@ type NewChangesMessage struct {
 	Type string                `json:"type"`
 	Data NewChangesMessageData `json:"data"`
 }
+
+type AccessStatusMessage struct {
+	AccessStatus string `json:"accessStatus"`
+}

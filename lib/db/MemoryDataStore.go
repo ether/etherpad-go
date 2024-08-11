@@ -4,6 +4,7 @@ import (
 	"errors"
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/models/db"
+	session2 "github.com/ether/etherpad-go/lib/models/session"
 )
 
 type MemoryDataStore struct {
@@ -12,6 +13,33 @@ type MemoryDataStore struct {
 	readonly2Pad map[string]string
 	pad2Readonly map[string]string
 	authorMapper map[string]string
+	sessionStore map[string]session2.Session
+}
+
+func (m *MemoryDataStore) GetSessionById(sessionID string) *session2.Session {
+	var retrievedSession, ok = m.sessionStore[sessionID]
+
+	if !ok {
+		return nil
+	}
+
+	return &retrievedSession
+}
+
+func (m *MemoryDataStore) SetSessionById(sessionID string, session session2.Session) {
+	m.sessionStore[sessionID] = session
+}
+
+func (m *MemoryDataStore) RemoveSessionById(sessionID string) *session2.Session {
+	var retrievedSession, ok = m.sessionStore[sessionID]
+
+	if !ok {
+		return nil
+	}
+
+	delete(m.sessionStore, sessionID)
+
+	return &retrievedSession
 }
 
 func (m *MemoryDataStore) SetAuthorByToken(token string, author string) error {
@@ -57,6 +85,7 @@ func NewMemoryDataStore() *MemoryDataStore {
 		pad2Readonly: make(map[string]string),
 		readonly2Pad: make(map[string]string),
 		authorMapper: make(map[string]string),
+		sessionStore: make(map[string]session2.Session),
 	}
 }
 

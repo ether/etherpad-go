@@ -8,6 +8,7 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/models/db"
+	session2 "github.com/ether/etherpad-go/lib/models/session"
 	_ "modernc.org/sqlite"
 	"os"
 	"strings"
@@ -21,6 +22,35 @@ func init() {
 type SQLiteDB struct {
 	path  string
 	sqlDB *sql.DB
+}
+
+func (d SQLiteDB) GetSessionById(sessionID string) *session2.Session {
+	var createdSQL, arr, _ = sq.Select("*").From("session").Where(sq.Eq{"id": sessionID}).ToSql()
+
+	query, err := d.sqlDB.Query(createdSQL, arr...)
+
+	if err != nil {
+		panic(err)
+	}
+
+	var possibleSession *session2.Session
+
+	for query.Next() {
+		query.Scan(possibleSession)
+	}
+
+	return possibleSession
+}
+
+func (d SQLiteDB) SetSessionById(sessionID string, session session2.Session) {
+	var retrievedSql, inserts, _ = sq.Insert("session").Columns("id", "originalMaxAge", "expires", "secure", "httpOnly", "path", "sameSite", "connections").
+		Values(sessionID, session.OriginalMaxAge, session.Expires, session.Secure, session.HttpOnly, session.Path, session.SameSite).ToSql()
+
+	_, err := d.sqlDB.Exec(retrievedSql, inserts...)
+
+	if err != nil {
+		panic(err)
+	}
 }
 
 func (d SQLiteDB) GetRevision(padId string, rev int) (*db.PadSingleRevision, error) {
@@ -71,6 +101,29 @@ func (d SQLiteDB) DoesPadExist(padID string) bool {
 
 	defer query.Close()
 	return query.Next()
+}
+
+func (d SQLiteDB) RemoveSessionById(sid string) *session2.Session {
+
+	var foundSession = d.GetSessionById(sid)
+
+	if foundSession == nil {
+		return nil
+	}
+
+	var resultedSQL, args, err = sq.Delete("session").Where(sq.Eq{"id": sid}).ToSql()
+
+	if err != nil {
+		panic(err)
+	}
+
+	_, err = d.sqlDB.Exec(resultedSQL, args...)
+
+	if err != nil {
+		panic(err)
+	}
+
+	return foundSession
 }
 
 func (d SQLiteDB) CreatePad(padID string, padDB db.PadDB) bool {
@@ -437,7 +490,17 @@ func NewDirtyDB(path string) (*SQLiteDB, error) {
 
 	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS globalAuthorPads(id TEXT NOT NULL, padID TEXT NOT NULL,  PRIMARY KEY(id, padID) )")
 
+	if err != nil {
+		panic(err.Error())
+	}
+
 	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS globalAuthor(id TEXT PRIMARY KEY, colorId INTEGER, name TEXT, timestamp BIGINT)")
+
+	if err != nil {
+		panic(err.Error())
+	}
+
+	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS sessionstorage(id TEXT PRIMARY KEY, originalMaxAge INTEGER, expires TEXT, secure BOOLEAN httpOnly BOOLEAN, path TEXT, sameSeite TEXT, connections TEXT)")
 
 	return &SQLiteDB{
 		path:  path,
