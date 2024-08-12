@@ -14,6 +14,7 @@ type MemoryDataStore struct {
 	pad2Readonly map[string]string
 	authorMapper map[string]string
 	sessionStore map[string]session2.Session
+	tokenStore   map[string]string
 }
 
 func (m *MemoryDataStore) GetSessionById(sessionID string) *session2.Session {
@@ -43,13 +44,33 @@ func (m *MemoryDataStore) RemoveSessionById(sessionID string) *session2.Session 
 }
 
 func (m *MemoryDataStore) SetAuthorByToken(token string, author string) error {
-	//TODO implement me
-	panic("implement me")
+	m.tokenStore[token] = author
+	return nil
 }
 
 func (m *MemoryDataStore) GetRevision(padId string, rev int) (*db.PadSingleRevision, error) {
-	//TODO implement me
-	panic("implement me")
+	var pad, ok = m.padStore[padId]
+
+	if !ok {
+		return nil, errors.New("pad not found")
+	}
+
+	var revisionFromPad, okRev = pad.SavedRevisions[rev]
+
+	if !okRev {
+		return nil, errors.New("revision of pad not found")
+	}
+
+	var padSingleRevision = db.PadSingleRevision{
+		PadId:     padId,
+		RevNum:    rev,
+		Changeset: revisionFromPad.Content,
+		AText:     *revisionFromPad.PadDBMeta.AText,
+		AuthorId:  revisionFromPad.PadDBMeta.Author,
+		Timestamp: revisionFromPad.PadDBMeta.Timestamp,
+	}
+
+	return &padSingleRevision, nil
 }
 
 func (m *MemoryDataStore) GetPadMetaData(padId string, revNum int) (*db.PadMetaData, error) {
@@ -86,6 +107,7 @@ func NewMemoryDataStore() *MemoryDataStore {
 		readonly2Pad: make(map[string]string),
 		authorMapper: make(map[string]string),
 		sessionStore: make(map[string]session2.Session),
+		tokenStore:   make(map[string]string),
 	}
 }
 
@@ -167,7 +189,11 @@ func (m *MemoryDataStore) GetAuthor(author string) (*db.AuthorDB, error) {
 }
 
 func (m *MemoryDataStore) GetAuthorByToken(token string) (*string, error) {
-	return nil, nil
+	var author, ok = m.tokenStore[token]
+	if !ok {
+		return nil, errors.New("no author available for token")
+	}
+	return &author, nil
 }
 
 func (m *MemoryDataStore) SaveAuthor(author db.AuthorDB) {

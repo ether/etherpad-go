@@ -6,4 +6,5 @@ type SocketClientRequest struct {
 	PadAuthorizations *map[string]string
 	ReadOnly          *bool
 	Username          *string
+	CanCreate         bool
 }

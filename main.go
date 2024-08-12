@@ -9,11 +9,11 @@ import (
 	"github.com/ether/etherpad-go/lib/locales"
 	"github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/plugins"
+	session2 "github.com/ether/etherpad-go/lib/session"
 	"github.com/ether/etherpad-go/lib/ws"
 	"github.com/gofiber/adaptor/v2"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/session"
-	"github.com/gofiber/storage/sqlite3/v2"
 	"github.com/gorilla/sessions"
 	sio "github.com/njones/socketio"
 	ser "github.com/njones/socketio/serialize"
@@ -46,16 +46,18 @@ func sessionMiddleware(h http.HandlerFunc) http.HandlerFunc {
 }
 
 func main() {
-	var sessionSqlite = sqlite3.New(sqlite3.Config{
-		Database: "./test.db",
-	})
+	var db = session2.NewSessionDatabase(nil)
 	app := fiber.New()
 	var cookieStore = session.New(session.Config{
 		KeyLookup: "cookie:express_sid",
-		Storage:   sessionSqlite,
+		Storage:   db,
 	})
 	server := sio.NewServer()
 	component := welcome.Page()
+
+	app.Use(func(c *fiber.Ctx) error {
+		return pad.CheckAccess(c)
+	})
 
 	app.Static("/css/", "./assets/css")
 	app.Static("/html/", "./assets/html")

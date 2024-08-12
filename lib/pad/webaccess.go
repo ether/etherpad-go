@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"github.com/ether/etherpad-go/lib/models/clientVars"
 	"github.com/ether/etherpad-go/lib/models/webaccess"
 	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/gofiber/fiber/v2"
@@ -42,7 +43,6 @@ func UserCanModify(padId *string, req *webaccess.SocketClientRequest) bool {
 func CheckAccess(ctx *fiber.Ctx) error {
 	var requireAdmin = strings.HasPrefix(strings.ToLower(ctx.Path()), "/admin-auth")
 	//FIXME this needs to be set
-	var user *webaccess.SocketClientRequest
 	// ///////////////////////////////////////////////////////////////////////////////////////////////
 	// Step 1: Check the preAuthorize hook for early permit/deny (permit is only allowed for non-admin
 	// pages). If any plugin explicitly grants or denies access, skip the remaining steps. Plugins can
@@ -54,6 +54,12 @@ func CheckAccess(ctx *fiber.Ctx) error {
 
 	authorize := func() bool {
 		grant := func(level string) bool {
+			var user, ok = ctx.Locals(clientVars.WebAccessStore).(*webaccess.SocketClientRequest)
+
+			if !ok {
+				user = nil
+			}
+
 			var detectedLevel, err = NormalizeAuthzLevel(level)
 
 			if err != nil {
@@ -94,9 +100,16 @@ func CheckAccess(ctx *fiber.Ctx) error {
 			padAuthorizations[padId] = *detectedLevel
 			return true
 		}
-		var isAuthenticated = user != nil
 
-		if isAuthenticated && user.IsAdmin {
+		var sessionReq, okay = ctx.Locals(clientVars.WebAccessStore).(*webaccess.SocketClientRequest)
+
+		if !okay {
+			sessionReq = nil
+		}
+
+		var isAuthenticated = sessionReq != nil
+
+		if isAuthenticated && sessionReq.IsAdmin {
 			return grant("create")
 		}
 		var requireAuthn = requireAdmin || settings.SettingsDisplayed.RequireAuthentication
@@ -108,7 +121,7 @@ func CheckAccess(ctx *fiber.Ctx) error {
 			return false
 		}
 
-		if requireAdmin && !user.IsAdmin {
+		if requireAdmin && !sessionReq.IsAdmin {
 			return false
 		}
 
@@ -134,6 +147,7 @@ func CheckAccess(ctx *fiber.Ctx) error {
 		var newUsers = make(map[string]settings.User)
 		settings.SettingsDisplayed.Users = newUsers
 	}
+	var user = ctx.Locals(clientVars.WebAccessStore).(*webaccess.SocketClientRequest)
 
 	var webAccessCtx = webaccess.WebAccessType{
 		User:  user,
@@ -177,6 +191,10 @@ func CheckAccess(ctx *fiber.Ctx) error {
 		return ctx.Status(401).SendString("Authentication Required")
 	}
 	var retrievedUserFromMap = settings.SettingsDisplayed.Users[*webAccessCtx.Username]
+	// Make a shallow copy so that the password property can be deleted (to prevent it from
+	// appearing in logs or in the database) without breaking future authentication attempts.
+	ctx.Locals(clientVars.WebAccessStore, retrievedUserFromMap)
+
 	retrievedUserFromMap.Username = webAccessCtx.Username
 	// Remove password
 	if user == nil {

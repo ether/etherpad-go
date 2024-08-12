@@ -51,6 +51,7 @@ type Client struct {
 	Send      chan []byte
 	Room      string
 	SessionId string
+	ctx       *fiber.Ctx
 }
 
 // readPump pumps messages from the websocket connection to the hub.
@@ -84,19 +85,17 @@ func (c *Client) readPump() {
 				println("Error unmarshalling", err)
 			}
 
-			HandleClientReadyMessage(clientReady, c)
+			handleMessage(clientReady, c, c.ctx)
 		} else if strings.Contains(decodedMessage, "USER_CHANGES") {
 			var userchange ws.UserChange
 			err := json.Unmarshal(message, &userchange)
 
 			if err != nil {
-				println("Error marshalling user changes")
+				println("Error unmarshalling")
+				return
 			}
 
-			PadChannels.AddToQueue(c.Room, Task{
-				message: userchange,
-				socket:  c,
-			})
+			handleMessage(userchange, c, c.ctx)
 		}
 
 		c.hub.Broadcast <- message
@@ -124,7 +123,7 @@ func ServeWs(hub *Hub, w http.ResponseWriter, r *http.Request, sessionStore *ses
 		log.Println(err)
 		return
 	}
-	client := &Client{hub: hub, conn: conn, Send: make(chan []byte, 256), SessionId: store.ID()}
+	client := &Client{hub: hub, conn: conn, Send: make(chan []byte, 256), SessionId: store.ID(), ctx: fiber}
 	SessionStoreInstance.initSession(store.ID())
 	client.hub.Register <- client
 	client.readPump()

@@ -5,8 +5,10 @@ import (
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/changeset"
+	clientVars2 "github.com/ether/etherpad-go/lib/models/clientVars"
 	"github.com/ether/etherpad-go/lib/models/db"
 	pad2 "github.com/ether/etherpad-go/lib/models/pad"
+	"github.com/ether/etherpad-go/lib/models/webaccess"
 	"github.com/ether/etherpad-go/lib/models/ws"
 	"github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/settings"
@@ -118,6 +120,7 @@ func handleUserChanges(task Task) {
 
 		if opAuthorId != "" && opAuthorId != session.Author {
 			println("Wrong author tried to submit changeset")
+			return
 		}
 	}
 
@@ -305,8 +308,13 @@ func handleMessage(message any, client *Client, ctx *fiber.Ctx) {
 		return
 	}
 
-	// FIXME hier
-	var grantedAccess, err = securityManager.CheckAccess(&auth.PadId, auth.SessionId, auth.Token)
+	var user, okConv = ctx.Locals(clientVars2.WebAccessStore).(*webaccess.SocketClientRequest)
+
+	if !okConv {
+		user = nil
+	}
+
+	var grantedAccess, err = securityManager.CheckAccess(&auth.PadId, &auth.SessionId, &auth.Token, user)
 
 	if err != nil {
 		var arr = make([]interface{}, 2)
@@ -319,6 +327,46 @@ func handleMessage(message any, client *Client, ctx *fiber.Ctx) {
 		client.conn.WriteMessage(websocket.TextMessage, messageToSend)
 		println("Error checking access", err)
 		return
+	}
+
+	if thisSession.Author != "" && thisSession.Author != grantedAccess.AuthorId {
+		var arr = make([]interface{}, 2)
+		arr[0] = "message"
+		arr[1] = UserDupMessage{
+			Disconnect: "rejected",
+		}
+		var encoded, _ = json.Marshal(arr)
+		client.conn.WriteMessage(websocket.TextMessage, encoded)
+		return
+	}
+
+	thisSession.Author = grantedAccess.AuthorId
+
+	var readonly = thisSession.ReadOnly
+	var thisSessionNewRetrieved = SessionStoreInstance.getSession(client.SessionId)
+	if thisSessionNewRetrieved == nil {
+		println("Client disconnected")
+		return
+	}
+
+	switch expectedType := message.(type) {
+	case ws.ClientReady:
+		{
+			HandleClientReadyMessage(expectedType, client, thisSessionNewRetrieved)
+			return
+		}
+	case ws.UserChange:
+		{
+			if readonly {
+				println("write attempt on read-only pad")
+				return
+			}
+
+			PadChannels.AddToQueue(client.Room, Task{
+				message: expectedType,
+				socket:  client,
+			})
+		}
 	}
 
 }

@@ -3,6 +3,7 @@ package pad
 import (
 	"errors"
 	"github.com/ether/etherpad-go/lib/author"
+	"github.com/ether/etherpad-go/lib/models/webaccess"
 	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/ether/etherpad-go/lib/utils"
 	"strings"
@@ -29,7 +30,7 @@ type GrantedAccess struct {
 	AuthorId     string
 }
 
-func (s *SecurityManager) CheckAccess(padId *string, sessionCookie *string, token *string, userSettings *UserSettings) (*GrantedAccess, error) {
+func (s *SecurityManager) CheckAccess(padId *string, sessionCookie *string, token *string, userSettings *webaccess.SocketClientRequest) (*GrantedAccess, error) {
 	if padId == nil {
 		return nil, errors.New("padId is nil")
 	}
@@ -54,7 +55,7 @@ func (s *SecurityManager) CheckAccess(padId *string, sessionCookie *string, toke
 			canCreate = false
 		}
 
-		if userSettings.ReadOnly {
+		if userSettings.ReadOnly != nil && *userSettings.ReadOnly == true {
 			canCreate = false
 		}
 
@@ -101,7 +102,7 @@ func (s *SecurityManager) CheckAccess(padId *string, sessionCookie *string, toke
 
 	var grantedAccess = GrantedAccess{
 		AccessStatus: "grant",
-		AuthorId:     s.AuthorManager.GetAuthorId(*token),
+		AuthorId:     s.AuthorManager.GetAuthorId(*token).Id,
 	}
 
 	if !strings.Contains(*padId, "$") {

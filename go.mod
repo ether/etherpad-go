@@ -13,6 +13,7 @@ require (
 	github.com/njones/socketio v0.1.4
 	github.com/oklog/ulid/v2 v2.1.0
 	modernc.org/sqlite v1.31.1
+
 )
 
 require (

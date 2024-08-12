@@ -19,13 +19,10 @@ func NewAttributeMap(pool *apool.APool) AttributeMap {
 }
 
 func FromString(s string, pool apool.APool) AttributeMap {
-	var AttrMap = AttributeMap{
-		pool:  &pool,
-		attrs: make(map[string]string),
-	}
-	AttrMap.UpdateFromString(s, nil)
+	var mapInAttr = NewAttributeMap(&pool)
+	mapInAttr.UpdateFromString(s, nil)
 
-	return AttrMap
+	return mapInAttr
 }
 
 /**
@@ -85,6 +82,7 @@ func (a *AttributeMap) UpdateFromString(key string, emptyValueIsDelete *bool) *A
 	} else {
 		localEmptyValueIsDelete = *emptyValueIsDelete
 	}
+
 	var attribs = AttribsFromString(key, *a.pool)
 	return a.Update(attribs, &localEmptyValueIsDelete)
 }

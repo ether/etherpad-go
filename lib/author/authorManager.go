@@ -117,12 +117,14 @@ func (m *Manager) SetAuthorName(authorId string, authorName string) {
 	m.Db.SaveAuthorName(authorId, authorName)
 }
 
-func (m *Manager) GetAuthorId(token string) string {
-	return *m.GetAuthor4Token(token)
+func (m *Manager) GetAuthorId(token string) *Author {
+	var res = m.GetAuthor4Token(token)
+
+	return res
 }
 
-func (m *Manager) GetAuthor4Token(token string) *string {
-	var author, _ = m.Db.GetAuthorByToken(token)
+func (m *Manager) GetAuthor4Token(token string) *Author {
+	var author = m.mapAuthorWithDBKey(token)
 	return author
 }
 

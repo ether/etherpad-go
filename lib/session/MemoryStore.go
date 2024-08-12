@@ -4,6 +4,7 @@ import (
 	"github.com/ether/etherpad-go/lib/db"
 	"github.com/ether/etherpad-go/lib/models/session"
 	"github.com/ether/etherpad-go/lib/utils"
+	"github.com/gofiber/fiber/v2"
 	"math"
 	"time"
 )
@@ -23,6 +24,7 @@ type MemoryStore struct {
 	//   - `timeout`: Timeout ID for a timeout that will clean up the database record.
 	expirations map[string]Expiration
 	refresh     *int64
+	generate    *func(c *fiber.Ctx)
 }
 
 func NewMemoryStore(refresh *int64) *MemoryStore {
@@ -47,7 +49,21 @@ func generateMax(values ...int64) int64 {
 	return maxVal
 }
 
+func (m *MemoryStore) ShutDown() {
+	for _, val := range m.expirations {
+		if val.Timeout != nil {
+			val.Timeout.Stop()
+		}
+	}
+}
+
 func (m *MemoryStore) UpdateExpirations(sid *string, session *session.Session, updateDbExp *bool) *session.Session {
+
+	if updateDbExp == nil {
+		var truthy = true
+		updateDbExp = &truthy
+	}
+
 	if sid == nil {
 		return nil
 	}
@@ -57,7 +73,7 @@ func (m *MemoryStore) UpdateExpirations(sid *string, session *session.Session, u
 		exp.Timeout.Stop()
 	}
 	if session != nil && session.Expires != "" {
-		layout := time.RFC3339Nano
+		layout := time.RFC3339
 		parsedTime, err := time.Parse(layout, session.Expires)
 
 		if err != nil {
@@ -162,7 +178,7 @@ func (m *MemoryStore) Touch(sid string, session *session.Session) {
 		return
 	}
 	m.Write(sid, *sess)
-	layout := time.RFC3339Nano
+	layout := time.RFC3339
 	parsedTime, err := time.Parse(layout, session.Expires)
 
 	if err != nil {
