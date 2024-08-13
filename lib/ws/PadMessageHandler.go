@@ -13,6 +13,7 @@ import (
 	"github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/ether/etherpad-go/lib/settings/clientVars"
+	"github.com/ether/etherpad-go/lib/utils"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gorilla/websocket"
 	"regexp"
@@ -118,7 +119,9 @@ func handleUserChanges(task Task) {
 		fromString := changeset.FromString(op.Attribs, *wireApool)
 		var opAuthorId = fromString.Get("author")
 
-		if opAuthorId != "" && opAuthorId != session.Author {
+		println(len(opAuthorId))
+
+		if len(opAuthorId) != 0 && opAuthorId != session.Author {
 			println("Wrong author tried to submit changeset")
 			return
 		}
@@ -172,7 +175,7 @@ func handleUserChanges(task Task) {
 		retrievedPad.AppendRevision(nlChangeset, &session.Author)
 	}
 
-	if session.revision != r {
+	if session.Revision != r {
 		println("Revision mismatch")
 	}
 
@@ -194,7 +197,7 @@ func handleUserChanges(task Task) {
 		return
 	}
 
-	session.revision = newRev
+	session.Revision = newRev
 
 	if newRev != r {
 		session.Time = retrievedPad.GetRevisionDate(newRev)
@@ -225,8 +228,8 @@ func updatePadClients(pad *pad2.Pad) {
 		}
 
 		var sessionInfo = SessionStoreInstance.getSession(socket.SessionId)
-		for sessionInfo.revision < pad.Head {
-			var r = sessionInfo.revision + 1
+		for sessionInfo.Revision < pad.Head {
+			var r = sessionInfo.Revision + 1
 			var revision, ok = revCache[r]
 			if !ok {
 				revCache[r], _ = pad.GetRevision(r)
@@ -290,9 +293,8 @@ func handleMessage(message any, client *Client, ctx *fiber.Ctx) {
 		}
 
 		var padIds = readOnlyManager.GetIds(&thisSession.Auth.PadId)
-		thisSession.PadId = padIds.PadId
-		thisSession.ReadOnlyPadId = padIds.ReadOnlyPadId
-		thisSession.ReadOnly = padIds.ReadOnly
+		SessionStoreInstance.addPadReadOnlyIds(client.SessionId, padIds.PadId, padIds.ReadOnlyPadId, padIds.ReadOnly)
+		thisSession = SessionStoreInstance.getSession(client.SessionId)
 	}
 
 	var auth = thisSession.Auth
@@ -367,6 +369,72 @@ func handleMessage(message any, client *Client, ctx *fiber.Ctx) {
 				socket:  client,
 			})
 		}
+	case UserInfoUpdate:
+		{
+			HandleUserInfoUpdate(expectedType, client)
+		}
+	}
+}
+
+func HandleUserInfoUpdate(userInfo UserInfoUpdate, client *Client) {
+	if userInfo.Data.UserInfo.ColorId == nil {
+		return
+	}
+
+	if userInfo.Data.UserInfo.Name == nil {
+		userInfo.Data.UserInfo.Name = nil
+	}
+	var session = SessionStoreInstance.getSession(client.SessionId)
+
+	if session == nil || session.Author == "" || session.PadId == "" {
+		println("Session not ready")
+	}
+
+	var match, _ = regexp.MatchString("^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$", *userInfo.Data.UserInfo.ColorId)
+	if !match {
+		println("Malformed color")
+		return
+	}
+
+	// Tell the authorManager about the new attributes
+	var colorId int
+
+	for i, color := range utils.ColorPalette {
+		if *userInfo.Data.UserInfo.ColorId == color {
+			colorId = i
+		}
+	}
+
+	authorManager.SetAuthorColor(session.Author, colorId)
+	authorManager.SetAuthorName(session.Author, *userInfo.Data.UserInfo.Name)
+	var padId = session.PadId
+
+	var padSockets = GetRoomSockets(padId)
+
+	var userNewInfoDat = ws.UserNewInfoDat{
+		UserId:  session.Author,
+		Name:    *userInfo.Data.UserInfo.Name,
+		ColorId: *userInfo.Data.UserInfo.ColorId,
+	}
+
+	var userNewInfo = ws.UserNewInfoData{
+		Type:     "USER_NEWINFO",
+		UserInfo: userNewInfoDat,
+	}
+
+	var userNewInfoActual = ws.UserNewInfo{
+		Type: "COLLABROOM",
+		Data: userNewInfo,
+	}
+
+	var arr = make([]interface{}, 2)
+	arr[0] = "message"
+	arr[1] = userNewInfoActual
+
+	var marshalled, _ = json.Marshal(arr)
+
+	for _, p := range padSockets {
+		p.conn.WriteMessage(websocket.TextMessage, marshalled)
 	}
 
 }
@@ -416,7 +484,7 @@ func correctMarkersInPad(atext apool.AText, apool apool.APool) *string {
 	return &stringifierBuilder
 }
 
-func HandleClientReadyMessage(ready ws.ClientReady, client *Client, thisSession *Session) {
+func HandleClientReadyMessage(ready ws.ClientReady, client *Client, thisSession *ws.Session) {
 	if ready.Data.UserInfo.ColorId != nil && !colorRegEx.MatchString(*ready.Data.UserInfo.ColorId) {
 		println("Invalid color id")
 		ready.Data.UserInfo.ColorId = nil
@@ -426,11 +494,24 @@ func HandleClientReadyMessage(ready ws.ClientReady, client *Client, thisSession 
 		authorManager.SetAuthorName(thisSession.PadId, *ready.Data.UserInfo.Name)
 	}
 
+	var selectedColor = 0
+
 	if ready.Data.UserInfo.ColorId != nil {
-		authorManager.SetAuthorColor(thisSession.PadId, *ready.Data.UserInfo.ColorId)
+		for i, val := range utils.ColorPalette {
+			if val == *ready.Data.UserInfo.ColorId {
+				selectedColor = i
+			}
+		}
+
+		authorManager.SetAuthorColor(thisSession.PadId, selectedColor)
 	}
 
-	var foundAuthor = authorManager.GetAuthor(thisSession.Author)
+	var foundAuthor, errAuth = authorManager.GetAuthor(thisSession.Author)
+
+	if errAuth != nil {
+		println("Error retrieving author")
+		return
+	}
 
 	var retrievedPad, err = padManager.GetPad(thisSession.PadId, nil, &foundAuthor.Id)
 	if err != nil {
@@ -445,8 +526,13 @@ func HandleClientReadyMessage(ready ws.ClientReady, client *Client, thisSession 
 	var historicalAuthorData = make(map[string]author.Author)
 
 	for _, a := range authors {
-		var retrievedAuthor = authorManager.GetAuthor(a)
-		historicalAuthorData[a] = retrievedAuthor
+		var retrievedAuthor, err = authorManager.GetAuthor(a)
+
+		if err != nil {
+			continue
+		}
+
+		historicalAuthorData[a] = *retrievedAuthor
 	}
 
 	var roomSockets = GetRoomSockets(thisSession.PadId)
@@ -476,10 +562,11 @@ func HandleClientReadyMessage(ready ws.ClientReady, client *Client, thisSession 
 		var atext = changeset.CloneAText(retrievedPad.AText)
 		var attribsForWire = changeset.PrepareForWire(atext.Attribs, retrievedPad.Pool)
 		atext.Attribs = attribsForWire.Translated
+		wirePool := attribsForWire.Pool.ToJsonable()
 		var arr = make([]interface{}, 2)
 		arr[0] = "message"
 		arr[1] = Message{
-			Data: clientVars.NewClientVars(*retrievedPad),
+			Data: clientVars.NewClientVars(*retrievedPad, thisSession, wirePool),
 			Type: "CLIENT_VARS",
 		}
 		var encoded, _ = json.Marshal(arr)

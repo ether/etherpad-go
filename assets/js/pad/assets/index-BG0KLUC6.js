@@ -4481,35 +4481,35 @@ var jquery = { exports: {} };
       }
     });
     jQuery2.speed = function(speed, easing, fn) {
-      var opt2 = speed && typeof speed === "object" ? jQuery2.extend({}, speed) : {
+      var opt = speed && typeof speed === "object" ? jQuery2.extend({}, speed) : {
         complete: fn || !fn && easing || isFunction2(speed) && speed,
         duration: speed,
         easing: fn && easing || easing && !isFunction2(easing) && easing
       };
       if (jQuery2.fx.off) {
-        opt2.duration = 0;
+        opt.duration = 0;
       } else {
-        if (typeof opt2.duration !== "number") {
-          if (opt2.duration in jQuery2.fx.speeds) {
-            opt2.duration = jQuery2.fx.speeds[opt2.duration];
+        if (typeof opt.duration !== "number") {
+          if (opt.duration in jQuery2.fx.speeds) {
+            opt.duration = jQuery2.fx.speeds[opt.duration];
           } else {
-            opt2.duration = jQuery2.fx.speeds._default;
+            opt.duration = jQuery2.fx.speeds._default;
           }
         }
       }
-      if (opt2.queue == null || opt2.queue === true) {
-        opt2.queue = "fx";
+      if (opt.queue == null || opt.queue === true) {
+        opt.queue = "fx";
       }
-      opt2.old = opt2.complete;
-      opt2.complete = function() {
-        if (isFunction2(opt2.old)) {
-          opt2.old.call(this);
+      opt.old = opt.complete;
+      opt.complete = function() {
+        if (isFunction2(opt.old)) {
+          opt.old.call(this);
         }
-        if (opt2.queue) {
-          jQuery2.dequeue(this, opt2.queue);
+        if (opt.queue) {
+          jQuery2.dequeue(this, opt.queue);
         }
       };
-      return opt2;
+      return opt;
     };
     jQuery2.fn.extend({
       fadeTo: function(speed, to, easing, callback) {
@@ -4655,10 +4655,10 @@ var jquery = { exports: {} };
       });
     };
     (function() {
-      var input = document2.createElement("input"), select = document2.createElement("select"), opt2 = select.appendChild(document2.createElement("option"));
+      var input = document2.createElement("input"), select = document2.createElement("select"), opt = select.appendChild(document2.createElement("option"));
       input.type = "checkbox";
       support.checkOn = input.value !== "";
-      support.optSelected = opt2.selected;
+      support.optSelected = opt.selected;
       input = document2.createElement("input");
       input.value = "t";
       input.type = "radio";
@@ -7460,7 +7460,7 @@ function requireGritter() {
       * @private
       */
       _runSetup: function() {
-        for (opt in $2.gritter.options) {
+        for (let opt in $2.gritter.options) {
           this[opt] = $2.gritter.options[opt];
         }
         this._is_setup = 1;

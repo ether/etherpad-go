@@ -12,8 +12,8 @@ type InitialAttributedText struct {
 }
 
 type CollabAuthor struct {
-	Name    string `json:"name"`
-	ColorId int    `json:"colorId"`
+	Name    *string `json:"name"`
+	ColorId *string `json:"colorId"`
 }
 
 type APool struct {
@@ -79,7 +79,7 @@ type ClientVars struct {
 	CollabClientVars                   CollabClientVars                   `json:"collab_client_vars"`
 	ColorPalette                       []string                           `json:"colorPalette"`
 	ClientIP                           string                             `json:"clientIp"`
-	UserColor                          int                                `json:"userColor"`
+	UserColor                          string                             `json:"userColor"`
 	PadId                              string                             `json:"padId"`
 	PadOptions                         map[string]bool                    `json:"padOptions"`
 	PadShortcutEnabled                 map[string]bool                    `json:"padShortcutEnabled"`

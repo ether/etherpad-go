@@ -22,12 +22,12 @@ func NewManager() Manager {
 type Author struct {
 	Id        string
 	Name      *string
-	ColorId   string
+	ColorId   int
 	PadIDs    map[string]struct{}
 	Timestamp int64
 }
 
-func (m *Manager) SetAuthorColor(author string, colorId string) {
+func (m *Manager) SetAuthorColor(author string, colorId int) {
 	m.Db.SaveAuthorColor(author, colorId)
 }
 
@@ -38,7 +38,12 @@ func (m *Manager) mapAuthorWithDBKey(token string) *Author {
 		// there is no author with this mapper, so create one
 		var authorCreated = m.CreateAuthor(nil)
 		// create the token2author relation
-		m.Db.SetAuthorByToken(token, authorCreated.Id)
+		err = m.Db.SetAuthorByToken(token, authorCreated.Id)
+
+		if err != nil {
+			panic(err.Error())
+		}
+
 		// return the author
 		return &Author{
 			Id: authorCreated.Id,
@@ -68,17 +73,18 @@ func (m *Manager) mapAuthorWithDBKey(token string) *Author {
 }*/
 
 func (m *Manager) CreateAuthor(name *string) Author {
-	authorId := utils.RandomString(16)
+	authorId := "a." + utils.RandomString(16)
 
 	author := Author{
 		Id:        authorId,
 		Name:      name,
 		PadIDs:    make(map[string]struct{}),
-		ColorId:   utils.ColorPalette[rand.Intn(len(utils.ColorPalette))],
+		ColorId:   rand.Intn(len(utils.ColorPalette)),
 		Timestamp: time.Now().Unix(),
 	}
 
 	m.Db.SaveAuthor(db2.AuthorDB{
+		ID:        author.Id,
 		Name:      author.Name,
 		ColorId:   author.ColorId,
 		PadIDs:    author.PadIDs,
@@ -200,18 +206,18 @@ func (m *Manager) removePad(authorId string, padId string) {
 	})
 }
 
-func (m *Manager) GetAuthor(authorId string) Author {
+func (m *Manager) GetAuthor(authorId string) (*Author, error) {
 	author, err := m.Db.GetAuthor(authorId)
 
 	if err != nil {
-		return Author{}
+		return nil, err
 	}
 
-	return Author{
+	return &Author{
 		Id:        author.ID,
 		Name:      author.Name,
 		ColorId:   author.ColorId,
 		PadIDs:    author.PadIDs,
 		Timestamp: author.Timestamp,
-	}
+	}, nil
 }

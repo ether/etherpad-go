@@ -1,48 +1,40 @@
 package ws
 
+import "github.com/ether/etherpad-go/lib/models/ws"
+
 func init() {
 	SessionStoreInstance = NewSessionStore()
 }
 
-type SessionAuth struct {
-	PadId     string
-	Token     string
-	SessionId string
-}
-
-type Session struct {
-	Author        string
-	Auth          *SessionAuth
-	revision      int
-	PadId         string
-	ReadOnlyPadId string
-	ReadOnly      bool
-	Time          int
-}
-
 type SessionStore struct {
-	sessions map[string]*Session
+	sessions map[string]*ws.Session
 }
 
 func NewSessionStore() SessionStore {
 	return SessionStore{
-		sessions: make(map[string]*Session),
+		sessions: make(map[string]*ws.Session),
 	}
 }
 
 func (s *SessionStore) initSession(sessionId string) {
-	s.sessions[sessionId] = &Session{}
+	s.sessions[sessionId] = &ws.Session{}
 }
 
-func (s *SessionStore) addHandleClientInformation(sessionId string, padId string, token string) *Session {
-	s.sessions[sessionId] = &Session{
-		Auth: &SessionAuth{
+func (s *SessionStore) addHandleClientInformation(sessionId string, padId string, token string) *ws.Session {
+	s.sessions[sessionId] = &ws.Session{
+		Auth: &ws.SessionAuth{
 			Token:     token,
 			PadId:     padId,
 			SessionId: sessionId,
 		},
 	}
 	return s.sessions[sessionId]
+}
+
+func (s *SessionStore) addPadReadOnlyIds(sessionId, padId string, readOnlyPadId string, readOnly bool) {
+	s.sessions[sessionId].ReadOnlyPadId = readOnlyPadId
+	s.sessions[sessionId].PadId = padId
+	s.sessions[sessionId].ReadOnly = readOnly
 }
 
 func (s *SessionStore) addFinalInformation(sessionId, padId, readOnlyPadId string, readonly bool) {
@@ -63,12 +55,12 @@ func (s *SessionStore) hasSession(sessionId string) bool {
 	return ok
 }
 
-func (s *SessionStore) getSession(sessionId string) *Session {
+func (s *SessionStore) getSession(sessionId string) *ws.Session {
 	return s.sessions[sessionId]
 }
 
 func (s *SessionStore) resetSession(sessionId string) {
-	s.sessions[sessionId] = &Session{}
+	s.sessions[sessionId] = &ws.Session{}
 }
 
 var HubGlob *Hub

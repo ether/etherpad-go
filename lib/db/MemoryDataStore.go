@@ -205,7 +205,7 @@ func (m *MemoryDataStore) SaveAuthorName(authorId string, authorName string) {
 	retrievedAuthor.Name = &authorName
 }
 
-func (m *MemoryDataStore) SaveAuthorColor(authorId string, authorColor string) {
+func (m *MemoryDataStore) SaveAuthorColor(authorId string, authorColor int) {
 	var retrievedAuthor, _ = m.authorStore[authorId]
 	retrievedAuthor.ColorId = authorColor
 }

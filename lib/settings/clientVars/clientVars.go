@@ -1,18 +1,33 @@
 package clientVars
 
 import (
-	"github.com/ether/etherpad-go/lib/apool"
+	apool2 "github.com/ether/etherpad-go/lib/apool"
+	author2 "github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/models/clientVars"
 	"github.com/ether/etherpad-go/lib/models/pad"
+	"github.com/ether/etherpad-go/lib/models/ws"
+	pad2 "github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/utils"
 	"time"
 )
 
-func NewClientVars(pad pad.Pad) clientVars.ClientVars {
+func NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apool2.APool) clientVars.ClientVars {
 	var historyData = make(map[string]clientVars.CollabAuthor)
-	historyData["a.HrYdUXxHc5IqRn7R"] = clientVars.CollabAuthor{
-		Name:    "test",
-		ColorId: 45,
+	var readonlyManager = pad2.NewReadOnlyManager()
+	var allauthors = pad.GetAllAuthors()
+
+	for _, author := range allauthors {
+		manager := author2.NewManager()
+		var retrievedAuthor, err = manager.GetAuthor(author)
+
+		if err != nil {
+			continue
+		}
+
+		historyData[author] = clientVars.CollabAuthor{
+			Name:    retrievedAuthor.Name,
+			ColorId: &utils.ColorPalette[retrievedAuthor.ColorId],
+		}
 	}
 
 	var padOptions = make(map[string]bool)
@@ -83,6 +98,9 @@ func NewClientVars(pad pad.Pad) clientVars.ClientVars {
 		}
 	}
 
+	var currentTime = pad.GetRevisionDate(pad.Head)
+	var readonlyId = readonlyManager.GetIds(&pad.Id)
+
 	return clientVars.ClientVars{
 		SkinName:            "colibris",
 		SkinVariants:        "super-light-toolbar super-light-editor light-background",
@@ -103,27 +121,27 @@ func NewClientVars(pad pad.Pad) clientVars.ClientVars {
 			ClientIP:             "127.0.0.1",
 			HistoricalAuthorData: historyData,
 			Apool: clientVars.APool{
-				NumToAttrib: make(map[int]apool.Attribute),
-				NextNum:     0,
+				NumToAttrib: apool.NumToAttrib,
+				NextNum:     apool.NextNum,
 			},
-			Rev:  0,
-			Time: 0,
+			Rev:  pad.Head,
+			Time: currentTime,
 		},
 		ColorPalette:           utils.ColorPalette,
 		ClientIP:               "127.0.0.1",
 		PadId:                  pad.Id,
-		UserColor:              1,
+		UserColor:              utils.ColorPalette[1],
 		PadOptions:             padOptions,
 		PadShortcutEnabled:     padShortCutEnabled,
 		InitialTitle:           "Pad: " + pad.Id,
 		Opts:                   map[string]interface{}{},
 		ChatHead:               -1,
 		NumConnectedUsers:      0,
-		ReadOnlyId:             "r.933623002a5d8341fbbdea37ce89f008",
-		ReadOnly:               false,
+		ReadOnlyId:             readonlyId.ReadOnlyPadId,
+		ReadOnly:               readonlyId.ReadOnly,
 		ServerTimeStamp:        int64(time.Now().Second()),
 		SessionRefreshInterval: 86400000,
-		UserId:                 "a.HrYdUXxHc5IqRn7R",
+		UserId:                 sessionInfo.Author,
 		AbiwordAvailable:       "no",
 		SOfficeAvailable:       "no",
 		ExportAvailable:        "no",

@@ -289,7 +289,7 @@
 		*/
 		_runSetup: function(){
 
-			for(opt in $.gritter.options){
+			for(let opt in $.gritter.options){
 				this[opt] = $.gritter.options[opt];
 			}
 			this._is_setup = 1;

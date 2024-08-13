@@ -93,7 +93,6 @@ func (p *Pad) Init(text *string, author *string) error {
 
 		var firstChangeset, _ = changeset.MakeSplice("\n", 0, 0, *text, nil, nil)
 		p.AppendRevision(firstChangeset, author)
-		p.save()
 	}
 
 	hooks.HookInstance.ExecuteHooks(hooks.PadLoadString, Load{
@@ -135,7 +134,11 @@ func (p *Pad) getSavedRevisionsList() []int {
 }
 
 func (p *Pad) GetRevisionDate(rev int) int {
-	revision, _ := p.db.GetRevision(p.Id, rev)
+	revision, err := p.db.GetRevision(p.Id, rev)
+
+	if err != nil {
+		println("Error is", err.Error())
+	}
 
 	return revision.Timestamp
 }
@@ -168,7 +171,11 @@ func (p *Pad) AppendRevision(cs string, authorId *string) int {
 
 	// Save pad
 	p.save()
-	p.db.SaveRevision(p.Id, p.Head, cs, p.AText, *p.apool(), authorId, int(time.Now().UnixNano()/int64(time.Millisecond)))
+	err := p.db.SaveRevision(p.Id, p.Head, cs, p.AText, *p.apool(), authorId, int(time.Now().UnixNano()/int64(time.Millisecond)))
+
+	if err != nil {
+		println("Error saving revision")
+	}
 
 	if authorId != nil {
 		var clonedAuthorId = *authorId

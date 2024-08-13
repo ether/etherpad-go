@@ -96,6 +96,16 @@ func (c *Client) readPump() {
 			}
 
 			handleMessage(userchange, c, c.ctx)
+		} else if strings.Contains(decodedMessage, "USERINFO_UPDATE") {
+			var userInfoChange UserInfoUpdateWrapper
+			errorUserInfoChange := json.Unmarshal(message, &userInfoChange)
+
+			if errorUserInfoChange != nil {
+				println("Error unmarshalling")
+				return
+			}
+
+			handleMessage(userInfoChange.Data, c, c.ctx)
 		}
 
 		c.hub.Broadcast <- message

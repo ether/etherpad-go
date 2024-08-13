@@ -42,3 +42,21 @@ type NewChangesMessage struct {
 type AccessStatusMessage struct {
 	AccessStatus string `json:"accessStatus"`
 }
+
+type UserInfoUpdateWrapper struct {
+	Event string         `json:"event"`
+	Data  UserInfoUpdate `json:"data"`
+}
+
+type UserInfoUpdate struct {
+	Type string `json:"type"`
+	Data struct {
+		UserInfo struct {
+			ColorId *string `json:"colorId"`
+			IP      *string `json:"ip"`
+			Name    *string `json:"name"`
+			UserId  *string `json:"userId"`
+		} `json:"userInfo"`
+		Type string `json:"type"`
+	} `json:"data"`
+}

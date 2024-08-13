@@ -29,7 +29,7 @@ type AuthorMethods interface {
 	SetAuthorByToken(token string, author string) error
 	SaveAuthor(author db.AuthorDB)
 	SaveAuthorName(authorId string, authorName string)
-	SaveAuthorColor(authorId string, authorColor string)
+	SaveAuthorColor(authorId string, authorColor int)
 }
 
 type SessionMethods interface {

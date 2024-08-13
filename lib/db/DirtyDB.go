@@ -425,7 +425,7 @@ func (d SQLiteDB) SaveAuthorName(authorId string, authorName string) {
 	d.SaveAuthor(*authorString)
 }
 
-func (d SQLiteDB) SaveAuthorColor(authorId string, authorColor string) {
+func (d SQLiteDB) SaveAuthorColor(authorId string, authorColor int) {
 	var authorString, err = d.GetAuthor(authorId)
 
 	if err != nil {
