@@ -1,9 +1,6 @@
 var __defProp = Object.defineProperty;
 var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
-var __publicField = (obj, key, value) => {
-  __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
-  return value;
-};
+var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
 (function polyfill() {
   const relList = document.createElement("link").relList;
   if (relList && relList.supports && relList.supports("modulepreload")) {
@@ -25,16 +22,12 @@ var __publicField = (obj, key, value) => {
   }).observe(document, { childList: true, subtree: true });
   function getFetchOpts(link) {
     const fetchOpts = {};
-    if (link.integrity)
-      fetchOpts.integrity = link.integrity;
-    if (link.referrerPolicy)
-      fetchOpts.referrerPolicy = link.referrerPolicy;
+    if (link.integrity) fetchOpts.integrity = link.integrity;
+    if (link.referrerPolicy) fetchOpts.referrerPolicy = link.referrerPolicy;
     if (link.crossOrigin === "use-credentials")
       fetchOpts.credentials = "include";
-    else if (link.crossOrigin === "anonymous")
-      fetchOpts.credentials = "omit";
-    else
-      fetchOpts.credentials = "same-origin";
+    else if (link.crossOrigin === "anonymous") fetchOpts.credentials = "omit";
+    else fetchOpts.credentials = "same-origin";
     return fetchOpts;
   }
   function processPreload(link) {
@@ -6397,10 +6390,8 @@ var browser$2 = { exports: {} };
     * MIT License | (c) Dustin Diaz 2015
     */
   !function(name, definition) {
-    if (module.exports)
-      module.exports = definition();
-    else
-      this[name] = definition();
+    if (module.exports) module.exports = definition();
+    else this[name] = definition();
   }("bowser", function() {
     var t = true;
     function detect(ua) {
@@ -6598,8 +6589,7 @@ var browser$2 = { exports: {} };
         result2.a = t;
       } else if (result2.msie && result2.version < 10 || result2.chrome && result2.version < 20 || result2.firefox && result2.version < 20 || result2.safari && result2.version < 6 || result2.opera && result2.version < 10 || result2.ios && result2.osversion && result2.osversion.split(".")[0] < 6) {
         result2.c = t;
-      } else
-        result2.x = t;
+      } else result2.x = t;
       return result2;
     }
     var bowser = detect(typeof navigator !== "undefined" ? navigator.userAgent : "");
@@ -6670,14 +6660,12 @@ const extractHooks = (parts, hookSetName, normalizer) => {
       try {
         console.log("Loading hook", hookFnName, hookName);
         hookFn = loadFn(hookFnName, hookName);
-        if (!hookFn)
-          throw new Error("Not a function");
+        if (!hookFn) throw new Error("Not a function");
       } catch (err) {
         console.error(`Failed to load hook function "${hookFnName}" for plugin "${part.plugin}" part "${part.name}" hook set "${hookSetName}" hook "${hookName}": ${err.stack || err}`);
       }
       if (hookFn) {
-        if (hooks2[hookName] == null)
-          hooks2[hookName] = [];
+        if (hooks2[hookName] == null) hooks2[hookName] = [];
         hooks2[hookName].push({
           hook_name: hookName,
           hook_fn: hookFn,
@@ -6718,8 +6706,7 @@ shared.clientPluginNames = () => {
     });
   };
   const adoptPluginsFromAncestorsOf = (require3) => {
-    if (!require3)
-      throw new Error("Parent plugins could not be found.");
+    if (!require3) throw new Error("Parent plugins could not be found.");
     const ancestorPluginDefs = {
       hooks: {},
       loaded: true,
@@ -6748,10 +6735,8 @@ var hooks = {};
   const deprecationWarned = {};
   const checkDeprecation = (hook) => {
     const notice = exports.deprecationNotices[hook.hook_name];
-    if (notice == null)
-      return;
-    if (deprecationWarned[hook.hook_fn_name])
-      return;
+    if (notice == null) return;
+    if (deprecationWarned[hook.hook_fn_name]) return;
     console.warn(`${hook.hook_name} hook used by the ${hook.part.plugin} plugin (${hook.hook_fn_name}) is deprecated: ${notice}`);
     deprecationWarned[hook.hook_fn_name] = true;
   };
@@ -6762,10 +6747,8 @@ var hooks = {};
     (err) => cb2(err || new Error(err))
   );
   const normalizeValue = (val) => {
-    if (val === void 0)
-      return [];
-    if (Array.isArray(val))
-      return val;
+    if (val === void 0) return [];
+    if (Array.isArray(val)) return val;
     return [val];
   };
   const flatten1 = (array) => array.reduce((a, b) => a.concat(b), []);
@@ -6798,8 +6781,7 @@ var hooks = {};
     try {
       val = hook.hook_fn(hook.hook_name, context, callback);
     } catch (err) {
-      if (err === doubleSettleErr)
-        throw err;
+      if (err === doubleSettleErr) throw err;
       try {
         settle(err, null, "thrown exception");
       } catch (doubleSettleErr2) {
@@ -6810,8 +6792,7 @@ var hooks = {};
       throw err;
     }
     if (val === void 0) {
-      if (outcome != null)
-        return outcome.val;
+      if (outcome != null) return outcome.val;
       if (hook.hook_fn.length >= 3) {
         console.error(`UNSETTLED FUNCTION BUG IN HOOK FUNCTION (plugin: ${hook.part.plugin}, function name: ${hook.hook_fn_name}, hook: ${hook.hook_name}): The hook function neither called the callback nor returned a non-undefined value. This is prohibited because it will result in freezes when a future version of Etherpad updates the hook to support asynchronous behavior.`);
       }
@@ -6820,8 +6801,7 @@ var hooks = {};
     return outcome.val;
   };
   exports.callAll = (hookName, context) => {
-    if (context == null)
-      context = {};
+    if (context == null) context = {};
     const hooks2 = pluginDefs.hooks[hookName] || [];
     return flatten1(hooks2.map((hook) => normalizeValue(callHookFnSync(hook, context))));
   };
@@ -6878,10 +6858,8 @@ var hooks = {};
     });
   };
   exports.aCallAll = async (hookName, context, cb2 = null) => {
-    if (cb2 != null)
-      return await attachCallback(exports.aCallAll(hookName, context), cb2);
-    if (context == null)
-      context = {};
+    if (cb2 != null) return await attachCallback(exports.aCallAll(hookName, context), cb2);
+    if (context == null) context = {};
     const hooks2 = pluginDefs.hooks[hookName] || [];
     const results = await Promise.all(
       hooks2.map(async (hook) => normalizeValue(await callHookFnAsync(hook, context)))
@@ -6889,8 +6867,7 @@ var hooks = {};
     return flatten1(results);
   };
   exports.callAllSerial = async (hookName, context) => {
-    if (context == null)
-      context = {};
+    if (context == null) context = {};
     const hooks2 = pluginDefs.hooks[hookName] || [];
     const results = [];
     for (const hook of hooks2) {
@@ -6899,14 +6876,12 @@ var hooks = {};
     return flatten1(results);
   };
   exports.callFirst = (hookName, context) => {
-    if (context == null)
-      context = {};
+    if (context == null) context = {};
     const predicate = (val) => val.length;
     const hooks2 = pluginDefs.hooks[hookName] || [];
     for (const hook of hooks2) {
       const val = normalizeValue(callHookFnSync(hook, context));
-      if (predicate(val))
-        return val;
+      if (predicate(val)) return val;
     }
     return [];
   };
@@ -6914,15 +6889,12 @@ var hooks = {};
     if (cb2 != null) {
       return await attachCallback(exports.aCallFirst(hookName, context, null, predicate), cb2);
     }
-    if (context == null)
-      context = {};
-    if (predicate == null)
-      predicate = (val) => val.length;
+    if (context == null) context = {};
+    if (predicate == null) predicate = (val) => val.length;
     const hooks2 = pluginDefs.hooks[hookName] || [];
     for (const hook of hooks2) {
       const val = normalizeValue(await callHookFnAsync(hook, context));
-      if (predicate(val))
-        return val;
+      if (predicate(val)) return val;
     }
     return [];
   };
@@ -6936,8 +6908,7 @@ var pad$1 = {};
 var farbtastic = {};
 var hasRequiredFarbtastic;
 function requireFarbtastic() {
-  if (hasRequiredFarbtastic)
-    return farbtastic;
+  if (hasRequiredFarbtastic) return farbtastic;
   hasRequiredFarbtastic = 1;
   const jQuery2 = rjquery.jQuery;
   (function($2) {
@@ -7240,12 +7211,9 @@ function requireFarbtastic() {
       };
       fb.hueToRGB = function(m1, m2, h) {
         h = (h + 1) % 1;
-        if (h * 6 < 1)
-          return m1 + (m2 - m1) * h * 6;
-        if (h * 2 < 1)
-          return m2;
-        if (h * 3 < 2)
-          return m1 + (m2 - m1) * (0.66666 - h) * 6;
+        if (h * 6 < 1) return m1 + (m2 - m1) * h * 6;
+        if (h * 2 < 1) return m2;
+        if (h * 3 < 2) return m1 + (m2 - m1) * (0.66666 - h) * 6;
         return m1;
       };
       fb.RGBToHSL = function(rgb) {
@@ -7254,12 +7222,9 @@ function requireFarbtastic() {
           s = delta / (l < 0.5 ? 2 * l : 2 - 2 * l);
         }
         if (delta > 0) {
-          if (max2 == r && max2 != g)
-            h += (g - b) / delta;
-          if (max2 == g && max2 != b)
-            h += 2 + (b - r) / delta;
-          if (max2 == b && max2 != r)
-            h += 4 + (r - g) / delta;
+          if (max2 == r && max2 != g) h += (g - b) / delta;
+          if (max2 == g && max2 != b) h += 2 + (b - r) / delta;
+          if (max2 == b && max2 != r) h += 4 + (r - g) / delta;
           h /= 6;
         }
         return [h, s, l];
@@ -7285,8 +7250,7 @@ function requireFarbtastic() {
 var gritter = {};
 var hasRequiredGritter;
 function requireGritter() {
-  if (hasRequiredGritter)
-    return gritter;
+  if (hasRequiredGritter) return gritter;
   hasRequiredGritter = 1;
   const jQuery2 = rjquery.jQuery;
   (function($2) {
@@ -7536,8 +7500,7 @@ var security$1 = {};
 */
 var hasRequiredSecurity$1;
 function requireSecurity$1() {
-  if (hasRequiredSecurity$1)
-    return security$1;
+  if (hasRequiredSecurity$1) return security$1;
   hasRequiredSecurity$1 = 1;
   var HTML_ENTITY_MAP = {
     "&": "&amp;",
@@ -7595,8 +7558,7 @@ function requireSecurity$1() {
 var security;
 var hasRequiredSecurity;
 function requireSecurity() {
-  if (hasRequiredSecurity)
-    return security;
+  if (hasRequiredSecurity) return security;
   hasRequiredSecurity = 1;
   security = requireSecurity$1();
   return security;
@@ -7604,8 +7566,7 @@ function requireSecurity() {
 var ace2_common = {};
 var hasRequiredAce2_common;
 function requireAce2_common() {
-  if (hasRequiredAce2_common)
-    return ace2_common;
+  if (hasRequiredAce2_common) return ace2_common;
   hasRequiredAce2_common = 1;
   const isNodeText = (node) => node.nodeType === 3;
   const getAssoc = (obj, name) => obj[`_magicdom_${name}`];
@@ -7613,27 +7574,21 @@ function requireAce2_common() {
     obj[`_magicdom_${name}`] = value;
   };
   const binarySearch = (numItems, func) => {
-    if (numItems < 1)
-      return 0;
-    if (func(0))
-      return 0;
-    if (!func(numItems - 1))
-      return numItems;
+    if (numItems < 1) return 0;
+    if (func(0)) return 0;
+    if (!func(numItems - 1)) return numItems;
     let low = 0;
     let high = numItems - 1;
     while (high - low > 1) {
       const x = Math.floor((low + high) / 2);
-      if (func(x))
-        high = x;
-      else
-        low = x;
+      if (func(x)) high = x;
+      else low = x;
     }
     return high;
   };
   const binarySearchInfinite = (expectedLength, func) => {
     let i = 0;
-    while (!func(i))
-      i += expectedLength;
+    while (!func(i)) i += expectedLength;
     return binarySearch(i, func);
   };
   const noop2 = () => {
@@ -7650,8 +7605,7 @@ var js_cookie = { exports: {} };
 /*! js-cookie v3.0.5 | MIT */
 var hasRequiredJs_cookie;
 function requireJs_cookie() {
-  if (hasRequiredJs_cookie)
-    return js_cookie.exports;
+  if (hasRequiredJs_cookie) return js_cookie.exports;
   hasRequiredJs_cookie = 1;
   (function(module, exports) {
     (function(global2, factory) {
@@ -7760,8 +7714,7 @@ function requireJs_cookie() {
 }
 var hasRequiredPad_utils;
 function requirePad_utils() {
-  if (hasRequiredPad_utils)
-    return pad_utils;
+  if (hasRequiredPad_utils) return pad_utils;
   hasRequiredPad_utils = 1;
   const Security = requireSecurity();
   const randomString = (len) => {
@@ -7834,11 +7787,9 @@ function requirePad_utils() {
      *     logger is set), with a stack trace appended if available.
      */
     warnDeprecated: (...args) => {
-      if (padutils.warnDeprecated.disabledForTestingOnly)
-        return;
+      if (padutils.warnDeprecated.disabledForTestingOnly) return;
       const err = new Error();
-      if (Error.captureStackTrace)
-        Error.captureStackTrace(err, padutils.warnDeprecated);
+      if (Error.captureStackTrace) Error.captureStackTrace(err, padutils.warnDeprecated);
       err.name = "";
       if (typeof err.stack === "string") {
         if (padutils.warnDeprecated._rl == null) {
@@ -7847,12 +7798,10 @@ function requirePad_utils() {
         const rl = padutils.warnDeprecated._rl;
         const now2 = rl.now();
         const prev = rl.prevs.get(err.stack);
-        if (prev != null && now2 - prev < rl.period)
-          return;
+        if (prev != null && now2 - prev < rl.period) return;
         rl.prevs.set(err.stack, now2);
       }
-      if (err.stack)
-        args.push(err.stack);
+      if (err.stack) args.push(err.stack);
       (padutils.warnDeprecated.logger || console).warn(...args);
     },
     escapeHtml: (x) => Security.escapeHTML(String(x)),
@@ -8026,8 +7975,7 @@ function requirePad_utils() {
       $(node).on("change", func);
     },
     encodeUserId: (userId) => userId.replace(/[^a-y0-9]/g, (c) => {
-      if (c === ".")
-        return "-";
+      if (c === ".") return "-";
       return `z${c.charCodeAt(0)}z`;
     }),
     decodeUserId: (encodedUserId) => encodedUserId.replace(/[a-y0-9]+|-|z.+?z/g, (cc) => {
@@ -8049,8 +7997,7 @@ function requirePad_utils() {
      * malicious user to impersonate another user).
      */
     isValidAuthorToken: (t) => {
-      if (typeof t !== "string" || !t.startsWith("t."))
-        return false;
+      if (typeof t !== "string" || !t.startsWith("t.")) return false;
       const v = t.slice(2);
       return v.length > 0 && base64url.test(v);
     },
@@ -8152,18 +8099,15 @@ var chat = {};
 var ChatMessage_1;
 var hasRequiredChatMessage;
 function requireChatMessage() {
-  if (hasRequiredChatMessage)
-    return ChatMessage_1;
+  if (hasRequiredChatMessage) return ChatMessage_1;
   hasRequiredChatMessage = 1;
   const { padutils: { warnDeprecated } } = requirePad_utils();
   class ChatMessage {
     static fromObject(obj) {
       obj = Object.assign({}, obj);
-      if ("userId" in obj && !("authorId" in obj))
-        obj.authorId = obj.userId;
+      if ("userId" in obj && !("authorId" in obj)) obj.authorId = obj.userId;
       delete obj.userId;
-      if ("userName" in obj && !("displayName" in obj))
-        obj.displayName = obj.userName;
+      if ("userName" in obj && !("displayName" in obj)) obj.displayName = obj.userName;
       delete obj.userName;
       return Object.assign(new ChatMessage(), obj);
     }
@@ -8221,8 +8165,7 @@ function requireChatMessage() {
 var pad_cookie = {};
 var hasRequiredPad_cookie;
 function requirePad_cookie() {
-  if (hasRequiredPad_cookie)
-    return pad_cookie;
+  if (hasRequiredPad_cookie) return pad_cookie;
   hasRequiredPad_cookie = 1;
   const Cookies = requirePad_utils().Cookies;
   pad_cookie.padcookie = new class {
@@ -8247,8 +8190,7 @@ function requirePad_cookie() {
     readPrefs_() {
       try {
         const json = Cookies.get(this.cookieName_);
-        if (json == null)
-          return null;
+        if (json == null) return null;
         return JSON.parse(json);
       } catch (e) {
         return null;
@@ -8280,8 +8222,7 @@ var tinycon = { exports: {} };
  */
 var hasRequiredTinycon;
 function requireTinycon() {
-  if (hasRequiredTinycon)
-    return tinycon.exports;
+  if (hasRequiredTinycon) return tinycon.exports;
   hasRequiredTinycon = 1;
   (function(module) {
     (function() {
@@ -8372,8 +8313,7 @@ function requireTinycon() {
         faviconImage.onload = function() {
           context.clearRect(0, 0, size2, size2);
           context.drawImage(faviconImage, 0, 0, faviconImage.width, faviconImage.height, 0, 0, size2, size2);
-          if ((label + "").length > 0)
-            drawBubble(context, label);
+          if ((label + "").length > 0) drawBubble(context, label);
           refreshFavicon();
         };
         if (!src.match(/^data/) && options.crossOrigin) {
@@ -8427,8 +8367,7 @@ function requireTinycon() {
         context.fillText(label, r === 2 ? 29 : 15, browser2.mozilla ? 7 * r : 6 * r);
       };
       var refreshFavicon = function() {
-        if (!getCanvas().getContext)
-          return;
+        if (!getCanvas().getContext) return;
         setFaviconTag(getCanvas().toDataURL());
       };
       var abbreviateNumber = function(label) {
@@ -8486,22 +8425,17 @@ var ace = {};
 var cssmanager = {};
 var hasRequiredCssmanager;
 function requireCssmanager() {
-  if (hasRequiredCssmanager)
-    return cssmanager;
+  if (hasRequiredCssmanager) return cssmanager;
   hasRequiredCssmanager = 1;
   cssmanager.makeCSSManager = (browserSheet) => {
     const browserRules = () => browserSheet.cssRules || browserSheet.rules;
     const browserDeleteRule = (i) => {
-      if (browserSheet.deleteRule)
-        browserSheet.deleteRule(i);
-      else
-        browserSheet.removeRule(i);
+      if (browserSheet.deleteRule) browserSheet.deleteRule(i);
+      else browserSheet.removeRule(i);
     };
     const browserInsertRule = (i, selector) => {
-      if (browserSheet.insertRule)
-        browserSheet.insertRule(`${selector} {}`, i);
-      else
-        browserSheet.addRule(selector, null, i);
+      if (browserSheet.insertRule) browserSheet.insertRule(`${selector} {}`, i);
+      else browserSheet.addRule(selector, null, i);
     };
     const selectorList = [];
     const indexOfSelector = (selector) => {
@@ -8540,8 +8474,7 @@ var ace2_inner = {};
 var attributes = {};
 var hasRequiredAttributes;
 function requireAttributes() {
-  if (hasRequiredAttributes)
-    return attributes;
+  if (hasRequiredAttributes) return attributes;
   hasRequiredAttributes = 1;
   (function(exports) {
     exports.decodeAttribString = function* (str) {
@@ -8549,18 +8482,14 @@ function requireAttributes() {
       let match;
       while ((match = re.exec(str)) != null) {
         const [m, n] = match;
-        if (n == null)
-          throw new Error(`invalid character in attribute string: ${m}`);
+        if (n == null) throw new Error(`invalid character in attribute string: ${m}`);
         yield Number.parseInt(n, 36);
       }
     };
     const checkAttribNum = (n) => {
-      if (typeof n !== "number")
-        throw new TypeError(`not a number: ${n}`);
-      if (n < 0)
-        throw new Error(`attribute number is negative: ${n}`);
-      if (n !== Math.trunc(n))
-        throw new Error(`attribute number is not an integer: ${n}`);
+      if (typeof n !== "number") throw new TypeError(`not a number: ${n}`);
+      if (n < 0) throw new Error(`attribute number is negative: ${n}`);
+      if (n !== Math.trunc(n)) throw new Error(`attribute number is not an integer: ${n}`);
     };
     exports.encodeAttribString = (attribNums) => {
       let str = "";
@@ -8574,14 +8503,12 @@ function requireAttributes() {
       for (const n of attribNums) {
         checkAttribNum(n);
         const attrib = pool.getAttrib(n);
-        if (attrib == null)
-          throw new Error(`attribute ${n} does not exist in pool`);
+        if (attrib == null) throw new Error(`attribute ${n} does not exist in pool`);
         yield attrib;
       }
     };
     exports.attribsToNums = function* (attribs, pool) {
-      for (const attrib of attribs)
-        yield pool.putAttrib(attrib);
+      for (const attrib of attribs) yield pool.putAttrib(attrib);
     };
     exports.attribsFromString = function* (str, pool) {
       yield* exports.attribsFromNums(exports.decodeAttribString(str), pool);
@@ -8594,8 +8521,7 @@ function requireAttributes() {
 var AttributeMap_1;
 var hasRequiredAttributeMap;
 function requireAttributeMap() {
-  if (hasRequiredAttributeMap)
-    return AttributeMap_1;
+  if (hasRequiredAttributeMap) return AttributeMap_1;
   hasRequiredAttributeMap = 1;
   const attributes2 = requireAttributes();
   class AttributeMap extends Map {
@@ -8666,8 +8592,7 @@ var changesettracker = {};
 var AttributePool_1;
 var hasRequiredAttributePool;
 function requireAttributePool() {
-  if (hasRequiredAttributePool)
-    return AttributePool_1;
+  if (hasRequiredAttributePool) return AttributePool_1;
   hasRequiredAttributePool = 1;
   class AttributePool {
     constructor() {
@@ -8680,8 +8605,7 @@ function requireAttributePool() {
      */
     clone() {
       const c = new AttributePool();
-      for (const [n, a] of Object.entries(this.numToAttrib))
-        c.numToAttrib[n] = [a[0], a[1]];
+      for (const [n, a] of Object.entries(this.numToAttrib)) c.numToAttrib[n] = [a[0], a[1]];
       Object.assign(c.attribToNum, this.attribToNum);
       c.nextNum = this.nextNum;
       return c;
@@ -8727,8 +8651,7 @@ function requireAttributePool() {
      */
     getAttribKey(num) {
       const pair = this.numToAttrib[num];
-      if (!pair)
-        return "";
+      if (!pair) return "";
       return pair[0];
     }
     /**
@@ -8738,8 +8661,7 @@ function requireAttributePool() {
      */
     getAttribValue(num) {
       const pair = this.numToAttrib[num];
-      if (!pair)
-        return "";
+      if (!pair) return "";
       return pair[1];
     }
     /**
@@ -8789,16 +8711,12 @@ function requireAttributePool() {
      * Asserts that the data in the pool is consistent. Throws if inconsistent.
      */
     check() {
-      if (!Number.isInteger(this.nextNum))
-        throw new Error("nextNum property is not an integer");
-      if (this.nextNum < 0)
-        throw new Error("nextNum property is negative");
+      if (!Number.isInteger(this.nextNum)) throw new Error("nextNum property is not an integer");
+      if (this.nextNum < 0) throw new Error("nextNum property is negative");
       for (const prop of ["numToAttrib", "attribToNum"]) {
         const obj = this[prop];
-        if (obj == null)
-          throw new Error(`${prop} property is null`);
-        if (typeof obj !== "object")
-          throw new TypeError(`${prop} property is not an object`);
+        if (obj == null) throw new Error(`${prop} property is null`);
+        if (typeof obj !== "object") throw new TypeError(`${prop} property is not an object`);
         const keys2 = Object.keys(obj);
         if (keys2.length !== this.nextNum) {
           throw new Error(`${prop} size mismatch (want ${this.nextNum}, got ${keys2.length})`);
@@ -8806,22 +8724,15 @@ function requireAttributePool() {
       }
       for (let i = 0; i < this.nextNum; ++i) {
         const attr = this.numToAttrib[`${i}`];
-        if (!Array.isArray(attr))
-          throw new TypeError(`attrib ${i} is not an array`);
-        if (attr.length !== 2)
-          throw new Error(`attrib ${i} is not an array of length 2`);
+        if (!Array.isArray(attr)) throw new TypeError(`attrib ${i} is not an array`);
+        if (attr.length !== 2) throw new Error(`attrib ${i} is not an array of length 2`);
         const [k, v] = attr;
-        if (k == null)
-          throw new TypeError(`attrib ${i} key is null`);
-        if (typeof k !== "string")
-          throw new TypeError(`attrib ${i} key is not a string`);
-        if (v == null)
-          throw new TypeError(`attrib ${i} value is null`);
-        if (typeof v !== "string")
-          throw new TypeError(`attrib ${i} value is not a string`);
+        if (k == null) throw new TypeError(`attrib ${i} key is null`);
+        if (typeof k !== "string") throw new TypeError(`attrib ${i} key is not a string`);
+        if (v == null) throw new TypeError(`attrib ${i} value is null`);
+        if (typeof v !== "string") throw new TypeError(`attrib ${i} value is not a string`);
         const attrStr = String(attr);
-        if (this.attribToNum[attrStr] !== i)
-          throw new Error(`attribToNum for ${attrStr} !== ${i}`);
+        if (this.attribToNum[attrStr] !== i) throw new Error(`attribToNum for ${attrStr} !== ${i}`);
       }
     }
   }
@@ -8831,8 +8742,7 @@ function requireAttributePool() {
 var Changeset = {};
 var hasRequiredChangeset;
 function requireChangeset() {
-  if (hasRequiredChangeset)
-    return Changeset;
+  if (hasRequiredChangeset) return Changeset;
   hasRequiredChangeset = 1;
   (function(exports) {
     const AttributeMap = requireAttributeMap();
@@ -8845,8 +8755,7 @@ function requireChangeset() {
       throw e;
     };
     const assert = (b, msg) => {
-      if (!b)
-        error(`Failed assertion: ${msg}`);
+      if (!b) error(`Failed assertion: ${msg}`);
     };
     exports.parseNum = (str) => parseInt(str, 36);
     exports.numToString = (num) => num.toString(36).toLowerCase();
@@ -8861,10 +8770,8 @@ function requireChangeset() {
         this.attribs = "";
       }
       toString() {
-        if (!this.opcode)
-          throw new TypeError("null op");
-        if (typeof this.attribs !== "string")
-          throw new TypeError("attribs must be a string");
+        if (!this.opcode) throw new TypeError("null op");
+        if (typeof this.attribs !== "string") throw new TypeError("attribs must be a string");
         const l = this.lines ? `|${exports.numToString(this.lines)}` : "";
         return this.attribs + l + this.opcode + exports.numToString(this.chars);
       }
@@ -8876,10 +8783,8 @@ function requireChangeset() {
       const regex = /((?:\*[0-9a-z]+)*)(?:\|([0-9a-z]+))?([-+=])([0-9a-z]+)|(.)/g;
       let match;
       while ((match = regex.exec(ops)) != null) {
-        if (match[5] === "$")
-          return;
-        if (match[5] != null)
-          error(`invalid operation: ${ops.slice(regex.lastIndex - 1)}`);
+        if (match[5] === "$") return;
+        if (match[5] != null) error(`invalid operation: ${ops.slice(regex.lastIndex - 1)}`);
         const op = new Op(match[3]);
         op.lines = exports.parseNum(match[2] || "0");
         op.chars = exports.parseNum(match[4]);
@@ -9022,10 +8927,8 @@ function requireChangeset() {
         plusAssem.clear();
       };
       const append = (op) => {
-        if (!op.opcode)
-          return;
-        if (!op.chars)
-          return;
+        if (!op.opcode) return;
+        if (!op.chars) return;
         if (op.opcode === "-") {
           if (lastOpcode === "=") {
             flushKeeps();
@@ -9048,8 +8951,7 @@ function requireChangeset() {
       };
       const appendOpWithText = (opcode, text, attribs, pool) => {
         padutils.warnDeprecated("Changeset.smartOpAssembler().appendOpWithText() is deprecated; use opsFromText() instead.");
-        for (const op of opsFromText(opcode, text, attribs, pool))
-          append(op);
+        for (const op of opsFromText(opcode, text, attribs, pool)) append(op);
       };
       const toString2 = () => {
         flushPlusMinus();
@@ -9081,10 +8983,8 @@ function requireChangeset() {
       const bufOp = new Op();
       let bufOpAdditionalCharsAfterNewline = 0;
       const flush = (isEndDocument) => {
-        if (!bufOp.opcode)
-          return;
-        if (isEndDocument && bufOp.opcode === "=" && !bufOp.attribs)
-          ;
+        if (!bufOp.opcode) return;
+        if (isEndDocument && bufOp.opcode === "=" && !bufOp.attribs) ;
         else {
           assem.append(bufOp);
           if (bufOpAdditionalCharsAfterNewline) {
@@ -9097,8 +8997,7 @@ function requireChangeset() {
         bufOp.opcode = "";
       };
       const append = (op) => {
-        if (op.chars <= 0)
-          return;
+        if (op.chars <= 0) return;
         if (bufOp.opcode === op.opcode && bufOp.attribs === op.attribs) {
           if (op.lines > 0) {
             bufOp.chars += bufOpAdditionalCharsAfterNewline + op.chars;
@@ -9251,8 +9150,7 @@ function requireChangeset() {
       _enterSplice() {
         this._curSplice[0] = this._curLine;
         this._curSplice[1] = 0;
-        if (this._curCol > 0)
-          this._putCurLineInSplice();
+        if (this._curCol > 0) this._putCurLineInSplice();
         this._inSplice = true;
       }
       /**
@@ -9293,11 +9191,9 @@ function requireChangeset() {
        * @param {boolean} includeInSplice - Indicates that attributes are present.
        */
       skipLines(L, includeInSplice) {
-        if (!L)
-          return;
+        if (!L) return;
         if (includeInSplice) {
-          if (!this._inSplice)
-            this._enterSplice();
+          if (!this._inSplice) this._enterSplice();
           for (let i = 0; i < L; i++) {
             this._curCol = 0;
             this._putCurLineInSplice();
@@ -9323,13 +9219,11 @@ function requireChangeset() {
        * @param {boolean} includeInSplice - indicates if attributes are present
        */
       skip(N, L, includeInSplice) {
-        if (!N)
-          return;
+        if (!N) return;
         if (L) {
           this.skipLines(L, includeInSplice);
         } else {
-          if (includeInSplice && !this._inSplice)
-            this._enterSplice();
+          if (includeInSplice && !this._inSplice) this._enterSplice();
           if (this._inSplice) {
             this._putCurLineInSplice();
           }
@@ -9343,10 +9237,8 @@ function requireChangeset() {
        * @returns {string}
        */
       removeLines(L) {
-        if (!L)
-          return "";
-        if (!this._inSplice)
-          this._enterSplice();
+        if (!L) return "";
+        if (!this._inSplice) this._enterSplice();
         const nextKLinesText = (k) => {
           const m = this._curSplice[0] + this._curSplice[1];
           return this._linesSlice(m, m + k).join("");
@@ -9380,12 +9272,9 @@ function requireChangeset() {
        * @returns {string}
        */
       remove(N, L) {
-        if (!N)
-          return "";
-        if (L)
-          return this.removeLines(L);
-        if (!this._inSplice)
-          this._enterSplice();
+        if (!N) return "";
+        if (L) return this.removeLines(L);
+        if (!this._inSplice) this._enterSplice();
         const sline = this._putCurLineInSplice();
         const removed = this._curSplice[sline].substring(this._curCol, this._curCol + N);
         this._curSplice[sline] = this._curSplice[sline].substring(0, this._curCol) + this._curSplice[sline].substring(this._curCol + N);
@@ -9398,10 +9287,8 @@ function requireChangeset() {
        * @param {number} L - number of newlines in text
        */
       insert(text, L) {
-        if (!text)
-          return;
-        if (!this._inSplice)
-          this._enterSplice();
+        if (!text) return;
+        if (!this._inSplice) this._enterSplice();
         if (L) {
           const newLines = exports.splitTextLines(text);
           if (this._isCurLineInSplice()) {
@@ -9447,8 +9334,7 @@ function requireChangeset() {
        * Closes the splice
        */
       close() {
-        if (this._inSplice)
-          this._leaveSplice();
+        if (this._inSplice) this._leaveSplice();
       }
     }
     const applyZip = (in1, in2, func) => {
@@ -9458,19 +9344,13 @@ function requireChangeset() {
       let next2 = ops2.next();
       const assem = exports.smartOpAssembler();
       while (!next1.done || !next2.done) {
-        if (!next1.done && !next1.value.opcode)
-          next1 = ops1.next();
-        if (!next2.done && !next2.value.opcode)
-          next2 = ops2.next();
-        if (next1.value == null)
-          next1.value = new Op();
-        if (next2.value == null)
-          next2.value = new Op();
-        if (!next1.value.opcode && !next2.value.opcode)
-          break;
+        if (!next1.done && !next1.value.opcode) next1 = ops1.next();
+        if (!next2.done && !next2.value.opcode) next2 = ops2.next();
+        if (next1.value == null) next1.value = new Op();
+        if (next2.value == null) next2.value = new Op();
+        if (!next1.value.opcode && !next2.value.opcode) break;
         const opOut = func(next1.value, next2.value);
-        if (opOut && opOut.opcode)
-          assem.append(opOut);
+        if (opOut && opOut.opcode) assem.append(opOut);
       }
       assem.endDocument();
       return assem.toString();
@@ -9478,16 +9358,14 @@ function requireChangeset() {
     exports.unpack = (cs) => {
       const headerRegex = /Z:([0-9a-z]+)([><])([0-9a-z]+)|/;
       const headerMatch = headerRegex.exec(cs);
-      if (!headerMatch || !headerMatch[0])
-        error(`Not a changeset: ${cs}`);
+      if (!headerMatch || !headerMatch[0]) error(`Not a changeset: ${cs}`);
       const oldLen = exports.parseNum(headerMatch[1]);
       const changeSign = headerMatch[2] === ">" ? 1 : -1;
       const changeMag = exports.parseNum(headerMatch[3]);
       const newLen = oldLen + changeSign * changeMag;
       const opsStart = headerMatch[0].length;
       let opsEnd = cs.indexOf("$");
-      if (opsEnd < 0)
-        opsEnd = cs.length;
+      if (opsEnd < 0) opsEnd = cs.length;
       return {
         oldLen,
         newLen,
@@ -9556,8 +9434,7 @@ function requireChangeset() {
       if (!att1 && resultIsMutation) {
         return att2;
       }
-      if (!att2)
-        return att1;
+      if (!att2) return att1;
       return AttributeMap.fromString(att1, pool).updateFromString(att2, !resultIsMutation).toString();
     };
     const slicerZipperFunc = (attOp, csOp, pool) => {
@@ -9601,8 +9478,7 @@ function requireChangeset() {
         opOut.attribs = csOp.opcode === "-" ? csOp.attribs : exports.composeAttributes(attOp.attribs, csOp.attribs, attOp.opcode === "=", pool);
         partiallyConsumedOp.chars -= fullyConsumedOp.chars;
         partiallyConsumedOp.lines -= fullyConsumedOp.lines;
-        if (!partiallyConsumedOp.chars)
-          partiallyConsumedOp.opcode = "";
+        if (!partiallyConsumedOp.chars) partiallyConsumedOp.opcode = "";
         fullyConsumedOp.opcode = "";
       }
       return opOut;
@@ -9628,8 +9504,7 @@ function requireChangeset() {
           lineOps = exports.deserializeOps(line);
           lineOpsNext = lineOps.next();
         }
-        if (!lineOpsHasNext())
-          return new Op();
+        if (!lineOpsHasNext()) return new Op();
         const op = lineOpsNext.value;
         lineOpsNext = lineOps.next();
         return op;
@@ -9640,8 +9515,7 @@ function requireChangeset() {
           lineAssem = exports.mergingOpAssembler();
         }
         lineAssem.append(op);
-        if (op.lines <= 0)
-          return;
+        if (op.lines <= 0) return;
         assert(op.lines === 1, `Can't have op.lines of ${op.lines} in attribution lines`);
         mut.insert(lineAssem.toString(), 1);
         lineAssem = null;
@@ -9672,11 +9546,9 @@ function requireChangeset() {
           outputMutOp(opOut);
           csBankIndex += opOut.chars;
         } else {
-          if (!attOp.opcode && isNextMutOp())
-            attOp = nextMutOp();
+          if (!attOp.opcode && isNextMutOp()) attOp = nextMutOp();
           const opOut = slicerZipperFunc(attOp, csOp, pool);
-          if (opOut.opcode)
-            outputMutOp(opOut);
+          if (opOut.opcode) outputMutOp(opOut);
         }
       }
       assert(!lineAssem, `line assembler not finished:${cs}`);
@@ -9685,8 +9557,7 @@ function requireChangeset() {
     exports.joinAttributionLines = (theAlines) => {
       const assem = exports.mergingOpAssembler();
       for (const aline of theAlines) {
-        for (const op of exports.deserializeOps(aline))
-          assem.append(op);
+        for (const op of exports.deserializeOps(aline)) assem.append(op);
       }
       return assem.toString();
     };
@@ -9753,24 +9624,18 @@ function requireChangeset() {
     };
     exports.attributeTester = (attribPair, pool) => {
       const never = (attribs) => false;
-      if (!pool)
-        return never;
+      if (!pool) return never;
       const attribNum = pool.putAttrib(attribPair, true);
-      if (attribNum < 0)
-        return never;
+      if (attribNum < 0) return never;
       const re = new RegExp(`\\*${exports.numToString(attribNum)}(?!\\w)`);
       return (attribs) => re.test(attribs);
     };
     exports.identity = (N) => exports.pack(N, N, "", "");
     exports.makeSplice = (orig, start, ndel, ins, attribs, pool) => {
-      if (start < 0)
-        throw new RangeError(`start index must be non-negative (is ${start})`);
-      if (ndel < 0)
-        throw new RangeError(`characters to delete must be non-negative (is ${ndel})`);
-      if (start > orig.length)
-        start = orig.length;
-      if (ndel > orig.length - start)
-        ndel = orig.length - start;
+      if (start < 0) throw new RangeError(`start index must be non-negative (is ${start})`);
+      if (ndel < 0) throw new RangeError(`characters to delete must be non-negative (is ${ndel})`);
+      if (start > orig.length) start = orig.length;
+      if (ndel > orig.length - start) ndel = orig.length - start;
       const deleted = orig.substring(start, start + ndel);
       const assem = exports.smartOpAssembler();
       const ops = function* () {
@@ -9778,8 +9643,7 @@ function requireChangeset() {
         yield* opsFromText("-", deleted);
         yield* opsFromText("+", ins, attribs, pool);
       }();
-      for (const op of ops)
-        assem.append(op);
+      for (const op of ops) assem.append(op);
       assem.endDocument();
       return exports.pack(orig.length, orig.length + ins.length - ndel, assem.toString(), ins);
     };
@@ -9826,8 +9690,7 @@ function requireChangeset() {
         } else if (spliceEnd <= newStartChar) {
           newStartChar += thisLengthChange;
           newEndChar += thisLengthChange;
-        } else if (spliceStart >= newEndChar)
-          ;
+        } else if (spliceStart >= newEndChar) ;
         else if (spliceStart >= newStartChar && spliceEnd <= newEndChar) {
           newEndChar += thisLengthChange;
         } else if (spliceEnd < newEndChar) {
@@ -9850,16 +9713,14 @@ function requireChangeset() {
       return upToDollar.replace(/\*([0-9a-z]+)/g, (_2, a) => {
         const oldNum = exports.parseNum(a);
         const pair = oldPool.getAttrib(oldNum);
-        if (!pair)
-          return "";
+        if (!pair) return "";
         const newNum = newPool.putAttrib(pair);
         return `*${exports.numToString(newNum)}`;
       }) + fromDollar;
     };
     exports.makeAttribution = (text) => {
       const assem = exports.smartOpAssembler();
-      for (const op of opsFromText("+", text))
-        assem.append(op);
+      for (const op of opsFromText("+", text)) assem.append(op);
       return assem.toString();
     };
     exports.eachAttribNumber = (cs, func) => {
@@ -9904,8 +9765,7 @@ function requireChangeset() {
       attribs: exports.applyToAttribution(cs, atext.attribs, pool)
     });
     exports.cloneAText = (atext) => {
-      if (!atext)
-        error("atext is null");
+      if (!atext) error("atext is null");
       return {
         text: atext.text,
         attribs: atext.attribs
@@ -9918,12 +9778,10 @@ function requireChangeset() {
     exports.opsFromAText = function* (atext) {
       let lastOp = null;
       for (const op of exports.deserializeOps(atext.attribs)) {
-        if (lastOp != null)
-          yield lastOp;
+        if (lastOp != null) yield lastOp;
         lastOp = op;
       }
-      if (lastOp == null)
-        return;
+      if (lastOp == null) return;
       if (lastOp.lines <= 1) {
         lastOp.lines = 0;
         lastOp.chars--;
@@ -9936,15 +9794,13 @@ function requireChangeset() {
         lastOp.lines = 0;
         lastOp.chars = lastLineLength;
       }
-      if (lastOp.chars)
-        yield lastOp;
+      if (lastOp.chars) yield lastOp;
     };
     exports.appendATextToAssembler = (atext, assem) => {
       padutils.warnDeprecated(
         "Changeset.appendATextToAssembler() is deprecated; use Changeset.opsFromAText() instead"
       );
-      for (const op of exports.opsFromAText(atext))
-        assem.append(op);
+      for (const op of exports.opsFromAText(atext)) assem.append(op);
     };
     exports.prepareForWire = (cs, pool) => {
       const newPool = new AttributePool();
@@ -9959,11 +9815,9 @@ function requireChangeset() {
       return unpacked.ops === "" && unpacked.oldLen === unpacked.newLen;
     };
     const attribsAttributeValue = (attribs, key, pool) => {
-      if (!attribs)
-        return "";
+      if (!attribs) return "";
       for (const [k, v] of attributes2.attribsFromString(attribs, pool)) {
-        if (k === key)
-          return v;
+        if (k === key) return v;
       }
       return "";
     };
@@ -10011,8 +9865,7 @@ function requireChangeset() {
          * @returns {Builder} this
          */
         keepText: (text, attribs, pool) => {
-          for (const op of opsFromText("=", text, attribs, pool))
-            assem.append(op);
+          for (const op of opsFromText("=", text, attribs, pool)) assem.append(op);
           return self2;
         },
         /**
@@ -10024,8 +9877,7 @@ function requireChangeset() {
          * @returns {Builder} this
          */
         insert: (text, attribs, pool) => {
-          for (const op of opsFromText("+", text, attribs, pool))
-            assem.append(op);
+          for (const op of opsFromText("+", text, attribs, pool)) assem.append(op);
           charBank.append(text);
           return self2;
         },
@@ -10055,10 +9907,8 @@ function requireChangeset() {
       padutils.warnDeprecated(
         "Changeset.makeAttribsString() is deprecated; use AttributeMap.prototype.toString() or attributes.attribsToString() instead"
       );
-      if (!attribs || !["=", "+"].includes(opcode))
-        return "";
-      if (typeof attribs === "string")
-        return attribs;
+      if (!attribs || !["=", "+"].includes(opcode)) return "";
+      if (typeof attribs === "string") return attribs;
       return new AttributeMap(pool).update(attribs, opcode === "+").toString();
     };
     exports.subattribution = (astr, start, optEnd) => {
@@ -10068,8 +9918,7 @@ function requireChangeset() {
       let attOp = new Op();
       const csOp = new Op();
       const doCsOp = () => {
-        if (!csOp.chars)
-          return;
+        if (!csOp.chars) return;
         while (csOp.opcode && (attOp.opcode || !attOpsNext.done)) {
           if (!attOp.opcode) {
             attOp = attOpsNext.value;
@@ -10079,8 +9928,7 @@ function requireChangeset() {
             csOp.lines++;
           }
           const opOut = slicerZipperFunc(attOp, csOp, null);
-          if (opOut.opcode)
-            assem.append(opOut);
+          if (opOut.opcode) assem.append(opOut);
         }
       };
       csOp.opcode = "-";
@@ -10212,8 +10060,7 @@ function requireChangeset() {
               const backAttribs = new AttributeMap(pool);
               for (const [key, value] of attribs) {
                 const oldValue = oldAttribs.get(key) || "";
-                if (oldValue !== value)
-                  backAttribs.set(key, oldValue);
+                if (oldValue !== value) backAttribs.set(key, oldValue);
               }
               return backAttribs.toString();
             });
@@ -10364,10 +10211,8 @@ function requireChangeset() {
       return exports.pack(oldLen, newLen, newOps, unpacked2.charBank);
     };
     const followAttributes = (att1, att2, pool) => {
-      if (!att2 || !pool)
-        return "";
-      if (!att1)
-        return att2;
+      if (!att2 || !pool) return "";
+      if (!att1) return att2;
       const atts = /* @__PURE__ */ new Map();
       att2.replace(/\*([0-9a-z]+)/g, (_2, a) => {
         const [key, val] = pool.getAttrib(exports.parseNum(a));
@@ -10376,8 +10221,7 @@ function requireChangeset() {
       });
       att1.replace(/\*([0-9a-z]+)/g, (_2, a) => {
         const [key, val] = pool.getAttrib(exports.parseNum(a));
-        if (atts.has(key) && val <= atts.get(key))
-          atts.delete(key);
+        if (atts.has(key) && val <= atts.get(key)) atts.delete(key);
         return "";
       });
       const buf = exports.stringAssembler();
@@ -10397,8 +10241,7 @@ function requireChangeset() {
 }
 var hasRequiredChangesettracker;
 function requireChangesettracker() {
-  if (hasRequiredChangesettracker)
-    return changesettracker;
+  if (hasRequiredChangesettracker) return changesettracker;
   hasRequiredChangesettracker = 1;
   const AttributeMap = requireAttributeMap();
   const AttributePool = requireAttributePool();
@@ -10448,18 +10291,14 @@ function requireChangesettracker() {
         });
       },
       composeUserChangeset: (c) => {
-        if (!tracking)
-          return;
-        if (applyingNonUserChanges)
-          return;
-        if (Changeset2.isIdentity(c))
-          return;
+        if (!tracking) return;
+        if (applyingNonUserChanges) return;
+        if (Changeset2.isIdentity(c)) return;
         userChangeset = Changeset2.compose(userChangeset, c, apool);
         setChangeCallbackTimeout();
       },
       applyChangesToBase: (c, optAuthor, apoolJsonObj) => {
-        if (!tracking)
-          return;
+        if (!tracking) return;
         aceCallbacksProvider.withCallbacks("applyChangesToBase", (callbacks) => {
           if (apoolJsonObj) {
             const wireApool = new AttributePool().fromJsonable(apoolJsonObj);
@@ -10517,10 +10356,8 @@ function requireChangesettracker() {
           assem.endDocument();
           userChangeset = Changeset2.pack(cs2.oldLen, cs2.newLen, assem.toString(), cs2.charBank);
           Changeset2.checkRep(userChangeset);
-          if (Changeset2.isIdentity(userChangeset))
-            toSubmit = null;
-          else
-            toSubmit = userChangeset;
+          if (Changeset2.isIdentity(userChangeset)) toSubmit = null;
+          else toSubmit = userChangeset;
         }
         let cs = null;
         if (toSubmit) {
@@ -10559,8 +10396,7 @@ function requireChangesettracker() {
 var colorutils = {};
 var hasRequiredColorutils;
 function requireColorutils() {
-  if (hasRequiredColorutils)
-    return colorutils;
+  if (hasRequiredColorutils) return colorutils;
   hasRequiredColorutils = 1;
   const colorutils$1 = {};
   colorutils$1.isCssHex = (cssColor) => /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(cssColor);
@@ -10611,8 +10447,7 @@ function requireColorutils() {
   colorutils$1.saturate = (c) => {
     const min2 = colorutils$1.colorMin(c);
     const max2 = colorutils$1.colorMax(c);
-    if (max2 - min2 <= 0)
-      return [1, 1, 1];
+    if (max2 - min2 <= 0) return [1, 1, 1];
     return colorutils$1.unscaleColor(c, min2, max2);
   };
   colorutils$1.blend = (c1, c2, t) => [
@@ -10641,8 +10476,7 @@ var contentcollector = {};
 var unorm = { exports: {} };
 var hasRequiredUnorm;
 function requireUnorm() {
-  if (hasRequiredUnorm)
-    return unorm.exports;
+  if (hasRequiredUnorm) return unorm.exports;
   hasRequiredUnorm = 1;
   (function(module) {
     (function(root2) {
@@ -11018,8 +10852,7 @@ function requireUnorm() {
 }
 var hasRequiredContentcollector;
 function requireContentcollector() {
-  if (hasRequiredContentcollector)
-    return contentcollector;
+  if (hasRequiredContentcollector) return contentcollector;
   hasRequiredContentcollector = 1;
   const _MAX_LIST_LEVEL = 16;
   const AttributeMap = requireAttributeMap();
@@ -11108,8 +10941,7 @@ function requireContentcollector() {
     let selStart = [-1, -1];
     let selEnd = [-1, -1];
     const _isEmpty = (node, state) => {
-      if (node.childNodes.length === 0)
-        return true;
+      if (node.childNodes.length === 0) return true;
       if (node.childNodes.length === 1 && getAssoc(node, "shouldBeEmpty") && node.innerHTML === "&nbsp;" && !getAssoc(node, "unpasted")) {
         if (state) {
           const child = node.childNodes[0];
@@ -11130,8 +10962,7 @@ function requireContentcollector() {
       return [ln, chr];
     };
     const _reachBlockPoint = (nd, idx, state) => {
-      if (nd.nodeType !== nd.TEXT_NODE)
-        _reachPoint(nd, idx, state);
+      if (nd.nodeType !== nd.TEXT_NODE) _reachPoint(nd, idx, state);
     };
     const _reachPoint = (nd, idx, state) => {
       if (startPoint && nd === startPoint.node && startPoint.index === idx) {
@@ -11160,8 +10991,7 @@ function requireContentcollector() {
       _recalcAttribString(state);
     };
     const _enterList = (state, listType) => {
-      if (!listType)
-        return;
+      if (!listType) return;
       const oldListType = state.lineAttributes.list;
       if (listType !== "none") {
         state.listNesting = (state.listNesting || 0) + 1;
@@ -11204,22 +11034,19 @@ function requireContentcollector() {
     const _recalcAttribString = (state) => {
       const attribs = new AttributeMap(apool);
       for (const [a, count] of Object.entries(state.attribs)) {
-        if (!count)
-          continue;
+        if (!count) continue;
         const ATTRIBUTE_SPLIT_STRING = "::";
         const attributeSplits = a.split(ATTRIBUTE_SPLIT_STRING);
         if (attributeSplits.length > 1) {
           const [k, v] = attributeSplits;
-          if (v)
-            attribs.set(k, v);
+          if (v) attribs.set(k, v);
         } else {
           attribs.set(a, "true");
         }
       }
       if (state.authorLevel > 0) {
         if (apool.putAttrib(["author", state.author], true) >= 0) {
-          if (state.author)
-            attribs.set("author", state.author);
+          if (state.author) attribs.set("author", state.author);
         }
       }
       state.attribString = attribs.toString();
@@ -11276,12 +11103,10 @@ function requireContentcollector() {
       state.localAttribs = null;
       const isBlock = isBlockElement(node);
       if (!isBlock && node.name && node.name !== "body") {
-        if (!supportedElems.has(node.name))
-          state.unsupportedElements.add(node.name);
+        if (!supportedElems.has(node.name)) state.unsupportedElements.add(node.name);
       }
       const isEmpty2 = _isEmpty(node, state);
-      if (isBlock)
-        _ensureColumnZero(state);
+      if (isBlock) _ensureColumnZero(state);
       const startLine = lines.length() - 1;
       _reachBlockPoint(node, 0, state);
       if (node.nodeType === node.TEXT_NODE) {
@@ -11359,8 +11184,7 @@ function requireContentcollector() {
           if (startNewLine) {
             cc.startNewLine(state);
           }
-        } else if (tname === "script" || tname === "style")
-          ;
+        } else if (tname === "script" || tname === "style") ;
         else if (!isEmpty2) {
           let styl = node.getAttribute("style");
           let cls = node.getAttribute("class");
@@ -11368,8 +11192,7 @@ function requireContentcollector() {
           if (!isPre && abrowser && abrowser.safari) {
             isPre = styl && /\bwhite-space:\s*pre\b/i.exec(styl);
           }
-          if (isPre)
-            cc.incrementFlag(state, "preMode");
+          if (isPre) cc.incrementFlag(state, "preMode");
           let oldListTypeOrNull = null;
           let oldAuthorOrNull = null;
           if (cls === "Numbering_20_Symbols" || cls === "Bullet_20_Symbols") {
@@ -11402,11 +11225,9 @@ function requireContentcollector() {
               const rr = cls && /(?:^| )list-([a-z]+[0-9]+)\b/.exec(cls);
               if (!rr && !type) {
                 for (const child of node.childNodes) {
-                  if (tagName(child) !== "ul")
-                    continue;
+                  if (tagName(child) !== "ul") continue;
                   type = child.getAttribute("class");
-                  if (type)
-                    break;
+                  if (type) break;
                 }
               }
               if (rr && rr[1]) {
@@ -11426,8 +11247,7 @@ function requireContentcollector() {
               }
               oldListTypeOrNull = _enterList(state, type) || "none";
             } else if ((tname === "div" || tname === "p") && cls && cls.match(/(?:^| )ace-line\b/)) {
-              if (!abrowser.chrome)
-                oldListTypeOrNull = _enterList(state, void 0) || "none";
+              if (!abrowser.chrome) oldListTypeOrNull = _enterList(state, void 0) || "none";
             } else if (tname === "li") {
               state.lineAttributes.start = state.start || 0;
               _recalcAttribString(state);
@@ -11439,8 +11259,7 @@ function requireContentcollector() {
               if (node.parentNode && tagName(node.parentNode) === "ul") {
                 state.start++;
               }
-            } else
-              ;
+            } else ;
             if (className2Author && cls) {
               const classes = cls.match(/\S+/g);
               if (classes && classes.length > 0) {
@@ -11467,8 +11286,7 @@ function requireContentcollector() {
               cls
             });
           }
-          if (isPre)
-            cc.decrementFlag(state, "preMode");
+          if (isPre) cc.decrementFlag(state, "preMode");
           if (state.localAttribs) {
             for (let i = 0; i < state.localAttribs.length; i++) {
               cc.decrementAttrib(state, state.localAttribs[i]);
@@ -11536,8 +11354,7 @@ function requireContentcollector() {
               newAttribStrings.push(oldAttribString);
             }
             const fixLineNumber = (lineChar) => {
-              if (lineChar[0] < 0)
-                return;
+              if (lineChar[0] < 0) return;
               let n = lineChar[0];
               let c = lineChar[1];
               if (n > i) {
@@ -11584,7 +11401,7 @@ function requireContentcollector() {
   return contentcollector;
 }
 var domline = {};
-var VERSION = "1.13.6";
+var VERSION = "1.13.7";
 var root = typeof self == "object" && self.self === self && self || typeof global == "object" && global.global === global && global || Function("return this")() || {};
 var ArrayProto = Array.prototype, ObjProto = Object.prototype;
 var SymbolProto = typeof Symbol !== "undefined" ? Symbol.prototype : null;
@@ -11663,12 +11480,12 @@ if (typeof /./ != "function" && typeof Int8Array != "object" && typeof nodelist 
 }
 const isFunction$1 = isFunction;
 const hasObjectTag = tagTester("Object");
-var hasStringTagBug = supportsDataView && hasObjectTag(new DataView(new ArrayBuffer(8))), isIE11 = typeof Map !== "undefined" && hasObjectTag(/* @__PURE__ */ new Map());
+var hasDataViewBug = supportsDataView && (!/\[native code\]/.test(String(DataView)) || hasObjectTag(new DataView(new ArrayBuffer(8)))), isIE11 = typeof Map !== "undefined" && hasObjectTag(/* @__PURE__ */ new Map());
 var isDataView = tagTester("DataView");
-function ie10IsDataView(obj) {
+function alternateIsDataView(obj) {
   return obj != null && isFunction$1(obj.getInt8) && isArrayBuffer(obj.buffer);
 }
-const isDataView$1 = hasStringTagBug ? ie10IsDataView : isDataView;
+const isDataView$1 = hasDataViewBug ? alternateIsDataView : isDataView;
 const isArray = nativeIsArray || tagTester("Array");
 function has$1(obj, key) {
   return obj != null && hasOwnProperty.call(obj, key);
@@ -11714,8 +11531,7 @@ const isTypedArray$1 = supportsArrayBuffer ? isTypedArray : constant(false);
 const getLength = shallowProperty("length");
 function emulatedSet(keys2) {
   var hash = {};
-  for (var l = keys2.length, i = 0; i < l; ++i)
-    hash[keys2[i]] = true;
+  for (var l = keys2.length, i = 0; i < l; ++i) hash[keys2[i]] = true;
   return {
     contains: function(key) {
       return hash[key] === true;
@@ -11732,8 +11548,7 @@ function collectNonEnumProps(obj, keys2) {
   var constructor = obj.constructor;
   var proto = isFunction$1(constructor) && constructor.prototype || ObjProto;
   var prop = "constructor";
-  if (has$1(obj, prop) && !keys2.contains(prop))
-    keys2.push(prop);
+  if (has$1(obj, prop) && !keys2.contains(prop)) keys2.push(prop);
   while (nonEnumIdx--) {
     prop = nonEnumerableProps[nonEnumIdx];
     if (prop in obj && obj[prop] !== proto[prop] && !keys2.contains(prop)) {
@@ -11742,43 +11557,32 @@ function collectNonEnumProps(obj, keys2) {
   }
 }
 function keys(obj) {
-  if (!isObject(obj))
-    return [];
-  if (nativeKeys)
-    return nativeKeys(obj);
+  if (!isObject(obj)) return [];
+  if (nativeKeys) return nativeKeys(obj);
   var keys2 = [];
-  for (var key in obj)
-    if (has$1(obj, key))
-      keys2.push(key);
-  if (hasEnumBug)
-    collectNonEnumProps(obj, keys2);
+  for (var key in obj) if (has$1(obj, key)) keys2.push(key);
+  if (hasEnumBug) collectNonEnumProps(obj, keys2);
   return keys2;
 }
 function isEmpty(obj) {
-  if (obj == null)
-    return true;
+  if (obj == null) return true;
   var length = getLength(obj);
-  if (typeof length == "number" && (isArray(obj) || isString(obj) || isArguments$1(obj)))
-    return length === 0;
+  if (typeof length == "number" && (isArray(obj) || isString(obj) || isArguments$1(obj))) return length === 0;
   return getLength(keys(obj)) === 0;
 }
 function isMatch(object2, attrs) {
   var _keys = keys(attrs), length = _keys.length;
-  if (object2 == null)
-    return !length;
+  if (object2 == null) return !length;
   var obj = Object(object2);
   for (var i = 0; i < length; i++) {
     var key = _keys[i];
-    if (attrs[key] !== obj[key] || !(key in obj))
-      return false;
+    if (attrs[key] !== obj[key] || !(key in obj)) return false;
   }
   return true;
 }
 function _$1(obj) {
-  if (obj instanceof _$1)
-    return obj;
-  if (!(this instanceof _$1))
-    return new _$1(obj);
+  if (obj instanceof _$1) return obj;
+  if (!(this instanceof _$1)) return new _$1(obj);
   this._wrapped = obj;
 }
 _$1.VERSION = VERSION;
@@ -11798,28 +11602,20 @@ function toBufferView(bufferSource) {
 }
 var tagDataView = "[object DataView]";
 function eq(a, b, aStack, bStack) {
-  if (a === b)
-    return a !== 0 || 1 / a === 1 / b;
-  if (a == null || b == null)
-    return false;
-  if (a !== a)
-    return b !== b;
+  if (a === b) return a !== 0 || 1 / a === 1 / b;
+  if (a == null || b == null) return false;
+  if (a !== a) return b !== b;
   var type = typeof a;
-  if (type !== "function" && type !== "object" && typeof b != "object")
-    return false;
+  if (type !== "function" && type !== "object" && typeof b != "object") return false;
   return deepEq(a, b, aStack, bStack);
 }
 function deepEq(a, b, aStack, bStack) {
-  if (a instanceof _$1)
-    a = a._wrapped;
-  if (b instanceof _$1)
-    b = b._wrapped;
+  if (a instanceof _$1) a = a._wrapped;
+  if (b instanceof _$1) b = b._wrapped;
   var className = toString.call(a);
-  if (className !== toString.call(b))
-    return false;
-  if (hasStringTagBug && className == "[object Object]" && isDataView$1(a)) {
-    if (!isDataView$1(b))
-      return false;
+  if (className !== toString.call(b)) return false;
+  if (hasDataViewBug && className == "[object Object]" && isDataView$1(a)) {
+    if (!isDataView$1(b)) return false;
     className = tagDataView;
   }
   switch (className) {
@@ -11827,8 +11623,7 @@ function deepEq(a, b, aStack, bStack) {
     case "[object String]":
       return "" + a === "" + b;
     case "[object Number]":
-      if (+a !== +a)
-        return +b !== +b;
+      if (+a !== +a) return +b !== +b;
       return +a === 0 ? 1 / +a === 1 / b : +a === +b;
     case "[object Date]":
     case "[object Boolean]":
@@ -11842,15 +11637,12 @@ function deepEq(a, b, aStack, bStack) {
   var areArrays = className === "[object Array]";
   if (!areArrays && isTypedArray$1(a)) {
     var byteLength = getByteLength(a);
-    if (byteLength !== getByteLength(b))
-      return false;
-    if (a.buffer === b.buffer && a.byteOffset === b.byteOffset)
-      return true;
+    if (byteLength !== getByteLength(b)) return false;
+    if (a.buffer === b.buffer && a.byteOffset === b.byteOffset) return true;
     areArrays = true;
   }
   if (!areArrays) {
-    if (typeof a != "object" || typeof b != "object")
-      return false;
+    if (typeof a != "object" || typeof b != "object") return false;
     var aCtor = a.constructor, bCtor = b.constructor;
     if (aCtor !== bCtor && !(isFunction$1(aCtor) && aCtor instanceof aCtor && isFunction$1(bCtor) && bCtor instanceof bCtor) && ("constructor" in a && "constructor" in b)) {
       return false;
@@ -11860,28 +11652,23 @@ function deepEq(a, b, aStack, bStack) {
   bStack = bStack || [];
   var length = aStack.length;
   while (length--) {
-    if (aStack[length] === a)
-      return bStack[length] === b;
+    if (aStack[length] === a) return bStack[length] === b;
   }
   aStack.push(a);
   bStack.push(b);
   if (areArrays) {
     length = a.length;
-    if (length !== b.length)
-      return false;
+    if (length !== b.length) return false;
     while (length--) {
-      if (!eq(a[length], b[length], aStack, bStack))
-        return false;
+      if (!eq(a[length], b[length], aStack, bStack)) return false;
     }
   } else {
     var _keys = keys(a), key;
     length = _keys.length;
-    if (keys(b).length !== length)
-      return false;
+    if (keys(b).length !== length) return false;
     while (length--) {
       key = _keys[length];
-      if (!(has$1(b, key) && eq(a[key], b[key], aStack, bStack)))
-        return false;
+      if (!(has$1(b, key) && eq(a[key], b[key], aStack, bStack))) return false;
     }
   }
   aStack.pop();
@@ -11892,26 +11679,20 @@ function isEqual(a, b) {
   return eq(a, b);
 }
 function allKeys(obj) {
-  if (!isObject(obj))
-    return [];
+  if (!isObject(obj)) return [];
   var keys2 = [];
-  for (var key in obj)
-    keys2.push(key);
-  if (hasEnumBug)
-    collectNonEnumProps(obj, keys2);
+  for (var key in obj) keys2.push(key);
+  if (hasEnumBug) collectNonEnumProps(obj, keys2);
   return keys2;
 }
 function ie11fingerprint(methods) {
   var length = getLength(methods);
   return function(obj) {
-    if (obj == null)
-      return false;
+    if (obj == null) return false;
     var keys2 = allKeys(obj);
-    if (getLength(keys2))
-      return false;
+    if (getLength(keys2)) return false;
     for (var i = 0; i < length; i++) {
-      if (!isFunction$1(obj[methods[i]]))
-        return false;
+      if (!isFunction$1(obj[methods[i]])) return false;
     }
     return methods !== weakMapMethods || !isFunction$1(obj[forEachName]);
   };
@@ -11951,24 +11732,20 @@ function invert(obj) {
 function functions(obj) {
   var names = [];
   for (var key in obj) {
-    if (isFunction$1(obj[key]))
-      names.push(key);
+    if (isFunction$1(obj[key])) names.push(key);
   }
   return names.sort();
 }
 function createAssigner(keysFunc, defaults2) {
   return function(obj) {
     var length = arguments.length;
-    if (defaults2)
-      obj = Object(obj);
-    if (length < 2 || obj == null)
-      return obj;
+    if (defaults2) obj = Object(obj);
+    if (length < 2 || obj == null) return obj;
     for (var index = 1; index < length; index++) {
       var source = arguments[index], keys2 = keysFunc(source), l = keys2.length;
       for (var i = 0; i < l; i++) {
         var key = keys2[i];
-        if (!defaults2 || obj[key] === void 0)
-          obj[key] = source[key];
+        if (!defaults2 || obj[key] === void 0) obj[key] = source[key];
       }
     }
     return obj;
@@ -11982,10 +11759,8 @@ function ctor() {
   };
 }
 function baseCreate(prototype) {
-  if (!isObject(prototype))
-    return {};
-  if (nativeCreate)
-    return nativeCreate(prototype);
+  if (!isObject(prototype)) return {};
+  if (nativeCreate) return nativeCreate(prototype);
   var Ctor = ctor();
   Ctor.prototype = prototype;
   var result2 = new Ctor();
@@ -11994,13 +11769,11 @@ function baseCreate(prototype) {
 }
 function create(prototype, props) {
   var result2 = baseCreate(prototype);
-  if (props)
-    extendOwn(result2, props);
+  if (props) extendOwn(result2, props);
   return result2;
 }
 function clone(obj) {
-  if (!isObject(obj))
-    return obj;
+  if (!isObject(obj)) return obj;
   return isArray(obj) ? obj.slice() : extend({}, obj);
 }
 function tap(obj, interceptor) {
@@ -12017,8 +11790,7 @@ function toPath(path) {
 function deepGet(obj, path) {
   var length = path.length;
   for (var i = 0; i < length; i++) {
-    if (obj == null)
-      return void 0;
+    if (obj == null) return void 0;
     obj = obj[path[i]];
   }
   return length ? obj : void 0;
@@ -12032,8 +11804,7 @@ function has(obj, path) {
   var length = path.length;
   for (var i = 0; i < length; i++) {
     var key = path[i];
-    if (!has$1(obj, key))
-      return false;
+    if (!has$1(obj, key)) return false;
     obj = obj[key];
   }
   return !!length;
@@ -12054,8 +11825,7 @@ function property(path) {
   };
 }
 function optimizeCb(func, context, argCount) {
-  if (context === void 0)
-    return func;
+  if (context === void 0) return func;
   switch (argCount == null ? 3 : argCount) {
     case 1:
       return function(value) {
@@ -12075,12 +11845,9 @@ function optimizeCb(func, context, argCount) {
   };
 }
 function baseIteratee(value, context, argCount) {
-  if (value == null)
-    return identity;
-  if (isFunction$1(value))
-    return optimizeCb(value, context, argCount);
-  if (isObject(value) && !isArray(value))
-    return matcher(value);
+  if (value == null) return identity;
+  if (isFunction$1(value)) return optimizeCb(value, context, argCount);
+  if (isObject(value) && !isArray(value)) return matcher(value);
   return property(value);
 }
 function iteratee(value, context) {
@@ -12088,8 +11855,7 @@ function iteratee(value, context) {
 }
 _$1.iteratee = iteratee;
 function cb(value, context, argCount) {
-  if (_$1.iteratee !== iteratee)
-    return _$1.iteratee(value, context);
+  if (_$1.iteratee !== iteratee) return _$1.iteratee(value, context);
   return baseIteratee(value, context, argCount);
 }
 function mapObject(obj, iteratee2, context) {
@@ -12104,8 +11870,7 @@ function mapObject(obj, iteratee2, context) {
 function noop() {
 }
 function propertyOf(obj) {
-  if (obj == null)
-    return noop;
+  if (obj == null) return noop;
   return function(path) {
     return get(obj, path);
   };
@@ -12113,8 +11878,7 @@ function propertyOf(obj) {
 function times(n, iteratee2, context) {
   var accum = Array(Math.max(0, n));
   iteratee2 = optimizeCb(iteratee2, context, 1);
-  for (var i = 0; i < n; i++)
-    accum[i] = iteratee2(i);
+  for (var i = 0; i < n; i++) accum[i] = iteratee2(i);
   return accum;
 }
 function random(min2, max2) {
@@ -12170,8 +11934,7 @@ function escapeChar(match) {
 }
 var bareIdentifier = /^\s*(\w|\$)+\s*$/;
 function template(text, settings, oldSettings) {
-  if (!settings && oldSettings)
-    settings = oldSettings;
+  if (!settings && oldSettings) settings = oldSettings;
   settings = defaults({}, settings, _$1.templateSettings);
   var matcher2 = RegExp([
     (settings.escape || noMatch).source,
@@ -12195,10 +11958,9 @@ function template(text, settings, oldSettings) {
   source += "';\n";
   var argument = settings.variable;
   if (argument) {
-    if (!bareIdentifier.test(argument))
-      throw new Error(
-        "variable is not a bare identifier: " + argument
-      );
+    if (!bareIdentifier.test(argument)) throw new Error(
+      "variable is not a bare identifier: " + argument
+    );
   } else {
     source = "with(obj||{}){\n" + source + "}\n";
     argument = "obj";
@@ -12244,12 +12006,10 @@ function chain(obj) {
   return instance;
 }
 function executeBound(sourceFunc, boundFunc, context, callingContext, args) {
-  if (!(callingContext instanceof boundFunc))
-    return sourceFunc.apply(context, args);
+  if (!(callingContext instanceof boundFunc)) return sourceFunc.apply(context, args);
   var self2 = baseCreate(sourceFunc.prototype);
   var result2 = sourceFunc.apply(self2, args);
-  if (isObject(result2))
-    return result2;
+  if (isObject(result2)) return result2;
   return self2;
 }
 var partial = restArguments(function(func, boundArgs) {
@@ -12260,16 +12020,14 @@ var partial = restArguments(function(func, boundArgs) {
     for (var i = 0; i < length; i++) {
       args[i] = boundArgs[i] === placeholder ? arguments[position++] : boundArgs[i];
     }
-    while (position < arguments.length)
-      args.push(arguments[position++]);
+    while (position < arguments.length) args.push(arguments[position++]);
     return executeBound(func, bound, this, this, args);
   };
   return bound;
 });
 partial.placeholder = _$1;
 const bind = restArguments(function(func, context, args) {
-  if (!isFunction$1(func))
-    throw new TypeError("Bind must be called on a function");
+  if (!isFunction$1(func)) throw new TypeError("Bind must be called on a function");
   var bound = restArguments(function(callArgs) {
     return executeBound(func, bound, context, this, args.concat(callArgs));
   });
@@ -12292,8 +12050,7 @@ function flatten$1(input, depth, strict, output) {
         idx = output.length;
       } else {
         var j = 0, len = value.length;
-        while (j < len)
-          output[idx++] = value[j++];
+        while (j < len) output[idx++] = value[j++];
       }
     } else if (!strict) {
       output[idx++] = value;
@@ -12304,8 +12061,7 @@ function flatten$1(input, depth, strict, output) {
 const bindAll = restArguments(function(obj, keys2) {
   keys2 = flatten$1(keys2, false, false);
   var index = keys2.length;
-  if (index < 1)
-    throw new Error("bindAll must be passed function names");
+  if (index < 1) throw new Error("bindAll must be passed function names");
   while (index--) {
     var key = keys2[index];
     obj[key] = bind(obj[key], obj);
@@ -12316,8 +12072,7 @@ function memoize(func, hasher) {
   var memoize2 = function(key) {
     var cache = memoize2.cache;
     var address = "" + (hasher ? hasher.apply(this, arguments) : key);
-    if (!has$1(cache, address))
-      cache[address] = func.apply(this, arguments);
+    if (!has$1(cache, address)) cache[address] = func.apply(this, arguments);
     return cache[address];
   };
   memoize2.cache = {};
@@ -12332,19 +12087,16 @@ const defer = partial(delay, _$1, 1);
 function throttle(func, wait, options) {
   var timeout, context, args, result2;
   var previous = 0;
-  if (!options)
-    options = {};
+  if (!options) options = {};
   var later = function() {
     previous = options.leading === false ? 0 : now();
     timeout = null;
     result2 = func.apply(context, args);
-    if (!timeout)
-      context = args = null;
+    if (!timeout) context = args = null;
   };
   var throttled = function() {
     var _now = now();
-    if (!previous && options.leading === false)
-      previous = _now;
+    if (!previous && options.leading === false) previous = _now;
     var remaining = wait - (_now - previous);
     context = this;
     args = arguments;
@@ -12355,8 +12107,7 @@ function throttle(func, wait, options) {
       }
       previous = _now;
       result2 = func.apply(context, args);
-      if (!timeout)
-        context = args = null;
+      if (!timeout) context = args = null;
     } else if (!timeout && options.trailing !== false) {
       timeout = setTimeout(later, remaining);
     }
@@ -12377,10 +12128,8 @@ function debounce(func, wait, immediate) {
       timeout = setTimeout(later, wait - passed);
     } else {
       timeout = null;
-      if (!immediate)
-        result2 = func.apply(context, args);
-      if (!timeout)
-        args = context = null;
+      if (!immediate) result2 = func.apply(context, args);
+      if (!timeout) args = context = null;
     }
   };
   var debounced = restArguments(function(_args) {
@@ -12389,8 +12138,7 @@ function debounce(func, wait, immediate) {
     previous = now();
     if (!timeout) {
       timeout = setTimeout(later, wait);
-      if (immediate)
-        result2 = func.apply(context, args);
+      if (immediate) result2 = func.apply(context, args);
     }
     return result2;
   });
@@ -12414,8 +12162,7 @@ function compose() {
   return function() {
     var i = start;
     var result2 = args[start].apply(this, arguments);
-    while (i--)
-      result2 = args[i].call(this, result2);
+    while (i--) result2 = args[i].call(this, result2);
     return result2;
   };
 }
@@ -12432,8 +12179,7 @@ function before(times2, func) {
     if (--times2 > 0) {
       memo = func.apply(this, arguments);
     }
-    if (times2 <= 1)
-      func = null;
+    if (times2 <= 1) func = null;
     return memo;
   };
 }
@@ -12443,8 +12189,7 @@ function findKey(obj, predicate, context) {
   var _keys = keys(obj), key;
   for (var i = 0, length = _keys.length; i < length; i++) {
     key = _keys[i];
-    if (predicate(obj[key], key, obj))
-      return key;
+    if (predicate(obj[key], key, obj)) return key;
   }
 }
 function createPredicateIndexFinder(dir) {
@@ -12453,8 +12198,7 @@ function createPredicateIndexFinder(dir) {
     var length = getLength(array);
     var index = dir > 0 ? 0 : length - 1;
     for (; index >= 0 && index < length; index += dir) {
-      if (predicate(array[index], index, array))
-        return index;
+      if (predicate(array[index], index, array)) return index;
     }
     return -1;
   };
@@ -12467,10 +12211,8 @@ function sortedIndex(array, obj, iteratee2, context) {
   var low = 0, high = getLength(array);
   while (low < high) {
     var mid = Math.floor((low + high) / 2);
-    if (iteratee2(array[mid]) < value)
-      low = mid + 1;
-    else
-      high = mid;
+    if (iteratee2(array[mid]) < value) low = mid + 1;
+    else high = mid;
   }
   return low;
 }
@@ -12492,8 +12234,7 @@ function createIndexFinder(dir, predicateFind, sortedIndex2) {
       return idx >= 0 ? idx + i : -1;
     }
     for (idx = dir > 0 ? i : length - 1; idx >= 0 && idx < length; idx += dir) {
-      if (array[idx] === item)
-        return idx;
+      if (array[idx] === item) return idx;
     }
     return -1;
   };
@@ -12503,8 +12244,7 @@ const lastIndexOf = createIndexFinder(-1, findLastIndex);
 function find(obj, predicate, context) {
   var keyFinder = isArrayLike(obj) ? findIndex : findKey;
   var key = keyFinder(obj, predicate, context);
-  if (key !== void 0 && key !== -1)
-    return obj[key];
+  if (key !== void 0 && key !== -1) return obj[key];
 }
 function findWhere(obj, attrs) {
   return find(obj, matcher(attrs));
@@ -12557,8 +12297,7 @@ function filter(obj, predicate, context) {
   var results = [];
   predicate = cb(predicate, context);
   each(obj, function(value, index, list) {
-    if (predicate(value, index, list))
-      results.push(value);
+    if (predicate(value, index, list)) results.push(value);
   });
   return results;
 }
@@ -12570,8 +12309,7 @@ function every(obj, predicate, context) {
   var _keys = !isArrayLike(obj) && keys(obj), length = (_keys || obj).length;
   for (var index = 0; index < length; index++) {
     var currentKey = _keys ? _keys[index] : index;
-    if (!predicate(obj[currentKey], currentKey, obj))
-      return false;
+    if (!predicate(obj[currentKey], currentKey, obj)) return false;
   }
   return true;
 }
@@ -12580,16 +12318,13 @@ function some(obj, predicate, context) {
   var _keys = !isArrayLike(obj) && keys(obj), length = (_keys || obj).length;
   for (var index = 0; index < length; index++) {
     var currentKey = _keys ? _keys[index] : index;
-    if (predicate(obj[currentKey], currentKey, obj))
-      return true;
+    if (predicate(obj[currentKey], currentKey, obj)) return true;
   }
   return false;
 }
 function contains(obj, item, fromIndex, guard) {
-  if (!isArrayLike(obj))
-    obj = values(obj);
-  if (typeof fromIndex != "number" || guard)
-    fromIndex = 0;
+  if (!isArrayLike(obj)) obj = values(obj);
+  if (typeof fromIndex != "number" || guard) fromIndex = 0;
   return indexOf(obj, item, fromIndex) >= 0;
 }
 const invoke = restArguments(function(obj, path, args) {
@@ -12607,8 +12342,7 @@ const invoke = restArguments(function(obj, path, args) {
       if (contextPath && contextPath.length) {
         context = deepGet(context, contextPath);
       }
-      if (context == null)
-        return void 0;
+      if (context == null) return void 0;
       method = context[path];
     }
     return method == null ? method : method.apply(context, args);
@@ -12666,21 +12400,17 @@ function min(obj, iteratee2, context) {
 }
 var reStrSymbol = /[^\ud800-\udfff]|[\ud800-\udbff][\udc00-\udfff]|[\ud800-\udfff]/g;
 function toArray(obj) {
-  if (!obj)
-    return [];
-  if (isArray(obj))
-    return slice.call(obj);
+  if (!obj) return [];
+  if (isArray(obj)) return slice.call(obj);
   if (isString(obj)) {
     return obj.match(reStrSymbol);
   }
-  if (isArrayLike(obj))
-    return map(obj, identity);
+  if (isArrayLike(obj)) return map(obj, identity);
   return values(obj);
 }
 function sample(obj, n, guard) {
   if (n == null || guard) {
-    if (!isArrayLike(obj))
-      obj = values(obj);
+    if (!isArrayLike(obj)) obj = values(obj);
     return obj[random(obj.length - 1)];
   }
   var sample2 = toArray(obj);
@@ -12711,10 +12441,8 @@ function sortBy(obj, iteratee2, context) {
     var a = left.criteria;
     var b = right.criteria;
     if (a !== b) {
-      if (a > b || a === void 0)
-        return 1;
-      if (a < b || b === void 0)
-        return -1;
+      if (a > b || a === void 0) return 1;
+      if (a < b || b === void 0) return -1;
     }
     return left.index - right.index;
   }), "value");
@@ -12731,26 +12459,21 @@ function group(behavior, partition2) {
   };
 }
 const groupBy = group(function(result2, value, key) {
-  if (has$1(result2, key))
-    result2[key].push(value);
-  else
-    result2[key] = [value];
+  if (has$1(result2, key)) result2[key].push(value);
+  else result2[key] = [value];
 });
 const indexBy = group(function(result2, value, key) {
   result2[key] = value;
 });
 const countBy = group(function(result2, value, key) {
-  if (has$1(result2, key))
-    result2[key]++;
-  else
-    result2[key] = 1;
+  if (has$1(result2, key)) result2[key]++;
+  else result2[key] = 1;
 });
 const partition = group(function(result2, value, pass) {
   result2[pass ? 0 : 1].push(value);
 }, true);
 function size(obj) {
-  if (obj == null)
-    return 0;
+  if (obj == null) return 0;
   return isArrayLike(obj) ? obj.length : keys(obj).length;
 }
 function keyInObj(value, key, obj) {
@@ -12758,11 +12481,9 @@ function keyInObj(value, key, obj) {
 }
 const pick = restArguments(function(obj, keys2) {
   var result2 = {}, iteratee2 = keys2[0];
-  if (obj == null)
-    return result2;
+  if (obj == null) return result2;
   if (isFunction$1(iteratee2)) {
-    if (keys2.length > 1)
-      iteratee2 = optimizeCb(iteratee2, keys2[1]);
+    if (keys2.length > 1) iteratee2 = optimizeCb(iteratee2, keys2[1]);
     keys2 = allKeys(obj);
   } else {
     iteratee2 = keyInObj;
@@ -12772,8 +12493,7 @@ const pick = restArguments(function(obj, keys2) {
   for (var i = 0, length = keys2.length; i < length; i++) {
     var key = keys2[i];
     var value = obj[key];
-    if (iteratee2(value, key, obj))
-      result2[key] = value;
+    if (iteratee2(value, key, obj)) result2[key] = value;
   }
   return result2;
 });
@@ -12781,8 +12501,7 @@ const omit = restArguments(function(obj, keys2) {
   var iteratee2 = keys2[0], context;
   if (isFunction$1(iteratee2)) {
     iteratee2 = negate(iteratee2);
-    if (keys2.length > 1)
-      context = keys2[1];
+    if (keys2.length > 1) context = keys2[1];
   } else {
     keys2 = map(flatten$1(keys2, false, false), String);
     iteratee2 = function(value, key) {
@@ -12795,20 +12514,16 @@ function initial(array, n, guard) {
   return slice.call(array, 0, Math.max(0, array.length - (n == null || guard ? 1 : n)));
 }
 function first(array, n, guard) {
-  if (array == null || array.length < 1)
-    return n == null || guard ? void 0 : [];
-  if (n == null || guard)
-    return array[0];
+  if (array == null || array.length < 1) return n == null || guard ? void 0 : [];
+  if (n == null || guard) return array[0];
   return initial(array, array.length - n);
 }
 function rest(array, n, guard) {
   return slice.call(array, n == null || guard ? 1 : n);
 }
 function last(array, n, guard) {
-  if (array == null || array.length < 1)
-    return n == null || guard ? void 0 : [];
-  if (n == null || guard)
-    return array[array.length - 1];
+  if (array == null || array.length < 1) return n == null || guard ? void 0 : [];
+  if (n == null || guard) return array[array.length - 1];
   return rest(array, Math.max(0, array.length - n));
 }
 function compact(array) {
@@ -12832,15 +12547,13 @@ function uniq(array, isSorted, iteratee2, context) {
     iteratee2 = isSorted;
     isSorted = false;
   }
-  if (iteratee2 != null)
-    iteratee2 = cb(iteratee2, context);
+  if (iteratee2 != null) iteratee2 = cb(iteratee2, context);
   var result2 = [];
   var seen = [];
   for (var i = 0, length = getLength(array); i < length; i++) {
     var value = array[i], computed = iteratee2 ? iteratee2(value, i, array) : value;
     if (isSorted && !iteratee2) {
-      if (!i || seen !== computed)
-        result2.push(value);
+      if (!i || seen !== computed) result2.push(value);
       seen = computed;
     } else if (iteratee2) {
       if (!contains(seen, computed)) {
@@ -12861,15 +12574,12 @@ function intersection(array) {
   var argsLength = arguments.length;
   for (var i = 0, length = getLength(array); i < length; i++) {
     var item = array[i];
-    if (contains(result2, item))
-      continue;
+    if (contains(result2, item)) continue;
     var j;
     for (j = 1; j < argsLength; j++) {
-      if (!contains(arguments[j], item))
-        break;
+      if (!contains(arguments[j], item)) break;
     }
-    if (j === argsLength)
-      result2.push(item);
+    if (j === argsLength) result2.push(item);
   }
   return result2;
 }
@@ -12909,8 +12619,7 @@ function range(start, stop, step) {
   return range2;
 }
 function chunk(array, count) {
-  if (count == null || count < 1)
-    return [];
+  if (count == null || count < 1) return [];
   var result2 = [];
   var i = 0, length = array.length;
   while (i < length) {
@@ -12949,8 +12658,7 @@ each(["concat", "join", "slice"], function(name) {
   var method = ArrayProto[name];
   _$1.prototype[name] = function() {
     var obj = this._wrapped;
-    if (obj != null)
-      obj = method.apply(obj, arguments);
+    if (obj != null) obj = method.apply(obj, arguments);
     return chainResult(this, obj);
   };
 });
@@ -13257,8 +12965,7 @@ const indexAll = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProp
 var underscore;
 var hasRequiredUnderscore;
 function requireUnderscore() {
-  if (hasRequiredUnderscore)
-    return underscore;
+  if (hasRequiredUnderscore) return underscore;
   hasRequiredUnderscore = 1;
   underscore = indexAll;
   return underscore;
@@ -13267,8 +12974,7 @@ var linestylefilter = {};
 var ChangesetUtils = {};
 var hasRequiredChangesetUtils;
 function requireChangesetUtils() {
-  if (hasRequiredChangesetUtils)
-    return ChangesetUtils;
+  if (hasRequiredChangesetUtils) return ChangesetUtils;
   hasRequiredChangesetUtils = 1;
   ChangesetUtils.buildRemoveRange = (rep, builder, start, end) => {
     const startLineOffset = rep.lines.offsetOfIndex(start[0]);
@@ -13300,8 +13006,7 @@ function requireChangesetUtils() {
 var AttributeManager_1;
 var hasRequiredAttributeManager;
 function requireAttributeManager() {
-  if (hasRequiredAttributeManager)
-    return AttributeManager_1;
+  if (hasRequiredAttributeManager) return AttributeManager_1;
   hasRequiredAttributeManager = 1;
   const AttributeMap = requireAttributeMap();
   const Changeset2 = requireChangeset();
@@ -13320,8 +13025,7 @@ function requireAttributeManager() {
   AttributeManager.lineAttributes = lineAttributes;
   AttributeManager.prototype = underscore2.default(AttributeManager.prototype).extend({
     applyChangeset(changeset) {
-      if (!this.applyChangesetCallback)
-        return changeset;
+      if (!this.applyChangesetCallback) return changeset;
       const cs = changeset.toString();
       if (!Changeset2.isIdentity(cs)) {
         this.applyChangesetCallback(cs);
@@ -13335,14 +13039,10 @@ function requireAttributeManager() {
       @param attribs: an array of attributes
     */
     setAttributesOnRange(start, end, attribs) {
-      if (start[0] < 0)
-        throw new RangeError("selection start line number is negative");
-      if (start[1] < 0)
-        throw new RangeError("selection start column number is negative");
-      if (end[0] < 0)
-        throw new RangeError("selection end line number is negative");
-      if (end[1] < 0)
-        throw new RangeError("selection end column number is negative");
+      if (start[0] < 0) throw new RangeError("selection start line number is negative");
+      if (start[1] < 0) throw new RangeError("selection start column number is negative");
+      if (end[0] < 0) throw new RangeError("selection end line number is negative");
+      if (end[1] < 0) throw new RangeError("selection end column number is negative");
       if (start[0] > end[0] || start[0] === end[0] && start[1] > end[1]) {
         throw new RangeError("selection ends before it starts");
       }
@@ -13363,26 +13063,18 @@ function requireAttributeManager() {
       return this.applyChangeset(allChangesets);
     },
     _findRowRange(row, start, end) {
-      if (row < start[0] || row > end[0])
-        throw new RangeError(`line ${row} not in selection`);
-      if (row >= this.rep.lines.length())
-        throw new RangeError(`selected line ${row} does not exist`);
+      if (row < start[0] || row > end[0]) throw new RangeError(`line ${row} not in selection`);
+      if (row >= this.rep.lines.length()) throw new RangeError(`selected line ${row} does not exist`);
       const lineLength = this.rep.lines.offsetOfIndex(row + 1) - this.rep.lines.offsetOfIndex(row) - 1;
       const markerWidth = this.lineHasMarker(row) ? 1 : 0;
-      if (lineLength - markerWidth < 0)
-        throw new Error(`line ${row} has negative length`);
-      if (start[1] < 0)
-        throw new RangeError("selection starts at negative column");
+      if (lineLength - markerWidth < 0) throw new Error(`line ${row} has negative length`);
+      if (start[1] < 0) throw new RangeError("selection starts at negative column");
       const startCol = Math.max(markerWidth, row === start[0] ? start[1] : 0);
-      if (startCol > lineLength)
-        throw new RangeError("selection starts after line end");
-      if (end[1] < 0)
-        throw new RangeError("selection ends at negative column");
+      if (startCol > lineLength) throw new RangeError("selection starts after line end");
+      if (end[1] < 0) throw new RangeError("selection ends at negative column");
       const endCol = Math.max(markerWidth, row === end[0] ? end[1] : lineLength);
-      if (endCol > lineLength)
-        throw new RangeError("selection ends after line end");
-      if (startCol > endCol)
-        throw new RangeError("selection ends before it starts");
+      if (endCol > lineLength) throw new RangeError("selection ends after line end");
+      if (startCol > endCol) throw new RangeError("selection ends before it starts");
       return [startCol, endCol];
     },
     /**
@@ -13421,11 +13113,9 @@ function requireAttributeManager() {
     */
     getAttributeOnLine(lineNum, attributeName) {
       const aline = this.rep.alines[lineNum];
-      if (!aline)
-        return "";
+      if (!aline) return "";
       const [op] = Changeset2.deserializeOps(aline);
-      if (op == null)
-        return "";
+      if (op == null) return "";
       return AttributeMap.fromString(op.attribs, this.rep.apool).get(attributeName) || "";
     },
     /*
@@ -13434,11 +13124,9 @@ function requireAttributeManager() {
     */
     getAttributesOnLine(lineNum) {
       const aline = this.rep.alines[lineNum];
-      if (!aline)
-        return [];
+      if (!aline) return [];
       const [op] = Changeset2.deserializeOps(aline);
-      if (op == null)
-        return [];
+      if (op == null) return [];
       return [...attributes2.attribsFromString(op.attribs, this.rep.apool)];
     },
     /*
@@ -13449,8 +13137,7 @@ function requireAttributeManager() {
     */
     getAttributeOnSelection(attributeName, prevChar) {
       const rep = this.rep;
-      if (!(rep.selStart && rep.selEnd))
-        return;
+      if (!(rep.selStart && rep.selEnd)) return;
       const isNotSelection = rep.selStart[0] === rep.selEnd[0] && rep.selEnd[1] === rep.selStart[1];
       if (isNotSelection) {
         if (prevChar) {
@@ -13463,8 +13150,7 @@ function requireAttributeManager() {
       const withItRegex = new RegExp(`${withIt.replace(/\*/g, "\\*")}(\\*|$)`);
       const hasIt = (attribs) => withItRegex.test(attribs);
       const rangeHasAttrib = (selStart, selEnd) => {
-        if (selStart[1] === selEnd[1] && selStart[0] === selEnd[0])
-          return false;
+        if (selStart[1] === selEnd[1] && selStart[0] === selEnd[0]) return false;
         if (selStart[0] !== selEnd[0]) {
           let hasAttrib2 = rangeHasAttrib(
             selStart,
@@ -13511,8 +13197,7 @@ function requireAttributeManager() {
       let currentPointer = 0;
       for (const currentOperation of Changeset2.deserializeOps(aline)) {
         currentPointer += currentOperation.chars;
-        if (currentPointer <= column)
-          continue;
+        if (currentPointer <= column) continue;
         return [...attributes2.attribsFromString(currentOperation.attribs, this.rep.apool)];
       }
       return [];
@@ -13619,8 +13304,7 @@ function requireAttributeManager() {
 }
 var hasRequiredLinestylefilter;
 function requireLinestylefilter() {
-  if (hasRequiredLinestylefilter)
-    return linestylefilter;
+  if (hasRequiredLinestylefilter) return linestylefilter;
   hasRequiredLinestylefilter = 1;
   const Changeset2 = requireChangeset();
   const attributes2 = requireAttributes();
@@ -13637,16 +13321,14 @@ function requireLinestylefilter() {
   const lineAttributeMarker = "lineAttribMarker";
   linestylefilter.lineAttributeMarker = lineAttributeMarker;
   linestylefilter$1.getAuthorClassName = (author) => `author-${author.replace(/[^a-y0-9]/g, (c) => {
-    if (c === ".")
-      return "-";
+    if (c === ".") return "-";
     return `z${c.charCodeAt(0)}z`;
   })}`;
   linestylefilter$1.getLineStyleFilter = (lineLength, aline, textAndClassFunc, apool) => {
     for (const attribClasses of hooks$1.callAll("aceAttribClasses", linestylefilter$1.ATTRIB_CLASSES)) {
       Object.assign(linestylefilter$1.ATTRIB_CLASSES, attribClasses);
     }
-    if (lineLength === 0)
-      return textAndClassFunc;
+    if (lineLength === 0) return textAndClassFunc;
     const nextAfterAuthorColors = textAndClassFunc;
     const authorColorFunc = (() => {
       const lineEnd = lineLength;
@@ -13657,8 +13339,7 @@ function requireLinestylefilter() {
         let classes = "";
         let isLineAttribMarker = false;
         for (const [key, value] of attributes2.attribsFromString(attribs, apool)) {
-          if (!key || !value)
-            continue;
+          if (!key || !value) continue;
           if (!isLineAttribMarker && AttributeManager.lineAttributes.indexOf(key) >= 0) {
             isLineAttribMarker = true;
           }
@@ -13675,8 +13356,7 @@ function requireLinestylefilter() {
             classes += ` ${results.join(" ")}`;
           }
         }
-        if (isLineAttribMarker)
-          classes += ` ${lineAttributeMarker}`;
+        if (isLineAttribMarker) classes += ` ${lineAttributeMarker}`;
         return classes.substring(1);
       };
       const attrOps = Changeset2.deserializeOps(aline);
@@ -13684,8 +13364,7 @@ function requireLinestylefilter() {
       let nextOp, nextOpClasses;
       const goNextOp = () => {
         nextOp = attrOpsNext.done ? new Changeset2.Op() : attrOpsNext.value;
-        if (!attrOpsNext.done)
-          attrOpsNext = attrOps.next();
+        if (!attrOpsNext.done) attrOpsNext = attrOps.next();
         nextOpClasses = nextOp.opcode && attribsToClasses(nextOp.attribs);
       };
       goNextOp();
@@ -13740,8 +13419,7 @@ function requireLinestylefilter() {
       }
       splitPoints.push(execResult.index);
     }
-    if (!splitPoints)
-      return textAndClassFunc;
+    if (!splitPoints) return textAndClassFunc;
     return linestylefilter$1.textAndClassFuncSplitter(textAndClassFunc, splitPoints);
   };
   linestylefilter$1.getRegexpFilter = (regExp, tag) => (lineText, textAndClassFunc) => {
@@ -13759,8 +13437,7 @@ function requireLinestylefilter() {
       regExpMatchs.push([startIndex, regExpMatch]);
       splitPoints.push(startIndex, startIndex + regExpMatch.length);
     }
-    if (!regExpMatchs)
-      return textAndClassFunc;
+    if (!regExpMatchs) return textAndClassFunc;
     const regExpMatchForIndex = (idx) => {
       for (let k = 0; k < regExpMatchs.length; k++) {
         const u = regExpMatchs[k];
@@ -13846,8 +13523,7 @@ function requireLinestylefilter() {
 }
 var hasRequiredDomline;
 function requireDomline() {
-  if (hasRequiredDomline)
-    return domline;
+  if (hasRequiredDomline) return domline;
   hasRequiredDomline = 1;
   const Security = requireSecurity();
   const hooks$1 = hooks;
@@ -13948,8 +13624,7 @@ function requireDomline() {
       }
       if (cls.indexOf("tag") >= 0) {
         cls = cls.replace(/(^| )tag:(\S+)/g, (x0, space, tag) => {
-          if (!simpleTags)
-            simpleTags = [];
+          if (!simpleTags) simpleTags = [];
           simpleTags.push(tag.toLowerCase());
           return space + tag;
         });
@@ -14015,8 +13690,7 @@ function requireDomline() {
         curHTML = newHTML;
         result2.node.innerHTML = curHTML;
       }
-      if (lineClass != null)
-        result2.node.className = lineClass;
+      if (lineClass != null) result2.node.className = lineClass;
       hooks$1.callAll("acePostWriteDomLineHTML", {
         node: result2.node
       });
@@ -14039,8 +13713,7 @@ function requireDomline() {
       for (let i = parts.length - 1; i >= 0; i--) {
         const p = parts[i];
         if (p === " ") {
-          if (endOfLine || beforeSpace)
-            parts[i] = "&nbsp;";
+          if (endOfLine || beforeSpace) parts[i] = "&nbsp;";
           endOfLine = false;
           beforeSpace = true;
         } else if (p.charAt(0) !== "<") {
@@ -14073,8 +13746,7 @@ function requireDomline() {
 var skiplist;
 var hasRequiredSkiplist;
 function requireSkiplist() {
-  if (hasRequiredSkiplist)
-    return skiplist;
+  if (hasRequiredSkiplist) return skiplist;
   hasRequiredSkiplist = 1;
   const _entryWidth = (e) => e && e.width || 0;
   class Node {
@@ -14140,8 +13812,7 @@ function requireSkiplist() {
       return `Point(${this.loc})`;
     }
     insert(entry) {
-      if (entry.key == null)
-        throw new Error("entry.key must not be null");
+      if (entry.key == null) throw new Error("entry.key must not be null");
       if (this._skipList.containsKey(entry.key)) {
         throw new Error(`an entry with key ${entry.key} already exists`);
       }
@@ -14235,8 +13906,7 @@ function requireSkiplist() {
         }
         lvl--;
       }
-      if (n === this._start)
-        return this._start.downPtrs[0] || null;
+      if (n === this._start) return this._start.downPtrs[0] || null;
       if (n === this._end) {
         return targetOffset === this._totalWidth ? this._end.upPtrs[0] || null : null;
       }
@@ -14248,10 +13918,8 @@ function requireSkiplist() {
       while (n !== this._start) {
         const lvl = n.levels - 1;
         n = n.upPtrs[lvl];
-        if (byWidth)
-          dist += n.downSkipWidths[lvl];
-        else
-          dist += n.downSkips[lvl];
+        if (byWidth) dist += n.downSkipWidths[lvl];
+        else dist += n.downSkips[lvl];
       }
       return dist;
     }
@@ -14263,12 +13931,9 @@ function requireSkiplist() {
       let lvl = this._start.levels - 1;
       let lowIndex = -1;
       const f = (node) => {
-        if (node === this._start)
-          return false;
-        else if (node === this._end)
-          return true;
-        else
-          return entryFunc(node.entry);
+        if (node === this._start) return false;
+        else if (node === this._end) return true;
+        else return entryFunc(node.entry);
       };
       while (lvl >= 0) {
         let nextLow = low.downPtrs[lvl];
@@ -14285,26 +13950,21 @@ function requireSkiplist() {
       return this._keyToNodeMap.size;
     }
     atIndex(i) {
-      if (i < 0)
-        console.warn(`atIndex(${i})`);
-      if (i >= this._keyToNodeMap.size)
-        console.warn(`atIndex(${i}>=${this._keyToNodeMap.size})`);
+      if (i < 0) console.warn(`atIndex(${i})`);
+      if (i >= this._keyToNodeMap.size) console.warn(`atIndex(${i}>=${this._keyToNodeMap.size})`);
       return new Point(this, i).getNode().entry;
     }
     // differs from Array.splice() in that new elements are in an array, not varargs
     splice(start, deleteCount, newEntryArray) {
-      if (start < 0)
-        console.warn(`splice(${start}, ...)`);
+      if (start < 0) console.warn(`splice(${start}, ...)`);
       if (start + deleteCount > this._keyToNodeMap.size) {
         console.warn(`splice(${start}, ${deleteCount}, ...), N=${this._keyToNodeMap.size}`);
         console.warn("%s %s %s", typeof start, typeof deleteCount, typeof this._keyToNodeMap.size);
         console.trace();
       }
-      if (!newEntryArray)
-        newEntryArray = [];
+      if (!newEntryArray) newEntryArray = [];
       const pt = new Point(this, start);
-      for (let i = 0; i < deleteCount; i++)
-        pt.delete();
+      for (let i = 0; i < deleteCount; i++) pt.delete();
       for (let i = newEntryArray.length - 1; i >= 0; i--) {
         const entry = newEntryArray[i];
         pt.insert(entry);
@@ -14320,24 +13980,15 @@ function requireSkiplist() {
       this.splice(this._keyToNodeMap.size, 0, [entry]);
     }
     slice(start, end) {
-      if (start === void 0)
-        start = 0;
-      else if (start < 0)
-        start += this._keyToNodeMap.size;
-      if (end === void 0)
-        end = this._keyToNodeMap.size;
-      else if (end < 0)
-        end += this._keyToNodeMap.size;
-      if (start < 0)
-        start = 0;
-      if (start > this._keyToNodeMap.size)
-        start = this._keyToNodeMap.size;
-      if (end < 0)
-        end = 0;
-      if (end > this._keyToNodeMap.size)
-        end = this._keyToNodeMap.size;
-      if (end <= start)
-        return [];
+      if (start === void 0) start = 0;
+      else if (start < 0) start += this._keyToNodeMap.size;
+      if (end === void 0) end = this._keyToNodeMap.size;
+      else if (end < 0) end += this._keyToNodeMap.size;
+      if (start < 0) start = 0;
+      if (start > this._keyToNodeMap.size) start = this._keyToNodeMap.size;
+      if (end < 0) end = 0;
+      if (end > this._keyToNodeMap.size) end = this._keyToNodeMap.size;
+      if (end <= start) return [];
       let n = this.atIndex(start);
       const array = [n];
       for (let i = 1; i < end - start; i++) {
@@ -14379,17 +14030,13 @@ function requireSkiplist() {
       return this._totalWidth;
     }
     offsetOfIndex(i) {
-      if (i < 0)
-        return 0;
-      if (i >= this._keyToNodeMap.size)
-        return this._totalWidth;
+      if (i < 0) return 0;
+      if (i >= this._keyToNodeMap.size) return this._totalWidth;
       return this.offsetOfEntry(this.atIndex(i));
     }
     indexOfOffset(offset) {
-      if (offset <= 0)
-        return 0;
-      if (offset >= this._totalWidth)
-        return this._keyToNodeMap.size;
+      if (offset <= 0) return 0;
+      if (offset >= this._totalWidth) return this._keyToNodeMap.size;
       return this.indexOfEntry(this.atOffset(offset));
     }
   }
@@ -14399,8 +14046,7 @@ function requireSkiplist() {
 var undomodule = {};
 var hasRequiredUndomodule;
 function requireUndomodule() {
-  if (hasRequiredUndomodule)
-    return undomodule;
+  if (hasRequiredUndomodule) return undomodule;
   hasRequiredUndomodule = 1;
   const Changeset2 = requireChangeset();
   const _2 = requireUnderscore();
@@ -14514,10 +14160,8 @@ function requireUndomodule() {
     };
     const _opcodeOccurrences = (cs, opcode) => _charOccurrences(Changeset2.unpack(cs).ops, opcode);
     const _mergeChangesets = (cs1, cs2) => {
-      if (!cs1)
-        return cs2;
-      if (!cs2)
-        return cs1;
+      if (!cs1) return cs2;
+      if (!cs2) return cs1;
       const plusCount1 = _opcodeOccurrences(cs1, "+");
       const plusCount2 = _opcodeOccurrences(cs2, "+");
       const minusCount1 = _opcodeOccurrences(cs1, "-");
@@ -14624,13 +14268,11 @@ var scroll = {};
 var caretPosition = {};
 var hasRequiredCaretPosition;
 function requireCaretPosition() {
-  if (hasRequiredCaretPosition)
-    return caretPosition;
+  if (hasRequiredCaretPosition) return caretPosition;
   hasRequiredCaretPosition = 1;
   caretPosition.getPosition = () => {
     const range2 = getSelectionRange();
-    if (!range2 || $(range2.endContainer).closest("body")[0].id !== "innerdocbody")
-      return null;
+    if (!range2 || $(range2.endContainer).closest("body")[0].id !== "innerdocbody") return null;
     const clonedRange = createSelectionRange(range2);
     const shadowCaret = $(document.createTextNode("|"));
     clonedRange.insertNode(shadowCaret[0]);
@@ -14771,8 +14413,7 @@ function requireCaretPosition() {
 }
 var hasRequiredScroll;
 function requireScroll() {
-  if (hasRequiredScroll)
-    return scroll;
+  if (hasRequiredScroll) return scroll;
   hasRequiredScroll = 1;
   const caretPosition2 = requireCaretPosition();
   function Scroll(outerWin) {
@@ -15008,8 +14649,7 @@ function requireScroll() {
     const self2 = this;
     const start = rep.lines.search((e) => self2._getLineEntryTopBottom(e, obj).bottom > viewport.top);
     let end = rep.lines.search((e) => self2._getLineEntryTopBottom(e, obj).top >= viewport.bottom);
-    if (end < start)
-      end = start;
+    if (end < start) end = start;
     return [start, end - 1];
   };
   Scroll.prototype.getVisibleCharRange = function(rep) {
@@ -15021,8 +14661,7 @@ function requireScroll() {
 }
 var hasRequiredAce2_inner;
 function requireAce2_inner() {
-  if (hasRequiredAce2_inner)
-    return ace2_inner;
+  if (hasRequiredAce2_inner) return ace2_inner;
   hasRequiredAce2_inner = 1;
   let documentAttributeManager;
   const AttributeMap = requireAttributeMap();
@@ -15148,15 +14787,12 @@ function requireAce2_inner() {
         "profileEnd"
       ];
       console2 = {};
-      for (const name of names)
-        console2[name] = noop2;
+      for (const name of names) console2[name] = noop2;
     }
     const scheduler = parent;
     const performDocumentReplaceRange = (start, end, newText) => {
-      if (start === void 0)
-        start = rep.selStart;
-      if (end === void 0)
-        end = rep.selEnd;
+      if (start === void 0) start = rep.selStart;
+      if (end === void 0) end = rep.selEnd;
       const builder = Changeset2.builder(rep.lines.totalWidth());
       ChangesetUtils2.buildKeepToStartOfRange(rep, builder, start);
       ChangesetUtils2.buildRemoveRange(rep, builder, start, end);
@@ -15224,8 +14860,7 @@ function requireAce2_inner() {
       }
     };
     const setAuthorInfo = (author, info) => {
-      if (!author)
-        return;
+      if (!author) return;
       if (typeof author !== "string") {
         throw new Error(`setAuthorInfo: author (${author}) is not a string`);
       }
@@ -15237,8 +14872,7 @@ function requireAce2_inner() {
       setAuthorStyle(author, info);
     };
     const getAuthorClassName = (author) => `author-${author.replace(/[^a-y0-9]/g, (c) => {
-      if (c === ".")
-        return "-";
+      if (c === ".") return "-";
       return `z${c.charCodeAt(0)}z`;
     })}`;
     const className2Author = (className) => {
@@ -15272,8 +14906,7 @@ function requireAce2_inner() {
     const isScrollableEditEvent = (eventType) => !_nonScrollableEditEvents[eventType];
     let currentCallStack = null;
     const inCallStack = (type, action) => {
-      if (disposed)
-        return;
+      if (disposed) return;
       const newEditEvent = (eventType) => ({
         eventType,
         backset: null
@@ -15370,8 +15003,7 @@ function requireAce2_inner() {
     editorInfo.ace_inCallStackIfNecessary = inCallStackIfNecessary;
     const dispose = () => {
       disposed = true;
-      if (idleWorkTimer)
-        idleWorkTimer.never();
+      if (idleWorkTimer) idleWorkTimer.never();
       teardown();
     };
     const setWraps = (newVal) => {
@@ -15467,8 +15099,7 @@ function requireAce2_inner() {
       o.chars = lastLineLength;
       o.lines = 0;
       assem.append(o);
-      for (const op of Changeset2.opsFromAText(atext))
-        assem.append(op);
+      for (const op of Changeset2.opsFromAText(atext)) assem.append(op);
       const newLen = oldLen + assem.getLengthChange();
       const changeset = Changeset2.checkRep(
         Changeset2.pack(oldLen, newLen, assem.toString(), atext.text.slice(0, -1))
@@ -15489,8 +15120,7 @@ function requireAce2_inner() {
     const getDocText = () => {
       const alltext = rep.alltext;
       let len = alltext.length;
-      if (len > 0)
-        len--;
+      if (len > 0) len--;
       return alltext.substring(0, len);
     };
     const exportText = () => {
@@ -15635,8 +15265,7 @@ function requireAce2_inner() {
         unschedule();
         scheduledTime = time;
         let delay2 = time - now2();
-        if (delay2 < 0)
-          delay2 = 0;
+        if (delay2 < 0) delay2 = 0;
         scheduledTimeout = scheduler.setTimeout(callback, delay2);
       };
       const callback = () => {
@@ -15679,11 +15308,9 @@ function requireAce2_inner() {
         let finishedWork = false;
         try {
           incorporateUserChanges();
-          if (isTimeUp())
-            return;
+          if (isTimeUp()) return;
           updateLineNumbers();
-          if (isTimeUp())
-            return;
+          if (isTimeUp()) return;
           finishedImportantWork = true;
           finishedWork = true;
         } finally {
@@ -15693,8 +15320,7 @@ function requireAce2_inner() {
             idleWorkTimer.atMost(500);
           } else {
             let timeToWait = Math.round(isTimeUp.elapsed() / 2);
-            if (timeToWait < 100)
-              timeToWait = 100;
+            if (timeToWait < 100) timeToWait = 100;
             idleWorkTimer.atMost(timeToWait);
           }
         }
@@ -15703,15 +15329,12 @@ function requireAce2_inner() {
     let _nextId = 1;
     const uniqueId2 = (n) => {
       const nid = n.id;
-      if (nid)
-        return nid;
+      if (nid) return nid;
       return n.id = `magicdomid${_nextId++}`;
     };
     const recolorLinesInRange = (startChar, endChar) => {
-      if (endChar <= startChar)
-        return;
-      if (startChar >= rep.lines.totalWidth())
-        return;
+      if (endChar <= startChar) return;
+      if (startChar >= rep.lines.totalWidth()) return;
       let lineEntry = rep.lines.atOffset(startChar);
       let lineStart = rep.lines.offsetOfEntry(lineEntry);
       let lineIndex = rep.lines.indexOfEntry(lineEntry);
@@ -15825,15 +15448,13 @@ function requireAce2_inner() {
       }
     };
     const observeChangesAroundSelection = () => {
-      if (currentCallStack.observedSelection)
-        return;
+      if (currentCallStack.observedSelection) return;
       currentCallStack.observedSelection = true;
       const selection = getSelection();
       if (selection) {
         const node1 = topLevel(selection.startPoint.node);
         const node2 = topLevel(selection.endPoint.node);
-        if (node1)
-          observeChangesAroundNode(node1);
+        if (node1) observeChangesAroundNode(node1);
         if (node2 && node1 !== node2) {
           observeChangesAroundNode(node2);
         }
@@ -15851,11 +15472,9 @@ function requireAce2_inner() {
       }
     };
     const incorporateUserChanges = () => {
-      if (currentCallStack.domClean)
-        return false;
+      if (currentCallStack.domClean) return false;
       currentCallStack.isUserChange = true;
-      if (targetWindow.DEBUG_DONT_INCORP)
-        return false;
+      if (targetWindow.DEBUG_DONT_INCORP) return false;
       if (!targetBody.firstChild) {
         targetBody.innerHTML = "<div><!-- --></div>";
       }
@@ -15925,10 +15544,8 @@ function requireAce2_inner() {
           if (linesWrapped > 0) {
             scrollToTheLeftNeeded = true;
           }
-          if (ss[0] >= 0)
-            selStart = [ss[0] + a + netNumLinesChangeSoFar, ss[1]];
-          if (se[0] >= 0)
-            selEnd = [se[0] + a + netNumLinesChangeSoFar, se[1]];
+          if (ss[0] >= 0) selStart = [ss[0] + a + netNumLinesChangeSoFar, ss[1]];
+          if (se[0] >= 0) selEnd = [se[0] + a + netNumLinesChangeSoFar, se[1]];
           const entries = [];
           const nodeToAddAfter = lastDirtyNode;
           const lineNodeInfos = [];
@@ -15938,13 +15555,10 @@ function requireAce2_inner() {
             lineNodeInfos.push(newEntry.domInfo);
           }
           domInsertsNeeded.push([nodeToAddAfter, lineNodeInfos]);
-          for (const n of dirtyNodes)
-            toDeleteAtEnd.push(n);
+          for (const n of dirtyNodes) toDeleteAtEnd.push(n);
           const spliceHints = {};
-          if (selStart)
-            spliceHints.selStart = selStart;
-          if (selEnd)
-            spliceHints.selEnd = selEnd;
+          if (selStart) spliceHints.selStart = selStart;
+          if (selEnd) spliceHints.selEnd = selEnd;
           splicesToDo.push([a + netNumLinesChangeSoFar, b - a, entries, lineAttribs, spliceHints]);
           netNumLinesChangeSoFar += lines.length - (b - a);
         } else if (b > a) {
@@ -15953,12 +15567,9 @@ function requireAce2_inner() {
         i++;
       }
       const domChanges = splicesToDo.length > 0;
-      for (const splice of splicesToDo)
-        doIncorpLineSplice(...splice);
-      for (const ins of domInsertsNeeded)
-        insertDomLines(...ins);
-      for (const n of toDeleteAtEnd)
-        n.remove();
+      for (const splice of splicesToDo) doIncorpLineSplice(...splice);
+      for (const ins of domInsertsNeeded) insertDomLines(...ins);
+      for (const n of toDeleteAtEnd) n.remove();
       if (scrollToTheLeftNeeded) {
         $2("#innerdocbody").scrollLeft(0);
       }
@@ -15993,8 +15604,7 @@ function requireAce2_inner() {
         selEnd[0] = numLines - 1;
         selEnd[1] = rep.lines.atIndex(selEnd[0]).text.length;
       }
-      if (selection)
-        repSelectionChange(selStart, selEnd, selection && selection.focusAtStart);
+      if (selection) repSelectionChange(selStart, selEnd, selection && selection.focusAtStart);
       if (selection && (domChanges || isCaret())) {
         currentCallStack.selectionAffected = true;
       }
@@ -16296,16 +15906,14 @@ ${newText.substring(0, newText.length - 1)}`;
     };
     editorInfo.ace_performDocumentApplyAttributesToCharRange = performDocumentApplyAttributesToCharRange;
     const setAttributeOnSelection = (attributeName, attributeValue) => {
-      if (!(rep.selStart && rep.selEnd))
-        return;
+      if (!(rep.selStart && rep.selEnd)) return;
       documentAttributeManager.setAttributesOnRange(rep.selStart, rep.selEnd, [
         [attributeName, attributeValue]
       ]);
     };
     editorInfo.ace_setAttributeOnSelection = setAttributeOnSelection;
     const getAttributeOnSelection = (attributeName, prevChar) => {
-      if (!(rep.selStart && rep.selEnd))
-        return;
+      if (!(rep.selStart && rep.selEnd)) return;
       const isNotSelection = rep.selStart[0] === rep.selEnd[0] && rep.selEnd[1] === rep.selStart[1];
       if (isNotSelection) {
         if (prevChar) {
@@ -16318,8 +15926,7 @@ ${newText.substring(0, newText.length - 1)}`;
       const withItRegex = new RegExp(`${withIt.replace(/\*/g, "\\*")}(\\*|$)`);
       const hasIt = (attribs) => withItRegex.test(attribs);
       const rangeHasAttrib = (selStart, selEnd) => {
-        if (selStart[1] === selEnd[1] && selStart[0] === selEnd[0])
-          return false;
+        if (selStart[1] === selEnd[1] && selStart[0] === selEnd[0]) return false;
         if (selStart[0] !== selEnd[0]) {
           let hasAttrib2 = true;
           hasAttrib2 = hasAttrib2 && rangeHasAttrib(selStart, [selStart[0], rep.lines.atIndex(selStart[0]).text.length]);
@@ -16351,8 +15958,7 @@ ${newText.substring(0, newText.length - 1)}`;
     };
     editorInfo.ace_getAttributeOnSelection = getAttributeOnSelection;
     const toggleAttributeOnSelection = (attributeName) => {
-      if (!(rep.selStart && rep.selEnd))
-        return;
+      if (!(rep.selStart && rep.selEnd)) return;
       let selectionAllHasIt = true;
       const withIt = new AttributeMap(rep.apool).set(attributeName, "true").toString();
       const withItRegex = new RegExp(`${withIt.replace(/\*/g, "\\*")}(\\*|$)`);
@@ -16399,13 +16005,11 @@ ${newText.substring(0, newText.length - 1)}`;
     };
     editorInfo.ace_toggleAttributeOnSelection = toggleAttributeOnSelection;
     const performDocumentReplaceSelection = (newText) => {
-      if (!(rep.selStart && rep.selEnd))
-        return;
+      if (!(rep.selStart && rep.selEnd)) return;
       performDocumentReplaceRange(rep.selStart, rep.selEnd, newText);
     };
     const doRepLineSplice = (startLine, deleteCount, newLineEntries) => {
-      for (const entry of newLineEntries)
-        entry.width = entry.text.length + 1;
+      for (const entry of newLineEntries) entry.width = entry.text.length + 1;
       const startOldChar = rep.lines.offsetOfIndex(startLine);
       const endOldChar = rep.lines.offsetOfIndex(startLine + deleteCount);
       rep.lines.splice(startLine, deleteCount, newLineEntries);
@@ -16523,8 +16127,7 @@ ${shortNewText.slice(0, -1)}`;
           let isNewTextMultiauthor = false;
           const authorizer = cachedStrFunc((oldAtts) => {
             const attribs = AttributeMap.fromString(oldAtts, rep.apool);
-            if (!isNewTextMultiauthor || !attribs.has("author"))
-              attribs.set("author", thisAuthor);
+            if (!isNewTextMultiauthor || !attribs.has("author")) attribs.set("author", thisAuthor);
             return attribs.toString();
           });
           let foundDomAuthor = "";
@@ -16577,10 +16180,8 @@ ${shortNewText.slice(0, -1)}`;
         let j = 0;
         const next = () => {
           while (j >= lengs[i]) {
-            if (backward)
-              i--;
-            else
-              i++;
+            if (backward) i--;
+            else i++;
             j = 0;
           }
           const a = atts[i];
@@ -16645,10 +16246,8 @@ ${shortNewText.slice(0, -1)}`;
       return [commonStart, commonEnd];
     };
     const equalLineAndChars = (a, b) => {
-      if (!a)
-        return !b;
-      if (!b)
-        return !a;
+      if (!a) return !b;
+      if (!b) return !a;
       return a[0] === b[0] && a[1] === b[1];
     };
     const performSelectionChange = (selectStart, selectEnd, focusAtStart) => {
@@ -16707,8 +16306,7 @@ ${shortNewText.slice(0, -1)}`;
       ol: 1,
       ul: 1
     };
-    for (const element of hooks$1.callAll("aceRegisterBlockElements"))
-      _blockElems[element] = 1;
+    for (const element of hooks$1.callAll("aceRegisterBlockElements")) _blockElems[element] = 1;
     const isBlockElement = (n) => !!_blockElems[(n.tagName || "").toLowerCase()];
     editorInfo.ace_isBlockElement = isBlockElement;
     const getDirtyRanges = () => {
@@ -16733,16 +16331,11 @@ ${shortNewText.slice(0, -1)}`;
           isConsecutiveCache[i] = (() => {
             const a = cleanNodeForIndex(i - 1);
             const b = cleanNodeForIndex(i);
-            if (!a || !b)
-              return false;
-            if (a === true && b === true)
-              return !targetBody.firstChild;
-            if (a === true && b.previousSibling)
-              return false;
-            if (b === true && a.nextSibling)
-              return false;
-            if (a === true || b === true)
-              return true;
+            if (!a || !b) return false;
+            if (a === true && b === true) return !targetBody.firstChild;
+            if (a === true && b.previousSibling) return false;
+            if (b === true && a.nextSibling) return false;
+            if (a === true || b === true) return true;
             return a.nextSibling === b;
           })();
         }
@@ -16754,24 +16347,18 @@ ${shortNewText.slice(0, -1)}`;
       ];
       const rangeForLine = (i) => {
         for (const [idx, r] of cleanRanges.entries()) {
-          if (i < r[0])
-            return -1;
-          if (i < r[1])
-            return idx;
+          if (i < r[0]) return -1;
+          if (i < r[1]) return idx;
         }
         return -1;
       };
       const removeLineFromRange = (rng, line) => {
         const a = cleanRanges[rng][0];
         const b = cleanRanges[rng][1];
-        if (a + 1 === b)
-          cleanRanges.splice(rng, 1);
-        else if (line === a)
-          cleanRanges[rng][0]++;
-        else if (line === b - 1)
-          cleanRanges[rng][1]--;
-        else
-          cleanRanges.splice(rng, 1, [a, line], [line + 1, b]);
+        if (a + 1 === b) cleanRanges.splice(rng, 1);
+        else if (line === a) cleanRanges[rng][0]++;
+        else if (line === b - 1) cleanRanges[rng][1]--;
+        else cleanRanges.splice(rng, 1, [a, line], [line + 1, b]);
       };
       const splitRange = (rng, pt) => {
         const a = cleanRanges[rng][0];
@@ -16780,8 +16367,7 @@ ${shortNewText.slice(0, -1)}`;
       };
       const correctedLines = {};
       const correctlyAssignLine = (line) => {
-        if (correctedLines[line])
-          return true;
+        if (correctedLines[line]) return true;
         correctedLines[line] = true;
         const rng = rangeForLine(line);
         const lineClean = isClean(line);
@@ -16853,15 +16439,11 @@ ${shortNewText.slice(0, -1)}`;
       setAssoc(n, "dirtiness", { nodeId: uniqueId2(n), knownHTML: n.innerHTML });
     };
     const isNodeDirty = (n) => {
-      if (n.parentNode !== targetBody)
-        return true;
+      if (n.parentNode !== targetBody) return true;
       const data = getAssoc(n, "dirtiness");
-      if (!data)
-        return true;
-      if (n.id !== data.nodeId)
-        return true;
-      if (n.innerHTML !== data.knownHTML)
-        return true;
+      if (!data) return true;
+      if (n.id !== data.nodeId) return true;
+      if (n.innerHTML !== data.knownHTML) return true;
       return false;
     };
     const handleClick = (evt) => {
@@ -16898,8 +16480,7 @@ ${shortNewText.slice(0, -1)}`;
       }
       while (lineNum - 1 >= 0 && (type = getLineListType(lineNum - 1))) {
         type = /([a-z]+)[0-9]+/.exec(type);
-        if (type[1] === "indent")
-          break;
+        if (type[1] === "indent") break;
         lineNum--;
       }
       const builder = Changeset2.builder(rep.lines.totalWidth());
@@ -16997,8 +16578,7 @@ ${shortNewText.slice(0, -1)}`;
           mods.push([n, newLevel > 0 ? t + newLevel : ""]);
         }
       }
-      for (const mod of mods)
-        setLineListType(mod[0], mod[1]);
+      for (const mod of mods) setLineListType(mod[0], mod[1]);
       return true;
     };
     editorInfo.ace_doIndentOutdent = doIndentOutdent;
@@ -17088,12 +16668,10 @@ ${shortNewText.slice(0, -1)}`;
     const isWordChar = (c) => padutils.wordCharRegex.test(c);
     editorInfo.ace_isWordChar = isWordChar;
     const handleKeyEvent = (evt) => {
-      if (!isEditable)
-        return;
+      if (!isEditable) return;
       const { type, charCode, keyCode, which, altKey, shiftKey } = evt;
       const isModKey = !charCode && (type === "keyup" || type === "keydown") && (keyCode === 16 || keyCode === 17 || keyCode === 18 || keyCode === 20 || keyCode === 224 || keyCode === 91);
-      if (isModKey)
-        return;
+      if (isModKey) return;
       if (keyCode === 13 && browser2.opera && type === "keypress") {
         return;
       }
@@ -17145,8 +16723,7 @@ ${shortNewText.slice(0, -1)}`;
             if (alineAttrs) {
               for (const op of Changeset2.deserializeOps(alineAttrs)) {
                 const authorId = AttributeMap.fromString(op.attribs, apool).get("author");
-                if (authorId)
-                  authorIds.add(authorId);
+                if (authorId) authorIds.add(authorId);
               }
             }
             const idToName = new Map(parent.parent.pad.userList().map((a) => [a.userId, a.name]));
@@ -17307,8 +16884,7 @@ ${shortNewText.slice(0, -1)}`;
               updateBrowserSelectionFromRep();
               const myselection = targetDoc.getSelection();
               let caretOffsetTop = myselection.focusNode.parentNode.offsetTop || myselection.focusNode.offsetTop;
-              if (caretOffsetTop === -1)
-                caretOffsetTop = myselection.focusNode.offsetTop;
+              if (caretOffsetTop === -1) caretOffsetTop = myselection.focusNode.offsetTop;
               scroll2.setScrollY(caretOffsetTop);
             }, 200);
           }
@@ -17344,10 +16920,8 @@ ${shortNewText.slice(0, -1)}`;
     const doUndoRedo = (which) => {
       if (undoModule.enabled) {
         let whichMethod;
-        if (which === "undo")
-          whichMethod = "performUndo";
-        if (which === "redo")
-          whichMethod = "performRedo";
+        if (which === "undo") whichMethod = "performUndo";
+        if (which === "redo") whichMethod = "performRedo";
         if (whichMethod) {
           const oldEventType = currentCallStack.editEvent.eventType;
           currentCallStack.startNewEvent(which);
@@ -17474,10 +17048,8 @@ ${shortNewText.slice(0, -1)}`;
     editorInfo.ace_performDocumentReplaceCharRange = performDocumentReplaceCharRange;
     editorInfo.ace_setSelection = setSelection;
     const nodeMaxIndex = (nd) => {
-      if (isNodeText(nd))
-        return nd.nodeValue.length;
-      else
-        return 1;
+      if (isNodeText(nd)) return nd.nodeValue.length;
+      else return 1;
     };
     const getSelection = () => {
       const browserSelection = targetWindow.getSelection();
@@ -17558,8 +17130,7 @@ ${shortNewText.slice(0, -1)}`;
     };
     const _teardownActions = [];
     const teardown = () => {
-      for (const a of _teardownActions)
-        a();
+      for (const a of _teardownActions) a();
     };
     let inInternationalComposition = null;
     editorInfo.ace_getInInternationalComposition = () => inInternationalComposition;
@@ -17612,8 +17183,7 @@ ${shortNewText.slice(0, -1)}`;
         });
       });
       $2(document.documentElement).on("compositionstart", () => {
-        if (inInternationalComposition)
-          return;
+        if (inInternationalComposition) return;
         inInternationalComposition = new Promise((resolve) => {
           $2(document.documentElement).one("compositionend", () => {
             inInternationalComposition = null;
@@ -17623,8 +17193,7 @@ ${shortNewText.slice(0, -1)}`;
       });
     };
     const topLevel = (n) => {
-      if (!n || n === targetBody)
-        return null;
+      if (!n || n === targetBody) return null;
       while (n.parentNode !== targetBody) {
         n = n.parentNode;
       }
@@ -17636,10 +17205,8 @@ ${shortNewText.slice(0, -1)}`;
       const leftOf = (n) => n.offsetLeft;
       const rightOf = (n) => n.offsetLeft + n.offsetWidth;
       if (!isNodeText(node)) {
-        if (index === 0)
-          return leftOf(node);
-        else
-          return rightOf(node);
+        if (index === 0) return leftOf(node);
+        else return rightOf(node);
       } else {
         let charsToLeft = index;
         let charsToRight = node.nodeValue.length - index;
@@ -17648,8 +17215,7 @@ ${shortNewText.slice(0, -1)}`;
           charsToLeft += n.nodeValue;
         }
         const leftEdge = n ? rightOf(n) : leftOf(node.parentNode);
-        for (n = node.nextSibling; n && isNodeText(n); n = n.nextSibling)
-          charsToRight += n.nodeValue;
+        for (n = node.nextSibling; n && isNodeText(n); n = n.nextSibling) charsToRight += n.nodeValue;
         const rightEdge = n ? leftOf(n) : rightOf(node.parentNode);
         const frac = charsToLeft / (charsToLeft + charsToRight);
         const pixLoc = leftEdge + frac * (rightEdge - leftEdge);
@@ -17658,8 +17224,7 @@ ${shortNewText.slice(0, -1)}`;
     };
     const getInnerHeight = () => {
       const h = browser2.opera ? outerWin.innerHeight : outerDoc.documentElement.clientHeight;
-      if (h)
-        return h;
+      if (h) return h;
       return Number(editorInfo.frame.parentNode.style.height.replace(/[^0-9]/g, "") || 0);
     };
     const getInnerWidth = () => outerDoc.documentElement.clientWidth;
@@ -17673,8 +17238,7 @@ ${shortNewText.slice(0, -1)}`;
       }
     };
     const scrollSelectionIntoView = () => {
-      if (!rep.selStart)
-        return;
+      if (!rep.selStart) return;
       fixView();
       const innerHeight = getInnerHeight();
       scroll2.scrollNodeVerticallyIntoView(rep, innerHeight);
@@ -17717,8 +17281,7 @@ ${shortNewText.slice(0, -1)}`;
           level = Number(listType[2]);
         }
         const t = getLineListType(n);
-        if (t === listType)
-          togglingOn = false;
+        if (t === listType) togglingOn = false;
         if (togglingOn) {
           mods.push([n, allLinesAreList ? `indent${level}` : t ? type + level : `${type}1`]);
         } else {
@@ -17731,8 +17294,7 @@ ${shortNewText.slice(0, -1)}`;
           }
         }
       }
-      for (const mod of mods)
-        setLineListType(mod[0], mod[1]);
+      for (const mod of mods) setLineListType(mod[0], mod[1]);
     };
     const doInsertUnorderedList = () => {
       doInsertList("bullet");
@@ -17772,12 +17334,9 @@ ${shortNewText.slice(0, -1)}`;
         }
       }
       let newNumLines = rep.lines.length();
-      if (newNumLines < 1)
-        newNumLines = 1;
-      while (sideDivInner.children.length < newNumLines)
-        appendNewSideDivLine();
-      while (sideDivInner.children.length > newNumLines)
-        sideDivInner.lastElementChild.remove();
+      if (newNumLines < 1) newNumLines = 1;
+      while (sideDivInner.children.length < newNumLines) appendNewSideDivLine();
+      while (sideDivInner.children.length > newNumLines) sideDivInner.lastElementChild.remove();
       for (const [i, sideDivLine] of Array.prototype.entries.call(sideDivInner.children)) {
         sideDivLine.style.height = `${lineOffsets[i]}px`;
         sideDivLine.style.lineHeight = `${lineHeights[i]}px`;
@@ -17788,15 +17347,12 @@ ${shortNewText.slice(0, -1)}`;
     this.init = async () => {
       await $2.ready;
       inCallStack("setup", () => {
-        if (browser2.firefox)
-          $2(targetBody).addClass("mozilla");
-        if (browser2.safari)
-          $2(targetBody).addClass("safari");
+        if (browser2.firefox) $2(targetBody).addClass("mozilla");
+        if (browser2.safari) $2(targetBody).addClass("safari");
         targetBody.classList.toggle("authorColors", true);
         targetBody.classList.toggle("doesWrap", doesWrap);
         enforceEditability();
-        while (targetBody.firstChild)
-          targetBody.removeChild(targetBody.firstChild);
+        while (targetBody.firstChild) targetBody.removeChild(targetBody.firstChild);
         const oneEntry = createDomLineEntry("");
         doRepLineSplice(0, rep.lines.length(), [oneEntry]);
         insertDomLines(null, [oneEntry.domInfo]);
@@ -18002,12 +17558,10 @@ var require2 = (
     };
     let randomVersionString = null;
     const getRandomVersionString = () => {
-      if (typeof window === "undefined")
-        return null;
+      if (typeof window === "undefined") return null;
       for (let win = window; randomVersionString == null; win = win.parent) {
         ({ clientVars: { randomVersionString } = {} } = win);
-        if (win === window.top)
-          break;
+        if (win === window.top) break;
       }
       return randomVersionString;
     };
@@ -18190,8 +17744,7 @@ var require2 = (
       if (typeof path !== "string" || !(typeof module === "function" || module === null)) {
         throw new ArgumentError("Definition must be a (string, function) pair.");
       }
-      if (moduleIsDefined(path))
-        ;
+      if (moduleIsDefined(path)) ;
       else {
         definitions[path] = module;
       }
@@ -18316,8 +17869,7 @@ const requireKernel = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defin
 }, Symbol.toStringTag, { value: "Module" }));
 var hasRequiredAce;
 function requireAce() {
-  if (hasRequiredAce)
-    return ace;
+  if (hasRequiredAce) return ace;
   hasRequiredAce = 1;
   const hooks$1 = hooks;
   const makeCSSManager = requireCssmanager().makeCSSManager;
@@ -18337,8 +17889,7 @@ function requireAce() {
     await new Promise((resolve, reject2) => {
       let cleanup;
       const successCb = () => {
-        if (!predicate())
-          return;
+        if (!predicate()) return;
         debugLog(`Ace2Editor.init() ${event} event on`, obj);
         cleanup();
         resolve();
@@ -18372,8 +17923,7 @@ function requireAce() {
         eventFired(doc(), "readystatechange", cleanups, () => doc.readyState === "complete")
       ]);
     } finally {
-      for (const cleanup of cleanups)
-        cleanup();
+      for (const cleanup of cleanups) cleanup();
     }
   };
   const Ace2Editor = function() {
@@ -18382,13 +17932,11 @@ function requireAce() {
     let actionsPendingInit = [];
     const pendingInit = (func) => function(...args) {
       const action = () => func.apply(this, args);
-      if (loaded)
-        return action();
+      if (loaded) return action();
       actionsPendingInit.push(action);
     };
     const doActionsPendingInit = () => {
-      for (const fn of actionsPendingInit)
-        fn();
+      for (const fn of actionsPendingInit) fn();
       actionsPendingInit = [];
     };
     const aceFunctionsPendingInit = [
@@ -18549,8 +18097,7 @@ function requireAce() {
 }
 var hasRequiredPad_editor;
 function requirePad_editor() {
-  if (hasRequiredPad_editor)
-    return pad_editor;
+  if (hasRequiredPad_editor) return pad_editor;
   hasRequiredPad_editor = 1;
   (function(exports) {
     const Cookies = requirePad_utils().Cookies;
@@ -18621,10 +18168,8 @@ function requirePad_editor() {
         setViewOptions: (newOptions) => {
           const getOption = (key, defaultValue) => {
             const value = String(newOptions[key]);
-            if (value === "true")
-              return true;
-            if (value === "false")
-              return false;
+            if (value === "true") return true;
+            if (value === "false") return false;
             return defaultValue;
           };
           let v;
@@ -18715,8 +18260,7 @@ function requirePad_editor() {
 }
 var hasRequiredChat;
 function requireChat() {
-  if (hasRequiredChat)
-    return chat;
+  if (hasRequiredChat) return chat;
   hasRequiredChat = 1;
   const ChatMessage = requireChatMessage();
   const padutils = requirePad_utils().padutils;
@@ -18802,8 +18346,7 @@ function requireChat() {
       },
       async send() {
         const text = $("#chatinput").val();
-        if (text.replace(/\s+/, "").length === 0)
-          return;
+        if (text.replace(/\s+/, "").length === 0) return;
         const message = new ChatMessage(text);
         await hooks$1.aCallAll("chatSendMessage", Object.freeze({ message }));
         this._pad.collabClient.sendMessage({ type: "CHAT_MESSAGE", message });
@@ -18819,8 +18362,7 @@ function requireChat() {
           );
         }
         const authorClass = (authorId) => `author-${authorId.replace(/[^a-y0-9]/g, (c) => {
-          if (c === ".")
-            return "-";
+          if (c === ".") return "-";
           return `z${c.charCodeAt(0)}z`;
         })}`;
         const ctx = {
@@ -18834,10 +18376,8 @@ function requireChat() {
           timeStr: (() => {
             let minutes = `${new Date(msg.time).getMinutes()}`;
             let hours = `${new Date(msg.time).getHours()}`;
-            if (minutes.length === 1)
-              minutes = `0${minutes}`;
-            if (hours.length === 1)
-              hours = `0${hours}`;
+            if (minutes.length === 1) minutes = `0${minutes}`;
+            if (hours.length === 1) hours = `0${hours}`;
             return `${hours}:${minutes}`;
           })(),
           duration: 4e3
@@ -18853,10 +18393,8 @@ function requireChat() {
         await hooks$1.aCallAll("chatNewMessage", ctx);
         const cls = authorClass(ctx.author);
         const chatMsg = ctx.rendered != null ? $(ctx.rendered) : $("<p>").attr("data-authorId", ctx.author).addClass(cls).append($("<b>").text(`${ctx.authorName}:`)).append($("<span>").addClass("time").addClass(cls).html(ctx.timeStr)).append(" ").append($("<div>").html(ctx.text).contents());
-        if (isHistoryAdd)
-          chatMsg.insertAfter("#chatloadmessagesbutton");
-        else
-          $("#chattext").append(chatMsg);
+        if (isHistoryAdd) chatMsg.insertAfter("#chatloadmessagesbutton");
+        else $("#chattext").append(chatMsg);
         chatMsg.each((i, e) => html10n.translateElement(html10n.translations, e));
         if (increment && !isHistoryAdd) {
           let count = Number($("#chatcounter").text());
@@ -18874,8 +18412,7 @@ function requireChat() {
             });
           }
         }
-        if (!isHistoryAdd)
-          this.scrollDown();
+        if (!isHistoryAdd) this.scrollDown();
       },
       init(pad2) {
         this._pad = pad2;
@@ -18910,8 +18447,7 @@ function requireChat() {
         $("#chatloadmessagesbutton").on("click", () => {
           const start = Math.max(this.historyPointer - 20, 0);
           const end = this.historyPointer;
-          if (start === end)
-            return;
+          if (start === end) return;
           $("#chatloadmessagesbutton").css("display", "none");
           $("#chatloadmessagesball").css("display", "block");
           pad2.collabClient.sendMessage({ type: "GET_CHAT_MESSAGES", start, end });
@@ -18925,8 +18461,7 @@ function requireChat() {
 var collab_client = {};
 var hasRequiredCollab_client;
 function requireCollab_client() {
-  if (hasRequiredCollab_client)
-    return collab_client;
+  if (hasRequiredCollab_client) return collab_client;
   hasRequiredCollab_client = 1;
   const chat2 = requireChat().chat;
   const hooks$1 = hooks;
@@ -19060,13 +18595,10 @@ function requireCollab_client() {
       }
     }();
     const handleMessageFromServer = (evt) => {
-      if (!getSocket())
-        return;
-      if (!evt.data)
-        return;
+      if (!getSocket()) return;
+      if (!evt.data) return;
       const wrapper = evt;
-      if (wrapper.type !== "COLLABROOM" && wrapper.type !== "CUSTOM")
-        return;
+      if (wrapper.type !== "COLLABROOM" && wrapper.type !== "CUSTOM") return;
       const msg = wrapper.data;
       if (msg.type === "NEW_CHANGES") {
         serverMessageTaskQueue.enqueue(async () => {
@@ -19152,16 +18684,14 @@ function requireCollab_client() {
       if (msg.type.indexOf("USER_") > -1) {
         msg.payload = msg.userInfo;
       }
-      if (msg.type === "NEW_CHANGES")
-        msg.payload = msg;
+      if (msg.type === "NEW_CHANGES") msg.payload = msg;
       hooks$1.callAll(`handleClientMessage_${msg.type}`, { payload: msg.payload });
     };
     const updateUserInfo = (userInfo) => {
       userInfo.userId = userId;
       userSet[userId] = userInfo;
       tellAceActiveAuthorInfo(userInfo);
-      if (!getSocket())
-        return;
+      if (!getSocket()) return;
       sendMessage(
         {
           type: "USERINFO_UPDATE",
@@ -19340,8 +18870,7 @@ var pad_editbar = {};
 var pad_savedrevs = {};
 var hasRequiredPad_savedrevs;
 function requirePad_savedrevs() {
-  if (hasRequiredPad_savedrevs)
-    return pad_savedrevs;
+  if (hasRequiredPad_savedrevs) return pad_savedrevs;
   hasRequiredPad_savedrevs = 1;
   let pad2;
   pad_savedrevs.saveNow = () => {
@@ -19365,8 +18894,7 @@ function requirePad_savedrevs() {
 var niceSelect = {};
 var hasRequiredNiceSelect;
 function requireNiceSelect() {
-  if (hasRequiredNiceSelect)
-    return niceSelect;
+  if (hasRequiredNiceSelect) return niceSelect;
   hasRequiredNiceSelect = 1;
   const jQuery2 = rjquery.jQuery;
   (function($2) {
@@ -19522,8 +19050,7 @@ function requireNiceSelect() {
 }
 var hasRequiredPad_editbar;
 function requirePad_editbar() {
-  if (hasRequiredPad_editbar)
-    return pad_editbar;
+  if (hasRequiredPad_editbar) return pad_editbar;
   hasRequiredPad_editbar = 1;
   const browser2 = browserExports;
   const hooks$1 = hooks;
@@ -19682,8 +19209,7 @@ function requirePad_editbar() {
       if (this.isEnabled() && this.commands[cmd]) {
         this.commands[cmd](cmd, padeditor.ace, item);
       }
-      if (padeditor.ace)
-        padeditor.ace.focus();
+      if (padeditor.ace) padeditor.ace.focus();
     }
     // cb is deprecated (this function is synchronous so a callback is unnecessary).
     toggleDropDown(moduleName, cb2 = null) {
@@ -19696,12 +19222,10 @@ function requirePad_editbar() {
         $(".toolbar-popup").removeClass("popup-show");
         if (moduleName === "none") {
           for (const thisModuleName of this.dropdowns) {
-            if (thisModuleName === "users")
-              continue;
+            if (thisModuleName === "users") continue;
             const module = $(`#${thisModuleName}`);
             const isAForceReconnectMessage = module.find("button#forcereconnect:visible").length > 0;
-            if (isAForceReconnectMessage)
-              continue;
+            if (isAForceReconnectMessage) continue;
             if (module.hasClass("popup-show")) {
               $(`li[data-key=${thisModuleName}] > a`).removeClass("selected");
               module.removeClass("popup-show");
@@ -19722,8 +19246,7 @@ function requirePad_editbar() {
       } catch (err) {
         cbErr = err || new Error(err);
       } finally {
-        if (cb2)
-          Promise.resolve().then(() => cb2(cbErr));
+        if (cb2) Promise.resolve().then(() => cb2(cbErr));
       }
     }
     setSyncStatus(status) {
@@ -19779,23 +19302,18 @@ function requirePad_editbar() {
         }
       }
       if ($(":focus").parents(".toolbar").length === 1) {
-        if (evt.keyCode !== 39 && evt.keyCode !== 37)
-          return;
+        if (evt.keyCode !== 39 && evt.keyCode !== 37) return;
         const focusItems = $("#editbar").find("button, select");
         if (evt.keyCode === 37) {
-          if ($(".popup").is(":visible") || evt.target.localName === "input")
-            return;
+          if ($(".popup").is(":visible") || evt.target.localName === "input") return;
           this._editbarPosition--;
-          if (this._editbarPosition === -1)
-            this._editbarPosition = focusItems.length - 1;
+          if (this._editbarPosition === -1) this._editbarPosition = focusItems.length - 1;
           $(focusItems[this._editbarPosition]).trigger("focus");
         }
         if (evt.keyCode === 39) {
-          if ($(".popup").is(":visible") || evt.target.localName === "input")
-            return;
+          if ($(".popup").is(":visible") || evt.target.localName === "input") return;
           this._editbarPosition++;
-          if (this._editbarPosition >= focusItems.length)
-            this._editbarPosition = 0;
+          if (this._editbarPosition >= focusItems.length) this._editbarPosition = 0;
           $(focusItems[this._editbarPosition]).trigger("focus");
         }
       }
@@ -19899,8 +19417,7 @@ function requirePad_editbar() {
 var pad_automatic_reconnect = {};
 var hasRequiredPad_automatic_reconnect;
 function requirePad_automatic_reconnect() {
-  if (hasRequiredPad_automatic_reconnect)
-    return pad_automatic_reconnect;
+  if (hasRequiredPad_automatic_reconnect) return pad_automatic_reconnect;
   hasRequiredPad_automatic_reconnect = 1;
   pad_automatic_reconnect.showCountDownTimerToReconnectOnModal = ($modal, pad2) => {
     if (clientVars.automaticReconnectionTimeout && $modal.is(".with_reconnect_timer")) {
@@ -20049,8 +19566,7 @@ function requirePad_automatic_reconnect() {
 }
 var hasRequiredPad_modals;
 function requirePad_modals() {
-  if (hasRequiredPad_modals)
-    return pad_modals;
+  if (hasRequiredPad_modals) return pad_modals;
   hasRequiredPad_modals = 1;
   const padeditbar = requirePad_editbar().padeditbar;
   const automaticReconnect = requirePad_automatic_reconnect();
@@ -20082,8 +19598,7 @@ function requirePad_modals() {
 }
 var hasRequiredPad_connectionstatus;
 function requirePad_connectionstatus() {
-  if (hasRequiredPad_connectionstatus)
-    return pad_connectionstatus;
+  if (hasRequiredPad_connectionstatus) return pad_connectionstatus;
   hasRequiredPad_connectionstatus = 1;
   const padmodals = requirePad_modals().padmodals;
   const padconnectionstatus = /* @__PURE__ */ (() => {
@@ -20111,8 +19626,7 @@ function requirePad_connectionstatus() {
         padmodals.showOverlay();
       },
       disconnected: (msg) => {
-        if (status.what === "disconnected")
-          return;
+        if (status.what === "disconnected") return;
         status = {
           what: "disconnected",
           why: msg
@@ -20148,8 +19662,7 @@ function requirePad_connectionstatus() {
 var pad_impexp = {};
 var hasRequiredPad_impexp;
 function requirePad_impexp() {
-  if (hasRequiredPad_impexp)
-    return pad_impexp;
+  if (hasRequiredPad_impexp) return pad_impexp;
   hasRequiredPad_impexp = 1;
   const padimpexp = /* @__PURE__ */ (() => {
     const addImportFrames = () => {
@@ -20166,8 +19679,7 @@ function requirePad_impexp() {
     const fileInputSubmit = function(e) {
       e.preventDefault();
       $("#importmessagefail").fadeOut("fast");
-      if (!window.confirm(html10n.get("pad.impexp.confirmimport")))
-        return;
+      if (!window.confirm(html10n.get("pad.impexp.confirmimport"))) return;
       $("#importsubmitinput").attr({ disabled: true }).val(html10n.get("pad.impexp.importing"));
       window.setTimeout(() => $("#importfileinput").attr({ disabled: true }), 0);
       $("#importarrow").stop(true, true).hide();
@@ -20182,16 +19694,14 @@ function requirePad_impexp() {
           dataType: "json",
           timeout: 25e3
         }).catch((err) => {
-          if (err.responseJSON)
-            return err.responseJSON;
+          if (err.responseJSON) return err.responseJSON;
           return { code: 2, message: "Unknown import error" };
         });
         if (code !== 0) {
           importErrorMessage(message);
         } else {
           $("#import_export").removeClass("popup-show");
-          if (directDatabaseAccess)
-            window.location.reload();
+          if (directDatabaseAccess) window.location.reload();
         }
         $("#importsubmitinput").prop("disabled", false).val(html10n.get("pad.impexp.importbutton"));
         window.setTimeout(() => $("#importfileinput").prop("disabled", false), 0);
@@ -20283,8 +19793,7 @@ function requirePad_impexp() {
 var pad_userlist = {};
 var hasRequiredPad_userlist;
 function requirePad_userlist() {
-  if (hasRequiredPad_userlist)
-    return pad_userlist;
+  if (hasRequiredPad_userlist) return pad_userlist;
   hasRequiredPad_userlist = 1;
   const padutils = requirePad_utils().padutils;
   const hooks$1 = hooks;
@@ -20340,14 +19849,10 @@ function requirePad_userlist() {
       };
       const getAnimationHeight = (step, power) => {
         let a = Math.abs(step / 12);
-        if (power === 2)
-          a **= 2;
-        else if (power === 3)
-          a **= 3;
-        else if (power === 4)
-          a **= 4;
-        else if (power >= 5)
-          a **= 5;
+        if (power === 2) a **= 2;
+        else if (power === 3) a **= 3;
+        else if (power === 4) a **= 4;
+        else if (power >= 5) a **= 5;
         return Math.round(26 * (1 - a));
       };
       const OPACITY_STEPS = 6;
@@ -20379,8 +19884,7 @@ function requirePad_userlist() {
           name = document.createTextNode(data.name);
         } else {
           name = $("<input>").attr("data-l10n-id", "pad.userlist.unnamed").attr("type", "text").addClass("editempty").addClass("newinput").attr("value", html10n.get("pad.userlist.unnamed"));
-          if (isNameEditable(data))
-            name.attr("disabled", "disabled");
+          if (isNameEditable(data)) name.attr("disabled", "disabled");
         }
         return $().add($("<td>").css("height", `${height}px`).addClass("usertdswatch").append($("<div>").addClass("swatch").css("background", padutils.escapeHtml(data.color)).html("&nbsp;"))).add($("<td>").css("height", `${height}px`).addClass("usertdname").append(name)).add($("<td>").css("height", `${height}px`).addClass("activity").text(data.activity));
       };
@@ -20575,8 +20079,7 @@ function requirePad_userlist() {
         for (const [key, { userId }] of Object.entries(historical)) {
           let exists = false;
           userList.forEach((user) => {
-            if (user.userId === userId)
-              exists = true;
+            if (user.userId === userId) exists = true;
           });
           if (exists === false) {
             userList.push(historical[key]);
@@ -20707,8 +20210,7 @@ function requirePad_userlist() {
         delete parts[0];
         for (let i = 1; i <= 3; ++i) {
           parts[i] = parseInt(parts[i]).toString(16);
-          if (parts[i].length === 1)
-            parts[i] = `0${parts[i]}`;
+          if (parts[i].length === 1) parts[i] = `0${parts[i]}`;
         }
         newColor = `#${parts.join("")}`;
       }
@@ -20820,8 +20322,7 @@ const socketio = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProp
 }, Symbol.toStringTag, { value: "Module" }));
 var hasRequiredPad;
 function requirePad() {
-  if (hasRequiredPad)
-    return pad$1;
+  if (hasRequiredPad) return pad$1;
   hasRequiredPad = 1;
   (function(exports) {
     let socket2;
@@ -20911,8 +20412,7 @@ function requirePad() {
         name: "alwaysShowChat",
         checkVal: "true",
         callback: (val) => {
-          if (!settings.hideChat)
-            chat2.stickToScreen();
+          if (!settings.hideChat) chat2.stickToScreen();
         }
       },
       {
@@ -20934,8 +20434,7 @@ function requirePad() {
     const getParams = () => {
       for (const setting of getParameters) {
         let value = clientVars.padOptions[setting.name];
-        if (value == null)
-          continue;
+        if (value == null) continue;
         value = value.toString();
         if (value === setting.checkVal || setting.checkVal == null) {
           setting.callback(value);
@@ -21011,8 +20510,7 @@ function requirePad() {
       };
       socket2.on("disconnect", (reason) => {
         console.log(`Socket disconnected: ${reason}`);
-        if (reason !== "io server disconnect" || reason !== "ping timeout")
-          return;
+        if (reason !== "io server disconnect" || reason !== "ping timeout") return;
         socketReconnecting();
         socket2.connect();
       });
@@ -21078,8 +20576,7 @@ function requirePad() {
         new Promise((resolve) => {
           const h = (obj) => {
             console.log("Incoming message is");
-            if (obj.accessStatus || obj.type !== "CLIENT_VARS")
-              return;
+            if (obj.accessStatus || obj.type !== "CLIENT_VARS") return;
             socket2.off("message", h);
             resolve();
           };
@@ -21105,10 +20602,8 @@ function requirePad() {
         if (this._cc == null) {
           this._q.push(...msgs);
         } else {
-          while (this._q.length > 0)
-            this._cc.handleMessageFromServer(this._q.shift());
-          for (const msg of msgs)
-            this._cc.handleMessageFromServer(msg);
+          while (this._q.length > 0) this._cc.handleMessageFromServer(this._q.shift());
+          for (const msg of msgs) this._cc.handleMessageFromServer(msg);
         }
       }
     }
@@ -21136,8 +20631,7 @@ function requirePad() {
       init() {
         padutils.setupGlobalExceptionHandler();
         $(() => (async () => {
-          if (window.customStart != null)
-            window.customStart();
+          if (window.customStart != null) window.customStart();
           $("#colorpicker").farbtastic({ callback: "#mycolorpickerpreview", width: 220 });
           $("#readonlyinput").on("click", () => {
             padeditbar.setEmbedLinks();
@@ -21486,6 +20980,7 @@ var url = {};
 var cjs$2 = {};
 var socket$2 = {};
 var transports = {};
+var pollingXhr = {};
 var polling = {};
 var transport = {};
 var cjs$1 = {};
@@ -21493,8 +20988,7 @@ var encodePacket_browser = {};
 var commons = {};
 var hasRequiredCommons;
 function requireCommons() {
-  if (hasRequiredCommons)
-    return commons;
+  if (hasRequiredCommons) return commons;
   hasRequiredCommons = 1;
   Object.defineProperty(commons, "__esModule", { value: true });
   commons.ERROR_PACKET = commons.PACKET_TYPES_REVERSE = commons.PACKET_TYPES = void 0;
@@ -21518,11 +21012,11 @@ function requireCommons() {
 }
 var hasRequiredEncodePacket_browser;
 function requireEncodePacket_browser() {
-  if (hasRequiredEncodePacket_browser)
-    return encodePacket_browser;
+  if (hasRequiredEncodePacket_browser) return encodePacket_browser;
   hasRequiredEncodePacket_browser = 1;
   Object.defineProperty(encodePacket_browser, "__esModule", { value: true });
-  encodePacket_browser.encodePacket = encodePacket_browser.encodePacketToBinary = void 0;
+  encodePacket_browser.encodePacket = void 0;
+  encodePacket_browser.encodePacketToBinary = encodePacketToBinary;
   const commons_js_1 = requireCommons();
   const withNativeBlob = typeof Blob === "function" || typeof Blob !== "undefined" && Object.prototype.toString.call(Blob) === "[object BlobConstructor]";
   const withNativeArrayBuffer = typeof ArrayBuffer === "function";
@@ -21577,15 +21071,13 @@ function requireEncodePacket_browser() {
       callback(TEXT_ENCODER.encode(encoded));
     });
   }
-  encodePacket_browser.encodePacketToBinary = encodePacketToBinary;
   return encodePacket_browser;
 }
 var decodePacket_browser = {};
 var base64Arraybuffer = {};
 var hasRequiredBase64Arraybuffer;
 function requireBase64Arraybuffer() {
-  if (hasRequiredBase64Arraybuffer)
-    return base64Arraybuffer;
+  if (hasRequiredBase64Arraybuffer) return base64Arraybuffer;
   hasRequiredBase64Arraybuffer = 1;
   Object.defineProperty(base64Arraybuffer, "__esModule", { value: true });
   base64Arraybuffer.decode = base64Arraybuffer.encode = void 0;
@@ -21635,8 +21127,7 @@ function requireBase64Arraybuffer() {
 }
 var hasRequiredDecodePacket_browser;
 function requireDecodePacket_browser() {
-  if (hasRequiredDecodePacket_browser)
-    return decodePacket_browser;
+  if (hasRequiredDecodePacket_browser) return decodePacket_browser;
   hasRequiredDecodePacket_browser = 1;
   Object.defineProperty(decodePacket_browser, "__esModule", { value: true });
   decodePacket_browser.decodePacket = void 0;
@@ -21698,12 +21189,13 @@ function requireDecodePacket_browser() {
 }
 var hasRequiredCjs$3;
 function requireCjs$3() {
-  if (hasRequiredCjs$3)
-    return cjs$1;
+  if (hasRequiredCjs$3) return cjs$1;
   hasRequiredCjs$3 = 1;
   (function(exports) {
     Object.defineProperty(exports, "__esModule", { value: true });
-    exports.decodePayload = exports.decodePacket = exports.encodePayload = exports.encodePacket = exports.protocol = exports.createPacketDecoderStream = exports.createPacketEncoderStream = void 0;
+    exports.decodePayload = exports.decodePacket = exports.encodePayload = exports.encodePacket = exports.protocol = void 0;
+    exports.createPacketEncoderStream = createPacketEncoderStream;
+    exports.createPacketDecoderStream = createPacketDecoderStream;
     const encodePacket_js_1 = requireEncodePacket_browser();
     Object.defineProperty(exports, "encodePacket", { enumerable: true, get: function() {
       return encodePacket_js_1.encodePacket;
@@ -21770,7 +21262,6 @@ function requireCjs$3() {
         }
       });
     }
-    exports.createPacketEncoderStream = createPacketEncoderStream;
     let TEXT_DECODER;
     function totalLength(chunks) {
       return chunks.reduce((acc, chunk2) => acc + chunk2.length, 0);
@@ -21855,14 +21346,12 @@ function requireCjs$3() {
         }
       });
     }
-    exports.createPacketDecoderStream = createPacketDecoderStream;
     exports.protocol = 4;
   })(cjs$1);
   return cjs$1;
 }
 function Emitter(obj) {
-  if (obj)
-    return mixin(obj);
+  if (obj) return mixin(obj);
 }
 function mixin(obj) {
   for (var key in Emitter.prototype) {
@@ -21891,8 +21380,7 @@ Emitter.prototype.off = Emitter.prototype.removeListener = Emitter.prototype.rem
     return this;
   }
   var callbacks = this._callbacks["$" + event];
-  if (!callbacks)
-    return this;
+  if (!callbacks) return this;
   if (1 == arguments.length) {
     delete this._callbacks["$" + event];
     return this;
@@ -21937,15 +21425,23 @@ const esm = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty(
   Emitter
 }, Symbol.toStringTag, { value: "Module" }));
 var util = {};
-var globalThis_browser = {};
-var hasRequiredGlobalThis_browser;
-function requireGlobalThis_browser() {
-  if (hasRequiredGlobalThis_browser)
-    return globalThis_browser;
-  hasRequiredGlobalThis_browser = 1;
-  Object.defineProperty(globalThis_browser, "__esModule", { value: true });
-  globalThis_browser.globalThisShim = void 0;
-  globalThis_browser.globalThisShim = (() => {
+var globals = {};
+var hasRequiredGlobals;
+function requireGlobals() {
+  if (hasRequiredGlobals) return globals;
+  hasRequiredGlobals = 1;
+  Object.defineProperty(globals, "__esModule", { value: true });
+  globals.defaultBinaryType = globals.globalThisShim = globals.nextTick = void 0;
+  globals.createCookieJar = createCookieJar;
+  globals.nextTick = (() => {
+    const isPromiseAvailable = typeof Promise === "function" && typeof Promise.resolve === "function";
+    if (isPromiseAvailable) {
+      return (cb2) => Promise.resolve().then(cb2);
+    } else {
+      return (cb2, setTimeoutFn) => setTimeoutFn(cb2, 0);
+    }
+  })();
+  globals.globalThisShim = (() => {
     if (typeof self !== "undefined") {
       return self;
     } else if (typeof window !== "undefined") {
@@ -21954,16 +21450,21 @@ function requireGlobalThis_browser() {
       return Function("return this")();
     }
   })();
-  return globalThis_browser;
+  globals.defaultBinaryType = "arraybuffer";
+  function createCookieJar() {
+  }
+  return globals;
 }
 var hasRequiredUtil;
 function requireUtil() {
-  if (hasRequiredUtil)
-    return util;
+  if (hasRequiredUtil) return util;
   hasRequiredUtil = 1;
   Object.defineProperty(util, "__esModule", { value: true });
-  util.byteLength = util.installTimerFunctions = util.pick = void 0;
-  const globalThis_js_1 = requireGlobalThis_browser();
+  util.pick = pick2;
+  util.installTimerFunctions = installTimerFunctions;
+  util.byteLength = byteLength;
+  util.randomString = randomString;
+  const globals_node_js_1 = requireGlobals();
   function pick2(obj, ...attr) {
     return attr.reduce((acc, k) => {
       if (obj.hasOwnProperty(k)) {
@@ -21972,19 +21473,17 @@ function requireUtil() {
       return acc;
     }, {});
   }
-  util.pick = pick2;
-  const NATIVE_SET_TIMEOUT = globalThis_js_1.globalThisShim.setTimeout;
-  const NATIVE_CLEAR_TIMEOUT = globalThis_js_1.globalThisShim.clearTimeout;
+  const NATIVE_SET_TIMEOUT = globals_node_js_1.globalThisShim.setTimeout;
+  const NATIVE_CLEAR_TIMEOUT = globals_node_js_1.globalThisShim.clearTimeout;
   function installTimerFunctions(obj, opts) {
     if (opts.useNativeTimers) {
-      obj.setTimeoutFn = NATIVE_SET_TIMEOUT.bind(globalThis_js_1.globalThisShim);
-      obj.clearTimeoutFn = NATIVE_CLEAR_TIMEOUT.bind(globalThis_js_1.globalThisShim);
+      obj.setTimeoutFn = NATIVE_SET_TIMEOUT.bind(globals_node_js_1.globalThisShim);
+      obj.clearTimeoutFn = NATIVE_CLEAR_TIMEOUT.bind(globals_node_js_1.globalThisShim);
     } else {
-      obj.setTimeoutFn = globalThis_js_1.globalThisShim.setTimeout.bind(globalThis_js_1.globalThisShim);
-      obj.clearTimeoutFn = globalThis_js_1.globalThisShim.clearTimeout.bind(globalThis_js_1.globalThisShim);
+      obj.setTimeoutFn = globals_node_js_1.globalThisShim.setTimeout.bind(globals_node_js_1.globalThisShim);
+      obj.clearTimeoutFn = globals_node_js_1.globalThisShim.clearTimeout.bind(globals_node_js_1.globalThisShim);
     }
   }
-  util.installTimerFunctions = installTimerFunctions;
   const BASE64_OVERHEAD = 1.33;
   function byteLength(obj) {
     if (typeof obj === "string") {
@@ -21992,7 +21491,6 @@ function requireUtil() {
     }
     return Math.ceil((obj.byteLength || obj.size) * BASE64_OVERHEAD);
   }
-  util.byteLength = byteLength;
   function utf8Length(str) {
     let c = 0, length = 0;
     for (let i = 0, l = str.length; i < l; i++) {
@@ -22010,14 +21508,46 @@ function requireUtil() {
     }
     return length;
   }
+  function randomString() {
+    return Date.now().toString(36).substring(3) + Math.random().toString(36).substring(2, 5);
+  }
   return util;
+}
+var parseqs = {};
+var hasRequiredParseqs;
+function requireParseqs() {
+  if (hasRequiredParseqs) return parseqs;
+  hasRequiredParseqs = 1;
+  Object.defineProperty(parseqs, "__esModule", { value: true });
+  parseqs.encode = encode;
+  parseqs.decode = decode;
+  function encode(obj) {
+    let str = "";
+    for (let i in obj) {
+      if (obj.hasOwnProperty(i)) {
+        if (str.length)
+          str += "&";
+        str += encodeURIComponent(i) + "=" + encodeURIComponent(obj[i]);
+      }
+    }
+    return str;
+  }
+  function decode(qs) {
+    let qry = {};
+    let pairs2 = qs.split("&");
+    for (let i = 0, l = pairs2.length; i < l; i++) {
+      let pair = pairs2[i].split("=");
+      qry[decodeURIComponent(pair[0])] = decodeURIComponent(pair[1]);
+    }
+    return qry;
+  }
+  return parseqs;
 }
 var browser$1 = { exports: {} };
 var ms;
 var hasRequiredMs;
 function requireMs() {
-  if (hasRequiredMs)
-    return ms;
+  if (hasRequiredMs) return ms;
   hasRequiredMs = 1;
   var s = 1e3;
   var m = s * 60;
@@ -22134,8 +21664,7 @@ function requireMs() {
 var common;
 var hasRequiredCommon;
 function requireCommon() {
-  if (hasRequiredCommon)
-    return common;
+  if (hasRequiredCommon) return common;
   hasRequiredCommon = 1;
   function setup(env) {
     createDebug.debug = createDebug;
@@ -22299,8 +21828,7 @@ function requireCommon() {
 var define_process_env_default = {};
 var hasRequiredBrowser;
 function requireBrowser() {
-  if (hasRequiredBrowser)
-    return browser$1.exports;
+  if (hasRequiredBrowser) return browser$1.exports;
   hasRequiredBrowser = 1;
   (function(module, exports) {
     exports.formatArgs = formatArgs;
@@ -22402,10 +21930,11 @@ function requireBrowser() {
       if (typeof navigator !== "undefined" && navigator.userAgent && navigator.userAgent.toLowerCase().match(/(edge|trident)\/(\d+)/)) {
         return false;
       }
+      let m;
       return typeof document !== "undefined" && document.documentElement && document.documentElement.style && document.documentElement.style.WebkitAppearance || // Is firebug? http://stackoverflow.com/a/398120/376773
       typeof window !== "undefined" && window.console && (window.console.firebug || window.console.exception && window.console.table) || // Is firefox >= v31?
       // https://developer.mozilla.org/en-US/docs/Tools/Web_Console#Styling_messages
-      typeof navigator !== "undefined" && navigator.userAgent && navigator.userAgent.toLowerCase().match(/firefox\/(\d+)/) && parseInt(RegExp.$1, 10) >= 31 || // Double check webkit in userAgent just in case we are in a worker
+      typeof navigator !== "undefined" && navigator.userAgent && (m = navigator.userAgent.toLowerCase().match(/firefox\/(\d+)/)) && parseInt(m[1], 10) >= 31 || // Double check webkit in userAgent just in case we are in a worker
       typeof navigator !== "undefined" && navigator.userAgent && navigator.userAgent.toLowerCase().match(/applewebkit\/(\d+)/);
     }
     function formatArgs(args) {
@@ -22469,42 +21998,9 @@ function requireBrowser() {
   })(browser$1, browser$1.exports);
   return browser$1.exports;
 }
-var parseqs = {};
-var hasRequiredParseqs;
-function requireParseqs() {
-  if (hasRequiredParseqs)
-    return parseqs;
-  hasRequiredParseqs = 1;
-  Object.defineProperty(parseqs, "__esModule", { value: true });
-  parseqs.decode = parseqs.encode = void 0;
-  function encode(obj) {
-    let str = "";
-    for (let i in obj) {
-      if (obj.hasOwnProperty(i)) {
-        if (str.length)
-          str += "&";
-        str += encodeURIComponent(i) + "=" + encodeURIComponent(obj[i]);
-      }
-    }
-    return str;
-  }
-  parseqs.encode = encode;
-  function decode(qs) {
-    let qry = {};
-    let pairs2 = qs.split("&");
-    for (let i = 0, l = pairs2.length; i < l; i++) {
-      let pair = pairs2[i].split("=");
-      qry[decodeURIComponent(pair[0])] = decodeURIComponent(pair[1]);
-    }
-    return qry;
-  }
-  parseqs.decode = decode;
-  return parseqs;
-}
 var hasRequiredTransport;
 function requireTransport() {
-  if (hasRequiredTransport)
-    return transport;
+  if (hasRequiredTransport) return transport;
   hasRequiredTransport = 1;
   var __importDefault = commonjsGlobal && commonjsGlobal.__importDefault || function(mod) {
     return mod && mod.__esModule ? mod : { "default": mod };
@@ -22514,8 +22010,8 @@ function requireTransport() {
   const engine_io_parser_1 = requireCjs$3();
   const component_emitter_1 = esm;
   const util_js_1 = requireUtil();
-  const debug_1 = __importDefault(requireBrowser());
   const parseqs_js_1 = requireParseqs();
+  const debug_1 = __importDefault(requireBrowser());
   const debug = (0, debug_1.default)("engine.io-client:transport");
   class TransportError extends Error {
     constructor(reason, description, context) {
@@ -22540,6 +22036,7 @@ function requireTransport() {
       this.opts = opts;
       this.query = opts.query;
       this.socket = opts.socket;
+      this.supportsBinary = !opts.forceBase64;
     }
     /**
      * Emits an error.
@@ -22650,141 +22147,24 @@ function requireTransport() {
   transport.Transport = Transport;
   return transport;
 }
-var yeast = {};
-var hasRequiredYeast;
-function requireYeast() {
-  if (hasRequiredYeast)
-    return yeast;
-  hasRequiredYeast = 1;
-  Object.defineProperty(yeast, "__esModule", { value: true });
-  yeast.yeast = yeast.decode = yeast.encode = void 0;
-  const alphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-_".split(""), length = 64, map2 = {};
-  let seed = 0, i = 0, prev;
-  function encode(num) {
-    let encoded = "";
-    do {
-      encoded = alphabet[num % length] + encoded;
-      num = Math.floor(num / length);
-    } while (num > 0);
-    return encoded;
-  }
-  yeast.encode = encode;
-  function decode(str) {
-    let decoded = 0;
-    for (i = 0; i < str.length; i++) {
-      decoded = decoded * length + map2[str.charAt(i)];
-    }
-    return decoded;
-  }
-  yeast.decode = decode;
-  function yeast$1() {
-    const now2 = encode(+/* @__PURE__ */ new Date());
-    if (now2 !== prev)
-      return seed = 0, prev = now2;
-    return now2 + "." + encode(seed++);
-  }
-  yeast.yeast = yeast$1;
-  for (; i < length; i++)
-    map2[alphabet[i]] = i;
-  return yeast;
-}
-var xmlhttprequest_browser = {};
-var hasCors = {};
-var hasRequiredHasCors;
-function requireHasCors() {
-  if (hasRequiredHasCors)
-    return hasCors;
-  hasRequiredHasCors = 1;
-  Object.defineProperty(hasCors, "__esModule", { value: true });
-  hasCors.hasCORS = void 0;
-  let value = false;
-  try {
-    value = typeof XMLHttpRequest !== "undefined" && "withCredentials" in new XMLHttpRequest();
-  } catch (err) {
-  }
-  hasCors.hasCORS = value;
-  return hasCors;
-}
-var hasRequiredXmlhttprequest_browser;
-function requireXmlhttprequest_browser() {
-  if (hasRequiredXmlhttprequest_browser)
-    return xmlhttprequest_browser;
-  hasRequiredXmlhttprequest_browser = 1;
-  Object.defineProperty(xmlhttprequest_browser, "__esModule", { value: true });
-  xmlhttprequest_browser.createCookieJar = xmlhttprequest_browser.XHR = void 0;
-  const has_cors_js_1 = requireHasCors();
-  const globalThis_js_1 = requireGlobalThis_browser();
-  function XHR(opts) {
-    const xdomain = opts.xdomain;
-    try {
-      if ("undefined" !== typeof XMLHttpRequest && (!xdomain || has_cors_js_1.hasCORS)) {
-        return new XMLHttpRequest();
-      }
-    } catch (e) {
-    }
-    if (!xdomain) {
-      try {
-        return new globalThis_js_1.globalThisShim[["Active"].concat("Object").join("X")]("Microsoft.XMLHTTP");
-      } catch (e) {
-      }
-    }
-  }
-  xmlhttprequest_browser.XHR = XHR;
-  function createCookieJar() {
-  }
-  xmlhttprequest_browser.createCookieJar = createCookieJar;
-  return xmlhttprequest_browser;
-}
 var hasRequiredPolling;
 function requirePolling() {
-  if (hasRequiredPolling)
-    return polling;
+  if (hasRequiredPolling) return polling;
   hasRequiredPolling = 1;
   var __importDefault = commonjsGlobal && commonjsGlobal.__importDefault || function(mod) {
     return mod && mod.__esModule ? mod : { "default": mod };
   };
   Object.defineProperty(polling, "__esModule", { value: true });
-  polling.Request = polling.Polling = void 0;
+  polling.Polling = void 0;
   const transport_js_1 = requireTransport();
-  const debug_1 = __importDefault(requireBrowser());
-  const yeast_js_1 = requireYeast();
-  const engine_io_parser_1 = requireCjs$3();
-  const xmlhttprequest_js_1 = requireXmlhttprequest_browser();
-  const component_emitter_1 = esm;
   const util_js_1 = requireUtil();
-  const globalThis_js_1 = requireGlobalThis_browser();
+  const engine_io_parser_1 = requireCjs$3();
+  const debug_1 = __importDefault(requireBrowser());
   const debug = (0, debug_1.default)("engine.io-client:polling");
-  function empty() {
-  }
-  const hasXHR2 = function() {
-    const xhr = new xmlhttprequest_js_1.XHR({
-      xdomain: false
-    });
-    return null != xhr.responseType;
-  }();
   class Polling extends transport_js_1.Transport {
-    /**
-     * XHR Polling constructor.
-     *
-     * @param {Object} opts
-     * @package
-     */
-    constructor(opts) {
-      super(opts);
-      this.polling = false;
-      if (typeof location !== "undefined") {
-        const isSSL = "https:" === location.protocol;
-        let port = location.port;
-        if (!port) {
-          port = isSSL ? "443" : "80";
-        }
-        this.xd = typeof location !== "undefined" && opts.hostname !== location.hostname || port !== opts.port;
-      }
-      const forceBase64 = opts && opts.forceBase64;
-      this.supportsBinary = hasXHR2 && !forceBase64;
-      if (this.opts.withCredentials) {
-        this.cookieJar = (0, xmlhttprequest_js_1.createCookieJar)();
-      }
+    constructor() {
+      super(...arguments);
+      this._polling = false;
     }
     get name() {
       return "polling";
@@ -22796,7 +22176,7 @@ function requirePolling() {
      * @protected
      */
     doOpen() {
-      this.poll();
+      this._poll();
     }
     /**
      * Pauses polling.
@@ -22811,9 +22191,9 @@ function requirePolling() {
         this.readyState = "paused";
         onPause();
       };
-      if (this.polling || !this.writable) {
+      if (this._polling || !this.writable) {
         let total = 0;
-        if (this.polling) {
+        if (this._polling) {
           debug("we are currently polling - waiting to pause");
           total++;
           this.once("pollComplete", function() {
@@ -22838,9 +22218,9 @@ function requirePolling() {
      *
      * @private
      */
-    poll() {
+    _poll() {
       debug("polling");
-      this.polling = true;
+      this._polling = true;
       this.doPoll();
       this.emitReserved("poll");
     }
@@ -22863,10 +22243,10 @@ function requirePolling() {
       };
       (0, engine_io_parser_1.decodePayload)(data, this.socket.binaryType).forEach(callback);
       if ("closed" !== this.readyState) {
-        this.polling = false;
+        this._polling = false;
         this.emitReserved("pollComplete");
         if ("open" === this.readyState) {
-          this.poll();
+          this._poll();
         } else {
           debug('ignoring poll - transport state "%s"', this.readyState);
         }
@@ -22914,22 +22294,67 @@ function requirePolling() {
       const schema = this.opts.secure ? "https" : "http";
       const query = this.query || {};
       if (false !== this.opts.timestampRequests) {
-        query[this.opts.timestampParam] = (0, yeast_js_1.yeast)();
+        query[this.opts.timestampParam] = (0, util_js_1.randomString)();
       }
       if (!this.supportsBinary && !query.sid) {
         query.b64 = 1;
       }
       return this.createUri(schema, query);
     }
+  }
+  polling.Polling = Polling;
+  return polling;
+}
+var hasCors = {};
+var hasRequiredHasCors;
+function requireHasCors() {
+  if (hasRequiredHasCors) return hasCors;
+  hasRequiredHasCors = 1;
+  Object.defineProperty(hasCors, "__esModule", { value: true });
+  hasCors.hasCORS = void 0;
+  let value = false;
+  try {
+    value = typeof XMLHttpRequest !== "undefined" && "withCredentials" in new XMLHttpRequest();
+  } catch (err) {
+  }
+  hasCors.hasCORS = value;
+  return hasCors;
+}
+var hasRequiredPollingXhr;
+function requirePollingXhr() {
+  if (hasRequiredPollingXhr) return pollingXhr;
+  hasRequiredPollingXhr = 1;
+  var __importDefault = commonjsGlobal && commonjsGlobal.__importDefault || function(mod) {
+    return mod && mod.__esModule ? mod : { "default": mod };
+  };
+  Object.defineProperty(pollingXhr, "__esModule", { value: true });
+  pollingXhr.XHR = pollingXhr.Request = pollingXhr.BaseXHR = void 0;
+  const polling_js_1 = requirePolling();
+  const component_emitter_1 = esm;
+  const util_js_1 = requireUtil();
+  const globals_node_js_1 = requireGlobals();
+  const has_cors_js_1 = requireHasCors();
+  const debug_1 = __importDefault(requireBrowser());
+  const debug = (0, debug_1.default)("engine.io-client:polling");
+  function empty() {
+  }
+  class BaseXHR extends polling_js_1.Polling {
     /**
-     * Creates a request.
+     * XHR Polling constructor.
      *
-     * @param {String} method
-     * @private
+     * @param {Object} opts
+     * @package
      */
-    request(opts = {}) {
-      Object.assign(opts, { xd: this.xd, cookieJar: this.cookieJar }, this.opts);
-      return new Request(this.uri(), opts);
+    constructor(opts) {
+      super(opts);
+      if (typeof location !== "undefined") {
+        const isSSL = "https:" === location.protocol;
+        let port = location.port;
+        if (!port) {
+          port = isSSL ? "443" : "80";
+        }
+        this.xd = typeof location !== "undefined" && opts.hostname !== location.hostname || port !== opts.port;
+      }
     }
     /**
      * Sends data.
@@ -22963,7 +22388,7 @@ function requirePolling() {
       this.pollXhr = req;
     }
   }
-  polling.Polling = Polling;
+  pollingXhr.BaseXHR = BaseXHR;
   class Request extends component_emitter_1.Emitter {
     /**
      * Request constructor
@@ -22971,40 +22396,41 @@ function requirePolling() {
      * @param {Object} options
      * @package
      */
-    constructor(uri, opts) {
+    constructor(createRequest, uri, opts) {
       super();
+      this.createRequest = createRequest;
       (0, util_js_1.installTimerFunctions)(this, opts);
-      this.opts = opts;
-      this.method = opts.method || "GET";
-      this.uri = uri;
-      this.data = void 0 !== opts.data ? opts.data : null;
-      this.create();
+      this._opts = opts;
+      this._method = opts.method || "GET";
+      this._uri = uri;
+      this._data = void 0 !== opts.data ? opts.data : null;
+      this._create();
     }
     /**
      * Creates the XHR object and sends the request.
      *
      * @private
      */
-    create() {
+    _create() {
       var _a;
-      const opts = (0, util_js_1.pick)(this.opts, "agent", "pfx", "key", "passphrase", "cert", "ca", "ciphers", "rejectUnauthorized", "autoUnref");
-      opts.xdomain = !!this.opts.xd;
-      const xhr = this.xhr = new xmlhttprequest_js_1.XHR(opts);
+      const opts = (0, util_js_1.pick)(this._opts, "agent", "pfx", "key", "passphrase", "cert", "ca", "ciphers", "rejectUnauthorized", "autoUnref");
+      opts.xdomain = !!this._opts.xd;
+      const xhr = this._xhr = this.createRequest(opts);
       try {
-        debug("xhr open %s: %s", this.method, this.uri);
-        xhr.open(this.method, this.uri, true);
+        debug("xhr open %s: %s", this._method, this._uri);
+        xhr.open(this._method, this._uri, true);
         try {
-          if (this.opts.extraHeaders) {
+          if (this._opts.extraHeaders) {
             xhr.setDisableHeaderCheck && xhr.setDisableHeaderCheck(true);
-            for (let i in this.opts.extraHeaders) {
-              if (this.opts.extraHeaders.hasOwnProperty(i)) {
-                xhr.setRequestHeader(i, this.opts.extraHeaders[i]);
+            for (let i in this._opts.extraHeaders) {
+              if (this._opts.extraHeaders.hasOwnProperty(i)) {
+                xhr.setRequestHeader(i, this._opts.extraHeaders[i]);
               }
             }
           }
         } catch (e) {
         }
-        if ("POST" === this.method) {
+        if ("POST" === this._method) {
           try {
             xhr.setRequestHeader("Content-type", "text/plain;charset=UTF-8");
           } catch (e) {
@@ -23014,39 +22440,42 @@ function requirePolling() {
           xhr.setRequestHeader("Accept", "*/*");
         } catch (e) {
         }
-        (_a = this.opts.cookieJar) === null || _a === void 0 ? void 0 : _a.addCookies(xhr);
+        (_a = this._opts.cookieJar) === null || _a === void 0 ? void 0 : _a.addCookies(xhr);
         if ("withCredentials" in xhr) {
-          xhr.withCredentials = this.opts.withCredentials;
+          xhr.withCredentials = this._opts.withCredentials;
         }
-        if (this.opts.requestTimeout) {
-          xhr.timeout = this.opts.requestTimeout;
+        if (this._opts.requestTimeout) {
+          xhr.timeout = this._opts.requestTimeout;
         }
         xhr.onreadystatechange = () => {
           var _a2;
           if (xhr.readyState === 3) {
-            (_a2 = this.opts.cookieJar) === null || _a2 === void 0 ? void 0 : _a2.parseCookies(xhr);
+            (_a2 = this._opts.cookieJar) === null || _a2 === void 0 ? void 0 : _a2.parseCookies(
+              // @ts-ignore
+              xhr.getResponseHeader("set-cookie")
+            );
           }
           if (4 !== xhr.readyState)
             return;
           if (200 === xhr.status || 1223 === xhr.status) {
-            this.onLoad();
+            this._onLoad();
           } else {
             this.setTimeoutFn(() => {
-              this.onError(typeof xhr.status === "number" ? xhr.status : 0);
+              this._onError(typeof xhr.status === "number" ? xhr.status : 0);
             }, 0);
           }
         };
-        debug("xhr data %s", this.data);
-        xhr.send(this.data);
+        debug("xhr data %s", this._data);
+        xhr.send(this._data);
       } catch (e) {
         this.setTimeoutFn(() => {
-          this.onError(e);
+          this._onError(e);
         }, 0);
         return;
       }
       if (typeof document !== "undefined") {
-        this.index = Request.requestsCount++;
-        Request.requests[this.index] = this;
+        this._index = Request.requestsCount++;
+        Request.requests[this._index] = this;
       }
     }
     /**
@@ -23054,42 +22483,42 @@ function requirePolling() {
      *
      * @private
      */
-    onError(err) {
-      this.emitReserved("error", err, this.xhr);
-      this.cleanup(true);
+    _onError(err) {
+      this.emitReserved("error", err, this._xhr);
+      this._cleanup(true);
     }
     /**
      * Cleans up house.
      *
      * @private
      */
-    cleanup(fromError) {
-      if ("undefined" === typeof this.xhr || null === this.xhr) {
+    _cleanup(fromError) {
+      if ("undefined" === typeof this._xhr || null === this._xhr) {
         return;
       }
-      this.xhr.onreadystatechange = empty;
+      this._xhr.onreadystatechange = empty;
       if (fromError) {
         try {
-          this.xhr.abort();
+          this._xhr.abort();
         } catch (e) {
         }
       }
       if (typeof document !== "undefined") {
-        delete Request.requests[this.index];
+        delete Request.requests[this._index];
       }
-      this.xhr = null;
+      this._xhr = null;
     }
     /**
      * Called upon load.
      *
      * @private
      */
-    onLoad() {
-      const data = this.xhr.responseText;
+    _onLoad() {
+      const data = this._xhr.responseText;
       if (data !== null) {
         this.emitReserved("data", data);
         this.emitReserved("success");
-        this.cleanup();
+        this._cleanup();
       }
     }
     /**
@@ -23098,17 +22527,17 @@ function requirePolling() {
      * @package
      */
     abort() {
-      this.cleanup();
+      this._cleanup();
     }
   }
-  polling.Request = Request;
+  pollingXhr.Request = Request;
   Request.requestsCount = 0;
   Request.requests = {};
   if (typeof document !== "undefined") {
     if (typeof attachEvent === "function") {
       attachEvent("onunload", unloadHandler);
     } else if (typeof addEventListener === "function") {
-      const terminationEvent = "onpagehide" in globalThis_js_1.globalThisShim ? "pagehide" : "unload";
+      const terminationEvent = "onpagehide" in globals_node_js_1.globalThisShim ? "pagehide" : "unload";
       addEventListener(terminationEvent, unloadHandler, false);
     }
   }
@@ -23119,67 +22548,63 @@ function requirePolling() {
       }
     }
   }
-  return polling;
+  const hasXHR2 = function() {
+    const xhr = newRequest({
+      xdomain: false
+    });
+    return xhr && xhr.responseType !== null;
+  }();
+  class XHR extends BaseXHR {
+    constructor(opts) {
+      super(opts);
+      const forceBase64 = opts && opts.forceBase64;
+      this.supportsBinary = hasXHR2 && !forceBase64;
+    }
+    request(opts = {}) {
+      Object.assign(opts, { xd: this.xd }, this.opts);
+      return new Request(newRequest, this.uri(), opts);
+    }
+  }
+  pollingXhr.XHR = XHR;
+  function newRequest(opts) {
+    const xdomain = opts.xdomain;
+    try {
+      if ("undefined" !== typeof XMLHttpRequest && (!xdomain || has_cors_js_1.hasCORS)) {
+        return new XMLHttpRequest();
+      }
+    } catch (e) {
+    }
+    if (!xdomain) {
+      try {
+        return new globals_node_js_1.globalThisShim[["Active"].concat("Object").join("X")]("Microsoft.XMLHTTP");
+      } catch (e) {
+      }
+    }
+  }
+  return pollingXhr;
 }
 var websocket = {};
-var websocketConstructor_browser = {};
-var hasRequiredWebsocketConstructor_browser;
-function requireWebsocketConstructor_browser() {
-  if (hasRequiredWebsocketConstructor_browser)
-    return websocketConstructor_browser;
-  hasRequiredWebsocketConstructor_browser = 1;
-  Object.defineProperty(websocketConstructor_browser, "__esModule", { value: true });
-  websocketConstructor_browser.defaultBinaryType = websocketConstructor_browser.usingBrowserWebSocket = websocketConstructor_browser.WebSocket = websocketConstructor_browser.nextTick = void 0;
-  const globalThis_js_1 = requireGlobalThis_browser();
-  websocketConstructor_browser.nextTick = (() => {
-    const isPromiseAvailable = typeof Promise === "function" && typeof Promise.resolve === "function";
-    if (isPromiseAvailable) {
-      return (cb2) => Promise.resolve().then(cb2);
-    } else {
-      return (cb2, setTimeoutFn) => setTimeoutFn(cb2, 0);
-    }
-  })();
-  websocketConstructor_browser.WebSocket = globalThis_js_1.globalThisShim.WebSocket || globalThis_js_1.globalThisShim.MozWebSocket;
-  websocketConstructor_browser.usingBrowserWebSocket = true;
-  websocketConstructor_browser.defaultBinaryType = "arraybuffer";
-  return websocketConstructor_browser;
-}
 var hasRequiredWebsocket;
 function requireWebsocket() {
-  if (hasRequiredWebsocket)
-    return websocket;
+  if (hasRequiredWebsocket) return websocket;
   hasRequiredWebsocket = 1;
   var __importDefault = commonjsGlobal && commonjsGlobal.__importDefault || function(mod) {
     return mod && mod.__esModule ? mod : { "default": mod };
   };
   Object.defineProperty(websocket, "__esModule", { value: true });
-  websocket.WS = void 0;
+  websocket.WS = websocket.BaseWS = void 0;
   const transport_js_1 = requireTransport();
-  const yeast_js_1 = requireYeast();
   const util_js_1 = requireUtil();
-  const websocket_constructor_js_1 = requireWebsocketConstructor_browser();
-  const debug_1 = __importDefault(requireBrowser());
   const engine_io_parser_1 = requireCjs$3();
+  const globals_node_js_1 = requireGlobals();
+  const debug_1 = __importDefault(requireBrowser());
   const debug = (0, debug_1.default)("engine.io-client:websocket");
   const isReactNative = typeof navigator !== "undefined" && typeof navigator.product === "string" && navigator.product.toLowerCase() === "reactnative";
-  class WS extends transport_js_1.Transport {
-    /**
-     * WebSocket transport constructor.
-     *
-     * @param {Object} opts - connection options
-     * @protected
-     */
-    constructor(opts) {
-      super(opts);
-      this.supportsBinary = !opts.forceBase64;
-    }
+  class BaseWS extends transport_js_1.Transport {
     get name() {
       return "websocket";
     }
     doOpen() {
-      if (!this.check()) {
-        return;
-      }
       const uri = this.uri();
       const protocols = this.opts.protocols;
       const opts = isReactNative ? {} : (0, util_js_1.pick)(this.opts, "agent", "perMessageDeflate", "pfx", "key", "passphrase", "cert", "ca", "ciphers", "rejectUnauthorized", "localAddress", "protocolVersion", "origin", "maxPayload", "family", "checkServerIdentity");
@@ -23187,7 +22612,7 @@ function requireWebsocket() {
         opts.headers = this.opts.extraHeaders;
       }
       try {
-        this.ws = websocket_constructor_js_1.usingBrowserWebSocket && !isReactNative ? protocols ? new websocket_constructor_js_1.WebSocket(uri, protocols) : new websocket_constructor_js_1.WebSocket(uri) : new websocket_constructor_js_1.WebSocket(uri, protocols, opts);
+        this.ws = this.createSocket(uri, protocols, opts);
       } catch (err) {
         return this.emitReserved("error", err);
       }
@@ -23219,32 +22644,13 @@ function requireWebsocket() {
         const packet = packets[i];
         const lastPacket = i === packets.length - 1;
         (0, engine_io_parser_1.encodePacket)(packet, this.supportsBinary, (data) => {
-          const opts = {};
-          if (!websocket_constructor_js_1.usingBrowserWebSocket) {
-            if (packet.options) {
-              opts.compress = packet.options.compress;
-            }
-            if (this.opts.perMessageDeflate) {
-              const len = (
-                // @ts-ignore
-                "string" === typeof data ? Buffer.byteLength(data) : data.length
-              );
-              if (len < this.opts.perMessageDeflate.threshold) {
-                opts.compress = false;
-              }
-            }
-          }
           try {
-            if (websocket_constructor_js_1.usingBrowserWebSocket) {
-              this.ws.send(data);
-            } else {
-              this.ws.send(data, opts);
-            }
+            this.doWrite(packet, data);
           } catch (e) {
             debug("websocket closed before onclose event");
           }
           if (lastPacket) {
-            (0, websocket_constructor_js_1.nextTick)(() => {
+            (0, globals_node_js_1.nextTick)(() => {
               this.writable = true;
               this.emitReserved("drain");
             }, this.setTimeoutFn);
@@ -23267,21 +22673,22 @@ function requireWebsocket() {
       const schema = this.opts.secure ? "wss" : "ws";
       const query = this.query || {};
       if (this.opts.timestampRequests) {
-        query[this.opts.timestampParam] = (0, yeast_js_1.yeast)();
+        query[this.opts.timestampParam] = (0, util_js_1.randomString)();
       }
       if (!this.supportsBinary) {
         query.b64 = 1;
       }
       return this.createUri(schema, query);
     }
-    /**
-     * Feature detection for WebSocket.
-     *
-     * @return {Boolean} whether this transport is available.
-     * @private
-     */
-    check() {
-      return !!websocket_constructor_js_1.WebSocket;
+  }
+  websocket.BaseWS = BaseWS;
+  const WebSocketCtor = globals_node_js_1.globalThisShim.WebSocket || globals_node_js_1.globalThisShim.MozWebSocket;
+  class WS extends BaseWS {
+    createSocket(uri, protocols, opts) {
+      return !isReactNative ? protocols ? new WebSocketCtor(uri, protocols) : new WebSocketCtor(uri) : new WebSocketCtor(uri, protocols, opts);
+    }
+    doWrite(_packet, data) {
+      this.ws.send(data);
     }
   }
   websocket.WS = WS;
@@ -23290,8 +22697,7 @@ function requireWebsocket() {
 var webtransport = {};
 var hasRequiredWebtransport;
 function requireWebtransport() {
-  if (hasRequiredWebtransport)
-    return webtransport;
+  if (hasRequiredWebtransport) return webtransport;
   hasRequiredWebtransport = 1;
   var __importDefault = commonjsGlobal && commonjsGlobal.__importDefault || function(mod) {
     return mod && mod.__esModule ? mod : { "default": mod };
@@ -23299,7 +22705,7 @@ function requireWebtransport() {
   Object.defineProperty(webtransport, "__esModule", { value: true });
   webtransport.WT = void 0;
   const transport_js_1 = requireTransport();
-  const websocket_constructor_js_1 = requireWebsocketConstructor_browser();
+  const globals_node_js_1 = requireGlobals();
   const engine_io_parser_1 = requireCjs$3();
   const debug_1 = __importDefault(requireBrowser());
   const debug = (0, debug_1.default)("engine.io-client:webtransport");
@@ -23308,24 +22714,25 @@ function requireWebtransport() {
       return "webtransport";
     }
     doOpen() {
-      if (typeof WebTransport !== "function") {
-        return;
+      try {
+        this._transport = new WebTransport(this.createUri("https"), this.opts.transportOptions[this.name]);
+      } catch (err) {
+        return this.emitReserved("error", err);
       }
-      this.transport = new WebTransport(this.createUri("https"), this.opts.transportOptions[this.name]);
-      this.transport.closed.then(() => {
+      this._transport.closed.then(() => {
         debug("transport closed gracefully");
         this.onClose();
       }).catch((err) => {
         debug("transport closed due to %s", err);
         this.onError("webtransport error", err);
       });
-      this.transport.ready.then(() => {
-        this.transport.createBidirectionalStream().then((stream) => {
+      this._transport.ready.then(() => {
+        this._transport.createBidirectionalStream().then((stream) => {
           const decoderStream = (0, engine_io_parser_1.createPacketDecoderStream)(Number.MAX_SAFE_INTEGER, this.socket.binaryType);
           const reader = stream.readable.pipeThrough(decoderStream).getReader();
           const encoderStream = (0, engine_io_parser_1.createPacketEncoderStream)();
           encoderStream.readable.pipeTo(stream.writable);
-          this.writer = encoderStream.writable.getWriter();
+          this._writer = encoderStream.writable.getWriter();
           const read = () => {
             reader.read().then(({ done, value }) => {
               if (done) {
@@ -23344,7 +22751,7 @@ function requireWebtransport() {
           if (this.query.sid) {
             packet.data = `{"sid":"${this.query.sid}"}`;
           }
-          this.writer.write(packet).then(() => this.onOpen());
+          this._writer.write(packet).then(() => this.onOpen());
         });
       });
     }
@@ -23353,9 +22760,9 @@ function requireWebtransport() {
       for (let i = 0; i < packets.length; i++) {
         const packet = packets[i];
         const lastPacket = i === packets.length - 1;
-        this.writer.write(packet).then(() => {
+        this._writer.write(packet).then(() => {
           if (lastPacket) {
-            (0, websocket_constructor_js_1.nextTick)(() => {
+            (0, globals_node_js_1.nextTick)(() => {
               this.writable = true;
               this.emitReserved("drain");
             }, this.setTimeoutFn);
@@ -23365,7 +22772,7 @@ function requireWebtransport() {
     }
     doClose() {
       var _a;
-      (_a = this.transport) === null || _a === void 0 ? void 0 : _a.close();
+      (_a = this._transport) === null || _a === void 0 ? void 0 : _a.close();
     }
   }
   webtransport.WT = WT;
@@ -23373,29 +22780,27 @@ function requireWebtransport() {
 }
 var hasRequiredTransports;
 function requireTransports() {
-  if (hasRequiredTransports)
-    return transports;
+  if (hasRequiredTransports) return transports;
   hasRequiredTransports = 1;
   Object.defineProperty(transports, "__esModule", { value: true });
   transports.transports = void 0;
-  const polling_js_1 = requirePolling();
-  const websocket_js_1 = requireWebsocket();
+  const polling_xhr_node_js_1 = requirePollingXhr();
+  const websocket_node_js_1 = requireWebsocket();
   const webtransport_js_1 = requireWebtransport();
   transports.transports = {
-    websocket: websocket_js_1.WS,
+    websocket: websocket_node_js_1.WS,
     webtransport: webtransport_js_1.WT,
-    polling: polling_js_1.Polling
+    polling: polling_xhr_node_js_1.XHR
   };
   return transports;
 }
 var parseuri = {};
 var hasRequiredParseuri;
 function requireParseuri() {
-  if (hasRequiredParseuri)
-    return parseuri;
+  if (hasRequiredParseuri) return parseuri;
   hasRequiredParseuri = 1;
   Object.defineProperty(parseuri, "__esModule", { value: true });
-  parseuri.parse = void 0;
+  parseuri.parse = parse;
   const re = /^(?:(?![^:@\/?#]+:[^:@\/]*@)(http|https|ws|wss):\/\/)?((?:(([^:@\/?#]*)(?::([^:@\/?#]*))?)?@)?((?:[a-f0-9]{0,4}:){2,7}[a-f0-9]{0,4}|[^:\/?#]*)(?::(\d*))?)(((\/(?:[^?#](?![^?#\/]*\.[^?#\/.]+(?:[?#]|$)))*\/?)?([^?#\/]*))(?:\?([^#]*))?(?:#(.*))?)/;
   const parts = [
     "source",
@@ -23414,7 +22819,7 @@ function requireParseuri() {
     "anchor"
   ];
   function parse(str) {
-    if (str.length > 2e3) {
+    if (str.length > 8e3) {
       throw "URI too long";
     }
     const src = str, b = str.indexOf("["), e = str.indexOf("]");
@@ -23435,7 +22840,6 @@ function requireParseuri() {
     uri.queryKey = queryKey(uri, uri["query"]);
     return uri;
   }
-  parseuri.parse = parse;
   function pathNames(obj, path) {
     const regx = /\/{2,9}/g, names = path.replace(regx, "/").split("/");
     if (path.slice(0, 1) == "/" || path.length === 0) {
@@ -23459,45 +22863,57 @@ function requireParseuri() {
 }
 var hasRequiredSocket$1;
 function requireSocket$1() {
-  if (hasRequiredSocket$1)
-    return socket$2;
+  if (hasRequiredSocket$1) return socket$2;
   hasRequiredSocket$1 = 1;
   var __importDefault = commonjsGlobal && commonjsGlobal.__importDefault || function(mod) {
     return mod && mod.__esModule ? mod : { "default": mod };
   };
   Object.defineProperty(socket$2, "__esModule", { value: true });
-  socket$2.Socket = void 0;
+  socket$2.Socket = socket$2.SocketWithUpgrade = socket$2.SocketWithoutUpgrade = void 0;
   const index_js_1 = requireTransports();
   const util_js_1 = requireUtil();
   const parseqs_js_1 = requireParseqs();
   const parseuri_js_1 = requireParseuri();
-  const debug_1 = __importDefault(requireBrowser());
   const component_emitter_1 = esm;
   const engine_io_parser_1 = requireCjs$3();
-  const websocket_constructor_js_1 = requireWebsocketConstructor_browser();
+  const globals_node_js_1 = requireGlobals();
+  const debug_1 = __importDefault(requireBrowser());
   const debug = (0, debug_1.default)("engine.io-client:socket");
-  class Socket extends component_emitter_1.Emitter {
+  const withEventListeners = typeof addEventListener === "function" && typeof removeEventListener === "function";
+  const OFFLINE_EVENT_LISTENERS = [];
+  if (withEventListeners) {
+    addEventListener("offline", () => {
+      debug("closing %d connection(s) because the network was lost", OFFLINE_EVENT_LISTENERS.length);
+      OFFLINE_EVENT_LISTENERS.forEach((listener) => listener());
+    }, false);
+  }
+  class SocketWithoutUpgrade extends component_emitter_1.Emitter {
     /**
      * Socket constructor.
      *
      * @param {String|Object} uri - uri or options
      * @param {Object} opts - options
      */
-    constructor(uri, opts = {}) {
+    constructor(uri, opts) {
       super();
-      this.binaryType = websocket_constructor_js_1.defaultBinaryType;
+      this.binaryType = globals_node_js_1.defaultBinaryType;
       this.writeBuffer = [];
+      this._prevBufferLen = 0;
+      this._pingInterval = -1;
+      this._pingTimeout = -1;
+      this._maxPayload = -1;
+      this._pingTimeoutTime = Infinity;
       if (uri && "object" === typeof uri) {
         opts = uri;
         uri = null;
       }
       if (uri) {
-        uri = (0, parseuri_js_1.parse)(uri);
-        opts.hostname = uri.host;
-        opts.secure = uri.protocol === "https" || uri.protocol === "wss";
-        opts.port = uri.port;
-        if (uri.query)
-          opts.query = uri.query;
+        const parsedUri = (0, parseuri_js_1.parse)(uri);
+        opts.hostname = parsedUri.host;
+        opts.secure = parsedUri.protocol === "https" || parsedUri.protocol === "wss";
+        opts.port = parsedUri.port;
+        if (parsedUri.query)
+          opts.query = parsedUri.query;
       } else if (opts.host) {
         opts.hostname = (0, parseuri_js_1.parse)(opts.host).host;
       }
@@ -23508,13 +22924,13 @@ function requireSocket$1() {
       }
       this.hostname = opts.hostname || (typeof location !== "undefined" ? location.hostname : "localhost");
       this.port = opts.port || (typeof location !== "undefined" && location.port ? location.port : this.secure ? "443" : "80");
-      this.transports = opts.transports || [
-        "polling",
-        "websocket",
-        "webtransport"
-      ];
-      this.writeBuffer = [];
-      this.prevBufferLen = 0;
+      this.transports = [];
+      this._transportsByName = {};
+      opts.transports.forEach((t) => {
+        const transportName = t.prototype.name;
+        this.transports.push(transportName);
+        this._transportsByName[transportName] = t;
+      });
       this.opts = Object.assign({
         path: "/engine.io",
         agent: false,
@@ -23534,31 +22950,30 @@ function requireSocket$1() {
       if (typeof this.opts.query === "string") {
         this.opts.query = (0, parseqs_js_1.decode)(this.opts.query);
       }
-      this.id = null;
-      this.upgrades = null;
-      this.pingInterval = null;
-      this.pingTimeout = null;
-      this.pingTimeoutTimer = null;
-      if (typeof addEventListener === "function") {
+      if (withEventListeners) {
         if (this.opts.closeOnBeforeunload) {
-          this.beforeunloadEventListener = () => {
+          this._beforeunloadEventListener = () => {
             if (this.transport) {
               this.transport.removeAllListeners();
               this.transport.close();
             }
           };
-          addEventListener("beforeunload", this.beforeunloadEventListener, false);
+          addEventListener("beforeunload", this._beforeunloadEventListener, false);
         }
         if (this.hostname !== "localhost") {
-          this.offlineEventListener = () => {
-            this.onClose("transport close", {
+          debug("adding listener for the 'offline' event");
+          this._offlineEventListener = () => {
+            this._onClose("transport close", {
               description: "network connection lost"
             });
           };
-          addEventListener("offline", this.offlineEventListener, false);
+          OFFLINE_EVENT_LISTENERS.push(this._offlineEventListener);
         }
       }
-      this.open();
+      if (this.opts.withCredentials) {
+        this._cookieJar = (0, globals_node_js_1.createCookieJar)();
+      }
+      this._open();
     }
     /**
      * Creates transport of the given type.
@@ -23582,34 +22997,23 @@ function requireSocket$1() {
         port: this.port
       }, this.opts.transportOptions[name]);
       debug("options: %j", opts);
-      return new index_js_1.transports[name](opts);
+      return new this._transportsByName[name](opts);
     }
     /**
      * Initializes transport to use and starts probe.
      *
      * @private
      */
-    open() {
-      let transport2;
-      if (this.opts.rememberUpgrade && Socket.priorWebsocketSuccess && this.transports.indexOf("websocket") !== -1) {
-        transport2 = "websocket";
-      } else if (0 === this.transports.length) {
+    _open() {
+      if (this.transports.length === 0) {
         this.setTimeoutFn(() => {
           this.emitReserved("error", "No transports available");
         }, 0);
         return;
-      } else {
-        transport2 = this.transports[0];
       }
+      const transportName = this.opts.rememberUpgrade && SocketWithoutUpgrade.priorWebsocketSuccess && this.transports.indexOf("websocket") !== -1 ? "websocket" : this.transports[0];
       this.readyState = "opening";
-      try {
-        transport2 = this.createTransport(transport2);
-      } catch (e) {
-        debug("error while creating transport: %s", e);
-        this.transports.shift();
-        this.open();
-        return;
-      }
+      const transport2 = this.createTransport(transportName);
       transport2.open();
       this.setTransport(transport2);
     }
@@ -23625,7 +23029,322 @@ function requireSocket$1() {
         this.transport.removeAllListeners();
       }
       this.transport = transport2;
-      transport2.on("drain", this.onDrain.bind(this)).on("packet", this.onPacket.bind(this)).on("error", this.onError.bind(this)).on("close", (reason) => this.onClose("transport close", reason));
+      transport2.on("drain", this._onDrain.bind(this)).on("packet", this._onPacket.bind(this)).on("error", this._onError.bind(this)).on("close", (reason) => this._onClose("transport close", reason));
+    }
+    /**
+     * Called when connection is deemed open.
+     *
+     * @private
+     */
+    onOpen() {
+      debug("socket open");
+      this.readyState = "open";
+      SocketWithoutUpgrade.priorWebsocketSuccess = "websocket" === this.transport.name;
+      this.emitReserved("open");
+      this.flush();
+    }
+    /**
+     * Handles a packet.
+     *
+     * @private
+     */
+    _onPacket(packet) {
+      if ("opening" === this.readyState || "open" === this.readyState || "closing" === this.readyState) {
+        debug('socket receive: type "%s", data "%s"', packet.type, packet.data);
+        this.emitReserved("packet", packet);
+        this.emitReserved("heartbeat");
+        switch (packet.type) {
+          case "open":
+            this.onHandshake(JSON.parse(packet.data));
+            break;
+          case "ping":
+            this._sendPacket("pong");
+            this.emitReserved("ping");
+            this.emitReserved("pong");
+            this._resetPingTimeout();
+            break;
+          case "error":
+            const err = new Error("server error");
+            err.code = packet.data;
+            this._onError(err);
+            break;
+          case "message":
+            this.emitReserved("data", packet.data);
+            this.emitReserved("message", packet.data);
+            break;
+        }
+      } else {
+        debug('packet received with socket readyState "%s"', this.readyState);
+      }
+    }
+    /**
+     * Called upon handshake completion.
+     *
+     * @param {Object} data - handshake obj
+     * @private
+     */
+    onHandshake(data) {
+      this.emitReserved("handshake", data);
+      this.id = data.sid;
+      this.transport.query.sid = data.sid;
+      this._pingInterval = data.pingInterval;
+      this._pingTimeout = data.pingTimeout;
+      this._maxPayload = data.maxPayload;
+      this.onOpen();
+      if ("closed" === this.readyState)
+        return;
+      this._resetPingTimeout();
+    }
+    /**
+     * Sets and resets ping timeout timer based on server pings.
+     *
+     * @private
+     */
+    _resetPingTimeout() {
+      this.clearTimeoutFn(this._pingTimeoutTimer);
+      const delay2 = this._pingInterval + this._pingTimeout;
+      this._pingTimeoutTime = Date.now() + delay2;
+      this._pingTimeoutTimer = this.setTimeoutFn(() => {
+        this._onClose("ping timeout");
+      }, delay2);
+      if (this.opts.autoUnref) {
+        this._pingTimeoutTimer.unref();
+      }
+    }
+    /**
+     * Called on `drain` event
+     *
+     * @private
+     */
+    _onDrain() {
+      this.writeBuffer.splice(0, this._prevBufferLen);
+      this._prevBufferLen = 0;
+      if (0 === this.writeBuffer.length) {
+        this.emitReserved("drain");
+      } else {
+        this.flush();
+      }
+    }
+    /**
+     * Flush write buffers.
+     *
+     * @private
+     */
+    flush() {
+      if ("closed" !== this.readyState && this.transport.writable && !this.upgrading && this.writeBuffer.length) {
+        const packets = this._getWritablePackets();
+        debug("flushing %d packets in socket", packets.length);
+        this.transport.send(packets);
+        this._prevBufferLen = packets.length;
+        this.emitReserved("flush");
+      }
+    }
+    /**
+     * Ensure the encoded size of the writeBuffer is below the maxPayload value sent by the server (only for HTTP
+     * long-polling)
+     *
+     * @private
+     */
+    _getWritablePackets() {
+      const shouldCheckPayloadSize = this._maxPayload && this.transport.name === "polling" && this.writeBuffer.length > 1;
+      if (!shouldCheckPayloadSize) {
+        return this.writeBuffer;
+      }
+      let payloadSize = 1;
+      for (let i = 0; i < this.writeBuffer.length; i++) {
+        const data = this.writeBuffer[i].data;
+        if (data) {
+          payloadSize += (0, util_js_1.byteLength)(data);
+        }
+        if (i > 0 && payloadSize > this._maxPayload) {
+          debug("only send %d out of %d packets", i, this.writeBuffer.length);
+          return this.writeBuffer.slice(0, i);
+        }
+        payloadSize += 2;
+      }
+      debug("payload size is %d (max: %d)", payloadSize, this._maxPayload);
+      return this.writeBuffer;
+    }
+    /**
+     * Checks whether the heartbeat timer has expired but the socket has not yet been notified.
+     *
+     * Note: this method is private for now because it does not really fit the WebSocket API, but if we put it in the
+     * `write()` method then the message would not be buffered by the Socket.IO client.
+     *
+     * @return {boolean}
+     * @private
+     */
+    /* private */
+    _hasPingExpired() {
+      if (!this._pingTimeoutTime)
+        return true;
+      const hasExpired = Date.now() > this._pingTimeoutTime;
+      if (hasExpired) {
+        debug("throttled timer detected, scheduling connection close");
+        this._pingTimeoutTime = 0;
+        (0, globals_node_js_1.nextTick)(() => {
+          this._onClose("ping timeout");
+        }, this.setTimeoutFn);
+      }
+      return hasExpired;
+    }
+    /**
+     * Sends a message.
+     *
+     * @param {String} msg - message.
+     * @param {Object} options.
+     * @param {Function} fn - callback function.
+     * @return {Socket} for chaining.
+     */
+    write(msg, options, fn) {
+      this._sendPacket("message", msg, options, fn);
+      return this;
+    }
+    /**
+     * Sends a message. Alias of {@link Socket#write}.
+     *
+     * @param {String} msg - message.
+     * @param {Object} options.
+     * @param {Function} fn - callback function.
+     * @return {Socket} for chaining.
+     */
+    send(msg, options, fn) {
+      this._sendPacket("message", msg, options, fn);
+      return this;
+    }
+    /**
+     * Sends a packet.
+     *
+     * @param {String} type: packet type.
+     * @param {String} data.
+     * @param {Object} options.
+     * @param {Function} fn - callback function.
+     * @private
+     */
+    _sendPacket(type, data, options, fn) {
+      if ("function" === typeof data) {
+        fn = data;
+        data = void 0;
+      }
+      if ("function" === typeof options) {
+        fn = options;
+        options = null;
+      }
+      if ("closing" === this.readyState || "closed" === this.readyState) {
+        return;
+      }
+      options = options || {};
+      options.compress = false !== options.compress;
+      const packet = {
+        type,
+        data,
+        options
+      };
+      this.emitReserved("packetCreate", packet);
+      this.writeBuffer.push(packet);
+      if (fn)
+        this.once("flush", fn);
+      this.flush();
+    }
+    /**
+     * Closes the connection.
+     */
+    close() {
+      const close = () => {
+        this._onClose("forced close");
+        debug("socket closing - telling transport to close");
+        this.transport.close();
+      };
+      const cleanupAndClose = () => {
+        this.off("upgrade", cleanupAndClose);
+        this.off("upgradeError", cleanupAndClose);
+        close();
+      };
+      const waitForUpgrade = () => {
+        this.once("upgrade", cleanupAndClose);
+        this.once("upgradeError", cleanupAndClose);
+      };
+      if ("opening" === this.readyState || "open" === this.readyState) {
+        this.readyState = "closing";
+        if (this.writeBuffer.length) {
+          this.once("drain", () => {
+            if (this.upgrading) {
+              waitForUpgrade();
+            } else {
+              close();
+            }
+          });
+        } else if (this.upgrading) {
+          waitForUpgrade();
+        } else {
+          close();
+        }
+      }
+      return this;
+    }
+    /**
+     * Called upon transport error
+     *
+     * @private
+     */
+    _onError(err) {
+      debug("socket error %j", err);
+      SocketWithoutUpgrade.priorWebsocketSuccess = false;
+      if (this.opts.tryAllTransports && this.transports.length > 1 && this.readyState === "opening") {
+        debug("trying next transport");
+        this.transports.shift();
+        return this._open();
+      }
+      this.emitReserved("error", err);
+      this._onClose("transport error", err);
+    }
+    /**
+     * Called upon transport close.
+     *
+     * @private
+     */
+    _onClose(reason, description) {
+      if ("opening" === this.readyState || "open" === this.readyState || "closing" === this.readyState) {
+        debug('socket close with reason: "%s"', reason);
+        this.clearTimeoutFn(this._pingTimeoutTimer);
+        this.transport.removeAllListeners("close");
+        this.transport.close();
+        this.transport.removeAllListeners();
+        if (withEventListeners) {
+          if (this._beforeunloadEventListener) {
+            removeEventListener("beforeunload", this._beforeunloadEventListener, false);
+          }
+          if (this._offlineEventListener) {
+            const i = OFFLINE_EVENT_LISTENERS.indexOf(this._offlineEventListener);
+            if (i !== -1) {
+              debug("removing listener for the 'offline' event");
+              OFFLINE_EVENT_LISTENERS.splice(i, 1);
+            }
+          }
+        }
+        this.readyState = "closed";
+        this.id = null;
+        this.emitReserved("close", reason, description);
+        this.writeBuffer = [];
+        this._prevBufferLen = 0;
+      }
+    }
+  }
+  socket$2.SocketWithoutUpgrade = SocketWithoutUpgrade;
+  SocketWithoutUpgrade.protocol = engine_io_parser_1.protocol;
+  class SocketWithUpgrade extends SocketWithoutUpgrade {
+    constructor() {
+      super(...arguments);
+      this._upgrades = [];
+    }
+    onOpen() {
+      super.onOpen();
+      if ("open" === this.readyState && this.opts.upgrade) {
+        debug("starting upgrade probes");
+        for (let i = 0; i < this._upgrades.length; i++) {
+          this._probe(this._upgrades[i]);
+        }
+      }
     }
     /**
      * Probes a transport.
@@ -23633,11 +23352,11 @@ function requireSocket$1() {
      * @param {String} name - transport name
      * @private
      */
-    probe(name) {
+    _probe(name) {
       debug('probing transport "%s"', name);
       let transport2 = this.createTransport(name);
       let failed = false;
-      Socket.priorWebsocketSuccess = false;
+      SocketWithoutUpgrade.priorWebsocketSuccess = false;
       const onTransportOpen = () => {
         if (failed)
           return;
@@ -23652,7 +23371,7 @@ function requireSocket$1() {
             this.emitReserved("upgrading", transport2);
             if (!transport2)
               return;
-            Socket.priorWebsocketSuccess = "websocket" === transport2.name;
+            SocketWithoutUpgrade.priorWebsocketSuccess = "websocket" === transport2.name;
             debug('pausing current transport "%s"', this.transport.name);
             this.transport.pause(() => {
               if (failed)
@@ -23715,7 +23434,7 @@ function requireSocket$1() {
       transport2.once("close", onTransportClose);
       this.once("close", onclose);
       this.once("upgrading", onupgrade);
-      if (this.upgrades.indexOf("webtransport") !== -1 && name !== "webtransport") {
+      if (this._upgrades.indexOf("webtransport") !== -1 && name !== "webtransport") {
         this.setTimeoutFn(() => {
           if (!failed) {
             transport2.open();
@@ -23725,266 +23444,9 @@ function requireSocket$1() {
         transport2.open();
       }
     }
-    /**
-     * Called when connection is deemed open.
-     *
-     * @private
-     */
-    onOpen() {
-      debug("socket open");
-      this.readyState = "open";
-      Socket.priorWebsocketSuccess = "websocket" === this.transport.name;
-      this.emitReserved("open");
-      this.flush();
-      if ("open" === this.readyState && this.opts.upgrade) {
-        debug("starting upgrade probes");
-        let i = 0;
-        const l = this.upgrades.length;
-        for (; i < l; i++) {
-          this.probe(this.upgrades[i]);
-        }
-      }
-    }
-    /**
-     * Handles a packet.
-     *
-     * @private
-     */
-    onPacket(packet) {
-      if ("opening" === this.readyState || "open" === this.readyState || "closing" === this.readyState) {
-        debug('socket receive: type "%s", data "%s"', packet.type, packet.data);
-        this.emitReserved("packet", packet);
-        this.emitReserved("heartbeat");
-        this.resetPingTimeout();
-        switch (packet.type) {
-          case "open":
-            this.onHandshake(JSON.parse(packet.data));
-            break;
-          case "ping":
-            this.sendPacket("pong");
-            this.emitReserved("ping");
-            this.emitReserved("pong");
-            break;
-          case "error":
-            const err = new Error("server error");
-            err.code = packet.data;
-            this.onError(err);
-            break;
-          case "message":
-            this.emitReserved("data", packet.data);
-            this.emitReserved("message", packet.data);
-            break;
-        }
-      } else {
-        debug('packet received with socket readyState "%s"', this.readyState);
-      }
-    }
-    /**
-     * Called upon handshake completion.
-     *
-     * @param {Object} data - handshake obj
-     * @private
-     */
     onHandshake(data) {
-      this.emitReserved("handshake", data);
-      this.id = data.sid;
-      this.transport.query.sid = data.sid;
-      this.upgrades = this.filterUpgrades(data.upgrades);
-      this.pingInterval = data.pingInterval;
-      this.pingTimeout = data.pingTimeout;
-      this.maxPayload = data.maxPayload;
-      this.onOpen();
-      if ("closed" === this.readyState)
-        return;
-      this.resetPingTimeout();
-    }
-    /**
-     * Sets and resets ping timeout timer based on server pings.
-     *
-     * @private
-     */
-    resetPingTimeout() {
-      this.clearTimeoutFn(this.pingTimeoutTimer);
-      this.pingTimeoutTimer = this.setTimeoutFn(() => {
-        this.onClose("ping timeout");
-      }, this.pingInterval + this.pingTimeout);
-      if (this.opts.autoUnref) {
-        this.pingTimeoutTimer.unref();
-      }
-    }
-    /**
-     * Called on `drain` event
-     *
-     * @private
-     */
-    onDrain() {
-      this.writeBuffer.splice(0, this.prevBufferLen);
-      this.prevBufferLen = 0;
-      if (0 === this.writeBuffer.length) {
-        this.emitReserved("drain");
-      } else {
-        this.flush();
-      }
-    }
-    /**
-     * Flush write buffers.
-     *
-     * @private
-     */
-    flush() {
-      if ("closed" !== this.readyState && this.transport.writable && !this.upgrading && this.writeBuffer.length) {
-        const packets = this.getWritablePackets();
-        debug("flushing %d packets in socket", packets.length);
-        this.transport.send(packets);
-        this.prevBufferLen = packets.length;
-        this.emitReserved("flush");
-      }
-    }
-    /**
-     * Ensure the encoded size of the writeBuffer is below the maxPayload value sent by the server (only for HTTP
-     * long-polling)
-     *
-     * @private
-     */
-    getWritablePackets() {
-      const shouldCheckPayloadSize = this.maxPayload && this.transport.name === "polling" && this.writeBuffer.length > 1;
-      if (!shouldCheckPayloadSize) {
-        return this.writeBuffer;
-      }
-      let payloadSize = 1;
-      for (let i = 0; i < this.writeBuffer.length; i++) {
-        const data = this.writeBuffer[i].data;
-        if (data) {
-          payloadSize += (0, util_js_1.byteLength)(data);
-        }
-        if (i > 0 && payloadSize > this.maxPayload) {
-          debug("only send %d out of %d packets", i, this.writeBuffer.length);
-          return this.writeBuffer.slice(0, i);
-        }
-        payloadSize += 2;
-      }
-      debug("payload size is %d (max: %d)", payloadSize, this.maxPayload);
-      return this.writeBuffer;
-    }
-    /**
-     * Sends a message.
-     *
-     * @param {String} msg - message.
-     * @param {Object} options.
-     * @param {Function} callback function.
-     * @return {Socket} for chaining.
-     */
-    write(msg, options, fn) {
-      this.sendPacket("message", msg, options, fn);
-      return this;
-    }
-    send(msg, options, fn) {
-      this.sendPacket("message", msg, options, fn);
-      return this;
-    }
-    /**
-     * Sends a packet.
-     *
-     * @param {String} type: packet type.
-     * @param {String} data.
-     * @param {Object} options.
-     * @param {Function} fn - callback function.
-     * @private
-     */
-    sendPacket(type, data, options, fn) {
-      if ("function" === typeof data) {
-        fn = data;
-        data = void 0;
-      }
-      if ("function" === typeof options) {
-        fn = options;
-        options = null;
-      }
-      if ("closing" === this.readyState || "closed" === this.readyState) {
-        return;
-      }
-      options = options || {};
-      options.compress = false !== options.compress;
-      const packet = {
-        type,
-        data,
-        options
-      };
-      this.emitReserved("packetCreate", packet);
-      this.writeBuffer.push(packet);
-      if (fn)
-        this.once("flush", fn);
-      this.flush();
-    }
-    /**
-     * Closes the connection.
-     */
-    close() {
-      const close = () => {
-        this.onClose("forced close");
-        debug("socket closing - telling transport to close");
-        this.transport.close();
-      };
-      const cleanupAndClose = () => {
-        this.off("upgrade", cleanupAndClose);
-        this.off("upgradeError", cleanupAndClose);
-        close();
-      };
-      const waitForUpgrade = () => {
-        this.once("upgrade", cleanupAndClose);
-        this.once("upgradeError", cleanupAndClose);
-      };
-      if ("opening" === this.readyState || "open" === this.readyState) {
-        this.readyState = "closing";
-        if (this.writeBuffer.length) {
-          this.once("drain", () => {
-            if (this.upgrading) {
-              waitForUpgrade();
-            } else {
-              close();
-            }
-          });
-        } else if (this.upgrading) {
-          waitForUpgrade();
-        } else {
-          close();
-        }
-      }
-      return this;
-    }
-    /**
-     * Called upon transport error
-     *
-     * @private
-     */
-    onError(err) {
-      debug("socket error %j", err);
-      Socket.priorWebsocketSuccess = false;
-      this.emitReserved("error", err);
-      this.onClose("transport error", err);
-    }
-    /**
-     * Called upon transport close.
-     *
-     * @private
-     */
-    onClose(reason, description) {
-      if ("opening" === this.readyState || "open" === this.readyState || "closing" === this.readyState) {
-        debug('socket close with reason: "%s"', reason);
-        this.clearTimeoutFn(this.pingTimeoutTimer);
-        this.transport.removeAllListeners("close");
-        this.transport.close();
-        this.transport.removeAllListeners();
-        if (typeof removeEventListener === "function") {
-          removeEventListener("beforeunload", this.beforeunloadEventListener, false);
-          removeEventListener("offline", this.offlineEventListener, false);
-        }
-        this.readyState = "closed";
-        this.id = null;
-        this.emitReserved("close", reason, description);
-        this.writeBuffer = [];
-        this.prevBufferLen = 0;
-      }
+      this._upgrades = this._filterUpgrades(data.upgrades);
+      super.onHandshake(data);
     }
     /**
      * Filters upgrades, returning only those matching client transports.
@@ -23992,32 +23454,97 @@ function requireSocket$1() {
      * @param {Array} upgrades - server upgrades
      * @private
      */
-    filterUpgrades(upgrades) {
+    _filterUpgrades(upgrades) {
       const filteredUpgrades = [];
-      let i = 0;
-      const j = upgrades.length;
-      for (; i < j; i++) {
+      for (let i = 0; i < upgrades.length; i++) {
         if (~this.transports.indexOf(upgrades[i]))
           filteredUpgrades.push(upgrades[i]);
       }
       return filteredUpgrades;
     }
   }
+  socket$2.SocketWithUpgrade = SocketWithUpgrade;
+  class Socket extends SocketWithUpgrade {
+    constructor(uri, opts = {}) {
+      const o = typeof uri === "object" ? uri : opts;
+      if (!o.transports || o.transports && typeof o.transports[0] === "string") {
+        o.transports = (o.transports || ["polling", "websocket", "webtransport"]).map((transportName) => index_js_1.transports[transportName]).filter((t) => !!t);
+      }
+      super(uri, o);
+    }
+  }
   socket$2.Socket = Socket;
-  Socket.protocol = engine_io_parser_1.protocol;
   return socket$2;
+}
+var pollingFetch = {};
+var hasRequiredPollingFetch;
+function requirePollingFetch() {
+  if (hasRequiredPollingFetch) return pollingFetch;
+  hasRequiredPollingFetch = 1;
+  Object.defineProperty(pollingFetch, "__esModule", { value: true });
+  pollingFetch.Fetch = void 0;
+  const polling_js_1 = requirePolling();
+  class Fetch extends polling_js_1.Polling {
+    doPoll() {
+      this._fetch().then((res) => {
+        if (!res.ok) {
+          return this.onError("fetch read error", res.status, res);
+        }
+        res.text().then((data) => this.onData(data));
+      }).catch((err) => {
+        this.onError("fetch read error", err);
+      });
+    }
+    doWrite(data, callback) {
+      this._fetch(data).then((res) => {
+        if (!res.ok) {
+          return this.onError("fetch write error", res.status, res);
+        }
+        callback();
+      }).catch((err) => {
+        this.onError("fetch write error", err);
+      });
+    }
+    _fetch(data) {
+      var _a;
+      const isPost = data !== void 0;
+      const headers = new Headers(this.opts.extraHeaders);
+      if (isPost) {
+        headers.set("content-type", "text/plain;charset=UTF-8");
+      }
+      (_a = this.socket._cookieJar) === null || _a === void 0 ? void 0 : _a.appendCookies(headers);
+      return fetch(this.uri(), {
+        method: isPost ? "POST" : "GET",
+        body: isPost ? data : null,
+        headers,
+        credentials: this.opts.withCredentials ? "include" : "omit"
+      }).then((res) => {
+        var _a2;
+        (_a2 = this.socket._cookieJar) === null || _a2 === void 0 ? void 0 : _a2.parseCookies(res.headers.getSetCookie());
+        return res;
+      });
+    }
+  }
+  pollingFetch.Fetch = Fetch;
+  return pollingFetch;
 }
 var hasRequiredCjs$2;
 function requireCjs$2() {
-  if (hasRequiredCjs$2)
-    return cjs$2;
+  if (hasRequiredCjs$2) return cjs$2;
   hasRequiredCjs$2 = 1;
   (function(exports) {
     Object.defineProperty(exports, "__esModule", { value: true });
-    exports.nextTick = exports.parse = exports.installTimerFunctions = exports.transports = exports.TransportError = exports.Transport = exports.protocol = exports.Socket = void 0;
+    exports.WebTransport = exports.WebSocket = exports.NodeWebSocket = exports.XHR = exports.NodeXHR = exports.Fetch = exports.nextTick = exports.parse = exports.installTimerFunctions = exports.transports = exports.TransportError = exports.Transport = exports.protocol = exports.SocketWithUpgrade = exports.SocketWithoutUpgrade = exports.Socket = void 0;
     const socket_js_1 = requireSocket$1();
     Object.defineProperty(exports, "Socket", { enumerable: true, get: function() {
       return socket_js_1.Socket;
+    } });
+    var socket_js_2 = requireSocket$1();
+    Object.defineProperty(exports, "SocketWithoutUpgrade", { enumerable: true, get: function() {
+      return socket_js_2.SocketWithoutUpgrade;
+    } });
+    Object.defineProperty(exports, "SocketWithUpgrade", { enumerable: true, get: function() {
+      return socket_js_2.SocketWithUpgrade;
     } });
     exports.protocol = socket_js_1.Socket.protocol;
     var transport_js_1 = requireTransport();
@@ -24039,26 +23566,49 @@ function requireCjs$2() {
     Object.defineProperty(exports, "parse", { enumerable: true, get: function() {
       return parseuri_js_1.parse;
     } });
-    var websocket_constructor_js_1 = requireWebsocketConstructor_browser();
+    var globals_node_js_1 = requireGlobals();
     Object.defineProperty(exports, "nextTick", { enumerable: true, get: function() {
-      return websocket_constructor_js_1.nextTick;
+      return globals_node_js_1.nextTick;
+    } });
+    var polling_fetch_js_1 = requirePollingFetch();
+    Object.defineProperty(exports, "Fetch", { enumerable: true, get: function() {
+      return polling_fetch_js_1.Fetch;
+    } });
+    var polling_xhr_node_js_1 = requirePollingXhr();
+    Object.defineProperty(exports, "NodeXHR", { enumerable: true, get: function() {
+      return polling_xhr_node_js_1.XHR;
+    } });
+    var polling_xhr_js_1 = requirePollingXhr();
+    Object.defineProperty(exports, "XHR", { enumerable: true, get: function() {
+      return polling_xhr_js_1.XHR;
+    } });
+    var websocket_node_js_1 = requireWebsocket();
+    Object.defineProperty(exports, "NodeWebSocket", { enumerable: true, get: function() {
+      return websocket_node_js_1.WS;
+    } });
+    var websocket_js_1 = requireWebsocket();
+    Object.defineProperty(exports, "WebSocket", { enumerable: true, get: function() {
+      return websocket_js_1.WS;
+    } });
+    var webtransport_js_1 = requireWebtransport();
+    Object.defineProperty(exports, "WebTransport", { enumerable: true, get: function() {
+      return webtransport_js_1.WT;
     } });
   })(cjs$2);
   return cjs$2;
 }
 var hasRequiredUrl;
 function requireUrl() {
-  if (hasRequiredUrl)
-    return url;
+  if (hasRequiredUrl) return url;
   hasRequiredUrl = 1;
   var __importDefault = commonjsGlobal && commonjsGlobal.__importDefault || function(mod) {
     return mod && mod.__esModule ? mod : { "default": mod };
   };
   Object.defineProperty(url, "__esModule", { value: true });
-  url.url = void 0;
+  url.url = url$1;
   const engine_io_client_1 = requireCjs$2();
   const debug_1 = __importDefault(requireBrowser());
-  const debug = debug_1.default("socket.io-client:url");
+  const debug = (0, debug_1.default)("socket.io-client:url");
   function url$1(uri, path = "", loc) {
     let obj = uri;
     loc = loc || typeof location !== "undefined" && location;
@@ -24081,7 +23631,7 @@ function requireUrl() {
         }
       }
       debug("parse %s", uri);
-      obj = engine_io_client_1.parse(uri);
+      obj = (0, engine_io_client_1.parse)(uri);
     }
     if (!obj.port) {
       if (/^(http|ws)$/.test(obj.protocol)) {
@@ -24097,7 +23647,6 @@ function requireUrl() {
     obj.href = obj.protocol + "://" + host + (loc && loc.port === obj.port ? "" : ":" + obj.port);
     return obj;
   }
-  url.url = url$1;
   return url;
 }
 var manager = {};
@@ -24107,8 +23656,7 @@ var binary = {};
 var isBinary = {};
 var hasRequiredIsBinary;
 function requireIsBinary() {
-  if (hasRequiredIsBinary)
-    return isBinary;
+  if (hasRequiredIsBinary) return isBinary;
   hasRequiredIsBinary = 1;
   Object.defineProperty(isBinary, "__esModule", { value: true });
   isBinary.hasBinary = isBinary.isBinary = void 0;
@@ -24153,8 +23701,7 @@ function requireIsBinary() {
 }
 var hasRequiredBinary;
 function requireBinary() {
-  if (hasRequiredBinary)
-    return binary;
+  if (hasRequiredBinary) return binary;
   hasRequiredBinary = 1;
   Object.defineProperty(binary, "__esModule", { value: true });
   binary.reconstructPacket = binary.deconstructPacket = void 0;
@@ -24225,8 +23772,7 @@ function requireBinary() {
 }
 var hasRequiredCjs$1;
 function requireCjs$1() {
-  if (hasRequiredCjs$1)
-    return cjs;
+  if (hasRequiredCjs$1) return cjs;
   hasRequiredCjs$1 = 1;
   (function(exports) {
     Object.defineProperty(exports, "__esModule", { value: true });
@@ -24501,24 +24047,21 @@ function requireCjs$1() {
 var on = {};
 var hasRequiredOn;
 function requireOn() {
-  if (hasRequiredOn)
-    return on;
+  if (hasRequiredOn) return on;
   hasRequiredOn = 1;
   Object.defineProperty(on, "__esModule", { value: true });
-  on.on = void 0;
+  on.on = on$1;
   function on$1(obj, ev, fn) {
     obj.on(ev, fn);
     return function subDestroy() {
       obj.off(ev, fn);
     };
   }
-  on.on = on$1;
   return on;
 }
 var hasRequiredSocket;
 function requireSocket() {
-  if (hasRequiredSocket)
-    return socket$1;
+  if (hasRequiredSocket) return socket$1;
   hasRequiredSocket = 1;
   var __importDefault = commonjsGlobal && commonjsGlobal.__importDefault || function(mod) {
     return mod && mod.__esModule ? mod : { "default": mod };
@@ -24529,7 +24072,7 @@ function requireSocket() {
   const on_js_1 = requireOn();
   const component_emitter_1 = esm;
   const debug_1 = __importDefault(requireBrowser());
-  const debug = debug_1.default("socket.io-client:socket");
+  const debug = (0, debug_1.default)("socket.io-client:socket");
   const RESERVED_EVENTS = Object.freeze({
     connect: 1,
     connect_error: 1,
@@ -24590,10 +24133,10 @@ function requireSocket() {
         return;
       const io = this.io;
       this.subs = [
-        on_js_1.on(io, "open", this.onopen.bind(this)),
-        on_js_1.on(io, "packet", this.onpacket.bind(this)),
-        on_js_1.on(io, "error", this.onerror.bind(this)),
-        on_js_1.on(io, "close", this.onclose.bind(this))
+        (0, on_js_1.on)(io, "open", this.onopen.bind(this)),
+        (0, on_js_1.on)(io, "packet", this.onpacket.bind(this)),
+        (0, on_js_1.on)(io, "error", this.onerror.bind(this)),
+        (0, on_js_1.on)(io, "close", this.onclose.bind(this))
       ];
     }
     /**
@@ -24680,6 +24223,7 @@ function requireSocket() {
      * @return self
      */
     emit(ev, ...args) {
+      var _a, _b, _c;
       if (RESERVED_EVENTS.hasOwnProperty(ev)) {
         throw new Error('"' + ev.toString() + '" is a reserved event name');
       }
@@ -24701,11 +24245,12 @@ function requireSocket() {
         this._registerAckCallback(id, ack);
         packet.id = id;
       }
-      const isTransportWritable = this.io.engine && this.io.engine.transport && this.io.engine.transport.writable;
-      const discardPacket = this.flags.volatile && (!isTransportWritable || !this.connected);
+      const isTransportWritable = (_b = (_a = this.io.engine) === null || _a === void 0 ? void 0 : _a.transport) === null || _b === void 0 ? void 0 : _b.writable;
+      const isConnected = this.connected && !((_c = this.io.engine) === null || _c === void 0 ? void 0 : _c._hasPingExpired());
+      const discardPacket = this.flags.volatile && !isTransportWritable;
       if (discardPacket) {
         debug("discard packet as the transport is not currently writable");
-      } else if (this.connected) {
+      } else if (isConnected) {
         this.notifyOutgoingListeners(packet);
         this.packet(packet);
       } else {
@@ -25325,11 +24870,10 @@ function requireSocket() {
 var backo2 = {};
 var hasRequiredBacko2;
 function requireBacko2() {
-  if (hasRequiredBacko2)
-    return backo2;
+  if (hasRequiredBacko2) return backo2;
   hasRequiredBacko2 = 1;
   Object.defineProperty(backo2, "__esModule", { value: true });
-  backo2.Backoff = void 0;
+  backo2.Backoff = Backoff;
   function Backoff(opts) {
     opts = opts || {};
     this.ms = opts.min || 100;
@@ -25338,7 +24882,6 @@ function requireBacko2() {
     this.jitter = opts.jitter > 0 && opts.jitter <= 1 ? opts.jitter : 0;
     this.attempts = 0;
   }
-  backo2.Backoff = Backoff;
   Backoff.prototype.duration = function() {
     var ms2 = this.ms * Math.pow(this.factor, this.attempts++);
     if (this.jitter) {
@@ -25364,18 +24907,19 @@ function requireBacko2() {
 }
 var hasRequiredManager;
 function requireManager() {
-  if (hasRequiredManager)
-    return manager;
+  if (hasRequiredManager) return manager;
   hasRequiredManager = 1;
   var __createBinding = commonjsGlobal && commonjsGlobal.__createBinding || (Object.create ? function(o, m, k, k2) {
-    if (k2 === void 0)
-      k2 = k;
-    Object.defineProperty(o, k2, { enumerable: true, get: function() {
-      return m[k];
-    } });
+    if (k2 === void 0) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() {
+        return m[k];
+      } };
+    }
+    Object.defineProperty(o, k2, desc);
   } : function(o, m, k, k2) {
-    if (k2 === void 0)
-      k2 = k;
+    if (k2 === void 0) k2 = k;
     o[k2] = m[k];
   });
   var __setModuleDefault = commonjsGlobal && commonjsGlobal.__setModuleDefault || (Object.create ? function(o, v) {
@@ -25384,13 +24928,10 @@ function requireManager() {
     o["default"] = v;
   });
   var __importStar = commonjsGlobal && commonjsGlobal.__importStar || function(mod) {
-    if (mod && mod.__esModule)
-      return mod;
+    if (mod && mod.__esModule) return mod;
     var result2 = {};
     if (mod != null) {
-      for (var k in mod)
-        if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k))
-          __createBinding(result2, mod, k);
+      for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result2, mod, k);
     }
     __setModuleDefault(result2, mod);
     return result2;
@@ -25407,7 +24948,7 @@ function requireManager() {
   const backo2_js_1 = requireBacko2();
   const component_emitter_1 = esm;
   const debug_1 = __importDefault(requireBrowser());
-  const debug = debug_1.default("socket.io-client:manager");
+  const debug = (0, debug_1.default)("socket.io-client:manager");
   class Manager extends component_emitter_1.Emitter {
     constructor(uri, opts) {
       var _a;
@@ -25421,7 +24962,7 @@ function requireManager() {
       opts = opts || {};
       opts.path = opts.path || "/socket.io";
       this.opts = opts;
-      engine_io_client_1.installTimerFunctions(this, opts);
+      (0, engine_io_client_1.installTimerFunctions)(this, opts);
       this.reconnection(opts.reconnection !== false);
       this.reconnectionAttempts(opts.reconnectionAttempts || Infinity);
       this.reconnectionDelay(opts.reconnectionDelay || 1e3);
@@ -25446,6 +24987,9 @@ function requireManager() {
       if (!arguments.length)
         return this._reconnection;
       this._reconnection = !!v;
+      if (!v) {
+        this.skipReconnect = true;
+      }
       return this;
     }
     reconnectionAttempts(v) {
@@ -25512,7 +25056,7 @@ function requireManager() {
       const self2 = this;
       this._readyState = "opening";
       this.skipReconnect = false;
-      const openSubDestroy = on_js_1.on(socket2, "open", function() {
+      const openSubDestroy = (0, on_js_1.on)(socket2, "open", function() {
         self2.onopen();
         fn && fn();
       });
@@ -25527,7 +25071,7 @@ function requireManager() {
           this.maybeReconnectOnOpen();
         }
       };
-      const errorSub = on_js_1.on(socket2, "error", onError);
+      const errorSub = (0, on_js_1.on)(socket2, "error", onError);
       if (false !== this._timeout) {
         const timeout = this._timeout;
         debug("connect attempt will timeout after %d", timeout);
@@ -25568,7 +25112,14 @@ function requireManager() {
       this._readyState = "open";
       this.emitReserved("open");
       const socket2 = this.engine;
-      this.subs.push(on_js_1.on(socket2, "ping", this.onping.bind(this)), on_js_1.on(socket2, "data", this.ondata.bind(this)), on_js_1.on(socket2, "error", this.onerror.bind(this)), on_js_1.on(socket2, "close", this.onclose.bind(this)), on_js_1.on(this.decoder, "decoded", this.ondecoded.bind(this)));
+      this.subs.push(
+        (0, on_js_1.on)(socket2, "ping", this.onping.bind(this)),
+        (0, on_js_1.on)(socket2, "data", this.ondata.bind(this)),
+        (0, on_js_1.on)(socket2, "error", this.onerror.bind(this)),
+        (0, on_js_1.on)(socket2, "close", this.onclose.bind(this)),
+        // @ts-ignore
+        (0, on_js_1.on)(this.decoder, "decoded", this.ondecoded.bind(this))
+      );
     }
     /**
      * Called upon a ping.
@@ -25596,7 +25147,7 @@ function requireManager() {
      * @private
      */
     ondecoded(packet) {
-      engine_io_client_1.nextTick(() => {
+      (0, engine_io_client_1.nextTick)(() => {
         this.emitReserved("packet", packet);
       }, this.setTimeoutFn);
     }
@@ -25676,8 +25227,6 @@ function requireManager() {
       this.skipReconnect = true;
       this._reconnecting = false;
       this.onclose("forced close");
-      if (this.engine)
-        this.engine.close();
     }
     /**
      * Alias for close()
@@ -25688,13 +25237,19 @@ function requireManager() {
       return this._close();
     }
     /**
-     * Called upon engine close.
+     * Called when:
+     *
+     * - the low-level engine is closed
+     * - the parser encountered a badly formatted packet
+     * - all sockets are disconnected
      *
      * @private
      */
     onclose(reason, description) {
+      var _a;
       debug("closed due to %s", reason);
       this.cleanup();
+      (_a = this.engine) === null || _a === void 0 ? void 0 : _a.close();
       this.backoff.reset();
       this._readyState = "closed";
       this.emitReserved("close", reason, description);
@@ -25764,15 +25319,17 @@ function requireManager() {
 }
 var hasRequiredCjs;
 function requireCjs() {
-  if (hasRequiredCjs)
-    return cjs$3.exports;
+  if (hasRequiredCjs) return cjs$3.exports;
   hasRequiredCjs = 1;
   (function(module, exports) {
     var __importDefault = commonjsGlobal && commonjsGlobal.__importDefault || function(mod) {
       return mod && mod.__esModule ? mod : { "default": mod };
     };
     Object.defineProperty(exports, "__esModule", { value: true });
-    exports.default = exports.connect = exports.io = exports.Socket = exports.Manager = exports.protocol = void 0;
+    exports.Socket = exports.Manager = exports.protocol = void 0;
+    exports.io = lookup;
+    exports.connect = lookup;
+    exports.default = lookup;
     const url_js_1 = requireUrl();
     const manager_js_1 = requireManager();
     Object.defineProperty(exports, "Manager", { enumerable: true, get: function() {
@@ -25783,7 +25340,7 @@ function requireCjs() {
       return socket_js_1.Socket;
     } });
     const debug_1 = __importDefault(requireBrowser());
-    const debug = debug_1.default("socket.io-client");
+    const debug = (0, debug_1.default)("socket.io-client");
     const cache = {};
     function lookup(uri, opts) {
       if (typeof uri === "object") {
@@ -25791,7 +25348,7 @@ function requireCjs() {
         uri = void 0;
       }
       opts = opts || {};
-      const parsed = url_js_1.url(uri, opts.path || "/socket.io");
+      const parsed = (0, url_js_1.url)(uri, opts.path || "/socket.io");
       const source = parsed.source;
       const id = parsed.id;
       const path = parsed.path;
@@ -25813,9 +25370,6 @@ function requireCjs() {
       }
       return io.socket(parsed.path, opts);
     }
-    exports.io = lookup;
-    exports.connect = lookup;
-    exports.default = lookup;
     Object.assign(lookup, {
       Manager: manager_js_1.Manager,
       Socket: socket_js_1.Socket,
@@ -25833,8 +25387,7 @@ function requireCjs() {
 var skin_variants = {};
 var hasRequiredSkin_variants;
 function requireSkin_variants() {
-  if (hasRequiredSkin_variants)
-    return skin_variants;
+  if (hasRequiredSkin_variants) return skin_variants;
   hasRequiredSkin_variants = 1;
   if (window.location.hash.toLowerCase() === "#skinvariantsbuilder") {
     $("#skin-variants").addClass("popup-show");
@@ -25860,8 +25413,7 @@ function requireSkin_variants() {
       $("select.skin-variant-color").each(function() {
         newClasses.push(`${$(this).val()}-${$(this).data("container")}`);
       });
-      if ($("#skin-variant-full-width").is(":checked"))
-        newClasses.push("full-width-editor");
+      if ($("#skin-variant-full-width").is(":checked")) newClasses.push("full-width-editor");
       domsToUpdate.forEach((el) => {
         el.addClass(newClasses.join(" "));
       });
@@ -25902,8 +25454,7 @@ window.clientVars = {
   plugins.baseURL = baseURL;
   plugins.update(function() {
     window._postPluginUpdateForTestingDone = false;
-    if (window._postPluginUpdateForTesting != null)
-      window._postPluginUpdateForTesting();
+    if (window._postPluginUpdateForTesting != null) window._postPluginUpdateForTesting();
     window._postPluginUpdateForTestingDone = true;
     $(function() {
       hooks$1.aCallAll("documentReady");

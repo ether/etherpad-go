@@ -9,23 +9,23 @@
     "preview": "vite preview"
   },
   "devDependencies": {
-    "@types/node": "^20.12.12",
-    "typescript": "^5.2.2",
-    "vite": "^5.2.0"
+    "@types/node": "^20.16.11",
+    "typescript": "^5.6.3",
+    "vite": "5.4.6"
   },
   "dependencies": {
-    "@rollup/plugin-commonjs": "^25.0.7",
+    "@rollup/plugin-commonjs": "^25.0.8",
     "js-cookie": "^3.0.5",
     "quill": "^2.0.2",
-    "quill-cursors": "^4.0.2",
+    "quill-cursors": "^4.0.3",
     "security": "^1.0.0",
-    "socket.io-client": "^4.7.5",
+    "socket.io-client": "^4.8.0",
     "tinycon": "^0.6.8",
-    "underscore": "^1.13.6",
+    "underscore": "^1.13.7",
     "unorm": "^1.6.0",
-    "vite-plugin-require": "^1.1.14",
+    "vite-plugin-require": "^1.2.14",
     "y-quill": "^1.0.0",
-    "y-websocket": "^2.0.3",
-    "yjs": "^13.6.15"
+    "y-websocket": "^2.0.4",
+    "yjs": "^13.6.19"
   }
 }
