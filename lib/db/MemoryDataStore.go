@@ -152,12 +152,12 @@ func (m *MemoryDataStore) GetPad(padID string) (*db.PadDB, error) {
 }
 
 func (m *MemoryDataStore) GetReadonlyPad(padId string) (*string, error) {
-	pad, ok := m.padStore[padId]
+	pad, ok := m.pad2Readonly[padId]
 
 	if !ok {
 		return nil, errors.New("read only id not found")
 	}
-	return &pad.ReadOnlyId, nil
+	return &pad, nil
 }
 
 func (m *MemoryDataStore) CreatePad2ReadOnly(padId string, readonlyId string) {
