@@ -48,6 +48,12 @@ importers:
         specifier: ^13.6.19
         version: 13.6.19
     devDependencies:
+      '@types/jquery':
+        specifier: ^3.5.31
+        version: 3.5.31
+      '@types/js-cookie':
+        specifier: ^3.0.6
+        version: 3.0.6
       '@types/node':
         specifier: ^20.16.11
         version: 20.16.11
@@ -360,11 +366,20 @@ packages:
   '@types/estree@1.0.6':
     resolution: {integrity: sha512-AYnb1nQyY49te+VRAVgmzfcgjYS91mY5P0TKUDCLEM+gNnA+3T6rWITXRLYCpahpqSQbN5cE+gHpnPyXjHWxcw==}
 
+  '@types/jquery@3.5.31':
+    resolution: {integrity: sha512-rf/iB+cPJ/YZfMwr+FVuQbm7IaWC4y3FVYfVDxRGqmUCFjjPII0HWaP0vTPJGp6m4o13AXySCcMbWfrWtBFAKw==}
+
+  '@types/js-cookie@3.0.6':
+    resolution: {integrity: sha512-wkw9yd1kEXOPnvEeEV1Go1MmxtBJL0RR79aOTAApecWFVu7w0NNXNqhcWgvw2YgZDYadliXkl14pa3WXw5jlCQ==}
+
   '@types/json-schema@7.0.15':
     resolution: {integrity: sha512-5+fP8P8MFNC+AyZCDxrB2pkZFPGzqQWUzpSeuuVLvm8VMcorNYavBqoFcxK8bQz4Qsbn4oUEEem4wDLfcysGHA==}
 
   '@types/node@20.16.11':
     resolution: {integrity: sha512-y+cTCACu92FyA5fgQSAI8A1H429g7aSK2HsO7K4XYUWc4dY5IUz55JSDIYT6/VsOLfGy8vmvQYC2hfb0iF16Uw==}
+
+  '@types/sizzle@2.3.8':
+    resolution: {integrity: sha512-0vWLNK2D5MT9dg0iOo8GlKguPAU02QjmZitPEsXRuJXU/OGIOt9vT9Fc26wtYuavLxtO45v9PGleoL9Z0k1LHg==}
 
   '@vue/compiler-core@3.5.11':
     resolution: {integrity: sha512-PwAdxs7/9Hc3ieBO12tXzmTD+Ln4qhT/56S+8DvrrZ4kLDn4Z/AMUr8tXJD0axiJBS0RKIoNaR0yMuQB9v9Udg==}
@@ -1288,11 +1303,19 @@ snapshots:
 
   '@types/estree@1.0.6': {}
 
+  '@types/jquery@3.5.31':
+    dependencies:
+      '@types/sizzle': 2.3.8
+
+  '@types/js-cookie@3.0.6': {}
+
   '@types/json-schema@7.0.15': {}
 
   '@types/node@20.16.11':
     dependencies:
       undici-types: 6.19.8
+
+  '@types/sizzle@2.3.8': {}
 
   '@vue/compiler-core@3.5.11':
     dependencies:

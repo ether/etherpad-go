@@ -2,13 +2,14 @@
   "name": "ui",
   "private": true,
   "version": "0.0.0",
-  "type": "module",
   "scripts": {
     "dev": "vite --port 3000",
     "build": "tsc && vite build  --outDir ../assets/js/pad --emptyOutDir",
     "preview": "vite preview"
   },
   "devDependencies": {
+    "@types/jquery": "^3.5.31",
+    "@types/js-cookie": "^3.0.6",
     "@types/node": "^20.16.11",
     "typescript": "^5.6.3",
     "vite": "5.4.6"

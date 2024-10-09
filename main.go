@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	_ "fmt"
 	"github.com/a-h/templ"
 	"github.com/ether/etherpad-go/assets/welcome"
@@ -11,6 +12,7 @@ import (
 	"github.com/ether/etherpad-go/lib/plugins"
 	session2 "github.com/ether/etherpad-go/lib/session"
 	"github.com/ether/etherpad-go/lib/ws"
+	"github.com/evanw/esbuild/pkg/api"
 	"github.com/gofiber/adaptor/v2"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/session"
@@ -62,7 +64,36 @@ func main() {
 	app.Static("/css/", "./assets/css")
 	app.Static("/html/", "./assets/html")
 	app.Static("/font/", "./assets/font")
-	app.Static("/js/", "./assets/js")
+
+	relativePath := "./ui/src/js"
+
+	var alias = make(map[string]string)
+	alias["ep_etherpad-lite/static/js/ace2_inner"] = relativePath + "/ace2_inner"
+	alias["ep_etherpad-lite/static/js/ace2_common"] = relativePath + "/ace2_common"
+	alias["ep_etherpad-lite/static/js/pluginfw/client_plugins"] = relativePath + "/pluginfw/client_plugins"
+	alias["ep_etherpad-lite/static/js/rjquery"] = relativePath + "/rjquery"
+	alias["ep_etherpad-lite/static/js/nice-select"] = "ep_etherpad-lite/static/js/vendors/nice-select"
+
+	app.Get("/js/*", func(c *fiber.Ctx) error {
+		result := api.Build(api.BuildOptions{
+			EntryPoints: []string{"./ui/src/main.js"},
+			Bundle:      true,
+			Write:       false,
+			LogLevel:    api.LogLevelInfo,
+			Metafile:    true,
+			Target:      api.ES2020,
+			Alias:       alias,
+		})
+
+		if len(result.Errors) > 0 {
+			fmt.Println("Build failed with errors:", result.Errors)
+			return c.SendString("Build failed")
+		}
+
+		c.Set("Content-Type", "application/javascript")
+
+		return c.Send(result.OutputFiles[0].Contents)
+	})
 	app.Static("/locales", "./assets/locales")
 	app.Static("/images", "./assets/images")
 	app.Static("/pluginfw/plugin-definitions.json", "./assets/plugin/plugin-definitions.json")
