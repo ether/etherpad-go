@@ -1,5 +1,6 @@
 // @ts-nocheck
 import io from 'socket.io-client';
+import {SocketIoWrapper} from "../socketIoWrapper.ts";
 
 /**
  * Creates a socket.io connection.
@@ -28,7 +29,7 @@ const connect = (etherpadBaseUrl, namespace = '/', options = {}) => {
   };
   socketOptions = Object.assign(options, socketOptions);
 
-  const socket = io(namespaceUrl.href, socketOptions);
+  const socket = new SocketIoWrapper();
 
   socket.on('connect_error', (error) => {
     console.log('Error connecting to pad', error);
