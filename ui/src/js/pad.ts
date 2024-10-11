@@ -548,12 +548,12 @@ const pad = {
     }
     // if the globalUserName value is set we need to tell the server and
     // the client about the new authorname
-    if (settings.globalUserName !== false) {
+    if (settings.globalUserName != false && settings.globalUserName != "false") {
       this.notifyChangeName(settings.globalUserName); // Notifies the server
       this.myUserInfo.name = settings.globalUserName;
       $('#myusernameedit').val(settings.globalUserName); // Updates the current users UI
     }
-    if (settings.globalUserColor !== false && colorutils.isCssHex(settings.globalUserColor)) {
+    if (settings.globalUserColor != false && settings.globalUserColor != "false" && colorutils.isCssHex(settings.globalUserColor)) {
       // Add a 'globalUserColor' property to myUserInfo,
       // so collabClient knows we have a query parameter.
       this.myUserInfo.globalUserColor = settings.globalUserColor;

@@ -392,7 +392,7 @@ func HandleUserInfoUpdate(userInfo UserInfoUpdate, client *Client) {
 
 	var match, _ = regexp.MatchString("^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$", *userInfo.Data.UserInfo.ColorId)
 	if !match {
-		println("Malformed color")
+		println("Malformed color", *userInfo.Data.UserInfo.ColorId)
 		return
 	}
 
