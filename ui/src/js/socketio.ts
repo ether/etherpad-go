@@ -1,6 +1,8 @@
-// @ts-nocheck
-import io from 'socket.io-client';
 import {SocketIoWrapper} from "../socketIoWrapper.ts";
+
+declare global {
+  interface Window { socket: SocketIoWrapper; socketio: {connect: Function} }
+}
 
 /**
  * Creates a socket.io connection.
@@ -11,27 +13,19 @@ import {SocketIoWrapper} from "../socketIoWrapper.ts";
  *     https://socket.io/docs/v2/client-api/#new-Manager-url-options
  * @return socket.io Socket object
  */
-const connect = (etherpadBaseUrl, namespace = '/', options = {}) => {
+const connect = (etherpadBaseUrl: string | URL, namespace = '/', options = {}) => {
   // The API for socket.io's io() function is awkward. The documentation says that the first
   // argument is a URL, but it is not the URL of the socket.io endpoint. The URL's path part is used
   // as the name of the socket.io namespace to join, and the rest of the URL (including query
   // parameters, if present) is combined with the `path` option (which defaults to '/socket.io', but
   // is overridden here to allow users to host Etherpad at something like '/etherpad') to get the
   // URL of the socket.io endpoint.
-  const baseUrl = new URL(etherpadBaseUrl, window.location);
+  const baseUrl = new URL(etherpadBaseUrl, window.location.href);
   const socketioUrl = new URL('socket.io', baseUrl);
-  const namespaceUrl = new URL(namespace, new URL('/', baseUrl));
 
-  let socketOptions = {
-    path: socketioUrl.pathname,
-    upgrade: true,
-    transports: ['websocket'],
-  };
-  socketOptions = Object.assign(options, socketOptions);
+  window.socket = new SocketIoWrapper()
 
-  const socket = new SocketIoWrapper();
-
-  socket.on('connect_error', (error) => {
+  window.socket.on('connect_error', (error: any) => {
     console.log('Error connecting to pad', error);
     /*if (socket.io.engine.transports.indexOf('polling') === -1) {
       console.warn('WebSocket connection failed. Falling back to long-polling.');
@@ -40,7 +34,7 @@ const connect = (etherpadBaseUrl, namespace = '/', options = {}) => {
     }*/
   });
 
-  return socket;
+  return window.socket;
 };
 
 if (typeof exports === 'object') {

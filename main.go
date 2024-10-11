@@ -62,6 +62,8 @@ func main() {
 	})
 
 	app.Static("/css/", "./assets/css")
+	app.Static("/static/css/", "./assets/css/static/")
+	app.Static("/static/skins/colibris/", "./assets/css/skin/")
 	app.Static("/html/", "./assets/html")
 	app.Static("/font/", "./assets/font")
 
@@ -83,6 +85,7 @@ func main() {
 			Metafile:    true,
 			Target:      api.ES2020,
 			Alias:       alias,
+			Sourcemap:   api.SourceMap(api.SourceMapInline),
 		})
 
 		if len(result.Errors) > 0 {
@@ -96,6 +99,7 @@ func main() {
 	})
 	app.Static("/locales", "./assets/locales")
 	app.Static("/images", "./assets/images")
+	app.Static("/static/empty.html", "./assets/html/empty.html")
 	app.Static("/pluginfw/plugin-definitions.json", "./assets/plugin/plugin-definitions.json")
 
 	app.Get("/locales.json", func(c *fiber.Ctx) error {

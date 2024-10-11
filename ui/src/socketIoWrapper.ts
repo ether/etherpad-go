@@ -30,6 +30,12 @@ export class SocketIoWrapper {
         console.log('connect')
     }
 
+    public io = {
+        on: (event: string, callback: Function)=>{
+            this.on(event, callback)
+        }
+    }
+
     public once(event: string, callback: Function) {
         if (this.eventCallbacks[event]) {
             this.eventCallbacks[event].push(callback)
