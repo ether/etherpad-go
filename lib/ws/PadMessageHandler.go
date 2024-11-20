@@ -388,6 +388,7 @@ func HandleUserInfoUpdate(userInfo UserInfoUpdate, client *Client) {
 
 	if session == nil || session.Author == "" || session.PadId == "" {
 		println("Session not ready")
+		return
 	}
 
 	var match, _ = regexp.MatchString("^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$", *userInfo.Data.UserInfo.ColorId)
