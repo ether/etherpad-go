@@ -4,8 +4,8 @@ go 1.22.3
 
 require (
 	github.com/Masterminds/squirrel v1.5.4
-	github.com/a-h/templ v0.2.707
-	github.com/evanw/esbuild v0.24.0
+	github.com/a-h/templ v0.2.793
+	github.com/evanw/esbuild v0.23.1
 	github.com/gofiber/adaptor/v2 v2.2.1
 	github.com/gofiber/fiber/v2 v2.52.5
 	github.com/gofiber/swagger v1.1.0

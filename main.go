@@ -22,6 +22,7 @@ import (
 	sio "github.com/njones/socketio"
 	ser "github.com/njones/socketio/serialize"
 	"net/http"
+	"path"
 	"strings"
 )
 
@@ -100,7 +101,7 @@ func main() {
 	app.Static("/html/", "./assets/html")
 	app.Static("/font/", "./assets/font")
 
-	relativePath := "./ui/src/js"
+	relativePath := "./src/js"
 
 	var alias = make(map[string]string)
 	alias["ep_etherpad-lite/static/js/ace2_inner"] = relativePath + "/ace2_inner"
@@ -114,20 +115,23 @@ func main() {
 		var entrypoint string
 
 		if strings.Contains(c.Path(), "welcome") {
-			entrypoint = "./ui/src/index.js"
+			entrypoint = "./src/index.js"
 		} else {
-			entrypoint = "./ui/src/main.js"
+			entrypoint = "./src/main.js"
 		}
 
+		var pathToBuild = path.Join(*settings2.SettingsDisplayed.Root, "ui")
+
 		result := api.Build(api.BuildOptions{
-			EntryPoints: []string{entrypoint},
-			Bundle:      true,
-			Write:       false,
-			LogLevel:    api.LogLevelInfo,
-			Metafile:    true,
-			Target:      api.ES2020,
-			Alias:       alias,
-			Sourcemap:   api.SourceMapInline,
+			EntryPoints:   []string{entrypoint},
+			AbsWorkingDir: pathToBuild,
+			Bundle:        true,
+			Write:         false,
+			LogLevel:      api.LogLevelInfo,
+			Metafile:      true,
+			Target:        api.ES2020,
+			Alias:         alias,
+			Sourcemap:     api.SourceMapInline,
 		})
 
 		if len(result.Errors) > 0 {
