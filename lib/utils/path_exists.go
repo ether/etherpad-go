@@ -4,7 +4,7 @@ import (
 	"os"
 )
 
-func Check(path string) bool {
+func ExistsSync(path string) bool {
 	_, err := os.Stat(path)
 
 	return !os.IsNotExist(err)

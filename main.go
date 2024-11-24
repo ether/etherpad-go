@@ -2,16 +2,16 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	_ "fmt"
 	"github.com/a-h/templ"
 	"github.com/ether/etherpad-go/assets/welcome"
 	_ "github.com/ether/etherpad-go/docs"
-	"github.com/ether/etherpad-go/lib/locales"
+	"github.com/ether/etherpad-go/lib/hooks"
 	"github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/plugins"
 	session2 "github.com/ether/etherpad-go/lib/session"
+	settings2 "github.com/ether/etherpad-go/lib/settings"
 	"github.com/ether/etherpad-go/lib/ws"
 	"github.com/evanw/esbuild/pkg/api"
 	"github.com/gofiber/adaptor/v2"
@@ -61,6 +61,9 @@ func sessionMiddleware(h http.HandlerFunc) http.HandlerFunc {
 // @host localhost:3000
 // @BasePath /
 func main() {
+
+	var settings = settings2.SettingsDisplayed
+
 	var db = session2.NewSessionDatabase(nil)
 	app := fiber.New()
 	var cookieStore = session.New(session.Config{
@@ -68,7 +71,7 @@ func main() {
 		Storage:   db,
 	})
 	server := sio.NewServer()
-	component := welcome.Page()
+	component := welcome.Page(settings)
 
 	app.Get("/swagger/*", swagger.HandlerDefault) // default
 
@@ -136,17 +139,9 @@ func main() {
 
 		return c.Send(result.OutputFiles[0].Contents)
 	})
-	app.Static("/locales", "./assets/locales")
 	app.Static("/images", "./assets/images")
 	app.Static("/static/empty.html", "./assets/html/empty.html")
 	app.Static("/pluginfw/plugin-definitions.json", "./assets/plugin/plugin-definitions.json")
-
-	app.Get("/locales.json", func(c *fiber.Ctx) error {
-		var respHeaders = c.GetRespHeaders()
-		respHeaders["Content-Type"] = []string{"application/json"}
-		var marshalledLocales, _ = json.Marshal(locales.Locales)
-		return c.Send(marshalledLocales)
-	})
 
 	app.Use("/p/", func(c *fiber.Ctx) error {
 		c.Path()
@@ -166,6 +161,8 @@ func main() {
 	app.Get("/", func(c *fiber.Ctx) error {
 		return adaptor.HTTPHandler(templ.Handler(component))(c)
 	})
+
+	hooks.ExpressPreSession(app)
 
 	ws.HubGlob = ws.NewHub()
 	go ws.HubGlob.Run()

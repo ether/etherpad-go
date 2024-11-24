@@ -200,6 +200,7 @@ func init() {
 	var fileReadSettings Settings
 	err = json.Unmarshal(settings, &fileReadSettings)
 	Merge(&SettingsDisplayed, &fileReadSettings)
+	SettingsDisplayed.Root = &pathToSettings
 
 	if err != nil {
 		println("error is" + err.Error())
