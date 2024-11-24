@@ -2,6 +2,7 @@ package pad
 
 import (
     padModel "github.com/ether/etherpad-go/lib/models"
+	"github.com/ether/etherpad-go/lib/hooks"
 )
 
 templ EditBar() {
@@ -89,7 +90,9 @@ templ SettingsPopup() {
                 <p class="dropdown-line">
                   <label for="languagemenu" data-l10n-id="pad.settings.language">Language:</label>
                   <select id="languagemenu">
-                      <option value="<%=lang%>"></option>
+                  for key, valueInLoop := range hooks.AvailableLangs {
+                    <option value={key} data-l10n-id={valueInLoop.LanguageCode}>{valueInLoop.DisplayName}</option>
+                  }
                   </select>
                 </p>
               </div>

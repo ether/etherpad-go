@@ -467,6 +467,7 @@ type LanguageInfo struct {
 	LanguageCode string
 	Direction    string
 	Attribute    string
+	DisplayName  string
 }
 
 func getLanguageInfo(languageCode string) LanguageInfo {
@@ -474,6 +475,7 @@ func getLanguageInfo(languageCode string) LanguageInfo {
 		LanguageCode: languageCode,
 		Direction:    "ltr",
 		Attribute:    "",
+		DisplayName:  "",
 	}
 
 	if IsValid(languageCode) {
@@ -483,6 +485,9 @@ func getLanguageInfo(languageCode string) LanguageInfo {
 		if langs.attribute.nativeName == 1 {
 			langInfo.Attribute = langs.lang[languageCode][0]
 		}
+
+		value, _ := langs.lang[languageCode]
+		langInfo.DisplayName = value[0]
 	}
 	return langInfo
 }
