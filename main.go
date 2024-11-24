@@ -22,6 +22,7 @@ import (
 	sio "github.com/njones/socketio"
 	ser "github.com/njones/socketio/serialize"
 	"net/http"
+	"strings"
 )
 
 var store *sessions.CookieStore
@@ -106,15 +107,24 @@ func main() {
 	alias["ep_etherpad-lite/static/js/nice-select"] = "ep_etherpad-lite/static/js/vendors/nice-select"
 
 	app.Get("/js/*", func(c *fiber.Ctx) error {
+		println("Calling js", c.Path())
+		var entrypoint string
+
+		if strings.Contains(c.Path(), "welcome") {
+			entrypoint = "./ui/src/index.js"
+		} else {
+			entrypoint = "./ui/src/main.js"
+		}
+
 		result := api.Build(api.BuildOptions{
-			EntryPoints: []string{"./ui/src/main.js"},
+			EntryPoints: []string{entrypoint},
 			Bundle:      true,
 			Write:       false,
 			LogLevel:    api.LogLevelInfo,
 			Metafile:    true,
 			Target:      api.ES2020,
 			Alias:       alias,
-			Sourcemap:   api.SourceMap(api.SourceMapInline),
+			Sourcemap:   api.SourceMapInline,
 		})
 
 		if len(result.Errors) > 0 {
