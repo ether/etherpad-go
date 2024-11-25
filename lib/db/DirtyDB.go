@@ -70,24 +70,11 @@ func (d SQLiteDB) GetRevision(padId string, rev int) (*db.PadSingleRevision, err
 	return nil, errors.New("revision not found")
 }
 
-const padPrefix = "pad:%s"
-const readOnlyPrefix = "readonly2pad:%s"
-const authorPrefix = "author:%s"
-const chatMessage = "pad:%s:chat:%s"
-const globalAuthor = "globalAuthor:"
-const group = "group:%s"
-const mapper2group = "mapper2group:%s"
-const revs = "pad:%s:revs:%d"
-const pad2readonly = "pad2readonly:%s"
-const readonly2pad = "readonly2pad:%s"
-const session = "session:%s"
-const sessionStorage = "sessionStorage:%s"
-
 func (d SQLiteDB) DoesPadExist(padID string) bool {
 	var resultedSQL, args, err = sq.
 		Select("id").
 		From("pad").
-		Where(sq.Eq{"id": fmt.Sprintf(padPrefix, padID)}).
+		Where(sq.Eq{"id": padID}).
 		ToSql()
 
 	if err != nil {
@@ -99,8 +86,12 @@ func (d SQLiteDB) DoesPadExist(padID string) bool {
 		println(err.Error())
 	}
 
+	for query != nil && query.Next() {
+		return true
+	}
+
 	defer query.Close()
-	return query.Next()
+	return false
 }
 
 func (d SQLiteDB) RemoveSessionById(sid string) *session2.Session {
@@ -144,7 +135,7 @@ func (d SQLiteDB) CreatePad(padID string, padDB db.PadDB) bool {
 		resultedSQL, args, err1 = sq.
 			Insert("pad").
 			Columns("id", "data").
-			Values(fmt.Sprintf(padPrefix, padID), string(marshalled)).ToSql()
+			Values(padID, string(marshalled)).ToSql()
 	} else {
 		resultedSQL, args, err1 = sq.
 			Update("pad").
@@ -195,7 +186,8 @@ func (d SQLiteDB) GetPadIds() []string {
 }
 
 func (d SQLiteDB) SaveRevision(padId string, rev int, changeset string, text apool.AText, pool apool.APool, authorId *string, timestamp int) error {
-	toSql, i, err := sq.Insert("padRev").Columns("id", "rev", "changeset", "atextText", "atextAttribs", "authorId", "timestamp").
+	toSql, i, err := sq.Insert("padRev").
+		Columns("id", "rev", "changeset", "atextText", "atextAttribs", "authorId", "timestamp").
 		Values(padId, rev, changeset, text.Text, text.Attribs, *authorId, timestamp).
 		ToSql()
 
@@ -203,7 +195,7 @@ func (d SQLiteDB) SaveRevision(padId string, rev int, changeset string, text apo
 		return err
 	}
 
-	_, err = d.sqlDB.Exec(toSql, i)
+	_, err = d.sqlDB.Exec(toSql, i...)
 
 	if err != nil {
 		return err
@@ -217,7 +209,7 @@ func (d SQLiteDB) GetPad(padID string) (*db.PadDB, error) {
 	var resultedSQL, args, err = sq.
 		Select("data").
 		From("pad").
-		Where(sq.Eq{"id": fmt.Sprintf(padPrefix, padID)}).
+		Where(sq.Eq{"id": padID}).
 		ToSql()
 
 	if err != nil {
@@ -251,7 +243,7 @@ func (d SQLiteDB) GetReadonlyPad(padId string) (*string, error) {
 	var resultedSQL, args, err = sq.
 		Select("id").
 		From("pad").
-		Where(sq.Eq{"id": fmt.Sprintf(pad2readonly, padId)}).
+		Where(sq.Eq{"id": padId}).
 		ToSql()
 
 	if err != nil {
@@ -278,7 +270,7 @@ func (d SQLiteDB) CreatePad2ReadOnly(padId string, readonlyId string) {
 	var resultedSQL, args, err = sq.
 		Insert("pad").
 		Columns("id", "data").
-		Values(fmt.Sprintf(pad2readonly, padId), readonlyId).
+		Values(padId, readonlyId).
 		ToSql()
 
 	if err != nil {
@@ -295,7 +287,7 @@ func (d SQLiteDB) CreateReadOnly2Pad(padId string, readonlyId string) {
 	var resultedSQL, args, err = sq.
 		Insert("pad").
 		Columns("id", "data").
-		Values(fmt.Sprintf(readonly2pad, readonlyId), padId).
+		Values(readonlyId, padId).
 		ToSql()
 
 	if err != nil {
@@ -312,8 +304,8 @@ func (d SQLiteDB) CreateReadOnly2Pad(padId string, readonlyId string) {
 func (d SQLiteDB) GetReadOnly2Pad(id string) *string {
 	var resultedSQL, _, err = sq.
 		Select("id").
-		From("pad").
-		Where(sq.Eq{"id": fmt.Sprintf(readonly2pad, id)}).
+		From("readonly2pad").
+		Where(sq.Eq{"id": id}).
 		ToSql()
 
 	if err != nil {
@@ -355,20 +347,30 @@ func (d SQLiteDB) SetAuthorByToken(token, authorId string) error {
  * @param {String} author The id of the author
  */
 func (d SQLiteDB) GetAuthor(author string) (*db.AuthorDB, error) {
-	var authorString, err = d.GetAuthor(author)
+
+	var resultedSQL, args, err = sq.Select("*").
+		From("globalAuthor").
+		Where(sq.Eq{"id": author}).ToSql()
+
+	query, err := d.sqlDB.Query(resultedSQL, args...)
 
 	if err != nil {
 		return nil, err
 	}
 
-	return authorString, nil
+	var authorDB db.AuthorDB
+	for query.Next() {
+		query.Scan(&authorDB.ID, &authorDB.ColorId, &authorDB.Name, &authorDB.Timestamp)
+	}
+
+	return &authorDB, nil
 }
 
 func (d SQLiteDB) GetAuthorByToken(token string) (*string, error) {
 	var resultedSQL, args, err = sq.
 		Select("author").
 		From("token2author").
-		Where(sq.Eq{"id": token}).
+		Where(sq.Eq{"token": token}).
 		ToSql()
 
 	if err != nil {
@@ -397,11 +399,10 @@ func (d SQLiteDB) GetAuthorByToken(token string) (*string, error) {
 }
 
 func (d SQLiteDB) SaveAuthor(author db.AuthorDB) {
-	var marshalled, _ = json.Marshal(author)
 	var resultedSQL, i, err = sq.
-		Insert("pad").
-		Columns("id", "data").
-		Values(fmt.Sprintf(authorPrefix, author.ID), string(marshalled)).
+		Insert("globalAuthor").
+		Columns("id", "colorId", "name", "timestamp").
+		Values(author.ID, author.ColorId, author.Name, author.Timestamp).
 		ToSql()
 
 	if err != nil {
@@ -440,7 +441,7 @@ func (d SQLiteDB) GetPadMetaData(padId string, revNum int) (*db.PadMetaData, err
 	var resultedSQL, args, err = sq.
 		Select("data").
 		From("pad").
-		Where(sq.Eq{"id": fmt.Sprintf(revs, padId, revNum)}).
+		Where(sq.Eq{"id": fmt.Sprintf(padId, revNum)}).
 		ToSql()
 
 	if err != nil {
@@ -495,6 +496,10 @@ func NewDirtyDB(path string) (*SQLiteDB, error) {
 	}
 
 	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS globalAuthor(id TEXT PRIMARY KEY, colorId INTEGER, name TEXT, timestamp BIGINT)")
+
+	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS pad2readonly(id TEXT PRIMARY KEY, data TEXT)")
+
+	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS readonly2pad(id TEXT PRIMARY KEY, data TEXT)")
 
 	if err != nil {
 		panic(err.Error())

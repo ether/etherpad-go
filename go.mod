@@ -14,7 +14,7 @@ require (
 	github.com/gorilla/websocket v1.5.1
 	github.com/njones/socketio v0.1.4
 	github.com/swaggo/swag v1.16.4
-	modernc.org/sqlite v1.31.1
+	modernc.org/sqlite v1.34.1
 
 )
 
