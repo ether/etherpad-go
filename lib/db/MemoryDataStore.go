@@ -86,7 +86,7 @@ func (m *MemoryDataStore) GetPadMetaData(padId string, revNum int) (*db.PadMetaD
 	}
 
 	return &db.PadMetaData{
-		Author:    rev.PadDBMeta.Author,
+		AuthorId:  rev.PadDBMeta.Author,
 		Timestamp: rev.PadDBMeta.Timestamp,
 	}, nil
 }

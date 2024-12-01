@@ -71,7 +71,10 @@ func (p *Pad) Init(text *string, author *string) error {
 	var pad, err = p.db.GetPad(p.Id)
 
 	if err == nil {
-		var padMetaData = pad.SavedRevisions[pad.RevNum].PadDBMeta
+		var padMetaData, err = p.db.GetRevision(p.Id, pad.RevNum)
+		if err != nil {
+			panic(err.Error())
+		}
 		p.Pool = *padMetaData.Pool
 	} else {
 		if text == nil {
@@ -174,7 +177,7 @@ func (p *Pad) AppendRevision(cs string, authorId *string) int {
 	err := p.db.SaveRevision(p.Id, p.Head, cs, p.AText, *p.apool(), authorId, int(time.Now().UnixNano()/int64(time.Millisecond)))
 
 	if err != nil {
-		println("Error saving revision")
+		println("Error saving revision", err.Error())
 	}
 
 	if authorId != nil {

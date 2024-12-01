@@ -492,7 +492,7 @@ func HandleClientReadyMessage(ready ws.ClientReady, client *Client, thisSession 
 	}
 
 	if ready.Data.UserInfo.Name != nil {
-		authorManager.SetAuthorName(thisSession.PadId, *ready.Data.UserInfo.Name)
+		authorManager.SetAuthorName(thisSession.Author, *ready.Data.UserInfo.Name)
 	}
 
 	var selectedColor = 0
@@ -504,7 +504,7 @@ func HandleClientReadyMessage(ready ws.ClientReady, client *Client, thisSession 
 			}
 		}
 
-		authorManager.SetAuthorColor(thisSession.PadId, selectedColor)
+		authorManager.SetAuthorColor(thisSession.Author, selectedColor)
 	}
 
 	var foundAuthor, errAuth = authorManager.GetAuthor(thisSession.Author)

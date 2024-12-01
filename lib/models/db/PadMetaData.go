@@ -3,7 +3,11 @@ package db
 import "github.com/ether/etherpad-go/lib/apool"
 
 type PadMetaData struct {
-	Author    *string
-	Timestamp int
-	atext     apool.AText
+	Id           string
+	RevNum       int
+	ChangeSet    string
+	Atext        apool.AText
+	AtextAttribs string
+	AuthorId     *string
+	Timestamp    int
 }
