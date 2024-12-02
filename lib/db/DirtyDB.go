@@ -53,7 +53,9 @@ func (d SQLiteDB) SetSessionById(sessionID string, session session2.Session) {
 }
 
 func (d SQLiteDB) GetRevision(padId string, rev int) (*db.PadSingleRevision, error) {
-	query, err := d.sqlDB.Query("SELECT * FROM padRev WHERE id = ? AND rev = ?", padId, rev)
+	var retrievedSql, args, _ = sq.Select("*").From("padRev").Where(sq.Eq{"id": padId}).Where(sq.Eq{"rev": rev}).ToSql()
+
+	query, err := d.sqlDB.Query(retrievedSql, args...)
 	if err != nil {
 		println("Error getting revision", err)
 	}

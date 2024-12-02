@@ -71,11 +71,11 @@ func (p *Pad) Init(text *string, author *string) error {
 	var pad, err = p.db.GetPad(p.Id)
 
 	if err == nil {
-		var padMetaData, err = p.db.GetRevision(p.Id, pad.RevNum)
+		var _, err = p.db.GetRevision(p.Id, pad.RevNum)
 		if err != nil {
 			panic(err.Error())
 		}
-		p.Pool = *padMetaData.Pool
+		p.Pool = pad.Pool
 	} else {
 		if text == nil {
 			var padDefaultText = "text"
