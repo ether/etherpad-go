@@ -7,6 +7,7 @@ import (
 	"github.com/a-h/templ"
 	"github.com/ether/etherpad-go/assets/welcome"
 	_ "github.com/ether/etherpad-go/docs"
+	api2 "github.com/ether/etherpad-go/lib/api"
 	"github.com/ether/etherpad-go/lib/hooks"
 	"github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/plugins"
@@ -193,6 +194,8 @@ func main() {
 
 		return nil
 	})
+
+	api2.InitAPI(app)
 
 	err := app.Listen(":3000")
 	if err != nil {

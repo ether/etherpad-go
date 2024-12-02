@@ -99,19 +99,19 @@ func (m *Manager) DoesPadExist(padID string) bool {
 	return m.store.DoesPadExist(padID)
 }
 
-func (m *Manager) isValidPadId(padID string) bool {
+func (m *Manager) IsValidPadId(padID string) bool {
 	return padRegex.MatchString(padID)
 }
 
 func (m *Manager) SanitizePadId(padID string) (*string, error) {
-	if m.isValidPadId(padID) {
+	if m.IsValidPadId(padID) {
 		return &padID, nil
 	}
 	return nil, errors.New("invalid pad id")
 }
 
 func (m *Manager) GetPad(padID string, text *string, authorId *string) (*pad.Pad, error) {
-	if !m.isValidPadId(padID) {
+	if !m.IsValidPadId(padID) {
 		return nil, errors.New("invalid pad id")
 	}
 
