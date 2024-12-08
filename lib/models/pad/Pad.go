@@ -10,6 +10,7 @@ import (
 	db2 "github.com/ether/etherpad-go/lib/models/db"
 	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/ether/etherpad-go/lib/utils"
+	"math"
 	"slices"
 	"strings"
 	"time"
@@ -44,6 +45,50 @@ func NewPad(id string) Pad {
 
 	p.AText = changeset.MakeAText("\n", nil)
 	return *p
+}
+
+func (p *Pad) getKeyRevisionNumber(revNum int) int {
+	return int(math.Floor(float64(revNum/100)) * 100)
+}
+
+func (p *Pad) getKeyRevisionAText(revNum int) (*apool.AText, error) {
+	var rev, err = p.db.GetRevision(p.Id, revNum)
+	if err != nil {
+		return nil, err
+	}
+
+	return &rev.AText, err
+
+}
+
+func (p *Pad) getRevisionChangeset(revNum int) (*string, error) {
+	var rev, err = p.db.GetRevision(p.Id, revNum)
+	if err != nil {
+		return nil, err
+	}
+
+	return &rev.Changeset, err
+}
+
+func (p *Pad) GetInternalRevisionAText(targetRev int) *apool.AText {
+	var keyRev = p.getKeyRevisionNumber(targetRev)
+	var headRev = p.getHeadRevisionNumber()
+	if targetRev > headRev {
+		targetRev = headRev
+	}
+	var keyAText, err = p.getKeyRevisionAText(keyRev)
+	if err != nil {
+		return nil
+	}
+	var atext = *keyAText
+	for i := keyRev + 1; i <= targetRev; i++ {
+		var changesetPad, err = p.getRevisionChangeset(i)
+		if err != nil {
+			return nil
+		}
+		atext = changeset.ApplyToAText(*changesetPad, atext, *p.apool())
+	}
+	return &atext
 }
 
 func (p *Pad) apool() *apool.APool {
@@ -141,6 +186,7 @@ func (p *Pad) GetRevisionDate(rev int) int {
 
 	if err != nil {
 		println("Error is", err.Error())
+		return 0
 	}
 
 	return revision.Timestamp

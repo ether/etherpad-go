@@ -605,6 +605,66 @@ func matchIndex(input, match string) int {
 	return regexp.MustCompile(regexp.QuoteMeta(match)).FindStringIndex(input)[0]
 }
 
+func Subattribution(astr string, start int, end *int) (*string, error) {
+	var attOps, err = DeserializeOps(astr)
+	var counter = 0
+
+	if err != nil {
+		return nil, err
+	}
+
+	attOpsUnrefed := *attOps
+
+	var attOpsNext = attOpsUnrefed[counter]
+	var assem = NewSmartOpAssembler()
+	var attOp = NewOp(nil)
+	var csOp = NewOp(nil)
+
+	doCspOp := func() {
+		if csOp.Chars == 0 {
+			return
+		}
+
+		for csOp.OpCode != "" && (attOp.OpCode != "" || counter < len(attOpsUnrefed)) {
+
+			if attOp.OpCode == "" {
+				attOp = attOpsUnrefed[counter]
+				counter++
+			}
+		}
+
+		if csOp.OpCode != "" && attOp.OpCode != "" && csOp.Chars >= attOp.Chars &&
+			attOp.Lines > 0 && csOp.Lines > 0 {
+			csOp.Lines++
+		}
+
+		var opOut, err = SlicerZipperFunc(&attOp, &csOp, nil)
+		if err != nil {
+			println("Error encountered", err.Error())
+			return
+		}
+		if opOut.OpCode != "" {
+			assem.Append(*opOut)
+		}
+	}
+
+	csOp.OpCode = "-"
+	csOp.Chars = start
+	doCspOp()
+
+	if end == nil {
+		if attOp.OpCode != "" {
+			assem.Append(attOp)
+		}
+
+		for attOp := range attOps {
+			assem.Append(attOp)
+		}
+
+	}
+
+}
+
 func DeserializeOps(ops string) (*[]Op, error) {
 	var regex = regexp.MustCompile(`((?:\*[0-9a-z]+)*)(?:\|([0-9a-z]+))?([-+=])([0-9a-z]+)|(.)`)
 	var opsToReturn = make([]Op, 0)
@@ -701,7 +761,7 @@ func ComposeAttributes(attribs1 string, attribs2 string, resultIsMutation bool, 
 	return attrMap.UpdateFromString(attribs2, &negatedResultIsMutation).String()
 }
 
-func SlicerZipperFunc(attOp *Op, csOp *Op, pool apool.APool) (*Op, error) {
+func SlicerZipperFunc(attOp *Op, csOp *Op, pool *apool.APool) (*Op, error) {
 	var opOut = NewOp(nil)
 	if attOp.OpCode == "" {
 		copyOp(*csOp, &opOut)
@@ -771,7 +831,7 @@ func SlicerZipperFunc(attOp *Op, csOp *Op, pool apool.APool) (*Op, error) {
 		if csOp.OpCode == "-" {
 			opOut.Attribs = csOp.Attribs
 		} else {
-			opOut.Attribs = ComposeAttributes(attOp.Attribs, csOp.Attribs, attOp.OpCode == "=", pool)
+			opOut.Attribs = ComposeAttributes(attOp.Attribs, csOp.Attribs, attOp.OpCode == "=", *pool)
 		}
 		partiallyConsumedOp.Chars -= fullyConsumedOp.Chars
 		partiallyConsumedOp.Lines -= fullyConsumedOp.Lines

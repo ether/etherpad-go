@@ -7,27 +7,33 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-func getText(padId string, rev string) (*string, error) {
-	if rev != "" {
-		rev = utils.CheckValidRev(rev)
+func getText(padId string, rev *string) (*string, error) {
+	var revNum *int = nil
+	if rev != nil {
+		revPoint, err := utils.CheckValidRev(*rev)
+		revNum = revPoint
+		if err != nil {
+			return nil, err
+		}
 	}
-	revNum, err := utils.CheckValidRev(rev)
+
+	pad, err := utils2.GetPadSafe(padId, true, nil, nil)
 
 	if err != nil {
 		return nil, err
 	}
 
-	pad, err := utils2.GetPadSafe(padId, true, nil, nil)
 	var head = pad.Head
 
-	if rev != "" {
+	if revNum != nil {
 		if *revNum > head {
 			return nil, errors.New("revision number is higher than head")
 		}
 
-		var atext = pad.get
+		var atext = pad.GetInternalRevisionAText(*revNum)
+		return &atext.Text, nil
 	}
-
+	var text = 
 }
 
 func Init(c *fiber.App) {
