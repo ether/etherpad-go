@@ -82,7 +82,6 @@ var datastore db.DataStore
 
 func GetDB() db.DataStore {
 	if datastore == nil {
-
 		if settings.SettingsDisplayed.DBType == "dirty" {
 			datastore, _ = db.NewDirtyDB("test.db")
 		} else {
