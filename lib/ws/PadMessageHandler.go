@@ -576,6 +576,54 @@ func HandleClientReadyMessage(ready ws.ClientReady, client *Client, thisSession 
 	}
 }
 
+func UpdatePadClients(pad *pad2.Pad) {
+	var roomSockets = GetRoomSockets(pad.Id)
+	if len(roomSockets) == 0 {
+		return
+	}
+	// since all clients usually get the same set of changesets, store them in local cache
+	// to remove unnecessary roundtrip to the datalayer
+	// NB: note below possibly now accommodated via the change to promises/async
+	var revCache = make(map[int]*db.PadSingleRevision)
+	for _, socket := range roomSockets {
+		var sessionInfo = SessionStoreInstance.getSession(socket.SessionId)
+
+		for sessionInfo.Revision < pad.Head {
+			var r = sessionInfo.Revision + 1
+			if _, ok := revCache[r]; !ok {
+				revCache[r], _ = pad.GetRevision(r)
+			}
+			var revision = revCache[r]
+			var authorFromRev = revision.AuthorId
+			var revChangeset = revision.Changeset
+			var currentTime = revision.Timestamp
+
+			var forWire = changeset.PrepareForWire(revChangeset, pad.Pool)
+			var msg = NewChangesMessage{
+				Type: "COLLABROOM",
+				Data: NewChangesMessageData{
+					Type:        "NEW_CHANGES",
+					NewRev:      r,
+					Changeset:   forWire.Translated,
+					APool:       forWire.Pool,
+					Author:      *authorFromRev,
+					CurrentTime: currentTime,
+					TimeDelta:   currentTime - sessionInfo.Time,
+				},
+			}
+			marshalledMessage, err := json.Marshal(msg)
+
+			if err != nil {
+				return
+			}
+
+			socket.Send <- marshalledMessage
+			sessionInfo.Time = currentTime
+			sessionInfo.Revision = r
+		}
+	}
+}
+
 func GetRoomSockets(padID string) []Client {
 	var sockets = make([]Client, 0)
 	for k := range HubGlob.clients {

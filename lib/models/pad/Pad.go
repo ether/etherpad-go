@@ -149,6 +149,48 @@ func (p *Pad) Init(text *string, author *string) error {
 	return nil
 }
 
+func (p *Pad) SetText(newText string, authorId *string) error {
+	var authorIdToSend string
+	if authorId == nil {
+		authorIdToSend = ""
+	} else {
+		authorIdToSend = *authorId
+	}
+
+	return p.SpliceText(0, len(p.Text()), newText, &authorIdToSend)
+}
+
+func (p *Pad) SpliceText(start int, ndel int, ins string, authorId *string) error {
+	if start < 0 {
+		return errors.New("start index must not be negative")
+	}
+	if ndel < 0 {
+		return errors.New("characters to delete must be non-negative")
+	}
+	var orig = p.Text()
+	if !strings.HasSuffix(orig, "\n") {
+		return errors.New("text must end with a newline")
+	}
+	if start+ndel > len(orig) {
+		return errors.New("splice out of bounds")
+	}
+
+	ins = *CleanText(ins)
+	var willEndWithNewLine = start+ndel < len(orig) || strings.HasSuffix(ins, "\n") || (ins == "" && start > 0 && orig[start-1] == '\n')
+	if !willEndWithNewLine {
+		ins += "\n"
+	}
+	if ndel == 0 && len(ins) == 0 {
+		return nil
+	}
+	var changesetFromSplice, err = changeset.MakeSplice(orig, start, ndel, ins, nil, nil)
+	if err != nil {
+		return err
+	}
+	p.AppendRevision(changesetFromSplice, authorId)
+	return nil
+}
+
 func (p *Pad) GetRevision(revNumber int) (*db2.PadSingleRevision, error) {
 	return p.db.GetRevision(p.Id, revNumber)
 }

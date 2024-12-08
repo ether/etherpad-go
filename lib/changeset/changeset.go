@@ -605,66 +605,6 @@ func matchIndex(input, match string) int {
 	return regexp.MustCompile(regexp.QuoteMeta(match)).FindStringIndex(input)[0]
 }
 
-func Subattribution(astr string, start int, end *int) (*string, error) {
-	var attOps, err = DeserializeOps(astr)
-	var counter = 0
-
-	if err != nil {
-		return nil, err
-	}
-
-	attOpsUnrefed := *attOps
-
-	var attOpsNext = attOpsUnrefed[counter]
-	var assem = NewSmartOpAssembler()
-	var attOp = NewOp(nil)
-	var csOp = NewOp(nil)
-
-	doCspOp := func() {
-		if csOp.Chars == 0 {
-			return
-		}
-
-		for csOp.OpCode != "" && (attOp.OpCode != "" || counter < len(attOpsUnrefed)) {
-
-			if attOp.OpCode == "" {
-				attOp = attOpsUnrefed[counter]
-				counter++
-			}
-		}
-
-		if csOp.OpCode != "" && attOp.OpCode != "" && csOp.Chars >= attOp.Chars &&
-			attOp.Lines > 0 && csOp.Lines > 0 {
-			csOp.Lines++
-		}
-
-		var opOut, err = SlicerZipperFunc(&attOp, &csOp, nil)
-		if err != nil {
-			println("Error encountered", err.Error())
-			return
-		}
-		if opOut.OpCode != "" {
-			assem.Append(*opOut)
-		}
-	}
-
-	csOp.OpCode = "-"
-	csOp.Chars = start
-	doCspOp()
-
-	if end == nil {
-		if attOp.OpCode != "" {
-			assem.Append(attOp)
-		}
-
-		for attOp := range attOps {
-			assem.Append(attOp)
-		}
-
-	}
-
-}
-
 func DeserializeOps(ops string) (*[]Op, error) {
 	var regex = regexp.MustCompile(`((?:\*[0-9a-z]+)*)(?:\|([0-9a-z]+))?([-+=])([0-9a-z]+)|(.)`)
 	var opsToReturn = make([]Op, 0)
@@ -718,7 +658,7 @@ func Compose(cs1 string, cs2 string, pool apool.APool) string {
 			bankIter1.Skip(int(math.Min(float64(op1.Chars), float64(op2.Chars))))
 		}
 
-		var opOut, _ = SlicerZipperFunc(op1, op2, pool)
+		var opOut, _ = SlicerZipperFunc(op1, op2, &pool)
 
 		if opOut.OpCode == "+" {
 			bankAssem.Append(bankIter2.Take(opOut.Chars))
@@ -846,7 +786,7 @@ func SlicerZipperFunc(attOp *Op, csOp *Op, pool *apool.APool) (*Op, error) {
 func ApplyToAttribution(cs string, astr string, pool apool.APool) string {
 	var unpacked, _ = Unpack(cs)
 	return ApplyZip(astr, unpacked.Ops, func(op1, op2 *Op) Op {
-		res, err := SlicerZipperFunc(op1, op2, pool)
+		res, err := SlicerZipperFunc(op1, op2, &pool)
 
 		if err != nil {
 			println("Error is" + err.Error())
