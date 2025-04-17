@@ -10,7 +10,11 @@ type SessionStore struct {
 	sessions map[string]*ws.Session
 }
 
-func NewSessionStore() SessionStore {
+// NewSessionStore
+// @param refresh *int Number of milliseconds to refresh the session
+//
+// /*
+func NewSessionStore(refresh *int) SessionStore {
 	return SessionStore{
 		sessions: make(map[string]*ws.Session),
 	}

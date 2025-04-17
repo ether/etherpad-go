@@ -1,5 +1,6 @@
 package session
 
+// src/node/db/SessionStore.ts
 import (
 	"github.com/ether/etherpad-go/lib/db"
 	"github.com/ether/etherpad-go/lib/models/session"

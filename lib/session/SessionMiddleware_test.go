@@ -18,7 +18,7 @@ func prepareTest() (*MemoryStore, string) {
 func TestMemoryStore_SetOfNonExpiringSession(t *testing.T) {
 	var memoryStore, sid = prepareTest()
 	var sessionRetrieved = session.Session{
-		Expires:        "2024-12-12T12:12:12.123Z",
+		Expires:        "2050-12-12T12:12:12.123Z",
 		OriginalMaxAge: 23,
 		HttpOnly:       true,
 		Path:           "/",
@@ -28,7 +28,7 @@ func TestMemoryStore_SetOfNonExpiringSession(t *testing.T) {
 
 	memoryStore.Set(&sid, &sessionRetrieved)
 	var retrievedSession = memoryStore.Get(sid)
-	if retrievedSession.Expires != "2024-12-12T13:12:12+01:00" {
+	if retrievedSession.Expires != "2050-12-12T13:12:12+01:00" {
 		t.Error("Expected", sessionRetrieved.Expires, "but got", retrievedSession.Expires)
 	}
 }
@@ -98,7 +98,7 @@ func TestSwitchFromNonExpiringToExpiring(t *testing.T) {
 		OriginalMaxAge: 123,
 	}
 	memoryStore.Set(&sid, &retrievedSess)
-	time.Sleep(200 * time.Millisecond)
+	time.Sleep(2000 * time.Millisecond)
 	var retrievedSession = memoryStore.Get(sid)
 	if retrievedSession != nil {
 		t.Error("Expected nil but got", *retrievedSession)
