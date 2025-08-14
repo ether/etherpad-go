@@ -1,8 +1,9 @@
 package changeset
 
 import (
-	"github.com/ether/etherpad-go/lib/apool"
 	"testing"
+
+	"github.com/ether/etherpad-go/lib/apool"
 )
 
 func TestSmartOpAssembler_Append(t *testing.T) {

@@ -21,7 +21,7 @@ func UserCanModify(padId *string, req *webaccess.SocketClientRequest) bool {
 		return false
 	}
 
-	if !settings.SettingsDisplayed.RequireAuthentication {
+	if !settings.Displayed.RequireAuthentication {
 		return true
 	}
 
@@ -112,7 +112,7 @@ func CheckAccess(ctx *fiber.Ctx) error {
 		if isAuthenticated && sessionReq.IsAdmin {
 			return grant("create")
 		}
-		var requireAuthn = requireAdmin || settings.SettingsDisplayed.RequireAuthentication
+		var requireAuthn = requireAdmin || settings.Displayed.RequireAuthentication
 		if !requireAuthn {
 			return grant("create")
 		}
@@ -125,7 +125,7 @@ func CheckAccess(ctx *fiber.Ctx) error {
 			return false
 		}
 
-		if !settings.SettingsDisplayed.RequireAuthorization {
+		if !settings.Displayed.RequireAuthorization {
 			return grant("create")
 		}
 		return false
@@ -143,15 +143,15 @@ func CheckAccess(ctx *fiber.Ctx) error {
 		return ctx.Next()
 	}
 
-	if settings.SettingsDisplayed.Users == nil {
+	if settings.Displayed.Users == nil {
 		var newUsers = make(map[string]settings.User)
-		settings.SettingsDisplayed.Users = newUsers
+		settings.Displayed.Users = newUsers
 	}
 	var user = ctx.Locals(clientVars.WebAccessStore).(*webaccess.SocketClientRequest)
 
 	var webAccessCtx = webaccess.WebAccessType{
 		User:  user,
-		Users: settings.SettingsDisplayed.Users,
+		Users: settings.Displayed.Users,
 		Next:  ctx.Next,
 	}
 
@@ -170,7 +170,7 @@ func CheckAccess(ctx *fiber.Ctx) error {
 		webAccessCtx.Password = &userNamePassword[1]
 	}
 
-	var foundUsers = settings.SettingsDisplayed.Users
+	var foundUsers = settings.Displayed.Users
 
 	webUsername := *webAccessCtx.Username
 	retrievedUser, ok := foundUsers[webUsername]
@@ -190,7 +190,7 @@ func CheckAccess(ctx *fiber.Ctx) error {
 		time.Sleep(1 * time.Second)
 		return ctx.Status(401).SendString("Authentication Required")
 	}
-	var retrievedUserFromMap = settings.SettingsDisplayed.Users[*webAccessCtx.Username]
+	var retrievedUserFromMap = settings.Displayed.Users[*webAccessCtx.Username]
 	// Make a shallow copy so that the password property can be deleted (to prevent it from
 	// appearing in logs or in the database) without breaking future authentication attempts.
 	ctx.Locals(clientVars.WebAccessStore, retrievedUserFromMap)

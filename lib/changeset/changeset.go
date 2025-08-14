@@ -3,14 +3,15 @@ package changeset
 import (
 	"errors"
 	"fmt"
-	"github.com/ether/etherpad-go/lib/apool"
-	"github.com/ether/etherpad-go/lib/utils"
 	"math"
 	"reflect"
 	"regexp"
 	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/ether/etherpad-go/lib/apool"
+	"github.com/ether/etherpad-go/lib/utils"
 )
 
 type Changeset struct {
@@ -655,10 +656,16 @@ func Compose(cs1 string, cs2 string, pool apool.APool) string {
 		var op2code = op2.OpCode
 
 		if op1code == "+" && op2code == "-" {
-			bankIter1.Skip(int(math.Min(float64(op1.Chars), float64(op2.Chars))))
+			if err := bankIter1.Skip(int(math.Min(float64(op1.Chars), float64(op2.Chars)))); err != nil {
+				panic(fmt.Sprintf("Error skipping chars in bankIter1: %v", err))
+			}
 		}
 
-		var opOut, _ = SlicerZipperFunc(op1, op2, &pool)
+		var opOut, err = SlicerZipperFunc(op1, op2, &pool)
+
+		if err != nil {
+			panic(fmt.Sprintf("Error in SlicerZipperFunc: %v", err))
+		}
 
 		if opOut.OpCode == "+" {
 			bankAssem.Append(bankIter2.Take(opOut.Chars))

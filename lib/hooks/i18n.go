@@ -2,14 +2,15 @@ package hooks
 
 import (
 	"encoding/json"
-	settings2 "github.com/ether/etherpad-go/lib/settings"
-	"github.com/ether/etherpad-go/lib/utils"
-	"github.com/gofiber/fiber/v2"
 	"os"
 	"path"
 	"path/filepath"
 	"slices"
 	"strings"
+
+	settings2 "github.com/ether/etherpad-go/lib/settings"
+	"github.com/ether/etherpad-go/lib/utils"
+	"github.com/gofiber/fiber/v2"
 )
 
 type LanguageContainer struct {
@@ -578,7 +579,7 @@ func getAllLocales() Locales {
 		locales2paths["en"] = append(locales2paths["en"], dir+"/en-gb.json")
 	}
 
-	var joinedLocalesPath = path.Join(*settings2.SettingsDisplayed.Root, "assets/locales")
+	var joinedLocalesPath = path.Join(*settings2.Displayed.Root, "assets/locales")
 
 	extractLangs(joinedLocalesPath)
 	type Metadata struct {

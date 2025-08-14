@@ -301,7 +301,7 @@ func handleMessage(message any, client *Client, ctx *fiber.Ctx) {
 
 	if auth == nil {
 		var ip string
-		if settings.SettingsDisplayed.DisableIPLogging {
+		if settings.Displayed.DisableIPLogging {
 			ip = "ANONYMOUS"
 		} else {
 			ip = ctx.IP()

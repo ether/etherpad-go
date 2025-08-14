@@ -34,7 +34,7 @@ func (s *SecurityManager) CheckAccess(padId *string, sessionCookie *string, toke
 	if padId == nil {
 		return nil, errors.New("padId is nil")
 	}
-	var canCreate = !settings.SettingsDisplayed.EditOnly
+	var canCreate = !settings.Displayed.EditOnly
 	if s.ReadOnlyManager.isReadOnlyID(padId) {
 		canCreate = false
 		foundPadId := s.ReadOnlyManager.getPadId(*padId)
@@ -45,9 +45,9 @@ func (s *SecurityManager) CheckAccess(padId *string, sessionCookie *string, toke
 		padId = foundPadId
 	}
 
-	if settings.SettingsDisplayed.LoadTest {
+	if settings.Displayed.LoadTest {
 		return nil, nil
-	} else if settings.SettingsDisplayed.RequireAuthentication {
+	} else if settings.Displayed.RequireAuthentication {
 		if userSettings == nil {
 			return nil, errors.New("userSettings is nil")
 		}
@@ -92,7 +92,7 @@ func (s *SecurityManager) CheckAccess(padId *string, sessionCookie *string, toke
 
 	var sessionAuthorID = s.SessionManager.findAuthorID(splittedPadId, sessionCookie)
 
-	if settings.SettingsDisplayed.RequireSession && sessionAuthorID == nil {
+	if settings.Displayed.RequireSession && sessionAuthorID == nil {
 		return nil, errors.New("access denied: HTTP API session is required")
 	}
 

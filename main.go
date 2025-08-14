@@ -4,6 +4,10 @@ import (
 	"context"
 	"fmt"
 	_ "fmt"
+	"net/http"
+	"path"
+	"strings"
+
 	"github.com/a-h/templ"
 	"github.com/ether/etherpad-go/assets/welcome"
 	_ "github.com/ether/etherpad-go/docs"
@@ -22,32 +26,29 @@ import (
 	"github.com/gorilla/sessions"
 	sio "github.com/njones/socketio"
 	ser "github.com/njones/socketio/serialize"
-	"net/http"
-	"path"
-	"strings"
 )
 
 var store *sessions.CookieStore
 
 func sessionMiddleware(h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		session, err := store.Get(r, "express_sid")
+		sessionFromCookie, err := store.Get(r, "express_sid")
 		if err != nil {
-			println("Error getting session", err)
+			println("Error getting sessionFromCookie", err)
 			http.SetCookie(w, &http.Cookie{Name: "express_sid", MaxAge: -1, Path: "/"})
 			return
 		}
 
-		if session.IsNew {
+		if sessionFromCookie.IsNew {
 			http.SetCookie(w, &http.Cookie{Name: "express_sid", MaxAge: -1, Path: "/"})
-			err := session.Save(r, w)
+			err := sessionFromCookie.Save(r, w)
 			if err != nil {
-				println("Error saving session", err)
+				println("Error saving sessionFromCookie", err)
 				return
 			}
 		}
 
-		r = r.WithContext(context.WithValue(r.Context(), "session", session))
+		r = r.WithContext(context.WithValue(r.Context(), "sessionFromCookie", sessionFromCookie))
 		h(w, r)
 	}
 }
@@ -64,7 +65,7 @@ func sessionMiddleware(h http.HandlerFunc) http.HandlerFunc {
 // @BasePath /
 func main() {
 
-	var settings = settings2.SettingsDisplayed
+	var settings = settings2.Displayed
 
 	var db = session2.NewSessionDatabase(nil)
 	app := fiber.New()
@@ -121,7 +122,7 @@ func main() {
 			entrypoint = "./src/main.js"
 		}
 
-		var pathToBuild = path.Join(*settings2.SettingsDisplayed.Root, "ui")
+		var pathToBuild = path.Join(*settings2.Displayed.Root, "ui")
 
 		result := api.Build(api.BuildOptions{
 			EntryPoints:   []string{entrypoint},

@@ -181,7 +181,7 @@ func TestCompose(t *testing.T) {
 
 	var x2 = []string{
 		"Z:1z<1b|2=2+1=5|1-4-3+3|1=1=2-1+2=7|6-13-6$fthonw",
-		"\n\nfkcaektho\nuknwrfvsmuf\n",
+		"\n\nfkkt\nmhlmmeqvexugyrd\n\n\nho\nuknwrfvsmufsebed\n",
 	}
 
 	var change2 = x2[0]
@@ -195,7 +195,8 @@ func TestCompose(t *testing.T) {
 	var change3 = x3[0]
 	var text3 = x3[1]
 
-	var change12, _ = changeset.CheckRep(changeset.Compose(change1, change2, *p))
+	var firstChange = changeset.Compose(change1, change2, *p)
+	var change12, _ = changeset.CheckRep(firstChange)
 
 	var change23, _ = changeset.CheckRep(changeset.Compose(change2, change3, *p))
 
@@ -271,7 +272,7 @@ func TestSlicerZipperFunc(t *testing.T) {
 		Attribs: "",
 	}
 
-	ops, err := changeset.SlicerZipperFunc(&op1, &op2, pool)
+	ops, err := changeset.SlicerZipperFunc(&op1, &op2, &pool)
 
 	if err != nil {
 		t.Error("Error in SlicerZipperFunc " + err.Error())
@@ -479,4 +480,30 @@ func TestSerializeChangeset(t *testing.T) {
 		deserializedOps[2].Attribs != "" {
 		t.Error("Invalid deserialized")
 	}
+}
+
+func SimpleComposeAttributes(t *testing.T) {
+	var pool = apool.NewAPool()
+	pool.PutAttrib(apool.Attribute{
+		Key:   "bold",
+		Value: "",
+	}, nil)
+	pool.PutAttrib(apool.Attribute{
+		Key:   "bold",
+		Value: "true",
+	}, nil)
+
+	cs1, err := changeset.CheckRep("Z:2>1*1+1*1=1$x")
+	if err != nil {
+		t.Error("Error in CheckRep", err)
+		return
+	}
+	cs2, err := changeset.CheckRep("Z:3>0*0|1=3$")
+	if err != nil {
+		t.Error("Error in CheckRep", err)
+		return
+	}
+
+	changeset.Compose(*cs1, *cs2, *pool)
+
 }

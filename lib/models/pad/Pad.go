@@ -2,6 +2,11 @@ package pad
 
 import (
 	"errors"
+	"math"
+	"slices"
+	"strings"
+	"time"
+
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/changeset"
@@ -10,10 +15,6 @@ import (
 	db2 "github.com/ether/etherpad-go/lib/models/db"
 	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/ether/etherpad-go/lib/utils"
-	"math"
-	"slices"
-	"strings"
-	"time"
 )
 
 var authorManager author.Manager
@@ -124,7 +125,7 @@ func (p *Pad) Init(text *string, author *string) error {
 	} else {
 		if text == nil {
 			var padDefaultText = "text"
-			text = &settings.SettingsDisplayed.DefaultPadText
+			text = &settings.Displayed.DefaultPadText
 			var context = DefaultContent{
 				AuthorId: author,
 				Type:     &padDefaultText,

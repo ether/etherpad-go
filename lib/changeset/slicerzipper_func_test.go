@@ -1,8 +1,9 @@
 package changeset
 
 import (
-	"github.com/ether/etherpad-go/lib/apool"
 	"testing"
+
+	"github.com/ether/etherpad-go/lib/apool"
 )
 
 func TestWithEmptyAttOpEmpty(t *testing.T) {
@@ -11,7 +12,7 @@ func TestWithEmptyAttOpEmpty(t *testing.T) {
 	var opCodeCS = "+"
 	var csOp = NewOp(&opCodeCS)
 	var pool = apool.NewAPool()
-	var op, err = SlicerZipperFunc(&attrOp, &csOp, *pool)
+	var op, err = SlicerZipperFunc(&attrOp, &csOp, pool)
 
 	if op.OpCode != "+" || csOp.OpCode != "" || err != nil {
 		t.Error("Both should be empty")
@@ -24,7 +25,7 @@ func TestWithEmptyCsOp(t *testing.T) {
 	var opCodeCS = ""
 	var csOp = NewOp(&opCodeCS)
 	var pool = apool.NewAPool()
-	var op, err = SlicerZipperFunc(&attrOp, &csOp, *pool)
+	var op, err = SlicerZipperFunc(&attrOp, &csOp, pool)
 
 	if attrOp.OpCode != "" || err != nil || op.OpCode != "+" {
 		t.Error("Opcode should be empty")
@@ -37,7 +38,7 @@ func TestWithMinusAttOpCsOp(t *testing.T) {
 	var opCodeCS = ""
 	var csOp = NewOp(&opCodeCS)
 	var pool = apool.NewAPool()
-	var _, _ = SlicerZipperFunc(&attrOp, &csOp, *pool)
+	var _, _ = SlicerZipperFunc(&attrOp, &csOp, pool)
 
 	if attrOp.OpCode != "" {
 		t.Error("Opcode should be empty")
@@ -50,7 +51,7 @@ func TestWithPlusCSOp(t *testing.T) {
 	var opCodeCS = "+"
 	var csOp = NewOp(&opCodeCS)
 	var pool = apool.NewAPool()
-	var opout, _ = SlicerZipperFunc(&attrOp, &csOp, *pool)
+	var opout, _ = SlicerZipperFunc(&attrOp, &csOp, pool)
 
 	if csOp.OpCode != "" || opout.OpCode != "+" {
 		t.Error("Opcode should be empty")
@@ -228,7 +229,7 @@ func TestWithValues(t *testing.T) {
 		AttribToNum: attribToNum,
 	}
 	for i, opsRetrieved := range ops {
-		zipperFunc, err := SlicerZipperFunc(&opsRetrieved[0], &opsRetrieved[1], pool)
+		zipperFunc, err := SlicerZipperFunc(&opsRetrieved[0], &opsRetrieved[1], &pool)
 		if err != nil {
 			t.Error("Error creating zip")
 		}

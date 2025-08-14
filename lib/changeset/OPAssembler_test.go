@@ -18,6 +18,23 @@ func TestOpAssembler_Append(t *testing.T) {
 	}
 }
 
+func TestEasysyncOpAssembler(t *testing.T) {
+	var x = "-c*3*4+6|3=az*asdf0*1*2*3+1=1-1+1*0+1=1-1+1|c=c-1"
+	var assem = NewOpAssembler()
+	var opLength = 0
+	var deserializeOps, err = DeserializeOps(x)
+	if err != nil {
+		t.Error("Expected nil, got ", err)
+	}
+	for _, op := range *deserializeOps {
+		assem.Append(op)
+		opLength++
+	}
+	if assem.String() != x {
+		t.Error("Expected ", x, ", got ", assem.String())
+	}
+}
+
 func TestOpAssembler_Clear(t *testing.T) {
 	var teststring = "a\nb\nc\n"
 	var ops = OpsFromText("=", teststring[0:5], nil, nil)

@@ -3,7 +3,7 @@ package ws
 import "github.com/ether/etherpad-go/lib/models/ws"
 
 func init() {
-	SessionStoreInstance = NewSessionStore()
+	SessionStoreInstance = NewSessionStore(nil)
 }
 
 type SessionStore struct {

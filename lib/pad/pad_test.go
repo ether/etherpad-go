@@ -1,6 +1,8 @@
 package pad
 
 import (
+	"testing"
+
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/changeset"
@@ -8,7 +10,6 @@ import (
 	"github.com/ether/etherpad-go/lib/models/pad"
 	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/google/go-cmp/cmp"
-	"testing"
 )
 
 func TestCleanText(t *testing.T) {
@@ -39,13 +40,13 @@ func TestCleanText(t *testing.T) {
 func TestPadDefaultingToSettingsText(t *testing.T) {
 	var padAuthor = author.Author{
 		Id:        "123",
-		ColorId:   "1",
+		ColorId:   1,
 		PadIDs:    make(map[string]struct{}),
 		Timestamp: 123,
 	}
 	manager := NewManager()
 	var retrievedPad, _ = manager.GetPad("test", nil, &padAuthor.Id)
-	var padText = settings.SettingsDisplayed.DefaultPadText
+	var padText = settings.Displayed.DefaultPadText
 
 	if retrievedPad.AText.Text != padText+"\n" {
 		t.Error("Error setting pad text to default pad text")
@@ -54,7 +55,7 @@ func TestPadDefaultingToSettingsText(t *testing.T) {
 
 func TestUseProvidedContent(t *testing.T) {
 	var want = "hello world"
-	if want == settings.SettingsDisplayed.DefaultPadText {
+	if want == settings.Displayed.DefaultPadText {
 		return
 	}
 	hooks.HookInstance.EnqueueHook(hooks.PadDefaultContentString, func(hookName string, ctx any) {
@@ -116,7 +117,7 @@ func TestDefaultsToSettingsPadText(t *testing.T) {
 			t.Error("wrong type")
 		}
 
-		if *ctx.(pad.DefaultContent).Content != settings.SettingsDisplayed.DefaultPadText {
+		if *ctx.(pad.DefaultContent).Content != settings.Displayed.DefaultPadText {
 			t.Error("Default pad text should be settings pad text")
 		}
 	})
@@ -221,7 +222,7 @@ func TestUnpack(t *testing.T) {
 			t.Error("Error comparing applyzip")
 		}
 
-		var slicer, _ = changeset.SlicerZipperFunc(op, op2, *pool)
+		var slicer, _ = changeset.SlicerZipperFunc(op, op2, pool)
 		var slicerREsult = slicerResults[counter]
 		if !cmp.Equal(slicerREsult, *slicer) {
 			t.Error("Error comparing slicer")

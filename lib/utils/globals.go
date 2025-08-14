@@ -1,10 +1,11 @@
 package utils
 
 import (
+	"os"
+
 	"github.com/ether/etherpad-go/lib/db"
 	plugins2 "github.com/ether/etherpad-go/lib/plugins"
 	"github.com/ether/etherpad-go/lib/settings"
-	"os"
 )
 
 func init() {
@@ -82,7 +83,7 @@ var datastore db.DataStore
 
 func GetDB() db.DataStore {
 	if datastore == nil {
-		if settings.SettingsDisplayed.DBType == "dirty" {
+		if settings.Displayed.DBType == "dirty" {
 			datastore, _ = db.NewDirtyDB("test.db")
 		} else {
 			var typeDB, ok = os.LookupEnv("ETHERPAD_DB_TYPE")

@@ -1,9 +1,10 @@
 package changeset
 
 import (
-	"github.com/ether/etherpad-go/lib/apool"
 	"strconv"
 	"testing"
+
+	"github.com/ether/etherpad-go/lib/apool"
 )
 
 func PrepareAttribPool(t *testing.T) (apool.APool, [][]string) {

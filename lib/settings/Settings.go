@@ -2,11 +2,12 @@ package settings
 
 import (
 	"encoding/json"
-	clientVars2 "github.com/ether/etherpad-go/lib/models/clientVars"
 	"os"
 	"path/filepath"
 	"reflect"
 	"regexp"
+
+	clientVars2 "github.com/ether/etherpad-go/lib/models/clientVars"
 )
 
 type DBSettings struct {
@@ -80,7 +81,7 @@ type Settings struct {
 	ScrollWhenFocusLineIsOutOfViewport clientVars2.ScrollWhenFocusLineIsOutOfViewport `json:"scrollWhenFocusLineIsOutOfViewport"`
 }
 
-var SettingsDisplayed Settings
+var Displayed Settings
 
 func newDefaultSettings() Settings {
 	return Settings{}
@@ -191,16 +192,15 @@ func init() {
 	var settingsFilePath = filepath.Join(pathToSettings, "settings.json")
 	settings, err := os.ReadFile(settingsFilePath)
 	settings = stripComments(settings)
-	SettingsDisplayed = newDefaultSettings()
+	Displayed = newDefaultSettings()
 
 	if err != nil {
-		println("Error reading settings")
-		return
+		println("Error reading settings. Default settings will be used.")
 	}
 	var fileReadSettings Settings
 	err = json.Unmarshal(settings, &fileReadSettings)
-	Merge(&SettingsDisplayed, &fileReadSettings)
-	SettingsDisplayed.Root = &pathToSettings
+	Merge(&Displayed, &fileReadSettings)
+	Displayed.Root = &pathToSettings
 
 	if err != nil {
 		println("error is" + err.Error())
