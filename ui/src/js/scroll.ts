@@ -16,7 +16,6 @@ class Scroll {
     this.outerWin = outerWin;
     this.doc = this.outerWin.contentDocument!;
     this.rootDocument = document;
-    console.log(this.rootDocument)
   }
 
   scrollWhenCaretIsInTheLastLineOfViewportWhenNecessary(rep: RepModel, isScrollableEvent: boolean, innerHeight: number) {
@@ -260,7 +259,7 @@ class Scroll {
 
 
 
-  scrollNodeVerticallyIntoView(_rep: RepModel, innerHeight: number) {
+  scrollNodeVerticallyIntoView(rep: RepModel, innerHeight: number) {
     const viewport = this._getViewPortTopBottom();
 
     // when the selection changes outside of the viewport the browser automatically scrolls the line

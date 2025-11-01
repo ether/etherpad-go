@@ -532,4 +532,4 @@ $._farbtastic = function (container, options) {
   fb.setColor('#808080');
 }
 
-})(window.jQuery);
+})(jQuery);

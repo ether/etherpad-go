@@ -60,3 +60,14 @@ type UserInfoUpdate struct {
 		Type string `json:"type"`
 	} `json:"data"`
 }
+
+type PadDelete struct {
+	Type string `json:"type"`
+	Data struct {
+		PadID string `json:"padId"`
+	}
+}
+
+type PadDeleteMessage struct {
+	Disconnect string `json:"disconnect"`
+}

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"regexp"
 
+	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/db"
 	"github.com/ether/etherpad-go/lib/models/pad"
 	"github.com/ether/etherpad-go/lib/utils"
@@ -111,6 +112,16 @@ func (m *Manager) SanitizePadId(padID string) (*string, error) {
 	return nil, errors.New("invalid pad id")
 }
 
+func (m *Manager) RemovePad(padID string) error {
+	if err := m.store.RemovePad(padID); err != nil {
+		return err
+	}
+	globalPadCache.DeletePad(padID)
+	padList.RemovePad(padID)
+
+	return nil
+}
+
 func (m *Manager) GetPad(padID string, text *string, authorId *string) (*pad.Pad, error) {
 	if !m.IsValidPadId(padID) {
 		return nil, errors.New("invalid pad id")
@@ -137,11 +148,13 @@ func (m *Manager) GetPad(padID string, text *string, authorId *string) (*pad.Pad
 	globalPadCache.SetPad(padID, &newPad)
 
 	if newPad.Pool.NumToAttrib == nil {
-		panic("NULL POOL!")
+		//fixme
+		newPad.Pool.NumToAttrib = make(map[int]apool.Attribute)
 	}
 
 	if newPad.Pool.AttribToNum == nil {
-		panic("NULL POOL 2!")
+		//fixme
+		newPad.Pool.AttribToNum = make(map[apool.Attribute]int)
 	}
 
 	return &newPad, nil

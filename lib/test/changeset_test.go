@@ -200,7 +200,6 @@ func TestMoveOpsToNewPool(t *testing.T) {
 }
 
 func TestCompose(t *testing.T) {
-	t.Skip()
 	var p = apool.NewAPool()
 	var startText = "\n\n\ntxs\nlyqizxohxosniewgzmf\nn\nieztehfrnd\nmdzr\n"
 

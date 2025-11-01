@@ -7,13 +7,14 @@ package ws
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/ether/etherpad-go/lib/models/ws"
-	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/session"
 	"log"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/ether/etherpad-go/lib/models/ws"
+	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/session"
 
 	"github.com/gorilla/websocket"
 )
@@ -118,6 +119,10 @@ func (c *Client) Leave() {
 
 func (c *Client) SendUserDupMessage() {
 	c.Send <- []byte(`{"disconnect":"userdup"}`)
+}
+
+func (c *Client) SendPadDelete() {
+	c.Send <- []byte(`{"disconnect":"deleted"}`)
 }
 
 // ServeWs serveWs handles websocket requests from the peer.

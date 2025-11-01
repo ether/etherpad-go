@@ -1,9 +1,10 @@
 package pad
 
 import (
+	"strings"
+
 	"github.com/ether/etherpad-go/lib/db"
 	"github.com/ether/etherpad-go/lib/utils"
-	"strings"
 )
 
 type ReadOnlyManager struct {
@@ -26,7 +27,7 @@ func (r *ReadOnlyManager) isReadOnlyID(id *string) bool {
 	return strings.HasPrefix(*id, "r.")
 }
 
-func (r *ReadOnlyManager) getReadOnlyId(pad string) string {
+func (r *ReadOnlyManager) GetReadOnlyId(pad string) string {
 	var readonlyId, err = r.Store.GetReadonlyPad(pad)
 	if err != nil {
 		var randomId = "r." + utils.RandomString(16)
@@ -36,6 +37,16 @@ func (r *ReadOnlyManager) getReadOnlyId(pad string) string {
 	}
 
 	return *readonlyId
+}
+
+func (r *ReadOnlyManager) RemoveReadOnlyPad(readonlyId, padId string) error {
+	err := r.Store.RemoveReadOnly2Pad(readonlyId)
+	if err != nil {
+		return err
+	}
+
+	err = r.Store.RemovePad2ReadOnly(padId)
+	return err
 }
 
 func (r *ReadOnlyManager) getPadId(readonlyId string) *string {
@@ -48,7 +59,7 @@ func (r *ReadOnlyManager) GetIds(id *string) IdRequest {
 	if readonly {
 		readOnlyPadId = *id
 	} else {
-		readOnlyPadId = r.getReadOnlyId(*id)
+		readOnlyPadId = r.GetReadOnlyId(*id)
 	}
 
 	var padId string

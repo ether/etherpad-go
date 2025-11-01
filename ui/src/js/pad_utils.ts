@@ -94,6 +94,10 @@ const urlRegex = (() => {
 // https://stackoverflow.com/a/68957976
 const base64url = /^(?=(?:.{4})*$)[A-Za-z0-9_-]*(?:[AQgw]==|[AEIMQUYcgkosw048]=)?$/;
 
+type PadEvent = {
+  which: number
+}
+
 type JQueryNode = JQuery<HTMLElement>
 
 class PadUtils {

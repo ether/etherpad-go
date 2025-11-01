@@ -2526,7 +2526,15 @@ function Ace2Inner(editorInfo, cssManagers) {
 
   const handleKeyEvent = (evt) => {
     if (!isEditable) return;
-    const {type, charCode, keyCode, which, altKey, shiftKey} = evt;
+    const {type, charCode, keyCode, which, shiftKey} = evt;
+
+    // If DOM3 support exists, ensure that the left ALT key was pressed. This
+    // allows keyboard layouts with special meaning for right-alt-char to
+    // continue working on Firefox / macOS.
+    let altKey = evt.altKey;
+    if (evt.originalEvent.location !== undefined) {
+        altKey = altKey && evt.originalEvent.location === evt.originalEvent.DOM_KEY_LOCATION_LEFT;
+    }
 
     // Don't take action based on modifier keys going up and down.
     // Modifier keys do not generate "keypress" events.
@@ -3475,7 +3483,7 @@ function Ace2Inner(editorInfo, cssManagers) {
         // use that for displaying the side div line number inline with the first line
         // of content -- This is used in ep_headings, ep_font_size etc. where the line
         // height is increased.
-        const elementStyle = window.getComputedStyle(docLine.firstChild);
+        const elementStyle = window.getComputedStyle(docLine.firstElementChild);
         const lineHeight = parseInt(elementStyle.getPropertyValue('line-height'));
         const marginBottom = parseInt(elementStyle.getPropertyValue('margin-bottom'));
         lineHeights.push(lineHeight + marginBottom);

@@ -378,6 +378,64 @@ func handleMessage(message any, client *Client, ctx *fiber.Ctx) {
 		{
 			HandleUserInfoUpdate(expectedType, client)
 		}
+	case PadDelete:
+		{
+			HandlePadDelete(client, expectedType)
+		}
+	}
+}
+
+func HandlePadDelete(client *Client, padDeleteMessage PadDelete) {
+	var session = SessionStoreInstance.getSession(client.SessionId)
+
+	if session == nil || session.Author == "" || session.PadId == "" {
+		println("Session not ready")
+		return
+	}
+
+	var retrievedPad = padManager.DoesPadExist(padDeleteMessage.Data.PadID)
+	if !retrievedPad {
+		println("Pad does not exist")
+		return
+	}
+	var retrievedPadObj, err = padManager.GetPad(padDeleteMessage.Data.PadID, nil, nil)
+	if err != nil {
+		println("Error retrieving pad")
+		return
+	}
+	// Only the one doing the first revision can delete the pad, otherwise people could troll a lot
+	firstContributor, err := retrievedPadObj.GetRevisionAuthor(0)
+	if err != nil {
+		println("Error retrieving first contributor")
+		return
+	}
+
+	if *firstContributor != session.Author {
+		println("Only first contributor can delete the pad")
+		return
+	}
+
+	retrievedPadObj.Remove()
+	KickSessionsFromPad(retrievedPadObj.Id)
+	// remove the readonly entries
+	var readonlyId = readOnlyManager.GetReadOnlyId(retrievedPadObj.Id)
+	err = readOnlyManager.RemoveReadOnlyPad(readonlyId, retrievedPadObj.Id)
+	if err != nil {
+		println("Error removing read-only pad mapping")
+		return
+	}
+	if err := retrievedPadObj.RemoveAllChats(); err != nil {
+		println("Error removing all chats " + err.Error())
+		return
+	}
+
+	if err := retrievedPadObj.RemoveAllSavedRevisions(); err != nil {
+		println("Error removing all saved revisions " + err.Error())
+		return
+	}
+	if err := padManager.RemovePad(retrievedPadObj.Id); err != nil {
+		println("Error removing pad " + err.Error())
+		return
 	}
 }
 
@@ -637,4 +695,12 @@ func GetRoomSockets(padID string) []Client {
 		}
 	}
 	return sockets
+}
+
+func KickSessionsFromPad(padID string) {
+	for k := range HubGlob.clients {
+		if SessionStoreInstance.getSession(k.SessionId).PadId == padID {
+			k.SendPadDelete()
+		}
+	}
 }

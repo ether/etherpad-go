@@ -48,6 +48,14 @@ func NewPad(id string) Pad {
 	return *p
 }
 
+func (p *Pad) RemoveAllChats() error {
+	return p.db.RemoveChat(p.Id)
+}
+
+func (p *Pad) RemoveAllSavedRevisions() error {
+	return p.db.RemoveRevisionsOfPad(p.Id)
+}
+
 func (p *Pad) getKeyRevisionNumber(revNum int) int {
 	return int(math.Floor(float64(revNum/100)) * 100)
 }
@@ -59,7 +67,32 @@ func (p *Pad) getKeyRevisionAText(revNum int) (*apool.AText, error) {
 	}
 
 	return &rev.AText, err
+}
 
+func (p *Pad) Remove() {
+	padId := p.Id
+	// Kick session is done in ws package to avoid circular import
+	if strings.Index(padId, "$") >= 0 {
+		indexOfDollar := strings.Index(padId, "$")
+		groupId := padId[0:indexOfDollar]
+		groupVal, err := p.db.GetGroup(groupId)
+		if err != nil {
+			return
+		}
+		//
+		println(groupVal)
+	}
+}
+
+func (p *Pad) GetRevisionAuthor(revNum int) (*string, error) {
+	rev, err := p.db.GetRevision(p.Id, revNum)
+	if err != nil {
+		return nil, err
+	}
+	if rev.AuthorId == nil {
+		return nil, errors.New("invalid rev id")
+	}
+	return rev.AuthorId, nil
 }
 
 func (p *Pad) getRevisionChangeset(revNum int) (*string, error) {

@@ -1,3 +1,4 @@
+import {Func} from "mocha";
 
 
 type PluralFunc = (n: number) => string
@@ -49,7 +50,7 @@ export class Html10n {
       }, false)
   }
 
-  bind(event: string, fct: Function) {
+  bind(event: string, fct: Func) {
     this.mt.bind(event, fct)
   }
 
@@ -471,7 +472,6 @@ export class Html10n {
   }
 
   localize(langs: (string|undefined)[]|string) {
-    console.log('Available langs ', langs)
     if ('string' === typeof langs) {
       langs = [langs];
     }
@@ -482,7 +482,7 @@ export class Html10n {
       if(~lang.indexOf('-')) langs[i++] = lang.substring(0, lang.indexOf('-'));
     })
 
-    this.build(langs, (_er: null, translations: Map<string, any>) =>{
+    this.build(langs, (er: null, translations: Map<string, any>) =>{
       this.translations = translations
       this.translateElement(translations)
       this.mt.trigger('localized')
@@ -537,7 +537,7 @@ export class Html10n {
       for (let i=0, n=langs.length; i < n; i++) {
         lang = langs[i]
         if(!lang) continue;
-        if(!langs.includes(lang)) {// uh, we don't have this lang available...
+        if(!langs.includes(lang)) {// uh, we don't have this lang availbable..
           // then check for related langs
           if(~lang.indexOf('-') != -1) {
             lang = lang.split('-')[0];
@@ -773,7 +773,7 @@ class MicroEvent {
     this.events = new Map();
   }
 
-  bind(event: string, fct: Function) {
+  bind(event: string, fct: Func) {
     if (this.events.get(event) === undefined) {
       this.events.set(event, []);
     }
@@ -781,7 +781,7 @@ class MicroEvent {
     this.events.get(event)!.push(fct);
   }
 
-  unbind(event: string, fct: Function) {
+  unbind(event: string, fct: Func) {
     if (this.events.get(event) === undefined) {
       return;
     }
@@ -994,3 +994,9 @@ export default html10n
 
 // @ts-ignore
 window.html10n = html10n
+
+// gettext-like shortcut
+if (window._ === undefined){
+  // @ts-ignore
+  window._ = html10n.get;
+}

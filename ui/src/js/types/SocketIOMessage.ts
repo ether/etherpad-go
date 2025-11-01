@@ -199,6 +199,14 @@ export type ClientSaveRevisionMessage = {
   type: 'SAVE_REVISION'
 }
 
+
+export type PadDeleteMessage = {
+  type: 'PAD_DELETE'
+  data: {
+    padId: string
+  }
+}
+
 export type GetChatMessageMessage = {
   type: 'GET_CHAT_MESSAGES',
   start: number,
@@ -251,6 +259,13 @@ export type PadOption = {
   view? : MapArrayType<boolean>
 }
 
+
+type SharedMessageType = {
+  payload:{
+    timestamp: number
+  }
+}
+
 export type x = {
   disconnect: boolean
 }
@@ -283,7 +298,7 @@ export type ChangesetRequestMessage = {
 
 export type CollabroomMessage = {
   type: 'COLLABROOM'
-  data: ClientSendUserInfoUpdate | ClientUserChangesMessage | ChatMessageMessage | GetChatMessageMessage | ClientSaveRevisionMessage | ClientMessageMessage
+  data: ClientSendUserInfoUpdate | ClientUserChangesMessage | ChatMessageMessage | GetChatMessageMessage | ClientSaveRevisionMessage | ClientMessageMessage | PadDeleteMessage
 }
 
 export type ClientVarMessage =  | ClientVarData | ClientDisconnectedMessage | ClientReadyMessage| ChangesetRequestMessage | CollabroomMessage | CustomMessage

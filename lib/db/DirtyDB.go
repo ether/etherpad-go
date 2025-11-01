@@ -4,13 +4,14 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"os"
+	"strings"
+
 	sq "github.com/Masterminds/squirrel"
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/models/db"
 	session2 "github.com/ether/etherpad-go/lib/models/session"
 	_ "modernc.org/sqlite"
-	"os"
-	"strings"
 )
 
 func init() {
@@ -21,6 +22,94 @@ func init() {
 type SQLiteDB struct {
 	path  string
 	sqlDB *sql.DB
+}
+
+func (d SQLiteDB) RemovePad(padID string) error {
+	var resultedSQL, args, err = sq.
+		Delete("pad").
+		Where(sq.Eq{"id": padID}).
+		ToSql()
+
+	if err != nil {
+		return err
+	}
+	_, err = d.sqlDB.Exec(resultedSQL, args...)
+	return err
+}
+
+func (d SQLiteDB) RemoveRevisionsOfPad(padId string) error {
+	var resultedSQL, args, err = sq.
+		Delete("padRev").
+		Where(sq.Eq{"id": padId}).
+		ToSql()
+
+	if err != nil {
+		return err
+	}
+	_, err = d.sqlDB.Exec(resultedSQL, args...)
+	return err
+}
+
+func (d SQLiteDB) RemoveChat(padId string) error {
+	var resultedSQL, args, err = sq.
+		Delete("padChat").
+		Where(sq.Eq{"padId": padId}).
+		ToSql()
+
+	if err != nil {
+		return err
+	}
+	_, err = d.sqlDB.Exec(resultedSQL, args...)
+	return err
+}
+
+func (d SQLiteDB) RemovePad2ReadOnly(id string) error {
+	var resultedSQL, args, err = sq.
+		Delete("pad2readonly").
+		Where(sq.Eq{"id": id}).
+		ToSql()
+
+	if err != nil {
+		return err
+	}
+	_, err = d.sqlDB.Exec(resultedSQL, args...)
+	return err
+}
+
+func (d SQLiteDB) RemoveReadOnly2Pad(id string) error {
+	var resultedSQL, args, err = sq.
+		Delete("readonly2pad").
+		Where(sq.Eq{"id": id}).
+		ToSql()
+
+	if err != nil {
+		return err
+	}
+	_, err = d.sqlDB.Exec(resultedSQL, args...)
+	return err
+}
+
+func (d SQLiteDB) GetGroup(groupId string) (*string, error) {
+	var resultedSQL, args, err = sq.
+		Select("id").
+		From("groupPadGroup").
+		Where(sq.Eq{"id": groupId}).
+		ToSql()
+
+	if err != nil {
+		return nil, err
+	}
+	query, err := d.sqlDB.Query(resultedSQL, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer query.Close()
+	var foundGroup string
+	for query.Next() {
+		query.Scan(&foundGroup)
+		return &foundGroup, nil
+	}
+	return nil, errors.New("group not found")
 }
 
 func (d SQLiteDB) GetSessionById(sessionID string) *session2.Session {
@@ -515,6 +604,22 @@ func NewDirtyDB(path string) (*SQLiteDB, error) {
 	}
 
 	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS sessionstorage(id TEXT PRIMARY KEY, originalMaxAge INTEGER, expires TEXT, secure BOOLEAN httpOnly BOOLEAN, path TEXT, sameSeite TEXT, connections TEXT)")
+
+	if err != nil {
+		panic(err.Error())
+	}
+
+	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS groupPadGroup(id TEXT PRIMARY KEY, name TEXT)")
+
+	if err != nil {
+		panic(err.Error())
+	}
+
+	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS padChat(chatId TEXT PRIMARY KEY , padId TEXT NOT NULL, chatData TEXT NOT NULL)")
+
+	if err != nil {
+		panic(err.Error())
+	}
 
 	return &SQLiteDB{
 		path:  path,

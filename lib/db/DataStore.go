@@ -8,15 +8,19 @@ import (
 
 type PadMethods interface {
 	DoesPadExist(padID string) bool
+	RemovePad(padID string) error
 	CreatePad(padID string, padDB db.PadDB) bool
 	GetPadIds() []string
 	SaveRevision(padId string, rev int, changeset string, text apool.AText, pool apool.APool, authorId *string, timestamp int) error
 	GetRevision(padId string, rev int) (*db.PadSingleRevision, error)
+	RemoveRevisionsOfPad(padId string) error
 	GetPad(padID string) (*db.PadDB, error)
 	GetReadonlyPad(padId string) (*string, error)
 	CreatePad2ReadOnly(padId string, readonlyId string)
 	CreateReadOnly2Pad(padId string, readonlyId string)
 	GetReadOnly2Pad(id string) *string
+	RemoveReadOnly2Pad(id string) error
+	RemovePad2ReadOnly(id string) error
 }
 
 type PadMetaData interface {
@@ -38,9 +42,19 @@ type SessionMethods interface {
 	RemoveSessionById(sessionID string) *session2.Session
 }
 
+type GroupMethods interface {
+	GetGroup(groupId string) (*string, error)
+}
+
+type ChatMethods interface {
+	RemoveChat(padId string) error
+}
+
 type DataStore interface {
 	PadMethods
 	AuthorMethods
 	PadMetaData
 	SessionMethods
+	GroupMethods
+	ChatMethods
 }

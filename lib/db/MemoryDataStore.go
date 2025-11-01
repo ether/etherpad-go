@@ -2,6 +2,7 @@ package db
 
 import (
 	"errors"
+
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/models/db"
 	session2 "github.com/ether/etherpad-go/lib/models/session"
@@ -12,9 +13,56 @@ type MemoryDataStore struct {
 	authorStore  map[string]db.AuthorDB
 	readonly2Pad map[string]string
 	pad2Readonly map[string]string
+	chatPads     map[string][]string
 	authorMapper map[string]string
 	sessionStore map[string]session2.Session
 	tokenStore   map[string]string
+	groupStore   map[string]string
+}
+
+func (m *MemoryDataStore) RemovePad(padID string) error {
+	delete(m.padStore, padID)
+	return nil
+}
+
+func (m *MemoryDataStore) RemoveRevisionsOfPad(padId string) error {
+	var pad, ok = m.padStore[padId]
+
+	if !ok {
+		return errors.New("pad not found")
+	}
+
+	pad.SavedRevisions = make(map[int]db.PadRevision)
+	pad.RevNum = -1
+	m.padStore[padId] = pad
+	return nil
+}
+
+func (m *MemoryDataStore) RemoveReadOnly2Pad(id string) error {
+	delete(m.readonly2Pad, id)
+	return nil
+}
+
+func (m *MemoryDataStore) RemovePad2ReadOnly(id string) error {
+	delete(m.readonly2Pad, id)
+	return nil
+}
+
+func (m *MemoryDataStore) RemoveChat(padId string) error {
+	for k := range m.chatPads {
+		if k == padId {
+			delete(m.chatPads, k)
+		}
+	}
+	return nil
+}
+
+func (m *MemoryDataStore) GetGroup(groupId string) (*string, error) {
+	group, ok := m.groupStore[groupId]
+	if !ok {
+		return nil, errors.New("group not found")
+	}
+	return &group, nil
 }
 
 func (m *MemoryDataStore) GetSessionById(sessionID string) *session2.Session {
@@ -108,6 +156,7 @@ func NewMemoryDataStore() *MemoryDataStore {
 		authorMapper: make(map[string]string),
 		sessionStore: make(map[string]session2.Session),
 		tokenStore:   make(map[string]string),
+		groupStore:   make(map[string]string),
 	}
 }
 
