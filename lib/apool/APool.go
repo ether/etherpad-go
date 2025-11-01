@@ -11,8 +11,8 @@ type APool struct {
 	NextNum        int               `json:"nextNum"`
 }
 
-func NewAPool() *APool {
-	return &APool{
+func NewAPool() APool {
+	return APool{
 		NumToAttrib: make(map[int]Attribute),
 		AttribToNum: make(map[Attribute]int),
 		NextNum:     0,

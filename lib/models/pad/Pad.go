@@ -38,7 +38,7 @@ func NewPad(id string) Pad {
 	p := new(Pad)
 	p.Id = id
 	p.db = utils.GetDB()
-	p.Pool = *apool.NewAPool()
+	p.Pool = apool.NewAPool()
 	p.Head = -1
 	p.ChatHead = -1
 	p.PublicStatus = false

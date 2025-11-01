@@ -847,7 +847,7 @@ func CloneAText(atext apool.AText) apool.AText {
 	}
 }
 
-func MoveOpsToNewPool(cs string, oldPool apool.APool, newPool apool.APool) string {
+func MoveOpsToNewPool(cs string, oldPool *apool.APool, newPool *apool.APool) string {
 	var dollarPos = strings.Index(cs, "$")
 	if dollarPos < 0 {
 		dollarPos = len(cs)
@@ -877,9 +877,9 @@ type PrepareForWireStruct struct {
 
 func PrepareForWire(cs string, pool apool.APool) PrepareForWireStruct {
 	var newPool = apool.NewAPool()
-	var newCS = MoveOpsToNewPool(cs, pool, *newPool)
+	var newCS = MoveOpsToNewPool(cs, &pool, &newPool)
 	return PrepareForWireStruct{
-		Pool:       *newPool,
+		Pool:       newPool,
 		Translated: newCS,
 	}
 }

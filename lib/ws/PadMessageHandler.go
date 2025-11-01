@@ -2,6 +2,10 @@ package ws
 
 import (
 	"encoding/json"
+	"regexp"
+	"slices"
+	"strings"
+
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/changeset"
@@ -16,9 +20,6 @@ import (
 	"github.com/ether/etherpad-go/lib/utils"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gorilla/websocket"
-	"regexp"
-	"slices"
-	"strings"
 )
 
 type AuthSession struct {
@@ -82,14 +83,18 @@ func (c *ChannelOperator) AddToQueue(ch string, t Task) {
 
 func handleUserChanges(task Task) {
 	var wireApool = apool.NewAPool()
-	wireApool.FromJsonable(apool.APool{
-		NextNum:        task.message.Data.Data.Apool.NextNum,
-		NumToAttribRaw: task.message.Data.Data.Apool.NumToAttrib,
-	})
+	var newAPool = apool.NewAPool()
+	newAPool.NextNum = task.message.Data.Data.Apool.NextNum
+	newAPool.NumToAttribRaw = task.message.Data.Data.Apool.NumToAttrib
+	wireApool.FromJsonable(newAPool)
 	var session = SessionStoreInstance.getSession(task.socket.SessionId)
 
-	var retrievedPad, _ = padManager.GetPad(session.PadId, nil, &session.Author)
-	_, err := changeset.CheckRep(task.message.Data.Data.Changeset)
+	var retrievedPad, err = padManager.GetPad(session.PadId, nil, &session.Author)
+	if err != nil {
+		println("Error retrieving pad", err)
+		return
+	}
+	_, err = changeset.CheckRep(task.message.Data.Data.Changeset)
 
 	if err != nil {
 		return
@@ -116,7 +121,7 @@ func handleUserChanges(task Task) {
 		// Besides verifying the author attribute, this serves a second purpose:
 		// AttributeMap.fromString() ensures that all attribute numbers are valid (it will throw if
 		// an attribute number isn't in the pool).
-		fromString := changeset.FromString(op.Attribs, *wireApool)
+		fromString := changeset.FromString(op.Attribs, wireApool)
 		var opAuthorId = fromString.Get("author")
 
 		println(len(opAuthorId))
@@ -127,7 +132,7 @@ func handleUserChanges(task Task) {
 		}
 	}
 
-	rebasedChangeset := changeset.MoveOpsToNewPool(task.message.Data.Data.Changeset, *wireApool, retrievedPad.Pool)
+	rebasedChangeset := changeset.MoveOpsToNewPool(task.message.Data.Data.Changeset, &wireApool, &retrievedPad.Pool)
 
 	var r = task.message.Data.Data.BaseRev
 

@@ -2,10 +2,11 @@ package pad
 
 import (
 	"errors"
+	"regexp"
+
 	"github.com/ether/etherpad-go/lib/db"
 	"github.com/ether/etherpad-go/lib/models/pad"
 	"github.com/ether/etherpad-go/lib/utils"
-	"regexp"
 )
 
 var globalPadCache *GlobalPadCache
@@ -134,6 +135,14 @@ func (m *Manager) GetPad(padID string, text *string, authorId *string) (*pad.Pad
 
 	newPad.Init(text, authorId)
 	globalPadCache.SetPad(padID, &newPad)
+
+	if newPad.Pool.NumToAttrib == nil {
+		panic("NULL POOL!")
+	}
+
+	if newPad.Pool.AttribToNum == nil {
+		panic("NULL POOL 2!")
+	}
 
 	return &newPad, nil
 }
