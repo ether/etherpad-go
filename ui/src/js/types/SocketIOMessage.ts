@@ -259,13 +259,6 @@ export type PadOption = {
   view? : MapArrayType<boolean>
 }
 
-
-type SharedMessageType = {
-  payload:{
-    timestamp: number
-  }
-}
-
 export type x = {
   disconnect: boolean
 }

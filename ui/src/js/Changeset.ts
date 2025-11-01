@@ -791,7 +791,7 @@ export const compose = (cs1: string, cs2:string, pool: AttributePool): string =>
  * @returns {Function}
  */
 export const attributeTester = (attribPair: Attribute, pool: AttributePool): Function => {
-  const never = (attribs: Attribute[]) => false;
+  const never = (_attribs: Attribute[]) => false;
   if (!pool) return never;
   const attribNum = pool.putAttrib(attribPair, true);
   if (attribNum < 0) return never;

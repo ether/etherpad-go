@@ -259,7 +259,7 @@ class Scroll {
 
 
 
-  scrollNodeVerticallyIntoView(rep: RepModel, innerHeight: number) {
+  scrollNodeVerticallyIntoView(_rep: RepModel, innerHeight: number) {
     const viewport = this._getViewPortTopBottom();
 
     // when the selection changes outside of the viewport the browser automatically scrolls the line

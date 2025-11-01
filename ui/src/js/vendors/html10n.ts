@@ -1,4 +1,4 @@
-import {Func} from "mocha";
+type Func = (...args: any[]) => void
 
 
 type PluralFunc = (n: number) => string
@@ -482,7 +482,7 @@ export class Html10n {
       if(~lang.indexOf('-')) langs[i++] = lang.substring(0, lang.indexOf('-'));
     })
 
-    this.build(langs, (er: null, translations: Map<string, any>) =>{
+    this.build(langs, (_er: null, translations: Map<string, any>) =>{
       this.translations = translations
       this.translateElement(translations)
       this.mt.trigger('localized')
@@ -995,8 +995,4 @@ export default html10n
 // @ts-ignore
 window.html10n = html10n
 
-// gettext-like shortcut
-if (window._ === undefined){
-  // @ts-ignore
-  window._ = html10n.get;
-}
+
