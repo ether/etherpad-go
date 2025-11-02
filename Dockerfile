@@ -28,7 +28,8 @@ FROM scratch as runtime
 EXPOSE 3000
 
 COPY --from=backend /app/app /app
-RUN mkdir ./assets
+COPY --from=frontend /assets /assets
+
 COPY --from=cache /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 ENTRYPOINT ["/app"]
 
