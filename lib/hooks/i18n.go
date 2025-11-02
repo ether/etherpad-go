@@ -1,15 +1,14 @@
 package hooks
 
 import (
+	"embed"
 	"encoding/json"
-	"os"
+	"io/fs"
 	"path"
 	"path/filepath"
 	"slices"
 	"strings"
 
-	settings2 "github.com/ether/etherpad-go/lib/settings"
-	"github.com/ether/etherpad-go/lib/utils"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -507,8 +506,8 @@ func generateLocaleIndex(locales Locales) Locales {
 
 var AvailableLangs = map[string]LanguageInfo{}
 
-func ExpressPreSession(app *fiber.App) {
-	var locales = getAllLocales()
+func ExpressPreSession(app *fiber.App, uiAssets embed.FS) {
+	var locales = getAllLocales(uiAssets)
 	var localeIndex = generateLocaleIndex(locales)
 	AvailableLangs = getAvailableLangs(locales)
 
@@ -541,88 +540,70 @@ func ExpressPreSession(app *fiber.App) {
 
 type Locales = map[string]interface{}
 
-func getAllLocales() Locales {
-	var locales2paths = map[string][]string{}
-
-	var extractLangs = func(dir string) {
-		if !utils.ExistsSync(dir) {
+func getAllLocales(uiAssets embed.FS) Locales {
+	locales2paths := map[string][]string{}
+	var localeEmbed, err = fs.Sub(uiAssets, "assets/locales")
+	if err != nil {
+		println("Error accessing embedded locales: " + err.Error())
+		return nil
+	}
+	var extractLangs func(dir string)
+	extractLangs = func(dir string) {
+		entries, err := fs.ReadDir(localeEmbed, dir)
+		if err != nil {
+			println("Error reading locale dir: " + dir + " " + err.Error())
 			return
 		}
-		stat, _ := os.Stat(dir)
 
-		if !stat.IsDir() {
-			return
+		for _, entry := range entries {
+			if entry.IsDir() {
+				extractLangs(path.Join(dir, entry.Name()))
+				continue
+			}
+			name := entry.Name()
+			if filepath.Ext(name) != ".json" {
+				continue
+			}
+			locale := strings.TrimSuffix(name, ".json")
+			if _, ok := langs.lang[locale]; !ok {
+				continue
+			}
+			locales2paths[locale] = append(locales2paths[locale], path.Join(dir, name))
 		}
 
-		var readDirEntres, _ = os.ReadDir(dir)
-
-		for _, entry := range readDirEntres {
-			fileEntry, err := os.Stat(dir + "/" + entry.Name())
-			if err != nil {
-				continue
-			}
-
-			if fileEntry.IsDir() {
-				continue
-			}
-			var extension = filepath.Ext(entry.Name())
-			locale := entry.Name()[0 : len(entry.Name())-len(extension)]
-			var _, ok = langs.lang[locale]
-			if extension == ".json" && ok {
-				if _, ok = locales2paths[locale]; !ok {
-					locales2paths[locale] = []string{}
-				}
-
-				locales2paths[locale] = append(locales2paths[locale], dir+"/"+entry.Name())
-			}
-		}
-		locales2paths["en"] = append(locales2paths["en"], dir+"/en-gb.json")
+		// Fallback en-gb pro Verzeichnis wie im Original
+		locales2paths["en"] = append(locales2paths["en"], path.Join(dir, "en-gb.json"))
 	}
 
-	var joinedLocalesPath = path.Join(*settings2.Displayed.Root, "assets/locales")
+	// Pfad innerhalb des eingebetteten FS
+	extractLangs(".")
 
-	extractLangs(joinedLocalesPath)
-	type Metadata struct {
-		Authors []string `json:"authors"`
-	}
-	type Locale = map[string]interface{}
+	locales := make(Locales)
 
-	var locales = make(Locales)
-
-	for key, val := range locales2paths {
-		for _, pathToFile := range val {
-			var fileContent, _ = os.ReadFile(pathToFile)
-			locales[key] = map[string]string{}
-			var mapOfStrings = Locale{}
-
-			err := json.Unmarshal(fileContent, &mapOfStrings)
+	for key, paths := range locales2paths {
+		for _, p := range paths {
+			data, err := fs.ReadFile(localeEmbed, p)
 			if err != nil {
-				println("Error reading locale from" + pathToFile + err.Error())
+				// Datei eventuell nicht vorhanden — überspringen
+				continue
+			}
+			var mapOfStrings map[string]interface{}
+			if err := json.Unmarshal(data, &mapOfStrings); err != nil {
+				println("Error reading locale from " + p + " " + err.Error())
 				continue
 			}
 
-			for keyInMap, ValInMap := range mapOfStrings {
-				switch valString := ValInMap.(type) {
-				case string:
-					var rawInterface = locales[key]
-					switch valueType := rawInterface.(type) {
-					case map[string]string:
-						valueType[keyInMap] = valString
-					default:
-						valueType = map[string]string{}
-					}
-				default:
-					continue
+			// sicherstellen, dass locales[key] eine map[string]string wird
+			if _, ok := locales[key]; !ok {
+				locales[key] = map[string]string{}
+			}
+			target := locales[key].(map[string]string)
+
+			for k, v := range mapOfStrings {
+				if s, ok := v.(string); ok {
+					target[k] = s
 				}
 			}
-		}
-	}
-
-	switch val := locales["en"].(type) {
-	case map[string]string:
-		{
-			var val, _ = json.Marshal(val)
-			println("en locale is a map" + string(val))
 		}
 	}
 

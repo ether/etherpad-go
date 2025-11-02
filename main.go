@@ -186,7 +186,7 @@ func main() {
 		return adaptor.HTTPHandler(templ.Handler(component))(c)
 	})
 
-	hooks.ExpressPreSession(app)
+	hooks.ExpressPreSession(app, uiAssets)
 
 	ws.HubGlob = ws.NewHub()
 	go ws.HubGlob.Run()
