@@ -154,7 +154,8 @@ func (p *Pad) Init(text *string, author *string) error {
 		if err != nil {
 			panic(err.Error())
 		}
-		p.Pool = pad.Pool
+
+		mapDBPadToModel(pad, p)
 	} else {
 		if text == nil {
 			var padDefaultText = "text"

@@ -4,7 +4,6 @@ import (
 	"errors"
 	"regexp"
 
-	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/db"
 	"github.com/ether/etherpad-go/lib/models/pad"
 	"github.com/ether/etherpad-go/lib/utils"
@@ -146,16 +145,6 @@ func (m *Manager) GetPad(padID string, text *string, authorId *string) (*pad.Pad
 
 	newPad.Init(text, authorId)
 	globalPadCache.SetPad(padID, &newPad)
-
-	if newPad.Pool.NumToAttrib == nil {
-		//fixme
-		newPad.Pool.NumToAttrib = make(map[int]apool.Attribute)
-	}
-
-	if newPad.Pool.AttribToNum == nil {
-		//fixme
-		newPad.Pool.AttribToNum = make(map[apool.Attribute]int)
-	}
 
 	return &newPad, nil
 }
