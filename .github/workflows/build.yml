@@ -30,6 +30,10 @@ jobs:
         working-directory: ./ui
       - name: Install dependencies
         run: go mod download
+      - name: Install templ
+        run: go get -u github.com/a-h/temp
+      - name: Generate templ
+        run: templ generate
       - name: Set up Docker
         uses: docker/setup-docker-action@v4
       - name: Test
