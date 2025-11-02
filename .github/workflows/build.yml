@@ -152,21 +152,19 @@ jobs:
         run: |
           DIGEST_FLAGS=$(for f in *; do printf '%s@sha256:%s ' "$REGISTRY_IMAGE" "$f"; done)
           docker buildx imagetools create -t $REGISTRY_IMAGE:$IMAGE_TAG $DIGEST_FLAGS
-
-      - name: Inspect image
-        run: |
-          docker buildx imagetools inspect ${{ env.REGISTRY_IMAGE }}:${{ steps.meta.outputs.version }}
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          repository: 'SamTV12345/smartorganizr-charts'
-          token: '${{ secrets.SMARTORGANIZR_CHARTS_PUSH_TOKEN }}'
+          path: ether-charts
+          repository: ether/ether-charts
+          token: ${{ secrets.ETHER_CHART_TOKEN }}
       - name: Change argocd tag
         run: |
-          sed -i "s|tag: .*|tag: \"${{ env.IMAGE_TAG }}\"|g" ./values-dynamic.yaml
+          cd ether-charts
+          sed -i "s|tag: .*|tag: \"${{ env.IMAGE_TAG }}\"|g" ./values-go.yaml
           git config --global user.name 'github-actions'
           git config --global user.email 'noreply@github.com'
           git add .
-          git commit -m "chore: bump image to ${{ env.IMAGE_TAG }}"
+          git commit -m "chore: bump etherpad-go image to ${{ env.IMAGE_TAG }}"
           git push origin main
           
