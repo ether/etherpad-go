@@ -16,7 +16,7 @@ func PrepareAttribPool(t *testing.T) (apool.APool, [][]string) {
 			t.Error("Expected " + strconv.Itoa(i) + ", got " + strconv.Itoa(nextNum))
 		}
 	}
-	return *pool, attribs
+	return pool, attribs
 }
 
 func TestSet(t *testing.T) {

@@ -79,7 +79,7 @@ func TestApplyToAText(t *testing.T) {
 	var newText = changeset.ApplyToAText("Z:1>j+j$Welcome to Etherpad", apool.AText{
 		Text:    "\n",
 		Attribs: "|1+1",
-	}, *pool)
+	}, pool)
 	if newText.Text != "Welcome to Etherpad\n" || newText.Attribs != "|1+k" {
 		t.Error("Error ", newText.Attribs)
 	}
@@ -222,7 +222,7 @@ func TestUnpack(t *testing.T) {
 			t.Error("Error comparing applyzip")
 		}
 
-		var slicer, _ = changeset.SlicerZipperFunc(op, op2, pool)
+		var slicer, _ = changeset.SlicerZipperFunc(op, op2, &pool)
 		var slicerREsult = slicerResults[counter]
 		if !cmp.Equal(slicerREsult, *slicer) {
 			t.Error("Error comparing slicer")
