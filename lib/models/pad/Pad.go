@@ -287,6 +287,8 @@ func (p *Pad) AppendRevision(cs string, authorId *string) int {
 
 	p.Head++
 
+	var newRev = p.Head
+
 	if authorId != nil {
 		p.Pool.PutAttrib(apool.Attribute{
 			Key:   "author",
@@ -296,7 +298,22 @@ func (p *Pad) AppendRevision(cs string, authorId *string) int {
 
 	// Save pad
 	p.save()
-	err := p.db.SaveRevision(p.Id, p.Head, cs, p.AText, *p.apool(), authorId, int(time.Now().UnixNano()/int64(time.Millisecond)))
+
+	var poolToUse apool.APool
+	var atextToUse apool.AText
+
+	if newRev == p.getKeyRevisionNumber(newRev) {
+		poolToUse = p.Pool
+		atextToUse = p.AText
+	} else {
+		poolToUse = apool.NewAPool()
+		atextToUse = apool.AText{
+			Text:    "",
+			Attribs: "",
+		}
+	}
+
+	err := p.db.SaveRevision(p.Id, newRev, cs, atextToUse, poolToUse, authorId, int(time.Now().UnixNano()/int64(time.Millisecond)))
 
 	if err != nil {
 		println("Error saving revision", err.Error())

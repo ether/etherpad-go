@@ -2,11 +2,12 @@ package author
 
 import (
 	"errors"
+	"math/rand"
+	"time"
+
 	"github.com/ether/etherpad-go/lib/db"
 	db2 "github.com/ether/etherpad-go/lib/models/db"
 	"github.com/ether/etherpad-go/lib/utils"
-	"math/rand"
-	"time"
 )
 
 type Manager struct {

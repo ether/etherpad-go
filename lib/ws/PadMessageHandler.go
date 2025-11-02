@@ -568,7 +568,6 @@ func HandleClientReadyMessage(ready ws.ClientReady, client *Client, thisSession 
 	}
 
 	var selectedColor = 0
-
 	if ready.Data.UserInfo.ColorId != nil {
 		for i, val := range utils.ColorPalette {
 			if val == *ready.Data.UserInfo.ColorId {
@@ -579,6 +578,12 @@ func HandleClientReadyMessage(ready ws.ClientReady, client *Client, thisSession 
 		authorManager.SetAuthorColor(thisSession.Author, selectedColor)
 	}
 
+	var retrievedPad, err = padManager.GetPad(thisSession.PadId, nil, &thisSession.Author)
+	if err != nil {
+		println("Error getting pad")
+		return
+	}
+
 	var foundAuthor, errAuth = authorManager.GetAuthor(thisSession.Author)
 
 	if errAuth != nil {
@@ -586,9 +591,8 @@ func HandleClientReadyMessage(ready ws.ClientReady, client *Client, thisSession 
 		return
 	}
 
-	var retrievedPad, err = padManager.GetPad(thisSession.PadId, nil, &foundAuthor.Id)
-	if err != nil {
-		println("Error getting pad")
+	if foundAuthor == nil || (*foundAuthor).Id == "" {
+		println("Author not found")
 		return
 	}
 

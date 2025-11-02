@@ -848,26 +848,41 @@ func CloneAText(atext apool.AText) apool.AText {
 }
 
 func MoveOpsToNewPool(cs string, oldPool *apool.APool, newPool *apool.APool) string {
-	var dollarPos = strings.Index(cs, "$")
+	dollarPos := strings.Index(cs, "$")
 	if dollarPos < 0 {
 		dollarPos = len(cs)
 	}
 
-	var upToDollar = cs[:dollarPos]
-	var fromDollar = cs[dollarPos:]
-	var regex = regexp.MustCompile("\\*([0-9a-z]+)")
-	var resultingString = regex.ReplaceAllStringFunc(upToDollar, func(match string) string {
-		oldNum, _ := strconv.ParseInt(match[1:], 36, 64) // Parse the number from base 36 to base 10
-		pair, err := oldPool.GetAttrib(int(oldNum))
+	upToDollar := cs[:dollarPos]
+	fromDollar := cs[dollarPos:]
 
+	re := regexp.MustCompile(`\*([0-9a-z]+)`)
+	result := re.ReplaceAllStringFunc(upToDollar, func(match string) string {
+		println(match)
+		sub := re.FindStringSubmatch(match)
+		if len(sub) < 2 {
+			return match
+		}
+		a := sub[1]
+
+		println("A is", a)
+		oldNum, err := utils.ParseNum(a)
 		if err != nil {
-			panic(err)
+			// ungültige Nummer -> entfernen wie im JS-Beispiel
+			return ""
+		}
+
+		pair, _ := oldPool.GetAttrib(oldNum)
+		if pair == nil {
+			// Attribut eventuell nicht im alten Pool -> wie JS: entfernen
+			return ""
 		}
 
 		newNum := newPool.PutAttrib(*pair, nil)
-		return "*" + strconv.FormatInt(int64(newNum), 36)
-	}) + fromDollar
-	return resultingString
+		return "*" + utils.NumToString(newNum)
+	})
+
+	return result + fromDollar
 }
 
 type PrepareForWireStruct struct {

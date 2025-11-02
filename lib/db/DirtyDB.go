@@ -446,12 +446,14 @@ func (d SQLiteDB) GetAuthor(author string) (*db.AuthorDB, error) {
 		return nil, err
 	}
 
-	var authorDB db.AuthorDB
+	var authorDB *db.AuthorDB
 	for query.Next() {
-		query.Scan(&authorDB.ID, &authorDB.ColorId, &authorDB.Name, &authorDB.Timestamp)
+		var authorCopy db.AuthorDB
+		query.Scan(&authorCopy.ID, &authorCopy.ColorId, &authorCopy.Name, &authorCopy.Timestamp)
+		authorDB = &authorCopy
 	}
 
-	return &authorDB, nil
+	return authorDB, nil
 }
 
 func (d SQLiteDB) GetAuthorByToken(token string) (*string, error) {
