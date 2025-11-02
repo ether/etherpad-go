@@ -14,7 +14,7 @@ RUN npm run build
 
 FROM golang:alpine as backend
 WORKDIR /app
-COPY ./api_go/go.mod ./api_go/go.sum ./
+COPY ./go.mod ./go.sum ./
 RUN go mod download
 COPY . .
 COPY --from=frontend /assets/js/pad /assets/js/pad
