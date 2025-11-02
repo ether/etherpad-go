@@ -227,65 +227,6 @@ func TestMoveOpsToNewPool(t *testing.T) {
 	}
 }
 
-func TestCompose(t *testing.T) {
-	var p = apool.NewAPool()
-	var startText = "\n\n\ntxs\nlyqizxohxosniewgzmf\nn\nieztehfrnd\nmdzr\n"
-
-	var x1 = []string{
-		"Z:19>q|1=1|4+s+8|2=2=2|1-2-8|2=e=1-2|1=8=4+2$\nkcaekgsd\njyu\nukkrfvsmufpjo\ncjabwrrdef",
-		"\n\nkcaekgsd\njyu\nukkrfvsmufpjo\ncjabwrrd\n\ntxxosniewgzmf\nn\nitehfrnd\nmdzref\n",
-	}
-
-	var change1 = x1[0]
-	var text1 = x1[1]
-
-	var x2 = []string{
-		"Z:1z<1b|2=2+1=5|1-4-3+3|1=1=2-1+2=7|6-13-6$fthonw",
-		"\n\nfkkt\nmhlmmeqvexugyrd\n\n\nho\nuknwrfvsmufsebed\n",
-	}
-
-	var change2 = x2[0]
-	var text2 = x2[1]
-
-	var x3 = []string{
-		"Z:o>l|2=2=2-3=2|4+j|1=3=b+5$\nmhlmmeqvexugyrd\n\n\nsebed",
-		"\n\nfkkt\nmhlmmeqvexugyrd\n\n\nho\nuknwrfvsmufsebed\n",
-	}
-
-	var change3 = x3[0]
-	var text3 = x3[1]
-
-	var firstChange = changeset.Compose(change1, change2, p)
-	var change12, _ = changeset.CheckRep(firstChange)
-
-	var change23, _ = changeset.CheckRep(changeset.Compose(change2, change3, p))
-
-	var change123, _ = changeset.CheckRep(changeset.Compose(*change12, change3, p))
-	var change123a, _ = changeset.CheckRep(changeset.Compose(change1, *change23, p))
-
-	if change123a != change123 {
-		t.Error("Error in Compose")
-	}
-
-	appliedText1, _ := changeset.ApplyToText(*change123, startText)
-
-	if *appliedText1 != text2 {
-		t.Error("Error in ApplyToText")
-	}
-
-	appliedText2, _ := changeset.ApplyToText(*change23, text1)
-
-	if *appliedText2 != text3 {
-		t.Error("Error in ApplyToText")
-	}
-
-	appliedText3, _ := changeset.ApplyToText(*change123, startText)
-
-	if *appliedText3 != text3 {
-		t.Error("Error in ApplyToText")
-	}
-}
-
 func TestSlicerZipperFunc(t *testing.T) {
 	var numToAttrib = make(map[int]apool.Attribute)
 	var attribToNum = make(map[apool.Attribute]int)

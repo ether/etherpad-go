@@ -124,8 +124,6 @@ func handleUserChanges(task Task) {
 		fromString := changeset.FromString(op.Attribs, wireApool)
 		var opAuthorId = fromString.Get("author")
 
-		println(len(opAuthorId))
-
 		if len(opAuthorId) != 0 && opAuthorId != session.Author {
 			println("Wrong author tried to submit changeset")
 			return
@@ -136,13 +134,24 @@ func handleUserChanges(task Task) {
 
 	var r = task.message.Data.Data.BaseRev
 
+	// The client's changeset might not be based on the latest revision,
+	// since other clients are sending changes at the same time.
+	// Update the changeset so that it can be applied to the latest revision.
 	for r < retrievedPad.Head {
 		r++
-		var revisionPad, _ = retrievedPad.GetRevision(r)
+		var revisionPad, err = retrievedPad.GetRevision(r)
+		if err != nil {
+			println("Error retrieving revision", err)
+			return
+		}
 
 		if revisionPad.Changeset == task.message.Data.Data.Changeset && revisionPad.AuthorId == &session.Author {
 			// Assume this is a retransmission of an already applied changeset.
-			unpackedChangeset, _ = changeset.Unpack(task.message.Data.Data.Changeset)
+			unpackedChangeset, err = changeset.Unpack(task.message.Data.Data.Changeset)
+			if err != nil {
+				println("Error retrieving changeset", err)
+				return
+			}
 			rebasedChangeset = changeset.Identity(unpackedChangeset.OldLen)
 		}
 		// At this point, both "c" (from the pad) and "changeset" (from the
