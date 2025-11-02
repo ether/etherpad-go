@@ -28,17 +28,12 @@ jobs:
       - name: Build
         run: npm run build
         working-directory: ./ui
-      - name: Move to golang
-        run: |
-          mv ./ui/dist ./api_go/ui/dist
       - name: Install dependencies
         run: go mod download
-        working-directory: ./api_go
       - name: Set up Docker
         uses: docker/setup-docker-action@v4
       - name: Test
-        run: go test ./tests/
-        working-directory: ./api_go
+        run: go test ./...
   build:
     if: github.ref == 'refs/heads/master'
     needs:
