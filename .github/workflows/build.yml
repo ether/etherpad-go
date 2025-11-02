@@ -31,7 +31,7 @@ jobs:
       - name: Install dependencies
         run: go mod download
       - name: Install templ
-        run: go get -u github.com/a-h/temp
+        run: go get -u github.com/a-h/templ
       - name: Generate templ
         run: templ generate
       - name: Set up Docker
