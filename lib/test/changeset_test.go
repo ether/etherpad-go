@@ -140,6 +140,34 @@ func TestApplyToAttribution(t *testing.T) {
 		"Z:g<4*1|1=6*1=5-4$", "|2+g", "*1|1+6*1+5|1+1", t)
 }
 
+func TestApplyToAText(t *testing.T) {
+	var cs = "Z:1>2*0+2$sa"
+	var atext = apool.AText{
+		Text:    "\n",
+		Attribs: "|1+1",
+	}
+
+	var p = apool.NewAPool()
+	p.NumToAttrib = map[int]apool.Attribute{}
+	p.NumToAttrib[0] = apool.Attribute{
+		Key:   "author",
+		Value: "a.1ukWCzcdcCbywn32",
+	}
+	p.AttribToNum = map[apool.Attribute]int{}
+	p.AttribToNum[apool.Attribute{
+		Key:   "author",
+		Value: "a.1ukWCzcdcCbywn32",
+	}] = 0
+	p.NextNum = 1
+	var result = changeset.ApplyToAText(cs, atext, p)
+	if result.Text != "sa\n" {
+		t.Error("Error in ApplyToAText text")
+	}
+	if result.Attribs != "*0+2|1+1" {
+		t.Error("Error in ApplyToAText attribs")
+	}
+}
+
 func createPool(attribs []string) apool.APool {
 	var foundPool = apool.NewAPool()
 	for _, attrib := range attribs {

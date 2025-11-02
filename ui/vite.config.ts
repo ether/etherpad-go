@@ -11,6 +11,7 @@ export default defineConfig({
         '@': path.resolve(__dirname, '/src')
         }
     },
+
         plugins: [
             commonjs({
                 requireReturnsDefault: 'auto', // <---- this solves default issue

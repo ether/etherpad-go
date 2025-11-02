@@ -86,7 +86,7 @@ func handleUserChanges(task Task) {
 	var newAPool = apool.NewAPool()
 	newAPool.NextNum = task.message.Data.Data.Apool.NextNum
 	newAPool.NumToAttribRaw = task.message.Data.Data.Apool.NumToAttrib
-	wireApool.FromJsonable(newAPool)
+	wireApool = *wireApool.FromJsonable(newAPool)
 	var session = SessionStoreInstance.getSession(task.socket.SessionId)
 
 	var retrievedPad, err = padManager.GetPad(session.PadId, nil, &session.Author)
