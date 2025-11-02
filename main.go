@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"embed"
 	"fmt"
 	_ "fmt"
+	"io/fs"
 	"net/http"
 	"path"
 	"strings"
@@ -53,6 +55,22 @@ func sessionMiddleware(h http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+//go:embed assets
+var content embed.FS
+
+// Hilfsfunktion: registriert eine Fiber-Route, die Dateien aus dem eingebetteten
+// Unterverzeichnis `subPath` (z.B. `assets/css`) unter `route` (z.B. /css/) ausliefert.
+func registerEmbeddedStatic(app *fiber.App, route string, subPath string) {
+	prefix := strings.TrimSuffix(route, "/")
+	sub, err := fs.Sub(content, subPath)
+	if err != nil {
+		panic(err)
+	}
+	handler := http.StripPrefix(prefix+"/", http.FileServer(http.FS(sub)))
+	// Matcht /css/* etc.
+	app.Get(prefix+"/*", adaptor.HTTPHandler(handler))
+}
+
 // @title Fiber Example API
 // @version 1.0
 // @description This is a sample swagger for Fiber
@@ -97,11 +115,11 @@ func main() {
 	})
 	app.Get("/swagger/*", swagger.HandlerDefault)
 
-	app.Static("/css/", "./assets/css")
-	app.Static("/static/css/", "./assets/css/static/")
-	app.Static("/static/skins/colibris/", "./assets/css/skin/")
-	app.Static("/html/", "./assets/html")
-	app.Static("/font/", "./assets/font")
+	registerEmbeddedStatic(app, "/css/", "assets/css")
+	registerEmbeddedStatic(app, "/static/css/", "assets/css/static")
+	registerEmbeddedStatic(app, "/static/skins/colibris/", "assets/css/skin")
+	registerEmbeddedStatic(app, "/html/", "assets/html")
+	registerEmbeddedStatic(app, "/font/", "assets/font")
 
 	relativePath := "./src/js"
 

@@ -39,7 +39,7 @@ jobs:
       - name: Test
         run: go test ./... || exit 0
   build:
-    if: github.ref == 'refs/heads/master'
+    if: github.ref == 'refs/heads/main'
     needs:
       - test
     strategy:
@@ -104,7 +104,7 @@ jobs:
 
   merge:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/master'
+    if: github.ref == 'refs/heads/main'
     needs:
       - build
     steps:
