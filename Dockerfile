@@ -26,7 +26,9 @@ RUN go build -o app .
 
 FROM scratch as runtime
 EXPOSE 3000
+
 COPY --from=backend /app/app /app
+RUN mkdir ./assets
 COPY --from=cache /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 ENTRYPOINT ["/app"]
 
