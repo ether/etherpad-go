@@ -56,13 +56,13 @@ func sessionMiddleware(h http.HandlerFunc) http.HandlerFunc {
 }
 
 //go:embed assets
-var content embed.FS
+var uiAssets embed.FS
 
 // Hilfsfunktion: registriert eine Fiber-Route, die Dateien aus dem eingebetteten
 // Unterverzeichnis `subPath` (z.B. `assets/css`) unter `route` (z.B. /css/) ausliefert.
 func registerEmbeddedStatic(app *fiber.App, route string, subPath string) {
 	prefix := strings.TrimSuffix(route, "/")
-	sub, err := fs.Sub(content, subPath)
+	sub, err := fs.Sub(uiAssets, subPath)
 	if err != nil {
 		panic(err)
 	}
