@@ -162,33 +162,41 @@ func isZero(v reflect.Value) bool {
 func init() {
 	var pathToSettings string
 
-	for i := 0; i < 10; i++ {
-		var builtPath = ""
-		for j := 0; j < i; j++ {
-			builtPath += "../"
-		}
+	var envPathToSettings = os.Getenv("ETHERPAD_SETTINGS_PATH")
+	if envPathToSettings != "" {
+		pathToSettings = envPathToSettings
+	}
 
-		var assetDir string
+	if pathToSettings == "" {
+		for i := 0; i < 10; i++ {
+			var builtPath = ""
+			for j := 0; j < i; j++ {
+				builtPath += "../"
+			}
 
-		if i == 0 {
-			assetDir = "./assets"
-		} else {
-			assetDir = "assets"
-		}
+			var assetDir string
 
-		path, err := filepath.Abs(builtPath + assetDir)
+			if i == 0 {
+				assetDir = "./assets"
+			} else {
+				assetDir = "assets"
+			}
 
-		_, err = os.Stat(path)
+			path, err := filepath.Abs(builtPath + assetDir)
 
-		if err == nil {
-			pathToSettings, _ = filepath.Abs(builtPath)
-			break
-		}
+			_, err = os.Stat(path)
 
-		if i == 9 {
-			panic("Error finding root")
+			if err == nil {
+				pathToSettings, _ = filepath.Abs(builtPath)
+				break
+			}
+
+			if i == 9 {
+				panic("Error finding root")
+			}
 		}
 	}
+
 	var settingsFilePath = filepath.Join(pathToSettings, "settings.json")
 	settings, err := os.ReadFile(settingsFilePath)
 	settings = stripComments(settings)

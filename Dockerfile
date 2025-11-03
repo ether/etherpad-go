@@ -32,7 +32,7 @@ FROM scratch as runtime
 EXPOSE 3000
 
 ENV NODE_ENV=production
-
+ENV ETHERPAD_SETTINGS_PATH=/
 COPY --from=backend /app/app /app
 
 
