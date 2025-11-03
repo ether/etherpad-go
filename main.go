@@ -7,6 +7,7 @@ import (
 	_ "fmt"
 	"io/fs"
 	"net/http"
+	"os"
 	"path"
 	"strings"
 
@@ -23,6 +24,7 @@ import (
 	"github.com/evanw/esbuild/pkg/api"
 	"github.com/gofiber/adaptor/v2"
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/filesystem"
 	"github.com/gofiber/fiber/v2/middleware/session"
 	"github.com/gofiber/swagger"
 	"github.com/gorilla/sessions"
@@ -62,6 +64,7 @@ var uiAssets embed.FS
 // Unterverzeichnis `subPath` (z.B. `assets/css`) unter `route` (z.B. /css/) ausliefert.
 func registerEmbeddedStatic(app *fiber.App, route string, subPath string) {
 	prefix := strings.TrimSuffix(route, "/")
+	println(prefix)
 	sub, err := fs.Sub(uiAssets, subPath)
 	if err != nil {
 		panic(err)
@@ -134,10 +137,28 @@ func main() {
 		println("Calling js", c.Path())
 		var entrypoint string
 
+		var nodeEnv = os.Getenv("NODE_ENV")
+
+		if nodeEnv == "production" {
+			if strings.Contains(c.Path(), "welcome") {
+				entriesForWelcomePage, err := uiAssets.ReadDir("js/welcome/assets")
+				if err != nil {
+					panic("Could not find static js files in production mode" + err.Error())
+				}
+				return filesystem.SendFile(c, http.FS(uiAssets), "js/welcome/assets"+entriesForWelcomePage[0].Name())
+			} else {
+				entriesForPadPage, err := uiAssets.ReadDir("js/pad/assets")
+				if err != nil {
+					panic("Could not find static js files in production mode" + err.Error())
+				}
+				return filesystem.SendFile(c, http.FS(uiAssets), "js/welcome/assets"+entriesForPadPage[0].Name())
+			}
+		}
+
 		if strings.Contains(c.Path(), "welcome") {
-			entrypoint = "./src/index.js"
+			entrypoint = "./src/welcome.js"
 		} else {
-			entrypoint = "./src/main.js"
+			entrypoint = "./src/pad.js"
 		}
 
 		var pathToBuild = path.Join(*settings2.Displayed.Root, "ui")
@@ -163,9 +184,9 @@ func main() {
 
 		return c.Send(result.OutputFiles[0].Contents)
 	})
-	app.Static("/images", "./assets/images")
-	app.Static("/static/empty.html", "./assets/html/empty.html")
-	app.Static("/pluginfw/plugin-definitions.json", "./assets/plugin/plugin-definitions.json")
+	registerEmbeddedStatic(app, "/images", "assets/images")
+	registerEmbeddedStatic(app, "/static/empty.html", "assets/html/empty.html")
+	registerEmbeddedStatic(app, "/pluginfw/plugin-definitions.json", "assets/plugin/plugin-definitions.json")
 
 	app.Use("/p/", func(c *fiber.Ctx) error {
 		c.Path()
@@ -179,8 +200,12 @@ func main() {
 	})
 
 	app.Get("/pluginfw/plugin-definitions.json", plugins.ReturnPluginResponse)
-	app.Static("/favicon.ico", "./assets/images/favicon.ico")
+	registerEmbeddedStatic(app, "/images/favicon.ico", "assets/images/favicon.ico")
 	app.Get("/p/*", pad.HandlePadOpen)
+
+	app.Get("/favicon.ico", func(c *fiber.Ctx) error {
+		return c.Redirect("/images/favicon.ico", fiber.StatusMovedPermanently)
+	})
 
 	app.Get("/", func(c *fiber.Ctx) error {
 		return adaptor.HTTPHandler(templ.Handler(component))(c)

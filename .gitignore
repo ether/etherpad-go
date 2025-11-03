@@ -3,3 +3,11 @@
 
 settings.json
 *.db
+assets/js
+
+
+*.db-shm
+*.db-wal
+
+test.json
+test1.json

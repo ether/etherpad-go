@@ -6,19 +6,23 @@ RUN apk add -U --no-cache ca-certificates
 FROM node:latest as frontend
 WORKDIR /app
 
+RUN  npm install -g pnpm@latest
+
 COPY ./ui/package.json .
 COPY ./ui/package-lock.json .
-RUN npm install
+RUN pnpm install
 COPY ./ui .
-RUN npm run build
+RUN pnpm run build
 
 FROM golang:alpine as backend
 WORKDIR /app
+RUN go install github.com/a-h/templ/cmd/templ@latest
 COPY ./go.mod ./go.sum ./
 RUN go mod download
+
 COPY . .
-COPY --from=frontend /assets/js/pad /assets/js/pad
-RUN go install github.com/a-h/templ/cmd/templ@latest
+
+COPY --from=frontend /assets/js /assets/js
 
 RUN templ generate
 RUN go build -o app .
@@ -27,8 +31,10 @@ RUN go build -o app .
 FROM scratch as runtime
 EXPOSE 3000
 
+ENV NODE_ENV=production
+
 COPY --from=backend /app/app /app
-COPY --from=frontend /assets /assets
+
 
 COPY --from=cache /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 ENTRYPOINT ["/app"]
