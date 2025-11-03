@@ -12,7 +12,7 @@ COPY ./ui/package.json .
 COPY ./ui/pnpm-lock.yaml .
 RUN pnpm install
 COPY ./ui .
-RUN pnpm run build
+RUN node ./build.js
 
 FROM golang:alpine as backend
 WORKDIR /app
@@ -22,7 +22,7 @@ RUN go mod download
 
 COPY . .
 
-COPY --from=frontend /assets/js /assets/js
+COPY --from=frontend /app/assets/js /assets/js
 
 RUN templ generate
 RUN go build -o app .

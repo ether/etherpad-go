@@ -36,7 +36,7 @@ jobs:
         run: gnpm install
         working-directory: ./ui
       - name: Build
-        run: gnpm run build
+        run: gnpm node build.js
         working-directory: ./ui
       - name: Install dependencies
         run: go mod download

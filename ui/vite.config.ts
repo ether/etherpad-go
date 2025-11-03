@@ -16,6 +16,9 @@ export default defineConfig(({ mode }) => {
             rollupOptions: {
                 input: entry,
             },
+            commonjsOptions: {
+                transformMixedEsModules: true
+            },
             minify: false,
         },
         resolve: {
@@ -24,9 +27,7 @@ export default defineConfig(({ mode }) => {
             },
         },
         plugins: [
-            commonjs({
-                requireReturnsDefault: 'auto',
-            }),
+            commonjs(),
         ],
     };
 });

@@ -2,6 +2,8 @@ package welcome
 
 import (
 	"github.com/ether/etherpad-go/lib/settings"
+	"github.com/ether/etherpad-go/lib/utils"
+	"strconv"
 )
 
 templ Page(settings settings.Settings) {
@@ -26,7 +28,7 @@ templ Page(settings settings.Settings) {
 					</form>
 				</div>
 			</div>
-			<script src="/js/welcome/assets/main.js"></script>
+			<script type="module" src={"/js/welcome/assets/welcome.js?v="+strconv.Itoa(utils.RandomVersionString)}></script>
 		</body>
 	</html>
 }

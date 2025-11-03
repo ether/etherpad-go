@@ -31,7 +31,7 @@ importers:
         version: 1.6.0
       vite-plugin-require:
         specifier: ^1.2.14
-        version: 1.2.14(vite@7.1.12(@types/node@20.19.24)(terser@5.44.0))
+        version: 1.2.14(esbuild@0.25.12)(vite@7.1.12(@types/node@20.19.24)(terser@5.44.0))
       y-quill:
         specifier: ^1.0.0
         version: 1.0.0(quill-cursors@4.0.4)(quill@2.0.3)(yjs@13.6.27)
@@ -51,6 +51,9 @@ importers:
       '@types/node':
         specifier: ^20.16.11
         version: 20.19.24
+      esbuild:
+        specifier: 0.25.12
+        version: 0.25.12
       typescript:
         specifier: ^5.6.3
         version: 5.9.3
@@ -2023,14 +2026,16 @@ snapshots:
 
   tapable@2.3.0: {}
 
-  terser-webpack-plugin@5.3.14(webpack@5.102.1):
+  terser-webpack-plugin@5.3.14(esbuild@0.25.12)(webpack@5.102.1(esbuild@0.25.12)):
     dependencies:
       '@jridgewell/trace-mapping': 0.3.31
       jest-worker: 27.5.1
       schema-utils: 4.3.3
       serialize-javascript: 6.0.2
       terser: 5.44.0
-      webpack: 5.102.1
+      webpack: 5.102.1(esbuild@0.25.12)
+    optionalDependencies:
+      esbuild: 0.25.12
 
   terser@5.44.0:
     dependencies:
@@ -2063,7 +2068,7 @@ snapshots:
   util-deprecate@1.0.2:
     optional: true
 
-  vite-plugin-require@1.2.14(vite@7.1.12(@types/node@20.19.24)(terser@5.44.0)):
+  vite-plugin-require@1.2.14(esbuild@0.25.12)(vite@7.1.12(@types/node@20.19.24)(terser@5.44.0)):
     dependencies:
       '@babel/generator': 7.28.5
       '@babel/parser': 7.28.5
@@ -2071,8 +2076,8 @@ snapshots:
       '@babel/types': 7.28.5
       '@vue/compiler-sfc': 3.5.22
       vite: 7.1.12(@types/node@20.19.24)(terser@5.44.0)
-      vue-loader: 17.4.2(@vue/compiler-sfc@3.5.22)(webpack@5.102.1)
-      webpack: 5.102.1
+      vue-loader: 17.4.2(@vue/compiler-sfc@3.5.22)(webpack@5.102.1(esbuild@0.25.12))
+      webpack: 5.102.1(esbuild@0.25.12)
     transitivePeerDependencies:
       - '@swc/core'
       - esbuild
@@ -2094,12 +2099,12 @@ snapshots:
       fsevents: 2.3.3
       terser: 5.44.0
 
-  vue-loader@17.4.2(@vue/compiler-sfc@3.5.22)(webpack@5.102.1):
+  vue-loader@17.4.2(@vue/compiler-sfc@3.5.22)(webpack@5.102.1(esbuild@0.25.12)):
     dependencies:
       chalk: 4.1.2
       hash-sum: 2.0.0
       watchpack: 2.4.4
-      webpack: 5.102.1
+      webpack: 5.102.1(esbuild@0.25.12)
     optionalDependencies:
       '@vue/compiler-sfc': 3.5.22
 
@@ -2110,7 +2115,7 @@ snapshots:
 
   webpack-sources@3.3.3: {}
 
-  webpack@5.102.1:
+  webpack@5.102.1(esbuild@0.25.12):
     dependencies:
       '@types/eslint-scope': 3.7.7
       '@types/estree': 1.0.8
@@ -2134,7 +2139,7 @@ snapshots:
       neo-async: 2.6.2
       schema-utils: 4.3.3
       tapable: 2.3.0
-      terser-webpack-plugin: 5.3.14(webpack@5.102.1)
+      terser-webpack-plugin: 5.3.14(esbuild@0.25.12)(webpack@5.102.1(esbuild@0.25.12))
       watchpack: 2.4.4
       webpack-sources: 3.3.3
     transitivePeerDependencies:

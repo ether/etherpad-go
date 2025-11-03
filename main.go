@@ -24,7 +24,6 @@ import (
 	"github.com/evanw/esbuild/pkg/api"
 	"github.com/gofiber/adaptor/v2"
 	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/filesystem"
 	"github.com/gofiber/fiber/v2/middleware/session"
 	"github.com/gofiber/swagger"
 	"github.com/gorilla/sessions"
@@ -133,60 +132,50 @@ func main() {
 	alias["ep_etherpad-lite/static/js/rjquery"] = relativePath + "/rjquery"
 	alias["ep_etherpad-lite/static/js/nice-select"] = "ep_etherpad-lite/static/js/vendors/nice-select"
 
-	app.Get("/js/*", func(c *fiber.Ctx) error {
-		println("Calling js", c.Path())
-		var entrypoint string
+	var nodeEnv = os.Getenv("NODE_ENV")
 
-		var nodeEnv = os.Getenv("NODE_ENV")
+	if nodeEnv == "production" {
+		registerEmbeddedStatic(app, "/js/pad/assets/", "assets/js/pad/assets")
+		registerEmbeddedStatic(app, "/js/welcome/assets/", "assets/welcome/pad/assets")
+	} else {
+		app.Get("/js/*", func(c *fiber.Ctx) error {
+			println("Calling js", c.Path())
+			var entrypoint string
 
-		if nodeEnv == "production" {
 			if strings.Contains(c.Path(), "welcome") {
-				entriesForWelcomePage, err := uiAssets.ReadDir("assets/js/welcome/assets")
-				if err != nil {
-					panic("Could not find static js files in production mode" + err.Error())
-				}
-				return filesystem.SendFile(c, http.FS(uiAssets), "assets/js/welcome/assets/"+entriesForWelcomePage[0].Name())
+				entrypoint = "./src/welcome.js"
 			} else {
-				entriesForPadPage, err := uiAssets.ReadDir("assets/js/pad/assets")
-				if err != nil {
-					panic("Could not find static js files in production mode" + err.Error())
-				}
-				return filesystem.SendFile(c, http.FS(uiAssets), "asset/js/welcome/assets/"+entriesForPadPage[0].Name())
+				entrypoint = "./src/pad.js"
 			}
-		}
 
-		if strings.Contains(c.Path(), "welcome") {
-			entrypoint = "./src/welcome.js"
-		} else {
-			entrypoint = "./src/pad.js"
-		}
+			var pathToBuild = path.Join(*settings2.Displayed.Root, "ui")
 
-		var pathToBuild = path.Join(*settings2.Displayed.Root, "ui")
+			result := api.Build(api.BuildOptions{
+				EntryPoints:   []string{entrypoint},
+				AbsWorkingDir: pathToBuild,
+				Bundle:        true,
+				Write:         false,
+				LogLevel:      api.LogLevelInfo,
+				Metafile:      true,
+				Target:        api.ES2020,
+				Alias:         alias,
+				Sourcemap:     api.SourceMapInline,
+			})
 
-		result := api.Build(api.BuildOptions{
-			EntryPoints:   []string{entrypoint},
-			AbsWorkingDir: pathToBuild,
-			Bundle:        true,
-			Write:         false,
-			LogLevel:      api.LogLevelInfo,
-			Metafile:      true,
-			Target:        api.ES2020,
-			Alias:         alias,
-			Sourcemap:     api.SourceMapInline,
+			if len(result.Errors) > 0 {
+				fmt.Println("Build failed with errors:", result.Errors)
+				return c.SendString("Build failed")
+			}
+
+			c.Set("Content-Type", "application/javascript")
+
+			return c.Send(result.OutputFiles[0].Contents)
 		})
+	}
 
-		if len(result.Errors) > 0 {
-			fmt.Println("Build failed with errors:", result.Errors)
-			return c.SendString("Build failed")
-		}
-
-		c.Set("Content-Type", "application/javascript")
-
-		return c.Send(result.OutputFiles[0].Contents)
-	})
 	registerEmbeddedStatic(app, "/images", "assets/images")
-	registerEmbeddedStatic(app, "/static/empty.html", "assets/html/empty.html")
-	registerEmbeddedStatic(app, "/pluginfw/plugin-definitions.json", "assets/plugin/plugin-definitions.json")
+	registerEmbeddedStatic(app, "/static/", "assets/html")
+	registerEmbeddedStatic(app, "/pluginfw", "assets/plugin")
 
 	app.Use("/p/", func(c *fiber.Ctx) error {
 		c.Path()
