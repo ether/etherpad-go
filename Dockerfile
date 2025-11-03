@@ -9,7 +9,7 @@ WORKDIR /app
 RUN  npm install -g pnpm@latest
 
 COPY ./ui/package.json .
-COPY ./ui/package-lock.json .
+COPY ./ui/pnpm-lock.yaml .
 RUN pnpm install
 COPY ./ui .
 RUN pnpm run build
