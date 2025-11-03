@@ -479,7 +479,9 @@ func HandleUserInfoUpdate(userInfo UserInfoUpdate, client *Client) {
 	}
 
 	authorManager.SetAuthorColor(session.Author, colorId)
-	authorManager.SetAuthorName(session.Author, *userInfo.Data.UserInfo.Name)
+	if userInfo.Data.UserInfo.Name != nil {
+		authorManager.SetAuthorName(session.Author, *userInfo.Data.UserInfo.Name)
+	}
 	var padId = session.PadId
 
 	var padSockets = GetRoomSockets(padId)

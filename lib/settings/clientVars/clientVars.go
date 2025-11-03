@@ -1,6 +1,8 @@
 package clientVars
 
 import (
+	"time"
+
 	apool2 "github.com/ether/etherpad-go/lib/apool"
 	author2 "github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/models/clientVars"
@@ -8,7 +10,6 @@ import (
 	"github.com/ether/etherpad-go/lib/models/ws"
 	pad2 "github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/utils"
-	"time"
 )
 
 func NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apool2.APool) clientVars.ClientVars {
@@ -26,23 +27,26 @@ func NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apool2.APool) cli
 
 		historyData[author] = clientVars.CollabAuthor{
 			Name:    retrievedAuthor.Name,
-			ColorId: &utils.ColorPalette[retrievedAuthor.ColorId],
+			ColorId: utils.ColorPalette[retrievedAuthor.ColorId],
 		}
 	}
 
-	var padOptions = make(map[string]bool)
+	var padOptions = make(map[string]*bool)
 
-	padOptions["noColors"] = false
-	padOptions["showControl"] = true
-	padOptions["showChat"] = true
-	padOptions["showLineNumbers"] = true
-	padOptions["useMonospaceFont"] = false
-	padOptions["userName"] = false
-	padOptions["userColor"] = false
-	padOptions["rtl"] = false
-	padOptions["alwaysShowChat"] = false
-	padOptions["chatAndUsers"] = false
-	padOptions["lang"] = false
+	var boolTrue = true
+	var boolFalse = false
+
+	padOptions["noColors"] = &boolFalse
+	padOptions["showControls"] = &boolTrue
+	padOptions["showChat"] = &boolTrue
+	padOptions["showLineNumbers"] = &boolTrue
+	padOptions["useMonospaceFont"] = &boolFalse
+	padOptions["userName"] = nil
+	padOptions["userColor"] = nil
+	padOptions["rtl"] = &boolFalse
+	padOptions["alwaysShowChat"] = &boolFalse
+	padOptions["chatAndUsers"] = &boolFalse
+	padOptions["lang"] = nil
 
 	var padShortCutEnabled = make(map[string]bool)
 	padShortCutEnabled["altF9"] = true
@@ -155,6 +159,7 @@ func NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apool2.APool) cli
 			ScrollWhenCaretIsInTheLastLineOfViewport: false,
 			PercentageToScrollWhenUserPressesArrowUp: 0,
 		},
-		Plugins: rootPlugin,
+		Plugins:           rootPlugin,
+		InitialChangesets: make([]string, 0),
 	}
 }
