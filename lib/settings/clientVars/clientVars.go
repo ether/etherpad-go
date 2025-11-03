@@ -27,7 +27,7 @@ func NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apool2.APool) cli
 
 		historyData[author] = clientVars.CollabAuthor{
 			Name:    retrievedAuthor.Name,
-			ColorId: utils.ColorPalette[retrievedAuthor.ColorId],
+			ColorId: retrievedAuthor.ColorId,
 		}
 	}
 
@@ -139,7 +139,7 @@ func NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apool2.APool) cli
 		ColorPalette:           utils.ColorPalette,
 		ClientIP:               "127.0.0.1",
 		PadId:                  pad.Id,
-		UserColor:              utils.ColorPalette[1],
+		UserColor:              currentAuthor.ColorId,
 		PadOptions:             padOptions,
 		PadShortcutEnabled:     padShortCutEnabled,
 		InitialTitle:           "Pad: " + pad.Id,

@@ -23,12 +23,12 @@ func NewManager() Manager {
 type Author struct {
 	Id        string
 	Name      *string
-	ColorId   int
+	ColorId   string
 	PadIDs    map[string]struct{}
 	Timestamp int64
 }
 
-func (m *Manager) SetAuthorColor(author string, colorId int) {
+func (m *Manager) SetAuthorColor(author string, colorId string) {
 	m.Db.SaveAuthorColor(author, colorId)
 }
 
@@ -80,7 +80,7 @@ func (m *Manager) CreateAuthor(name *string) Author {
 		Id:        authorId,
 		Name:      name,
 		PadIDs:    make(map[string]struct{}),
-		ColorId:   rand.Intn(len(utils.ColorPalette)),
+		ColorId:   utils.ColorPalette[rand.Intn(len(utils.ColorPalette))],
 		Timestamp: time.Now().Unix(),
 	}
 

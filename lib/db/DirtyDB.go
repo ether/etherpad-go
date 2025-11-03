@@ -486,6 +486,9 @@ func (d SQLiteDB) GetAuthorByToken(token string) (*string, error) {
 }
 
 func (d SQLiteDB) SaveAuthor(author db.AuthorDB) {
+	if author.ID == "" {
+		return
+	}
 	var foundAuthor, err = d.GetAuthor(author.ID)
 
 	if foundAuthor == nil && err == nil {
@@ -514,9 +517,12 @@ func (d SQLiteDB) SaveAuthor(author db.AuthorDB) {
 }
 
 func (d SQLiteDB) SaveAuthorName(authorId string, authorName string) {
+	if authorId == "" {
+		return
+	}
 	var authorString, err = d.GetAuthor(authorId)
 
-	if err != nil {
+	if err != nil || authorString == nil {
 		return
 	}
 
@@ -524,10 +530,14 @@ func (d SQLiteDB) SaveAuthorName(authorId string, authorName string) {
 	d.SaveAuthor(*authorString)
 }
 
-func (d SQLiteDB) SaveAuthorColor(authorId string, authorColor int) {
+func (d SQLiteDB) SaveAuthorColor(authorId string, authorColor string) {
+	if authorId == "" {
+		return
+	}
+
 	var authorString, err = d.GetAuthor(authorId)
 
-	if err != nil {
+	if err != nil || authorString == nil {
 		return
 	}
 
@@ -595,7 +605,7 @@ func NewDirtyDB(path string) (*SQLiteDB, error) {
 		panic(err.Error())
 	}
 
-	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS globalAuthor(id TEXT PRIMARY KEY, colorId INTEGER, name TEXT, timestamp BIGINT)")
+	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS globalAuthor(id TEXT PRIMARY KEY, colorId TEXT, name TEXT, timestamp BIGINT)")
 
 	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS pad2readonly(id TEXT PRIMARY KEY, data TEXT)")
 

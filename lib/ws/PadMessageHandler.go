@@ -17,7 +17,6 @@ import (
 	"github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/ether/etherpad-go/lib/settings/clientVars"
-	"github.com/ether/etherpad-go/lib/utils"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gorilla/websocket"
 )
@@ -469,16 +468,9 @@ func HandleUserInfoUpdate(userInfo UserInfoUpdate, client *Client) {
 		return
 	}
 
-	// Tell the authorManager about the new attributes
-	var colorId int
-
-	for i, color := range utils.ColorPalette {
-		if *userInfo.Data.UserInfo.ColorId == color {
-			colorId = i
-		}
+	if userInfo.Data.UserInfo.ColorId != nil {
+		authorManager.SetAuthorColor(session.Author, *userInfo.Data.UserInfo.ColorId)
 	}
-
-	authorManager.SetAuthorColor(session.Author, colorId)
 	if userInfo.Data.UserInfo.Name != nil {
 		authorManager.SetAuthorName(session.Author, *userInfo.Data.UserInfo.Name)
 	}
@@ -569,15 +561,8 @@ func HandleClientReadyMessage(ready ws.ClientReady, client *Client, thisSession 
 		authorManager.SetAuthorName(thisSession.Author, *ready.Data.UserInfo.Name)
 	}
 
-	var selectedColor = 0
 	if ready.Data.UserInfo.ColorId != nil {
-		for i, val := range utils.ColorPalette {
-			if val == *ready.Data.UserInfo.ColorId {
-				selectedColor = i
-			}
-		}
-
-		authorManager.SetAuthorColor(thisSession.Author, selectedColor)
+		authorManager.SetAuthorColor(thisSession.Author, *ready.Data.UserInfo.ColorId)
 	}
 
 	var retrievedPad, err = padManager.GetPad(thisSession.PadId, nil, &thisSession.Author)
