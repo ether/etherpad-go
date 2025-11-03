@@ -141,17 +141,17 @@ func main() {
 
 		if nodeEnv == "production" {
 			if strings.Contains(c.Path(), "welcome") {
-				entriesForWelcomePage, err := uiAssets.ReadDir("js/welcome/assets")
+				entriesForWelcomePage, err := uiAssets.ReadDir("assets/js/welcome/assets")
 				if err != nil {
 					panic("Could not find static js files in production mode" + err.Error())
 				}
-				return filesystem.SendFile(c, http.FS(uiAssets), "js/welcome/assets"+entriesForWelcomePage[0].Name())
+				return filesystem.SendFile(c, http.FS(uiAssets), "assets/js/welcome/assets/"+entriesForWelcomePage[0].Name())
 			} else {
-				entriesForPadPage, err := uiAssets.ReadDir("js/pad/assets")
+				entriesForPadPage, err := uiAssets.ReadDir("assets/js/pad/assets")
 				if err != nil {
 					panic("Could not find static js files in production mode" + err.Error())
 				}
-				return filesystem.SendFile(c, http.FS(uiAssets), "js/welcome/assets"+entriesForPadPage[0].Name())
+				return filesystem.SendFile(c, http.FS(uiAssets), "asset/js/welcome/assets/"+entriesForPadPage[0].Name())
 			}
 		}
 
