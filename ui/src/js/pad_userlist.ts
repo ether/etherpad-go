@@ -350,6 +350,7 @@ const paduserlist = (() => {
     init: (myInitialUserInfo, _pad) => {
       pad = _pad;
 
+      console.log(myInitialUserInfo);
       self.setMyUserInfo(myInitialUserInfo);
 
       if ($('#online_count').length === 0) {

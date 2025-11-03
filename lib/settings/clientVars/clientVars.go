@@ -16,10 +16,10 @@ func NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apool2.APool) cli
 	var historyData = make(map[string]clientVars.CollabAuthor)
 	var readonlyManager = pad2.NewReadOnlyManager()
 	var allauthors = pad.GetAllAuthors()
+	authorManager := author2.NewManager()
 
 	for _, author := range allauthors {
-		manager := author2.NewManager()
-		var retrievedAuthor, err = manager.GetAuthor(author)
+		var retrievedAuthor, err = authorManager.GetAuthor(author)
 
 		if err != nil {
 			continue
@@ -29,6 +29,11 @@ func NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apool2.APool) cli
 			Name:    retrievedAuthor.Name,
 			ColorId: utils.ColorPalette[retrievedAuthor.ColorId],
 		}
+	}
+
+	var currentAuthor, err = authorManager.GetAuthor(sessionInfo.Author)
+	if err != nil {
+		panic(err)
 	}
 
 	var padOptions = make(map[string]*bool)
@@ -145,6 +150,7 @@ func NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apool2.APool) cli
 		ReadOnly:               readonlyId.ReadOnly,
 		ServerTimeStamp:        int64(time.Now().Second()),
 		SessionRefreshInterval: 86400000,
+		UserName:               currentAuthor.Name,
 		UserId:                 sessionInfo.Author,
 		AbiwordAvailable:       "no",
 		SOfficeAvailable:       "no",

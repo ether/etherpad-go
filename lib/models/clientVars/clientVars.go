@@ -90,6 +90,7 @@ type ClientVars struct {
 	ReadOnlyId                         string                             `json:"readOnlyId"`
 	ReadOnly                           bool                               `json:"readonly"`
 	ServerTimeStamp                    int64                              `json:"serverTimestamp"`
+	UserName                           *string                            `json:"userName"`
 	SessionRefreshInterval             int                                `json:"sessionRefreshInterval"`
 	UserId                             string                             `json:"userId"`
 	AbiwordAvailable                   string                             `json:"abiwordAvailable"`
