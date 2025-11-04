@@ -190,7 +190,9 @@ func main() {
 
 	app.Get("/pluginfw/plugin-definitions.json", plugins.ReturnPluginResponse)
 	registerEmbeddedStatic(app, "/images/favicon.ico", "assets/images/favicon.ico")
-	app.Get("/p/*", pad.HandlePadOpen)
+	app.Get("/p/*", func(ctx *fiber.Ctx) error {
+		return pad.HandlePadOpen(ctx, uiAssets)
+	})
 
 	app.Get("/favicon.ico", func(c *fiber.Ctx) error {
 		return c.Redirect("/images/favicon.ico", fiber.StatusMovedPermanently)

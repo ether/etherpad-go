@@ -5,44 +5,44 @@ import (
 	"github.com/ether/etherpad-go/lib/hooks"
 )
 
-templ EditBar() {
+templ EditBar(translations map[string]string) {
       <div id="editbar" class="toolbar enabledtoolbar" style="display: flex;">
           <div id="toolbar-overlay"></div>
 
           <ul class="menu_left" role="toolbar">
 
-                    <li data-type="button" data-key="bold"><a class="grouped-left" data-l10n-id="pad.toolbar.bold.title" title="Fett (Strg-B)" aria-label="Fett (Strg-B)"><button class=" buttonicon buttonicon-bold" data-l10n-id="pad.toolbar.bold.title" title="Fett (Strg-B)" aria-label="Fett (Strg-B)"></button></a></li>
-          <li data-type="button" data-key="italic"><a class="grouped-middle" data-l10n-id="pad.toolbar.italic.title" title="Kursiv (Strg-I)" aria-label="Kursiv (Strg-I)"><button class=" buttonicon buttonicon-italic" data-l10n-id="pad.toolbar.italic.title" title="Kursiv (Strg-I)" aria-label="Kursiv (Strg-I)"></button></a></li>
-          <li data-type="button" data-key="underline"><a class="grouped-middle" data-l10n-id="pad.toolbar.underline.title" title="Unterstrichen (Strg-U)" aria-label="Unterstrichen (Strg-U)"><button class=" buttonicon buttonicon-underline" data-l10n-id="pad.toolbar.underline.title" title="Unterstrichen (Strg-U)" aria-label="Unterstrichen (Strg-U)"></button></a></li>
-          <li data-type="button" data-key="strikethrough"><a class="grouped-right" data-l10n-id="pad.toolbar.strikethrough.title" title="Durchgestrichen (Strg+5)" aria-label="Durchgestrichen (Strg+5)"><button class=" buttonicon buttonicon-strikethrough" data-l10n-id="pad.toolbar.strikethrough.title" title="Durchgestrichen (Strg+5)" aria-label="Durchgestrichen (Strg+5)"></button></a></li><li class="separator"></li><li data-type="button" data-key="insertorderedlist"><a class="grouped-left" data-l10n-id="pad.toolbar.ol.title" title="Nummerierte Liste (Strg+Shift+N)" aria-label="Nummerierte Liste (Strg+Shift+N)"><button class=" buttonicon buttonicon-insertorderedlist" data-l10n-id="pad.toolbar.ol.title" title="Nummerierte Liste (Strg+Shift+N)" aria-label="Nummerierte Liste (Strg+Shift+N)"></button></a></li>
-          <li data-type="button" data-key="insertunorderedlist"><a class="grouped-middle" data-l10n-id="pad.toolbar.ul.title" title="Ungeordnete Liste (Strg+Shift+L)" aria-label="Ungeordnete Liste (Strg+Shift+L)"><button class=" buttonicon buttonicon-insertunorderedlist" data-l10n-id="pad.toolbar.ul.title" title="Ungeordnete Liste (Strg+Shift+L)" aria-label="Ungeordnete Liste (Strg+Shift+L)"></button></a></li>
-          <li data-type="button" data-key="indent"><a class="grouped-middle" data-l10n-id="pad.toolbar.indent.title" title="Einrücken (TAB)" aria-label="Einrücken (TAB)"><button class=" buttonicon buttonicon-indent" data-l10n-id="pad.toolbar.indent.title" title="Einrücken (TAB)" aria-label="Einrücken (TAB)"></button></a></li>
-          <li data-type="button" data-key="outdent"><a class="grouped-right" data-l10n-id="pad.toolbar.unindent.title" title="Ausrücken (Shift+TAB)" aria-label="Ausrücken (Shift+TAB)"><button class=" buttonicon buttonicon-outdent" data-l10n-id="pad.toolbar.unindent.title" title="Ausrücken (Shift+TAB)" aria-label="Ausrücken (Shift+TAB)"></button></a></li><li class="separator"></li><li data-type="button" data-key="undo"><a class="grouped-left" data-l10n-id="pad.toolbar.undo.title" title="Rückgängig (Strg-Z)" aria-label="Rückgängig (Strg-Z)"><button class=" buttonicon buttonicon-undo" data-l10n-id="pad.toolbar.undo.title" title="Rückgängig (Strg-Z)" aria-label="Rückgängig (Strg-Z)"></button></a></li>
-          <li data-type="button" data-key="redo"><a class="grouped-right" data-l10n-id="pad.toolbar.redo.title" title="Wiederholen (Strg-Y)" aria-label="Wiederholen (Strg-Y)"><button class=" buttonicon buttonicon-redo" data-l10n-id="pad.toolbar.redo.title" title="Wiederholen (Strg-Y)" aria-label="Wiederholen (Strg-Y)"></button></a></li><li class="separator"></li><li data-type="button" data-key="clearauthorship"><a class="" data-l10n-id="pad.toolbar.clearAuthorship.title" title="Autorenfarben zurücksetzen (Strg+Shift+C)" aria-label="Autorenfarben zurücksetzen (Strg+Shift+C)"><button class=" buttonicon buttonicon-clearauthorship" data-l10n-id="pad.toolbar.clearAuthorship.title" title="Autorenfarben zurücksetzen (Strg+Shift+C)" aria-label="Autorenfarben zurücksetzen (Strg+Shift+C)"></button></a></li>
+                    <li data-type="button" data-key="bold"><a class="grouped-left" title={translations["pad.toolbar.bold.title"]} aria-label={translations["pad.toolbar.bold.title"]}><button class=" buttonicon buttonicon-bold" title={translations["pad.toolbar.bold.title"]} aria-label={translations["pad.toolbar.bold.title"]}></button></a></li>
+          <li data-type="button" data-key="italic"><a class="grouped-middle" title={translations["pad.toolbar.italic.title"]} aria-label={translations["pad.toolbar.italic.title"]}><button class=" buttonicon buttonicon-italic" title={translations["pad.toolbar.italic.title"]} aria-label={translations["pad.toolbar.italic.title"]}></button></a></li>
+          <li data-type="button" data-key="underline"><a class="grouped-middle" title={translations["pad.toolbar.underline.title"]} aria-label={translations["pad.toolbar.underline.title"]}><button class=" buttonicon buttonicon-underline" title={translations["pad.toolbar.underline.title"]} aria-label={translations["pad.toolbar.underline.title"]}></button></a></li>
+          <li data-type="button" data-key="strikethrough"><a class="grouped-right" title={translations["pad.toolbar.strikethrough.title"]} aria-label={translations["pad.toolbar.strikethrough.title"]}><button class=" buttonicon buttonicon-strikethrough" title={translations["pad.toolbar.strikethrough.title"]} aria-label={translations["pad.toolbar.strikethrough.title"]}></button></a></li><li class="separator"></li><li data-type="button" data-key="insertorderedlist"><a class="grouped-left" title={translations["pad.toolbar.ol.title"]} aria-label={translations["pad.toolbar.ol.title"]}><button class=" buttonicon buttonicon-insertorderedlist" title={translations["pad.toolbar.ol.title"]} aria-label={translations["pad.toolbar.ol.title"]}></button></a></li>
+          <li data-type="button" data-key="insertunorderedlist"><a class="grouped-middle" title={translations["pad.toolbar.ul.title"]} aria-label={translations["pad.toolbar.ul.title"]}><button class=" buttonicon buttonicon-insertunorderedlist" title={translations["pad.toolbar.ul.title"]} aria-label={translations["pad.toolbar.ul.title"]}></button></a></li>
+          <li data-type="button" data-key="indent"><a class="grouped-middle" title={translations["pad.toolbar.indent.title"]} aria-label={translations["pad.toolbar.indent.title"]}><button class=" buttonicon buttonicon-indent" title={translations["pad.toolbar.indent.title"]} aria-label={translations["pad.toolbar.indent.title"]}></button></a></li>
+          <li data-type="button" data-key="outdent"><a class="grouped-right" title={translations["pad.toolbar.unindent.title"]} aria-label={translations["pad.toolbar.unindent.title"]}><button class=" buttonicon buttonicon-outdent" title={translations["pad.toolbar.unindent.title"]} aria-label={translations["pad.toolbar.unindent.title"]}></button></a></li><li class="separator"></li><li data-type="button" data-key="undo"><a class="grouped-left" title={translations["pad.toolbar.undo.title"]} aria-label={translations["pad.toolbar.undo.title"]}><button class=" buttonicon buttonicon-undo" title={translations["pad.toolbar.undo.title"]} aria-label={translations["pad.toolbar.undo.title"]}></button></a></li>
+          <li data-type="button" data-key="redo"><a class="grouped-right" title={translations["pad.toolbar.redo.title"]} aria-label={translations["pad.toolbar.redo.title"]}><button class=" buttonicon buttonicon-redo" title={translations["pad.toolbar.redo.title"]} aria-label={translations["pad.toolbar.redo.title"]}></button></a></li><li class="separator"></li><li data-type="button" data-key="clearauthorship"><a class="" title={translations["pad.toolbar.clearAuthorship.title"]} aria-label={translations["pad.toolbar.clearAuthorship.title"]}><button class=" buttonicon buttonicon-clearauthorship" title={translations["pad.toolbar.clearAuthorship.title"]} aria-label={translations["pad.toolbar.clearAuthorship.title"]}></button></a></li>
 
           </ul>
           <ul class="menu_right" role="toolbar">
 
-                    <li data-type="button" data-key="import_export"><a class="grouped-left" data-l10n-id="pad.toolbar.import_export.title" title="Import/Export von/zu verschiedenen Dateiformaten" aria-label="Import/Export von/zu verschiedenen Dateiformaten"><button class=" buttonicon buttonicon-import_export" data-l10n-id="pad.toolbar.import_export.title" title="Import/Export von/zu verschiedenen Dateiformaten" aria-label="Import/Export von/zu verschiedenen Dateiformaten"></button></a></li>
-          <li data-type="button" data-key="showTimeSlider"><a class="grouped-middle" data-l10n-id="pad.toolbar.timeslider.title" title="Bearbeitungsverlauf" aria-label="Bearbeitungsverlauf"><button class=" buttonicon buttonicon-history" data-l10n-id="pad.toolbar.timeslider.title" title="Bearbeitungsverlauf" aria-label="Bearbeitungsverlauf"></button></a></li>
-          <li data-type="button" data-key="savedRevision"><a class="grouped-right" data-l10n-id="pad.toolbar.savedRevision.title" title="Version speichern" aria-label="Version speichern"><button class=" buttonicon buttonicon-savedRevision" data-l10n-id="pad.toolbar.savedRevision.title" title="Version speichern" aria-label="Version speichern"></button></a></li><li class="separator"></li><li data-type="button" data-key="settings"><a class="grouped-left" data-l10n-id="pad.toolbar.settings.title" title="Einstellungen" aria-label="Einstellungen"><button class=" buttonicon buttonicon-settings" data-l10n-id="pad.toolbar.settings.title" title="Einstellungen" aria-label="Einstellungen"></button></a></li>
-          <li data-type="button" data-key="embed"><a class="grouped-right" data-l10n-id="pad.toolbar.embed.title" title="Dieses Pad teilen oder einbetten" aria-label="Dieses Pad teilen oder einbetten"><button class=" buttonicon buttonicon-embed" data-l10n-id="pad.toolbar.embed.title" title="Dieses Pad teilen oder einbetten" aria-label="Dieses Pad teilen oder einbetten"></button></a></li><li class="separator"></li><li data-type="button" data-key="showusers"><a class="" data-l10n-id="pad.toolbar.showusers.title" title="Benutzer dieses Pads anzeigen" aria-label="Benutzer dieses Pads anzeigen" style="box-shadow: rgb(207, 255, 158) 0px 0px 30px inset;"><button class=" buttonicon buttonicon-showusers" data-l10n-id="pad.toolbar.showusers.title" title="Benutzer dieses Pads anzeigen" aria-label="Benutzer dieses Pads anzeigen"></button><span id="online_count">1</span></a></li>
+                    <li data-type="button" data-key="import_export"><a class="grouped-left" title={translations["pad.toolbar.import_export.title"]} aria-label={translations["pad.toolbar.import_export.title"]}><button class=" buttonicon buttonicon-import_export" title={translations["pad.toolbar.import_export.title"]} aria-label={translations["pad.toolbar.import_export.title"]}></button></a></li>
+          <li data-type="button" data-key="showTimeSlider"><a class="grouped-middle" title={translations["pad.toolbar.timeslider.title"]} aria-label={translations["pad.toolbar.timeslider.title"]}><button class=" buttonicon buttonicon-history" title={translations["pad.toolbar.timeslider.title"]} aria-label={translations["pad.toolbar.timeslider.title"]}></button></a></li>
+          <li data-type="button" data-key="savedRevision"><a class="grouped-right" title={translations["pad.toolbar.savedRevision.title"]} aria-label={translations["pad.toolbar.savedRevision.title"]}><button class=" buttonicon buttonicon-savedRevision" title={translations["pad.toolbar.savedRevision.title"]} aria-label={translations["pad.toolbar.savedRevision.title"]}></button></a></li><li class="separator"></li><li data-type="button" data-key="settings"><a class="grouped-left" title={translations["pad.toolbar.settings.title"]} aria-label={translations["pad.toolbar.settings.title"]}><button class=" buttonicon buttonicon-settings" title={translations["pad.toolbar.settings.title"]} aria-label={translations["pad.toolbar.settings.title"]}></button></a></li>
+          <li data-type="button" data-key="embed"><a class="grouped-right" title={translations["pad.toolbar.embed.title"]} aria-label={translations["pad.toolbar.embed.title"]}><button class=" buttonicon buttonicon-embed" title={translations["pad.toolbar.embed.title"]} aria-label={translations["pad.toolbar.embed.title"]}></button></a></li><li class="separator"></li><li data-type="button" data-key="showusers"><a class="" title={translations["pad.toolbar.showusers.title"]} aria-label={translations["pad.toolbar.showusers.title"]} style="box-shadow: rgb(207, 255, 158) 0px 0px 30px inset;"><button class=" buttonicon buttonicon-showusers" title={translations["pad.toolbar.showusers.title"]} aria-label={translations["pad.toolbar.showusers.title"]}></button><span id="online_count">1</span></a></li>
 
           </ul>
           <span class="show-more-icon-btn"></span> <!-- use on small screen to display hidden toolbar buttons -->
       </div>
 }
 
-templ EditorLoadingBox() {
+templ EditorLoadingBox(translations map[string]string) {
           <div id="editorloadingbox">
             <div id="permissionDenied">
-              <p data-l10n-id="pad.permissionDenied" class="editorloadingbox-message">
-                You do not have permission to access this pad
+              <p class="editorloadingbox-message">
+                {translations["pad.permissionDenied"]}
               </p>
             </div>
-            <p data-l10n-id="pad.loading" id="loading" class="editorloadingbox-message">
+            <p id="loading" class="editorloadingbox-message">
               <img src='/images/brand.svg' class='etherpadBrand'/><br/>
-              Loading...
+              {translations["pad.loading"]}
             </p>
             <noscript>
               <p class="editorloadingbox-message">
@@ -54,49 +54,49 @@ templ EditorLoadingBox() {
           </div>
 }
 
-templ SettingsPopup() {
+templ SettingsPopup(translations map[string]string) {
           <div id="settings" class="popup"><div class="popup-content">
-              <h1 data-l10n-id="pad.settings.padSettings"></h1>
-              <h2 data-l10n-id="pad.settings.myView"></h2>
+              <h1>{translations["pad.settings.padSettings"]}</h1>
+              <h2>{translations["pad.settings.myView"]}</h2>
               <p class="hide-for-mobile">
                   <input type="checkbox" id="options-stickychat"/>
-                  <label for="options-stickychat" data-l10n-id="pad.settings.stickychat"></label>
+                  <label for="options-stickychat">{translations["pad.settings.stickychat"]}</label>
               </p>
               <p class="hide-for-mobile">
                   <input type="checkbox" id="options-chatandusers" onClick="chat.chatAndUsers();"/>
-                  <label for="options-chatandusers" data-l10n-id="pad.settings.chatandusers"></label>
+                  <label for="options-chatandusers">{translations["pad.settings.chatandusers"]}</label>
               </p>
               <p>
                   <input type="checkbox" id="options-colorscheck"/>
-                  <label for="options-colorscheck" data-l10n-id="pad.settings.colorcheck"></label>
+                  <label for="options-colorscheck">{translations["pad.settings.colorcheck"]}</label>
               </p>
               <p>
                   <input type="checkbox" id="options-linenoscheck" checked/>
-                  <label for="options-linenoscheck" data-l10n-id="pad.settings.linenocheck"></label>
+                  <label for="options-linenoscheck">{translations["pad.settings.linenocheck"]}</label>
               </p>
               <p>
                   <input type="checkbox" id="options-rtlcheck"/>
-                  <label for="options-rtlcheck" data-l10n-id="pad.settings.rtlcheck"></label>
+                  <label for="options-rtlcheck">{translations["pad.settings.rtlcheck"]}</label>
               </p>
 
               <div class="dropdowns-container">
                 <p class="dropdown-line">
-                  <label for="viewfontmenu" data-l10n-id="pad.settings.fontType">Font type:</label>
+                  <label for="viewfontmenu">{translations["pad.settings.fontType"]}</label>
                   <select id="viewfontmenu">
-                    <option value="" data-l10n-id="pad.settings.fontType.normal">Normal</option>
+                    <option value="">{translations["pad.settings.fontType.normal"]}</option>
                   </select>
                 </p>
 
                 <p class="dropdown-line">
-                  <label for="languagemenu" data-l10n-id="pad.settings.language">Language:</label>
+                  <label for="languagemenu">{translations["pad.settings.language"]}</label>
                   <select id="languagemenu">
                   for key, valueInLoop := range hooks.AvailableLangs {
-                    <option value={key} data-l10n-id={valueInLoop.LanguageCode}>{valueInLoop.DisplayName}</option>
+                    <option value={key}>{valueInLoop.DisplayName}</option>
                   }
                   </select>
                 </p>
               </div>
-              <button data-l10n-id="pad.settings.deletePad" id="delete-pad">Delete pad</button>
+              <button id="delete-pad">{translations["pad.settings.deletePad"]}</button>
               <div id="theme-switcher" style="display: none;">
                     <svg width="2rem" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" />
@@ -109,8 +109,8 @@ templ SettingsPopup() {
                     </svg>
               </div>
 
-              <h2 data-l10n-id="pad.settings.about">About</h2>
-              <span data-l10n-id="pad.settings.poweredBy">Powered by</span>
+              <h2>{translations["pad.settings.about"]}</h2>
+              <span>{translations["pad.settings.poweredBy"]}</span>
               <a href="https://etherpad.org">Etherpad</a>
           </div></div>
 }
@@ -318,7 +318,7 @@ templ ChatBox() {
 
 
 
-templ Greeting(pad padModel.Model, jsScript string) {
+templ Greeting(pad padModel.Model, jsScript string, translations map[string]string) {
   <html class="pad super-light-toolbar super-light-editor light-background">
   <head>
     <title>Pad: {pad.Name}</title>
@@ -329,12 +329,12 @@ templ Greeting(pad padModel.Model, jsScript string) {
     <link rel="localizations" type="application/l10n+json" href="/locales.json"/>
   </head>
   <body>
-  @EditBar()
+  @EditBar(translations)
     <div id="editorcontainerbox" class="flex-layout">
               <div id="editorcontainer" class="editorcontainer"></div>
 
-            @EditorLoadingBox()
-            @SettingsPopup()
+            @EditorLoadingBox(translations)
+            @SettingsPopup(translations)
             @ImportExportPopup()
       <div class="sticky-container">
             @UserPopup()

@@ -12,22 +12,15 @@ import (
 	"github.com/ether/etherpad-go/lib/utils"
 )
 
-func NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apool2.APool) clientVars.ClientVars {
+func NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apool2.APool, historicalAuthorData map[string]author2.Author) clientVars.ClientVars {
 	var historyData = make(map[string]clientVars.CollabAuthor)
 	var readonlyManager = pad2.NewReadOnlyManager()
-	var allauthors = pad.GetAllAuthors()
 	authorManager := author2.NewManager()
 
-	for _, author := range allauthors {
-		var retrievedAuthor, err = authorManager.GetAuthor(author)
-
-		if err != nil {
-			continue
-		}
-
-		historyData[author] = clientVars.CollabAuthor{
-			Name:    retrievedAuthor.Name,
-			ColorId: retrievedAuthor.ColorId,
+	for _, authorData := range historicalAuthorData {
+		historyData[authorData.Id] = clientVars.CollabAuthor{
+			Name:    authorData.Name,
+			ColorId: authorData.ColorId,
 		}
 	}
 

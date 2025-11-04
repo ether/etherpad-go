@@ -612,7 +612,7 @@ export class Html10n {
     this.mt.trigger('indexed')
   }
 
-  translateNode(translations: Map<string, any>, node: HTMLElement) {
+  translateNode(_translations: Map<string, any>, node: HTMLElement) {
     const str: {
       id?: string,
       args?: any,
@@ -624,7 +624,7 @@ export class Html10n {
     str.id = node.getAttribute('data-l10n-id') as string
     if (!str.id) return
 
-    if(!translations.get(str.id)) return console.warn('Couldn\'t find translation key '+str.id)
+    //if(!translations.get(str.id)) return console.warn('Couldn\'t find translation key '+str.id)
 
     // get args
     if(window.JSON) {
