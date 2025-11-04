@@ -6,11 +6,9 @@ RUN apk add -U --no-cache ca-certificates
 FROM node:latest as frontend
 WORKDIR /app
 
-RUN  npm install -g pnpm@latest
-
 COPY ./ui/package.json .
 COPY ./ui/pnpm-lock.yaml .
-RUN pnpm install
+RUN npm install
 COPY ./ui .
 RUN node ./build.js
 
