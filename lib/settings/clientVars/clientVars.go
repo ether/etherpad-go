@@ -1,6 +1,7 @@
 package clientVars
 
 import (
+	"strconv"
 	"time"
 
 	apool2 "github.com/ether/etherpad-go/lib/apool"
@@ -103,6 +104,11 @@ func NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apool2.APool, his
 	var currentTime = pad.GetRevisionDate(pad.Head)
 	var readonlyId = readonlyManager.GetIds(&pad.Id)
 
+	etherPadConvertedAttribs := make(map[string][]string)
+	for k, v := range apool.NumToAttrib {
+		etherPadConvertedAttribs[strconv.Itoa(k)] = v.ToStringSlice()
+	}
+
 	return clientVars.ClientVars{
 		SkinName:            "colibris",
 		SkinVariants:        "super-light-toolbar super-light-editor light-background",
@@ -123,7 +129,7 @@ func NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apool2.APool, his
 			ClientIP:             "127.0.0.1",
 			HistoricalAuthorData: historyData,
 			Apool: clientVars.APool{
-				NumToAttrib: apool.NumToAttrib,
+				NumToAttrib: etherPadConvertedAttribs,
 				NextNum:     apool.NextNum,
 			},
 			Rev:  pad.Head,

@@ -5,6 +5,10 @@ type Attribute struct {
 	Value string `json:"value"`
 }
 
+func (a *Attribute) ToStringSlice() []string {
+	return []string{a.Key, a.Value}
+}
+
 func CmpAttribute(a, b Attribute) int {
 	if a.Key < b.Key {
 		return -1

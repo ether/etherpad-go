@@ -1,7 +1,5 @@
 package clientVars
 
-import "github.com/ether/etherpad-go/lib/apool"
-
 type AccountPrivs struct {
 	MaxRevisions int `json:"maxRevisions"`
 }
@@ -17,8 +15,8 @@ type CollabAuthor struct {
 }
 
 type APool struct {
-	NumToAttrib map[int]apool.Attribute `json:"numToAttrib"`
-	NextNum     int                     `json:"nextNum"`
+	NumToAttrib map[string][]string `json:"numToAttrib"`
+	NextNum     int                 `json:"nextNum"`
 }
 
 type CollabClientVars struct {
