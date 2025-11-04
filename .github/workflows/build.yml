@@ -16,27 +16,11 @@ jobs:
         uses: actions/setup-go@v4
         with:
           go-version: 1.25
-      - uses: actions/cache@v4
-        name: Setup gnpm cache
-        if: always()
-        with:
-          path: |
-            ${{ env.PNPM_HOME }}
-            ~/.local/share/gnpm
-            /usr/local/bin/gnpm
-            /usr/local/bin/gnpm-0.1.0
-          key: ${{ runner.os }}-gnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-gnpm-store-
-      - name: Setup gnpm
-        uses: SamTV12345/gnpm-setup@main
-        with:
-          version: 0.1.0
       - name: Install dependencies
-        run: gnpm install
+        run: npm install
         working-directory: ./ui
       - name: Build
-        run: gnpm node build.js
+        run: node build.js
         working-directory: ./ui
       - name: Install dependencies
         run: go mod download
