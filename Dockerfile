@@ -22,7 +22,9 @@ RUN go mod download
 
 COPY . .
 
-COPY --from=frontend /assets/js /assets/js
+COPY --from=frontend /assets/js/pad /assets/js/pad
+COPY --from=frontend /assets/js/welcome /assets/js/welcome
+
 
 RUN templ generate
 RUN go build -o app .

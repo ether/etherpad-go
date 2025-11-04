@@ -136,7 +136,7 @@ func main() {
 
 	if nodeEnv == "production" {
 		registerEmbeddedStatic(app, "/js/pad/assets/", "assets/js/pad/assets")
-		registerEmbeddedStatic(app, "/js/welcome/assets/", "assets/welcome/pad/assets")
+		registerEmbeddedStatic(app, "/js/welcome/assets/", "assets/js/welcome/assets")
 	} else {
 		app.Get("/js/*", func(c *fiber.Ctx) error {
 			println("Calling js", c.Path())
