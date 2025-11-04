@@ -20,6 +20,7 @@ import (
 	"github.com/ether/etherpad-go/lib/plugins"
 	session2 "github.com/ether/etherpad-go/lib/session"
 	settings2 "github.com/ether/etherpad-go/lib/settings"
+	"github.com/ether/etherpad-go/lib/utils"
 	"github.com/ether/etherpad-go/lib/ws"
 	"github.com/evanw/esbuild/pkg/api"
 	"github.com/gofiber/adaptor/v2"
@@ -94,7 +95,6 @@ func main() {
 		Storage:   db,
 	})
 	server := sio.NewServer()
-	component := welcome.Page(settings)
 
 	app.Get("/swagger/*", swagger.HandlerDefault) // default
 
@@ -190,13 +190,21 @@ func main() {
 
 	app.Get("/pluginfw/plugin-definitions.json", plugins.ReturnPluginResponse)
 	registerEmbeddedStatic(app, "/images/favicon.ico", "assets/images/favicon.ico")
-	app.Get("/p/*", pad.HandlePadOpen)
+	app.Get("/p/*", func(ctx *fiber.Ctx) error {
+		return pad.HandlePadOpen(ctx, uiAssets)
+	})
 
 	app.Get("/favicon.ico", func(c *fiber.Ctx) error {
 		return c.Redirect("/images/favicon.ico", fiber.StatusMovedPermanently)
 	})
 
 	app.Get("/", func(c *fiber.Ctx) error {
+		var language = c.Cookies("language", "en")
+		var keyValues, err = utils.LoadTranslations(language, uiAssets)
+		if err != nil {
+			return err
+		}
+		component := welcome.Page(settings, keyValues)
 		return adaptor.HTTPHandler(templ.Handler(component))(c)
 	})
 

@@ -1,6 +1,7 @@
 package pad
 
 import (
+	"embed"
 	"strconv"
 
 	"github.com/a-h/templ"
@@ -11,14 +12,20 @@ import (
 )
 import padAsset "github.com/ether/etherpad-go/assets/pad"
 
-func HandlePadOpen(c *fiber.Ctx) error {
+func HandlePadOpen(c *fiber.Ctx, uiAssets embed.FS) error {
 	pad := models.Model{
 		Name: "test",
 	}
 
+	var language = c.Cookies("language", "en")
+	var keyValues, err = utils.LoadTranslations(language, uiAssets)
+	if err != nil {
+		return err
+	}
+
 	jsFilePath := "/js/pad/assets/pad.js?v=" + strconv.Itoa(utils.RandomVersionString)
 
-	padComp := padAsset.Greeting(pad, jsFilePath)
+	padComp := padAsset.Greeting(pad, jsFilePath, keyValues)
 
 	return adaptor.HTTPHandler(templ.Handler(padComp))(c)
 }

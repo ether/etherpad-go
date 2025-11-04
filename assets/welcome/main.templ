@@ -6,7 +6,7 @@ import (
 	"strconv"
 )
 
-templ Page(settings settings.Settings) {
+templ Page(settings settings.Settings, translations map[string]string) {
 	<html lang="en">
 		<head>
 			<script>
@@ -20,8 +20,8 @@ templ Page(settings settings.Settings) {
 		<body>
 			<div id="wrapper">
 				<div id="inner">
-				<button id="button" data-l10n-id="index.newPad"></button>
-					<label id="label" for="padname" data-l10n-id="index.createOpenPad"></label>
+				<button id="button">{translations["index.newPad"]}</button>
+					<label id="label" for="padname">{translations["index.createOpenPad"]}</label>
 					<form action="#" id="go2Name">
 						<input type="text" id="padname" maxlength="50" autofocus/>
 						<button type="submit">OK</button>
