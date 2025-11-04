@@ -115,38 +115,38 @@ templ SettingsPopup(translations map[string]string) {
           </div></div>
 }
 
-templ EmbedPopup() {
+templ EmbedPopup(translations map[string]string) {
           <div id="embed" class="popup"><div class="popup-content">
-              <h1 data-l10n-id="pad.share"></h1>
+              <h1>{translations["pad.share"]}</h1>
               <div id="embedreadonly" class="acl-write">
                   <input type="checkbox" id="readonlyinput"/>
-                  <label for="readonlyinput" data-l10n-id="pad.share.readonly"></label>
+                  <label for="readonlyinput">{translations["pad.share.readonly"]}</label>
               </div>
               <div id="linkcode">
-                  <h2 data-l10n-id="pad.share.link"></h2>
+                  <h2>{translations["pad.share.link"]}</h2>
                   <input id="linkinput" type="text" value="" onclick="this.select()"/>
               </div>
               <div id="embedcode">
-                  <h2 data-l10n-id="pad.share.emebdcode"></h2>
+                  <h2>{translations["pad.share.emebdcode"]}</h2>
                   <input id="embedinput" type="text" value="" onclick="this.select()"/>
               </div>
           </div></div>
 }
 
 
-templ ImportExportPopup() {
+templ ImportExportPopup(translations map[string]string) {
           <div id="import_export" class="popup"><div class="popup-content">
-              <h1 data-l10n-id="pad.importExport.import_export"></h1>
+              <h1>{translations["pad.importExport.import_export"]}</h1>
               <div class="acl-write">
-                  <h2 data-l10n-id="pad.importExport.import"></h2>
-                  <div class="importmessage" id="importmessageabiword" data-l10n-id="pad.importExport.abiword.innerHTML"></div><br/>
+                  <h2>{translations["pad.importExport.import"]}</h2>
+                  <div class="importmessage" id="importmessageabiword">{translations["pad.importExport.abiword.innerHTML"]}</div><br/>
                   <form id="importform" method="post" action="" target="importiframe" enctype="multipart/form-data">
                       <div class="importformdiv" id="importformfilediv">
                           <input type="file" name="file" size="10" id="importfileinput"/>
                           <div class="importmessage" id="importmessagefail"></div>
                       </div>
                       <div id="import"></div>
-                      <div class="importmessage" id="importmessagesuccess" data-l10n-id="pad.importExport.importSuccessful"></div>
+                      <div class="importmessage" id="importmessagesuccess">{translations["pad.importExport.importSuccessful"]}</div>
                       <div class="importformdiv" id="importformsubmitdiv">
                           <span class="nowrap">
                               <input type="submit" class="btn btn-primary" name="submit" value="Import Now" disabled="disabled" id="importsubmitinput"/>
@@ -156,97 +156,97 @@ templ ImportExportPopup() {
                   </form>
               </div>
               <div id="exportColumn">
-                  <h2 data-l10n-id="pad.importExport.export"></h2>
+                  <h2>{translations["pad.importExport.export"]}</h2>
                   <a id="exportetherpada" target="_blank" class="exportlink">
-                    <span class="exporttype buttonicon buttonicon-file-powerpoint" id="exportetherpad" data-l10n-id="pad.importExport.exportetherpad"></span>
+                    <span class="exporttype buttonicon buttonicon-file-powerpoint" id="exportetherpad">{translations["pad.importExport.exportetherpad"]}</span>
                   </a>
                   <a id="exporthtmla" target="_blank" class="exportlink">
-                    <span class="exporttype buttonicon buttonicon-file-code" id="exporthtml" data-l10n-id="pad.importExport.exporthtml"></span>
+                    <span class="exporttype buttonicon buttonicon-file-code" id="exporthtml">{translations["pad.importExport.exporthtml"]}</span>
                   </a>
                   <a id="exportplaina" target="_blank" class="exportlink">
-                    <span class="exporttype buttonicon buttonicon-file" id="exportplain" data-l10n-id="pad.importExport.exportplain"></span>
+                    <span class="exporttype buttonicon buttonicon-file" id="exportplain">{translations["pad.importExport.exportplain"]}</span>
                   </a>
                   <a id="exportworda" target="_blank" class="exportlink">
-                    <span class="exporttype buttonicon buttonicon-file-word" id="exportword" data-l10n-id="pad.importExport.exportword"></span>
+                    <span class="exporttype buttonicon buttonicon-file-word" id="exportword">{translations["pad.importExport.exportword"]}</span>
                   </a>
                   <a id="exportpdfa" target="_blank" class="exportlink">
-                    <span class="exporttype buttonicon buttonicon-file-pdf" id="exportpdf" data-l10n-id="pad.importExport.exportpdf"></span>
+                    <span class="exporttype buttonicon buttonicon-file-pdf" id="exportpdf">{translations["pad.importExport.exportpdf"]}</span>
                   </a>
                   <a id="exportopena" target="_blank" class="exportlink">
-                    <span class="exporttype buttonicon buttonicon-file-alt" id="exportopen" data-l10n-id="pad.importExport.exportopen"></span>
+                    <span class="exporttype buttonicon buttonicon-file-alt" id="exportopen">{translations["pad.importExport.exportopen"]}</span>
                   </a>
               </div>
           </div></div>
 }
 
 
-templ ConnectivityPopup() {
+templ ConnectivityPopup(translations map[string]string) {
           <div id="connectivity" class="popup"><div class="popup-content">
               <div class="connected visible">
-                <h2 data-l10n-id="pad.modals.connected"></h2>
+                <h2>{translations["pad.modals.connected"]}</h2>
               </div>
               <div class="reconnecting">
-                <h1 data-l10n-id="pad.modals.reconnecting"></h1>
+                <h1>{translations["pad.modals.reconnecting"]}</h1>
                 <i class='buttonicon buttonicon-spin5 icon-spin'>
                   <img src='../static/img/brand.svg' class='etherpadBrand'/><br/>
                 </i>
               </div>
               <div class="userdup">
-                <h1 data-l10n-id="pad.modals.userdup"></h1>
-                <h2 data-l10n-id="pad.modals.userdup.explanation"></h2>
-                <p id="defaulttext" data-l10n-id="pad.modals.userdup.advice"></p>
-                <button id="forcereconnect" class="btn btn-primary" data-l10n-id="pad.modals.forcereconnect"></button>
+                <h1>{translations["pad.modals.userdup"]}</h1>
+                <h2>{translations["pad.modals.userdup.explanation"]}</h2>
+                <p id="defaulttext">{translations["pad.modals.userdup.advice"]}</p>
+                <button id="forcereconnect" class="btn btn-primary">{translations["pad.modals.forcereconnect"]}</button>
               </div>
               <div class="unauth">
-                <h1 data-l10n-id="pad.modals.unauth"></h1>
-                <p id="defaulttext" data-l10n-id="pad.modals.unauth.explanation"></p>
-                <button id="forcereconnect" class="btn btn-primary" data-l10n-id="pad.modals.forcereconnect"></button>
+                <h1>{translations["pad.modals.unauth"]}</h1>
+                <p id="defaulttext">{translations["pad.modals.unauth.explanation"]}</p>
+                <button id="forcereconnect" class="btn btn-primary">{translations["pad.modals.forcereconnect"]}</button>
               </div>
               <div class="looping">
-                <h1 data-l10n-id="pad.modals.disconnected"></h1>
-                <h2 data-l10n-id="pad.modals.looping.explanation"></h2>
-                <p data-l10n-id="pad.modals.looping.cause"></p>
+                <h1>{translations["pad.modals.disconnected"]}</h1>
+                <h2>{translations["pad.modals.looping.explanation"]}</h2>
+                <p>{translations["pad.modals.looping.cause"]}</p>
               </div>
               <div class="initsocketfail">
-                <h1 data-l10n-id="pad.modals.initsocketfail"></h1>
-                <h2 data-l10n-id="pad.modals.initsocketfail.explanation"></h2>
-                <p data-l10n-id="pad.modals.initsocketfail.cause"></p>
+                <h1>{translations["pad.modals.initsocketfail"]}</h1>
+                <h2>{translations["pad.modals.initsocketfail.explanation"]}</h2>
+                <p>{translations["pad.modals.initsocketfail.cause"]}</p>
               </div>
               <div class="slowcommit with_reconnect_timer">
-                <h1 data-l10n-id="pad.modals.disconnected"></h1>
-                <h2 data-l10n-id="pad.modals.slowcommit.explanation"></h2>
-                <p id="defaulttext" data-l10n-id="pad.modals.slowcommit.cause"></p>
-                <button id="forcereconnect" class="btn btn-primary" data-l10n-id="pad.modals.forcereconnect"></button>
+                <h1>{translations["pad.modals.disconnected"]}</h1>
+                <h2>{translations["pad.modals.slowcommit.explanation"]}</h2>
+                <p id="defaulttext">{translations["pad.modals.slowcommit.cause"]}</p>
+                <button id="forcereconnect" class="btn btn-primary">{translations["pad.modals.forcereconnect"]}</button>
               </div>
               <div class="badChangeset with_reconnect_timer">
-                <h1 data-l10n-id="pad.modals.disconnected"></h1>
-                <h2 data-l10n-id="pad.modals.badChangeset.explanation"></h2>
-                <p id="defaulttext" data-l10n-id="pad.modals.badChangeset.cause"></p>
-                <button id="forcereconnect" class="btn btn-primary" data-l10n-id="pad.modals.forcereconnect"></button>
+                <h1>{translations["pad.modals.disconnected"]}</h1>
+                <h2>{translations["pad.modals.badChangeset.explanation"]}</h2>
+                <p id="defaulttext">{translations["pad.modals.badChangeset.cause"]}</p>
+                <button id="forcereconnect" class="btn btn-primary">{translations["pad.modals.forcereconnect"]}</button>
               </div>
               <div class="corruptPad">
-                <h1 data-l10n-id="pad.modals.disconnected"></h1>
-                <h2 data-l10n-id="pad.modals.corruptPad.explanation"></h2>
-                <p data-l10n-id="pad.modals.corruptPad.cause"></p>
+                <h1>{translations["pad.modals.disconnected"]}</h1>
+                <h2>{translations["pad.modals.corruptPad.explanation"]}</h2>
+                <p>{translations["pad.modals.corruptPad.cause"]}</p>
               </div>
               <div class="deleted">
-                <h1 data-l10n-id="pad.modals.deleted"></h1>
-                <p data-l10n-id="pad.modals.deleted.explanation"></p>
+                <h1>{translations["pad.modals.deleted"]}</h1>
+                <p>{translations["pad.modals.deleted.explanation"]}</p>
               </div>
               <div class="rateLimited">
-                <h1 data-l10n-id="pad.modals.rateLimited"></h1>
-                <p data-l10n-id="pad.modals.rateLimited.explanation"></p>
+                <h1>{translations["pad.modals.rateLimited"]}</h1>
+                <p>{translations["pad.modals.rateLimited.explanation"]}</p>
               </div>
               <div class="rejected">
-                <h1 data-l10n-id="pad.modals.disconnected"></h1>
-                <h2 data-l10n-id="pad.modals.rejected.explanation"></h2>
-                <p data-l10n-id="pad.modals.rejected.cause"></p>
+                <h1>{translations["pad.modals.disconnected"]}</h1>
+                <h2>{translations["pad.modals.rejected.explanation"]}</h2>
+                <p>{translations["pad.modals.rejected.cause"]}</p>
               </div>
               <div class="disconnected with_reconnect_timer">
-                <h1 data-l10n-id="pad.modals.disconnected"></h1>
-                <h2 data-l10n-id="pad.modals.disconnected.explanation"></h2>
-                <p id="defaulttext" data-l10n-id="pad.modals.disconnected.cause"></p>
-                <button id="forcereconnect" class="btn btn-primary" data-l10n-id="pad.modals.forcereconnect"></button>
+                <h1>{translations["pad.modals.disconnected"]}</h1>
+                <h2>{translations["pad.modals.disconnected.explanation"]}</h2>
+                <p id="defaulttext">{translations["pad.modals.disconnected.cause"]}</p>
+                <button id="forcereconnect" class="btn btn-primary">{translations["pad.modals.forcereconnect"]}</button>
               </div>
               <form id="reconnectform" method="post" action="/ep/pad/reconnect" accept-charset="UTF-8" style="display: none;">
                   <input type="hidden" class="padId" name="padId"/>
@@ -257,21 +257,21 @@ templ ConnectivityPopup() {
 }
 
 
-templ UserPopup(){
+templ UserPopup(translations map[string]string) {
            <div id="users" class="popup"><div class="popup-content">
                 <div id="connectionstatus"></div>
                 <div id="myuser">
                     <div id="mycolorpicker" class="popup"><div class="popup-content">
                         <div id="colorpicker"></div>
                         <div class="btn-container">
-                          <button id="mycolorpickersave" data-l10n-id="pad.colorpicker.save" class="btn btn-primary"></button>
-                          <button id="mycolorpickercancel" data-l10n-id="pad.colorpicker.cancel" class="btn btn-default"></button>
+                          <button id="mycolorpickersave" class="btn btn-primary">{translations["pad.colorpicker.save"]}</button>
+                          <button id="mycolorpickercancel" class="btn btn-default">{translations["pad.colorpicker.cancel"]}</button>
                           <span id="mycolorpickerpreview" class="myswatchboxhoverable"></span>
                         </div>
                     </div></div>
                     <div id="myswatchbox"><div id="myswatch"></div></div>
                     <div id="myusernameform">
-                      <input type="text" id="myusernameedit" disabled="disabled" data-l10n-id="pad.userlist.entername"/>
+                      <input type="text" id="myusernameedit" disabled="disabled" placeholder={translations["pad.userlist.entername"]}/>
                     </div>
                 </div>
                 <div id="otherusers" aria-role="document">
@@ -285,9 +285,9 @@ templ UserPopup(){
 }
 
 
-templ ChatPopup(){
-        <div id="chaticon" class="visible" onclick="chat.show();return false;" title="Chat (Alt C)">
-            <span id="chatlabel" data-l10n-id="pad.chat"></span>
+templ ChatPopup(translations map[string]string){
+        <div id="chaticon" class="visible" onclick="chat.show();return false;" title={translations["pad.chat"]}>
+            <span id="chatlabel">{translations["pad.chat"]}</span>
             <span class="buttonicon buttonicon-chat"></span>
             <span id="chatcounter">0</span>
         </div>
@@ -295,21 +295,21 @@ templ ChatPopup(){
 }
 
 
-templ ChatBox() {
+templ ChatBox(translations map[string]string) {
         <div id="chatbox">
           <div class="chat-content">
             <div id="titlebar">
-              <h1 id="titlelabel" data-l10n-id="pad.chat"></h1>
+              <h1 id="titlelabel">{translations["pad.chat"]}</h1>
               <a id="titlecross" class="hide-reduce-btn" onClick="chat.hide();return false;">-&nbsp;</a>
-              <a id="titlesticky" class="stick-to-screen-btn" onClick="chat.stickToScreen(true);return false;" data-l10n-id="pad.chat.stick.title">█&nbsp;&nbsp</a>
+              <a id="titlesticky" class="stick-to-screen-btn" onClick="chat.stickToScreen(true);return false;">{translations["pad.chat.stick.title"]}</a>
             </div>
             <div id="chattext" class="thin-scrollbar" aria-live="polite" aria-relevant="additions removals text" role="log" aria-atomic="false">
                 <div alt="loading.." id="chatloadmessagesball" class="chatloadmessages loadingAnimation" align="top"></div>
-                <button id="chatloadmessagesbutton" class="chatloadmessages" data-l10n-id="pad.chat.loadmessages"></button>
+                <button id="chatloadmessagesbutton" class="chatloadmessages">{translations["pad.chat.loadmessages"]}</button>
             </div>
             <div id="chatinputbox">
                 <form>
-                    <textarea id="chatinput" maxlength="999" data-l10n-id="pad.chat.writeMessage.placeholder"></textarea>
+                    <textarea id="chatinput" maxlength="999" placeholder={translations["pad.chat.writeMessage.placeholder"]}></textarea>
                 </form>
             </div>
           </div>
@@ -335,11 +335,11 @@ templ Greeting(pad padModel.Model, jsScript string, translations map[string]stri
 
             @EditorLoadingBox(translations)
             @SettingsPopup(translations)
-            @ImportExportPopup()
+            @ImportExportPopup(translations)
       <div class="sticky-container">
-            @UserPopup()
-            @ChatPopup()
-            @ChatBox()
+            @UserPopup(translations)
+            @ChatPopup(translations)
+            @ChatBox(translations)
       </div>
 
 
