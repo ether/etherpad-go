@@ -1,9 +1,17 @@
+export function createSocket(path = '/socket.io/'): WebSocket {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const url = `${protocol}//${window.location.host}${path}`
+    return new WebSocket(url)
+}
+
+
+
 export class SocketIoWrapper {
     private socket: WebSocket
     private eventCallbacks: { [key: string]: Function[] } = {}
 
     constructor() {
-        this.socket = new WebSocket('ws://localhost:3000/socket.io/')
+        this.socket = createSocket()
         this.socket.onopen = () => {
             console.log('onopen')
             const iID = window.setInterval(() => {

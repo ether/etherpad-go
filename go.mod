@@ -9,7 +9,7 @@ require (
 	github.com/a-h/templ v0.3.960
 	github.com/evanw/esbuild v0.25.12
 	github.com/gofiber/adaptor/v2 v2.2.1
-	github.com/gofiber/fiber/v2 v2.52.5
+	github.com/gofiber/fiber/v2 v2.52.9
 	github.com/gofiber/swagger v1.1.0
 	github.com/google/go-cmp v0.6.0
 	github.com/gorilla/sessions v1.2.2
