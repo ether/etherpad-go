@@ -14,14 +14,15 @@ RUN node ./build.js
 
 FROM golang:alpine as backend
 WORKDIR /app
+
 RUN go install github.com/a-h/templ/cmd/templ@latest
 COPY ./go.mod ./go.sum ./
 RUN go mod download
 
 COPY . .
 
-COPY --from=frontend /assets/js/pad /assets/js/pad
-COPY --from=frontend /assets/js/welcome /assets/js/welcome
+COPY --from=frontend /assets/js/pad/assets/pad.js ./assets/js/pad/assets/pad.js
+COPY --from=frontend /assets/js/welcome/assets/welcome.js ./assets/js/welcome/assets/welcome.js
 
 
 RUN templ generate
