@@ -7,7 +7,7 @@ FROM node:latest as frontend
 WORKDIR /app
 
 COPY ./ui/package.json .
-COPY ./ui/pnpm-lock.yaml .
+COPY ./ui/package-lock.json .
 RUN npm install
 COPY ./ui .
 RUN node ./build.js
