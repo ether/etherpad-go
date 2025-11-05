@@ -2,6 +2,7 @@ package db
 
 import (
 	"errors"
+	"strconv"
 
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/models/db"
@@ -13,11 +14,57 @@ type MemoryDataStore struct {
 	authorStore  map[string]db.AuthorDB
 	readonly2Pad map[string]string
 	pad2Readonly map[string]string
-	chatPads     map[string][]string
+	chatPads     map[string]db.ChatMessageDB
 	authorMapper map[string]string
 	sessionStore map[string]session2.Session
 	tokenStore   map[string]string
 	groupStore   map[string]string
+}
+
+func (m *MemoryDataStore) GetChatsOfPad(padId string, start int, end int) (*[]db.ChatMessageDBWithDisplayName, error) {
+	var chatMessages []db.ChatMessageDBWithDisplayName
+	for head := start; head <= end; head++ {
+		var chatMessageKey = padId + strconv.Itoa(head)
+		chatMessage, ok := m.chatPads[chatMessageKey]
+		if ok {
+			var displayName *string
+			if chatMessage.AuthorId != nil {
+				authorId := *chatMessage.AuthorId
+				if name, ok := m.authorMapper[authorId]; ok {
+					displayName = &name
+				}
+			}
+			chatMessages = append(chatMessages, db.ChatMessageDBWithDisplayName{
+				ChatMessageDB: chatMessage,
+				DisplayName:   displayName,
+			})
+		}
+	}
+	return &chatMessages, nil
+}
+
+func (m *MemoryDataStore) SaveChatHeadOfPad(padId string, head int) error {
+	var pad, ok = m.padStore[padId]
+
+	if !ok {
+		return errors.New("pad not found")
+	}
+
+	pad.ChatHead = head
+	m.padStore[padId] = pad
+	return nil
+}
+
+func (m *MemoryDataStore) SaveChatMessage(padId string, head int, authorId *string, timestamp int64, text string) error {
+	var chatMessage = db.ChatMessageDB{
+		PadId:    padId,
+		Head:     head,
+		AuthorId: authorId,
+		Time:     &timestamp,
+		Message:  text,
+	}
+	m.chatPads[padId+strconv.Itoa(head)] = chatMessage
+	return nil
 }
 
 func (m *MemoryDataStore) RemovePad(padID string) error {

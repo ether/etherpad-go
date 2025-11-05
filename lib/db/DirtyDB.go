@@ -24,6 +24,62 @@ type SQLiteDB struct {
 	sqlDB *sql.DB
 }
 
+func (d SQLiteDB) GetChatsOfPad(padId string, start int, end int) (*[]db.ChatMessageDBWithDisplayName, error) {
+	var resultedSQL, args, err = sq.
+		Select("padChat.padid, padChat.padHead, padChat.chatText, padChat.authorId, padChat.timestamp, globalAuthor.name").
+		From("padChat").
+		Join("globalAuthor ON globalAuthor.id = padChat.authorId").
+		Where(sq.Eq{"padId": padId}).
+		Where(sq.GtOrEq{"padHead": start}).
+		Where(sq.LtOrEq{"padHead": end}).
+		OrderBy("padHead ASC").
+		ToSql()
+
+	if err != nil {
+		return nil, err
+	}
+
+	query, err := d.sqlDB.Query(resultedSQL, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer query.Close()
+
+	var chatMessages []db.ChatMessageDBWithDisplayName
+	for query.Next() {
+		var chatMessage db.ChatMessageDBWithDisplayName
+		query.Scan(&chatMessage.PadId, &chatMessage.Head, &chatMessage.Message, &chatMessage.AuthorId, &chatMessage.Time, &chatMessage.DisplayName)
+		chatMessages = append(chatMessages, chatMessage)
+	}
+	return &chatMessages, nil
+}
+
+func (d SQLiteDB) SaveChatHeadOfPad(padId string, head int) error {
+	var resultingPad, err = d.GetPad(padId)
+	if err != nil {
+		return err
+	}
+	resultingPad.ChatHead = head
+	d.CreatePad(padId, *resultingPad)
+	return nil
+}
+
+func (d SQLiteDB) SaveChatMessage(padId string, head int, authorId *string, timestamp int64, text string) error {
+	var resultedSQL, args, err = sq.
+		Insert("padChat").
+		Columns("padId", "padHead", "chatText", "authorId", "timestamp").
+		Values(padId, head, text, authorId, timestamp).
+		ToSql()
+
+	if err != nil {
+		return err
+	}
+
+	_, err = d.sqlDB.Exec(resultedSQL, args...)
+
+	return err
+}
+
 func (d SQLiteDB) RemovePad(padID string) error {
 	var resultedSQL, args, err = sq.
 		Delete("pad").
@@ -627,7 +683,7 @@ func NewDirtyDB(path string) (*SQLiteDB, error) {
 		panic(err.Error())
 	}
 
-	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS padChat(chatId TEXT PRIMARY KEY , padId TEXT NOT NULL, chatData TEXT NOT NULL)")
+	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS padChat(padId TEXT NOT NULL, padHead INTEGER,  chatText NOT NULL, authorId TEXT, timestamp BIGINT, PRIMARY KEY(padId, padHead), FOREIGN KEY(padId) REFERENCES pad(id) ON DELETE CASCADE)")
 
 	if err != nil {
 		panic(err.Error())

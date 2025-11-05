@@ -48,6 +48,19 @@ func NewPad(id string) Pad {
 	return *p
 }
 
+func (p *Pad) AppendChatMessage(authorId *string, timestamp int64, text string) int {
+	p.ChatHead = p.ChatHead + 1
+	err := p.db.SaveChatMessage(p.Id, p.ChatHead, authorId, timestamp, text)
+	if err != nil {
+		println("Error saving chat message:", err.Error())
+	}
+	if err := p.db.SaveChatHeadOfPad(p.Id, p.ChatHead); err != nil {
+		println("Error saving chat head of pad:", err.Error())
+	}
+
+	return p.ChatHead
+}
+
 func (p *Pad) RemoveAllChats() error {
 	return p.db.RemoveChat(p.Id)
 }
@@ -349,4 +362,8 @@ func (p *Pad) GetPadMetaData(revNum int) *db2.PadMetaData {
 	}
 
 	return meta
+}
+
+func (p *Pad) GetChatMessages(start int, end int) (*[]db2.ChatMessageDBWithDisplayName, error) {
+	return p.db.GetChatsOfPad(p.Id, start, end)
 }

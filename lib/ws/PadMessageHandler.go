@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/author"
@@ -370,6 +371,14 @@ func handleMessage(message any, client *Client, ctx *fiber.Ctx) {
 			HandleClientReadyMessage(expectedType, client, thisSessionNewRetrieved)
 			return
 		}
+	case ws.ChatMessage:
+		{
+			chatMessage := ws.FromObject(expectedType.Data.Data.Message)
+			var currMillis = time.Now().UnixMilli()
+			chatMessage.Time = &currMillis
+			chatMessage.AuthorId = &thisSession.Author
+			SendChatMessageToPadClients(thisSession, chatMessage)
+		}
 	case ws.UserChange:
 		{
 			if readonly {
@@ -382,6 +391,65 @@ func handleMessage(message any, client *Client, ctx *fiber.Ctx) {
 				socket:  client,
 			})
 		}
+	case ws.GetChatMessages:
+		{
+			if expectedType.Data.Data.Start < 0 {
+				println("Invalid start for chat messages")
+				return
+			}
+
+			if expectedType.Data.Data.End < 0 {
+				println("Invalid end for chat messages")
+				return
+			}
+
+			var count = expectedType.Data.Data.End - expectedType.Data.Data.Start
+			if count < 0 || count > 100 {
+				println("End must be greater than start for chat messages and no more than 100 messages can be requested at once")
+				return
+			}
+
+			retrievedPad, err := padManager.GetPad(thisSession.PadId, nil, &thisSession.Author)
+			if err != nil {
+				println("Error retrieving pad for chat messages", err)
+				return
+			}
+			chatMessages, err := retrievedPad.GetChatMessages(expectedType.Data.Data.Start, expectedType.Data.Data.End)
+			if err != nil {
+				println("Error retrieving chat messages", err)
+				return
+			}
+
+			var convertedMessages = make([]ws.ChatMessageSendData, 0, len(*chatMessages))
+			for _, msg := range *chatMessages {
+				convertedMessages = append(convertedMessages, ws.ChatMessageSendData{
+					Time:     msg.Time,
+					Text:     msg.Message,
+					UserId:   msg.AuthorId,
+					UserName: nil,
+				})
+				if msg.DisplayName != nil && *msg.DisplayName != "" {
+					convertedMessages[len(convertedMessages)-1].UserName = msg.DisplayName
+				}
+			}
+
+			if err != nil {
+				println("Error retrieving chat messages", err)
+				return
+			}
+
+			var arr = make([]interface{}, 2)
+			arr[0] = "message"
+			arr[1] = ws.GetChatMessagesResponse{
+				Type: "COLLABROOM",
+				Data: struct {
+					Type     string                   `json:"type"`
+					Messages []ws.ChatMessageSendData `json:"messages"`
+				}{Type: "CHAT_MESSAGES", Messages: convertedMessages},
+			}
+			var marshalled, _ = json.Marshal(arr)
+			client.conn.WriteMessage(websocket.TextMessage, marshalled)
+		}
 	case UserInfoUpdate:
 		{
 			HandleUserInfoUpdate(expectedType, client)
@@ -389,6 +457,50 @@ func handleMessage(message any, client *Client, ctx *fiber.Ctx) {
 	case PadDelete:
 		{
 			HandlePadDelete(client, expectedType)
+		}
+	default:
+		println("Unknown message type received")
+	}
+}
+
+func SendChatMessageToPadClients(session *ws.Session, chatMessage ws.ChatMessageData) {
+	var retrievedPad, err = padManager.GetPad(session.PadId, nil, chatMessage.AuthorId)
+	if err != nil {
+		println("Error retrieving pad for chat message", err)
+		return
+	}
+	// pad.appendChatMessage() ignores the displayName property so we don't need to wait for
+	// authorManager.getAuthorName() to resolve before saving the message to the database.
+	retrievedPad.AppendChatMessage(chatMessage.AuthorId, *chatMessage.Time, chatMessage.Text)
+	authorName, err := authorManager.GetAuthorName(*chatMessage.AuthorId)
+	if err != nil {
+		println("Error retrieving author name for chat message", err)
+	}
+	if authorName != nil && *authorName != "" {
+		chatMessage.DisplayName = authorName
+	}
+	for _, socket := range GetRoomSockets(session.PadId) {
+		var arr = make([]interface{}, 2)
+		arr[0] = "message"
+		arr[1] = ws.ChatBroadCastMessage{
+			Type: "COLLABROOM",
+			Data: struct {
+				Type    string                  `json:"type"`
+				Message ws.ChatMessageSendEvent `json:"message"`
+			}{Type: "CHAT_MESSAGE", Message: ws.ChatMessageSendEvent{
+				Time:     chatMessage.Time,
+				Text:     chatMessage.Text,
+				UserId:   chatMessage.AuthorId,
+				UserName: chatMessage.DisplayName,
+			},
+			},
+		}
+
+		var marshalledMessage, _ = json.Marshal(arr)
+
+		err := socket.conn.WriteMessage(websocket.TextMessage, marshalledMessage)
+		if err != nil {
+			println("Error sending chat message to client", err)
 		}
 	}
 }

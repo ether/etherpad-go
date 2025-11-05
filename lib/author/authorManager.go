@@ -109,14 +109,14 @@ func (m *Manager) saveAuthor(author Author) {
  * Returns the name of the author
  * @param {String} author The id of the author
  */
-func (m *Manager) GetAuthorName(authorId string) string {
+func (m *Manager) GetAuthorName(authorId string) (*string, error) {
 	author, err := m.Db.GetAuthor(authorId)
 
 	if err != nil {
-		return ""
+		return nil, err
 	}
 
-	return *author.Name
+	return author.Name, nil
 }
 
 func (m *Manager) SetAuthorName(authorId string, authorName string) {
