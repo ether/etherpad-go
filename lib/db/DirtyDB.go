@@ -24,6 +24,36 @@ type SQLiteDB struct {
 	sqlDB *sql.DB
 }
 
+func (d SQLiteDB) GetChatsOfPad(padId string, start int, end int) (*[]db.ChatMessageDBWithDisplayName, error) {
+	var resultedSQL, args, err = sq.
+		Select("padChat.padid, padChat.padHead, padChat.chatText, padChat.authorId, padChat.timestamp, globalAuthor.name").
+		From("padChat").
+		Join("globalAuthor ON globalAuthor.id = padChat.authorId").
+		Where(sq.Eq{"padId": padId}).
+		Where(sq.GtOrEq{"padHead": start}).
+		Where(sq.LtOrEq{"padHead": end}).
+		OrderBy("padHead ASC").
+		ToSql()
+
+	if err != nil {
+		return nil, err
+	}
+
+	query, err := d.sqlDB.Query(resultedSQL, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer query.Close()
+
+	var chatMessages []db.ChatMessageDBWithDisplayName
+	for query.Next() {
+		var chatMessage db.ChatMessageDBWithDisplayName
+		query.Scan(&chatMessage.PadId, &chatMessage.Head, &chatMessage.Message, &chatMessage.AuthorId, &chatMessage.Time, &chatMessage.DisplayName)
+		chatMessages = append(chatMessages, chatMessage)
+	}
+	return &chatMessages, nil
+}
+
 func (d SQLiteDB) SaveChatHeadOfPad(padId string, head int) error {
 	var resultingPad, err = d.GetPad(padId)
 	if err != nil {

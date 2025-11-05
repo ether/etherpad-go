@@ -36,6 +36,13 @@ type ChatMessageData struct {
 	UserName    *string `json:"userName,omitempty"`
 }
 
+type ChatMessageSendData struct {
+	Text     string  `json:"text"`
+	Time     *int64  `json:"time,omitempty"`
+	UserId   *string `json:"userId,omitempty"`
+	UserName *string `json:"userName,omitempty"`
+}
+
 func FromObject(original ChatMessageData) ChatMessageData {
 	// The userId property was renamed to authorId, and userName was renamed to displayName. Accept
 	// the old names in case the db record was written by an older version of Etherpad.

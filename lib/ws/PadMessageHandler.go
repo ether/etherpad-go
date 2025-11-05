@@ -377,7 +377,7 @@ func handleMessage(message any, client *Client, ctx *fiber.Ctx) {
 			var currMillis = time.Now().UnixMilli()
 			chatMessage.Time = &currMillis
 			chatMessage.AuthorId = &thisSession.Author
-			SendChatMessageToPadClients(client, thisSession, chatMessage)
+			SendChatMessageToPadClients(thisSession, chatMessage)
 		}
 	case ws.UserChange:
 		{
@@ -390,6 +390,65 @@ func handleMessage(message any, client *Client, ctx *fiber.Ctx) {
 				message: expectedType,
 				socket:  client,
 			})
+		}
+	case ws.GetChatMessages:
+		{
+			if expectedType.Data.Data.Start < 0 {
+				println("Invalid start for chat messages")
+				return
+			}
+
+			if expectedType.Data.Data.End < 0 {
+				println("Invalid end for chat messages")
+				return
+			}
+
+			var count = expectedType.Data.Data.End - expectedType.Data.Data.Start
+			if count < 0 || count > 100 {
+				println("End must be greater than start for chat messages and no more than 100 messages can be requested at once")
+				return
+			}
+
+			retrievedPad, err := padManager.GetPad(thisSession.PadId, nil, &thisSession.Author)
+			if err != nil {
+				println("Error retrieving pad for chat messages", err)
+				return
+			}
+			chatMessages, err := retrievedPad.GetChatMessages(expectedType.Data.Data.Start, expectedType.Data.Data.End)
+			if err != nil {
+				println("Error retrieving chat messages", err)
+				return
+			}
+
+			var convertedMessages = make([]ws.ChatMessageSendData, 0, len(*chatMessages))
+			for _, msg := range *chatMessages {
+				convertedMessages = append(convertedMessages, ws.ChatMessageSendData{
+					Time:     msg.Time,
+					Text:     msg.Message,
+					UserId:   msg.AuthorId,
+					UserName: nil,
+				})
+				if msg.DisplayName != nil && *msg.DisplayName != "" {
+					convertedMessages[len(convertedMessages)-1].UserName = msg.DisplayName
+				}
+			}
+
+			if err != nil {
+				println("Error retrieving chat messages", err)
+				return
+			}
+
+			var arr = make([]interface{}, 2)
+			arr[0] = "message"
+			arr[1] = ws.GetChatMessagesResponse{
+				Type: "COLLABROOM",
+				Data: struct {
+					Type     string                   `json:"type"`
+					Messages []ws.ChatMessageSendData `json:"messages"`
+				}{Type: "CHAT_MESSAGES", Messages: convertedMessages},
+			}
+			var marshalled, _ = json.Marshal(arr)
+			client.conn.WriteMessage(websocket.TextMessage, marshalled)
 		}
 	case UserInfoUpdate:
 		{
@@ -404,7 +463,7 @@ func handleMessage(message any, client *Client, ctx *fiber.Ctx) {
 	}
 }
 
-func SendChatMessageToPadClients(sender *Client, session *ws.Session, chatMessage ws.ChatMessageData) {
+func SendChatMessageToPadClients(session *ws.Session, chatMessage ws.ChatMessageData) {
 	var retrievedPad, err = padManager.GetPad(session.PadId, nil, chatMessage.AuthorId)
 	if err != nil {
 		println("Error retrieving pad for chat message", err)

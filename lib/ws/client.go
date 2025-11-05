@@ -107,6 +107,17 @@ func (c *Client) readPump() {
 			}
 
 			handleMessage(userInfoChange.Data, c, c.ctx)
+		} else if strings.Contains(decodedMessage, "GET_CHAT_MESSAGES") {
+			var getChatMessages ws.GetChatMessages
+			err := json.Unmarshal(message, &getChatMessages)
+
+			if err != nil {
+				println("Error unmarshalling", err)
+				return
+			}
+
+			handleMessage(getChatMessages, c, c.ctx)
+
 		} else if strings.Contains(decodedMessage, "CHAT_MESSAGE") {
 			var chatMessage ws.ChatMessage
 			err := json.Unmarshal(message, &chatMessage)

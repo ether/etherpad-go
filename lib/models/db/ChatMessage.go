@@ -7,3 +7,8 @@ type ChatMessageDB struct {
 	Time     *int64
 	AuthorId *string
 }
+
+type ChatMessageDBWithDisplayName struct {
+	ChatMessageDB
+	DisplayName *string
+}

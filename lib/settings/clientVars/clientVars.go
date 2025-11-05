@@ -143,7 +143,7 @@ func NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apool2.APool, his
 		PadShortcutEnabled:     padShortCutEnabled,
 		InitialTitle:           "Pad: " + pad.Id,
 		Opts:                   map[string]interface{}{},
-		ChatHead:               -1,
+		ChatHead:               pad.ChatHead,
 		NumConnectedUsers:      0,
 		ReadOnlyId:             readonlyId.ReadOnlyPadId,
 		ReadOnly:               readonlyId.ReadOnly,

@@ -363,3 +363,7 @@ func (p *Pad) GetPadMetaData(revNum int) *db2.PadMetaData {
 
 	return meta
 }
+
+func (p *Pad) GetChatMessages(start int, end int) (*[]db2.ChatMessageDBWithDisplayName, error) {
+	return p.db.GetChatsOfPad(p.Id, start, end)
+}

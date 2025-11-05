@@ -21,6 +21,28 @@ type MemoryDataStore struct {
 	groupStore   map[string]string
 }
 
+func (m *MemoryDataStore) GetChatsOfPad(padId string, start int, end int) (*[]db.ChatMessageDBWithDisplayName, error) {
+	var chatMessages []db.ChatMessageDBWithDisplayName
+	for head := start; head <= end; head++ {
+		var chatMessageKey = padId + strconv.Itoa(head)
+		chatMessage, ok := m.chatPads[chatMessageKey]
+		if ok {
+			var displayName *string
+			if chatMessage.AuthorId != nil {
+				authorId := *chatMessage.AuthorId
+				if name, ok := m.authorMapper[authorId]; ok {
+					displayName = &name
+				}
+			}
+			chatMessages = append(chatMessages, db.ChatMessageDBWithDisplayName{
+				ChatMessageDB: chatMessage,
+				DisplayName:   displayName,
+			})
+		}
+	}
+	return &chatMessages, nil
+}
+
 func (m *MemoryDataStore) SaveChatHeadOfPad(padId string, head int) error {
 	var pad, ok = m.padStore[padId]
 
