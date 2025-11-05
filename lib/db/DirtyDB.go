@@ -24,6 +24,32 @@ type SQLiteDB struct {
 	sqlDB *sql.DB
 }
 
+func (d SQLiteDB) SaveChatHeadOfPad(padId string, head int) error {
+	var resultingPad, err = d.GetPad(padId)
+	if err != nil {
+		return err
+	}
+	resultingPad.ChatHead = head
+	d.CreatePad(padId, *resultingPad)
+	return nil
+}
+
+func (d SQLiteDB) SaveChatMessage(padId string, head int, authorId *string, timestamp int64, text string) error {
+	var resultedSQL, args, err = sq.
+		Insert("padChat").
+		Columns("padId", "padHead", "chatText", "authorId", "timestamp").
+		Values(padId, head, text, authorId, timestamp).
+		ToSql()
+
+	if err != nil {
+		return err
+	}
+
+	_, err = d.sqlDB.Exec(resultedSQL, args...)
+
+	return err
+}
+
 func (d SQLiteDB) RemovePad(padID string) error {
 	var resultedSQL, args, err = sq.
 		Delete("pad").
@@ -627,7 +653,7 @@ func NewDirtyDB(path string) (*SQLiteDB, error) {
 		panic(err.Error())
 	}
 
-	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS padChat(chatId TEXT PRIMARY KEY , padId TEXT NOT NULL, chatData TEXT NOT NULL)")
+	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS padChat(padId TEXT NOT NULL, padHead INTEGER,  chatText NOT NULL, authorId TEXT, timestamp BIGINT, PRIMARY KEY(padId, padHead), FOREIGN KEY(padId) REFERENCES pad(id) ON DELETE CASCADE)")
 
 	if err != nil {
 		panic(err.Error())

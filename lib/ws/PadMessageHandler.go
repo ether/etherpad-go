@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/author"
@@ -370,6 +371,14 @@ func handleMessage(message any, client *Client, ctx *fiber.Ctx) {
 			HandleClientReadyMessage(expectedType, client, thisSessionNewRetrieved)
 			return
 		}
+	case ws.ChatMessage:
+		{
+			chatMessage := ws.FromObject(expectedType.Data.Data.Message)
+			var currMillis = time.Now().UnixMilli()
+			chatMessage.Time = &currMillis
+			chatMessage.AuthorId = &thisSession.Author
+			SendChatMessageToPadClients(client, thisSession, chatMessage)
+		}
 	case ws.UserChange:
 		{
 			if readonly {
@@ -389,6 +398,48 @@ func handleMessage(message any, client *Client, ctx *fiber.Ctx) {
 	case PadDelete:
 		{
 			HandlePadDelete(client, expectedType)
+		}
+	default:
+		println("Unknown message type received")
+	}
+}
+
+func SendChatMessageToPadClients(sender *Client, session *ws.Session, chatMessage ws.ChatMessageData) {
+	var retrievedPad, err = padManager.GetPad(session.PadId, nil, chatMessage.AuthorId)
+	if err != nil {
+		println("Error retrieving pad for chat message", err)
+		return
+	}
+	// pad.appendChatMessage() ignores the displayName property so we don't need to wait for
+	// authorManager.getAuthorName() to resolve before saving the message to the database.
+	retrievedPad.AppendChatMessage(chatMessage.AuthorId, *chatMessage.Time, chatMessage.Text)
+	authorName, err := authorManager.GetAuthorName(*chatMessage.AuthorId)
+	if err != nil {
+		println("Error retrieving author name for chat message", err)
+	}
+	chatMessage.DisplayName = authorName
+	for _, socket := range GetRoomSockets(session.PadId) {
+		var arr = make([]interface{}, 2)
+		arr[0] = "message"
+		arr[1] = ws.ChatBroadCastMessage{
+			Type: "COLLABROOM",
+			Data: struct {
+				Type    string                  `json:"type"`
+				Message ws.ChatMessageSendEvent `json:"message"`
+			}{Type: "CHAT_MESSAGE", Message: ws.ChatMessageSendEvent{
+				Time:     chatMessage.Time,
+				Text:     chatMessage.Text,
+				UserId:   chatMessage.AuthorId,
+				UserName: chatMessage.DisplayName,
+			},
+			},
+		}
+
+		var marshalledMessage, _ = json.Marshal(arr)
+
+		err := socket.conn.WriteMessage(websocket.TextMessage, marshalledMessage)
+		if err != nil {
+			println("Error sending chat message to client", err)
 		}
 	}
 }

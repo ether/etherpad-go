@@ -107,6 +107,14 @@ func (c *Client) readPump() {
 			}
 
 			handleMessage(userInfoChange.Data, c, c.ctx)
+		} else if strings.Contains(decodedMessage, "CHAT_MESSAGE") {
+			var chatMessage ws.ChatMessage
+			err := json.Unmarshal(message, &chatMessage)
+
+			if err != nil {
+				println("Error unmarshalling", err)
+			}
+			handleMessage(chatMessage, c, c.ctx)
 		}
 
 		c.hub.Broadcast <- message
