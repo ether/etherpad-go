@@ -435,7 +435,6 @@ const pad = {
         pad.initTime = +(new Date());
         pad.padOptions = clientVars.initialOptions;
 
-        console.log("AFTER HANDSHAKE COLOR", clientVars.userColor)
         pad.myUserInfo = {
             userId: clientVars.userId,
             name: clientVars.userName,

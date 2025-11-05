@@ -476,7 +476,9 @@ func SendChatMessageToPadClients(session *ws.Session, chatMessage ws.ChatMessage
 	if err != nil {
 		println("Error retrieving author name for chat message", err)
 	}
-	chatMessage.DisplayName = authorName
+	if authorName != nil && *authorName != "" {
+		chatMessage.DisplayName = authorName
+	}
 	for _, socket := range GetRoomSockets(session.PadId) {
 		var arr = make([]interface{}, 2)
 		arr[0] = "message"

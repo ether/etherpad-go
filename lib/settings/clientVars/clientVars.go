@@ -147,7 +147,7 @@ func NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apool2.APool, his
 		NumConnectedUsers:      0,
 		ReadOnlyId:             readonlyId.ReadOnlyPadId,
 		ReadOnly:               readonlyId.ReadOnly,
-		ServerTimeStamp:        int64(time.Now().Second()),
+		ServerTimeStamp:        time.Now().UTC().UnixMilli(),
 		SessionRefreshInterval: 86400000,
 		UserName:               currentAuthor.Name,
 		UserId:                 sessionInfo.Author,
