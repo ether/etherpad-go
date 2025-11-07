@@ -165,7 +165,7 @@ func (p *Pad) Init(text *string, author *string) error {
 	if err == nil {
 		var _, err = p.db.GetRevision(p.Id, pad.RevNum)
 		if err != nil {
-			panic(err.Error())
+			return errors.New("pad data is corrupted: missing revision")
 		}
 
 		mapDBPadToModel(pad, p)
@@ -316,16 +316,8 @@ func (p *Pad) AppendRevision(cs string, authorId *string) int {
 	var poolToUse apool.APool
 	var atextToUse apool.AText
 
-	if newRev == p.getKeyRevisionNumber(newRev) {
-		poolToUse = p.Pool
-		atextToUse = p.AText
-	} else {
-		poolToUse = apool.NewAPool()
-		atextToUse = apool.AText{
-			Text:    "",
-			Attribs: "",
-		}
-	}
+	poolToUse = p.Pool
+	atextToUse = p.AText
 
 	err := p.db.SaveRevision(p.Id, newRev, cs, atextToUse, poolToUse, authorId, int(time.Now().UnixNano()/int64(time.Millisecond)))
 
