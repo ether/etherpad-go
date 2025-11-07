@@ -1,9 +1,9 @@
 package ws
 
 type UserNewInfoDat struct {
-	UserId  string `json:"userId"`
-	Name    string `json:"name"`
-	ColorId string `json:"colorId"`
+	UserId  string  `json:"userId"`
+	Name    *string `json:"name"`
+	ColorId string  `json:"colorId"`
 }
 
 type UserNewInfoData struct {
