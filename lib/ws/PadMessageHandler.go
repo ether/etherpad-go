@@ -216,6 +216,7 @@ func handleUserChanges(task Task) {
 	if newRev != r {
 		session.Time = retrievedPad.GetRevisionDate(newRev)
 	}
+	retrievedPad.Head = newRev
 	UpdatePadClients(retrievedPad)
 }
 
@@ -822,6 +823,7 @@ func UpdatePadClients(pad *pad2.Pad) {
 		var sessionInfo = SessionStoreInstance.getSession(socket.SessionId)
 
 		for sessionInfo.Revision < pad.Head {
+			println("Sending NEW_CHANGES to client for pad", pad.Id, "from rev", sessionInfo.Revision, "to", pad.Head)
 			var r = sessionInfo.Revision + 1
 			if _, ok := revCache[r]; !ok {
 				revCache[r], _ = pad.GetRevision(r)
@@ -832,13 +834,14 @@ func UpdatePadClients(pad *pad2.Pad) {
 			var currentTime = revision.Timestamp
 
 			var forWire = changeset.PrepareForWire(revChangeset, pad.Pool)
+			var jsonAblePoolWithWire = forWire.Pool.ToJsonable()
 			var msg = NewChangesMessage{
 				Type: "COLLABROOM",
 				Data: NewChangesMessageData{
 					Type:        "NEW_CHANGES",
 					NewRev:      r,
 					Changeset:   forWire.Translated,
-					APool:       forWire.Pool,
+					APool:       jsonAblePoolWithWire,
 					Author:      *authorFromRev,
 					CurrentTime: currentTime,
 					TimeDelta:   currentTime - sessionInfo.Time,
@@ -847,10 +850,11 @@ func UpdatePadClients(pad *pad2.Pad) {
 			marshalledMessage, err := json.Marshal(msg)
 
 			if err != nil {
+				println("Error sending NEW_CHANGES message to client")
 				return
 			}
 
-			socket.Send <- marshalledMessage
+			err = socket.conn.WriteMessage(websocket.TextMessage, marshalledMessage)
 			sessionInfo.Time = currentTime
 			sessionInfo.Revision = r
 		}
