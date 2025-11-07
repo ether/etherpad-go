@@ -592,7 +592,7 @@ func HandleUserInfoUpdate(userInfo UserInfoUpdate, client *Client) {
 
 	var userNewInfoDat = ws.UserNewInfoDat{
 		UserId:  session.Author,
-		Name:    *userInfo.Data.UserInfo.Name,
+		Name:    userInfo.Data.UserInfo.Name,
 		ColorId: *userInfo.Data.UserInfo.ColorId,
 	}
 
@@ -746,8 +746,82 @@ func HandleClientReadyMessage(ready ws.ClientReady, client *Client, thisSession 
 			Type: "CLIENT_VARS",
 		}
 		var encoded, _ = json.Marshal(arr)
+		// Join the pad and start receiving updates
+		thisSession.PadId = retrievedPad.Id
+		// Send the clientVars to the Client
 		client.conn.WriteMessage(websocket.TextMessage, encoded)
+		// Save the current revision in sessioninfos, should be the same as in clientVars
+		thisSession.Revision = retrievedPad.Head
+	}
 
+	retrievedAuthor, err := authorManager.GetAuthor(thisSession.Author)
+	if err != nil {
+		println("Error retrieving author for USER_NEWINFO broadcast")
+		return
+	}
+
+	// Create and broadcast USER_NEWINFO message to all clients in the pad
+	var userNewInfoDat = ws.UserNewInfoDat{
+		UserId:  thisSession.Author,
+		Name:    retrievedAuthor.Name,
+		ColorId: retrievedAuthor.ColorId,
+	}
+	var userNewInfo = ws.UserNewInfoData{
+		Type:     "USER_NEWINFO",
+		UserInfo: userNewInfoDat,
+	}
+
+	var userNewInfoActual = ws.UserNewInfo{
+		Type: "COLLABROOM",
+		Data: userNewInfo,
+	}
+
+	var arr = make([]interface{}, 2)
+	arr[0] = "message"
+	arr[1] = userNewInfoActual
+
+	var marshalled, _ = json.Marshal(arr)
+
+	for _, socket := range roomSockets {
+		if err := socket.conn.WriteMessage(websocket.TextMessage, marshalled); err != nil {
+			println("Error broadcasting USER_NEWINFO message")
+		}
+	}
+
+	// send all other users' info to the new client
+	for _, socket := range roomSockets {
+		if socket.SessionId == client.SessionId {
+			continue
+		}
+		var sinfo = SessionStoreInstance.getSession(socket.SessionId)
+		otherAuthor, err := authorManager.GetAuthor(sinfo.Author)
+		if err != nil {
+			println("Error retrieving author for USER_NEWINFO send to new client")
+			continue
+		}
+		var userNewInfoDat = ws.UserNewInfoDat{
+			UserId:  sinfo.Author,
+			Name:    otherAuthor.Name,
+			ColorId: otherAuthor.ColorId,
+		}
+		var userNewInfo = ws.UserNewInfoData{
+			Type:     "USER_NEWINFO",
+			UserInfo: userNewInfoDat,
+		}
+
+		var userNewInfoActual = ws.UserNewInfo{
+			Type: "COLLABROOM",
+			Data: userNewInfo,
+		}
+
+		var arr = make([]interface{}, 2)
+		arr[0] = "message"
+		arr[1] = userNewInfoActual
+		var marshalled, _ = json.Marshal(arr)
+
+		if err := client.conn.WriteMessage(websocket.TextMessage, marshalled); err != nil {
+			println("Error sending USER_NEWINFO message to new client")
+		}
 	}
 }
 
