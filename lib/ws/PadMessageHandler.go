@@ -663,6 +663,53 @@ func correctMarkersInPad(atext apool.AText, apool apool.APool) *string {
 	return &stringifierBuilder
 }
 
+func HandleDisconnectOfPadClient(client *Client) {
+	var thisSession = SessionStoreInstance.getSession(client.SessionId)
+	if thisSession == nil || thisSession.PadId == "" {
+		SessionStoreInstance.removeSession(client.SessionId)
+		return
+	}
+
+	var roomSockets = GetRoomSockets(thisSession.PadId)
+	var authorToRemove, err = authorManager.GetAuthor(thisSession.Author)
+	if err != nil {
+		println("Error retrieving author for disconnect")
+		return
+	}
+
+	for _, otherSocket := range roomSockets {
+		if otherSocket.SessionId == client.SessionId {
+			continue
+		}
+		userLeave := ws.UserLeaveData{
+			Type: "COLLABROOM",
+			Data: struct {
+				Type     string `json:"type"`
+				UserInfo struct {
+					ColorId string `json:"colorId"`
+					UserId  string `json:"userId"`
+				} `json:"userInfo"`
+			}{Type: "USER_LEAVE", UserInfo: struct {
+				ColorId string `json:"colorId"`
+				UserId  string `json:"userId"`
+			}{
+				ColorId: authorToRemove.ColorId,
+				UserId:  thisSession.Author,
+			}},
+		}
+		var arr = make([]interface{}, 2)
+		arr[0] = "message"
+		arr[1] = userLeave
+		var marshalled, _ = json.Marshal(arr)
+		if err := otherSocket.conn.WriteMessage(websocket.TextMessage, marshalled); err != nil {
+			println("Error broadcasting USER_LEAVE message")
+			return
+		}
+	}
+
+	SessionStoreInstance.removeSession(client.SessionId)
+}
+
 func HandleClientReadyMessage(ready ws.ClientReady, client *Client, thisSession *ws.Session) {
 	if ready.Data.UserInfo.ColorId != nil && !colorRegEx.MatchString(*ready.Data.UserInfo.ColorId) {
 		println("Invalid color id")
