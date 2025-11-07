@@ -216,70 +216,7 @@ func handleUserChanges(task Task) {
 	if newRev != r {
 		session.Time = retrievedPad.GetRevisionDate(newRev)
 	}
-	updatePadClients(retrievedPad)
-}
-
-func updatePadClients(pad *pad2.Pad) {
-	var roomSockets = GetRoomSockets(pad.Id)
-	if len(roomSockets) == 0 {
-		return
-	}
-	// since all clients usually get the same set of changesets, store them in local cache
-	// to remove unnecessary roundtrip to the datalayer
-	// NB: note below possibly now accommodated via the change to promises/async
-	// TODO: in REAL world, if we're working without datalayer cache,
-	// all requests to revisions will be fired
-	// BEFORE first result will be landed to our cache object.
-	// The solution is to replace parallel processing
-	// via async.forEach with sequential for() loop. There is no real
-	// benefits of running this in parallel,
-	// but benefit of reusing cached revision object is HUGE
-	var revCache = make(map[int]*db.PadSingleRevision)
-
-	for _, socket := range roomSockets {
-		if !SessionStoreInstance.hasSession(socket.SessionId) {
-			return
-		}
-
-		var sessionInfo = SessionStoreInstance.getSession(socket.SessionId)
-		for sessionInfo.Revision < pad.Head {
-			var r = sessionInfo.Revision + 1
-			var revision, ok = revCache[r]
-			if !ok {
-				revCache[r], _ = pad.GetRevision(r)
-				revision = revCache[r]
-			}
-
-			var authorString = revision.AuthorId
-			var revChangeset = revision.Changeset
-			var curentTime = revision.Timestamp
-			var forWire = changeset.PrepareForWire(revChangeset, pad.Pool)
-
-			var msg = NewChangesMessage{
-				Type: "COLLABROOM",
-				Data: NewChangesMessageData{
-					Changeset:   forWire.Translated,
-					Type:        "NEW_CHANGES",
-					NewRev:      r,
-					APool:       forWire.Pool,
-					Author:      *authorString,
-					CurrentTime: curentTime,
-					TimeDelta:   curentTime - sessionInfo.Time,
-				},
-			}
-			var arr = make([]interface{}, 2)
-			arr[0] = "message"
-			arr[1] = msg
-			var newChangesMsg, _ = json.Marshal(arr)
-
-			err := socket.conn.WriteMessage(websocket.TextMessage, newChangesMsg)
-
-			if err != nil {
-				println("Failed to notify user of new revision")
-			}
-
-		}
-	}
+	UpdatePadClients(retrievedPad)
 }
 
 func handleMessage(message any, client *Client, ctx *fiber.Ctx) {
