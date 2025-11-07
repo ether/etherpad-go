@@ -74,6 +74,7 @@ func (c *Client) readPump() {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 				log.Printf("error: %v", err)
 			}
+			HandleDisconnectOfPadClient(c)
 			break
 		}
 		message = bytes.TrimSpace(bytes.Replace(message, newline, space, -1))
