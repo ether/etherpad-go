@@ -1,6 +1,9 @@
 package changeset
 
-import "testing"
+import (
+	"testing"
+	"unicode/utf8"
+)
 
 func TestNewStringIterator(t *testing.T) {
 	str := "Hello, world!"
@@ -19,18 +22,18 @@ func TestNewStringIterator(t *testing.T) {
 func TestStringIterator_Remaining(t *testing.T) {
 	str := "Hello, world!"
 	si := NewStringIterator(str)
-	if si.Remaining() != len(str) {
-		t.Errorf("Expected %d, got %d", len(str), si.Remaining())
+	if si.Remaining() != utf8.RuneCountInString(str) {
+		t.Errorf("Expected %d, got %d", utf8.RuneCountInString(str), si.Remaining())
 	}
 }
 
 func TestStringIterator_AssertRemaining(t *testing.T) {
 	str := "Hello, world!"
 	si := NewStringIterator(str)
-	if si.AssertRemaining(len(str)) != nil {
+	if si.AssertRemaining(utf8.RuneCountInString(str)) != nil {
 		t.Errorf("Expected nil, got error")
 	}
-	if si.AssertRemaining(len(str)+1) == nil {
+	if si.AssertRemaining(utf8.RuneCountInString(str)+1) == nil {
 		t.Errorf("Expected error, got nil")
 	}
 }
@@ -80,7 +83,7 @@ func TestStringIterator_Skip(t *testing.T) {
 func TestStringIterator_Skip_Error(t *testing.T) {
 	str := "Hello, world!"
 	si := NewStringIterator(str)
-	if si.Skip(len(str)+1) == nil {
+	if si.Skip(utf8.RuneCountInString(str)+1) == nil {
 		t.Errorf("Expected error, got nil")
 	}
 }

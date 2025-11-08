@@ -639,6 +639,7 @@ func NewDirtyDB(path string) (*SQLiteDB, error) {
 
 	sqlDb.Exec("PRAGMA foreign_keys = ON")
 	sqlDb.Exec("PRAGMA journal_mode = WAL")
+	sqlDb.Exec("PRAGMA encoding = 'UTF-8'")
 
 	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS pad (id TEXT PRIMARY KEY, data TEXT)")
 	if err != nil {
