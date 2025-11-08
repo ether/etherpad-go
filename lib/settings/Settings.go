@@ -3,6 +3,7 @@ package settings
 import (
 	"encoding/json"
 	"os"
+	"path"
 	"path/filepath"
 	"reflect"
 	"regexp"
@@ -12,6 +13,14 @@ import (
 
 type DBSettings struct {
 	Filename string
+}
+
+type TTL struct {
+	AccessToken       int
+	AuthorizationCode int
+	ClientCredentials int
+	IdToken           int
+	RefreshToken      int
 }
 
 type PadOptions struct {
@@ -28,7 +37,29 @@ type PadOptions struct {
 	Lang             *string
 }
 
-type PadShortCutEnabled struct {
+type PadShortcutEnabled struct {
+	AltF9     bool `json:"altF9"`
+	AltC      bool `json:"altC"`
+	Delete    bool `json:"delete"`
+	CmdShift2 bool `json:"cmdShift2"`
+	Return    bool `json:"return"`
+	Esc       bool `json:"esc"`
+	CmdS      bool `json:"cmdS"`
+	Tab       bool `json:"tab"`
+	CmdZ      bool `json:"cmdZ"`
+	CmdY      bool `json:"cmdY"`
+	CmdB      bool `json:"cmdB"`
+	CmdI      bool `json:"cmdI"`
+	CmdU      bool `json:"cmdU"`
+	Cmd5      bool `json:"cmd5"`
+	CmdShiftL bool `json:"cmdShiftL"`
+	CmdShiftN bool `json:"cmdShiftN"`
+	CmdShift1 bool `json:"cmdShift1"`
+	CmdShiftC bool `json:"cmdShiftC"`
+	CmdH      bool `json:"cmdH"`
+	CtrlHome  bool `json:"ctrlHome"`
+	PageUp    bool `json:"pageUp"`
+	PageDown  bool `json:"pageDown"`
 }
 
 type Toolbar struct {
@@ -44,20 +75,27 @@ type User struct {
 }
 
 type Settings struct {
-	Root                               *string
+	Root                               string
+	SettingsFilename                   string                                         `json:"settingsFilename"`
+	CredentialsFilename                string                                         `json:"credentialsFilename"`
 	Title                              string                                         `json:"title"`
-	Favicon                            string                                         `json:"favicon"`
-	SkinName                           string                                         `json:"skinName"`
+	ShowRecentPads                     bool                                           `json:"showRecentPads"`
+	Favicon                            *string                                        `json:"favicon"`
+	TTL                                TTL                                            `json:"ttl"`
+	UpdateServer                       string                                         `json:"updateServer"`
+	EnableDarkMode                     bool                                           `json:"enableDarkMode"`
+	SkinName                           *string                                        `json:"skinName"`
 	SkinVariants                       string                                         `json:"skinVariants"`
 	IP                                 string                                         `json:"ip"`
 	Port                               string                                         `json:"port"`
 	SuppressErrorsInPadText            bool                                           `json:"suppressErrorsInPadText"`
 	SSL                                bool                                           `json:"ssl"`
 	DBType                             string                                         `json:"dbType"`
-	DBSettings                         DBSettings                                     `json:"dbSettings"`
+	DBSettings                         *DBSettings                                    `json:"dbSettings"`
 	DefaultPadText                     string                                         `json:"defaultPadText"`
 	PadOptions                         PadOptions                                     `json:"padOptions"`
-	PadShortCutEnabled                 PadShortCutEnabled                             `json:"padShortCutEnabled"`
+	EnableMetrics                      bool                                           `json:"enableMetrics"`
+	PadShortCutEnabled                 PadShortcutEnabled                             `json:"padShortCutEnabled"`
 	Toolbar                            Toolbar                                        `json:"toolbar"`
 	RequireSession                     bool                                           `json:"requireSession"`
 	EditOnly                           bool                                           `json:"editOnly"`
@@ -79,12 +117,116 @@ type Settings struct {
 	Users                              map[string]User                                `json:"users"`
 	ShowSettingsInAdminPage            bool                                           `json:"showSettingsInAdminPage"`
 	ScrollWhenFocusLineIsOutOfViewport clientVars2.ScrollWhenFocusLineIsOutOfViewport `json:"scrollWhenFocusLineIsOutOfViewport"`
+	SocketIo                           SocketIoSettings                               `json:"socketIo"`
+	AuthenticationMethod               string                                         `json:"authenticationMethod"`
+}
+
+type SocketIoSettings struct {
+	MaxHttpBufferSize int64 `json:"maxHttpBufferSize"`
 }
 
 var Displayed Settings
 
-func newDefaultSettings() Settings {
-	return Settings{}
+func newDefaultSettings(pathToRoot string) Settings {
+	return Settings{
+		Root:                pathToRoot,
+		SettingsFilename:    path.Join(pathToRoot, "settings.json"),
+		CredentialsFilename: path.Join(pathToRoot, "credentials.json"),
+		/**
+		 * The app title, visible e.g. in the browser window
+		 */
+		Title: "Etherpad",
+		/**
+		 * Whether to show recent pads on the homepage
+		 */
+		ShowRecentPads: true,
+		Favicon:        nil,
+		TTL: TTL{
+			AccessToken:       1 * 60 * 60,      // 1 hour in seconds
+			AuthorizationCode: 10 * 60,          // 10 minutes in seconds
+			ClientCredentials: 1 * 60 * 60,      // 1 hour in seconds
+			IdToken:           1 * 60 * 60,      // 1 hour in seconds
+			RefreshToken:      1 * 24 * 60 * 60, // 1 day in seconds
+		},
+
+		UpdateServer:   "https://static.etherpad.org",
+		EnableDarkMode: true,
+		/*
+		 * Skin name.
+		 *
+		 * Initialized to null, so we can spot an old configuration file and invite the
+		 * user to update it before falling back to the default.
+		 */
+		SkinName:                nil,
+		SkinVariants:            "super-light-toolbar super-light-editor light-background",
+		IP:                      "0.0.0.0",
+		Port:                    "9001",
+		SuppressErrorsInPadText: false,
+		SSL:                     false,
+		SocketIo: SocketIoSettings{
+			/**
+			 * Maximum permitted client message size (in bytes).
+			 *
+			 * All messages from clients that are larger than this will be rejected. Large values make it
+			 * possible to paste large amounts of text, and plugins may require a larger value to work
+			 * properly, but increasing the value increases susceptibility to denial of service attacks
+			 * (malicious clients can exhaust memory).
+			 */
+			MaxHttpBufferSize: 50000,
+		},
+		AuthenticationMethod: "sso",
+		DBType:               "rustydb",
+		DBSettings:           nil,
+		DefaultPadText: `Welcome to Etherpad!
+
+This pad text is synchronized as you type, so that everyone viewing this page sees the same text. This allows you to collaborate seamlessly on documents!
+
+Etherpad on Github: https://github.com/ether/etherpad-lite`,
+		/**
+		 * The default Pad Settings for a user (Can be overridden by changing the setting
+		 */
+		PadOptions: PadOptions{
+			NoColors:         false,
+			ShowControls:     true,
+			ShowChat:         true,
+			ShowLineNumbers:  true,
+			UseMonospaceFont: false,
+			UserName:         nil,
+			UserColor:        nil,
+			RTL:              false,
+			AlwaysShowChat:   false,
+			ChatAndUsers:     false,
+			Lang:             nil,
+		},
+		/**
+		 * Wether to enable the /stats endpoint. The functionality in the admin menu is untouched for this.
+		 */
+		EnableMetrics: true,
+		PadShortCutEnabled: PadShortcutEnabled{
+			AltF9:     true,
+			AltC:      true,
+			Delete:    true,
+			CmdShift2: true,
+			Return:    true,
+			Esc:       true,
+			CmdS:      true,
+			Tab:       true,
+			CmdZ:      true,
+			CmdY:      true,
+			CmdB:      true,
+			CmdI:      true,
+			CmdU:      true,
+			Cmd5:      true,
+			CmdShiftL: true,
+			CmdShiftN: true,
+			CmdShift1: true,
+			CmdShiftC: true,
+			CmdH:      true,
+			CtrlHome:  true,
+			PageUp:    true,
+			PageDown:  true,
+		},
+	}
 }
 
 // Function to remove comments from JSON
@@ -136,6 +278,90 @@ func Merge(dest, src interface{}) {
 	}
 }
 
+var envVarRe = regexp.MustCompile(`^\$\{([^:}]*)(:(.*))?\}$`)
+
+// LookUpEnvVariables traversiert s und ersetzt String-Felder vom Format ${ENV} oder ${ENV:default}.
+// - Falls ENV gesetzt: Wert aus der Umgebung verwenden.
+// - Falls ENV nicht gesetzt und default vorhanden: default verwenden.
+// - Sonst Originalwert belassen.
+func LookUpEnvVariables(s *Settings) {
+	if s == nil {
+		return
+	}
+	processValue(reflect.ValueOf(s).Elem())
+}
+
+func processValue(v reflect.Value) {
+	// If it's invalid, nothing to do
+	if !v.IsValid() {
+		return
+	}
+
+	switch v.Kind() {
+	case reflect.Ptr:
+		if v.IsNil() {
+			return
+		}
+		processValue(v.Elem())
+	case reflect.Interface:
+		if v.IsNil() {
+			return
+		}
+		processValue(v.Elem())
+	case reflect.Struct:
+		// iterate fields; only addressable/exported fields can be Set
+		for i := 0; i < v.NumField(); i++ {
+			f := v.Field(i)
+			// allow descending into unexported struct fields only if addressable (rare)
+			if !f.CanSet() && !(f.Kind() == reflect.Struct || f.Kind() == reflect.Ptr || f.Kind() == reflect.Interface) {
+				continue
+			}
+			processValue(f)
+		}
+	case reflect.Map:
+		// iterate keys and replace values in-place
+		for _, k := range v.MapKeys() {
+			val := v.MapIndex(k)
+			if !val.IsValid() {
+				continue
+			}
+			// copy the value so we can modify it
+			newVal := reflect.New(val.Type()).Elem()
+			newVal.Set(val)
+			processValue(newVal)
+			v.SetMapIndex(k, newVal)
+		}
+	case reflect.Slice, reflect.Array:
+		for i := 0; i < v.Len(); i++ {
+			elem := v.Index(i)
+			processValue(elem)
+		}
+	case reflect.String:
+		orig := v.String()
+		m := envVarRe.FindStringSubmatch(orig)
+		if m == nil {
+			return
+		}
+		envName := m[1]
+		def := ""
+		if len(m) >= 4 {
+			def = m[3]
+		}
+		if envVal, ok := os.LookupEnv(envName); ok {
+			v.SetString(envVal)
+		} else if def != "" {
+			v.SetString(def)
+		}
+	case reflect.Bool,
+		reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr,
+		reflect.Float32, reflect.Float64:
+		return
+	default:
+		return
+	}
+}
+
 // isZero reports whether v is the zero value for its type.
 func isZero(v reflect.Value) bool {
 	switch v.Kind() {
@@ -160,14 +386,14 @@ func isZero(v reflect.Value) bool {
 }
 
 func init() {
-	var pathToSettings string
+	var pathToRoot string
 
 	var envPathToSettings = os.Getenv("ETHERPAD_SETTINGS_PATH")
 	if envPathToSettings != "" {
-		pathToSettings = envPathToSettings
+		pathToRoot = envPathToSettings
 	}
 
-	if pathToSettings == "" {
+	if pathToRoot == "" {
 		for i := 0; i < 10; i++ {
 			var builtPath = ""
 			for j := 0; j < i; j++ {
@@ -182,12 +408,12 @@ func init() {
 				assetDir = "assets"
 			}
 
-			path, err := filepath.Abs(builtPath + assetDir)
+			pathToAssets, err := filepath.Abs(builtPath + assetDir)
 
-			_, err = os.Stat(path)
+			_, err = os.Stat(pathToAssets)
 
 			if err == nil {
-				pathToSettings, _ = filepath.Abs(builtPath)
+				pathToRoot, _ = filepath.Abs(builtPath)
 				break
 			}
 
@@ -197,18 +423,18 @@ func init() {
 		}
 	}
 
-	var settingsFilePath = filepath.Join(pathToSettings, "settings.json")
+	var settingsFilePath = filepath.Join(pathToRoot, "settings.json")
 	settings, err := os.ReadFile(settingsFilePath)
 	settings = stripComments(settings)
-	Displayed = newDefaultSettings()
+	Displayed = newDefaultSettings(pathToRoot)
 
 	if err != nil {
 		println("Error reading settings. Default settings will be used.")
 	}
 	var fileReadSettings Settings
 	err = json.Unmarshal(settings, &fileReadSettings)
+	LookUpEnvVariables(&fileReadSettings)
 	Merge(&Displayed, &fileReadSettings)
-	Displayed.Root = &pathToSettings
 
 	if err != nil {
 		println("error is" + err.Error())

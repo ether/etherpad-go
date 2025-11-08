@@ -5,31 +5,20 @@ import (
 	"embed"
 	"fmt"
 	_ "fmt"
-	"io/fs"
 	"net/http"
-	"os"
-	"path"
-	"strings"
 
-	"github.com/a-h/templ"
-	"github.com/ether/etherpad-go/assets/welcome"
 	_ "github.com/ether/etherpad-go/docs"
 	api2 "github.com/ether/etherpad-go/lib/api"
 	"github.com/ether/etherpad-go/lib/hooks"
 	"github.com/ether/etherpad-go/lib/pad"
-	"github.com/ether/etherpad-go/lib/plugins"
 	session2 "github.com/ether/etherpad-go/lib/session"
 	settings2 "github.com/ether/etherpad-go/lib/settings"
 	"github.com/ether/etherpad-go/lib/utils"
 	"github.com/ether/etherpad-go/lib/ws"
-	"github.com/evanw/esbuild/pkg/api"
 	"github.com/gofiber/adaptor/v2"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/session"
-	"github.com/gofiber/swagger"
 	"github.com/gorilla/sessions"
-	sio "github.com/njones/socketio"
-	ser "github.com/njones/socketio/serialize"
 )
 
 var store *sessions.CookieStore
@@ -60,20 +49,6 @@ func sessionMiddleware(h http.HandlerFunc) http.HandlerFunc {
 //go:embed assets
 var uiAssets embed.FS
 
-// Hilfsfunktion: registriert eine Fiber-Route, die Dateien aus dem eingebetteten
-// Unterverzeichnis `subPath` (z.B. `assets/css`) unter `route` (z.B. /css/) ausliefert.
-func registerEmbeddedStatic(app *fiber.App, route string, subPath string) {
-	prefix := strings.TrimSuffix(route, "/")
-	println(prefix)
-	sub, err := fs.Sub(uiAssets, subPath)
-	if err != nil {
-		panic(err)
-	}
-	handler := http.StripPrefix(prefix+"/", http.FileServer(http.FS(sub)))
-	// Matcht /css/* etc.
-	app.Get(prefix+"/*", adaptor.HTTPHandler(handler))
-}
-
 // @title Fiber Example API
 // @version 1.0
 // @description This is a sample swagger for Fiber
@@ -85,160 +60,39 @@ func registerEmbeddedStatic(app *fiber.App, route string, subPath string) {
 // @host localhost:3000
 // @BasePath /
 func main() {
-
+	setupLogger := utils.SetupLogger()
+	defer setupLogger.Sync()
 	var settings = settings2.Displayed
 
+	setupLogger.Info("Starting Etherpad Go...")
+
 	var db = session2.NewSessionDatabase(nil)
-	app := fiber.New()
-	var cookieStore = session.New(session.Config{
-		KeyLookup: "cookie:express_sid",
-		Storage:   db,
+	app := fiber.New(fiber.Config{
+		DisableStartupMessage: true,
 	})
-	server := sio.NewServer()
-
-	app.Get("/swagger/*", swagger.HandlerDefault) // default
-
-	app.Get("/swagger/*", swagger.New(swagger.Config{ // custom
-		URL:         "http://example.com/doc.json",
-		DeepLinking: false,
-		// Expand ("list") or Collapse ("none") tag groups by default
-		DocExpansion: "none",
-		// Prefill OAuth ClientId on Authorize popup
-		OAuth: &swagger.OAuthConfig{
-			AppName:  "OAuth Provider",
-			ClientId: "21bb4edc-05a7-4afc-86f1-2e151e4ba6e2",
-		},
-		// Ability to change OAuth2 redirect uri location
-		OAuth2RedirectUrl: "http://localhost:8080/swagger/oauth2-redirect.html",
-	}))
 
 	app.Use(func(c *fiber.Ctx) error {
 		return pad.CheckAccess(c)
 	})
-	app.Get("/swagger/*", swagger.HandlerDefault)
 
-	registerEmbeddedStatic(app, "/css/", "assets/css")
-	registerEmbeddedStatic(app, "/static/css/", "assets/css/static")
-	registerEmbeddedStatic(app, "/static/skins/colibris/", "assets/css/skin")
-	registerEmbeddedStatic(app, "/html/", "assets/html")
-	registerEmbeddedStatic(app, "/font/", "assets/font")
-
-	relativePath := "./src/js"
-
-	var alias = make(map[string]string)
-	alias["ep_etherpad-lite/static/js/ace2_inner"] = relativePath + "/ace2_inner"
-	alias["ep_etherpad-lite/static/js/ace2_common"] = relativePath + "/ace2_common"
-	alias["ep_etherpad-lite/static/js/pluginfw/client_plugins"] = relativePath + "/pluginfw/client_plugins"
-	alias["ep_etherpad-lite/static/js/rjquery"] = relativePath + "/rjquery"
-	alias["ep_etherpad-lite/static/js/nice-select"] = "ep_etherpad-lite/static/js/vendors/nice-select"
-
-	var nodeEnv = os.Getenv("NODE_ENV")
-
-	if nodeEnv == "production" {
-		registerEmbeddedStatic(app, "/js/pad/assets/", "assets/js/pad/assets")
-		registerEmbeddedStatic(app, "/js/welcome/assets/", "assets/js/welcome/assets")
-	} else {
-		app.Get("/js/*", func(c *fiber.Ctx) error {
-			println("Calling js", c.Path())
-			var entrypoint string
-
-			if strings.Contains(c.Path(), "welcome") {
-				entrypoint = "./src/welcome.js"
-			} else {
-				entrypoint = "./src/pad.js"
-			}
-
-			var pathToBuild = path.Join(*settings2.Displayed.Root, "ui")
-
-			result := api.Build(api.BuildOptions{
-				EntryPoints:   []string{entrypoint},
-				AbsWorkingDir: pathToBuild,
-				Bundle:        true,
-				Write:         false,
-				LogLevel:      api.LogLevelInfo,
-				Metafile:      true,
-				Target:        api.ES2020,
-				Alias:         alias,
-				Sourcemap:     api.SourceMapInline,
-			})
-
-			if len(result.Errors) > 0 {
-				fmt.Println("Build failed with errors:", result.Errors)
-				return c.SendString("Build failed")
-			}
-
-			c.Set("Content-Type", "application/javascript")
-
-			return c.Send(result.OutputFiles[0].Contents)
-		})
-	}
-
-	registerEmbeddedStatic(app, "/images", "assets/images")
-	registerEmbeddedStatic(app, "/static/", "assets/html")
-	registerEmbeddedStatic(app, "/pluginfw", "assets/plugin")
-
-	app.Use("/p/", func(c *fiber.Ctx) error {
-		c.Path()
-
-		var _, err = cookieStore.Get(c)
-		if err != nil {
-			println("Error with session")
-		}
-
-		return c.Next()
-	})
-
-	app.Get("/pluginfw/plugin-definitions.json", plugins.ReturnPluginResponse)
-	registerEmbeddedStatic(app, "/images/favicon.ico", "assets/images/favicon.ico")
-	app.Get("/p/*", func(ctx *fiber.Ctx) error {
-		return pad.HandlePadOpen(ctx, uiAssets)
-	})
-
-	app.Get("/favicon.ico", func(c *fiber.Ctx) error {
-		return c.Redirect("/images/favicon.ico", fiber.StatusMovedPermanently)
-	})
-
-	app.Get("/", func(c *fiber.Ctx) error {
-		var language = c.Cookies("language", "en")
-		var keyValues, err = utils.LoadTranslations(language, uiAssets)
-		if err != nil {
-			return err
-		}
-		component := welcome.Page(settings, keyValues)
-		return adaptor.HTTPHandler(templ.Handler(component))(c)
+	var cookieStore = session.New(session.Config{
+		KeyLookup: "cookie:express_sid",
+		Storage:   db,
 	})
 
 	hooks.ExpressPreSession(app, uiAssets)
-
 	ws.HubGlob = ws.NewHub()
 	go ws.HubGlob.Run()
 	app.Get("/socket.io/*", func(c *fiber.Ctx) error {
 		return adaptor.HTTPHandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-			ws.ServeWs(ws.HubGlob, writer, request, cookieStore, c)
+			ws.ServeWs(ws.HubGlob, writer, request, cookieStore, c, &settings)
 		})(c)
 	})
+	api2.InitAPI(app, uiAssets, settings, cookieStore)
 
-	// use a OnConnect handler for incoming "connection" messages
-	server.OnConnect(func(socket *sio.SocketV4) error {
-		println("connected")
-		canYouHear := ser.String("can you hear me?")
-		extra := ser.String("abc")
-
-		var questions = ser.Integer(1)
-		var responses = ser.Map(map[string]interface{}{"one": "no"})
-
-		// send out a message to the hello
-		err := socket.Emit("hello", canYouHear, questions, responses, extra)
-		if err != nil {
-			return err
-		}
-
-		return nil
-	})
-
-	api2.InitAPI(app)
-
-	err := app.Listen(":3000")
+	fiberString := fmt.Sprintf("%s:%s", settings.IP, settings.Port)
+	setupLogger.Info("Starting Web UI on " + fiberString)
+	err := app.Listen(fiberString)
 	if err != nil {
 		return
 	}
