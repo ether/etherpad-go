@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"regexp"
 	"slices"
-	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/author"
@@ -18,6 +18,7 @@ import (
 	"github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/ether/etherpad-go/lib/settings/clientVars"
+	"github.com/ether/etherpad-go/lib/utils"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gorilla/websocket"
 )
@@ -97,6 +98,7 @@ func handleUserChanges(task Task) {
 	_, err = changeset.CheckRep(task.message.Data.Data.Changeset)
 
 	if err != nil {
+		println("Error checking rep", err.Error())
 		return
 	}
 
@@ -124,7 +126,7 @@ func handleUserChanges(task Task) {
 		fromString := changeset.FromString(op.Attribs, wireApool)
 		var opAuthorId = fromString.Get("author")
 
-		if len(opAuthorId) != 0 && opAuthorId != session.Author {
+		if utf8.RuneCountInString(opAuthorId) != 0 && opAuthorId != session.Author {
 			println("Wrong author tried to submit changeset")
 			return
 		}
@@ -163,7 +165,7 @@ func handleUserChanges(task Task) {
 
 	prevText := retrievedPad.Text()
 
-	if changeset.OldLen(rebasedChangeset) != len(prevText) {
+	if changeset.OldLen(rebasedChangeset) != utf8.RuneCountInString(prevText) {
 		panic("Can't apply changeset to pad text")
 	}
 
@@ -184,8 +186,8 @@ func handleUserChanges(task Task) {
 	}
 
 	// Make sure the pad always ends with an empty line.
-	if strings.LastIndex(retrievedPad.Text(), "\n") != len(retrievedPad.Text())-1 {
-		var nlChangeset, _ = changeset.MakeSplice(retrievedPad.Text(), len(retrievedPad.Text())-1, 0, "\n", nil, nil)
+	if utils.RuneLastIndex(retrievedPad.Text(), "\n") != utf8.RuneCountInString(retrievedPad.Text())-1 {
+		var nlChangeset, _ = changeset.MakeSplice(retrievedPad.Text(), utf8.RuneCountInString(retrievedPad.Text())-1, 0, "\n", nil, nil)
 		retrievedPad.AppendRevision(nlChangeset, &session.Author)
 	}
 
@@ -589,7 +591,7 @@ func correctMarkersInPad(atext apool.AText, apool apool.APool) *string {
 	// create changeset that removes these bad markers
 	offset = 0
 
-	var builder = changeset.NewBuilder(len(text))
+	var builder = changeset.NewBuilder(utf8.RuneCountInString(text))
 
 	for _, i := range badMarkers {
 		builder.KeepText(text[offset:i], changeset.KeepArgs{}, nil)

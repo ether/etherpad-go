@@ -4,14 +4,16 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"github.com/ether/etherpad-go/lib/models/clientVars"
-	"github.com/ether/etherpad-go/lib/models/webaccess"
-	"github.com/ether/etherpad-go/lib/settings"
-	"github.com/gofiber/fiber/v2"
 	"net/url"
 	"regexp"
 	"strings"
 	"time"
+	"unicode/utf8"
+
+	"github.com/ether/etherpad-go/lib/models/clientVars"
+	"github.com/ether/etherpad-go/lib/models/webaccess"
+	"github.com/ether/etherpad-go/lib/settings"
+	"github.com/gofiber/fiber/v2"
 )
 
 var readOnlyManager = NewReadOnlyManager()
@@ -74,7 +76,7 @@ func CheckAccess(ctx *fiber.Ctx) error {
 
 			var encodedPadId = encodedPadRegex.FindAllString(ctx.Path(), -1)[1]
 
-			if len(encodedPadId) == 0 {
+			if utf8.RuneCountInString(encodedPadId) == 0 {
 				return true
 			}
 

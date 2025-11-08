@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/author"
@@ -85,8 +86,8 @@ func (p *Pad) getKeyRevisionAText(revNum int) (*apool.AText, error) {
 func (p *Pad) Remove() {
 	padId := p.Id
 	// Kick session is done in ws package to avoid circular import
-	if strings.Index(padId, "$") >= 0 {
-		indexOfDollar := strings.Index(padId, "$")
+	if utils.RuneIndex(padId, "$") >= 0 {
+		indexOfDollar := utils.RuneIndex(padId, "$")
 		groupId := padId[0:indexOfDollar]
 		groupVal, err := p.db.GetGroup(groupId)
 		if err != nil {
@@ -205,7 +206,7 @@ func (p *Pad) SetText(newText string, authorId *string) error {
 		authorIdToSend = *authorId
 	}
 
-	return p.SpliceText(0, len(p.Text()), newText, &authorIdToSend)
+	return p.SpliceText(0, utf8.RuneCountInString(p.Text()), newText, &authorIdToSend)
 }
 
 func (p *Pad) SpliceText(start int, ndel int, ins string, authorId *string) error {
@@ -219,16 +220,16 @@ func (p *Pad) SpliceText(start int, ndel int, ins string, authorId *string) erro
 	if !strings.HasSuffix(orig, "\n") {
 		return errors.New("text must end with a newline")
 	}
-	if start+ndel > len(orig) {
+	if start+ndel > utf8.RuneCountInString(orig) {
 		return errors.New("splice out of bounds")
 	}
 
 	ins = *CleanText(ins)
-	var willEndWithNewLine = start+ndel < len(orig) || strings.HasSuffix(ins, "\n") || (ins == "" && start > 0 && orig[start-1] == '\n')
+	var willEndWithNewLine = start+ndel < utf8.RuneCountInString(orig) || strings.HasSuffix(ins, "\n") || (ins == "" && start > 0 && orig[start-1] == '\n')
 	if !willEndWithNewLine {
 		ins += "\n"
 	}
-	if ndel == 0 && len(ins) == 0 {
+	if ndel == 0 && utf8.RuneCountInString(ins) == 0 {
 		return nil
 	}
 	var changesetFromSplice, err = changeset.MakeSplice(orig, start, ndel, ins, nil, nil)

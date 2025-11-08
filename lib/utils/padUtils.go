@@ -4,6 +4,7 @@ import (
 	"math/rand/v2"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 )
 
 var base64Url = regexp.MustCompile("^[A-Za-z0-9+/]*={0,2}$")
@@ -20,6 +21,6 @@ func IsValidAuthorToken(token string) bool {
 	}
 
 	var v = token[2:]
-	return len(v) > 0 && base64Url.MatchString(v)
+	return utf8.RuneCountInString(v) > 0 && base64Url.MatchString(v)
 
 }

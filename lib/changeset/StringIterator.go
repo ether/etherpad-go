@@ -2,17 +2,19 @@ package changeset
 
 import (
 	"errors"
+
 	"github.com/ether/etherpad-go/lib/utils"
 )
 
 type StringIterator struct {
 	curIndex int
 	newLines int
-	str      string
+	str      []rune
 }
 
 func NewStringIterator(str string) StringIterator {
-	return StringIterator{curIndex: 0, newLines: utils.CountLines(str, '\n'), str: str}
+	rs := []rune(str)
+	return StringIterator{curIndex: 0, newLines: utils.CountLines(str, '\n'), str: rs}
 }
 
 func (si *StringIterator) Remaining() int {
@@ -27,31 +29,37 @@ func (si *StringIterator) AssertRemaining(n int) error {
 }
 
 func (si *StringIterator) Take(n int) string {
-	err := si.AssertRemaining(n)
-
-	if err != nil {
+	if err := si.AssertRemaining(n); err != nil {
 		panic(err)
 	}
-
-	var s = si.str[si.curIndex : si.curIndex+n]
-	si.newLines -= utils.CountLines(s, '\n')
+	segment := si.str[si.curIndex : si.curIndex+n]
+	s := string(segment)
+	si.newLines -= countNewlines(segment)
 	si.curIndex += n
 	return s
 }
 
 func (si *StringIterator) Peek(n int) string {
-	err := si.AssertRemaining(n)
-	if err != nil {
+	if err := si.AssertRemaining(n); err != nil {
 		panic(err)
 	}
-	return si.str[si.curIndex : si.curIndex+n]
+	return string(si.str[si.curIndex : si.curIndex+n])
 }
 
 func (si *StringIterator) Skip(n int) error {
-	err := si.AssertRemaining(n)
-	if err != nil {
+	if err := si.AssertRemaining(n); err != nil {
 		return err
 	}
 	si.curIndex += n
 	return nil
+}
+
+func countNewlines(rs []rune) int {
+	c := 0
+	for _, r := range rs {
+		if r == '\n' {
+			c++
+		}
+	}
+	return c
 }

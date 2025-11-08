@@ -3,6 +3,7 @@ package pad
 import (
 	"errors"
 	"regexp"
+	"unicode/utf8"
 
 	"github.com/ether/etherpad-go/lib/db"
 	"github.com/ether/etherpad-go/lib/models/pad"
@@ -127,7 +128,7 @@ func (m *Manager) GetPad(padID string, text *string, authorId *string) (*pad.Pad
 	}
 
 	if text != nil {
-		if len(*text) > 100000 {
+		if utf8.RuneCountInString(*text) > 100000 {
 			return nil, errors.New("text is too long")
 		}
 	}

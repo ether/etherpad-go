@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/changeset"
@@ -29,7 +30,7 @@ func TestMakeSplice(t *testing.T) {
 func TestMakeSpliceAtEnd(t *testing.T) {
 	var orig = "123"
 	var ins = "456"
-	var splice, err = changeset.MakeSplice(orig, len(orig), 0, ins, nil, nil)
+	var splice, err = changeset.MakeSplice(orig, utf8.RuneCountInString(orig), 0, ins, nil, nil)
 
 	if err != nil {
 		t.Error("Error making splice" + err.Error())
