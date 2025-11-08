@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/ether/etherpad-go/lib/models/ws"
+	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/session"
 
@@ -60,12 +61,12 @@ type Client struct {
 // The application runs readPump in a per-connection goroutine. The application
 // ensures that there is at most one reader on a connection by executing all
 // reads from this goroutine.
-func (c *Client) readPump() {
+func (c *Client) readPump(retrievedSettings *settings.Settings) {
 	defer func() {
 		c.hub.Unregister <- c
 		c.conn.Close()
 	}()
-	c.conn.SetReadLimit(maxMessageSize)
+	c.conn.SetReadLimit(retrievedSettings.SocketIo.MaxHttpBufferSize)
 	c.conn.SetReadDeadline(time.Now().Add(pongWait))
 	c.conn.SetPongHandler(func(string) error { c.conn.SetReadDeadline(time.Now().Add(pongWait)); return nil })
 	for {
@@ -146,7 +147,7 @@ func (c *Client) SendPadDelete() {
 }
 
 // ServeWs serveWs handles websocket requests from the peer.
-func ServeWs(hub *Hub, w http.ResponseWriter, r *http.Request, sessionStore *session.Store, fiber *fiber.Ctx) {
+func ServeWs(hub *Hub, w http.ResponseWriter, r *http.Request, sessionStore *session.Store, fiber *fiber.Ctx, configSettings *settings.Settings) {
 	store, err := sessionStore.Get(fiber)
 
 	if err != nil {
@@ -161,5 +162,5 @@ func ServeWs(hub *Hub, w http.ResponseWriter, r *http.Request, sessionStore *ses
 	client := &Client{hub: hub, conn: conn, Send: make(chan []byte, 256), SessionId: store.ID(), ctx: fiber}
 	SessionStoreInstance.initSession(store.ID())
 	client.hub.Register <- client
-	client.readPump()
+	client.readPump(configSettings)
 }
