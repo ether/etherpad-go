@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"regexp"
 	"slices"
-	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -19,6 +18,7 @@ import (
 	"github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/ether/etherpad-go/lib/settings/clientVars"
+	"github.com/ether/etherpad-go/lib/utils"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gorilla/websocket"
 )
@@ -186,7 +186,7 @@ func handleUserChanges(task Task) {
 	}
 
 	// Make sure the pad always ends with an empty line.
-	if strings.LastIndex(retrievedPad.Text(), "\n") != utf8.RuneCountInString(retrievedPad.Text())-1 {
+	if utils.RuneLastIndex(retrievedPad.Text(), "\n") != utf8.RuneCountInString(retrievedPad.Text())-1 {
 		var nlChangeset, _ = changeset.MakeSplice(retrievedPad.Text(), utf8.RuneCountInString(retrievedPad.Text())-1, 0, "\n", nil, nil)
 		retrievedPad.AppendRevision(nlChangeset, &session.Author)
 	}
