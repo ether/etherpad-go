@@ -835,6 +835,9 @@ func UpdatePadClients(pad *pad2.Pad) {
 
 			var forWire = changeset.PrepareForWire(revChangeset, pad.Pool)
 			var jsonAblePoolWithWire = forWire.Pool.ToJsonable()
+
+			var arr = make([]interface{}, 2)
+			arr[0] = "message"
 			var msg = NewChangesMessage{
 				Type: "COLLABROOM",
 				Data: NewChangesMessageData{
@@ -847,7 +850,9 @@ func UpdatePadClients(pad *pad2.Pad) {
 					TimeDelta:   currentTime - sessionInfo.Time,
 				},
 			}
-			marshalledMessage, err := json.Marshal(msg)
+			arr[1] = msg
+
+			marshalledMessage, err := json.Marshal(arr)
 
 			if err != nil {
 				println("Error sending NEW_CHANGES message to client")
