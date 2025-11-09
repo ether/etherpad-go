@@ -854,7 +854,6 @@ func MoveOpsToNewPool(cs string, oldPool *apool.APool, newPool *apool.APool) str
 
 	re := regexp.MustCompile(`\*([0-9a-z]+)`)
 	result := re.ReplaceAllStringFunc(upToDollar, func(match string) string {
-		println(match)
 		sub := re.FindStringSubmatch(match)
 		if len(sub) < 2 {
 			return match
