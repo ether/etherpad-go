@@ -15,7 +15,6 @@ import (
 )
 
 func init() {
-	println("Init")
 	os.Setenv("ETHERPAD_DB_TYPE", "memory")
 }
 

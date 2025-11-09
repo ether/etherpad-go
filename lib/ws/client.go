@@ -14,6 +14,7 @@ import (
 
 	"github.com/ether/etherpad-go/lib/models/ws"
 	"github.com/ether/etherpad-go/lib/settings"
+	"github.com/ether/etherpad-go/lib/ws/ratelimiter"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/session"
 
@@ -77,6 +78,10 @@ func (c *Client) readPump(retrievedSettings *settings.Settings) {
 			}
 			HandleDisconnectOfPadClient(c)
 			break
+		}
+		if err := ratelimiter.CheckRateLimit(ratelimiter.IPAddress(c.ctx.IP()), retrievedSettings.CommitRateLimiting); err != nil {
+			println("Rate limit exceeded:", err.Error())
+			continue
 		}
 		message = bytes.TrimSpace(bytes.Replace(message, newline, space, -1))
 		decodedMessage := string(message[:])
