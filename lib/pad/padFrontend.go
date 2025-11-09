@@ -6,13 +6,14 @@ import (
 
 	"github.com/a-h/templ"
 	"github.com/ether/etherpad-go/lib/models"
+	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/ether/etherpad-go/lib/utils"
 	"github.com/gofiber/adaptor/v2"
 	"github.com/gofiber/fiber/v2"
 )
 import padAsset "github.com/ether/etherpad-go/assets/pad"
 
-func HandlePadOpen(c *fiber.Ctx, uiAssets embed.FS) error {
+func HandlePadOpen(c *fiber.Ctx, uiAssets embed.FS, retrievedSettings settings.Settings) error {
 	pad := models.Model{
 		Name: "test",
 	}
@@ -25,7 +26,7 @@ func HandlePadOpen(c *fiber.Ctx, uiAssets embed.FS) error {
 
 	jsFilePath := "/js/pad/assets/pad.js?v=" + strconv.Itoa(utils.RandomVersionString)
 
-	padComp := padAsset.Greeting(pad, jsFilePath, keyValues)
+	padComp := padAsset.Greeting(pad, jsFilePath, keyValues, retrievedSettings)
 
 	return adaptor.HTTPHandler(templ.Handler(padComp))(c)
 }

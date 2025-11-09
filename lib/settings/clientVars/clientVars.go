@@ -10,10 +10,11 @@ import (
 	"github.com/ether/etherpad-go/lib/models/pad"
 	"github.com/ether/etherpad-go/lib/models/ws"
 	pad2 "github.com/ether/etherpad-go/lib/pad"
+	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/ether/etherpad-go/lib/utils"
 )
 
-func NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apool2.APool, historicalAuthorData map[string]author2.Author) clientVars.ClientVars {
+func NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apool2.APool, historicalAuthorData map[string]author2.Author, retrievedSettings *settings.Settings) clientVars.ClientVars {
 	var historyData = make(map[string]clientVars.CollabAuthor)
 	var readonlyManager = pad2.NewReadOnlyManager()
 	authorManager := author2.NewManager()
@@ -109,14 +110,24 @@ func NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apool2.APool, his
 		etherPadConvertedAttribs[strconv.Itoa(k)] = v.ToStringSlice()
 	}
 
+	var abiwordAvailable = "no"
+	if retrievedSettings.Abiword != nil && *retrievedSettings.Abiword != "" {
+		abiwordAvailable = "yes"
+	}
+
+	var sofficeAvailable = "no"
+	if retrievedSettings.SOffice != nil && *retrievedSettings.SOffice != "" {
+		sofficeAvailable = "yes"
+	}
+
 	return clientVars.ClientVars{
-		SkinName:            "colibris",
-		SkinVariants:        "super-light-toolbar super-light-editor light-background",
+		SkinName:            retrievedSettings.SkinName,
+		SkinVariants:        retrievedSettings.SkinVariants,
 		RandomVersionString: "f2cb49c4",
 		AccountPrivs: clientVars.AccountPrivs{
 			MaxRevisions: 100,
 		},
-		AutomaticReconnectionTimeout: 0,
+		AutomaticReconnectionTimeout: retrievedSettings.AutomaticReconnectionTimeout,
 		InitialRevisionList:          make([]string, 0),
 		InitialOptions:               make(map[string]interface{}),
 		SavedRevisions:               make([]string, 0),
@@ -135,36 +146,28 @@ func NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apool2.APool, his
 			Rev:  pad.Head,
 			Time: currentTime,
 		},
-		ColorPalette:           utils.ColorPalette,
-		ClientIP:               "127.0.0.1",
-		PadId:                  pad.Id,
-		UserColor:              currentAuthor.ColorId,
-		PadOptions:             padOptions,
-		PadShortcutEnabled:     padShortCutEnabled,
-		InitialTitle:           "Pad: " + pad.Id,
-		Opts:                   map[string]interface{}{},
-		ChatHead:               pad.ChatHead,
-		NumConnectedUsers:      0,
-		ReadOnlyId:             readonlyId.ReadOnlyPadId,
-		ReadOnly:               readonlyId.ReadOnly,
-		ServerTimeStamp:        time.Now().UTC().UnixMilli(),
-		SessionRefreshInterval: 86400000,
-		UserName:               currentAuthor.Name,
-		UserId:                 sessionInfo.Author,
-		AbiwordAvailable:       "no",
-		SOfficeAvailable:       "no",
-		ExportAvailable:        "no",
-		IndentationOnNewLine:   true,
-		ScrollWhenFocusLineIsOutOfViewport: clientVars.ScrollWhenFocusLineIsOutOfViewport{
-			Percentage: clientVars.ScrollWhenFocusLineIsOutOfViewportPercentage{
-				EditionAboveViewport: 0,
-				EditionBelowViewport: 0,
-			},
-			Duration:                                 0,
-			ScrollWhenCaretIsInTheLastLineOfViewport: false,
-			PercentageToScrollWhenUserPressesArrowUp: 0,
-		},
-		Plugins:           rootPlugin,
-		InitialChangesets: make([]string, 0),
+		ColorPalette:                       utils.ColorPalette,
+		ClientIP:                           "127.0.0.1",
+		PadId:                              pad.Id,
+		UserColor:                          currentAuthor.ColorId,
+		PadOptions:                         padOptions,
+		PadShortcutEnabled:                 padShortCutEnabled,
+		InitialTitle:                       "Pad: " + pad.Id,
+		Opts:                               map[string]interface{}{},
+		ChatHead:                           pad.ChatHead,
+		NumConnectedUsers:                  0,
+		ReadOnlyId:                         readonlyId.ReadOnlyPadId,
+		ReadOnly:                           readonlyId.ReadOnly,
+		ServerTimeStamp:                    time.Now().UTC().UnixMilli(),
+		SessionRefreshInterval:             86400000,
+		UserName:                           currentAuthor.Name,
+		UserId:                             sessionInfo.Author,
+		AbiwordAvailable:                   abiwordAvailable,
+		SOfficeAvailable:                   sofficeAvailable,
+		ExportAvailable:                    retrievedSettings.ExportAvailable(),
+		IndentationOnNewLine:               retrievedSettings.IndentationOnNewLine,
+		ScrollWhenFocusLineIsOutOfViewport: retrievedSettings.ScrollWhenFocusLineIsOutOfViewport,
+		Plugins:                            rootPlugin,
+		InitialChangesets:                  make([]string, 0),
 	}
 }

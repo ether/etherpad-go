@@ -15,7 +15,7 @@ templ Page(settings settings.Settings, translations map[string]string) {
 			<link rel="stylesheet" href="/css/welcome/main.css"/>
 			<link rel="stylesheet" href="/css/skin/index.css"/>
 			<link rel="localizations" type="application/l10n+json" href="locales.json"/>
-			<title>Etherpad-Go</title>
+			<title>{settings.Title}</title>
 		</head>
 		<body>
 			<div id="wrapper">

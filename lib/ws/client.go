@@ -17,6 +17,7 @@ import (
 	"github.com/ether/etherpad-go/lib/ws/ratelimiter"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/session"
+	"go.uber.org/zap"
 
 	"github.com/gorilla/websocket"
 )
@@ -62,7 +63,7 @@ type Client struct {
 // The application runs readPump in a per-connection goroutine. The application
 // ensures that there is at most one reader on a connection by executing all
 // reads from this goroutine.
-func (c *Client) readPump(retrievedSettings *settings.Settings) {
+func (c *Client) readPump(retrievedSettings *settings.Settings, logger *zap.SugaredLogger) {
 	defer func() {
 		c.hub.Unregister <- c
 		c.conn.Close()
@@ -76,7 +77,7 @@ func (c *Client) readPump(retrievedSettings *settings.Settings) {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 				log.Printf("error: %v", err)
 			}
-			HandleDisconnectOfPadClient(c)
+			HandleDisconnectOfPadClient(c, retrievedSettings, logger)
 			break
 		}
 		if err := ratelimiter.CheckRateLimit(ratelimiter.IPAddress(c.ctx.IP()), retrievedSettings.CommitRateLimiting); err != nil {
@@ -93,7 +94,7 @@ func (c *Client) readPump(retrievedSettings *settings.Settings) {
 				println("Error unmarshalling", err)
 			}
 
-			handleMessage(clientReady, c, c.ctx)
+			handleMessage(clientReady, c, c.ctx, retrievedSettings, logger)
 		} else if strings.Contains(decodedMessage, "USER_CHANGES") {
 			var userchange ws.UserChange
 			err := json.Unmarshal(message, &userchange)
@@ -103,7 +104,7 @@ func (c *Client) readPump(retrievedSettings *settings.Settings) {
 				return
 			}
 
-			handleMessage(userchange, c, c.ctx)
+			handleMessage(userchange, c, c.ctx, retrievedSettings, logger)
 		} else if strings.Contains(decodedMessage, "USERINFO_UPDATE") {
 			var userInfoChange UserInfoUpdateWrapper
 			errorUserInfoChange := json.Unmarshal(message, &userInfoChange)
@@ -113,7 +114,7 @@ func (c *Client) readPump(retrievedSettings *settings.Settings) {
 				return
 			}
 
-			handleMessage(userInfoChange.Data, c, c.ctx)
+			handleMessage(userInfoChange.Data, c, c.ctx, retrievedSettings, logger)
 		} else if strings.Contains(decodedMessage, "GET_CHAT_MESSAGES") {
 			var getChatMessages ws.GetChatMessages
 			err := json.Unmarshal(message, &getChatMessages)
@@ -123,7 +124,7 @@ func (c *Client) readPump(retrievedSettings *settings.Settings) {
 				return
 			}
 
-			handleMessage(getChatMessages, c, c.ctx)
+			handleMessage(getChatMessages, c, c.ctx, retrievedSettings, logger)
 
 		} else if strings.Contains(decodedMessage, "CHAT_MESSAGE") {
 			var chatMessage ws.ChatMessage
@@ -132,7 +133,7 @@ func (c *Client) readPump(retrievedSettings *settings.Settings) {
 			if err != nil {
 				println("Error unmarshalling", err)
 			}
-			handleMessage(chatMessage, c, c.ctx)
+			handleMessage(chatMessage, c, c.ctx, retrievedSettings, logger)
 		}
 
 		c.hub.Broadcast <- message
@@ -152,7 +153,7 @@ func (c *Client) SendPadDelete() {
 }
 
 // ServeWs serveWs handles websocket requests from the peer.
-func ServeWs(hub *Hub, w http.ResponseWriter, r *http.Request, sessionStore *session.Store, fiber *fiber.Ctx, configSettings *settings.Settings) {
+func ServeWs(hub *Hub, w http.ResponseWriter, r *http.Request, sessionStore *session.Store, fiber *fiber.Ctx, configSettings *settings.Settings, logger *zap.SugaredLogger) {
 	store, err := sessionStore.Get(fiber)
 
 	if err != nil {
@@ -167,5 +168,5 @@ func ServeWs(hub *Hub, w http.ResponseWriter, r *http.Request, sessionStore *ses
 	client := &Client{hub: hub, conn: conn, Send: make(chan []byte, 256), SessionId: store.ID(), ctx: fiber}
 	SessionStoreInstance.initSession(store.ID())
 	client.hub.Register <- client
-	client.readPump(configSettings)
+	client.readPump(configSettings, logger)
 }

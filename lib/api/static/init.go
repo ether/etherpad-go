@@ -53,7 +53,7 @@ func Init(app *fiber.App, uiAssets embed.FS, settings settings.Settings, cookieS
 	registerEmbeddedStatic(app, "/font/", "assets/font", uiAssets)
 
 	app.Get("/p/*", func(ctx *fiber.Ctx) error {
-		return pad.HandlePadOpen(ctx, uiAssets)
+		return pad.HandlePadOpen(ctx, uiAssets, settings)
 	})
 
 	app.Get("/favicon.ico", func(c *fiber.Ctx) error {

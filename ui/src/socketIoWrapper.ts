@@ -8,29 +8,69 @@ export function createSocket(path = '/socket.io/'): WebSocket {
 
 export class SocketIoWrapper {
     private socket: WebSocket
-    private eventCallbacks: { [key: string]: Function[] } = {}
+    private static readonly eventCallbacks: { [key: string]: Function[] } = {}
 
     constructor() {
-        this.socket = createSocket()
-        this.socket.onopen = () => {
-            console.log('onopen')
-            const iID = window.setInterval(() => {
-                console.log('check')
-                if (this.eventCallbacks['connect'] && this.eventCallbacks['connect'].length == 1) {
-                    console.log('Handled connect event')
-                    this.eventCallbacks['connect'].forEach(callback => {
-                        callback()
-                    })
-                    clearInterval(iID)
-                }
-            }, 200)
+        try {
+            this.socket = createSocket()
+        } catch (e) {
+            console.error('WebSocket creation failed:', e)
+
+            throw e
         }
-        this.socket.onmessage = (e)=>{
-            const arr = JSON.parse(e.data)
-            this.eventCallbacks[arr[0]].forEach(f=>{
-                f(arr[1])
+        this.socket.onopen = this.onConnect
+        this.socket.onclose = this.onClose
+        this.socket.onerror  = this.onError
+        this.socket.onmessage = this.onMessage
+    }
+
+    private onMessage(evt: MessageEvent) {
+        const arr = JSON.parse(evt.data)
+        SocketIoWrapper.eventCallbacks[arr[0]].forEach(f=>{
+            f(arr[1])
+        })
+    }
+
+    private onConnect() {
+        console.log('onopen')
+        const iID = window.setInterval(() => {
+            console.log('check')
+            if (SocketIoWrapper.eventCallbacks['connect'] && SocketIoWrapper.eventCallbacks['connect'].length == 1) {
+                console.log('Handled connect event')
+                SocketIoWrapper.eventCallbacks['connect'].forEach(callback => {
+                    callback()
+                })
+                clearInterval(iID)
+            }
+        }, 200)
+    }
+
+    private onClose() {
+        console.log('onclose')
+        if (SocketIoWrapper.eventCallbacks['disconnect']) {
+            SocketIoWrapper.eventCallbacks['disconnect'].forEach(callback => {
+                callback()
             })
         }
+        setTimeout(() => {
+            console.log('Reconnecting...')
+            const socket = createSocket()
+            socket.onopen = this.onConnect
+            socket.onclose = this.onClose
+            socket.onerror = this.onError
+            socket.onmessage = this.onMessage
+            this.socket = socket
+        }, 1000)
+    }
+
+    private onError(evt: Event) {
+        console.log('onerror', evt)
+        if (SocketIoWrapper.eventCallbacks['disconnect']) {
+            SocketIoWrapper.eventCallbacks['disconnect'].forEach(callback => {
+                callback(evt)
+            })
+        }
+
     }
 
 
@@ -45,19 +85,19 @@ export class SocketIoWrapper {
     }
 
     public once(event: string, callback: Function) {
-        if (this.eventCallbacks[event]) {
-            this.eventCallbacks[event].push(callback)
+        if (SocketIoWrapper.eventCallbacks[event]) {
+            SocketIoWrapper.eventCallbacks[event].push(callback)
         } else {
-            this.eventCallbacks[event] = [callback]
+            SocketIoWrapper.eventCallbacks[event] = [callback]
         }
     }
 
     public on(event: string, callback: Function) {
         console.log(event)
-        if (this.eventCallbacks[event]) {
-            this.eventCallbacks[event].push(callback)
+        if (SocketIoWrapper.eventCallbacks[event]) {
+            SocketIoWrapper.eventCallbacks[event].push(callback)
         } else {
-            this.eventCallbacks[event] = [callback]
+            SocketIoWrapper.eventCallbacks[event] = [callback]
         }
     }
 

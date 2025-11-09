@@ -66,6 +66,8 @@ func main() {
 	var settings = settings2.Displayed
 
 	setupLogger.Info("Starting Etherpad Go...")
+	setupLogger.Info("Report bugs at https://github.com/ether/etherpad-go/issues")
+	setupLogger.Info("Your Etherpad Go version is " + settings2.GetGitCommit())
 
 	var db = session2.NewSessionDatabase(nil)
 	app := fiber.New(fiber.Config{
@@ -88,7 +90,7 @@ func main() {
 	go ws.HubGlob.Run()
 	app.Get("/socket.io/*", func(c *fiber.Ctx) error {
 		return adaptor.HTTPHandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-			ws.ServeWs(ws.HubGlob, writer, request, cookieStore, c, &settings)
+			ws.ServeWs(ws.HubGlob, writer, request, cookieStore, c, &settings, setupLogger)
 		})(c)
 	})
 	api2.InitAPI(app, uiAssets, settings, cookieStore)

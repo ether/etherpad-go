@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"runtime"
 
 	clientVars2 "github.com/ether/etherpad-go/lib/models/clientVars"
 )
@@ -178,6 +179,38 @@ func (s *Settings) GetPublicSettings() PublicSettings {
 		SkinName:            s.SkinName,
 		SkinVariants:        s.SkinVariants,
 	}
+}
+
+func (s *Settings) abiwordAvailable() string {
+	if s.Abiword != nil {
+		if runtime.GOOS == "windows" {
+			return "withoutPDF"
+		}
+		return "yes"
+	}
+	return "no"
+}
+
+func (s *Settings) sofficeAvailable() string {
+	if s.SOffice != nil {
+		if runtime.GOOS == "windows" {
+			return "withoutPDF"
+		}
+		return "yes"
+	}
+	return "no"
+}
+
+func (s *Settings) ExportAvailable() string {
+	var abiword = s.abiwordAvailable()
+	var soffice = s.sofficeAvailable()
+
+	if abiword == "no" && soffice == "no" {
+		return "no"
+	} else if (abiword == "withoutPDF" && soffice == "no") || (soffice == "withoutPDF" && abiword == "no") {
+		return "withoutPDF"
+	}
+	return "yes"
 }
 
 type SocketIoSettings struct {
@@ -410,7 +443,7 @@ Etherpad on Github: https://github.com/ether/etherpad-lite`,
 		EnableAdminUITests:  false,
 		LowerCasePadIDs:     false,
 		RandomVersionString: "123",
-		GitVersion:          GitVersion(),
+		GitVersion:          GetGitCommit(),
 	}
 }
 

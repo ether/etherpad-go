@@ -21,6 +21,7 @@ import (
 	"github.com/ether/etherpad-go/lib/utils"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gorilla/websocket"
+	"go.uber.org/zap"
 )
 
 type AuthSession struct {
@@ -222,7 +223,7 @@ func handleUserChanges(task Task) {
 	UpdatePadClients(retrievedPad)
 }
 
-func handleMessage(message any, client *Client, ctx *fiber.Ctx) {
+func handleMessage(message any, client *Client, ctx *fiber.Ctx, retrievedSettings *settings.Settings, logger *zap.SugaredLogger) {
 	var isSessionInfo = SessionStoreInstance.hasSession(client.SessionId)
 
 	if !isSessionInfo {
@@ -308,7 +309,7 @@ func handleMessage(message any, client *Client, ctx *fiber.Ctx) {
 	switch expectedType := message.(type) {
 	case ws.ClientReady:
 		{
-			HandleClientReadyMessage(expectedType, client, thisSessionNewRetrieved)
+			HandleClientReadyMessage(expectedType, client, thisSessionNewRetrieved, retrievedSettings, logger)
 			return
 		}
 	case ws.ChatMessage:
@@ -603,11 +604,17 @@ func correctMarkersInPad(atext apool.AText, apool apool.APool) *string {
 	return &stringifierBuilder
 }
 
-func HandleDisconnectOfPadClient(client *Client) {
+func HandleDisconnectOfPadClient(client *Client, settings *settings.Settings, logger *zap.SugaredLogger) {
 	var thisSession = SessionStoreInstance.getSession(client.SessionId)
 	if thisSession == nil || thisSession.PadId == "" {
 		SessionStoreInstance.removeSession(client.SessionId)
 		return
+	}
+
+	if settings.DisableIPLogging {
+		logger.Infof("[LEAVE] pad:%s socket:%s IP:ANONYMOUS ", thisSession.PadId, client.SessionId)
+	} else {
+		logger.Infof("[LEAVE] pad:%s socket:%s IP:%s ", thisSession.PadId, client.SessionId, client.ctx.IP())
 	}
 
 	var roomSockets = GetRoomSockets(thisSession.PadId)
@@ -650,7 +657,7 @@ func HandleDisconnectOfPadClient(client *Client) {
 	SessionStoreInstance.removeSession(client.SessionId)
 }
 
-func HandleClientReadyMessage(ready ws.ClientReady, client *Client, thisSession *ws.Session) {
+func HandleClientReadyMessage(ready ws.ClientReady, client *Client, thisSession *ws.Session, retrievedSettings *settings.Settings, logger *zap.SugaredLogger) {
 	if ready.Data.UserInfo.ColorId != nil && !colorRegEx.MatchString(*ready.Data.UserInfo.ColorId) {
 		println("Invalid color id")
 		ready.Data.UserInfo.ColorId = nil
@@ -665,10 +672,28 @@ func HandleClientReadyMessage(ready ws.ClientReady, client *Client, thisSession 
 	}
 
 	var retrievedPad, err = padManager.GetPad(thisSession.PadId, nil, &thisSession.Author)
+
 	if err != nil {
 		println("Error getting pad")
 		return
 	}
+
+	var loggerStr = "pad:%s socket:%s"
+	var argsForLogger = []interface{}{thisSession.PadId, client.SessionId}
+	if retrievedPad.Head == 0 {
+		loggerStr = "[CREATE] " + loggerStr
+	} else {
+		loggerStr = "[ENTER] " + loggerStr
+	}
+
+	if retrievedSettings.DisableIPLogging {
+		loggerStr += " IP:ANONYMOUS "
+	} else {
+		loggerStr += " IP:%s "
+		argsForLogger = append(argsForLogger, client.ctx.IP())
+	}
+
+	logger.Infof(loggerStr, argsForLogger...)
 
 	var foundAuthor, errAuth = authorManager.GetAuthor(thisSession.Author)
 
@@ -729,7 +754,7 @@ func HandleClientReadyMessage(ready ws.ClientReady, client *Client, thisSession 
 		var arr = make([]interface{}, 2)
 		arr[0] = "message"
 		arr[1] = Message{
-			Data: clientVars.NewClientVars(*retrievedPad, thisSession, wirePool, historicalAuthorData),
+			Data: clientVars.NewClientVars(*retrievedPad, thisSession, wirePool, historicalAuthorData, retrievedSettings),
 			Type: "CLIENT_VARS",
 		}
 		var encoded, _ = json.Marshal(arr)
