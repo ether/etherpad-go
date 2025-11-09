@@ -23,17 +23,7 @@ import (
 )
 
 const (
-	// Time allowed to write a message to the peer.
-	writeWait = 10 * time.Second
-
-	// Time allowed to read the next pong message from the peer.
 	pongWait = 60 * time.Second
-
-	// Send pings to peer with this period. Must be less than pongWait.
-	pingPeriod = (pongWait * 9) / 10
-
-	// Maximum message size allowed from peer.
-	maxMessageSize = 512
 )
 
 var upgrader = websocket.Upgrader{
@@ -100,7 +90,7 @@ func (c *Client) readPump(retrievedSettings *settings.Settings, logger *zap.Suga
 			err := json.Unmarshal(message, &userchange)
 
 			if err != nil {
-				println("Error unmarshalling")
+				logger.Error("Error unmarshalling")
 				return
 			}
 
@@ -110,7 +100,7 @@ func (c *Client) readPump(retrievedSettings *settings.Settings, logger *zap.Suga
 			errorUserInfoChange := json.Unmarshal(message, &userInfoChange)
 
 			if errorUserInfoChange != nil {
-				println("Error unmarshalling")
+				logger.Error("Error unmarshalling")
 				return
 			}
 
@@ -120,7 +110,7 @@ func (c *Client) readPump(retrievedSettings *settings.Settings, logger *zap.Suga
 			err := json.Unmarshal(message, &getChatMessages)
 
 			if err != nil {
-				println("Error unmarshalling", err)
+				logger.Error("Error unmarshalling", err)
 				return
 			}
 
@@ -131,7 +121,7 @@ func (c *Client) readPump(retrievedSettings *settings.Settings, logger *zap.Suga
 			err := json.Unmarshal(message, &chatMessage)
 
 			if err != nil {
-				println("Error unmarshalling", err)
+				logger.Error("Error unmarshalling", err)
 			}
 			handleMessage(chatMessage, c, c.ctx, retrievedSettings, logger)
 		}
