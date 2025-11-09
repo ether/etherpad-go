@@ -6,6 +6,7 @@ import (
 	"fmt"
 	_ "fmt"
 	"net/http"
+	"time"
 
 	_ "github.com/ether/etherpad-go/docs"
 	api2 "github.com/ether/etherpad-go/lib/api"
@@ -76,8 +77,10 @@ func main() {
 	})
 
 	var cookieStore = session.New(session.Config{
-		KeyLookup: "cookie:express_sid",
-		Storage:   db,
+		KeyLookup:      "cookie:express_sid",
+		Storage:        db,
+		CookieSameSite: settings.Cookie.SameSite,
+		Expiration:     time.Duration(settings.Cookie.SessionLifetime),
 	})
 
 	hooks.ExpressPreSession(app, uiAssets)

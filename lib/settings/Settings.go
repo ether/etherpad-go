@@ -74,6 +74,41 @@ type User struct {
 	Username *string `json:"-"`
 }
 
+type Cookie struct {
+	KeyRotationInterval    int    `json:"keyRotationInterval"`
+	SameSite               string `json:"sameSite"`
+	SessionLifetime        int    `json:"sessionLifetime"`
+	SessionRefreshInterval int    `json:"sessionRefreshInterval"`
+}
+
+type SSOClients struct {
+	ClientId      string   `json:"client_id"`
+	ClientSecret  string   `json:"client_secret"`
+	GrantTypes    []string `json:"grant_types"`
+	ResponseTypes []string `json:"response_types"`
+	RedirectUris  []string `json:"redirect_uris"`
+}
+
+type SSO struct {
+	Issuer  string       `json:"issuer"`
+	Clients []SSOClients `json:"clients"`
+}
+
+type Cleanup struct {
+	Enabled       bool `json:"enabled"`
+	KeepRevisions int  `json:"keepRevisions"`
+}
+
+type ImportExportRateLimiting struct {
+	WindowMS int `json:"windowMS"`
+	Max      int `json:"max"`
+}
+
+type CommitRateLimiting struct {
+	Duration int `json:"duration"`
+	Points   int `json:"points"`
+}
+
 type Settings struct {
 	Root                               string
 	SettingsFilename                   string                                         `json:"settingsFilename"`
@@ -84,7 +119,7 @@ type Settings struct {
 	TTL                                TTL                                            `json:"ttl"`
 	UpdateServer                       string                                         `json:"updateServer"`
 	EnableDarkMode                     bool                                           `json:"enableDarkMode"`
-	SkinName                           *string                                        `json:"skinName"`
+	SkinName                           string                                         `json:"skinName"`
 	SkinVariants                       string                                         `json:"skinVariants"`
 	IP                                 string                                         `json:"ip"`
 	Port                               string                                         `json:"port"`
@@ -112,6 +147,7 @@ type Settings struct {
 	IndentationOnNewLine               bool                                           `json:"indentationOnNewLine"`
 	SessionKey                         *string                                        `json:"SessionKey"`
 	TrustProxy                         bool                                           `json:"trustProxy"`
+	Cookie                             Cookie                                         `json:"cookie"`
 	RequireAuthentication              bool                                           `json:"requireAuthentication"`
 	RequireAuthorization               bool                                           `json:"requireAuthorization"`
 	Users                              map[string]User                                `json:"users"`
@@ -119,6 +155,29 @@ type Settings struct {
 	ScrollWhenFocusLineIsOutOfViewport clientVars2.ScrollWhenFocusLineIsOutOfViewport `json:"scrollWhenFocusLineIsOutOfViewport"`
 	SocketIo                           SocketIoSettings                               `json:"socketIo"`
 	AuthenticationMethod               string                                         `json:"authenticationMethod"`
+	SSO                                *SSO                                           `json:"sso"`
+	Cleanup                            Cleanup                                        `json:"cleanup"`
+	ExposeVersion                      bool                                           `json:"exposeVersion"`
+	CustomLocaleStrings                map[string]map[string]string                   `json:"customLocaleStrings"`
+	ImportExportRateLimiting           ImportExportRateLimiting                       `json:"importExportRateLimiting"`
+	CommitRateLimiting                 CommitRateLimiting                             `json:"commitRateLimiting"`
+	ImportMaxFileSize                  int64                                          `json:"importMaxFileSize"`
+	EnableAdminUITests                 bool                                           `json:"enableAdminUITests"`
+	LowerCasePadIDs                    bool                                           `json:"lowerCasePadIds"`
+	RandomVersionString                string                                         `json:"randomVersionString"`
+	GitVersion                         string                                         `json:"-"`
+}
+
+func (s *Settings) GetPublicSettings() PublicSettings {
+	return PublicSettings{
+		GitVersion:          s.GitVersion,
+		Toolbar:             s.Toolbar,
+		ExposeVersion:       s.ExposeVersion,
+		RandomVersionString: s.RandomVersionString,
+		Title:               s.Title,
+		SkinName:            s.SkinName,
+		SkinVariants:        s.SkinVariants,
+	}
 }
 
 type SocketIoSettings struct {
@@ -157,7 +216,7 @@ func newDefaultSettings(pathToRoot string) Settings {
 		 * Initialized to null, so we can spot an old configuration file and invite the
 		 * user to update it before falling back to the default.
 		 */
-		SkinName:                nil,
+		SkinName:                "colibris",
 		SkinVariants:            "super-light-toolbar super-light-editor light-background",
 		IP:                      "0.0.0.0",
 		Port:                    "9001",
@@ -199,7 +258,7 @@ Etherpad on Github: https://github.com/ether/etherpad-lite`,
 			Lang:             nil,
 		},
 		/**
-		 * Wether to enable the /stats endpoint. The functionality in the admin menu is untouched for this.
+		 * Whether to enable the /stats endpoint. The functionality in the admin menu is untouched for this.
 		 */
 		EnableMetrics: true,
 		PadShortCutEnabled: PadShortcutEnabled{
@@ -226,6 +285,132 @@ Etherpad on Github: https://github.com/ether/etherpad-lite`,
 			PageUp:    true,
 			PageDown:  true,
 		},
+		/**
+		 * The toolbar buttons and order.
+		 */
+		Toolbar: Toolbar{
+			Left: [][]string{
+				{"bold", "italic", "underline", "strikethrough"},
+				{"orderedlist", "unorderedlist", "indent", "outdent"},
+				{"undo", "redo"},
+				{"clearauthorship"},
+			},
+			Right: [][]string{
+				{"importexport", "timeslider", "savedrevision"},
+				{"settings", "embed", "showusers"},
+			},
+			TimeSlider: [][]string{
+				{"timeslider_export", "timeslider_settings", "timeslider_returnToPad"},
+			},
+		},
+		/**
+		 * A flag that requires any user to have a valid session (via the api) before accessing a pad
+		 */
+		RequireSession: false,
+		/**
+		 * A flag that prevents users from creating new pads
+		 */
+		EditOnly: false,
+		/**
+		 * Max age that responses will have (affects caching layer).
+		 */
+		MaxAge: 1000 * 60 * 60 * 6, // 6 hours in milliseconds
+		/**
+		 * A flag that shows if minification is enabled or not
+		 */
+		Minify: true,
+		/**
+		 * The path of the abiword executable
+		 */
+		Abiword: nil,
+		/**
+		 * The path of the libreoffice executable
+		 */
+		SOffice: nil,
+		/**
+		 * Should we support none natively supported file types on import?
+		 */
+		AllowUnknownFileEnds: true,
+		/**
+		 * The log level of log4js
+		 */
+		LogLevel: "INFO",
+		/**
+		 * Disable IP logging
+		 */
+		DisableIPLogging: false,
+		/**
+		 * Number of seconds to automatically reconnect pad
+		 */
+		AutomaticReconnectionTimeout: 0,
+		/**
+		 * Disable Load Testing
+		 */
+		LoadTest: false,
+		/**
+		 * Disable dump of objects preventing a clean exit
+		 */
+		DumpOnCleanExit: false,
+		/**
+		 * Enable indentation on new lines
+		 */
+		IndentationOnNewLine: true,
+		/*
+		 * Trust Proxy, whether or not trust the x-forwarded-for header.
+		 */
+		TrustProxy: false,
+		Cookie: Cookie{
+			KeyRotationInterval:    1 * 24 * 60 * 60 * 1000,
+			SameSite:               "lax",
+			SessionLifetime:        10 * 24 * 60 * 60 * 1000,
+			SessionRefreshInterval: 1 * 24 * 60 * 60 * 1000,
+		},
+		/*
+		 * This setting is used if you need authentication and/or
+		 * authorization. Note: /admin always requires authentication, and
+		 * either authorization by a module, or a user with is_admin set
+		 */
+		RequireAuthentication: false,
+		RequireAuthorization:  false,
+		Users:                 make(map[string]User),
+		/*
+		 * This setting is used for configuring sso
+		 */
+		SSO: &SSO{
+			Issuer: "http://localhost:9001",
+		},
+		/*
+		 * Show settings in admin page, by default it is true
+		 */
+		ShowSettingsInAdminPage: true,
+		Cleanup: Cleanup{
+			Enabled:       false,
+			KeepRevisions: 100,
+		},
+		ScrollWhenFocusLineIsOutOfViewport: struct {
+			Percentage                               clientVars2.ScrollWhenFocusLineIsOutOfViewportPercentage `json:"percentage"`
+			Duration                                 int                                                      `json:"duration"`
+			ScrollWhenCaretIsInTheLastLineOfViewport bool                                                     `json:"scrollWhenCaretIsInTheLastLineOfViewport"`
+			PercentageToScrollWhenUserPressesArrowUp int                                                      `json:"percentageToScrollWhenUserPressesArrowUp"`
+		}{Percentage: clientVars2.ScrollWhenFocusLineIsOutOfViewportPercentage{
+			EditionAboveViewport: 0,
+			EditionBelowViewport: 0,
+		}, Duration: 0, ScrollWhenCaretIsInTheLastLineOfViewport: false, PercentageToScrollWhenUserPressesArrowUp: 0},
+		ExposeVersion:       false,
+		CustomLocaleStrings: make(map[string]map[string]string),
+		ImportExportRateLimiting: ImportExportRateLimiting{
+			WindowMS: 90000,
+			Max:      10,
+		},
+		CommitRateLimiting: CommitRateLimiting{
+			Duration: 1,
+			Points:   10,
+		},
+		ImportMaxFileSize:   50 * 1024 * 1024, // 50 MB
+		EnableAdminUITests:  false,
+		LowerCasePadIDs:     false,
+		RandomVersionString: "123",
+		GitVersion:          GitVersion(),
 	}
 }
 
