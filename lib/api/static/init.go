@@ -93,7 +93,7 @@ func Init(app *fiber.App, uiAssets embed.FS, settings settings.Settings, cookieS
 			alias["ep_etherpad-lite/static/js/rjquery"] = relativePath + "/rjquery"
 			alias["ep_etherpad-lite/static/js/nice-select"] = "ep_etherpad-lite/static/js/vendors/nice-select"
 
-			var pathToBuild = path.Join(*settings.Root, "ui")
+			var pathToBuild = path.Join(settings.Root, "ui")
 
 			result := api.Build(api.BuildOptions{
 				EntryPoints:   []string{entrypoint},
