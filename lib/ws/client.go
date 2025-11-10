@@ -48,6 +48,29 @@ type Client struct {
 	ctx       *fiber.Ctx
 }
 
+func (c *Client) readPumpAdmin(retrievedSettings *settings.Settings, logger *zap.SugaredLogger) {
+	defer func() {
+		c.hub.Unregister <- c
+		c.conn.Close()
+	}()
+	c.conn.SetReadLimit(retrievedSettings.SocketIo.MaxHttpBufferSize)
+	c.conn.SetReadDeadline(time.Now().Add(pongWait))
+	c.conn.SetPongHandler(func(string) error { c.conn.SetReadDeadline(time.Now().Add(pongWait)); return nil })
+	for {
+		_, message, err := c.conn.ReadMessage()
+		if err != nil {
+			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+				log.Printf("error: %v", err)
+			}
+			HandleDisconnectOfPadClient(c, retrievedSettings, logger)
+			break
+		}
+		message = bytes.TrimSpace(bytes.Replace(message, newline, space, -1))
+		decodedMessage := string(message[:])
+		println(decodedMessage)
+	}
+}
+
 // readPump pumps messages from the websocket connection to the hub.
 //
 // The application runs readPump in a per-connection goroutine. The application

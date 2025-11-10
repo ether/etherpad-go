@@ -75,7 +75,7 @@ func main() {
 	})
 
 	app.Use(func(c *fiber.Ctx) error {
-		return pad.CheckAccess(c)
+		return pad.CheckAccess(c, setupLogger, &settings)
 	})
 
 	var cookieStore = session.New(session.Config{
@@ -93,6 +93,12 @@ func main() {
 			ws.ServeWs(ws.HubGlob, writer, request, cookieStore, c, &settings, setupLogger)
 		})(c)
 	})
+	app.Get("/admin/ws", func(c *fiber.Ctx) error {
+		return adaptor.HTTPHandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+			ws.ServeAdminWs(ws.HubGlob, writer, request, c, &settings, setupLogger)
+		})(c)
+	})
+
 	api2.InitAPI(app, uiAssets, settings, cookieStore)
 
 	fiberString := fmt.Sprintf("%s:%s", settings.IP, settings.Port)

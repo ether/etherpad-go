@@ -14,6 +14,7 @@ import (
 	"github.com/ether/etherpad-go/lib/models/webaccess"
 	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/gofiber/fiber/v2"
+	"go.uber.org/zap"
 )
 
 var readOnlyManager = NewReadOnlyManager()
@@ -42,7 +43,7 @@ func UserCanModify(padId *string, req *webaccess.SocketClientRequest) bool {
 	return level != nil && *level != "readOnly"
 }
 
-func CheckAccess(ctx *fiber.Ctx) error {
+func CheckAccess(ctx *fiber.Ctx, logger *zap.SugaredLogger, retrievedSettings *settings.Settings) error {
 	var requireAdmin = strings.HasPrefix(strings.ToLower(ctx.Path()), "/admin-auth")
 	//FIXME this needs to be set
 	// ///////////////////////////////////////////////////////////////////////////////////////////////
@@ -74,7 +75,13 @@ func CheckAccess(ctx *fiber.Ctx) error {
 
 			var encodedPadRegex = regexp.MustCompile("^/p/([^/]*)")
 
-			var encodedPadId = encodedPadRegex.FindAllString(ctx.Path(), -1)[1]
+			var encodedPadIds = encodedPadRegex.FindAllString(ctx.Path(), -1)
+
+			if len(encodedPadIds) == 0 {
+				return true
+			}
+
+			encodedPadId := encodedPadIds[0]
 
 			if utf8.RuneCountInString(encodedPadId) == 0 {
 				return true
@@ -114,7 +121,7 @@ func CheckAccess(ctx *fiber.Ctx) error {
 		if isAuthenticated && sessionReq.IsAdmin {
 			return grant("create")
 		}
-		var requireAuthn = requireAdmin || settings.Displayed.RequireAuthentication
+		var requireAuthn = requireAdmin || retrievedSettings.RequireAuthentication
 		if !requireAuthn {
 			return grant("create")
 		}
@@ -127,7 +134,7 @@ func CheckAccess(ctx *fiber.Ctx) error {
 			return false
 		}
 
-		if !settings.Displayed.RequireAuthorization {
+		if !retrievedSettings.RequireAuthorization {
 			return grant("create")
 		}
 		return false
@@ -145,16 +152,20 @@ func CheckAccess(ctx *fiber.Ctx) error {
 		return ctx.Next()
 	}
 
-	if settings.Displayed.Users == nil {
+	if retrievedSettings.Users == nil {
 		var newUsers = make(map[string]settings.User)
-		settings.Displayed.Users = newUsers
+		retrievedSettings.Users = newUsers
 	}
-	var user = ctx.Locals(clientVars.WebAccessStore).(*webaccess.SocketClientRequest)
+
+	var user, ok = ctx.Locals(clientVars.WebAccessStore).(*webaccess.SocketClientRequest)
 
 	var webAccessCtx = webaccess.WebAccessType{
-		User:  user,
 		Users: settings.Displayed.Users,
 		Next:  ctx.Next,
+	}
+
+	if ok {
+		webAccessCtx.Username = user.Username
 	}
 
 	var authheader = ctx.Get("authorization")
@@ -172,18 +183,20 @@ func CheckAccess(ctx *fiber.Ctx) error {
 		webAccessCtx.Password = &userNamePassword[1]
 	}
 
-	var foundUsers = settings.Displayed.Users
+	var foundUsers = retrievedSettings.Users
 
-	webUsername := *webAccessCtx.Username
-	retrievedUser, ok := foundUsers[webUsername]
 	var password *string
 
-	if ok {
-		password = retrievedUser.Password
+	if webAccessCtx.Username != nil {
+		retrievedUser, ok := foundUsers[*webAccessCtx.Username]
+		logger.Infof("Retrieved user: %s", *webAccessCtx.Username)
+		if ok {
+			password = retrievedUser.Password
+		}
 	}
 
 	if !httpBasicAuth || webAccessCtx.Username == nil || password == nil || *password != *webAccessCtx.Password {
-		println("failed authentication")
+		logger.Infof("failed authentication from IP %s", ctx.IP())
 		// No plugin handled the authentication failure. Fall back to basic authentication.
 		if !requireAdmin {
 			ctx.Set("WWW-Authenticate", `Basic realm="Restricted area"`)
@@ -192,23 +205,26 @@ func CheckAccess(ctx *fiber.Ctx) error {
 		time.Sleep(1 * time.Second)
 		return ctx.Status(401).SendString("Authentication Required")
 	}
-	var retrievedUserFromMap = settings.Displayed.Users[*webAccessCtx.Username]
+	var retrievedUserFromMap = retrievedSettings.Users[*webAccessCtx.Username]
 	// Make a shallow copy so that the password property can be deleted (to prevent it from
 	// appearing in logs or in the database) without breaking future authentication attempts.
-	ctx.Locals(clientVars.WebAccessStore, retrievedUserFromMap)
+	ctx.Locals(clientVars.WebAccessStore, &webaccess.SocketClientRequest{
+		Username: retrievedUserFromMap.Username,
+		IsAdmin:  retrievedUserFromMap.IsAdmin != nil && *retrievedUserFromMap.IsAdmin,
+	})
 
 	retrievedUserFromMap.Username = webAccessCtx.Username
 	// Remove password
-	if user == nil {
-		println("authenticate hook failed to add user settings to session")
-		return ctx.Status(50).SendString("Internal Server Status")
+	if webAccessCtx.Username == nil {
+		logger.Warn("authenticate hook failed to add user settings to session")
+		return ctx.Status(500).SendString("Internal Server Status")
 	}
-	if user.Username == nil {
+	if webAccessCtx.Username == nil {
 		var newUsername = "<no username>"
-		user.Username = &newUsername
+		webAccessCtx.Username = &newUsername
 	}
 
-	println(fmt.Sprintf(`Successful authentication from IP %s for user %s`, ctx.IP(), *user.Username))
+	logger.Infof(fmt.Sprintf(`Successful authentication from IP %s for user %s`, ctx.IP(), *webAccessCtx.Username))
 	// ///////////////////////////////////////////////////////////////////////////////////////////////
 	// Step 4: Try to access the thing again. If this fails, give the user a 403 error. Plugins can
 	// use the authzFailure hook to override the default error handling behavior (e.g., to redirect to

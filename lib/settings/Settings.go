@@ -71,7 +71,7 @@ type Toolbar struct {
 
 type User struct {
 	Password *string `json:"password"`
-	IsAdmin  *bool   `json:"isAdmin"`
+	IsAdmin  *bool   `json:"is_admin"`
 	Username *string `json:"-"`
 }
 
