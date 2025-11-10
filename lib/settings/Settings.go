@@ -447,20 +447,165 @@ Etherpad on Github: https://github.com/ether/etherpad-lite`,
 	}
 }
 
-// Function to remove comments from JSON
-func stripComments(jsonData []byte) []byte {
-	// Define regex patterns to find and remove comments
-	singleLineCommentRegex := regexp.MustCompile(`(?m)(^\s*//.*$|//.*$)`)
-	multiLineCommentRegex := regexp.MustCompile(`(?s)/\*.*?\*/`)
+func stripWithoutWhitespace() string {
+	return ""
+}
 
-	// Remove single-line comments
-	jsonData = singleLineCommentRegex.ReplaceAll(jsonData, nil)
-	// Remove multi-line comments
-	jsonData = multiLineCommentRegex.ReplaceAll(jsonData, nil)
-	re := regexp.MustCompile(`\r?\n|\r`)
-	jsonData = re.ReplaceAll(jsonData, nil)
+var rgx = regexp.MustCompile(`\S`)
 
-	return jsonData
+func stripWithWhitespace(string string, start *int, end *int) string {
+	// slice only if start and end are not nil
+	if start != nil && end != nil {
+		string = string[*start:*end]
+	} else if start != nil {
+		string = string[*start:]
+	}
+
+	return rgx.ReplaceAllString(string, " ")
+}
+
+func isEscaped(jsonString string, quotePosition int) bool {
+	index := quotePosition - 1
+	backslashCount := 0
+
+	for string(jsonString[index]) == "\\" {
+		index -= 1
+		backslashCount += 1
+	}
+
+	return backslashCount%2 == 1
+}
+
+type Options struct {
+	Whitespace     bool
+	TrailingCommas bool
+}
+
+const notInsideComment = 0
+const singleComment = 1
+const multiComment = 2
+
+func StripWithOptions(jsonString string, options *Options) string {
+
+	// if options are not provided, use default options
+	// whitespace: true
+	// trailingCommas: false
+	if options == nil {
+		options = &Options{Whitespace: true, TrailingCommas: false}
+	}
+
+	isInsideString := false
+	isInsideComment := notInsideComment
+	offset := 0
+	buffer := ""
+	result := ""
+	commaIndex := -1
+
+	// shorthand function
+	strip := func(index int) string {
+		if options.Whitespace {
+			return stripWithWhitespace(jsonString, &offset, &index)
+		} else {
+			return stripWithoutWhitespace()
+		}
+	}
+
+	for index := 0; index < len(jsonString); index++ {
+		currentCharacter := string(jsonString[index])
+		nextCharacter := ""
+
+		if index+1 < len(jsonString) {
+			nextCharacter = string(jsonString[index+1])
+		}
+
+		if isInsideComment == notInsideComment && currentCharacter == `"` {
+			// Enter or exit string
+			escaped := isEscaped(jsonString, index)
+			if !escaped {
+				isInsideString = !isInsideString
+			}
+		}
+
+		if isInsideString {
+			continue
+		}
+
+		if isInsideComment == notInsideComment && currentCharacter+nextCharacter == "//" {
+			// Enter single-line comment
+			buffer += jsonString[offset:index]
+			offset = index
+			isInsideComment = singleComment
+			index++
+		} else if isInsideComment == singleComment && currentCharacter+nextCharacter == "\r\n" {
+			// Exit single-line comment via \r\n
+			index++
+			isInsideComment = notInsideComment
+			buffer += strip(index)
+			offset = index
+		} else if isInsideComment == singleComment && currentCharacter == "\n" {
+			// Exit single-line comment via \n
+			isInsideComment = notInsideComment
+			buffer += strip(index)
+			offset = index
+		} else if isInsideComment == notInsideComment && currentCharacter+nextCharacter == "/*" {
+			// Enter multiline comment
+			buffer += jsonString[offset:index]
+			offset = index
+			isInsideComment = multiComment
+			index++
+
+		} else if isInsideComment == multiComment && currentCharacter+nextCharacter == "*/" {
+			// Exit multiline comment
+			index++
+			isInsideComment = notInsideComment
+			buffer += strip(index + 1)
+			offset = index + 1
+
+		} else if options.TrailingCommas && isInsideComment == notInsideComment {
+			if commaIndex != -1 {
+				if currentCharacter == "}" || currentCharacter == "]" {
+					// Strip trailing comma
+					buffer += jsonString[offset:index]
+					if options.Whitespace {
+						s, e := 0, 1
+						result += stripWithWhitespace(jsonString, &s, &e)
+					} else {
+						result += stripWithoutWhitespace()
+					}
+					result += buffer[1:]
+					buffer = ""
+					offset = index
+					commaIndex = -1
+				} else if currentCharacter != " " && currentCharacter != "\t" && currentCharacter != "\r" && currentCharacter != "\n" {
+					// Hit non-whitespace following a comma; comma is not trailing
+					buffer += jsonString[offset:index]
+					offset = index
+					commaIndex = -1
+				}
+			} else if currentCharacter == "," {
+				// Flush buffer prior to this point, and save new comma index
+				result += buffer + jsonString[offset:index]
+				buffer = ""
+				offset = index
+				commaIndex = index
+
+			}
+		}
+	}
+
+	var end string
+	if isInsideComment > notInsideComment {
+		if options.Whitespace {
+			end = stripWithWhitespace(jsonString[offset:], nil, nil)
+		} else {
+			end = stripWithoutWhitespace()
+		}
+
+	} else {
+		end = jsonString[offset:]
+	}
+
+	return result + buffer + end
 }
 
 // Merge merges non-zero values from src into dest, including nested structs, slices, and maps.
@@ -643,7 +788,8 @@ func init() {
 
 	var settingsFilePath = filepath.Join(pathToRoot, "settings.json")
 	settings, err := os.ReadFile(settingsFilePath)
-	settings = stripComments(settings)
+	settings = []byte(StripWithOptions(string(settings), &Options{Whitespace: true, TrailingCommas: true}))
+	println(string(settings))
 	Displayed = newDefaultSettings(pathToRoot)
 
 	if err != nil {
