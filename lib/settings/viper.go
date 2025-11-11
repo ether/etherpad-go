@@ -13,7 +13,7 @@ func ReadConfig(jsonStr string) (*Settings, error) {
 
 	viper.AddConfigPath(".")
 	viper.AutomaticEnv()
-	viper.SetEnvPrefix("smartorganizr")
+	viper.SetEnvPrefix("etherpad")
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	if err := viper.ReadConfig(strings.NewReader(jsonStr)); err != nil {
 		return nil, err
