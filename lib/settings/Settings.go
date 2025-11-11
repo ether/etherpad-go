@@ -661,10 +661,6 @@ func init() {
 	settings, err := os.ReadFile(settingsFilePath)
 	settings = []byte(StripWithOptions(string(settings), &Options{Whitespace: true, TrailingCommas: true}))
 
-	if err != nil {
-		println("Error reading settings. Default settings will be used.")
-	}
-
 	setting, err := ReadConfig(string(settings))
 	if err != nil {
 		println("error is" + err.Error())

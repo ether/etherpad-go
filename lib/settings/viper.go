@@ -1,6 +1,7 @@
 package settings
 
 import (
+	"errors"
 	"strings"
 
 	clientVars2 "github.com/ether/etherpad-go/lib/models/clientVars"
@@ -15,10 +16,19 @@ func ReadConfig(jsonStr string) (*Settings, error) {
 	viper.AutomaticEnv()
 	viper.SetEnvPrefix("etherpad")
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
-	if err := viper.ReadConfig(strings.NewReader(jsonStr)); err != nil {
-		return nil, err
+	if jsonStr != "" {
+		if err := viper.ReadConfig(strings.NewReader(jsonStr)); err != nil {
+			return nil, err
+		}
+	} else {
+		if err := viper.ReadInConfig(); err != nil {
+			var configFileNotFoundError viper.ConfigFileNotFoundError
+			if !errors.As(err, &configFileNotFoundError) {
+				return nil, err
+			}
+			// Datei nicht gefunden ist OK, fahre mit Defaults fort
+		}
 	}
-
 	var favicon *string
 	if faviconValue := viper.GetString(Favicon); faviconValue != "" {
 		favicon = &faviconValue
