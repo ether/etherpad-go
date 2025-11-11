@@ -1,7 +1,6 @@
 package settings
 
 import (
-	"encoding/json"
 	"os"
 	"path"
 	"path/filepath"
@@ -13,7 +12,15 @@ import (
 )
 
 type DBSettings struct {
-	Filename string
+	Filename   string
+	Host       string
+	Port       string
+	Database   string
+	User       string
+	Password   string
+	Charset    string
+	Collection string
+	Url        string
 }
 
 type TTL struct {
@@ -76,10 +83,10 @@ type User struct {
 }
 
 type Cookie struct {
-	KeyRotationInterval    int    `json:"keyRotationInterval"`
+	KeyRotationInterval    int64  `json:"keyRotationInterval"`
 	SameSite               string `json:"sameSite"`
-	SessionLifetime        int    `json:"sessionLifetime"`
-	SessionRefreshInterval int    `json:"sessionRefreshInterval"`
+	SessionLifetime        int64  `json:"sessionLifetime"`
+	SessionRefreshInterval int64  `json:"sessionRefreshInterval"`
 }
 
 type SSOClients struct {
@@ -110,6 +117,12 @@ type CommitRateLimiting struct {
 	Points   int `json:"points"`
 }
 
+type SSLSettings struct {
+	Key  string   `json:"key"`
+	Cert string   `json:"cert"`
+	Ca   []string `json:"ca"`
+}
+
 type Settings struct {
 	Root                               string
 	SettingsFilename                   string                                         `json:"settingsFilename"`
@@ -125,7 +138,7 @@ type Settings struct {
 	IP                                 string                                         `json:"ip"`
 	Port                               string                                         `json:"port"`
 	SuppressErrorsInPadText            bool                                           `json:"suppressErrorsInPadText"`
-	SSL                                bool                                           `json:"ssl"`
+	SSL                                SSLSettings                                    `json:"ssl"`
 	DBType                             string                                         `json:"dbType"`
 	DBSettings                         *DBSettings                                    `json:"dbSettings"`
 	DefaultPadText                     string                                         `json:"defaultPadText"`
@@ -254,7 +267,6 @@ func newDefaultSettings(pathToRoot string) Settings {
 		IP:                      "0.0.0.0",
 		Port:                    "9001",
 		SuppressErrorsInPadText: false,
-		SSL:                     false,
 		SocketIo: SocketIoSettings{
 			/**
 			 * Maximum permitted client message size (in bytes).
@@ -789,19 +801,18 @@ func init() {
 	var settingsFilePath = filepath.Join(pathToRoot, "settings.json")
 	settings, err := os.ReadFile(settingsFilePath)
 	settings = []byte(StripWithOptions(string(settings), &Options{Whitespace: true, TrailingCommas: true}))
-	println(string(settings))
-	Displayed = newDefaultSettings(pathToRoot)
 
 	if err != nil {
 		println("Error reading settings. Default settings will be used.")
 	}
-	var fileReadSettings Settings
-	err = json.Unmarshal(settings, &fileReadSettings)
-	LookUpEnvVariables(&fileReadSettings)
-	Merge(&Displayed, &fileReadSettings)
 
+	setting, err := ReadConfig(string(settings))
 	if err != nil {
 		println("error is" + err.Error())
 		return
 	}
+	setting.GitVersion = GitVersion()
+	setting.Root = pathToRoot
+	Displayed = *setting
+
 }
