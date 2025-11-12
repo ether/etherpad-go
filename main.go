@@ -69,7 +69,7 @@ func main() {
 	setupLogger.Info("Report bugs at https://github.com/ether/etherpad-go/issues")
 	setupLogger.Info("Your Etherpad Go version is " + settings2.GetGitCommit())
 
-	dataStore, err := utils.GetDB(settings)
+	dataStore, err := utils.GetDB(settings, setupLogger)
 	readOnlyManager := pad.NewReadOnlyManager(dataStore)
 
 	var db = session2.NewSessionDatabase(nil)

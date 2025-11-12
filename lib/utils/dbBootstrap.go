@@ -6,6 +6,7 @@ import (
 	"github.com/ether/etherpad-go/lib/db"
 	plugins2 "github.com/ether/etherpad-go/lib/plugins"
 	"github.com/ether/etherpad-go/lib/settings"
+	"go.uber.org/zap"
 )
 
 func init() {
@@ -79,10 +80,12 @@ var ColorPalette = []string{
 	"#b3b3e6",
 }
 
-func GetDB(retrievedSettings settings.Settings) (db.DataStore, error) {
+func GetDB(retrievedSettings settings.Settings, setupLogger *zap.SugaredLogger) (db.DataStore, error) {
 	if retrievedSettings.DBType == settings.SQLITE {
+		setupLogger.Infof("Using SQLite database at %s", retrievedSettings.DBSettings.Filename)
 		return db.NewSQLiteDB(retrievedSettings.DBSettings.Filename)
 	} else if retrievedSettings.DBType == settings.MEMORY {
+		setupLogger.Info("Using in-memory database (data will be lost on restart)")
 		return db.NewMemoryDataStore(), nil
 	}
 	return nil, errors.New("unsupported database type")
