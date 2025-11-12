@@ -10,7 +10,6 @@ import (
 	"log"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/ether/etherpad-go/lib/models/ws"
 	"github.com/ether/etherpad-go/lib/settings"
@@ -20,10 +19,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/gorilla/websocket"
-)
-
-const (
-	pongWait = 60 * time.Second
 )
 
 var upgrader = websocket.Upgrader{
@@ -55,8 +50,6 @@ func (c *Client) readPumpAdmin(retrievedSettings *settings.Settings, logger *zap
 		c.conn.Close()
 	}()
 	c.conn.SetReadLimit(retrievedSettings.SocketIo.MaxHttpBufferSize)
-	c.conn.SetReadDeadline(time.Now().Add(pongWait))
-	c.conn.SetPongHandler(func(string) error { c.conn.SetReadDeadline(time.Now().Add(pongWait)); return nil })
 	for {
 		_, message, err := c.conn.ReadMessage()
 		if err != nil {
@@ -83,8 +76,6 @@ func (c *Client) readPump(retrievedSettings *settings.Settings, logger *zap.Suga
 		c.conn.Close()
 	}()
 	c.conn.SetReadLimit(retrievedSettings.SocketIo.MaxHttpBufferSize)
-	c.conn.SetReadDeadline(time.Now().Add(pongWait))
-	c.conn.SetPongHandler(func(string) error { c.conn.SetReadDeadline(time.Now().Add(pongWait)); return nil })
 	for {
 		_, message, err := c.conn.ReadMessage()
 		if err != nil {
