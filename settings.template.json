@@ -15,7 +15,7 @@
   "authenticationMethod": "sso",
   "enableDarkMode": true,
   "updateServer": "https://etherpad.org/ep_infos",
-  "dbType": "dirty",
+  "dbType": "memory",
   "dbSettings": {
     "host": null,
     "port": null,

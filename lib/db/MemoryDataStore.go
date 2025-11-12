@@ -204,6 +204,7 @@ func NewMemoryDataStore() *MemoryDataStore {
 		sessionStore: make(map[string]session2.Session),
 		tokenStore:   make(map[string]string),
 		groupStore:   make(map[string]string),
+		chatPads:     make(map[string]db.ChatMessageDB),
 	}
 }
 
@@ -297,13 +298,18 @@ func (m *MemoryDataStore) SaveAuthor(author db.AuthorDB) {
 }
 
 func (m *MemoryDataStore) SaveAuthorName(authorId string, authorName string) {
-	var retrievedAuthor, _ = m.authorStore[authorId]
+	var retrievedAuthor, ok = m.authorStore[authorId]
+	if !ok {
+		return
+	}
 	retrievedAuthor.Name = &authorName
+	m.authorStore[authorId] = retrievedAuthor
 }
 
 func (m *MemoryDataStore) SaveAuthorColor(authorId string, authorColor string) {
 	var retrievedAuthor, _ = m.authorStore[authorId]
 	retrievedAuthor.ColorId = authorColor
+	m.authorStore[authorId] = retrievedAuthor
 }
 
 var _ DataStore = (*MemoryDataStore)(nil)
