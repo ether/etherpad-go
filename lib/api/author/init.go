@@ -2,8 +2,10 @@ package author
 
 import (
 	"encoding/json"
+
 	error2 "github.com/ether/etherpad-go/lib/api/error"
 	"github.com/ether/etherpad-go/lib/author"
+	"github.com/ether/etherpad-go/lib/db"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -15,8 +17,8 @@ type CreateDtoResponse struct {
 	authorId string
 }
 
-func Init(c *fiber.App) {
-	var authorManager author.Manager = author.NewManager()
+func Init(c *fiber.App, db db.DataStore) {
+	var authorManager = author.NewManager(db)
 
 	c.Post("/author", func(c *fiber.Ctx) error {
 		var dto CreateDto

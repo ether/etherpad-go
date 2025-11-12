@@ -138,7 +138,7 @@ type Settings struct {
 	Port                               string                                         `json:"port"`
 	SuppressErrorsInPadText            bool                                           `json:"suppressErrorsInPadText"`
 	SSL                                SSLSettings                                    `json:"ssl"`
-	DBType                             string                                         `json:"dbType"`
+	DBType                             IDBType                                        `json:"dbType"`
 	DBSettings                         *DBSettings                                    `json:"dbSettings"`
 	DefaultPadText                     string                                         `json:"defaultPadText"`
 	PadOptions                         PadOptions                                     `json:"padOptions"`
@@ -663,7 +663,7 @@ func init() {
 
 	setting, err := ReadConfig(string(settings))
 	if err != nil {
-		println("error is" + err.Error())
+		println("error is " + err.Error())
 		return
 	}
 	setting.GitVersion = GitVersion()

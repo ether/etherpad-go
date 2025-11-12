@@ -10,7 +10,6 @@ import (
 	"log"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/ether/etherpad-go/lib/models/ws"
 	"github.com/ether/etherpad-go/lib/settings"
@@ -20,10 +19,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/gorilla/websocket"
-)
-
-const (
-	pongWait = 60 * time.Second
 )
 
 var upgrader = websocket.Upgrader{
@@ -46,6 +41,7 @@ type Client struct {
 	Room      string
 	SessionId string
 	ctx       *fiber.Ctx
+	handler   *PadMessageHandler
 }
 
 func (c *Client) readPumpAdmin(retrievedSettings *settings.Settings, logger *zap.SugaredLogger) {
@@ -54,15 +50,13 @@ func (c *Client) readPumpAdmin(retrievedSettings *settings.Settings, logger *zap
 		c.conn.Close()
 	}()
 	c.conn.SetReadLimit(retrievedSettings.SocketIo.MaxHttpBufferSize)
-	c.conn.SetReadDeadline(time.Now().Add(pongWait))
-	c.conn.SetPongHandler(func(string) error { c.conn.SetReadDeadline(time.Now().Add(pongWait)); return nil })
 	for {
 		_, message, err := c.conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 				log.Printf("error: %v", err)
 			}
-			HandleDisconnectOfPadClient(c, retrievedSettings, logger)
+			c.handler.HandleDisconnectOfPadClient(c, retrievedSettings, logger)
 			break
 		}
 		message = bytes.TrimSpace(bytes.Replace(message, newline, space, -1))
@@ -82,15 +76,13 @@ func (c *Client) readPump(retrievedSettings *settings.Settings, logger *zap.Suga
 		c.conn.Close()
 	}()
 	c.conn.SetReadLimit(retrievedSettings.SocketIo.MaxHttpBufferSize)
-	c.conn.SetReadDeadline(time.Now().Add(pongWait))
-	c.conn.SetPongHandler(func(string) error { c.conn.SetReadDeadline(time.Now().Add(pongWait)); return nil })
 	for {
 		_, message, err := c.conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 				log.Printf("error: %v", err)
 			}
-			HandleDisconnectOfPadClient(c, retrievedSettings, logger)
+			c.handler.HandleDisconnectOfPadClient(c, retrievedSettings, logger)
 			break
 		}
 		if err := ratelimiter.CheckRateLimit(ratelimiter.IPAddress(c.ctx.IP()), retrievedSettings.CommitRateLimiting); err != nil {
@@ -107,7 +99,7 @@ func (c *Client) readPump(retrievedSettings *settings.Settings, logger *zap.Suga
 				println("Error unmarshalling", err)
 			}
 
-			handleMessage(clientReady, c, c.ctx, retrievedSettings, logger)
+			c.handler.handleMessage(clientReady, c, c.ctx, retrievedSettings, logger)
 		} else if strings.Contains(decodedMessage, "USER_CHANGES") {
 			var userchange ws.UserChange
 			err := json.Unmarshal(message, &userchange)
@@ -117,7 +109,7 @@ func (c *Client) readPump(retrievedSettings *settings.Settings, logger *zap.Suga
 				return
 			}
 
-			handleMessage(userchange, c, c.ctx, retrievedSettings, logger)
+			c.handler.handleMessage(userchange, c, c.ctx, retrievedSettings, logger)
 		} else if strings.Contains(decodedMessage, "USERINFO_UPDATE") {
 			var userInfoChange UserInfoUpdateWrapper
 			errorUserInfoChange := json.Unmarshal(message, &userInfoChange)
@@ -127,7 +119,7 @@ func (c *Client) readPump(retrievedSettings *settings.Settings, logger *zap.Suga
 				return
 			}
 
-			handleMessage(userInfoChange.Data, c, c.ctx, retrievedSettings, logger)
+			c.handler.handleMessage(userInfoChange.Data, c, c.ctx, retrievedSettings, logger)
 		} else if strings.Contains(decodedMessage, "GET_CHAT_MESSAGES") {
 			var getChatMessages ws.GetChatMessages
 			err := json.Unmarshal(message, &getChatMessages)
@@ -137,7 +129,7 @@ func (c *Client) readPump(retrievedSettings *settings.Settings, logger *zap.Suga
 				return
 			}
 
-			handleMessage(getChatMessages, c, c.ctx, retrievedSettings, logger)
+			c.handler.handleMessage(getChatMessages, c, c.ctx, retrievedSettings, logger)
 
 		} else if strings.Contains(decodedMessage, "CHAT_MESSAGE") {
 			var chatMessage ws.ChatMessage
@@ -146,7 +138,7 @@ func (c *Client) readPump(retrievedSettings *settings.Settings, logger *zap.Suga
 			if err != nil {
 				logger.Error("Error unmarshalling", err)
 			}
-			handleMessage(chatMessage, c, c.ctx, retrievedSettings, logger)
+			c.handler.handleMessage(chatMessage, c, c.ctx, retrievedSettings, logger)
 		}
 
 		c.hub.Broadcast <- message
@@ -166,7 +158,9 @@ func (c *Client) SendPadDelete() {
 }
 
 // ServeWs serveWs handles websocket requests from the peer.
-func ServeWs(hub *Hub, w http.ResponseWriter, r *http.Request, sessionStore *session.Store, fiber *fiber.Ctx, configSettings *settings.Settings, logger *zap.SugaredLogger) {
+func ServeWs(hub *Hub, w http.ResponseWriter, r *http.Request, sessionStore *session.Store,
+	fiber *fiber.Ctx, configSettings *settings.Settings,
+	logger *zap.SugaredLogger, handler *PadMessageHandler) {
 	store, err := sessionStore.Get(fiber)
 
 	if err != nil {
@@ -178,7 +172,7 @@ func ServeWs(hub *Hub, w http.ResponseWriter, r *http.Request, sessionStore *ses
 		log.Println(err)
 		return
 	}
-	client := &Client{hub: hub, conn: conn, Send: make(chan []byte, 256), SessionId: store.ID(), ctx: fiber}
+	client := &Client{hub: hub, conn: conn, Send: make(chan []byte, 256), SessionId: store.ID(), ctx: fiber, handler: handler}
 	SessionStoreInstance.initSession(store.ID())
 	client.hub.Register <- client
 	client.readPump(configSettings, logger)

@@ -2,12 +2,12 @@ package session
 
 // src/node/db/SessionStore.ts
 import (
-	"github.com/ether/etherpad-go/lib/db"
-	"github.com/ether/etherpad-go/lib/models/session"
-	"github.com/ether/etherpad-go/lib/utils"
-	"github.com/gofiber/fiber/v2"
 	"math"
 	"time"
+
+	"github.com/ether/etherpad-go/lib/db"
+	"github.com/ether/etherpad-go/lib/models/session"
+	"github.com/gofiber/fiber/v2"
 )
 
 type Expiration struct {
@@ -28,9 +28,9 @@ type MemoryStore struct {
 	generate    *func(c *fiber.Ctx)
 }
 
-func NewMemoryStore(refresh *int64) *MemoryStore {
+func NewMemoryStore(db db.DataStore, refresh *int64) *MemoryStore {
 	return &MemoryStore{
-		db:          utils.GetDB(),
+		db:          db,
 		refresh:     refresh,
 		expirations: make(map[string]Expiration),
 	}

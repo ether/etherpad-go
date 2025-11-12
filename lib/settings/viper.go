@@ -46,7 +46,7 @@ func ReadConfig(jsonStr string) (*Settings, error) {
 	viper.SetDefault(SocketIoMaxHttpBufferSize, 50000)
 	viper.SetDefault(AuthenticationMethod, "sso")
 
-	viper.SetDefault(DBType, "rustydb")
+	viper.SetDefault(DBType, SQLITE)
 	viper.SetDefault(DBSettingsHost, nil)
 	viper.SetDefault(DBSettingsUser, nil)
 	viper.SetDefault(DBSettingsPassword, nil)
@@ -156,6 +156,11 @@ func ReadConfig(jsonStr string) (*Settings, error) {
 		}
 	}
 
+	dbTypeToUse, err := ParseDBType(viper.GetString(DBType))
+	if err != nil {
+		return nil, err
+	}
+
 	s := &Settings{
 		Title:          viper.GetString(Title),
 		ShowRecentPads: viper.GetBool(ShowRecentPads),
@@ -187,7 +192,7 @@ func ReadConfig(jsonStr string) (*Settings, error) {
 			MaxHttpBufferSize: viper.GetInt64(SocketIoMaxHttpBufferSize),
 		},
 		AuthenticationMethod: viper.GetString(AuthenticationMethod),
-		DBType:               viper.GetString(DBType),
+		DBType:               dbTypeToUse,
 		DBSettings: &DBSettings{
 			Host:       viper.GetString(DBSettingsHost),
 			Port:       viper.GetString(DBSettingsPort),

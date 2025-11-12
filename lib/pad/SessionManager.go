@@ -1,19 +1,19 @@
 package pad
 
 import (
-	"github.com/ether/etherpad-go/lib/db"
-	"github.com/ether/etherpad-go/lib/utils"
 	"regexp"
 	"strings"
+
+	"github.com/ether/etherpad-go/lib/db"
 )
 
 type SessionManager struct {
 	db db.DataStore
 }
 
-func NewSessionManager() *SessionManager {
+func NewSessionManager(db db.DataStore) *SessionManager {
 	return &SessionManager{
-		db: utils.GetDB(),
+		db,
 	}
 }
 

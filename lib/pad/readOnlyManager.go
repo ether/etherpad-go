@@ -17,9 +17,9 @@ type IdRequest struct {
 	ReadOnly      bool
 }
 
-func NewReadOnlyManager() *ReadOnlyManager {
+func NewReadOnlyManager(db db.DataStore) *ReadOnlyManager {
 	return &ReadOnlyManager{
-		Store: utils.GetDB(),
+		Store: db,
 	}
 }
 

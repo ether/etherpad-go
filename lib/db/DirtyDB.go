@@ -629,8 +629,8 @@ func (d SQLiteDB) GetPadMetaData(padId string, revNum int) (*db.PadMetaData, err
 	return &padMetaData, nil
 }
 
-// NewDirtyDB This function creates a new SQLiteDB and returns a pointer to it.
-func NewDirtyDB(path string) (*SQLiteDB, error) {
+// NewSQLiteDB This function creates a new SQLiteDB and returns a pointer to it.
+func NewSQLiteDB(path string) (*SQLiteDB, error) {
 	sqlDb, err := sql.Open("sqlite", path)
 	if err != nil {
 		panic(err)

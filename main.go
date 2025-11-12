@@ -69,13 +69,16 @@ func main() {
 	setupLogger.Info("Report bugs at https://github.com/ether/etherpad-go/issues")
 	setupLogger.Info("Your Etherpad Go version is " + settings2.GetGitCommit())
 
+	dataStore, err := utils.GetDB(settings)
+	readOnlyManager := pad.NewReadOnlyManager(dataStore)
+
 	var db = session2.NewSessionDatabase(nil)
 	app := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
 	})
 
 	app.Use(func(c *fiber.Ctx) error {
-		return pad.CheckAccess(c, setupLogger, &settings)
+		return pad.CheckAccess(c, setupLogger, &settings, readOnlyManager)
 	})
 
 	var cookieStore = session.New(session.Config{
@@ -88,9 +91,16 @@ func main() {
 	hooks.ExpressPreSession(app, uiAssets)
 	ws.HubGlob = ws.NewHub()
 	go ws.HubGlob.Run()
+
+	if err != nil {
+		setupLogger.Fatal("Error connecting to database: " + err.Error())
+		return
+	}
+
+	padMessageHandler := ws.NewPadMessageHandler(dataStore)
 	app.Get("/socket.io/*", func(c *fiber.Ctx) error {
 		return adaptor.HTTPHandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-			ws.ServeWs(ws.HubGlob, writer, request, cookieStore, c, &settings, setupLogger)
+			ws.ServeWs(ws.HubGlob, writer, request, cookieStore, c, &settings, setupLogger, padMessageHandler)
 		})(c)
 	})
 	app.Get("/admin/ws", func(c *fiber.Ctx) error {
@@ -99,11 +109,11 @@ func main() {
 		})(c)
 	})
 
-	api2.InitAPI(app, uiAssets, settings, cookieStore)
+	api2.InitAPI(app, uiAssets, settings, cookieStore, dataStore, padMessageHandler)
 
 	fiberString := fmt.Sprintf("%s:%s", settings.IP, settings.Port)
 	setupLogger.Info("Starting Web UI on " + fiberString)
-	err := app.Listen(fiberString)
+	err = app.Listen(fiberString)
 	if err != nil {
 		return
 	}

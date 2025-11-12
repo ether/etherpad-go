@@ -18,14 +18,9 @@ import (
 	"github.com/ether/etherpad-go/lib/utils"
 )
 
-var authorManager author.Manager
-
-func init() {
-	authorManager = author.NewManager()
-}
-
 type Pad struct {
 	db             db.DataStore
+	authorManager  *author.Manager
 	Id             string
 	ChatHead       int
 	Head           int
@@ -35,10 +30,10 @@ type Pad struct {
 	AText          apool.AText
 }
 
-func NewPad(id string) Pad {
+func NewPad(id string, db db.DataStore) Pad {
 	p := new(Pad)
 	p.Id = id
-	p.db = utils.GetDB()
+	p.db = db
 	p.Pool = apool.NewAPool()
 	p.Head = -1
 	p.ChatHead = -1
@@ -155,7 +150,8 @@ func CleanText(context string) *string {
 	return &context
 }
 
-func (p *Pad) Init(text *string, author *string) error {
+func (p *Pad) Init(text *string, author *string, authorManager *author.Manager) error {
+	p.authorManager = authorManager
 	if author == nil {
 		author = new(string)
 		*author = ""
@@ -329,7 +325,7 @@ func (p *Pad) AppendRevision(cs string, authorId *string) int {
 	if authorId != nil {
 		var clonedAuthorId = *authorId
 		if clonedAuthorId != "" {
-			authorManager.AddPad(*authorId, p.Id)
+			p.authorManager.AddPad(*authorId, p.Id)
 		}
 	}
 
