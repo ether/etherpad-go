@@ -2,15 +2,17 @@ package pad
 
 import (
 	"errors"
+
 	apiError "github.com/ether/etherpad-go/lib/api/error"
 	utils2 "github.com/ether/etherpad-go/lib/api/utils"
 	"github.com/ether/etherpad-go/lib/apool"
+	"github.com/ether/etherpad-go/lib/db"
 	"github.com/ether/etherpad-go/lib/utils"
 	"github.com/ether/etherpad-go/lib/ws"
 	"github.com/gofiber/fiber/v2"
 )
 
-func getText(padId string, rev *string) (*string, error) {
+func getText(padId string, rev *string, store db.DataStore) (*string, error) {
 	var revNum *int = nil
 	if rev != nil {
 		revPoint, err := utils.CheckValidRev(*rev)
@@ -20,7 +22,7 @@ func getText(padId string, rev *string) (*string, error) {
 		}
 	}
 
-	pad, err := utils2.GetPadSafe(padId, true, nil, nil)
+	pad, err := utils2.GetPadSafe(padId, true, nil, nil, store)
 
 	if err != nil {
 		return nil, err
@@ -44,13 +46,13 @@ type AttributePoolResponse struct {
 	Pool apool.APool `json:"pool"`
 }
 
-func Init(c *fiber.App) {
+func Init(c *fiber.App, store db.DataStore, handler *ws.PadMessageHandler) {
 	c.Get("/pads/:padId/text", func(c *fiber.Ctx) error {
 		return c.SendStatus(200)
 	})
 	c.Get("/pads/:padId/attributePool", func(ctx *fiber.Ctx) error {
 		var padIdToFind = ctx.Params("padId")
-		var padFound, err = utils2.GetPadSafe(padIdToFind, true, nil, nil)
+		var padFound, err = utils2.GetPadSafe(padIdToFind, true, nil, nil, store)
 		if err != nil {
 			return ctx.Status(404).JSON(apiError.Error{
 				Message: "Pad not found",
@@ -74,7 +76,7 @@ func Init(c *fiber.App) {
 			})
 		}
 
-		var pad, errorForPad2 = utils2.GetPadSafe(padId, true, nil, nil)
+		var pad, errorForPad2 = utils2.GetPadSafe(padId, true, nil, nil, store)
 		if errorForPad2 != nil {
 			return ctx.Status(404).JSON(apiError.Error{
 				Message: "Pad not found",
@@ -118,7 +120,7 @@ func Init(c *fiber.App) {
 			})
 		}
 
-		var pad, errPadSafe = utils2.GetPadSafe(padId, true, nil, nil)
+		var pad, errPadSafe = utils2.GetPadSafe(padId, true, nil, nil, store)
 		if errPadSafe != nil {
 			return ctx.Status(404).JSON(apiError.Error{
 				Message: "Pad not found",
@@ -132,7 +134,7 @@ func Init(c *fiber.App) {
 				Error:   500,
 			})
 		}
-		ws.UpdatePadClients(pad)
+		handler.UpdatePadClients(pad)
 		return ctx.SendStatus(200)
 	})
 }

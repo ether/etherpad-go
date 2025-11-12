@@ -5,9 +5,9 @@ import (
 	"regexp"
 	"unicode/utf8"
 
+	"github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/db"
 	"github.com/ether/etherpad-go/lib/models/pad"
-	"github.com/ether/etherpad-go/lib/utils"
 )
 
 var globalPadCache *GlobalPadCache
@@ -20,12 +20,12 @@ type List struct {
 	db          db.DataStore
 }
 
-func NewList() List {
+func NewList(db db.DataStore) List {
 	return List{
 		_cachedList: make([]string, 0),
 		_list:       make(map[string]interface{}),
 		_loaded:     false,
-		db:          utils.GetDB(),
+		db:          db,
 	}
 }
 
@@ -58,11 +58,13 @@ func (l *List) GetPads() []string {
 	return l._cachedList
 }
 
+var padRegex *regexp.Regexp
+
 func init() {
 	globalPadCache = &GlobalPadCache{
 		padCache: make(map[string]*pad.Pad),
 	}
-	padList = NewList()
+	padRegex, _ = regexp.Compile("^(g.[a-zA-Z0-9]{16}$)?[^$]{1,50}$")
 }
 
 type GlobalPadCache struct {
@@ -81,19 +83,19 @@ func (g *GlobalPadCache) DeletePad(padID string) {
 	delete(g.padCache, padID)
 }
 
-var padRegex *regexp.Regexp
-
-func init() {
-	padRegex, _ = regexp.Compile("^(g.[a-zA-Z0-9]{16}$)?[^$]{1,50}$")
-}
-
 type Manager struct {
-	store db.DataStore
+	store   db.DataStore
+	author  *author.Manager
+	padList List
 }
 
-func NewManager() Manager {
+func NewManager(db db.DataStore) Manager {
 	return Manager{
-		store: utils.GetDB(),
+		store: db,
+		author: &author.Manager{
+			Db: db,
+		},
+		padList: NewList(db),
 	}
 }
 
@@ -140,11 +142,11 @@ func (m *Manager) GetPad(padID string, text *string, authorId *string) (*pad.Pad
 	}
 
 	// try to load pad
-	var newPad = pad.NewPad(padID)
+	var newPad = pad.NewPad(padID, m.store)
 
 	// initialize the pad
 
-	newPad.Init(text, authorId)
+	newPad.Init(text, authorId, m.author)
 	globalPadCache.SetPad(padID, &newPad)
 
 	return &newPad, nil

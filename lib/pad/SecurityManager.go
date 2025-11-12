@@ -2,26 +2,28 @@ package pad
 
 import (
 	"errors"
+	"strings"
+
 	"github.com/ether/etherpad-go/lib/author"
+	"github.com/ether/etherpad-go/lib/db"
 	"github.com/ether/etherpad-go/lib/models/webaccess"
 	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/ether/etherpad-go/lib/utils"
-	"strings"
 )
 
 type SecurityManager struct {
 	ReadOnlyManager *ReadOnlyManager
 	PadManager      Manager
-	AuthorManager   author.Manager
+	AuthorManager   *author.Manager
 	SessionManager  *SessionManager
 }
 
-func NewSecurityManager() SecurityManager {
+func NewSecurityManager(db db.DataStore) SecurityManager {
 	return SecurityManager{
-		ReadOnlyManager: NewReadOnlyManager(),
-		PadManager:      NewManager(),
-		AuthorManager:   author.NewManager(),
-		SessionManager:  NewSessionManager(),
+		ReadOnlyManager: NewReadOnlyManager(db),
+		PadManager:      NewManager(db),
+		AuthorManager:   author.NewManager(db),
+		SessionManager:  NewSessionManager(db),
 	}
 }
 

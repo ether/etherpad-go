@@ -17,9 +17,7 @@ import (
 	"go.uber.org/zap"
 )
 
-var readOnlyManager = NewReadOnlyManager()
-
-func UserCanModify(padId *string, req *webaccess.SocketClientRequest) bool {
+func UserCanModify(padId *string, req *webaccess.SocketClientRequest, readOnlyManager ReadOnlyManager) bool {
 	if readOnlyManager.isReadOnlyID(padId) {
 		return false
 	}
@@ -43,7 +41,7 @@ func UserCanModify(padId *string, req *webaccess.SocketClientRequest) bool {
 	return level != nil && *level != "readOnly"
 }
 
-func CheckAccess(ctx *fiber.Ctx, logger *zap.SugaredLogger, retrievedSettings *settings.Settings) error {
+func CheckAccess(ctx *fiber.Ctx, logger *zap.SugaredLogger, retrievedSettings *settings.Settings, readOnlyManager *ReadOnlyManager) error {
 	var requireAdmin = strings.HasPrefix(strings.ToLower(ctx.Path()), "/admin-auth")
 	//FIXME this needs to be set
 	// ///////////////////////////////////////////////////////////////////////////////////////////////

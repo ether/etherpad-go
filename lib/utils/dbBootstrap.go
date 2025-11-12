@@ -1,7 +1,7 @@
 package utils
 
 import (
-	"os"
+	"errors"
 
 	"github.com/ether/etherpad-go/lib/db"
 	plugins2 "github.com/ether/etherpad-go/lib/plugins"
@@ -79,28 +79,13 @@ var ColorPalette = []string{
 	"#b3b3e6",
 }
 
-var datastore db.DataStore
-
-func GetDB() db.DataStore {
-	if datastore == nil {
-		if settings.Displayed.DBType == "dirty" {
-			datastore, _ = db.NewDirtyDB("test.db")
-		} else {
-			var typeDB, ok = os.LookupEnv("ETHERPAD_DB_TYPE")
-
-			if ok {
-				datastore = db.NewMemoryDataStore()
-			} else {
-				if typeDB == "memory" {
-					datastore = db.NewMemoryDataStore()
-				} else {
-					datastore, _ = db.NewDirtyDB("test.db")
-				}
-			}
-		}
+func GetDB(retrievedSettings settings.Settings) (db.DataStore, error) {
+	if retrievedSettings.DBType == settings.SQLITE {
+		return db.NewSQLiteDB(retrievedSettings.DBSettings.Filename)
+	} else if retrievedSettings.DBType == settings.MEMORY {
+		return db.NewMemoryDataStore(), nil
 	}
-
-	return datastore
+	return nil, errors.New("unsupported database type")
 }
 
 var plugins = map[string]plugins2.Plugin{}

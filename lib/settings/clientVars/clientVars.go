@@ -14,10 +14,13 @@ import (
 	"github.com/ether/etherpad-go/lib/utils"
 )
 
-func NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apool2.APool, historicalAuthorData map[string]author2.Author, retrievedSettings *settings.Settings) clientVars.ClientVars {
+type Factory struct {
+	ReadOnlyManager *pad2.ReadOnlyManager
+	AuthorManager   *author2.Manager
+}
+
+func (f *Factory) NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apool2.APool, historicalAuthorData map[string]author2.Author, retrievedSettings *settings.Settings) clientVars.ClientVars {
 	var historyData = make(map[string]clientVars.CollabAuthor)
-	var readonlyManager = pad2.NewReadOnlyManager()
-	authorManager := author2.NewManager()
 
 	for _, authorData := range historicalAuthorData {
 		historyData[authorData.Id] = clientVars.CollabAuthor{
@@ -26,7 +29,7 @@ func NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apool2.APool, his
 		}
 	}
 
-	var currentAuthor, err = authorManager.GetAuthor(sessionInfo.Author)
+	var currentAuthor, err = f.AuthorManager.GetAuthor(sessionInfo.Author)
 	if err != nil {
 		panic(err)
 	}
@@ -103,7 +106,7 @@ func NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apool2.APool, his
 	}
 
 	var currentTime = pad.GetRevisionDate(pad.Head)
-	var readonlyId = readonlyManager.GetIds(&pad.Id)
+	var readonlyId = f.ReadOnlyManager.GetIds(&pad.Id)
 
 	etherPadConvertedAttribs := make(map[string][]string)
 	for k, v := range apool.NumToAttrib {

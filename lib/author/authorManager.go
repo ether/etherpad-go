@@ -14,9 +14,9 @@ type Manager struct {
 	Db db.DataStore
 }
 
-func NewManager() Manager {
-	return Manager{
-		Db: utils.GetDB(),
+func NewManager(db db.DataStore) *Manager {
+	return &Manager{
+		Db: db,
 	}
 }
 
