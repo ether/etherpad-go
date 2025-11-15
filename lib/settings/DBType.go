@@ -8,8 +8,9 @@ import (
 type IDBType string
 
 const (
-	SQLITE IDBType = "sqlite"
-	MEMORY IDBType = "memory"
+	SQLITE   IDBType = "sqlite"
+	MEMORY   IDBType = "memory"
+	POSTGRES IDBType = "postgres"
 )
 
 func ParseDBType(s string) (IDBType, error) {
@@ -18,6 +19,8 @@ func ParseDBType(s string) (IDBType, error) {
 		return SQLITE, nil
 	case "memory":
 		return MEMORY, nil
+	case "postgres":
+		return POSTGRES, nil
 	default:
 		return "", fmt.Errorf("unknown DB type: %q", s)
 	}
