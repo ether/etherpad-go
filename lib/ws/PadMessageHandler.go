@@ -11,6 +11,7 @@ import (
 	"github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/changeset"
 	db2 "github.com/ether/etherpad-go/lib/db"
+	"github.com/ether/etherpad-go/lib/hooks"
 	clientVars2 "github.com/ether/etherpad-go/lib/models/clientVars"
 	"github.com/ether/etherpad-go/lib/models/db"
 	pad2 "github.com/ether/etherpad-go/lib/models/pad"
@@ -73,7 +74,7 @@ func (c *ChannelOperator) AddToQueue(ch string, t Task) {
 }
 
 type PadMessageHandler struct {
-	padManager      pad.Manager
+	padManager      *pad.Manager
 	readOnlyManager *pad.ReadOnlyManager
 	authorManager   *author.Manager
 	securityManager pad.SecurityManager
@@ -81,12 +82,12 @@ type PadMessageHandler struct {
 	factory         clientVars.Factory
 }
 
-func NewPadMessageHandler(db db2.DataStore) *PadMessageHandler {
+func NewPadMessageHandler(db db2.DataStore, hooks *hooks.Hook, padManager *pad.Manager) *PadMessageHandler {
 	var padMessageHandler = PadMessageHandler{
-		padManager:      pad.NewManager(db),
+		padManager:      padManager,
 		readOnlyManager: pad.NewReadOnlyManager(db),
 		authorManager:   author.NewManager(db),
-		securityManager: pad.NewSecurityManager(db),
+		securityManager: pad.NewSecurityManager(db, hooks, padManager),
 		factory: clientVars.Factory{
 			ReadOnlyManager: pad.NewReadOnlyManager(db),
 			AuthorManager:   author.NewManager(db),

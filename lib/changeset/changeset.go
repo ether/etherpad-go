@@ -893,6 +893,16 @@ func PrepareForWire(cs string, pool apool.APool) PrepareForWireStruct {
 	}
 }
 
+var splitTextRegex = regexp.MustCompile(`[^\n]*\n|[^\n]+$`)
+
+func SplitTextLines(text string) []string {
+	matches := splitTextRegex.FindAllString(text, -1)
+	if matches == nil {
+		return []string{}
+	}
+	return matches
+}
+
 func SplitAttributionLines(attrOps string, text string) ([]string, error) {
 	var assem = NewMergingOpAssembler()
 	var lines = make([]string, 0)

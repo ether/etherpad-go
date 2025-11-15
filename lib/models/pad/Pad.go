@@ -28,9 +28,10 @@ type Pad struct {
 	savedRevisions []Revision
 	Pool           apool.APool
 	AText          apool.AText
+	hook           *hooks.Hook
 }
 
-func NewPad(id string, db db.DataStore) Pad {
+func NewPad(id string, db db.DataStore, hook *hooks.Hook) Pad {
 	p := new(Pad)
 	p.Id = id
 	p.db = db
@@ -39,6 +40,7 @@ func NewPad(id string, db db.DataStore) Pad {
 	p.ChatHead = -1
 	p.PublicStatus = false
 	p.savedRevisions = make([]Revision, 0)
+	p.hook = hook
 
 	p.AText = changeset.MakeAText("\n", nil)
 	return *p
@@ -176,19 +178,19 @@ func (p *Pad) Init(text *string, author *string, authorManager *author.Manager) 
 				Content:  text,
 				Pad:      p,
 			}
-			hooks.HookInstance.ExecuteHooks(hooks.PadDefaultContentString, context)
+			p.hook.ExecuteHooks(hooks.PadDefaultContentString, &context)
+			text = context.Content
 
 			if *context.Type != "text" {
 				return errors.New("unsupported content type" + *context.Type)
 			}
-
 		}
 
 		var firstChangeset, _ = changeset.MakeSplice("\n", 0, 0, *text, nil, nil)
 		p.AppendRevision(firstChangeset, author)
 	}
 
-	hooks.HookInstance.ExecuteHooks(hooks.PadLoadString, Load{
+	p.hook.ExecuteHooks(hooks.PadLoadString, Load{
 		Pad: p,
 	})
 	return nil

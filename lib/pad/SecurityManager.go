@@ -6,6 +6,7 @@ import (
 
 	"github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/db"
+	"github.com/ether/etherpad-go/lib/hooks"
 	"github.com/ether/etherpad-go/lib/models/webaccess"
 	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/ether/etherpad-go/lib/utils"
@@ -13,15 +14,15 @@ import (
 
 type SecurityManager struct {
 	ReadOnlyManager *ReadOnlyManager
-	PadManager      Manager
+	PadManager      *Manager
 	AuthorManager   *author.Manager
 	SessionManager  *SessionManager
 }
 
-func NewSecurityManager(db db.DataStore) SecurityManager {
+func NewSecurityManager(db db.DataStore, hooks *hooks.Hook, padManager *Manager) SecurityManager {
 	return SecurityManager{
 		ReadOnlyManager: NewReadOnlyManager(db),
-		PadManager:      NewManager(db),
+		PadManager:      padManager,
 		AuthorManager:   author.NewManager(db),
 		SessionManager:  NewSessionManager(db),
 	}

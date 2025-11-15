@@ -7,11 +7,9 @@ import (
 
 	"github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/db"
+	"github.com/ether/etherpad-go/lib/hooks"
 	"github.com/ether/etherpad-go/lib/models/pad"
 )
-
-var globalPadCache *GlobalPadCache
-var padList List
 
 type List struct {
 	_cachedList []string
@@ -61,9 +59,7 @@ func (l *List) GetPads() []string {
 var padRegex *regexp.Regexp
 
 func init() {
-	globalPadCache = &GlobalPadCache{
-		padCache: make(map[string]*pad.Pad),
-	}
+
 	padRegex, _ = regexp.Compile("^(g.[a-zA-Z0-9]{16}$)?[^$]{1,50}$")
 }
 
@@ -84,16 +80,22 @@ func (g *GlobalPadCache) DeletePad(padID string) {
 }
 
 type Manager struct {
-	store   db.DataStore
-	author  *author.Manager
-	padList List
+	store          db.DataStore
+	globalPadCache *GlobalPadCache
+	author         *author.Manager
+	hook           *hooks.Hook
+	padList        List
 }
 
-func NewManager(db db.DataStore) Manager {
+func NewManager(db db.DataStore, hook *hooks.Hook) Manager {
 	return Manager{
 		store: db,
+		hook:  hook,
 		author: &author.Manager{
 			Db: db,
+		},
+		globalPadCache: &GlobalPadCache{
+			padCache: make(map[string]*pad.Pad),
 		},
 		padList: NewList(db),
 	}
@@ -118,8 +120,8 @@ func (m *Manager) RemovePad(padID string) error {
 	if err := m.store.RemovePad(padID); err != nil {
 		return err
 	}
-	globalPadCache.DeletePad(padID)
-	padList.RemovePad(padID)
+	m.globalPadCache.DeletePad(padID)
+	m.padList.RemovePad(padID)
 
 	return nil
 }
@@ -135,19 +137,19 @@ func (m *Manager) GetPad(padID string, text *string, authorId *string) (*pad.Pad
 		}
 	}
 
-	var cachedPad = globalPadCache.GetPad(padID)
+	var cachedPad = m.globalPadCache.GetPad(padID)
 
 	if cachedPad != nil {
 		return cachedPad, nil
 	}
 
 	// try to load pad
-	var newPad = pad.NewPad(padID, m.store)
+	var newPad = pad.NewPad(padID, m.store, m.hook)
 
 	// initialize the pad
 
 	newPad.Init(text, authorId, m.author)
-	globalPadCache.SetPad(padID, &newPad)
+	m.globalPadCache.SetPad(padID, &newPad)
 
 	return &newPad, nil
 }
