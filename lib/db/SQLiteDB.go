@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"os"
 	"strings"
 
 	sq "github.com/Masterminds/squirrel"
@@ -13,10 +12,6 @@ import (
 	session2 "github.com/ether/etherpad-go/lib/models/session"
 	_ "modernc.org/sqlite"
 )
-
-func init() {
-	os.Setenv("ETHERPAD_DB_TYPE", "memory")
-}
 
 type SQLiteDB struct {
 	path  string
@@ -629,7 +624,7 @@ func (d SQLiteDB) GetPadMetaData(padId string, revNum int) (*db.PadMetaData, err
 	return &padMetaData, nil
 }
 
-// NewSQLiteDB This function creates a new SQLiteDB and returns a pointer to it.
+// NewSQLiteDB This function creates a new PostgresDB and returns a pointer to it.
 func NewSQLiteDB(path string) (*SQLiteDB, error) {
 	sqlDb, err := sql.Open("sqlite", path)
 	if err != nil {
@@ -671,7 +666,7 @@ func NewSQLiteDB(path string) (*SQLiteDB, error) {
 		panic(err.Error())
 	}
 
-	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS sessionstorage(id TEXT PRIMARY KEY, originalMaxAge INTEGER, expires TEXT, secure BOOLEAN httpOnly BOOLEAN, path TEXT, sameSeite TEXT, connections TEXT)")
+	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS sessionstorage(id TEXT PRIMARY KEY, originalMaxAge INTEGER, expires TEXT, secure BOOLEAN, httpOnly BOOLEAN, path TEXT, sameSeite TEXT, connections TEXT)")
 
 	if err != nil {
 		panic(err.Error())
@@ -683,7 +678,7 @@ func NewSQLiteDB(path string) (*SQLiteDB, error) {
 		panic(err.Error())
 	}
 
-	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS padChat(padId TEXT NOT NULL, padHead INTEGER,  chatText NOT NULL, authorId TEXT, timestamp BIGINT, PRIMARY KEY(padId, padHead), FOREIGN KEY(padId) REFERENCES pad(id) ON DELETE CASCADE)")
+	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS padChat(padId TEXT NOT NULL, padHead INTEGER,  chatText TEXT NOT NULL, authorId TEXT, timestamp BIGINT, PRIMARY KEY(padId, padHead), FOREIGN KEY(padId) REFERENCES pad(id) ON DELETE CASCADE)")
 
 	if err != nil {
 		panic(err.Error())

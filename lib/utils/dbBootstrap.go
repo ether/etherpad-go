@@ -2,6 +2,7 @@ package utils
 
 import (
 	"errors"
+	"strconv"
 
 	"github.com/ether/etherpad-go/lib/db"
 	plugins2 "github.com/ether/etherpad-go/lib/plugins"
@@ -87,6 +88,21 @@ func GetDB(retrievedSettings settings.Settings, setupLogger *zap.SugaredLogger) 
 	} else if retrievedSettings.DBType == settings.MEMORY {
 		setupLogger.Info("Using in-memory database (data will be lost on restart)")
 		return db.NewMemoryDataStore(), nil
+	} else if retrievedSettings.DBType == settings.POSTGRES {
+		setupLogger.Infof("Using Postgres database at %s with database %s", retrievedSettings.DBSettings.Host, retrievedSettings.DBSettings.Database)
+
+		port, err := strconv.Atoi(retrievedSettings.DBSettings.Port)
+		if err != nil {
+			return nil, err
+		}
+
+		return db.NewPostgresDB(db.PostgresOptions{
+			Username: retrievedSettings.DBSettings.User,
+			Password: retrievedSettings.DBSettings.Password,
+			Host:     retrievedSettings.DBSettings.Host,
+			Database: retrievedSettings.DBSettings.Database,
+			Port:     port,
+		})
 	}
 	return nil, errors.New("unsupported database type")
 }

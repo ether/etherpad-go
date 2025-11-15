@@ -14,6 +14,7 @@ require (
 	github.com/google/go-cmp v0.6.0
 	github.com/gorilla/sessions v1.2.2
 	github.com/gorilla/websocket v1.5.1
+	github.com/lib/pq v1.10.9
 	github.com/spf13/viper v1.21.0
 	github.com/swaggo/swag v1.16.4
 	go.uber.org/zap v1.27.0
