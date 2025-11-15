@@ -219,7 +219,7 @@ func (m *MemoryDataStore) CreatePad(padID string, padDB db.PadDB) bool {
 }
 
 func (m *MemoryDataStore) SaveRevision(padId string, rev int, changeset string,
-	text apool.AText, pool apool.APool, authorId *string, timestamp int) error {
+	text apool.AText, pool apool.APool, authorId *string, timestamp int64) error {
 	var retrievedPad, ok = m.padStore[padId]
 	if !ok {
 		panic("Pad not found")

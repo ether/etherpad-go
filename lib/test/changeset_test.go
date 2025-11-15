@@ -12,6 +12,14 @@ import (
 	"github.com/ether/etherpad-go/lib/changeset"
 )
 
+func TestSplitTextLines(t *testing.T) {
+	var testString = "a\nb\nc\n"
+	var splitLines = changeset.SplitTextLines(testString)
+	if len(splitLines) != 3 {
+		t.Error("Expected 3, got ", len(splitLines))
+	}
+}
+
 func TestMakeSplice(t *testing.T) {
 	var testString = "a\nb\nc\n"
 	var splicedText, _ = changeset.MakeSplice(testString, 5, 0, "def", nil, nil)
@@ -40,6 +48,31 @@ func TestMakeSpliceAtEnd(t *testing.T) {
 
 	if *atext != orig+ins {
 		t.Error("They need to be the same")
+	}
+}
+
+func TestInverse(t *testing.T) {
+	var apoolImport = apool.NewAPool()
+	apoolImport.PutAttrib(apool.Attribute{
+		Key:   "bold",
+		Value: "",
+	}, nil)
+	apoolImport.PutAttrib(apool.Attribute{
+		Key:   "bold",
+		Value: "true",
+	}, nil)
+	checkRep, err := changeset.CheckRep("Z:9>0=1*0=1*1=1=2*0=2*1|1=2$")
+	if err != nil {
+		t.Error("Error in CheckRep " + err.Error())
+		return
+	}
+	inverseChangeset, err := changeset.Inverse(*checkRep, make([]string, 0), []string{"+4*1+5"}, &apoolImport)
+	if err != nil {
+		t.Error("Error in Inverse " + err.Error())
+		return
+	}
+	if *inverseChangeset != "Z:9>0=2*0=1=2*1=2$" {
+		t.Error("Error in Inverse result")
 	}
 }
 

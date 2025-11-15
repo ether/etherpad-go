@@ -633,6 +633,189 @@ func DeserializeOps(ops string) (*[]Op, error) {
 	return &opsToReturn, nil
 }
 
+func Inverse(cs string, lines []string, alines []string, pool *apool.APool) (*string, error) {
+	linesGet := func(idx int) string {
+		if len(lines) == 0 {
+			return ""
+		}
+		return lines[idx]
+	}
+
+	alinesGet := func(idx int) string {
+		return alines[idx]
+	}
+
+	curLine := 0
+	curChar := 0
+	var curLineOps *[]Op
+	curLineOpsLine := 0
+	curLineOpsNext := 0
+	var plus = "+"
+	curLineNextOp := NewOp(&plus)
+
+	unpacked, err := Unpack(cs)
+	if err != nil {
+		return nil, err
+	}
+
+	builder := NewBuilder(unpacked.NewLen)
+
+	consumeAttribRuns := func(numChars int, callback func(length int, attribs string, endsLine bool)) {
+		if curLineOps == nil || curLineOpsLine != curLine {
+			curLineOps, err = DeserializeOps(alinesGet(curLine))
+			if err != nil {
+				panic(err)
+			}
+			curLineOpsNext = 0
+			curLineOpsLine = curLine
+			indexIntoLine := 0
+
+			for curLineOpsNext < len(*curLineOps) {
+				curLineNextOp = (*curLineOps)[curLineOpsNext]
+				curLineOpsNext++
+				if indexIntoLine+curLineNextOp.Chars >= curChar {
+					curLineNextOp.Chars -= curChar - indexIntoLine
+					break
+				}
+				indexIntoLine += curLineNextOp.Chars
+			}
+		}
+
+		for numChars > 0 {
+			if curLineNextOp.Chars == 0 && curLineOpsNext >= len(*curLineOps) {
+				curLine++
+				curChar = 0
+				curLineOpsLine = curLine
+				curLineNextOp.Chars = 0
+				curLineOps, err = DeserializeOps(alinesGet(curLine))
+				if err != nil {
+					panic(err)
+				}
+				curLineOpsNext = 0
+			}
+			if curLineNextOp.Chars == 0 {
+				if curLineOpsNext >= len(*curLineOps) {
+					curLineNextOp = NewOp(nil)
+				} else {
+					curLineNextOp = (*curLineOps)[curLineOpsNext]
+					curLineOpsNext++
+				}
+			}
+			charsToUse := int(math.Min(float64(numChars), float64(curLineNextOp.Chars)))
+			endsLine := charsToUse == curLineNextOp.Chars && curLineNextOp.Lines > 0
+			callback(charsToUse, curLineNextOp.Attribs, endsLine)
+			numChars -= charsToUse
+			curLineNextOp.Chars -= charsToUse
+			curChar += charsToUse
+		}
+
+		if curLineNextOp.Chars == 0 && curLineOpsNext >= len(*curLineOps) {
+			curLine++
+			curChar = 0
+		}
+	}
+
+	skip := func(n int, l int) {
+		if l > 0 {
+			curLine += l
+			curChar = 0
+		} else if curLineOps != nil && curLineOpsLine == curLine {
+			consumeAttribRuns(n, func(int, string, bool) {})
+		} else {
+			curChar += n
+		}
+	}
+
+	nextText := func(numChars int) string {
+		if len(lines) == 0 {
+			return ""
+		}
+		length := 0
+		assem := NewStringAssembler()
+		firstString := utils.RuneSlice(linesGet(curLine), curChar, utf8.RuneCountInString(linesGet(curLine)))
+		length += utf8.RuneCountInString(firstString)
+		assem.Append(firstString)
+
+		lineNum := curLine + 1
+		for length < numChars {
+			nextString := linesGet(lineNum)
+			length += utf8.RuneCountInString(nextString)
+			assem.Append(nextString)
+			lineNum++
+		}
+
+		result := assem.String()
+		return utils.RuneSlice(result, 0, numChars)
+	}
+
+	cachedStrFunc := func(fn func(string) string) func(string) string {
+		cache := make(map[string]string)
+		return func(s string) string {
+			if _, ok := cache[s]; !ok {
+				cache[s] = fn(s)
+			}
+			return cache[s]
+		}
+	}
+
+	deserializedOps, err := DeserializeOps(unpacked.Ops)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, csOp := range *deserializedOps {
+		if csOp.OpCode == "=" {
+			if csOp.Attribs != "" {
+				attribs := FromString(csOp.Attribs, *pool)
+				undoBackToAttribs := cachedStrFunc(func(oldAttribsStr string) string {
+					oldAttribs := FromString(oldAttribsStr, *pool)
+					backAttribs := NewAttributeMap(pool)
+					for key, value := range attribs.Iter() {
+						oldValue := ""
+						if val, ok := oldAttribs.attrs[key]; ok {
+							oldValue = val
+						}
+						if oldValue != value {
+							backAttribs.Set(key, oldValue)
+						}
+					}
+					return backAttribs.String()
+				})
+				consumeAttribRuns(csOp.Chars, func(length int, attribs string, endsLine bool) {
+					lines := 0
+					if endsLine {
+						lines = 1
+					}
+					undoArgs := undoBackToAttribs(attribs)
+					builder.Keep(length, lines, KeepArgs{
+						stringAttribs: &undoArgs,
+					}, nil)
+				})
+			} else {
+				skip(csOp.Chars, csOp.Lines)
+				emptyString := ""
+				builder.Keep(csOp.Chars, csOp.Lines, KeepArgs{
+					stringAttribs: &emptyString,
+				}, nil)
+			}
+		} else if csOp.OpCode == "+" {
+			builder.Remove(csOp.Chars, csOp.Lines)
+		} else if csOp.OpCode == "-" {
+			textBank := nextText(csOp.Chars)
+			textBankIndex := 0
+			consumeAttribRuns(csOp.Chars, func(length int, attribs string, endsLine bool) {
+				builder.Insert(utils.RuneSlice(textBank, textBankIndex, textBankIndex+length), KeepArgs{
+					stringAttribs: &attribs,
+				}, nil)
+				textBankIndex += length
+			})
+		}
+	}
+
+	result := builder.ToString()
+	return CheckRep(result)
+}
+
 func Compose(cs1 string, cs2 string, pool apool.APool) string {
 	var unpacked1, _ = Unpack(cs1)
 	var unpacked2, _ = Unpack(cs2)
@@ -891,6 +1074,16 @@ func PrepareForWire(cs string, pool apool.APool) PrepareForWireStruct {
 		Pool:       newPool,
 		Translated: newCS,
 	}
+}
+
+var splitTextRegex = regexp.MustCompile(`[^\n]*\n|[^\n]+$`)
+
+func SplitTextLines(text string) []string {
+	matches := splitTextRegex.FindAllString(text, -1)
+	if matches == nil {
+		return []string{}
+	}
+	return matches
 }
 
 func SplitAttributionLines(attrOps string, text string) ([]string, error) {

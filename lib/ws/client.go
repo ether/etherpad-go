@@ -131,6 +131,16 @@ func (c *Client) readPump(retrievedSettings *settings.Settings, logger *zap.Suga
 
 			c.handler.handleMessage(getChatMessages, c, c.ctx, retrievedSettings, logger)
 
+		} else if strings.Contains(decodedMessage, "CHANGESET_REQ") {
+			var changesetReq ws.ChangesetReq
+			err := json.Unmarshal(message, &changesetReq)
+			if err != nil {
+				logger.Error("Error unmarshalling", err)
+				return
+			}
+
+			c.handler.handleMessage(changesetReq, c, c.ctx, retrievedSettings, logger)
+
 		} else if strings.Contains(decodedMessage, "CHAT_MESSAGE") {
 			var chatMessage ws.ChatMessage
 			err := json.Unmarshal(message, &chatMessage)

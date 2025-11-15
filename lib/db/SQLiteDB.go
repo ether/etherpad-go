@@ -324,7 +324,7 @@ func (d SQLiteDB) GetPadIds() []string {
 	return padIds
 }
 
-func (d SQLiteDB) SaveRevision(padId string, rev int, changeset string, text apool.AText, pool apool.APool, authorId *string, timestamp int) error {
+func (d SQLiteDB) SaveRevision(padId string, rev int, changeset string, text apool.AText, pool apool.APool, authorId *string, timestamp int64) error {
 	toSql, i, err := sq.Insert("padRev").
 		Columns("id", "rev", "changeset", "atextText", "atextAttribs", "authorId", "timestamp").
 		Values(padId, rev, changeset, text.Text, text.Attribs, *authorId, timestamp).

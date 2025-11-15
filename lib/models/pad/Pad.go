@@ -104,7 +104,7 @@ func (p *Pad) GetRevisionAuthor(revNum int) (*string, error) {
 	return rev.AuthorId, nil
 }
 
-func (p *Pad) getRevisionChangeset(revNum int) (*string, error) {
+func (p *Pad) GetRevisionChangeset(revNum int) (*string, error) {
 	var rev, err = p.db.GetRevision(p.Id, revNum)
 	if err != nil {
 		return nil, err
@@ -125,7 +125,7 @@ func (p *Pad) GetInternalRevisionAText(targetRev int) *apool.AText {
 	}
 	var atext = *keyAText
 	for i := keyRev + 1; i <= targetRev; i++ {
-		var changesetPad, err = p.getRevisionChangeset(i)
+		var changesetPad, err = p.GetRevisionChangeset(i)
 		if err != nil {
 			return nil
 		}
@@ -268,7 +268,7 @@ func (p *Pad) getSavedRevisionsList() []int {
 	return savedRevisions
 }
 
-func (p *Pad) GetRevisionDate(rev int) int {
+func (p *Pad) GetRevisionDate(rev int) int64 {
 	revision, err := p.db.GetRevision(p.Id, rev)
 
 	if err != nil {
@@ -316,7 +316,7 @@ func (p *Pad) AppendRevision(cs string, authorId *string) int {
 	poolToUse = p.Pool
 	atextToUse = p.AText
 
-	err := p.db.SaveRevision(p.Id, newRev, cs, atextToUse, poolToUse, authorId, int(time.Now().UnixNano()/int64(time.Millisecond)))
+	err := p.db.SaveRevision(p.Id, newRev, cs, atextToUse, poolToUse, authorId, time.Now().UnixNano()/int64(time.Millisecond))
 
 	if err != nil {
 		println("Error saving revision", err.Error())

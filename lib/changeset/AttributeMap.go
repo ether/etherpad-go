@@ -1,9 +1,10 @@
 package changeset
 
 import (
-	"github.com/ether/etherpad-go/lib/apool"
 	"slices"
 	"strings"
+
+	"github.com/ether/etherpad-go/lib/apool"
 )
 
 type AttributeMap struct {
@@ -25,6 +26,10 @@ func FromString(s string, pool apool.APool) AttributeMap {
 	return mapInAttr
 }
 
+func (a *AttributeMap) Iter() map[string]string {
+	return a.attrs
+}
+
 /**
  * @param {Iterable<Attribute>} entries - [key, value] pairs to insert into this map.
  * @param {boolean} [emptyValueIsDelete] - If true and an entry's value is the empty string, the
@@ -32,15 +37,17 @@ func FromString(s string, pool apool.APool) AttributeMap {
  * @returns {AttributeMap} `this` (for chaining).
  */
 func (a *AttributeMap) Update(entries []apool.Attribute, emptyValueISDelete *bool) *AttributeMap {
-	if emptyValueISDelete == nil {
-		*emptyValueISDelete = false
+
+	emptyValue := false
+	if emptyValueISDelete != nil {
+		emptyValue = *emptyValueISDelete
 	}
 
 	for _, entry := range entries {
 		entry.Key = strings.TrimSpace(entry.Key)
 		entry.Value = strings.TrimSpace(entry.Value)
 
-		if entry.Value == "" && *emptyValueISDelete {
+		if entry.Value == "" && emptyValue {
 			delete(a.attrs, entry.Key)
 		} else {
 			a.attrs[entry.Key] = entry.Value
