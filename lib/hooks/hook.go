@@ -43,5 +43,3 @@ func (h *Hook) ExecuteHooks(key string, ctx any) {
 		v(key, ctx)
 	}
 }
-
-var HookInstance = NewHook()

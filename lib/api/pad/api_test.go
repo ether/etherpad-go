@@ -2,17 +2,17 @@ package pad
 
 import (
 	"encoding/json"
-	"github.com/ether/etherpad-go/lib/pad"
-	"github.com/gofiber/fiber/v2"
 	"net/http/httptest"
-	"os"
 	"testing"
+
+	"github.com/ether/etherpad-go/lib/test/testutils"
+	"github.com/gofiber/fiber/v2"
 )
 
 func TestGetOnText(t *testing.T) {
-	os.Setenv("ETHERPAD_DB_TYPE", "memory")
 	app := fiber.New()
-	Init(app)
+	_, _, manager, handler := testutils.InitMemoryUtils()
+	Init(app, handler, manager)
 	req := httptest.NewRequest("GET", "/pads/123/text", nil)
 
 	resp, _ := app.Test(req, 10)
@@ -23,9 +23,10 @@ func TestGetOnText(t *testing.T) {
 }
 
 func TestGetOfAttribPoolOnNonExistingPad(t *testing.T) {
-	os.Setenv("ETHERPAD_DB_TYPE", "memory")
 	app := fiber.New()
-	Init(app)
+	_, _, manager, handler := testutils.InitMemoryUtils()
+
+	Init(app, handler, manager)
 	req := httptest.NewRequest("GET", "/pads/123/attributePool", nil)
 
 	resp, _ := app.Test(req, 10)
@@ -36,16 +37,15 @@ func TestGetOfAttribPoolOnNonExistingPad(t *testing.T) {
 }
 
 func TestGetOfAttribPoolOnExistingPad(t *testing.T) {
-	os.Setenv("ETHERPAD_DB_TYPE", "memory")
-	var manager = pad.NewManager()
 	var padText = "hallo"
+	_, _, manager, handler := testutils.InitMemoryUtils()
 	var _, err = manager.GetPad("123", &padText, nil)
 	if err != nil {
 		t.Errorf("Error creating pad")
 	}
 
 	app := fiber.New()
-	Init(app)
+	Init(app, handler, manager)
 	req := httptest.NewRequest("GET", "/pads/123/attributePool", nil)
 
 	resp, _ := app.Test(req, 10)

@@ -65,6 +65,8 @@ func main() {
 	defer setupLogger.Sync()
 	var settings = settings2.Displayed
 
+	retrievedHooks := hooks.NewHook()
+
 	setupLogger.Info("Starting Etherpad Go...")
 	setupLogger.Info("Report bugs at https://github.com/ether/etherpad-go/issues")
 	setupLogger.Info("Your Etherpad Go version is " + settings2.GetGitCommit())
@@ -97,7 +99,9 @@ func main() {
 		return
 	}
 
-	padMessageHandler := ws.NewPadMessageHandler(dataStore)
+	padManager := pad.NewManager(dataStore, &retrievedHooks)
+
+	padMessageHandler := ws.NewPadMessageHandler(dataStore, &retrievedHooks, &padManager)
 	app.Get("/socket.io/*", func(c *fiber.Ctx) error {
 		return adaptor.HTTPHandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 			ws.ServeWs(ws.HubGlob, writer, request, cookieStore, c, &settings, setupLogger, padMessageHandler)
@@ -109,7 +113,7 @@ func main() {
 		})(c)
 	})
 
-	api2.InitAPI(app, uiAssets, settings, cookieStore, dataStore, padMessageHandler)
+	api2.InitAPI(app, uiAssets, settings, cookieStore, dataStore, padMessageHandler, &padManager)
 
 	fiberString := fmt.Sprintf("%s:%s", settings.IP, settings.Port)
 	setupLogger.Info("Starting Web UI on " + fiberString)

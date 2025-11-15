@@ -1,6 +1,7 @@
 package changeset
 
 import (
+	"slices"
 	"testing"
 	"unicode/utf8"
 )
@@ -14,8 +15,11 @@ func TestNewStringIterator(t *testing.T) {
 	if si.newLines != 0 {
 		t.Errorf("Expected 0, got %d", si.newLines)
 	}
-	if si.str != str {
-		t.Errorf("Expected %s, got %s", str, si.str)
+
+	convertedStr := []rune(str)
+
+	if !slices.Equal(si.str, convertedStr) {
+		t.Errorf("Expected %s, got %s", str, string(si.str))
 	}
 }
 

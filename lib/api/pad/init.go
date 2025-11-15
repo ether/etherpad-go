@@ -6,13 +6,13 @@ import (
 	apiError "github.com/ether/etherpad-go/lib/api/error"
 	utils2 "github.com/ether/etherpad-go/lib/api/utils"
 	"github.com/ether/etherpad-go/lib/apool"
-	"github.com/ether/etherpad-go/lib/db"
+	"github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/utils"
 	"github.com/ether/etherpad-go/lib/ws"
 	"github.com/gofiber/fiber/v2"
 )
 
-func getText(padId string, rev *string, store db.DataStore) (*string, error) {
+func getText(padId string, rev *string, manager *pad.Manager) (*string, error) {
 	var revNum *int = nil
 	if rev != nil {
 		revPoint, err := utils.CheckValidRev(*rev)
@@ -22,7 +22,7 @@ func getText(padId string, rev *string, store db.DataStore) (*string, error) {
 		}
 	}
 
-	pad, err := utils2.GetPadSafe(padId, true, nil, nil, store)
+	pad, err := utils2.GetPadSafe(padId, true, nil, nil, manager)
 
 	if err != nil {
 		return nil, err
@@ -46,13 +46,13 @@ type AttributePoolResponse struct {
 	Pool apool.APool `json:"pool"`
 }
 
-func Init(c *fiber.App, store db.DataStore, handler *ws.PadMessageHandler) {
+func Init(c *fiber.App, handler *ws.PadMessageHandler, manager *pad.Manager) {
 	c.Get("/pads/:padId/text", func(c *fiber.Ctx) error {
 		return c.SendStatus(200)
 	})
 	c.Get("/pads/:padId/attributePool", func(ctx *fiber.Ctx) error {
 		var padIdToFind = ctx.Params("padId")
-		var padFound, err = utils2.GetPadSafe(padIdToFind, true, nil, nil, store)
+		var padFound, err = utils2.GetPadSafe(padIdToFind, true, nil, nil, manager)
 		if err != nil {
 			return ctx.Status(404).JSON(apiError.Error{
 				Message: "Pad not found",
@@ -76,7 +76,7 @@ func Init(c *fiber.App, store db.DataStore, handler *ws.PadMessageHandler) {
 			})
 		}
 
-		var pad, errorForPad2 = utils2.GetPadSafe(padId, true, nil, nil, store)
+		var pad, errorForPad2 = utils2.GetPadSafe(padId, true, nil, nil, manager)
 		if errorForPad2 != nil {
 			return ctx.Status(404).JSON(apiError.Error{
 				Message: "Pad not found",
@@ -120,7 +120,7 @@ func Init(c *fiber.App, store db.DataStore, handler *ws.PadMessageHandler) {
 			})
 		}
 
-		var pad, errPadSafe = utils2.GetPadSafe(padId, true, nil, nil, store)
+		var pad, errPadSafe = utils2.GetPadSafe(padId, true, nil, nil, manager)
 		if errPadSafe != nil {
 			return ctx.Status(404).JSON(apiError.Error{
 				Message: "Pad not found",
