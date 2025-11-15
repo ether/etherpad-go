@@ -506,6 +506,10 @@ func (d PostgresDB) GetAuthor(author string) (*db.AuthorDB, error) {
 		authorDB = &authorCopy
 	}
 
+	if authorDB == nil {
+		return nil, errors.New("author not found")
+	}
+
 	return authorDB, nil
 }
 

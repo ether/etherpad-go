@@ -3,9 +3,20 @@ import {defineConfig} from "vite";
 import commonjs from '@rollup/plugin-commonjs';
 
 export default defineConfig(({ mode }) => {
-    const isPad = mode === 'pad';
-    const entry = isPad ? path.resolve(__dirname, 'src/pad.js') : path.resolve(__dirname, 'src/welcome.js');
-    const outDir = isPad ? '../assets/js/pad': '../assets/js/welcome' ;
+
+    let entry = '';
+    let outDir = '';
+
+    if (mode === 'pad') {
+        entry = path.resolve(__dirname, 'src/pad.js')
+        outDir = '../assets/js/pad';
+    } else if (mode === 'welcome') {
+        entry = path.resolve(__dirname, 'src/welcome.js')
+        outDir = '../assets/js/welcome';
+    } else if (mode === 'timeslider') {
+        entry = path.resolve(__dirname, 'src/timeslider.js')
+        outDir = '../assets/js/timeslider';
+    }
 
 
 

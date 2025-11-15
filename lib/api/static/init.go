@@ -14,6 +14,7 @@ import (
 	"github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/plugins"
 	"github.com/ether/etherpad-go/lib/settings"
+	"github.com/ether/etherpad-go/lib/timeslider"
 	"github.com/ether/etherpad-go/lib/utils"
 	"github.com/evanw/esbuild/pkg/api"
 	"github.com/gofiber/adaptor/v2"
@@ -52,8 +53,12 @@ func Init(app *fiber.App, uiAssets embed.FS, settings settings.Settings, cookieS
 	registerEmbeddedStatic(app, "/html/", "assets/html", uiAssets)
 	registerEmbeddedStatic(app, "/font/", "assets/font", uiAssets)
 
-	app.Get("/p/*", func(ctx *fiber.Ctx) error {
+	app.Get("/p/:pad", func(ctx *fiber.Ctx) error {
 		return pad.HandlePadOpen(ctx, uiAssets, settings)
+	})
+
+	app.Get("/p/:pad/timeslider", func(c *fiber.Ctx) error {
+		return timeslider.HandleTimesliderOpen(c, uiAssets, settings)
 	})
 
 	app.Get("/favicon.ico", func(c *fiber.Ctx) error {
@@ -75,14 +80,17 @@ func Init(app *fiber.App, uiAssets embed.FS, settings settings.Settings, cookieS
 	if nodeEnv == "production" {
 		registerEmbeddedStatic(app, "/js/pad/assets/", "assets/js/pad/assets", uiAssets)
 		registerEmbeddedStatic(app, "/js/welcome/assets/", "assets/js/welcome/assets", uiAssets)
+		registerEmbeddedStatic(app, "/js/timeslider/assets/", "assets/js/timeslider/assets", uiAssets)
 	} else {
 		app.Get("/js/*", func(c *fiber.Ctx) error {
 			var entrypoint string
 
 			if strings.Contains(c.Path(), "welcome") {
 				entrypoint = "./src/welcome.js"
-			} else {
+			} else if strings.Contains(c.Path(), "pad") {
 				entrypoint = "./src/pad.js"
+			} else if strings.Contains(c.Path(), "timeslider") {
+				entrypoint = "./src/timeslider.js"
 			}
 
 			relativePath := "./src/js"

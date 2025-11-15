@@ -1,0 +1,200 @@
+package timeslider
+import (
+    "github.com/ether/etherpad-go/lib/settings"
+)
+
+
+templ ImportExportPopup(translations map[string]string) {
+    <div id="import_export" class="popup" ><div class="popup-content">
+      <div id="export">
+        <h1>{translations["timeslider.exportCurrent"]}</h1>
+        <a id="exportetherpada" target="_blank" class="exportlink">
+          <span class="exporttype buttonicon buttonicon-file-powerpoint" id="exportetherpad">{translations["pad.importExport.exportetherpad"]}</span>
+        </a>
+        <a id="exporthtmla" target="_blank" class="exportlink">
+          <span class="exporttype buttonicon buttonicon-file-code" id="exporthtml">{translations["pad.importExport.exporthtml"]}</span>
+        </a>
+        <a id="exportplaina" target="_blank" class="exportlink">
+          <span class="exporttype buttonicon buttonicon-file" id="exportplain">{translations["pad.importExport.exportplain"]}</span>
+        </a>
+        <a id="exportworda" target="_blank" class="exportlink">
+          <span class="exporttype buttonicon buttonicon-file-word" id="exportword">{translations["pad.importExport.exportword"]}</span>
+        </a>
+        <a id="exportpdfa" target="_blank" class="exportlink">
+          <span class="exporttype buttonicon buttonicon-file-pdf" id="exportpdf">{translations["pad.importExport.exportpdf"]}</span>
+        </a>
+        <a id="exportopena" target="_blank" class="exportlink">
+          <span class="exporttype buttonicon buttonicon-file-alt" id="exportopen">{translations["pad.importExport.exportopen"]}</span>
+        </a>
+      </div>
+    </div></div>
+}
+
+
+templ ConnectivityPopup(translations map[string]string) {
+    <div id="connectivity" class="popup"><div class="popup-content">
+      <div class="connected visible">
+        <h2>{translations["pad.modals.connected"]}</h2>
+      </div>
+      <div class="reconnecting">
+        <h1>{translations["pad.modals.reconnecting"]}</h1>
+        <p class="loadingAnimation"></p>
+      </div>
+      <div class="userdup">
+        <h1>{translations["pad.modals.userdup"]}</h1>
+        <h2>{translations["pad.modals.userdup.explanation"]}</h2>
+        <p>{translations["pad.modals.userdup.advice"]}</p>
+        <button id="forcereconnect" class="btn btn-primary">{translations["pad.modals.forcereconnect"]}</button>
+      </div>
+      <div class="unauth">
+        <h1>{translations["pad.modals.unauth"]}</h1>
+        <p>{translations["pad.modals.unauth.explanation"]}</p>
+        <button id="forcereconnect" class="btn btn-primary">{translations["pad.modals.forcereconnect"]}</button>
+      </div>
+      <div class="looping">
+        <h1>{translations["pad.modals.disconnected"]}</h1>
+        <h2>{translations["pad.modals.looping.explanation"]}</h2>
+        <p>{translations["pad.modals.looping.cause"]}</p>
+      </div>
+      <div class="initsocketfail">
+        <h1>{translations["pad.modals.initsocketfail"]}</h1>
+        <h2>{translations["pad.modals.initsocketfail.explanation"]}</h2>
+        <p>{translations["pad.modals.initsocketfail.cause"]}</p>
+      </div>
+      <div class="slowcommit">
+        <h1>{translations["pad.modals.disconnected"]}</h1>
+        <h2>{translations["pad.modals.slowcommit.explanation"]}</h2>
+        <p>{translations["pad.modals.slowcommit.cause"]}</p>
+        <button id="forcereconnect" class="btn btn-primary">{translations["pad.modals.forcereconnect"]}</button>
+      </div>
+      <div class="badChangeset">
+        <h1>{translations["pad.modals.disconnected"]}</h1>
+        <h2>{translations["pad.modals.badChangeset.explanation"]}</h2>
+        <p>{translations["pad.modals.badChangeset.cause"]}</p>
+        <button id="forcereconnect" class="btn btn-primary">{translations["pad.modals.forcereconnect"]}</button>
+      </div>
+      <div class="corruptPad">
+        <h1>{translations["pad.modals.disconnected"]}</h1>
+        <h2>{translations["pad.modals.corruptPad.explanation"]}</h2>
+        <p>{translations["pad.modals.corruptPad.cause"]}</p>
+      </div>
+      <div class="deleted">
+        <h1>{translations["pad.modals.deleted"]}</h1>
+        <p>{translations["pad.modals.deleted.explanation"]}</p>
+      </div>
+      <div class="disconnected">
+        <h1>{translations["pad.modals.disconnected"]}</h1>
+        <h2>{translations["pad.modals.disconnected.explanation"]}</h2>
+        <p>{translations["pad.modals.disconnected.cause"]}</p>
+        <button id="forcereconnect" class="btn btn-primary">{translations["pad.modals.forcereconnect"]}</button>
+      </div>
+      <form id="reconnectform" method="post" action="/ep/pad/reconnect" accept-charset="UTF-8" style="display: none;">
+          <input type="hidden" class="padId" name="padId">
+          <input type="hidden" class="diagnosticInfo" name="diagnosticInfo">
+          <input type="hidden" class="missedChanges" name="missedChanges">
+      </form>
+    </div></div>
+}
+
+
+templ SettingsPopup(translations map[string]string) {
+    <div id="settings" class="popup"><div class="popup-content">
+                 <h1>{translations["pad.settings.padSettings"]}</h1>
+                <p class="dropdown-line">
+                  <label for="viewfontmenu">{translations["pad.settings.fontType"]}</label>
+                  <select id="viewfontmenu">
+                    <option value="">{translations["pad.settings.fontType.normal"]}</option>
+                  </select>
+                </p>
+                 <p>
+                   <input type="checkbox" id="options-followContents" checked="checked">
+                   <label for="options-followContents">{translations["timeslider.followContents"]}</label>
+                 </p>
+               </div></div>
+}
+
+
+templ Timeslider(jsScript string, translations map[string]string, settings settings.Settings) {
+    <html class="pad super-light-toolbar super-light-editor light-background">
+      <head>
+        <title>{translations["timeslider.pageTitle"]}</title>
+        <script type="module" src={jsScript}></script>
+        <meta charset="utf-8">
+        <meta name="robots" content="noindex, nofollow">
+        <meta name="referrer" content="no-referrer">
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0">
+        <link rel="shortcut icon" href="../../favicon.ico">
+        <link rel="stylesheet" href="/css/static/pad.css">
+        <link rel="stylesheet" href="/css/static/iframe_editor.css">
+        <link rel="stylesheet" href="/css/static/timeslider.css">
+        <link rel="stylesheet" href="/css/skin/pad.css">
+        <link rel="stylesheet" href="/css/skin/timeslider.css">
+        <style type="text/css" title="dynamicsyntax"></style>
+        <link rel="localizations" type="application/l10n+json" href="../../locales.json" />
+      </head>
+
+      <body id="padbody" class="timeslider limwidth">
+        <div id="editbar" class="toolbar">
+          <div class="timeslider-bar">
+            <div class="timeslider-title-container">
+              <h1 class="timeslider-title">
+                <span id="revision_label"></span>
+                <span id="revision_date"></span>
+              </h1>
+              <p class="timeslider-subtitle">
+                <span class="authors-label">{translations["timeslider.toolbar.authors"]}</span>
+                <span id="authorsList">{translations["timeslider.toolbar.authorsList"]}</span>
+              </p>
+            </div>
+
+            <div class="editbarright menu_right">
+              <ul>
+                <li data-type="button" data-key="import_export">
+                  <a class="grouped-left" title='{translations["timeslider.toolbar.exportlink.title"]}' aria-label='{translations["timeslider.toolbar.exportlink.title"]}'>
+                    <button class="buttonicon buttonicon-import_export" title='{translations["timeslider.toolbar.exportlink.title"]}' aria-label='{translations["timeslider.toolbar.exportlink.title"]}'></button>
+                  </a>
+                </li>
+                <li data-type="button" data-key="settings">
+                  <a class="grouped-middle" title='{translations["pad.toolbar.settings.title"]}' aria-label='{translations["pad.toolbar.settings.title"]}'>
+                    <button class="buttonicon buttonicon-settings" title='{translations["pad.toolbar.settings.title"]}' aria-label='{translations["pad.toolbar.settings.title"]}'></button>
+                  </a>
+                </li>
+                <li data-type="button" data-key="timeslider_returnToPad">
+                  <a class="grouped-right">
+                    <button class="buttontext" aria-label='{translations["timeslider.toolbar.returnbutton"]}'>{translations["timeslider.toolbar.returnbutton"]}</button>
+                  </a>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <div id="timeslider-wrapper">
+            <div id="timeslider-slider">
+              <div id="ui-slider-handle"></div>
+              <div id="ui-slider-bar"></div>
+              <div id="timer"></div>
+            </div>
+
+            <div id="slider-btn-container">
+              <button id="playpause_button_icon" class="buttonicon buttonicon-play"></button>
+              <button id="leftstep" class="stepper buttonicon buttonicon-step-backward"></button>
+              <button id="rightstep" class="stepper buttonicon buttonicon-step-forward"></button>
+              <button id="leftstar" class="stepper buttonicon" style="display:none"></button>
+              <button id="rightstar" class="stepper buttonicon" style="display:none"></button>
+            </div>
+          </div>
+        </div>
+
+          <div id="editorcontainerbox">
+            <div id="outerdocbody">
+              <div id="innerdocbody">
+              </div>
+            </div>
+                @ImportExportPopup(translations)
+                @ConnectivityPopup(translations)
+                @SettingsPopup(translations)
+
+            </div>
+      </body>
+    </html>
+}
