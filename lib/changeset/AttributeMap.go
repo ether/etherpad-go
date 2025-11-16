@@ -65,8 +65,12 @@ func (a *AttributeMap) Set(key string, value string) *AttributeMap {
 	return a
 }
 
-func (a *AttributeMap) Get(key string) string {
-	return a.attrs[key]
+func (a *AttributeMap) Get(key string) *string {
+	val, ok := a.attrs[key]
+	if !ok {
+		return nil
+	}
+	return &val
 }
 
 /**

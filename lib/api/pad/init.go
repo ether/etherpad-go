@@ -82,7 +82,15 @@ func Init(c *fiber.App, handler *ws.PadMessageHandler, manager *pad.Manager) {
 			})
 		}
 
-		getTXT
+		text, err := pad.GetTxtFromAText(foundPad, foundPad.AText)
+		if err != nil {
+			return c.Status(500).JSON(apiError.Error{
+				Message: "Internal server error",
+			})
+		}
+		return c.JSON(fiber.Map{
+			"text": *text,
+		})
 	})
 
 	c.Get("/pads/:padId/attributePool", func(ctx *fiber.Ctx) error {

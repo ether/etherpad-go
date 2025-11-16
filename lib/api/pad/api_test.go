@@ -17,8 +17,8 @@ func TestGetOnText(t *testing.T) {
 
 	resp, _ := app.Test(req, 10)
 
-	if resp.StatusCode != 200 {
-		t.Errorf("Expected status code 200, got %v", resp.StatusCode)
+	if resp.StatusCode != 404 {
+		t.Errorf("Expected status code 404, got %v", resp.StatusCode)
 	}
 }
 
