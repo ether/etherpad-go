@@ -48,8 +48,51 @@ type AttributePoolResponse struct {
 
 func Init(c *fiber.App, handler *ws.PadMessageHandler, manager *pad.Manager) {
 	c.Get("/pads/:padId/text", func(c *fiber.Ctx) error {
-		return c.SendStatus(200)
+		foundPad, err := utils2.GetPadSafe(c.Params("padID", ""), true, nil, nil, manager)
+		if err != nil {
+			return c.Status(404).JSON(apiError.Error{
+				Message: "Pad not found",
+			})
+		}
+
+		head := foundPad.Head
+
+		optRev := c.Query("rev")
+		if optRev != "" {
+			revNum, err := utils.CheckValidRev(optRev)
+			if err != nil {
+				return c.Status(400).JSON(apiError.Error{
+					Message: "Invalid revision number",
+				})
+			}
+			if *revNum > head {
+				return c.Status(400).JSON(apiError.Error{
+					Message: "Revision number is higher than head",
+				})
+			}
+
+			foundText := foundPad.GetInternalRevisionAText(*revNum)
+			if foundText == nil {
+				return c.Status(500).JSON(apiError.Error{
+					Message: "Internal server error",
+				})
+			}
+			return c.JSON(fiber.Map{
+				"text": foundText.Text,
+			})
+		}
+
+		text, err := pad.GetTxtFromAText(foundPad, foundPad.AText)
+		if err != nil {
+			return c.Status(500).JSON(apiError.Error{
+				Message: "Internal server error",
+			})
+		}
+		return c.JSON(fiber.Map{
+			"text": *text,
+		})
 	})
+
 	c.Get("/pads/:padId/attributePool", func(ctx *fiber.Ctx) error {
 		var padIdToFind = ctx.Params("padId")
 		var padFound, err = utils2.GetPadSafe(padIdToFind, true, nil, nil, manager)

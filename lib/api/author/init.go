@@ -6,18 +6,19 @@ import (
 	error2 "github.com/ether/etherpad-go/lib/api/error"
 	"github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/db"
+	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
 )
 
 type CreateDto struct {
-	Name string `json:"name"`
+	Name string `json:"name" validate:"required"`
 }
 
 type CreateDtoResponse struct {
-	authorId string
+	AuthorId string `json:"authorId"`
 }
 
-func Init(c *fiber.App, db db.DataStore) {
+func Init(c *fiber.App, db db.DataStore, validator *validator.Validate) {
 	var authorManager = author.NewManager(db)
 
 	c.Post("/author", func(c *fiber.Ctx) error {
@@ -29,9 +30,16 @@ func Init(c *fiber.App, db db.DataStore) {
 				Error:   400,
 			})
 		}
+		err = validator.Struct(dto)
+		if err != nil {
+			return c.Status(400).JSON(error2.Error{
+				Message: "Validation error: " + err.Error(),
+			})
+		}
+
 		var createdAuthor = authorManager.CreateAuthor(&dto.Name)
 		return c.JSON(CreateDtoResponse{
-			authorId: createdAuthor.Id,
+			AuthorId: createdAuthor.Id,
 		})
 	})
 

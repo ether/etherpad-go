@@ -138,10 +138,10 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 		// Besides verifying the author attribute, this serves a second purpose:
 		// AttributeMap.fromString() ensures that all attribute numbers are valid (it will throw if
 		// an attribute number isn't in the pool).
-		fromString := changeset.FromString(op.Attribs, wireApool)
+		fromString := changeset.FromString(op.Attribs, &wireApool)
 		var opAuthorId = fromString.Get("author")
 
-		if utf8.RuneCountInString(opAuthorId) != 0 && opAuthorId != session.Author {
+		if opAuthorId != nil && utf8.RuneCountInString(*opAuthorId) != 0 && *opAuthorId != session.Author {
 			println("Wrong author tried to submit changeset")
 			return
 		}
@@ -584,7 +584,7 @@ func (p *PadMessageHandler) correctMarkersInPad(atext apool.AText, apool apool.A
 	deserializedOps, _ := changeset.DeserializeOps(atext.Attribs)
 
 	for _, op := range *deserializedOps {
-		var attribs = changeset.FromString(op.Attribs, apool)
+		var attribs = changeset.FromString(op.Attribs, &apool)
 		var hasMarker = changeset.HasAttrib(attribs)
 
 		if hasMarker {

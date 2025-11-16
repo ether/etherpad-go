@@ -603,6 +603,86 @@ func ApplyZip(in1 string, in2 string, callback func(*Op, *Op) Op) string {
 	return assem.String()
 }
 
+func Subattribution(astr string, start int, optEnd *int) (*string, error) {
+	attOps, err := DeserializeOps(astr)
+	if err != nil {
+		return nil, err
+	}
+
+	assem := NewSmartOpAssembler()
+	ops := *attOps
+
+	// Iterator über ops
+	idx := 0
+	attOp := NewOp(nil) // leerer op
+	csOp := NewOp(nil)
+
+	// Hilfsfunktion: liefert nächstes attOp falls vorhanden
+	nextAttOp := func() bool {
+		if idx < len(ops) {
+			attOp = ops[idx]
+			idx++
+			return true
+		}
+		// keine weiteren Ops -> leerer attOp
+		attOp = NewOp(nil)
+		return false
+	}
+
+	doCsOp := func() error {
+		if csOp.Chars == 0 {
+			return nil
+		}
+		for csOp.OpCode != "" && (attOp.OpCode != "" || idx < len(ops)) {
+			if attOp.OpCode == "" {
+				// hole nächsten attOp
+				nextAttOp()
+			}
+			if csOp.OpCode != "" && attOp.OpCode != "" && csOp.Chars >= attOp.Chars && attOp.Lines > 0 && csOp.Lines <= 0 {
+				csOp.Lines++
+			}
+
+			opOut, err := SlicerZipperFunc(&attOp, &csOp, nil)
+			if err != nil {
+				return err
+			}
+			if opOut.OpCode != "" {
+				assem.Append(*opOut)
+			}
+		}
+		return nil
+	}
+
+	csOp.OpCode = "-"
+	csOp.Chars = start
+
+	if err := doCsOp(); err != nil {
+		return nil, err
+	}
+
+	if optEnd == nil {
+		if attOp.OpCode != "" {
+			assem.Append(attOp)
+		}
+		for idx < len(ops) {
+			assem.Append(ops[idx])
+			idx++
+		}
+	} else {
+		if *optEnd < start {
+			return nil, errors.New("optEnd < start")
+		}
+		csOp.OpCode = "="
+		csOp.Chars = *optEnd - start
+		if err := doCsOp(); err != nil {
+			return nil, err
+		}
+	}
+
+	res := assem.String()
+	return &res, nil
+}
+
 func DeserializeOps(ops string) (*[]Op, error) {
 	var regex = regexp.MustCompile(`((?:\*[0-9a-z]+)*)(?:\|([0-9a-z]+))?([-+=])([0-9a-z]+)|(.)`)
 	var opsToReturn = make([]Op, 0)
@@ -676,7 +756,7 @@ func Compose(cs1 string, cs2 string, pool apool.APool) string {
 	return Pack(len1, len3, newOps, bankAssem.String())
 }
 
-func ComposeAttributes(attribs1 string, attribs2 string, resultIsMutation bool, pool apool.APool) string {
+func ComposeAttributes(attribs1 string, attribs2 string, resultIsMutation bool, pool *apool.APool) string {
 	// att1 and att2 are strings like "*3*f*1c", asMutation is a boolean.
 	// Sometimes attribute (key,value) pairs are treated as attribute presence
 	// information, while other times they are treated as operations that
@@ -775,7 +855,7 @@ func SlicerZipperFunc(attOp *Op, csOp *Op, pool *apool.APool) (*Op, error) {
 		if csOp.OpCode == "-" {
 			opOut.Attribs = csOp.Attribs
 		} else {
-			opOut.Attribs = ComposeAttributes(attOp.Attribs, csOp.Attribs, attOp.OpCode == "=", *pool)
+			opOut.Attribs = ComposeAttributes(attOp.Attribs, csOp.Attribs, attOp.OpCode == "=", pool)
 		}
 		partiallyConsumedOp.Chars -= fullyConsumedOp.Chars
 		partiallyConsumedOp.Lines -= fullyConsumedOp.Lines

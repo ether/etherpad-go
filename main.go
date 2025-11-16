@@ -16,6 +16,7 @@ import (
 	settings2 "github.com/ether/etherpad-go/lib/settings"
 	"github.com/ether/etherpad-go/lib/utils"
 	"github.com/ether/etherpad-go/lib/ws"
+	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/adaptor/v2"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/session"
@@ -64,6 +65,7 @@ func main() {
 	setupLogger := utils.SetupLogger()
 	defer setupLogger.Sync()
 	var settings = settings2.Displayed
+	validatorEvaluator := validator.New(validator.WithRequiredStructEnabled())
 
 	retrievedHooks := hooks.NewHook()
 
@@ -113,7 +115,7 @@ func main() {
 		})(c)
 	})
 
-	api2.InitAPI(app, uiAssets, settings, cookieStore, dataStore, padMessageHandler, &padManager)
+	api2.InitAPI(app, uiAssets, settings, cookieStore, dataStore, padMessageHandler, &padManager, validatorEvaluator)
 
 	fiberString := fmt.Sprintf("%s:%s", settings.IP, settings.Port)
 	setupLogger.Info("Starting Web UI on " + fiberString)

@@ -32,7 +32,7 @@ func TestSet(t *testing.T) {
 		t.Error("Expected 1, got ", m.Size())
 	}
 
-	if m.Get("foo") != "bar" {
+	if *m.Get("foo") != "bar" {
 		t.Error("Expected bar, got ", m.Get("foo"))
 	}
 }
@@ -80,7 +80,7 @@ func TestInsertNewAttributesInThePool(t *testing.T) {
 		t.Error("Expected 1, got ", m.Size())
 	}
 
-	if m.Get("k") != "v" {
+	if *m.Get("k") != "v" {
 		t.Error("Expected v, got ", m.Get("k"))
 	}
 	var counter = 0
@@ -95,10 +95,14 @@ func TestInsertNewAttributesInThePool(t *testing.T) {
 func TestFromString(t *testing.T) {
 	var pool, attribs = PrepareAttribPool(t)
 
-	var got = FromString("*0*1*2", pool)
+	var got = FromString("*0*1*2", &pool)
 	for _, attr := range attribs {
 		var res = got.Get(attr[0])
-		if res != attr[1] {
+		if res == nil {
+			t.Error("key not found:", attr[0])
+			continue
+		}
+		if *res != attr[1] {
 			t.Error("key, value are diferent")
 		}
 	}
