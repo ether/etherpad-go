@@ -1,9 +1,10 @@
 package changeset
 
 import (
-	"github.com/ether/etherpad-go/lib/apool"
 	"slices"
 	"strings"
+
+	"github.com/ether/etherpad-go/lib/apool"
 )
 
 type AttributeMap struct {
@@ -18,8 +19,8 @@ func NewAttributeMap(pool *apool.APool) AttributeMap {
 	}
 }
 
-func FromString(s string, pool apool.APool) AttributeMap {
-	var mapInAttr = NewAttributeMap(&pool)
+func FromString(s string, pool *apool.APool) AttributeMap {
+	var mapInAttr = NewAttributeMap(pool)
 	mapInAttr.UpdateFromString(s, nil)
 
 	return mapInAttr

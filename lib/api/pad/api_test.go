@@ -11,8 +11,8 @@ import (
 
 func TestGetOnText(t *testing.T) {
 	app := fiber.New()
-	_, _, manager, handler := testutils.InitMemoryUtils()
-	Init(app, handler, manager)
+	inMemoryTestUtils := testutils.InitMemoryUtils()
+	Init(app, inMemoryTestUtils.PadMessageHandler, inMemoryTestUtils.PadManager)
 	req := httptest.NewRequest("GET", "/pads/123/text", nil)
 
 	resp, _ := app.Test(req, 10)
@@ -24,9 +24,9 @@ func TestGetOnText(t *testing.T) {
 
 func TestGetOfAttribPoolOnNonExistingPad(t *testing.T) {
 	app := fiber.New()
-	_, _, manager, handler := testutils.InitMemoryUtils()
+	inMemoryTestUtils := testutils.InitMemoryUtils()
 
-	Init(app, handler, manager)
+	Init(app, inMemoryTestUtils.PadMessageHandler, inMemoryTestUtils.PadManager)
 	req := httptest.NewRequest("GET", "/pads/123/attributePool", nil)
 
 	resp, _ := app.Test(req, 10)
@@ -38,14 +38,14 @@ func TestGetOfAttribPoolOnNonExistingPad(t *testing.T) {
 
 func TestGetOfAttribPoolOnExistingPad(t *testing.T) {
 	var padText = "hallo"
-	_, _, manager, handler := testutils.InitMemoryUtils()
-	var _, err = manager.GetPad("123", &padText, nil)
+	inMemoryTestUtils := testutils.InitMemoryUtils()
+	var _, err = inMemoryTestUtils.PadManager.GetPad("123", &padText, nil)
 	if err != nil {
 		t.Errorf("Error creating pad")
 	}
 
 	app := fiber.New()
-	Init(app, handler, manager)
+	Init(app, inMemoryTestUtils.PadMessageHandler, inMemoryTestUtils.PadManager)
 	req := httptest.NewRequest("GET", "/pads/123/attributePool", nil)
 
 	resp, _ := app.Test(req, 10)

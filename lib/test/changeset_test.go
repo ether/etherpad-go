@@ -43,6 +43,72 @@ func TestMakeSpliceAtEnd(t *testing.T) {
 	}
 }
 
+func testSubAttribution(testId int, astr string, start int, end *int, correctOutput string, t *testing.T) {
+	t.Run("SubAttribution test "+fmt.Sprint(testId), func(t *testing.T) {
+		var result, err = changeset.Subattribution(astr, start, end)
+		if err != nil {
+			t.Error("Error in Subattribution " + err.Error())
+		}
+		if *result != correctOutput {
+			t.Error("Error in Subattribution expected " + correctOutput + " got " + *result)
+		}
+	})
+}
+
+func TestSubAttribution(t *testing.T) {
+	zero := 0
+	one := 1
+	two := 2
+	three := 3
+	four := 4
+	five := 5
+	six := 6
+	seven := 7
+
+	testSubAttribution(1, "+1", 0, &zero, "", t)
+	testSubAttribution(2, "+1", 0, &one, "+1", t)
+	testSubAttribution(3, "+1", 0, nil, "+1", t)
+	testSubAttribution(4, "|1+1", 0, &zero, "", t)
+	testSubAttribution(5, "|1+1", 0, &one, "|1+1", t)
+	testSubAttribution(6, "|1+1", 0, nil, "|1+1", t)
+	testSubAttribution(7, "*0+1", 0, &zero, "", t)
+	testSubAttribution(8, "*0+1", 0, &one, "*0+1", t)
+	testSubAttribution(9, "*0+1", 0, nil, "*0+1", t)
+	testSubAttribution(10, "*0|1+1", 0, &zero, "", t)
+	testSubAttribution(11, "*0|1+1", 0, &one, "*0|1+1", t)
+	testSubAttribution(12, "*0|1+1", 0, nil, "*0|1+1", t)
+	testSubAttribution(13, "*0+2+1*1+3", 0, &one, "*0+1", t)
+	testSubAttribution(14, "*0+2+1*1+3", 0, &two, "*0+2", t)
+	testSubAttribution(15, "*0+2+1*1+3", 0, &three, "*0+2+1", t)
+	testSubAttribution(16, "*0+2+1*1+3", 0, &four, "*0+2+1*1+1", t)
+	testSubAttribution(17, "*0+2+1*1+3", 0, &five, "*0+2+1*1+2", t)
+	testSubAttribution(18, "*0+2+1*1+3", 0, &six, "*0+2+1*1+3", t)
+	testSubAttribution(19, "*0+2+1*1+3", 0, &seven, "*0+2+1*1+3", t)
+	testSubAttribution(20, "*0+2+1*1+3", 0, nil, "*0+2+1*1+3", t)
+	testSubAttribution(21, "*0+2+1*1+3", 1, nil, "*0+1+1*1+3", t)
+	testSubAttribution(22, "*0+2+1*1+3", 2, nil, "+1*1+3", t)
+	testSubAttribution(23, "*0+2+1*1+3", 3, nil, "*1+3", t)
+	testSubAttribution(24, "*0+2+1*1+3", 4, nil, "*1+2", t)
+	testSubAttribution(25, "*0+2+1*1+3", 5, nil, "*1+1", t)
+	testSubAttribution(26, "*0+2+1*1+3", 6, nil, "", t)
+	testSubAttribution(27, "*0+2+1*1|1+3", 0, &one, "*0+1", t)
+	testSubAttribution(28, "*0+2+1*1|1+3", 0, &two, "*0+2", t)
+	testSubAttribution(29, "*0+2+1*1|1+3", 0, &three, "*0+2+1", t)
+	testSubAttribution(30, "*0+2+1*1|1+3", 0, &four, "*0+2+1*1+1", t)
+	testSubAttribution(31, "*0+2+1*1|1+3", 0, &five, "*0+2+1*1+2", t)
+	testSubAttribution(32, "*0+2+1*1|1+3", 0, &six, "*0+2+1*1|1+3", t)
+	testSubAttribution(33, "*0+2+1*1|1+3", 0, &seven, "*0+2+1*1|1+3", t)
+	testSubAttribution(34, "*0+2+1*1|1+3", 0, nil, "*0+2+1*1|1+3", t)
+	testSubAttribution(35, "*0+2+1*1|1+3", 1, nil, "*0+1+1*1|1+3", t)
+	testSubAttribution(36, "*0+2+1*1|1+3", 2, nil, "+1*1|1+3", t)
+	testSubAttribution(37, "*0+2+1*1|1+3", 3, nil, "*1|1+3", t)
+	testSubAttribution(38, "*0+2+1*1|1+3", 4, nil, "*1|1+2", t)
+	testSubAttribution(39, "*0+2+1*1|1+3", 5, nil, "*1|1+1", t)
+	testSubAttribution(40, "*0+2+1*1|1+3", 1, &five, "*0+1+1*1+2", t)
+	testSubAttribution(41, "*0+2+1*1|1+3", 2, &six, "+1*1|1+3", t)
+	testSubAttribution(42, "*0+2+1*1+3", 2, &six, "+1*1+3", t)
+}
+
 func TestOpsFromTextWithEqual(t *testing.T) {
 	var teststring = "a\nb\nc\n"
 	var ops = changeset.OpsFromText("=", teststring[0:5], nil, nil)
