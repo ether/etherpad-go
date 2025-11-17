@@ -3,12 +3,16 @@ package oidc
 import (
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
+	"github.com/ether/etherpad-go/assets/login"
 	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/gofiber/adaptor/v2"
 	"github.com/gofiber/fiber/v2"
@@ -17,11 +21,76 @@ import (
 	"github.com/ory/fosite/handler/openid"
 	"github.com/ory/fosite/storage"
 	"github.com/ory/fosite/token/jwt"
+	"go.uber.org/zap"
 )
 
-func Init(app *fiber.App, settings settings.Settings) {
+func GenerateAuthCodeURL(issuer, clientID, redirectURI string, scopes []string) (string, string, string, error) {
+	state, err := randBase64URL(32)
+	if err != nil {
+		return "", "", "", err
+	}
+	nonce, err := randBase64URL(32)
+	if err != nil {
+		return "", "", "", err
+	}
+	codeVerifier, err := randBase64URL(64) // 43-128 bytes empfohlen
+	if err != nil {
+		return "", "", "", err
+	}
+	codeChallenge := pkceS256(codeVerifier)
+
+	u, err := url.Parse(strings.TrimRight(issuer, "/") + "/oauth2/auth")
+	if err != nil {
+		return "", "", "", err
+	}
+	q := u.Query()
+	q.Set("response_type", "code")
+	q.Set("client_id", clientID)
+	q.Set("redirect_uri", redirectURI)
+	q.Set("scope", strings.Join(scopes, " "))
+	q.Set("state", state)
+	q.Set("nonce", nonce)
+	q.Set("code_challenge", codeChallenge)
+	q.Set("code_challenge_method", "S256")
+	u.RawQuery = q.Encode()
+
+	return u.String(), codeVerifier, state, nil
+}
+
+func randBase64URL(n int) (string, error) {
+	b := make([]byte, n)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(b), nil
+}
+
+func pkceS256(verifier string) string {
+	sum := sha256.Sum256([]byte(verifier))
+	return base64.RawURLEncoding.EncodeToString(sum[:])
+}
+
+func populateOidcStore(store *storage.MemoryStore, retrievedSettings *settings.Settings) {
+	for _, sso := range retrievedSettings.SSO.Clients {
+		store.Clients[sso.ClientId] = &fosite.DefaultClient{
+			ID:           sso.ClientId,
+			Secret:       []byte(sso.ClientSecret),
+			RedirectURIs: sso.RedirectUris,
+			GrantTypes:   sso.GrantTypes,
+			Audience:     []string{"etherpad-go"},
+			Public:       true,
+			Scopes:       []string{"openid", "photos", "email", "profile", "offline"},
+		}
+	}
+
+	println(GenerateAuthCodeURL(retrievedSettings.SSO.Issuer, retrievedSettings.SSO.Clients[0].ClientId, retrievedSettings.SSO.Clients[0].RedirectUris[0], []string{"openid profile email"}))
+}
+
+func Init(app *fiber.App, retrievedSettings settings.Settings, setupLogger *zap.SugaredLogger) {
 
 	store := storage.NewMemoryStore()
+	populateOidcStore(store, &retrievedSettings)
+
 	secret := []byte("some-cool-secret-that-is-32bytes")
 	config := &fosite.Config{
 		AccessTokenLifespan: time.Minute * 30,
@@ -41,14 +110,14 @@ func Init(app *fiber.App, settings settings.Settings) {
 		tokenEndpoint(writer, request, oauth2)
 	})))
 	app.Get("/oauth2/auth", adaptor.HTTPHandler(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		authEndpoint(writer, request, oauth2)
+		authEndpoint(writer, request, oauth2, setupLogger)
 	})))
 	app.Post("/oauth2/auth", adaptor.HTTPHandler(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		authEndpoint(writer, request, oauth2)
+		authEndpoint(writer, request, oauth2, setupLogger)
 	})))
 
 	app.Get("/.well-known/openid-configuration", adaptor.HTTPHandler(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		oicWellKnown(writer, request, oauth2, &settings)
+		oicWellKnown(writer, request, oauth2, &retrievedSettings)
 	})))
 }
 
@@ -113,19 +182,11 @@ func revokeEndpoint(rw http.ResponseWriter, req *http.Request, oauth2 fosite.OAu
 }
 
 func tokenEndpoint(rw http.ResponseWriter, req *http.Request, oauth2 fosite.OAuth2Provider) {
-	// This context will be passed to all methods.
 	ctx := req.Context()
 
-	// Create an empty session object which will be passed to the request handlers
 	mySessionData := newSession("")
 
-	// This will create an access request object and iterate through the registered TokenEndpointHandlers to validate the request.
 	accessRequest, err := oauth2.NewAccessRequest(ctx, req, mySessionData)
-
-	// Catch any errors, e.g.:
-	// * unknown client
-	// * invalid redirect
-	// * ...
 	if err != nil {
 		log.Printf("Error occurred in NewAccessRequest: %+v", err)
 		oauth2.WriteAccessError(ctx, rw, accessRequest, err)
@@ -173,36 +234,21 @@ func newSession(user string) *openid.DefaultSession {
 	}
 }
 
-func authEndpoint(rw http.ResponseWriter, req *http.Request, oauth2 fosite.OAuth2Provider) {
+func authEndpoint(rw http.ResponseWriter, req *http.Request, oauth2 fosite.OAuth2Provider, setupLogger *zap.SugaredLogger) {
 	ctx := req.Context()
 
 	ar, err := oauth2.NewAuthorizeRequest(ctx, req)
 	if err != nil {
-		log.Printf("Error occurred in NewAuthorizeRequest: %+v", err)
+		setupLogger.Error("Error occurred in NewAuthorizeRequest: ", err)
 		oauth2.WriteAuthorizeError(ctx, rw, ar, err)
 		return
-	}
-
-	var requestedScopes string
-	for _, this := range ar.GetRequestedScopes() {
-		requestedScopes += fmt.Sprintf(`<li><input type="checkbox" name="scopes" value="%s">%s</li>`, this, this)
 	}
 
 	req.ParseForm()
 	if req.PostForm.Get("username") != "peter" {
 		rw.Header().Set("Content-Type", "text/html; charset=utf-8")
-		rw.Write([]byte(`<h1>Login page</h1>`))
-		rw.Write([]byte(fmt.Sprintf(`
-			<p>Howdy! This is the log in page. For this example, it is enough to supply the username.</p>
-			<form method="post">
-				<p>
-					By logging in, you consent to grant these scopes:
-					<ul>%s</ul>
-				</p>
-				<input type="text" name="username" /> <small>try peter</small><br>
-				<input type="submit">
-			</form>
-		`, requestedScopes)))
+		loginComp := login.Login()
+		loginComp.Render(req.Context(), rw)
 		return
 	}
 

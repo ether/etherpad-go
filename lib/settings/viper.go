@@ -127,7 +127,7 @@ func ReadConfig(jsonStr string) (*Settings, error) {
 	viper.SetDefault(CookieSessionRefreshInterval, 1*24*60*60*1000)
 	viper.SetDefault(RequireAuthentication, false)
 	viper.SetDefault(RequireAuthorization, false)
-	viper.SetDefault(SsoIssuer, "http://localhost:9001")
+	viper.SetDefault(SsoIssuer, "http://localhost:3000")
 	viper.SetDefault(CleanupEnabled, false)
 	viper.SetDefault(CleanupKeepRevisions, 100)
 	viper.SetDefault(SsoClients, make(map[string]SSOClients))
@@ -154,6 +154,11 @@ func ReadConfig(jsonStr string) (*Settings, error) {
 		if converted, ok := raw.(map[string]map[string]string); ok {
 			customLocaleStrings = converted
 		}
+	}
+
+	var ssoClients []SSOClients
+	if err := viper.UnmarshalKey(SsoClients, &ssoClients); err != nil || ssoClients == nil {
+		ssoClients = make([]SSOClients, 0)
 	}
 
 	dbTypeToUse, err := ParseDBType(viper.GetString(DBType))
@@ -293,7 +298,7 @@ func ReadConfig(jsonStr string) (*Settings, error) {
 
 		SSO: &SSO{
 			Issuer:  viper.GetString(SsoIssuer),
-			Clients: nil,
+			Clients: ssoClients,
 		},
 
 		ShowSettingsInAdminPage: viper.GetBool(ShowSettingsInAdminPage),

@@ -1,0 +1,25 @@
+package login
+
+
+templ Login() {
+    <html lang="de">
+    <head>
+        <title>Login Etherpad</title>
+        <link rel="stylesheet" href="/css/login/index.css">
+    </head>
+    <body>
+        <div class="login-background login-page">
+            <div class="login-box login-form">
+                <h1 class="login-title">Login zu</h1>
+                <form class="login-inner-box">
+                    <label for="username">Username</label>
+                    <input id="username" required class="login-textinput input-control" placeholder="Username" type="text" name="username" />
+                    <label for="password">Password</label>
+                    <input id="password" required class="login-textinput input-control" placeholder="Password" type="text" name="password" />
+                    <input class="login-button" type="submit" value="Login"/>
+                </form>
+            </div>
+        </div>
+    </body>
+    </html>
+}

@@ -15,12 +15,13 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/session"
+	"go.uber.org/zap"
 )
 
-func InitAPI(c *fiber.App, uiAssets embed.FS, retrievedSettings settings.Settings, cookieStore *session.Store, store db.DataStore, handler *ws.PadMessageHandler, manager *pad2.Manager, validator *validator.Validate) {
+func InitAPI(c *fiber.App, uiAssets embed.FS, retrievedSettings settings.Settings, cookieStore *session.Store, store db.DataStore, handler *ws.PadMessageHandler, manager *pad2.Manager, validator *validator.Validate, setupLogger *zap.SugaredLogger) {
 	author.Init(c, store, validator)
 	pad.Init(c, handler, manager)
 	groups.Init(c)
 	static.Init(c, uiAssets, retrievedSettings, cookieStore)
-	oidc.Init(c, retrievedSettings)
+	oidc.Init(c, retrievedSettings, setupLogger)
 }
