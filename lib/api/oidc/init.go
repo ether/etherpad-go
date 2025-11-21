@@ -7,12 +7,14 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"log"
+	"math/big"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
 	"github.com/ether/etherpad-go/assets/login"
+	"github.com/ether/etherpad-go/lib/models/oidc"
 	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/gofiber/adaptor/v2"
 	"github.com/gofiber/fiber/v2"
@@ -73,13 +75,14 @@ func pkceS256(verifier string) string {
 func populateOidcStore(store *storage.MemoryStore, retrievedSettings *settings.Settings) {
 	for _, sso := range retrievedSettings.SSO.Clients {
 		store.Clients[sso.ClientId] = &fosite.DefaultClient{
-			ID:           sso.ClientId,
-			Secret:       []byte(sso.ClientSecret),
-			RedirectURIs: sso.RedirectUris,
-			GrantTypes:   sso.GrantTypes,
-			Audience:     []string{"etherpad-go"},
-			Public:       true,
-			Scopes:       []string{"openid", "photos", "email", "profile", "offline"},
+			ID:            sso.ClientId,
+			Secret:        []byte(sso.ClientSecret),
+			RedirectURIs:  sso.RedirectUris,
+			GrantTypes:    sso.GrantTypes,
+			Audience:      []string{"etherpad-go"},
+			Public:        true,
+			ResponseTypes: []string{"code"},
+			Scopes:        []string{"openid", "email", "profile"},
 		}
 	}
 
@@ -119,6 +122,39 @@ func Init(app *fiber.App, retrievedSettings settings.Settings, setupLogger *zap.
 	app.Get("/.well-known/openid-configuration", adaptor.HTTPHandler(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		oicWellKnown(writer, request, oauth2, &retrievedSettings)
 	})))
+	app.Get("/.well-known/jwks.json", adaptor.HTTPHandler(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		jwksEndpoint(writer, request, privateKey)
+	})))
+}
+
+func jwksEndpoint(rw http.ResponseWriter, req *http.Request, privateKey *rsa.PrivateKey) {
+	rw.Header().Set("Content-Type", "application/json")
+
+	nBytes := privateKey.PublicKey.N.Bytes()
+	n := base64.RawURLEncoding.EncodeToString(nBytes)
+	eBytes := big.NewInt(int64(privateKey.PublicKey.E)).Bytes()
+	e := base64.RawURLEncoding.EncodeToString(eBytes)
+
+	jwks := &oidc.JSONWebKeySet{
+		Keys: []oidc.JSONWebKey{
+			{
+				E:   e,
+				N:   n,
+				Kty: "RSA",
+				Kid: "my-key-id",
+				Alg: "RS256",
+				Use: "sig",
+			},
+		},
+	}
+	byteResponse, err := json.Marshal(jwks)
+	if err != nil {
+		log.Printf("Error occurred in marshalling JWKS response: %+v", err)
+		rw.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	rw.Write(byteResponse)
 }
 
 func introspectionEndpoint(rw http.ResponseWriter, req *http.Request, oauth2 fosite.OAuth2Provider) {
@@ -272,7 +308,6 @@ func authEndpoint(rw http.ResponseWriter, req *http.Request, oauth2 fosite.OAuth
 		oauth2.WriteAuthorizeError(ctx, rw, ar, err)
 		return
 	}
-
-	// Last but not least, send the response!
+	println(response)
 	oauth2.WriteAuthorizeResponse(ctx, rw, ar, response)
 }

@@ -2,6 +2,7 @@ package static
 
 import (
 	"embed"
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/a-h/templ"
+	"github.com/ether/etherpad-go/assets/admin"
 	"github.com/ether/etherpad-go/assets/welcome"
 	"github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/plugins"
@@ -32,7 +34,7 @@ func registerEmbeddedStatic(app *fiber.App, route string, subPath string, uiAsse
 	app.Get(prefix+"/*", adaptor.HTTPHandler(handler))
 }
 
-func Init(app *fiber.App, uiAssets embed.FS, settings settings.Settings, cookieStore *session.Store) {
+func Init(app *fiber.App, uiAssets embed.FS, retrievedSettings settings.Settings, cookieStore *session.Store) {
 	app.Use("/p/", func(c *fiber.Ctx) error {
 		c.Path()
 
@@ -44,7 +46,33 @@ func Init(app *fiber.App, uiAssets embed.FS, settings settings.Settings, cookieS
 		return c.Next()
 	})
 
+	calcDataConfig := func() string {
+		for _, client := range retrievedSettings.SSO.Clients {
+			if client.Type == "admin" {
+				selectedClient := client
+				oidcConfig := settings.OidcConfig{
+					ClientId:    selectedClient.ClientId,
+					Authority:   retrievedSettings.SSO.Issuer,
+					JwksUri:     retrievedSettings.SSO.Issuer + ".well-known/jwks.json",
+					RedirectUri: selectedClient.RedirectUris[0],
+					Scope:       []string{"openid", "profile", "email"},
+				}
+				conf, _ := json.Marshal(oidcConfig)
+				return string(conf)
+			}
+		}
+		return ""
+	}
+
 	app.Get("/pluginfw/plugin-definitions.json", plugins.ReturnPluginResponse)
+	app.Get("/admin/index.html", func(c *fiber.Ctx) error {
+		adminPage := admin.Admin(retrievedSettings, calcDataConfig())
+		return adaptor.HTTPHandler(templ.Handler(adminPage))(c)
+	})
+	app.Get("/admin/", func(c *fiber.Ctx) error {
+		adminPage := admin.Admin(retrievedSettings, calcDataConfig())
+		return adaptor.HTTPHandler(templ.Handler(adminPage))(c)
+	})
 	registerEmbeddedStatic(app, "/images/favicon.ico", "assets/images/favicon.ico", uiAssets)
 	registerEmbeddedStatic(app, "/css/", "assets/css", uiAssets)
 	registerEmbeddedStatic(app, "/static/css/", "assets/css/static", uiAssets)
@@ -53,7 +81,7 @@ func Init(app *fiber.App, uiAssets embed.FS, settings settings.Settings, cookieS
 	registerEmbeddedStatic(app, "/font/", "assets/font", uiAssets)
 
 	app.Get("/p/*", func(ctx *fiber.Ctx) error {
-		return pad.HandlePadOpen(ctx, uiAssets, settings)
+		return pad.HandlePadOpen(ctx, uiAssets, retrievedSettings)
 	})
 
 	app.Get("/favicon.ico", func(c *fiber.Ctx) error {
@@ -66,7 +94,7 @@ func Init(app *fiber.App, uiAssets embed.FS, settings settings.Settings, cookieS
 		if err != nil {
 			return err
 		}
-		component := welcome.Page(settings, keyValues)
+		component := welcome.Page(retrievedSettings, keyValues)
 		return adaptor.HTTPHandler(templ.Handler(component))(c)
 	})
 
@@ -93,7 +121,7 @@ func Init(app *fiber.App, uiAssets embed.FS, settings settings.Settings, cookieS
 			alias["ep_etherpad-lite/static/js/rjquery"] = relativePath + "/rjquery"
 			alias["ep_etherpad-lite/static/js/nice-select"] = "ep_etherpad-lite/static/js/vendors/nice-select"
 
-			var pathToBuild = path.Join(settings.Root, "ui")
+			var pathToBuild = path.Join(retrievedSettings.Root, "ui")
 
 			result := api.Build(api.BuildOptions{
 				EntryPoints:   []string{entrypoint},

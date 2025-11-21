@@ -25,6 +25,7 @@
     "eslint": "^9.38.0",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
+    "happy-dom": "^20.0.10",
     "i18next": "^25.6.0",
     "i18next-browser-languagedetector": "^8.2.0",
     "lucide-react": "^0.552.0",

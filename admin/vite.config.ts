@@ -1,20 +1,28 @@
-import {defineConfig} from 'vite'
+import {defineConfig, PluginOption} from 'vite'
 import {viteStaticCopy} from "vite-plugin-static-copy";
-import react from '@vitejs/plugin-react';
+
+function chartingLibrary(): PluginOption {
+    return {
+        name: 'charting-library',
+        enforce: 'pre',
+        apply: 'serve',
+        transformIndexHtml: async (html, ctx)=>{
+            const resp =  await fetch('http://localhost:3000/admin/index.html')
+            return await resp.text()
+        }
+    };
+}
+
 
 // https://vitejs.dev/config/
 export default defineConfig({
-    plugins: [viteStaticCopy({
+    plugins: [chartingLibrary(), viteStaticCopy({
         targets: [
             {
                 src: '../assets/locales',
                 dest: ''
             }
         ]
-    }), react({
-        babel: {
-            plugins: ['babel-plugin-react-compiler'],
-        }
     })],
     base: '/admin',
     build: {

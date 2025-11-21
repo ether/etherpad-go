@@ -335,6 +335,7 @@ func ReadConfig(jsonStr string) (*Settings, error) {
 		EnableAdminUITests:  viper.GetBool(EnableAdminUITests),
 		LowerCasePadIDs:     viper.GetBool(LowerCasePadIds),
 		RandomVersionString: "123",
+		DevMode:             viper.GetBool(DevMode),
 	}
 
 	return s, nil

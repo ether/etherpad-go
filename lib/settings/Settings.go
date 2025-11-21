@@ -95,6 +95,7 @@ type SSOClient struct {
 	ResponseTypes []string `json:"response_types" mapstructure:"response_types"`
 	RedirectUris  []string `json:"redirect_uris" mapstructure:"redirect_uris"`
 	DisplayName   string   `json:"display_name" mapstructure:"display_name"`
+	Type          string   `json:"type" mapstructure:"type"`
 }
 
 type SSO struct {
@@ -179,6 +180,7 @@ type Settings struct {
 	EnableAdminUITests                 bool                                           `json:"enableAdminUITests"`
 	LowerCasePadIDs                    bool                                           `json:"lowerCasePadIds"`
 	RandomVersionString                string                                         `json:"randomVersionString"`
+	DevMode                            bool                                           `json:"devMode"`
 	GitVersion                         string                                         `json:"-"`
 }
 

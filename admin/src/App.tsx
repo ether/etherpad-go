@@ -2,7 +2,7 @@ import {useEffect, useState} from 'react'
 import './App.css'
 
 import {isJSONClean} from './utils/utils.ts'
-import {NavLink, Outlet, useNavigate} from "react-router-dom";
+import {NavLink, Outlet} from "react-router-dom";
 import {useStore} from "./store/store.ts";
 import {LoadingScreen} from "./utils/LoadingScreen.tsx";
 import {Trans, useTranslation} from "react-i18next";
@@ -12,25 +12,7 @@ import {connect} from "./utils/socketio.ts";
 export const App = () => {
   const setSettings = useStore(state => state.setSettings);
   const {t} = useTranslation()
-  const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(true)
-
-  useEffect(() => {
-      const adminPW = localStorage.getItem('ep_admin_pw')
-
-      fetch('/admin-auth/', {
-      method: 'POST',
-          headers: {
-              'Authorization': adminPW ?? ''
-          }
-    }).then((value) => {
-      if (!value.ok) {
-        navigate('/login')
-      }
-    }).catch(() => {
-      navigate('/login')
-    })
-  }, []);
 
   useEffect(() => {
     document.title = t('admin.page-title')
