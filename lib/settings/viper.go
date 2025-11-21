@@ -130,7 +130,7 @@ func ReadConfig(jsonStr string) (*Settings, error) {
 	viper.SetDefault(SsoIssuer, "http://localhost:3000")
 	viper.SetDefault(CleanupEnabled, false)
 	viper.SetDefault(CleanupKeepRevisions, 100)
-	viper.SetDefault(SsoClients, make(map[string]SSOClients))
+	viper.SetDefault(SsoClients, make(map[string]SSOClient))
 
 	viper.SetDefault(ScrollWhenFocusPercentageArrowUp, 0)
 	viper.SetDefault(ExposeVersion, false)
@@ -156,9 +156,9 @@ func ReadConfig(jsonStr string) (*Settings, error) {
 		}
 	}
 
-	var ssoClients []SSOClients
+	var ssoClients []SSOClient
 	if err := viper.UnmarshalKey(SsoClients, &ssoClients); err != nil || ssoClients == nil {
-		ssoClients = make([]SSOClients, 0)
+		ssoClients = make([]SSOClient, 0)
 	}
 
 	dbTypeToUse, err := ParseDBType(viper.GetString(DBType))

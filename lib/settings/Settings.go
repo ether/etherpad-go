@@ -88,17 +88,18 @@ type Cookie struct {
 	SessionRefreshInterval int64  `json:"sessionRefreshInterval"`
 }
 
-type SSOClients struct {
+type SSOClient struct {
 	ClientId      string   `json:"client_id" mapstructure:"client_id"`
 	ClientSecret  string   `json:"client_secret" mapstructure:"client_secret"`
 	GrantTypes    []string `json:"grant_types" mapstructure:"grant_types"`
 	ResponseTypes []string `json:"response_types" mapstructure:"response_types"`
 	RedirectUris  []string `json:"redirect_uris" mapstructure:"redirect_uris"`
+	DisplayName   string   `json:"display_name" mapstructure:"display_name"`
 }
 
 type SSO struct {
-	Issuer  string       `json:"issuer"`
-	Clients []SSOClients `json:"clients"`
+	Issuer  string      `json:"issuer"`
+	Clients []SSOClient `json:"clients"`
 }
 
 type Cleanup struct {

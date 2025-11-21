@@ -83,7 +83,7 @@ func populateOidcStore(store *storage.MemoryStore, retrievedSettings *settings.S
 		}
 	}
 
-	println(GenerateAuthCodeURL(retrievedSettings.SSO.Issuer, retrievedSettings.SSO.Clients[0].ClientId, retrievedSettings.SSO.Clients[0].RedirectUris[0], []string{"openid profile email"}))
+	println(GenerateAuthCodeURL(retrievedSettings.SSO.Issuer, retrievedSettings.SSO.Clients[0].ClientId, "https://apple.com", []string{"openid profile email"}))
 }
 
 func Init(app *fiber.App, retrievedSettings settings.Settings, setupLogger *zap.SugaredLogger) {
@@ -110,10 +110,10 @@ func Init(app *fiber.App, retrievedSettings settings.Settings, setupLogger *zap.
 		tokenEndpoint(writer, request, oauth2)
 	})))
 	app.Get("/oauth2/auth", adaptor.HTTPHandler(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		authEndpoint(writer, request, oauth2, setupLogger)
+		authEndpoint(writer, request, oauth2, setupLogger, retrievedSettings)
 	})))
 	app.Post("/oauth2/auth", adaptor.HTTPHandler(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		authEndpoint(writer, request, oauth2, setupLogger)
+		authEndpoint(writer, request, oauth2, setupLogger, retrievedSettings)
 	})))
 
 	app.Get("/.well-known/openid-configuration", adaptor.HTTPHandler(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -234,7 +234,7 @@ func newSession(user string) *openid.DefaultSession {
 	}
 }
 
-func authEndpoint(rw http.ResponseWriter, req *http.Request, oauth2 fosite.OAuth2Provider, setupLogger *zap.SugaredLogger) {
+func authEndpoint(rw http.ResponseWriter, req *http.Request, oauth2 fosite.OAuth2Provider, setupLogger *zap.SugaredLogger, retrievedSettings settings.Settings) {
 	ctx := req.Context()
 
 	ar, err := oauth2.NewAuthorizeRequest(ctx, req)
@@ -245,9 +245,18 @@ func authEndpoint(rw http.ResponseWriter, req *http.Request, oauth2 fosite.OAuth
 	}
 
 	req.ParseForm()
-	if req.PostForm.Get("username") != "peter" {
+	if req.Method == "GET" {
+		clientId := req.URL.Query().Get("client_id")
+		var clientFound settings.SSOClient
+
+		for _, sso := range retrievedSettings.SSO.Clients {
+			if sso.ClientId == clientId {
+				clientFound = sso
+			}
+		}
+
 		rw.Header().Set("Content-Type", "text/html; charset=utf-8")
-		loginComp := login.Login()
+		loginComp := login.Login(clientFound)
 		loginComp.Render(req.Context(), rw)
 		return
 	}

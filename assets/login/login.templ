@@ -1,7 +1,9 @@
 package login
 
+import settings "github.com/ether/etherpad-go/lib/settings"
 
-templ Login() {
+
+templ Login(client settings.SSOClient) {
     <html lang="de">
     <head>
         <title>Login Etherpad</title>
@@ -10,13 +12,18 @@ templ Login() {
     <body>
         <div class="login-background login-page">
             <div class="login-box login-form">
-                <h1 class="login-title">Login zu</h1>
-                <form class="login-inner-box">
+                <h1 class="login-title">Login zu {client.DisplayName}</h1>
+                <form class="login-inner-box" method="post">
                     <label for="username">Username</label>
                     <input id="username" required class="login-textinput input-control" placeholder="Username" type="text" name="username" />
                     <label for="password">Password</label>
                     <input id="password" required class="login-textinput input-control" placeholder="Password" type="text" name="password" />
                     <input class="login-button" type="submit" value="Login"/>
+                    <ul hidden="hidden">
+                        <li><input name="scopes" type="hidden" value="openid"></li>
+                        <li><input name="scopes" type="hidden" value="email"></li>
+                        <li><input name="scopes" type="hidden" value="profile"></li>
+                    </ul>
                 </form>
             </div>
         </div>
