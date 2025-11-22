@@ -12,6 +12,7 @@ import settingSocket from "../utils/globals.ts";
 
 export const HomePage = () => {
     const [plugins,setPlugins] = useState<PluginDef[]>([])
+    const [loadedPlugins, setLoadedPlugins] = useState<boolean>(false)
   const installedPlugins = useStore(state=>state.installedPlugins)
   const setInstalledPlugins = useStore(state=>state.setInstalledPlugins)
   const [searchParams, setSearchParams] = useState<SearchParams>({
@@ -129,6 +130,7 @@ export const HomePage = () => {
             results: PluginDef[]
         }) => {
             setPlugins(data.results)
+            setLoadedPlugins(true)
         })
         settingSocket!.on('results:searcherror', (data: {error: string}) => {
             console.log(data.error)
@@ -138,7 +140,7 @@ export const HomePage = () => {
                 success: false
             })
         })
-    }, [searchParams, settingSocket]);
+    }, [searchParams]);
 
     const uninstallPlugin  = (pluginName: string)=>{
         settingSocket!.emit('uninstall', pluginName);
@@ -225,7 +227,7 @@ export const HomePage = () => {
             </tr>
             </thead>
             <tbody style={{overflow: 'auto'}}>
-            {(filteredInstallablePlugins.length > 0) ?
+            {loadedPlugins ?
               filteredInstallablePlugins.map((plugin) => {
                         return <tr key={plugin.name}>
                             <td><a rel="noopener noreferrer" href={`https://npmjs.com/${plugin.name}`} target="_blank">{plugin.name}</a></td>

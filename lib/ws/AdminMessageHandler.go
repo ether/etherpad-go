@@ -41,6 +41,54 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 			}
 			c.conn.WriteMessage(websocket.TextMessage, responseBytes)
 		}
+	case "getInstalled":
+		{
+			var epPlugin = []admin.InstalledPluginDefinition{
+				{
+					Name:     "etherpad",
+					Version:  retrievedSettings.GitVersion,
+					Path:     "/etherpad",
+					RealPath: "/etherpad",
+				},
+			}
+
+			resp := make([]interface{}, 2)
+			resp[0] = "results:installed"
+			resp[1] = map[string]interface{}{
+				"installed": epPlugin,
+			}
+
+			responseBytes, err := json.Marshal(resp)
+			if err != nil {
+				println("Error marshalling response:", err.Error())
+				return
+			}
+			c.conn.WriteMessage(websocket.TextMessage, responseBytes)
+		}
+	case "search":
+		{
+			pluginDef := admin.SeachchPluginDefinition{
+				Results: make([]admin.PluginSearchDefinition, 0),
+				Query: struct {
+					Offset     int    `json:"offset"`
+					Limit      int    `json:"limit"`
+					SortBy     string `json:"sortBy"`
+					SortDir    string `json:"sortDir"`
+					SearchTerm string `json:"searchTerm"`
+				}{Offset: 0, Limit: 99999, SortBy: "name", SortDir: "asc", SearchTerm: ""},
+			}
+
+			resp := make([]interface{}, 2)
+			resp[0] = "results:search"
+			resp[1] = pluginDef
+
+			responseBytes, err := json.Marshal(resp)
+			if err != nil {
+				println("Error marshalling response:", err.Error())
+				return
+			}
+			c.conn.WriteMessage(websocket.TextMessage, responseBytes)
+		}
 	default:
 		// Unknown event
 		println("Unknown admin event:", message.Event)

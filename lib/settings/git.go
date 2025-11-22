@@ -8,8 +8,8 @@ import (
 	"strings"
 )
 
-func GetGitCommit() string {
-	if os.Getenv("DEVELOPMENT_MODE") == "true" {
+func GetGitCommit(setting *Settings) string {
+	if setting.DevMode {
 		gitPath := ".git"
 		info, err := os.Stat(gitPath)
 		if err != nil {
