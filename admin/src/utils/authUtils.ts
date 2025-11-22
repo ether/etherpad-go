@@ -52,7 +52,6 @@ const config = getConfigFromHtmlFile();
 if (window.location.search.includes('code=')) {
     console.log('Redirecting to', window.location.href, "with client" + config?.clientId)
     try {
-
         const codeVerifier = sessionStorage.getItem('pkce_code_verifier') || '';
         const resp = await fetch(config?.authority + "/../token", {
             method: 'POST',
@@ -64,7 +63,6 @@ if (window.location.search.includes('code=')) {
                 code: new URLSearchParams(window.location.search).get('code') || '',
                 redirect_uri: config?.redirectUri ?? '',
                 client_id: config?.clientId ?? '',
-                code_verifier: codeVerifier
             })})
         if (resp.ok) {
             const tokenResponse = await resp.json()

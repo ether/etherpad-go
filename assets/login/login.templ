@@ -3,7 +3,7 @@ package login
 import settings "github.com/ether/etherpad-go/lib/settings"
 
 
-templ Login(client settings.SSOClient) {
+templ Login(client settings.SSOClient, errorMessage *string) {
     <html lang="de">
     <head>
         <title>Login Etherpad</title>
@@ -25,6 +25,9 @@ templ Login(client settings.SSOClient) {
                         <li><input name="scopes" type="hidden" value="email"></li>
                         <li><input name="scopes" type="hidden" value="profile"></li>
                     </ul>
+                    if errorMessage != nil {
+                        <div class="login-error-message">{*errorMessage}</div>
+                    }
                 </form>
             </div>
         </div>

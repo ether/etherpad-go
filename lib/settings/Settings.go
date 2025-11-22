@@ -76,9 +76,9 @@ type Toolbar struct {
 }
 
 type User struct {
-	Password *string `json:"password"`
-	IsAdmin  *bool   `json:"is_admin"`
-	Username *string `json:"-"`
+	Password *string `json:"password" mapstructure:"password"`
+	IsAdmin  *bool   `json:"is_admin" mapstructure:"is_admin"`
+	Username *string `json:"-" mapstructure:"-"`
 }
 
 type Cookie struct {

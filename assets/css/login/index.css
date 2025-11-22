@@ -82,3 +82,9 @@ input:invalid:required {
     font-size: 2rem;
     font-weight: 400;
 }
+
+
+.login-error-message {
+    color: red;
+    text-align: center;
+}

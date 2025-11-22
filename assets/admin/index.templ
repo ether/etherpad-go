@@ -15,7 +15,7 @@ templ Admin(retrievedSettings settings.Settings, dataConfig string) {
         <div id="root"></div>
         <div id="loading"></div>
         if retrievedSettings.DevMode {
-            <script type="module" src="http://localhost:5174/admin/src/main.tsx"></script>
+            <script type="module" src="http://localhost:5173/admin/src/main.tsx"></script>
         }
         <span id="config" data-config={dataConfig}></span>
       </body>
