@@ -76,9 +76,9 @@ type Toolbar struct {
 }
 
 type User struct {
-	Password *string `json:"password"`
-	IsAdmin  *bool   `json:"is_admin"`
-	Username *string `json:"-"`
+	Password *string `json:"password" mapstructure:"password"`
+	IsAdmin  *bool   `json:"is_admin" mapstructure:"is_admin"`
+	Username *string `json:"-" mapstructure:"-"`
 }
 
 type Cookie struct {
@@ -88,17 +88,19 @@ type Cookie struct {
 	SessionRefreshInterval int64  `json:"sessionRefreshInterval"`
 }
 
-type SSOClients struct {
-	ClientId      string   `json:"client_id"`
-	ClientSecret  string   `json:"client_secret"`
-	GrantTypes    []string `json:"grant_types"`
-	ResponseTypes []string `json:"response_types"`
-	RedirectUris  []string `json:"redirect_uris"`
+type SSOClient struct {
+	ClientId      string   `json:"client_id" mapstructure:"client_id"`
+	ClientSecret  string   `json:"client_secret" mapstructure:"client_secret"`
+	GrantTypes    []string `json:"grant_types" mapstructure:"grant_types"`
+	ResponseTypes []string `json:"response_types" mapstructure:"response_types"`
+	RedirectUris  []string `json:"redirect_uris" mapstructure:"redirect_uris"`
+	DisplayName   string   `json:"display_name" mapstructure:"display_name"`
+	Type          string   `json:"type" mapstructure:"type"`
 }
 
 type SSO struct {
-	Issuer  string       `json:"issuer"`
-	Clients []SSOClients `json:"clients"`
+	Issuer  string      `json:"issuer"`
+	Clients []SSOClient `json:"clients"`
 }
 
 type Cleanup struct {
@@ -178,6 +180,7 @@ type Settings struct {
 	EnableAdminUITests                 bool                                           `json:"enableAdminUITests"`
 	LowerCasePadIDs                    bool                                           `json:"lowerCasePadIds"`
 	RandomVersionString                string                                         `json:"randomVersionString"`
+	DevMode                            bool                                           `json:"devMode"`
 	GitVersion                         string                                         `json:"-"`
 }
 
@@ -421,7 +424,7 @@ Etherpad on Github: https://github.com/ether/etherpad-lite`,
 		 * This setting is used for configuring sso
 		 */
 		SSO: &SSO{
-			Issuer: "http://localhost:9001",
+			Issuer: "http://localhost:3000",
 		},
 		/*
 		 * Show settings in admin page, by default it is true

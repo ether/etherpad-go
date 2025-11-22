@@ -1,3 +1,4 @@
+import "./utils/authUtils"
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.tsx'
@@ -5,7 +6,6 @@ import './index.css'
 import {createBrowserRouter, createRoutesFromElements, Route, RouterProvider} from "react-router-dom";
 import {HomePage} from "./pages/HomePage.tsx";
 import {SettingsPage} from "./pages/SettingsPage.tsx";
-import {LoginScreen} from "./pages/LoginScreen.tsx";
 import {HelpPage} from "./pages/HelpPage.tsx";
 import * as Toast from '@radix-ui/react-toast'
 import {I18nextProvider} from "react-i18next";
@@ -22,9 +22,8 @@ const router = createBrowserRouter(createRoutesFromElements(
         <Route path="/help" element={<HelpPage/>}/>
         <Route path="/pads" element={<PadPage/>}/>
         <Route path="/shout" element={<ShoutPage/>}/>
-    </Route><Route path="/login">
-        <Route index element={<LoginScreen/>}/>
-    </Route></>
+    </Route>
+    </>
 ), {
     basename: import.meta.env.BASE_URL
 })

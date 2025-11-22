@@ -1,0 +1,90 @@
+:root {
+    --etherpad-color: #0f775b;
+    --etherpad-comp: #9C8840;
+    --etherpad-light: #99FF99;
+    --sidebar-width: 20em;
+}
+
+html, body, #root {
+    box-sizing: border-box;
+    height: 100%;
+    font-family: "Karla", sans-serif;
+}
+
+body {
+    margin: 0;
+    color: #333;
+    font: 14px helvetica, sans-serif;
+    background: #eee;
+}
+
+
+.input-control {
+    width: 100%;
+    padding: 12px 20px;
+    margin: 8px 0;
+    display: inline-block;
+    border-bottom: 2px solid #ccc;
+    border-top: 0;
+    border-left: 0;
+    border-right: 0;
+    box-sizing: border-box;
+    border-radius: 5px;
+    font-size: 14px;
+    color: #666;
+    background-color: #f8f8f8;
+    -webkit-transition: all 0.3s ease-in-out;
+    transition: all 0.3s ease-in-out;
+}
+
+input:invalid:required {
+    border-color:  #ff0000;
+}
+
+
+.login-background {
+    background-image: url("/images/fond.jpg");
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: cover;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    background-color: #f0f0f0;
+}
+.login-box {
+    padding: 20px;
+    border-radius: 40px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    background-color: #fff;
+}
+.login-button {
+    padding: 10px;
+    background-color: var(--etherpad-color);
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    width: 100%;
+    height: 40px;
+}
+.login-inner-box {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+.login-title {
+    padding: 0;
+    margin: 0;
+    text-align: center;
+    color: var(--etherpad-color);
+    font-size: 2rem;
+    font-weight: 400;
+}
+
+
+.login-error-message {
+    color: red;
+    text-align: center;
+}

@@ -59,12 +59,10 @@ export const minify = (json: string)=>{
 }
 
 export const isJSONClean = (data: string) => {
-    let cleanSettings = minify(data);
-    // this is a bit naive. In theory some key/value might contain the sequences ',]' or ',}'
-    cleanSettings = cleanSettings.replace(',]', ']').replace(',}', '}');
     try {
-        return typeof JSON.parse(cleanSettings) === 'object';
+        return typeof JSON.parse(data) === 'object';
     } catch (e) {
+        console.log(e)
         return false; // the JSON failed to be parsed
     }
 };

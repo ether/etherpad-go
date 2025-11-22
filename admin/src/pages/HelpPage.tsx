@@ -1,20 +1,19 @@
 import {Trans} from "react-i18next";
-import {useStore} from "../store/store.ts";
 import {useEffect, useState} from "react";
 import {HelpObj} from "./Plugin.ts";
+import settingSocket from "../utils/globals.ts";
 
 export const HelpPage = () => {
-    const settingsSocket = useStore(state=>state.settingsSocket)
     const [helpData, setHelpData] = useState<HelpObj>();
 
     useEffect(() => {
-        if(!settingsSocket) return;
-        settingsSocket?.on('reply:help', (data) => {
+        if(!settingSocket) return;
+        settingSocket?.on('reply:help', (data: any) => {
             setHelpData(data)
         });
 
-        settingsSocket?.emit('help');
-    }, [settingsSocket]);
+        settingSocket.emit('help', {});
+    }, []);
 
     const renderHooks = (hooks:Record<string, Record<string, string>>) => {
         return Object.keys(hooks).map((hookName, i) => {

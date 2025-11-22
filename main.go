@@ -104,6 +104,7 @@ func main() {
 	padManager := pad.NewManager(dataStore, &retrievedHooks)
 
 	padMessageHandler := ws.NewPadMessageHandler(dataStore, &retrievedHooks, &padManager)
+	adminMessageHandler := ws.NewAdminMessageHandler(dataStore, &retrievedHooks, &padManager)
 	app.Get("/socket.io/*", func(c *fiber.Ctx) error {
 		return adaptor.HTTPHandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 			ws.ServeWs(ws.HubGlob, writer, request, cookieStore, c, &settings, setupLogger, padMessageHandler)
@@ -111,11 +112,11 @@ func main() {
 	})
 	app.Get("/admin/ws", func(c *fiber.Ctx) error {
 		return adaptor.HTTPHandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-			ws.ServeAdminWs(ws.HubGlob, writer, request, c, &settings, setupLogger)
+			ws.ServeAdminWs(ws.HubGlob, writer, request, c, &settings, setupLogger, adminMessageHandler)
 		})(c)
 	})
 
-	api2.InitAPI(app, uiAssets, settings, cookieStore, dataStore, padMessageHandler, &padManager, validatorEvaluator)
+	api2.InitAPI(app, uiAssets, settings, cookieStore, dataStore, padMessageHandler, &padManager, validatorEvaluator, setupLogger)
 
 	fiberString := fmt.Sprintf("%s:%s", settings.IP, settings.Port)
 	setupLogger.Info("Starting Web UI on " + fiberString)

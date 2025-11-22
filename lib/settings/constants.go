@@ -101,6 +101,7 @@ const (
 	CustomLocaleStrings                 = "customLocaleStrings"
 	EnableAdminUITests                  = "enableAdminUITests"
 	LowerCasePadIds                     = "lowerCasePadIds"
+	DevMode                             = "devMode"
 	SsoIssuer                           = "sso.issuer"
 	SsoClients                          = "sso.clients"
 )
