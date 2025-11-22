@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/ether/etherpad-go/lib/models/ws"
+	"github.com/ether/etherpad-go/lib/models/ws/admin"
 	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/ether/etherpad-go/lib/ws/ratelimiter"
 	"github.com/gofiber/fiber/v2"
@@ -37,11 +38,12 @@ type Client struct {
 	// The websocket connection.
 	conn *websocket.Conn
 	// Buffered channel of outbound messages.
-	Send      chan []byte
-	Room      string
-	SessionId string
-	ctx       *fiber.Ctx
-	handler   *PadMessageHandler
+	Send         chan []byte
+	Room         string
+	SessionId    string
+	ctx          *fiber.Ctx
+	handler      *PadMessageHandler
+	adminHandler *AdminMessageHandler
 }
 
 func (c *Client) readPumpAdmin(retrievedSettings *settings.Settings, logger *zap.SugaredLogger) {
@@ -62,6 +64,14 @@ func (c *Client) readPumpAdmin(retrievedSettings *settings.Settings, logger *zap
 		message = bytes.TrimSpace(bytes.Replace(message, newline, space, -1))
 		decodedMessage := string(message[:])
 		println(decodedMessage)
+		var eventMessage admin.EventMessage
+
+		err = json.Unmarshal(message, &eventMessage)
+		if err != nil {
+			logger.Error("Error unmarshalling", err)
+			return
+		}
+		c.adminHandler.HandleMessage(eventMessage, retrievedSettings, c)
 	}
 }
 

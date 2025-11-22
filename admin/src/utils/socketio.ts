@@ -30,5 +30,6 @@ export const connect = (namespace: string) => {
     }*/
   });
 
+
   return window.socket;
 };

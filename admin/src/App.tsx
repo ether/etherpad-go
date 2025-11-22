@@ -1,13 +1,13 @@
 import {useEffect, useState} from 'react'
 import './App.css'
 
-import {isJSONClean} from './utils/utils.ts'
 import {NavLink, Outlet} from "react-router-dom";
 import {useStore} from "./store/store.ts";
 import {LoadingScreen} from "./utils/LoadingScreen.tsx";
 import {Trans, useTranslation} from "react-i18next";
 import {Cable, Construction, Crown, NotepadText, Wrench, PhoneCall, LucideMenu} from "lucide-react";
-import {connect} from "./utils/socketio.ts";
+import settingSocket from "./utils/globals.ts";
+
 
 export const App = () => {
   const setSettings = useStore(state => state.setSettings);
@@ -18,17 +18,12 @@ export const App = () => {
     document.title = t('admin.page-title')
 
     useStore.getState().setShowLoading(true);
-    const settingSocket = connect(`settings`);
 
-    const pluginsSocket = connect(`/pluginfw/installer`)
-
-    pluginsSocket.on('connect', () => {
-      useStore.getState().setPluginsSocket(pluginsSocket);
+      settingSocket.on('connect', () => {
     });
 
 
     settingSocket.on('connect', () => {
-      useStore.getState().setSettingsSocket(settingSocket);
       useStore.getState().setShowLoading(false)
       settingSocket.emit('load', {});
       console.log('connected');
@@ -53,22 +48,13 @@ export const App = () => {
       }
 
       /* Check to make sure the JSON is clean before proceeding */
-      if (isJSONClean(settings.results)) {
-        setSettings(settings.results);
-      } else {
-        alert('Invalid JSON');
-      }
+      setSettings(JSON.stringify(settings.results));
       useStore.getState().setShowLoading(false);
     });
 
     settingSocket.on('saveprogress', (status: string) => {
       console.log(status)
     })
-
-    return () => {
-      settingSocket.disconnect();
-      pluginsSocket.disconnect()
-    }
   }, []);
 
   return <div id="wrapper" className={`${sidebarOpen ? '': 'closed' }`}>
@@ -88,7 +74,7 @@ export const App = () => {
           <li><NavLink to={"/settings"}><Wrench/><Trans i18nKey="admin_settings"/></NavLink></li>
           <li><NavLink to={"/help"}> <Construction/> <Trans i18nKey="admin_plugins_info"/></NavLink></li>
           <li><NavLink to={"/pads"}><NotepadText/><Trans
-            i18nKey="ep_admin_pads:ep_adminpads2_manage-pads"/></NavLink></li>
+            i18nKey="ep_admin_pads.ep_adminpads2_manage-pads"/></NavLink></li>
           <li><NavLink to={"/shout"}><PhoneCall/>Communication</NavLink></li>
         </ul>
       </div>

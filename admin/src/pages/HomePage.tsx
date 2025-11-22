@@ -7,10 +7,10 @@ import {SearchField} from "../components/SearchField.tsx";
 import {ArrowUpFromDot, Download, Trash} from "lucide-react";
 import {IconButton} from "../components/IconButton.tsx";
 import {determineSorting} from "../utils/sorting.ts";
+import settingSocket from "../utils/globals.ts";
 
 
 export const HomePage = () => {
-    const pluginsSocket = useStore(state=>state.pluginsSocket)
     const [plugins,setPlugins] = useState<PluginDef[]>([])
   const installedPlugins = useStore(state=>state.installedPlugins)
   const setInstalledPlugins = useStore(state=>state.setInstalledPlugins)
@@ -68,17 +68,17 @@ export const HomePage = () => {
 
 
     useEffect(() => {
-        if(!pluginsSocket){
+        if(!settingSocket){
             return
         }
 
-        pluginsSocket.on('results:installed', (data:{
+        settingSocket.on('results:installed', (data:{
             installed: InstalledPlugin[]
         })=>{
             setInstalledPlugins(data.installed)
         })
 
-        pluginsSocket.on('results:updatable', (data) => {
+        settingSocket.on('results:updatable', (data: any) => {
           const newInstalledPlugins = useStore.getState().installedPlugins.map(plugin => {
             if (data.updatable.includes(plugin.name)) {
               return {
@@ -91,46 +91,46 @@ export const HomePage = () => {
          setInstalledPlugins(newInstalledPlugins)
         })
 
-        pluginsSocket.on('finished:install', () => {
-            pluginsSocket!.emit('getInstalled');
+        settingSocket.on('finished:install', () => {
+            settingSocket!.emit('getInstalled');
         })
 
-        pluginsSocket.on('finished:uninstall', () => {
+        settingSocket.on('finished:uninstall', () => {
             console.log("Finished uninstall")
         })
 
 
         // Reload on reconnect
-        pluginsSocket.on('connect', ()=>{
+        settingSocket.on('connect', ()=>{
             // Initial retrieval of installed plugins
-            pluginsSocket.emit('getInstalled');
-            pluginsSocket.emit('search', searchParams)
+            settingSocket.emit('getInstalled');
+            settingSocket.emit('search', searchParams)
         })
 
-        pluginsSocket.emit('getInstalled');
+        settingSocket.emit('getInstalled');
 
         // check for updates every 5mins
         const interval = setInterval(() => {
-            pluginsSocket.emit('checkUpdates');
+            settingSocket.emit('checkUpdates');
         }, 1000 * 60 * 5);
 
         return ()=>{
             clearInterval(interval)
         }
-        }, [pluginsSocket]);
+        }, [settingSocket]);
 
 
     useEffect(() => {
-        if (!pluginsSocket) {
+        if (!settingSocket) {
             return
         }
-        pluginsSocket?.emit('search', searchParams)
-        pluginsSocket!.on('results:search', (data: {
+        settingSocket?.emit('search', searchParams)
+        settingSocket!.on('results:search', (data: {
             results: PluginDef[]
         }) => {
             setPlugins(data.results)
         })
-        pluginsSocket!.on('results:searcherror', (data: {error: string}) => {
+        settingSocket!.on('results:searcherror', (data: {error: string}) => {
             console.log(data.error)
             useStore.getState().setToastState({
                 open: true,
@@ -138,16 +138,16 @@ export const HomePage = () => {
                 success: false
             })
         })
-    }, [searchParams, pluginsSocket]);
+    }, [searchParams, settingSocket]);
 
     const uninstallPlugin  = (pluginName: string)=>{
-        pluginsSocket!.emit('uninstall', pluginName);
+        settingSocket!.emit('uninstall', pluginName);
         // Remove plugin
         setInstalledPlugins(installedPlugins.filter(i=>i.name !== pluginName))
     }
 
     const installPlugin = (pluginName: string)=>{
-        pluginsSocket!.emit('install', pluginName);
+        settingSocket!.emit('install', pluginName);
         setPlugins(plugins.filter(plugin=>plugin.name !== pluginName))
     }
 
@@ -170,7 +170,7 @@ export const HomePage = () => {
             <tr>
                 <th><Trans i18nKey="admin_plugins.name"/></th>
                 <th><Trans i18nKey="admin_plugins.version"/></th>
-                <th><Trans i18nKey="ep_admin_pads:ep_adminpads2_action"/></th>
+                <th><Trans i18nKey="ep_admin_pads.ep_adminpads2_action"/></th>
             </tr>
             </thead>
             <tbody style={{overflow: 'auto'}}>
@@ -221,7 +221,7 @@ export const HomePage = () => {
                     sortDir: searchParams.sortDir === "asc"? "desc": "asc"
                   })
                 }}><Trans i18nKey="admin_plugins.last-update"/></th>
-                <th><Trans i18nKey="ep_admin_pads:ep_adminpads2_action"/></th>
+                <th><Trans i18nKey="ep_admin_pads.ep_adminpads2_action"/></th>
             </tr>
             </thead>
             <tbody style={{overflow: 'auto'}}>

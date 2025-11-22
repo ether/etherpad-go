@@ -13,6 +13,7 @@ import (
 	"github.com/a-h/templ"
 	"github.com/ether/etherpad-go/assets/admin"
 	"github.com/ether/etherpad-go/assets/welcome"
+	"github.com/ether/etherpad-go/lib/locales"
 	"github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/plugins"
 	"github.com/ether/etherpad-go/lib/settings"
@@ -79,6 +80,9 @@ func Init(app *fiber.App, uiAssets embed.FS, retrievedSettings settings.Settings
 	registerEmbeddedStatic(app, "/static/skins/colibris/", "assets/css/skin", uiAssets)
 	registerEmbeddedStatic(app, "/html/", "assets/html", uiAssets)
 	registerEmbeddedStatic(app, "/font/", "assets/font", uiAssets)
+	app.Get("/admin/locales/:locale", func(ctx *fiber.Ctx) error {
+		return locales.HandleLocale(ctx, uiAssets)
+	})
 
 	app.Get("/p/*", func(ctx *fiber.Ctx) error {
 		return pad.HandlePadOpen(ctx, uiAssets, retrievedSettings)
