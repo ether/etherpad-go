@@ -3,6 +3,18 @@ FROM alpine AS cache
 RUN apk add -U --no-cache ca-certificates
 
 
+FROM node:latest as admin
+
+WORKDIR /app
+COPY ./admin/package.json .
+COPY ./admin/pnpm-lock.yaml .
+RUN npm install -g pnpm
+RUN pnpm install
+COPY ./admin .
+RUN pnpm run build
+
+
+
 FROM node:latest as frontend
 WORKDIR /app
 
@@ -21,6 +33,7 @@ RUN go mod download
 
 COPY . .
 
+COPY --from=admin /app/dist ./assets/js/admin
 COPY --from=frontend /assets/js/pad/assets/pad.js ./assets/js/pad/assets/pad.js
 COPY --from=frontend /assets/js/welcome/assets/welcome.js ./assets/js/welcome/assets/welcome.js
 

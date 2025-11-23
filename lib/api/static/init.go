@@ -107,6 +107,7 @@ func Init(app *fiber.App, uiAssets embed.FS, retrievedSettings settings.Settings
 	if nodeEnv == "production" {
 		registerEmbeddedStatic(app, "/js/pad/assets/", "assets/js/pad/assets", uiAssets)
 		registerEmbeddedStatic(app, "/js/welcome/assets/", "assets/js/welcome/assets", uiAssets)
+		registerEmbeddedStatic(app, "/admin/assets", "assets/js/admin/assets", uiAssets)
 	} else {
 		app.Get("/js/*", func(c *fiber.Ctx) error {
 			var entrypoint string
