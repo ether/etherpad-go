@@ -69,7 +69,8 @@ function base64UrlDecode(input: string) {
     }
 }
 
-export function isExpired(token: string, leewaySeconds = 0): boolean {
+export function isExpired(token: string|null, leewaySeconds = 0): boolean {
+    if (!token) return true;
     const payload = decodeJwt(token);
     if (!payload) return true;
     const exp = typeof payload.exp === 'number' ? payload.exp : parseInt(String((payload as any).exp || '0'), 10);
@@ -88,104 +89,103 @@ export function decodeJwt(token: string): Record<string, unknown> | null {
     }
 }
 
-if (token) {
-    if (!isExpired(token, 60)) {
-        console.log('Existing token is valid')
-        setInterval(()=>{
-                fetch(config?.authority + "/../token", {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded'
-                    },
-                    body: new URLSearchParams({
-                        grant_type: 'refresh_token',
-                        refresh_token: token,
-                        client_id: config?.clientId ?? ''
-                    })
-                }).then((refreshResp)=>{
-                    if (refreshResp.ok) {
-                        refreshResp.json().then((refreshData)=>{
-                            if (refreshData.id_token) {
-                                sessionStorage.setItem('token',refreshData.id_token)
+
+if (!isExpired(token, 60) && token) {
+    console.log('Existing token is valid')
+    setInterval(() => {
+        fetch(config?.authority + "/../token", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: new URLSearchParams({
+                grant_type: 'refresh_token',
+                refresh_token: token,
+                client_id: config?.clientId ?? ''
+            })
+        }).then((refreshResp) => {
+            if (refreshResp.ok) {
+                refreshResp.json().then((refreshData) => {
+                    if (refreshData.id_token) {
+                        sessionStorage.setItem('token', refreshData.id_token)
+                    }
+                })
+            }
+        })
+    }, 50000)
+} else {
+    if (window.location.search.includes('code=')) {
+        console.log('Redirecting to', window.location.href, "with client" + config?.clientId)
+        try {
+            // TODO const codeVerifier = sessionStorage.getItem('pkce_code_verifier') || '';
+            const resp = await fetch(config?.authority + "/../token", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: new URLSearchParams({
+                    grant_type: 'authorization_code',
+                    code: new URLSearchParams(window.location.search).get('code') || '',
+                    redirect_uri: config?.redirectUri ?? '',
+                    client_id: config?.clientId ?? '',
+                })
+            })
+            if (resp.ok) {
+                const tokenResponse = await resp.json()
+                if (tokenResponse.id_token) {
+                    sessionStorage.setItem('token', tokenResponse.id_token)
+                    const params = new URLSearchParams(window.location.search);
+                    params.delete('code');
+                    params.delete('state');
+                    params.delete('iss');
+                    params.delete('session_state');
+                    const newSearch = params.toString();
+                    const newUrl = window.location.pathname + (newSearch ? '?' + newSearch : '');
+
+                    window.history.replaceState({}, '', newUrl);
+                }
+                setInterval(() => {
+                    if (tokenResponse.refresh_token) {
+                        fetch(config?.authority + "/../token", {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/x-www-form-urlencoded'
+                            },
+                            body: new URLSearchParams({
+                                grant_type: 'refresh_token',
+                                refresh_token: tokenResponse.refresh_token,
+                                client_id: config?.clientId ?? ''
+                            })
+                        }).then((refreshResp) => {
+                            if (refreshResp.ok) {
+                                refreshResp.json().then((refreshData) => {
+                                    if (refreshData.id_token) {
+                                        sessionStorage.setItem('token', refreshData.id_token)
+                                    }
+                                })
                             }
                         })
                     }
-                })
-        }, 50000)
-    } else {
-        if (window.location.search.includes('code=')) {
-            console.log('Redirecting to', window.location.href, "with client" + config?.clientId)
-            try {
-                // TODO const codeVerifier = sessionStorage.getItem('pkce_code_verifier') || '';
-                const resp = await fetch(config?.authority + "/../token", {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded'
-                    },
-                    body: new URLSearchParams({
-                        grant_type: 'authorization_code',
-                        code: new URLSearchParams(window.location.search).get('code') || '',
-                        redirect_uri: config?.redirectUri ?? '',
-                        client_id: config?.clientId ?? '',
-                    })})
-                if (resp.ok) {
-                    const tokenResponse = await resp.json()
-                    if (tokenResponse.id_token) {
-                        sessionStorage.setItem('token',tokenResponse.id_token)
-                        const params = new URLSearchParams(window.location.search);
-                        params.delete('code');
-                        params.delete('state');
-                        params.delete('iss');
-                        params.delete('session_state');
-                        const newSearch = params.toString();
-                        const newUrl = window.location.pathname + (newSearch ? '?' + newSearch : '');
-
-                        window.history.replaceState({}, '', newUrl);
-                    }
-                    setInterval(()=>{
-                        if (tokenResponse.refresh_token) {
-                            fetch(config?.authority + "/../token", {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/x-www-form-urlencoded'
-                                },
-                                body: new URLSearchParams({
-                                    grant_type: 'refresh_token',
-                                    refresh_token: tokenResponse.refresh_token,
-                                    client_id: config?.clientId ?? ''
-                                })
-                            }).then((refreshResp)=>{
-                                if (refreshResp.ok) {
-                                    refreshResp.json().then((refreshData)=>{
-                                        if (refreshData.id_token) {
-                                            sessionStorage.setItem('token',refreshData.id_token)
-                                        }
-                                    })
-                                }
-                            })
-                        }
-                    }, 50000)
-                } else {
-                    throw new Error('Error during OIDC login: ' + resp.statusText)
-                }
-            } catch (e) {
-                console.error('OIDC login failed', e)
+                }, 50000)
+            } else {
+                throw new Error('Error during OIDC login: ' + resp.statusText)
             }
-        } else if (!window.location.href.includes("?error")) {
-            const codeVerifier = generateCodeVerifier();
-            sessionStorage.setItem('pkce_code_verifier', codeVerifier);
-            const codeChallenge = await generateCodeChallenge(codeVerifier)
-            const scope = config?.scope.map(s=>{
-                return "scope=" + encodeURIComponent(s)
-            }).join("&")
-
-            const requestUrl = `${config?.authority + "auth"}?client_id=${config?.clientId}&redirect_uri=${encodeURIComponent(config?.redirectUri ?? '')}&response_type=code&${scope}&code_challenge=${codeChallenge}&code_challenge_method=S256&state=${state}`
-            console.error(requestUrl)
-            window.location.replace(requestUrl)
+        } catch (e) {
+            console.error('OIDC login failed', e)
         }
+    } else if (!window.location.href.includes("?error")) {
+        const codeVerifier = generateCodeVerifier();
+        sessionStorage.setItem('pkce_code_verifier', codeVerifier);
+        const codeChallenge = await generateCodeChallenge(codeVerifier)
+        const scope = config?.scope.map(s => {
+            return "scope=" + encodeURIComponent(s)
+        }).join("&")
+
+        const requestUrl = `${config?.authority + "auth"}?client_id=${config?.clientId}&redirect_uri=${encodeURIComponent(config?.redirectUri ?? '')}&response_type=code&${scope}&code_challenge=${codeChallenge}&code_challenge_method=S256&state=${state}`
+        console.error(requestUrl)
+        window.location.replace(requestUrl)
     }
 }
 
 
-
-export { };
+export {};

@@ -9,6 +9,7 @@ import (
 	"github.com/ether/etherpad-go/lib/api/pad"
 	"github.com/ether/etherpad-go/lib/api/static"
 	"github.com/ether/etherpad-go/lib/db"
+	"github.com/ether/etherpad-go/lib/locales"
 	pad2 "github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/ether/etherpad-go/lib/ws"
@@ -19,6 +20,7 @@ import (
 )
 
 func InitAPI(c *fiber.App, uiAssets embed.FS, retrievedSettings settings.Settings, cookieStore *session.Store, store db.DataStore, handler *ws.PadMessageHandler, manager *pad2.Manager, validator *validator.Validate, setupLogger *zap.SugaredLogger) {
+	locales.Init(uiAssets)
 	author.Init(c, store, validator)
 	pad.Init(c, handler, manager)
 	groups.Init(c)

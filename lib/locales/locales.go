@@ -4,7 +4,6 @@ import (
 	"embed"
 	"encoding/json"
 	"io/fs"
-	"os"
 	"path"
 	"strings"
 
@@ -13,16 +12,16 @@ import (
 
 var Locales map[string]interface{}
 
-func init() {
+func Init(uiAssets embed.FS) {
 	Locales = make(map[string]interface{})
-	files, _ := os.ReadDir("./assets/locales")
+	files, _ := fs.ReadDir(uiAssets, "assets/locales")
 	for _, file := range files {
 		if file.IsDir() {
 			continue
 		}
 		fileName := file.Name()
 		Locales[strings.Replace(fileName, ".json", "", -1)] = `locales/` + fileName
-		content, _ := os.ReadFile("./assets/locales/en.json")
+		content, _ := fs.ReadFile(uiAssets, "./assets/locales/en.json")
 
 		var enMap = make(map[string]string)
 		json.Unmarshal(content, &enMap)
