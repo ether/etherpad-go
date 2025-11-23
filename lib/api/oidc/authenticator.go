@@ -66,7 +66,6 @@ func NewAuthenticator(retrievedSettings *settings.Settings) *Authenticator {
 
 	var oauth2 = compose.ComposeAllEnabled(config, store, privateKey)
 
-	println(GenerateAuthCodeURL(retrievedSettings.SSO.Issuer, retrievedSettings.SSO.Clients[0].ClientId, "https://apple.com", []string{"openid profile email"}))
 	return &Authenticator{
 		provider:          oauth2,
 		store:             store,
