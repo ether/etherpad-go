@@ -100,7 +100,7 @@ export class SocketIoWrapper {
     }
 
     public io = {
-        on: (event: string, callback: Function) => {
+        on: (event: string, callback: (data: any)=>void) => {
             this.on(event, callback)
         }
     }
@@ -113,7 +113,7 @@ export class SocketIoWrapper {
         }
     }
 
-    public on(event: string, callback: Function) {
+    public on(event: string, callback: (data: any)=>void) {
         if (SocketIoWrapper.eventCallbacks[event]) {
             SocketIoWrapper.eventCallbacks[event].push(callback)
         } else {

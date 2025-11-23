@@ -26,7 +26,7 @@ export default defineConfig({
     })],
     base: '/admin',
     build: {
-        outDir: '../src/templates/admin',
+        outDir: 'dist',
         emptyOutDir: true,
     },
     server: {

@@ -1,39 +1,32 @@
 import {useEffect, useState} from "react";
 import {SendHorizonal} from 'lucide-react'
-import {useStore} from "../store/store.ts";
 import * as Switch from '@radix-ui/react-switch';
 import {ShoutType} from "../components/ShoutType.ts";
+import settingSocket from "../utils/globals.ts";
 
 export const ShoutPage = ()=>{
     const [totalUsers, setTotalUsers] = useState(0);
     const [message, setMessage] = useState<string>("");
     const [sticky, setSticky] = useState<boolean>(false);
-    const socket = useStore(state => state.settingsSocket);
-    const pluginSocket = useStore(state => state.pluginsSocket);
     const [shouts, setShouts] = useState<ShoutType[]>([]);
 
 
     useEffect(() => {
-        if(socket && pluginSocket) {
-          console.log('Socket connected', socket.id);
-            socket.on('shout', (shout) => {
+            settingSocket.on('shout', (shout) => {
                 setShouts([...shouts, shout])
             })
-          pluginSocket.on('results:stats', (statData) => {
+        settingSocket.on('results:stats', (statData) => {
             setTotalUsers(statData.totalUsers);
           })
-        }
-    }, [socket, shouts, pluginSocket])
+    }, [shouts])
 
 
   useEffect(() => {
-    if (pluginSocket) {
-      pluginSocket.emit('getStats', {});
-    }
-  }, [pluginSocket]);
+      settingSocket.emit('getStats');
+  }, []);
 
     const sendMessage = () => {
-        socket?.emit('shout', {
+        settingSocket?.emit('shout', {
             message,
             sticky
         });

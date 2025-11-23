@@ -68,10 +68,11 @@ func main() {
 	validatorEvaluator := validator.New(validator.WithRequiredStructEnabled())
 
 	retrievedHooks := hooks.NewHook()
-
+	gitVersion := settings2.GetGitCommit(&settings)
 	setupLogger.Info("Starting Etherpad Go...")
 	setupLogger.Info("Report bugs at https://github.com/ether/etherpad-go/issues")
-	setupLogger.Info("Your Etherpad Go version is " + settings2.GetGitCommit())
+	setupLogger.Info("Your Etherpad Go version is " + gitVersion)
+	settings.GitVersion = gitVersion
 
 	dataStore, err := utils.GetDB(settings, setupLogger)
 	readOnlyManager := pad.NewReadOnlyManager(dataStore)
