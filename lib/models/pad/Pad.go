@@ -270,7 +270,7 @@ func (p *Pad) getSavedRevisionsList() []int {
 	return savedRevisions
 }
 
-func (p *Pad) GetRevisionDate(rev int) int {
+func (p *Pad) GetRevisionDate(rev int) int64 {
 	revision, err := p.db.GetRevision(p.Id, rev)
 
 	if err != nil {
@@ -318,7 +318,7 @@ func (p *Pad) AppendRevision(cs string, authorId *string) int {
 	poolToUse = p.Pool
 	atextToUse = p.AText
 
-	err := p.db.SaveRevision(p.Id, newRev, cs, atextToUse, poolToUse, authorId, int(time.Now().UnixNano()/int64(time.Millisecond)))
+	err := p.db.SaveRevision(p.Id, newRev, cs, atextToUse, poolToUse, authorId, time.Now().UnixNano()/int64(time.Millisecond))
 
 	if err != nil {
 		println("Error saving revision", err.Error())

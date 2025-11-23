@@ -11,7 +11,7 @@ type PadMethods interface {
 	RemovePad(padID string) error
 	CreatePad(padID string, padDB db.PadDB) bool
 	GetPadIds() []string
-	SaveRevision(padId string, rev int, changeset string, text apool.AText, pool apool.APool, authorId *string, timestamp int) error
+	SaveRevision(padId string, rev int, changeset string, text apool.AText, pool apool.APool, authorId *string, timestamp int64) error
 	GetRevision(padId string, rev int) (*db.PadSingleRevision, error)
 	RemoveRevisionsOfPad(padId string) error
 	GetPad(padID string) (*db.PadDB, error)
@@ -22,6 +22,7 @@ type PadMethods interface {
 	RemoveReadOnly2Pad(id string) error
 	RemovePad2ReadOnly(id string) error
 	SaveChatHeadOfPad(padId string, head int) error
+	QueryPad(offset int, limit int, sortBy string, ascending bool, pattern string) (*[]db.PadDBSearch, error)
 }
 
 type PadMetaData interface {

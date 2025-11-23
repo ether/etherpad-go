@@ -2,7 +2,9 @@ package db
 
 import (
 	"errors"
+	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/models/db"
@@ -19,6 +21,45 @@ type MemoryDataStore struct {
 	sessionStore map[string]session2.Session
 	tokenStore   map[string]string
 	groupStore   map[string]string
+}
+
+func (m *MemoryDataStore) QueryPad(offset int, limit int, sortBy string, ascending bool, pattern string) (*[]db.PadDBSearch, error) {
+	var padKeys []string
+	for k := range m.padStore {
+		padKeys = append(padKeys, k)
+	}
+
+	if pattern != "" {
+		var filteredPadKeys []string
+		for _, key := range padKeys {
+			if strings.Contains(key, pattern) {
+				filteredPadKeys = append(filteredPadKeys, key)
+			}
+		}
+		padKeys = filteredPadKeys
+	}
+
+	if sortBy == "padName" {
+		slices.Sort(padKeys)
+	}
+	if !ascending {
+		slices.Reverse(padKeys)
+	}
+	padsToSearch := padKeys[offset : offset+limit]
+	padSearch := make([]db.PadDBSearch, 0)
+
+	for _, padKey := range padsToSearch {
+		retrievedPad, ok := m.padStore[padKey]
+		if !ok {
+			continue
+		}
+		padSearch = append(padSearch, db.PadDBSearch{
+			Padname:        padKey,
+			RevisionNumber: m.padStore[padKey].RevNum,
+			LastEdited:     retrievedPad.SavedRevisions[retrievedPad.RevNum].PadDBMeta.Timestamp,
+		})
+	}
+	return &padSearch, nil
 }
 
 func (m *MemoryDataStore) GetChatsOfPad(padId string, start int, end int) (*[]db.ChatMessageDBWithDisplayName, error) {
@@ -219,7 +260,7 @@ func (m *MemoryDataStore) CreatePad(padID string, padDB db.PadDB) bool {
 }
 
 func (m *MemoryDataStore) SaveRevision(padId string, rev int, changeset string,
-	text apool.AText, pool apool.APool, authorId *string, timestamp int) error {
+	text apool.AText, pool apool.APool, authorId *string, timestamp int64) error {
 	var retrievedPad, ok = m.padStore[padId]
 	if !ok {
 		panic("Pad not found")

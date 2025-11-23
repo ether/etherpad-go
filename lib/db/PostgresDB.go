@@ -19,6 +19,55 @@ type PostgresDB struct {
 	sqlDB   *sql.DB
 }
 
+func (d PostgresDB) QueryPad(offset int, limit int, sortBy string, ascending bool, pattern string) (*[]db.PadDBSearch, error) {
+	var builder = psql.
+		Select("id", "data", "timestamp").
+		From("pad").
+		Join("padrev ON pad.id = padRev.id AND padRev.rev = (SELECT MAX(rev) FROM padRev WHERE padRev.id = pad.id)").
+		Where(sq.Like{"id": "%" + pattern + "%"}).
+		Offset(uint64(offset)).
+		Limit(uint64(limit))
+
+	if sortBy == "padName" {
+		if ascending {
+			builder = builder.OrderBy("id ASC")
+		} else {
+			builder = builder.OrderBy("id DESC")
+		}
+	}
+
+	var resultedSQL, args, err = builder.ToSql()
+
+	if err != nil {
+		return nil, err
+	}
+
+	query, err := d.sqlDB.Query(resultedSQL, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer query.Close()
+
+	var padSearch []db.PadDBSearch
+	for query.Next() {
+		var padId string
+		var data string
+		var timestamp int64
+		query.Scan(&padId, &data, &timestamp)
+		var padDB db.PadDB
+		err = json.Unmarshal([]byte(data), &padDB)
+		if err != nil {
+			return nil, err
+		}
+		padSearch = append(padSearch, db.PadDBSearch{
+			Padname:        padId,
+			RevisionNumber: padDB.RevNum,
+			LastEdited:     timestamp,
+		})
+	}
+	return &padSearch, nil
+}
+
 var psql = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
 func (d PostgresDB) GetChatsOfPad(padId string, start int, end int) (*[]db.ChatMessageDBWithDisplayName, error) {
@@ -327,7 +376,7 @@ func (d PostgresDB) GetPadIds() []string {
 	return padIds
 }
 
-func (d PostgresDB) SaveRevision(padId string, rev int, changeset string, text apool.AText, pool apool.APool, authorId *string, timestamp int) error {
+func (d PostgresDB) SaveRevision(padId string, rev int, changeset string, text apool.AText, pool apool.APool, authorId *string, timestamp int64) error {
 	toSql, i, err := psql.Insert("padRev").
 		Columns("id", "rev", "changeset", "atextText", "atextAttribs", "authorId", "timestamp").
 		Values(padId, rev, changeset, text.Text, text.Attribs, *authorId, timestamp).

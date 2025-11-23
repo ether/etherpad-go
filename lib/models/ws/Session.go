@@ -13,5 +13,5 @@ type Session struct {
 	PadId         string
 	ReadOnlyPadId string
 	ReadOnly      bool
-	Time          int
+	Time          int64
 }

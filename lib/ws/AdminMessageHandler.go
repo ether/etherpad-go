@@ -41,6 +41,32 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 			}
 			c.conn.WriteMessage(websocket.TextMessage, responseBytes)
 		}
+	case "padLoad":
+		{
+			var padLoadData admin.PadLoadData
+			if err := json.Unmarshal([]byte(message.Data), &padLoadData); err != nil {
+				println("Error unmarshalling padLoad data:", err.Error())
+				return
+			}
+			dbPads, err := h.store.QueryPad(padLoadData.Offset, padLoadData.Limit, padLoadData.SortBy, padLoadData.Ascending, padLoadData.Pattern)
+			if err != nil {
+				println("Error querying pads:", err.Error())
+				return
+			}
+
+			resp := make([]interface{}, 2)
+			resp[0] = "results:padLoad"
+			resp[1] = map[string]interface{}{
+				"pads": dbPads,
+			}
+
+			responseBytes, err := json.Marshal(resp)
+			if err != nil {
+				println("Error marshalling response:", err.Error())
+				return
+			}
+			c.conn.WriteMessage(websocket.TextMessage, responseBytes)
+		}
 	case "getInstalled":
 		{
 			var epPlugin = []admin.InstalledPluginDefinition{
