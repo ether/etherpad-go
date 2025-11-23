@@ -7,7 +7,7 @@
 
 @font-face {
   font-family: Karla;
-  src: url(/Karla-Regular.ttf);
+  src: url(/static/Geist-Regular.ttf);
 }
 
 html, body, #root {
@@ -442,7 +442,7 @@ pre {
 }
 
 .login-background {
-  background-image: url("/fond.jpg");
+  background-image: url("/static/fond.jpg");
   background-position: center;
   background-repeat: no-repeat;
   background-size: cover;

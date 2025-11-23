@@ -1,8 +1,10 @@
 package static
 
 import (
+	"bytes"
 	"embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"net/http"
@@ -11,7 +13,6 @@ import (
 	"strings"
 
 	"github.com/a-h/templ"
-	"github.com/ether/etherpad-go/assets/admin"
 	"github.com/ether/etherpad-go/assets/welcome"
 	"github.com/ether/etherpad-go/lib/locales"
 	"github.com/ether/etherpad-go/lib/pad"
@@ -22,6 +23,8 @@ import (
 	"github.com/gofiber/adaptor/v2"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/session"
+	"go.uber.org/zap"
+	"golang.org/x/net/html"
 )
 
 func registerEmbeddedStatic(app *fiber.App, route string, subPath string, uiAssets embed.FS) {
@@ -35,17 +38,7 @@ func registerEmbeddedStatic(app *fiber.App, route string, subPath string, uiAsse
 	app.Get(prefix+"/*", adaptor.HTTPHandler(handler))
 }
 
-func Init(app *fiber.App, uiAssets embed.FS, retrievedSettings settings.Settings, cookieStore *session.Store) {
-	app.Use("/p/", func(c *fiber.Ctx) error {
-		c.Path()
-
-		var _, err = cookieStore.Get(c)
-		if err != nil {
-			println("Error with session")
-		}
-
-		return c.Next()
-	})
+func getAdminBody(uiAssets embed.FS, retrievedSettings *settings.Settings) (*string, error) {
 
 	calcDataConfig := func() string {
 		for _, client := range retrievedSettings.SSO.Clients {
@@ -65,15 +58,78 @@ func Init(app *fiber.App, uiAssets embed.FS, retrievedSettings settings.Settings
 		return ""
 	}
 
+	fileContent, err := uiAssets.ReadFile("assets/js/admin/index.html")
+	if err != nil {
+		return nil, errors.New("error reading admin page HTML: %v" + err.Error())
+	}
+
+	stringContent := string(fileContent)
+	node, err := html.Parse(strings.NewReader(stringContent))
+
+	if err != nil {
+		return nil, errors.New("Error parsing admin page HTML: " + err.Error())
+	}
+
+	spanNode := &html.Node{
+		Type: html.ElementNode,
+		Data: "span",
+		Attr: []html.Attribute{
+			{Key: "id", Val: "config"},
+			{Key: "data-config", Val: calcDataConfig()},
+		},
+	}
+
+	var body *html.Node
+	var findBody func(*html.Node)
+	findBody = func(n *html.Node) {
+		if n.Type == html.ElementNode && n.Data == "body" {
+			body = n
+			return
+		}
+		for child := n.FirstChild; child != nil; child = child.NextSibling {
+			findBody(child)
+		}
+	}
+	findBody(node)
+
+	if body != nil {
+		body.AppendChild(spanNode)
+	}
+
+	var buf bytes.Buffer
+	html.Render(&buf, node)
+	result := buf.String()
+	return &result, nil
+}
+
+func Init(app *fiber.App, uiAssets embed.FS, retrievedSettings settings.Settings, cookieStore *session.Store, setupLogger *zap.SugaredLogger) {
+	app.Use("/p/", func(c *fiber.Ctx) error {
+		c.Path()
+
+		var _, err = cookieStore.Get(c)
+		if err != nil {
+			println("Error with session")
+		}
+
+		return c.Next()
+	})
+
 	app.Get("/pluginfw/plugin-definitions.json", plugins.ReturnPluginResponse)
-	app.Get("/admin/index.html", func(c *fiber.Ctx) error {
-		adminPage := admin.Admin(retrievedSettings, calcDataConfig())
-		return adaptor.HTTPHandler(templ.Handler(adminPage))(c)
-	})
-	app.Get("/admin/", func(c *fiber.Ctx) error {
-		adminPage := admin.Admin(retrievedSettings, calcDataConfig())
-		return adaptor.HTTPHandler(templ.Handler(adminPage))(c)
-	})
+
+	adminHtml, err := getAdminBody(uiAssets, &retrievedSettings)
+
+	if err != nil {
+		setupLogger.Errorf("Error setting up admin page: %v", err)
+	} else {
+		app.Get("/admin/index.html", func(c *fiber.Ctx) error {
+			return c.Type("html").SendString(*adminHtml)
+		})
+		app.Get("/admin/", func(c *fiber.Ctx) error {
+			return c.Type("html").SendString(*adminHtml)
+		})
+	}
+	registerEmbeddedStatic(app, "/admin/assets/", "assets/js/admin/assets", uiAssets)
+	registerEmbeddedStatic(app, "/admin/static/", "assets/js/admin/static", uiAssets)
 	registerEmbeddedStatic(app, "/images/favicon.ico", "assets/images/favicon.ico", uiAssets)
 	registerEmbeddedStatic(app, "/css/", "assets/css", uiAssets)
 	registerEmbeddedStatic(app, "/static/css/", "assets/css/static", uiAssets)

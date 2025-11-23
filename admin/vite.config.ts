@@ -1,5 +1,4 @@
 import {defineConfig, PluginOption} from 'vite'
-import {viteStaticCopy} from "vite-plugin-static-copy";
 
 function chartingLibrary(): PluginOption {
     return {
@@ -13,21 +12,13 @@ function chartingLibrary(): PluginOption {
     };
 }
 
-
-// https://vitejs.dev/config/
 export default defineConfig({
-    plugins: [chartingLibrary(), viteStaticCopy({
-        targets: [
-            {
-                src: '../assets/locales',
-                dest: ''
-            }
-        ]
-    })],
+    plugins: [chartingLibrary()],
     base: '/admin',
     build: {
         outDir: 'dist',
         emptyOutDir: true,
+        assetsDir: 'assets',
     },
     server: {
         proxy: {
