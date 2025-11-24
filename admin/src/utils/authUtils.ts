@@ -119,7 +119,7 @@ if (!isExpired(token, 60) && token) {
                 })
             }
         })
-    }, 10_000)
+    }, 60_000)
 } else {
     if (window.location.search.includes('code=')) {
         console.log('Redirecting to', window.location.href, "with client" + config?.clientId)
@@ -178,7 +178,7 @@ if (!isExpired(token, 60) && token) {
                             }
                         })
                     }
-                }, 10_000)
+                }, 60_000)
             } else {
                 throw new Error('Error during OIDC login: ' + resp.statusText)
             }

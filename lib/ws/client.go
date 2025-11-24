@@ -62,8 +62,6 @@ func (c *Client) readPumpAdmin(retrievedSettings *settings.Settings, logger *zap
 			break
 		}
 		message = bytes.TrimSpace(bytes.Replace(message, newline, space, -1))
-		decodedMessage := string(message[:])
-		println(decodedMessage)
 		var eventMessage admin.EventMessage
 
 		err = json.Unmarshal(message, &eventMessage)
