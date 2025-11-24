@@ -5,3 +5,8 @@ type PadDBSearch struct {
 	LastEdited     int64
 	RevisionNumber int
 }
+
+type PadDBSearchResult struct {
+	TotalPads int
+	Pads      []PadDBSearch
+}

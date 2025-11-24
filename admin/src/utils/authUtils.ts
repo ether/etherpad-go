@@ -49,6 +49,7 @@ async function generateCodeChallenge(verifier: string) {
 const state = generateState();
 
 const config = getConfigFromHtmlFile();
+console.error("Config is", config)
 
 
 const token = sessionStorage.getItem('token')
@@ -91,7 +92,12 @@ export function decodeJwt(token: string): Record<string, unknown> | null {
 
 
 if (!isExpired(token, 60) && token) {
-    console.log('Existing token is valid')
+    const refreshToken = sessionStorage.getItem('refresh_token')
+    if (!refreshToken) {
+        sessionStorage.clear()
+        window.location.reload()
+        throw new Error('Refresh token not set')
+    }
     setInterval(() => {
         fetch(config?.authority + "/../token", {
             method: 'POST',
@@ -100,24 +106,25 @@ if (!isExpired(token, 60) && token) {
             },
             body: new URLSearchParams({
                 grant_type: 'refresh_token',
-                refresh_token: token,
+                refresh_token: refreshToken,
                 client_id: config?.clientId ?? ''
             })
         }).then((refreshResp) => {
             if (refreshResp.ok) {
                 refreshResp.json().then((refreshData) => {
                     if (refreshData.id_token) {
+                        sessionStorage.setItem('refresh_token', refreshData.refresh_token)
                         sessionStorage.setItem('token', refreshData.id_token)
                     }
                 })
             }
         })
-    }, 50000)
+    }, 10_000)
 } else {
     if (window.location.search.includes('code=')) {
         console.log('Redirecting to', window.location.href, "with client" + config?.clientId)
         try {
-            // TODO const codeVerifier = sessionStorage.getItem('pkce_code_verifier') || '';
+            const codeVerifier = sessionStorage.getItem('pkce_code_verifier') || '';
             const resp = await fetch(config?.authority + "/../token", {
                 method: 'POST',
                 headers: {
@@ -128,10 +135,11 @@ if (!isExpired(token, 60) && token) {
                     code: new URLSearchParams(window.location.search).get('code') || '',
                     redirect_uri: config?.redirectUri ?? '',
                     client_id: config?.clientId ?? '',
+                    code_verifier: codeVerifier
                 })
             })
             if (resp.ok) {
-                const tokenResponse = await resp.json()
+                let tokenResponse = await resp.json()
                 if (tokenResponse.id_token) {
                     sessionStorage.setItem('token', tokenResponse.id_token)
                     const params = new URLSearchParams(window.location.search);
@@ -145,7 +153,9 @@ if (!isExpired(token, 60) && token) {
                     window.history.replaceState({}, '', newUrl);
                 }
                 setInterval(() => {
+                    console.log('Redirecting to', window.location.href, "with client" + config?.clientId);
                     if (tokenResponse.refresh_token) {
+                        console.log(config)
                         fetch(config?.authority + "/../token", {
                             method: 'POST',
                             headers: {
@@ -156,17 +166,19 @@ if (!isExpired(token, 60) && token) {
                                 refresh_token: tokenResponse.refresh_token,
                                 client_id: config?.clientId ?? ''
                             })
-                        }).then((refreshResp) => {
+                        }).then(async (refreshResp) => {
                             if (refreshResp.ok) {
                                 refreshResp.json().then((refreshData) => {
+                                    tokenResponse = refreshData;
                                     if (refreshData.id_token) {
+                                        sessionStorage.setItem('refresh_token', refreshData.refresh_token)
                                         sessionStorage.setItem('token', refreshData.id_token)
                                     }
                                 })
                             }
                         })
                     }
-                }, 50000)
+                }, 10_000)
             } else {
                 throw new Error('Error during OIDC login: ' + resp.statusText)
             }
@@ -177,12 +189,12 @@ if (!isExpired(token, 60) && token) {
         const codeVerifier = generateCodeVerifier();
         sessionStorage.setItem('pkce_code_verifier', codeVerifier);
         const codeChallenge = await generateCodeChallenge(codeVerifier)
-        const scope = config?.scope.map(s => {
+        /*const scope = config?.scope.map(s => {
             return "scope=" + encodeURIComponent(s)
-        }).join("&")
-
+        }).join("&")*/
+        const scope = "scope=" + encodeURIComponent((config?.scope ?? []).join(' '))
+        console.log("Scopes are", scope)
         const requestUrl = `${config?.authority + "auth"}?client_id=${config?.clientId}&redirect_uri=${encodeURIComponent(config?.redirectUri ?? '')}&response_type=code&${scope}&code_challenge=${codeChallenge}&code_challenge_method=S256&state=${state}`
-        console.error(requestUrl)
         window.location.replace(requestUrl)
     }
 }

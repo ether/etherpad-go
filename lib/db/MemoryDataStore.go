@@ -23,7 +23,7 @@ type MemoryDataStore struct {
 	groupStore   map[string]string
 }
 
-func (m *MemoryDataStore) QueryPad(offset int, limit int, sortBy string, ascending bool, pattern string) (*[]db.PadDBSearch, error) {
+func (m *MemoryDataStore) QueryPad(offset int, limit int, sortBy string, ascending bool, pattern string) (*db.PadDBSearchResult, error) {
 	var padKeys []string
 	for k := range m.padStore {
 		padKeys = append(padKeys, k)
@@ -59,7 +59,12 @@ func (m *MemoryDataStore) QueryPad(offset int, limit int, sortBy string, ascendi
 			LastEdited:     retrievedPad.SavedRevisions[retrievedPad.RevNum].PadDBMeta.Timestamp,
 		})
 	}
-	return &padSearch, nil
+
+	padSearchResult := db.PadDBSearchResult{
+		TotalPads: len(padKeys),
+		Pads:      padSearch,
+	}
+	return &padSearchResult, nil
 }
 
 func (m *MemoryDataStore) GetChatsOfPad(padId string, start int, end int) (*[]db.ChatMessageDBWithDisplayName, error) {

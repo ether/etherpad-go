@@ -19,27 +19,38 @@ type PostgresDB struct {
 	sqlDB   *sql.DB
 }
 
-func (d PostgresDB) QueryPad(offset int, limit int, sortBy string, ascending bool, pattern string) (*[]db.PadDBSearch, error) {
+func (d PostgresDB) QueryPad(offset int, limit int, sortBy string, ascending bool, pattern string) (*db.PadDBSearchResult, error) {
 	var builder = psql.
-		Select("id", "data", "timestamp").
+		Select("pad.id", "pad.data", "padRev.timestamp").
 		From("pad").
 		Join("padrev ON pad.id = padRev.id AND padRev.rev = (SELECT MAX(rev) FROM padRev WHERE padRev.id = pad.id)").
-		Where(sq.Like{"id": "%" + pattern + "%"}).
+		Where(sq.Like{"pad.id": "%" + pattern + "%"}).
 		Offset(uint64(offset)).
 		Limit(uint64(limit))
 
+	var builderCount = psql.
+		Select("COUNT(*)").
+		From("pad").
+		Join("padrev ON pad.id = padRev.id AND padRev.rev = (SELECT MAX(rev) FROM padRev WHERE padRev.id = pad.id)").
+		Where(sq.Like{"pad.id": "%" + pattern + "%"})
+
 	if sortBy == "padName" {
 		if ascending {
-			builder = builder.OrderBy("id ASC")
+			builder = builder.OrderBy("pad.id ASC")
 		} else {
-			builder = builder.OrderBy("id DESC")
+			builder = builder.OrderBy("pad.id DESC")
 		}
 	}
 
 	var resultedSQL, args, err = builder.ToSql()
+	var countSQL, countArgs, countErr = builderCount.ToSql()
 
 	if err != nil {
 		return nil, err
+	}
+
+	if countErr != nil {
+		return nil, countErr
 	}
 
 	query, err := d.sqlDB.Query(resultedSQL, args...)
@@ -65,7 +76,22 @@ func (d PostgresDB) QueryPad(offset int, limit int, sortBy string, ascending boo
 			LastEdited:     timestamp,
 		})
 	}
-	return &padSearch, nil
+
+	countQuery, err := d.sqlDB.Query(countSQL, countArgs...)
+	if err != nil {
+		return nil, err
+	}
+	defer countQuery.Close()
+
+	totalPads := 0
+	for countQuery.Next() {
+		countQuery.Scan(&totalPads)
+	}
+	padDbSearch := db.PadDBSearchResult{
+		TotalPads: totalPads,
+		Pads:      padSearch,
+	}
+	return &padDbSearch, nil
 }
 
 var psql = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)

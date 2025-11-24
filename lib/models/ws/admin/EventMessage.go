@@ -1,8 +1,10 @@
 package admin
 
+import "encoding/json"
+
 type EventMessage struct {
-	Event string `json:"event"`
-	Data  string `json:"data"`
+	Event string          `json:"event"`
+	Data  json.RawMessage `json:"data"`
 }
 
 type PadLoadData struct {

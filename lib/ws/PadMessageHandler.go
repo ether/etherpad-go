@@ -910,7 +910,8 @@ func (p *PadMessageHandler) UpdatePadClients(pad *pad2.Pad) {
 func (p *PadMessageHandler) GetRoomSockets(padID string) []Client {
 	var sockets = make([]Client, 0)
 	for k := range HubGlob.clients {
-		if SessionStoreInstance.getSession(k.SessionId).PadId == padID {
+		sessId := SessionStoreInstance.getSession(k.SessionId)
+		if sessId != nil && sessId.PadId == padID {
 			sockets = append(sockets, *k)
 		}
 	}

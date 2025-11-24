@@ -18,9 +18,15 @@ type SQLiteDB struct {
 	sqlDB *sql.DB
 }
 
-func (d SQLiteDB) QueryPad(offset int, limit int, sortBy string, ascending bool, pattern string) (*[]db.PadDBSearch, error) {
+func (d SQLiteDB) QueryPad(offset int, limit int, sortBy string, ascending bool, pattern string) (*db.PadDBSearchResult, error) {
 	var builder = sq.
 		Select("id", "data", "timestamp").
+		From("pad").
+		Join("padRev ON padRev.id = pad.id").
+		Where(sq.Eq{"padRev.rev": sq.Select("MAX(rev)").From("padRev").Where(sq.Eq{"padRev.id": sq.Expr("pad.id")})})
+
+	var countBuilder = sq.
+		Select("COUNT(*)").
 		From("pad").
 		Join("padRev ON padRev.id = pad.id").
 		Where(sq.Eq{"padRev.rev": sq.Select("MAX(rev)").From("padRev").Where(sq.Eq{"padRev.id": sq.Expr("pad.id")})})
@@ -41,7 +47,12 @@ func (d SQLiteDB) QueryPad(offset int, limit int, sortBy string, ascending bool,
 		builder = builder.Offset(uint64(offset))
 	}
 
-	var resultedSQL, args, err = builder.ToSql()
+	resultedSQL, args, err := builder.ToSql()
+	if err != nil {
+		return nil, err
+	}
+
+	countSQL, countArgs, err := countBuilder.ToSql()
 	if err != nil {
 		return nil, err
 	}
@@ -51,6 +62,11 @@ func (d SQLiteDB) QueryPad(offset int, limit int, sortBy string, ascending bool,
 		return nil, err
 	}
 	defer query.Close()
+
+	countQuery, err := d.sqlDB.Query(countSQL, countArgs...)
+	if err != nil {
+		return nil, err
+	}
 
 	var padSearch []db.PadDBSearch
 	for query.Next() {
@@ -69,7 +85,17 @@ func (d SQLiteDB) QueryPad(offset int, limit int, sortBy string, ascending bool,
 			LastEdited:     timestamp,
 		})
 	}
-	return &padSearch, nil
+	var totalPads int
+	for countQuery.Next() {
+		countQuery.Scan(&totalPads)
+	}
+
+	_ = countQuery.Close()
+
+	return &db.PadDBSearchResult{
+		TotalPads: totalPads,
+		Pads:      padSearch,
+	}, nil
 }
 
 func (d SQLiteDB) GetChatsOfPad(padId string, start int, end int) (*[]db.ChatMessageDBWithDisplayName, error) {

@@ -22,7 +22,7 @@ type PadMethods interface {
 	RemoveReadOnly2Pad(id string) error
 	RemovePad2ReadOnly(id string) error
 	SaveChatHeadOfPad(padId string, head int) error
-	QueryPad(offset int, limit int, sortBy string, ascending bool, pattern string) (*[]db.PadDBSearch, error)
+	QueryPad(offset int, limit int, sortBy string, ascending bool, pattern string) (*db.PadDBSearchResult, error)
 }
 
 type PadMetaData interface {

@@ -38,7 +38,7 @@ func NewAuthenticator(retrievedSettings *settings.Settings) *Authenticator {
 			Audience:      []string{"etherpad-go"},
 			Public:        true,
 			ResponseTypes: []string{"code"},
-			Scopes:        []string{"openid", "email", "profile"},
+			Scopes:        []string{"openid", "email", "profile", "offline"},
 		}
 	}
 
@@ -203,12 +203,17 @@ func (a *Authenticator) AuthEndpoint(rw http.ResponseWriter, req *http.Request, 
 		}
 
 		rw.Header().Set("Content-Type", "text/html; charset=utf-8")
-		loginComp := login.Login(clientFound, nil)
+		scopes := make([]string, 0)
+		for _, scope := range ar.GetRequestedScopes() {
+			scopes = append(scopes, scope)
+		}
+		loginComp := login.Login(clientFound, scopes, nil)
 		loginComp.Render(req.Context(), rw)
 		return
 	}
 
 	for _, scope := range req.PostForm["scopes"] {
+		println(scope)
 		ar.GrantScope(scope)
 	}
 
@@ -230,7 +235,11 @@ func (a *Authenticator) AuthEndpoint(rw http.ResponseWriter, req *http.Request, 
 
 		rw.Header().Set("Content-Type", "text/html; charset=utf-8")
 		usernameOrPasswordInvalid := "Username or password invalid"
-		loginComp := login.Login(clientFound, &usernameOrPasswordInvalid)
+		scopes := make([]string, 0)
+		for _, scope := range ar.GetRequestedScopes() {
+			scopes = append(scopes, scope)
+		}
+		loginComp := login.Login(clientFound, scopes, &usernameOrPasswordInvalid)
 		loginComp.Render(req.Context(), rw)
 		return
 	}

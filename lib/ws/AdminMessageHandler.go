@@ -12,16 +12,18 @@ import (
 )
 
 type AdminMessageHandler struct {
-	store      db.DataStore
-	hook       *hooks.Hook
-	padManager *pad.Manager
+	store             db.DataStore
+	hook              *hooks.Hook
+	padManager        *pad.Manager
+	padMessageHandler *PadMessageHandler
 }
 
-func NewAdminMessageHandler(store db.DataStore, h *hooks.Hook, m *pad.Manager) AdminMessageHandler {
+func NewAdminMessageHandler(store db.DataStore, h *hooks.Hook, m *pad.Manager, padMessHandler *PadMessageHandler) AdminMessageHandler {
 	return AdminMessageHandler{
-		store:      store,
-		hook:       h,
-		padManager: m,
+		store:             store,
+		hook:              h,
+		padManager:        m,
+		padMessageHandler: padMessHandler,
 	}
 }
 
@@ -54,11 +56,22 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 				return
 			}
 
+			var padDtos admin.PadDefinition
+
+			padDtos.Total = dbPads.TotalPads
+			padDtos.Results = make([]admin.PadDBSearch, 0)
+			for _, dbPad := range dbPads.Pads {
+				padDtos.Results = append(padDtos.Results, admin.PadDBSearch{
+					PadName:        dbPad.Padname,
+					RevisionNumber: dbPad.RevisionNumber,
+					LastEdited:     dbPad.LastEdited,
+					UserCount:      len(h.padMessageHandler.GetRoomSockets(dbPad.Padname)),
+				})
+			}
+
 			resp := make([]interface{}, 2)
 			resp[0] = "results:padLoad"
-			resp[1] = map[string]interface{}{
-				"pads": dbPads,
-			}
+			resp[1] = padDtos
 
 			responseBytes, err := json.Marshal(resp)
 			if err != nil {
