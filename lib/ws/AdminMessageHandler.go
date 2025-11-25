@@ -2,13 +2,18 @@ package ws
 
 import (
 	"encoding/json"
+	"errors"
 
+	"github.com/ether/etherpad-go/admin/src/utils"
+	"github.com/ether/etherpad-go/lib/changeset"
 	"github.com/ether/etherpad-go/lib/db"
 	"github.com/ether/etherpad-go/lib/hooks"
+	pad2 "github.com/ether/etherpad-go/lib/models/pad"
 	"github.com/ether/etherpad-go/lib/models/ws/admin"
 	"github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/gorilla/websocket"
+	"go.uber.org/zap"
 )
 
 type AdminMessageHandler struct {
@@ -16,14 +21,16 @@ type AdminMessageHandler struct {
 	hook              *hooks.Hook
 	padManager        *pad.Manager
 	padMessageHandler *PadMessageHandler
+	Logger            *zap.SugaredLogger
 }
 
-func NewAdminMessageHandler(store db.DataStore, h *hooks.Hook, m *pad.Manager, padMessHandler *PadMessageHandler) AdminMessageHandler {
+func NewAdminMessageHandler(store db.DataStore, h *hooks.Hook, m *pad.Manager, padMessHandler *PadMessageHandler, logger *zap.SugaredLogger) AdminMessageHandler {
 	return AdminMessageHandler{
 		store:             store,
 		hook:              h,
 		padManager:        m,
 		padMessageHandler: padMessHandler,
+		Logger:            logger,
 	}
 }
 
@@ -46,7 +53,7 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 	case "padLoad":
 		{
 			var padLoadData admin.PadLoadData
-			if err := json.Unmarshal([]byte(message.Data), &padLoadData); err != nil {
+			if err := json.Unmarshal(message.Data, &padLoadData); err != nil {
 				println("Error unmarshalling padLoad data:", err.Error())
 				return
 			}
@@ -104,6 +111,52 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 			}
 			c.conn.WriteMessage(websocket.TextMessage, responseBytes)
 		}
+	case "deletePad":
+		{
+			var padDeleteData admin.PadDeleteData
+			if err := json.Unmarshal(message.Data, &padDeleteData); err != nil {
+				println("Error unmarshalling padDelete data:", err.Error())
+				return
+			}
+
+			if err := h.padMessageHandler.DeletePad(padDeleteData); err != nil {
+				h.Logger.Warnf("Error deleting pad: %s", err.Error())
+				return
+			}
+
+			h.Logger.Infof("Pad %s deleted successfully via admin interface", padDeleteData)
+
+			var resp = make([]interface{}, 2)
+			resp[0] = "results:deletePad"
+			resp[1] = padDeleteData
+
+			responseBytes, err := json.Marshal(resp)
+			if err != nil {
+				println("Error marshalling response:", err.Error())
+				return
+			}
+			if err := c.conn.WriteMessage(websocket.TextMessage, responseBytes); err != nil {
+				h.Logger.Errorf("Error writing response: %v", err)
+			}
+		}
+	case "cleanupPadRevisions":
+		{
+			if !retrievedSettings.Cleanup.Enabled {
+				h.Logger.Warnf("Cleanup is not enabled in settings")
+				return
+			}
+			var padDeleteData admin.PadCleanupData
+			if err := json.Unmarshal(message.Data, &padDeleteData); err != nil {
+				println("Error unmarshalling padDelete data:", err.Error())
+				return
+			}
+
+			padExists := h.padManager.DoesPadExist(padDeleteData)
+			if !padExists {
+				h.Logger.Warnf("Pad %s does not exist", padDeleteData)
+				return
+			}
+		}
 	case "search":
 		{
 			pluginDef := admin.SeachchPluginDefinition{
@@ -132,4 +185,84 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 		// Unknown event
 		println("Unknown admin event:", message.Event)
 	}
+}
+
+func (h AdminMessageHandler) DeleteRevisions(padId string, keepRevisions int) error {
+	h.Logger.Debugf("Starting deletion of revisions for pad %s, keeping last %d revisions", padId, keepRevisions)
+
+	retrievedPad, err := h.padManager.GetPad(padId, nil, nil)
+	if err != nil {
+		return err
+	}
+
+	if retrievedPad.Head <= keepRevisions {
+		h.Logger.Infof("Pad %s has %d revisions, which is less than or equal to keepRevisions %d. No revisions will be deleted.", padId, retrievedPad.Head, keepRevisions)
+		return nil
+	}
+
+	h.padMessageHandler.KickSessionsFromPad(padId)
+	cleanupUntilRevision := retrievedPad.Head - keepRevisions
+	h.Logger.Infof("Deleting revisions for pad %s until revision %d", padId, cleanupUntilRevision)
+	compressedChangeset, err := h.padMessageHandler.ComposePadChangesets(retrievedPad, 0, cleanupUntilRevision+1)
+	if err != nil {
+		println("Error composing changeset:", err.Error())
+		return err
+	}
+
+	// Save revisions to keep (we need to resave because of changed changesets due to compression)
+	revisionsToKeep, err := h.store.GetRevisions(padId, cleanupUntilRevision, keepRevisions)
+	if err != nil {
+		println("Error getting revisions to keep:", err.Error())
+		return err
+	}
+
+	if err := retrievedPad.RemoveAllSavedRevisions(); err != nil {
+		println("Error removing saved revisions:", err.Error())
+		return err
+	}
+
+	padContent, err := h.padManager.GetPad(padId, nil, nil)
+	if err != nil {
+		return err
+	}
+	padContent.Head = cleanupUntilRevision
+	if len(padContent.SavedRevisions) > 0 {
+		newSavedRevisions := make([]pad2.SavedRevision, 0)
+		for i := 0; i < len(padContent.SavedRevisions); i++ {
+			if padContent.SavedRevisions[i].RevNum > cleanupUntilRevision {
+				padContent.SavedRevisions[i].RevNum = padContent.SavedRevisions[i].RevNum - cleanupUntilRevision
+				newSavedRevisions = append(newSavedRevisions, padContent.SavedRevisions[i])
+			}
+		}
+		padContent.SavedRevisions = newSavedRevisions
+	}
+	if ok := padContent.Save; ok != nil {
+		println("Error saving pad after revision cleanup:", ok)
+		return errors.New("error saving pad after revision cleanup")
+	}
+
+	newAtext := changeset.MakeAText("\n", nil)
+	pool := padContent.Pool
+	newAtext = changeset.ApplyToAText(compressedChangeset, newAtext, pool)
+
+	revision := utils.CreateRevision(compressedChangeset, (*revisionsToKeep)[cleanupUntilRevision].Timestamp, true, nil, newAtext, pool)
+
+	if err := h.store.SaveRevision(padContent.Id, 0, revision.Changeset, newAtext, pool, revision.Meta.Author, revision.Meta.Timestamp); err != nil {
+		println("Error saving compressed revision:", err.Error())
+		return err
+	}
+	for i := cleanupUntilRevision + 1; i <= cleanupUntilRevision+1+keepRevisions; i++ {
+		rev := i
+		newRev := rev - cleanupUntilRevision
+
+		newAtext = changeset.ApplyToAText((*revisionsToKeep)[rev].Changeset, newAtext, pool)
+		revision = utils.CreateRevision((*revisionsToKeep)[rev].Changeset, (*revisionsToKeep)[rev].Timestamp, true, (*revisionsToKeep)[rev].AuthorId, newAtext, pool)
+		if err := h.store.SaveRevision(padContent.Id, newRev, revision.Changeset, newAtext, pool, revision.Meta.Author, revision.Meta.Timestamp); err != nil {
+			println("Error saving revision:", err.Error())
+			return err
+		}
+	}
+
+	h.padManager.UnloadPad(padId)
+	return nil
 }

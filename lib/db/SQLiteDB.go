@@ -18,6 +18,35 @@ type SQLiteDB struct {
 	sqlDB *sql.DB
 }
 
+func (d SQLiteDB) GetRevisions(padId string, startRev int, endRev int) (*[]db.PadSingleRevision, error) {
+	var resultedSQL, args, err = sq.
+		Select("*").
+		From("padRev").
+		Where(sq.Eq{"id": padId}).
+		Where(sq.GtOrEq{"rev": startRev}).
+		Where(sq.LtOrEq{"rev": endRev}).
+		OrderBy("rev ASC").
+		ToSql()
+
+	if err != nil {
+		return nil, err
+	}
+
+	query, err := d.sqlDB.Query(resultedSQL, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer query.Close()
+
+	var revisions []db.PadSingleRevision
+	for query.Next() {
+		var revisionDB db.PadSingleRevision
+		query.Scan(&revisionDB.PadId, &revisionDB.RevNum, &revisionDB.Changeset, &revisionDB.AText.Text, &revisionDB.AText.Attribs, &revisionDB.AuthorId, &revisionDB.Timestamp)
+		revisions = append(revisions, revisionDB)
+	}
+	return &revisions, nil
+}
+
 func (d SQLiteDB) QueryPad(offset int, limit int, sortBy string, ascending bool, pattern string) (*db.PadDBSearchResult, error) {
 	var builder = sq.
 		Select("id", "data", "timestamp").

@@ -25,7 +25,7 @@ type Pad struct {
 	ChatHead       int
 	Head           int
 	PublicStatus   bool
-	savedRevisions []Revision
+	SavedRevisions []SavedRevision
 	Pool           apool.APool
 	AText          apool.AText
 	hook           *hooks.Hook
@@ -39,7 +39,7 @@ func NewPad(id string, db db.DataStore, hook *hooks.Hook) Pad {
 	p.Head = -1
 	p.ChatHead = -1
 	p.PublicStatus = false
-	p.savedRevisions = make([]Revision, 0)
+	p.SavedRevisions = make([]SavedRevision, 0)
 	p.hook = hook
 
 	p.AText = changeset.MakeAText("\n", nil)
@@ -80,7 +80,7 @@ func (p *Pad) getKeyRevisionAText(revNum int) (*apool.AText, error) {
 	return &rev.AText, err
 }
 
-func (p *Pad) Remove() {
+func (p *Pad) Remove() error {
 	padId := p.Id
 	// Kick session is done in ws package to avoid circular import
 	if utils.RuneIndex(padId, "$") >= 0 {
@@ -88,11 +88,13 @@ func (p *Pad) Remove() {
 		groupId := padId[0:indexOfDollar]
 		groupVal, err := p.db.GetGroup(groupId)
 		if err != nil {
-			return
+			return err
 		}
-		//
-		println(groupVal)
+		// TODO remove pad from group pads list
+		println("Removing group:", groupVal)
 	}
+	// Actual code was moved to padManager to avoid circular import
+	return nil
 }
 
 func (p *Pad) GetRevisionAuthor(revNum int) (*string, error) {
@@ -242,7 +244,11 @@ func (p *Pad) GetRevision(revNumber int) (*db2.PadSingleRevision, error) {
 	return p.db.GetRevision(p.Id, revNumber)
 }
 
-func (p *Pad) save() {
+func (p *Pad) GetRevisions(start int, end int) (*[]db2.PadSingleRevision, error) {
+	return p.db.GetRevisions(p.Id, start, end)
+}
+
+func (p *Pad) Save() {
 	p.db.CreatePad(p.Id, db2.PadDB{
 		SavedRevisions: make(map[int]db2.PadRevision),
 		RevNum:         p.Head,
@@ -256,14 +262,14 @@ func (p *Pad) getHeadRevisionNumber() int {
 }
 
 func (p *Pad) getSavedRevisionNumber() int {
-	return len(p.savedRevisions)
+	return len(p.SavedRevisions)
 }
 
 func (p *Pad) getSavedRevisionsList() []int {
-	var savedRevisions = make([]int, len(p.savedRevisions))
+	var savedRevisions = make([]int, len(p.SavedRevisions))
 
-	for i, rev := range p.savedRevisions {
-		savedRevisions[i] = rev.revNum
+	for i, rev := range p.SavedRevisions {
+		savedRevisions[i] = rev.RevNum
 	}
 
 	slices.Sort(savedRevisions)
@@ -310,7 +316,7 @@ func (p *Pad) AppendRevision(cs string, authorId *string) int {
 	}
 
 	// Save pad
-	p.save()
+	p.Save()
 
 	var poolToUse apool.APool
 	var atextToUse apool.AText

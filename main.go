@@ -105,7 +105,7 @@ func main() {
 	padManager := pad.NewManager(dataStore, &retrievedHooks)
 
 	padMessageHandler := ws.NewPadMessageHandler(dataStore, &retrievedHooks, &padManager)
-	adminMessageHandler := ws.NewAdminMessageHandler(dataStore, &retrievedHooks, &padManager, padMessageHandler)
+	adminMessageHandler := ws.NewAdminMessageHandler(dataStore, &retrievedHooks, &padManager, padMessageHandler, setupLogger)
 	app.Get("/socket.io/*", func(c *fiber.Ctx) error {
 		return adaptor.HTTPHandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 			ws.ServeWs(ws.HubGlob, writer, request, cookieStore, c, &settings, setupLogger, padMessageHandler)

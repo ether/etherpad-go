@@ -23,6 +23,35 @@ type MemoryDataStore struct {
 	groupStore   map[string]string
 }
 
+func (m *MemoryDataStore) GetRevisions(padId string, startRev int, endRev int) (*[]db.PadSingleRevision, error) {
+	var pad, ok = m.padStore[padId]
+
+	if !ok {
+		return nil, errors.New("pad not found")
+	}
+
+	var revisions []db.PadSingleRevision
+	for rev := startRev; rev <= endRev; rev++ {
+		var revisionFromPad, okRev = pad.SavedRevisions[rev]
+
+		if !okRev {
+			return nil, errors.New("revision of pad not found")
+		}
+
+		var padSingleRevision = db.PadSingleRevision{
+			PadId:     padId,
+			RevNum:    rev,
+			Changeset: revisionFromPad.Content,
+			AText:     *revisionFromPad.PadDBMeta.AText,
+			AuthorId:  revisionFromPad.PadDBMeta.Author,
+			Timestamp: revisionFromPad.PadDBMeta.Timestamp,
+		}
+
+		revisions = append(revisions, padSingleRevision)
+	}
+	return &revisions, nil
+}
+
 func (m *MemoryDataStore) QueryPad(offset int, limit int, sortBy string, ascending bool, pattern string) (*db.PadDBSearchResult, error) {
 	var padKeys []string
 	for k := range m.padStore {

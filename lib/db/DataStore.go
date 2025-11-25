@@ -14,6 +14,7 @@ type PadMethods interface {
 	SaveRevision(padId string, rev int, changeset string, text apool.AText, pool apool.APool, authorId *string, timestamp int64) error
 	GetRevision(padId string, rev int) (*db.PadSingleRevision, error)
 	RemoveRevisionsOfPad(padId string) error
+	GetRevisions(padId string, startRev int, endRev int) (*[]db.PadSingleRevision, error)
 	GetPad(padID string) (*db.PadDB, error)
 	GetReadonlyPad(padId string) (*string, error)
 	CreatePad2ReadOnly(padId string, readonlyId string)

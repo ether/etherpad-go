@@ -39,6 +39,10 @@ export default defineConfig({
             '/admin-auth/': {
                 target: 'http://localhost:3000',
                 changeOrigin: true,
+            },
+            '/admin/locales': {
+                target: 'http://localhost:3000',
+                changeOrigin: true,
             }
         }
     }

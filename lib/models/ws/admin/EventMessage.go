@@ -14,3 +14,7 @@ type PadLoadData struct {
 	SortBy    string `json:"sortBy"`
 	Ascending bool   `json:"ascending"`
 }
+
+type PadDeleteData = string
+
+type PadCleanupData = string
