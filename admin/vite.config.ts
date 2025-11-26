@@ -43,6 +43,22 @@ export default defineConfig({
             '/admin/locales': {
                 target: 'http://localhost:3000',
                 changeOrigin: true,
+            },
+            '/p/': {
+                target: 'http://localhost:3000',
+                changeOrigin: true,
+            },
+            '/js/pad': {
+                target: 'http://localhost:3000',
+                changeOrigin: true,
+            },
+            '/css': {
+                target: 'http://localhost:3000',
+                changeOrigin: true,
+            },
+            '/socket.io/': {
+                target: 'http://localhost:3000',
+                changeOrigin: true,
             }
         }
     }

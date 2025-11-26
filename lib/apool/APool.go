@@ -21,6 +21,33 @@ func NewAPool() APool {
 
 type EachAttribFunc func(attrib Attribute)
 
+func (a *APool) Check() error {
+	if a.NextNum < 0 {
+		return errors.New("nextNum is negative")
+	}
+
+	if len(a.NumToAttrib) != a.NextNum {
+		return errors.New("numToAttrib length does not match nextNum")
+	}
+
+	if len(a.AttribToNum) != a.NextNum {
+		return errors.New("attribToNum length does not match nextNum")
+	}
+	for i := 0; i < a.NextNum; i++ {
+		attr, ok := a.NumToAttrib[i]
+		if !ok {
+			return errors.New("numToAttrib missing entry for index " + string(rune(i)))
+		}
+		if attr.Key == "" {
+			return errors.New("attribute key is empty for index " + string(rune(i)))
+		}
+		if a.AttribToNum[attr] != i {
+			return errors.New("attribToNum mapping incorrect for attribute " + attr.Key + ":" + attr.Value)
+		}
+	}
+	return nil
+}
+
 func (a *APool) EachAttrib(f EachAttribFunc) {
 	for _, attrib := range a.NumToAttrib {
 		f(attrib)
@@ -92,28 +119,6 @@ func (a *APool) clone() APool {
 
 	newPool.NextNum = a.NextNum
 	return newPool
-}
-
-/**
- * Asserts that the data in the pool is consistent. Throws if inconsistent.
- */
-func (a *APool) check() error {
-	if a.NextNum < 0 {
-		return errors.New("nextNum is negative")
-	}
-	if len(a.AttribToNum) != a.NextNum {
-		return errors.New("nextNum is not equal to the number of attributes")
-	}
-	if len(a.NumToAttrib) != a.NextNum {
-		return errors.New("nextNum is not equal to the number of attributes")
-	}
-
-	for i := 0; i < a.NextNum; i++ {
-		if _, ok := a.NumToAttrib[i]; !ok {
-			return errors.New("attribute not found")
-		}
-	}
-	return nil
 }
 
 type AttributeIterator func(attributeKey *string, attributeValue *string)

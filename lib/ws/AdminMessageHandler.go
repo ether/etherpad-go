@@ -8,7 +8,7 @@ import (
 	"github.com/ether/etherpad-go/lib/changeset"
 	"github.com/ether/etherpad-go/lib/db"
 	"github.com/ether/etherpad-go/lib/hooks"
-	pad2 "github.com/ether/etherpad-go/lib/models/pad"
+	"github.com/ether/etherpad-go/lib/models/revision"
 	"github.com/ether/etherpad-go/lib/models/ws/admin"
 	"github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/settings"
@@ -49,6 +49,55 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 				return
 			}
 			c.conn.WriteMessage(websocket.TextMessage, responseBytes)
+		}
+	case "createPad":
+		{
+			var padCreateData admin.PadCreateData
+			if err := json.Unmarshal(message.Data, &padCreateData); err != nil {
+				println("Error unmarshalling padCreate data:", err.Error())
+			}
+			padExists := h.padManager.DoesPadExist(padCreateData.PadName)
+			if padExists {
+				h.Logger.Warnf("Pad %s already exists", padCreateData.PadName)
+				errorMessage := admin.ErrorMessage{
+					Error: "Pad already exists",
+				}
+				var resp = make([]interface{}, 2)
+				resp[0] = "results:createPad"
+				resp[1] = errorMessage
+				responseBytes, err := json.Marshal(resp)
+				if err != nil {
+					println("Error marshalling response:", err.Error())
+					return
+				}
+
+				if err = c.conn.WriteMessage(websocket.TextMessage, responseBytes); err != nil {
+					h.Logger.Errorf("Error writing response: %v", err)
+				}
+			} else {
+				_, err := h.padManager.GetPad(padCreateData.PadName, nil, nil)
+				if err != nil {
+					h.Logger.Warnf("Error creating pad %s: %s", padCreateData.PadName, err.Error())
+					return
+				}
+				h.Logger.Infof("Pad %s created successfully via admin interface", padCreateData.PadName)
+
+				var resp = make([]interface{}, 2)
+				resp[0] = "results:createPad"
+				resp[1] = admin.SuccessMessage{
+					Success: "Pad created " + padCreateData.PadName,
+				}
+
+				responseBytes, err := json.Marshal(resp)
+				if err != nil {
+					println("Error marshalling response:", err.Error())
+					return
+				}
+				if err := c.conn.WriteMessage(websocket.TextMessage, responseBytes); err != nil {
+					h.Logger.Errorf("Error writing response: %v", err)
+				}
+			}
+
 		}
 	case "padLoad":
 		{
@@ -156,6 +205,23 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 				h.Logger.Warnf("Pad %s does not exist", padDeleteData)
 				return
 			}
+			if err := h.DeleteRevisions(padDeleteData, retrievedSettings.Cleanup.KeepRevisions); err != nil {
+				h.Logger.Warnf("Error cleaning up revisions for pad %s: %s", padDeleteData, err.Error())
+				return
+			}
+			h.Logger.Infof("Revisions for pad %s cleaned up successfully via admin interface", padDeleteData)
+
+			var resp = make([]interface{}, 2)
+			resp[0] = "results:cleanupPadRevisions"
+			resp[1] = padDeleteData
+
+			responseBytes, err := json.Marshal(resp)
+			if err != nil {
+				println("Error marshalling response:", err.Error())
+			}
+			if err := c.conn.WriteMessage(websocket.TextMessage, responseBytes); err != nil {
+				h.Logger.Errorf("Error writing response: %v", err)
+			}
 		}
 	case "search":
 		{
@@ -195,6 +261,11 @@ func (h AdminMessageHandler) DeleteRevisions(padId string, keepRevisions int) er
 		return err
 	}
 
+	if err := retrievedPad.Check(); err != nil {
+		h.Logger.Errorf("Pad %s failed integrity check before revision deletion: %s", padId, err.Error())
+		return err
+	}
+
 	if retrievedPad.Head <= keepRevisions {
 		h.Logger.Infof("Pad %s has %d revisions, which is less than or equal to keepRevisions %d. No revisions will be deleted.", padId, retrievedPad.Head, keepRevisions)
 		return nil
@@ -227,7 +298,7 @@ func (h AdminMessageHandler) DeleteRevisions(padId string, keepRevisions int) er
 	}
 	padContent.Head = cleanupUntilRevision
 	if len(padContent.SavedRevisions) > 0 {
-		newSavedRevisions := make([]pad2.SavedRevision, 0)
+		newSavedRevisions := make([]revision.SavedRevision, 0)
 		for i := 0; i < len(padContent.SavedRevisions); i++ {
 			if padContent.SavedRevisions[i].RevNum > cleanupUntilRevision {
 				padContent.SavedRevisions[i].RevNum = padContent.SavedRevisions[i].RevNum - cleanupUntilRevision

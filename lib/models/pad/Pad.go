@@ -8,12 +8,14 @@ import (
 	"time"
 	"unicode/utf8"
 
+	utils2 "github.com/ether/etherpad-go/admin/src/utils"
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/changeset"
 	"github.com/ether/etherpad-go/lib/db"
 	"github.com/ether/etherpad-go/lib/hooks"
 	db2 "github.com/ether/etherpad-go/lib/models/db"
+	"github.com/ether/etherpad-go/lib/models/revision"
 	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/ether/etherpad-go/lib/utils"
 )
@@ -25,7 +27,7 @@ type Pad struct {
 	ChatHead       int
 	Head           int
 	PublicStatus   bool
-	SavedRevisions []SavedRevision
+	SavedRevisions []revision.SavedRevision
 	Pool           apool.APool
 	AText          apool.AText
 	hook           *hooks.Hook
@@ -39,11 +41,168 @@ func NewPad(id string, db db.DataStore, hook *hooks.Hook) Pad {
 	p.Head = -1
 	p.ChatHead = -1
 	p.PublicStatus = false
-	p.SavedRevisions = make([]SavedRevision, 0)
+	p.SavedRevisions = make([]revision.SavedRevision, 0)
 	p.hook = hook
 
 	p.AText = changeset.MakeAText("\n", nil)
 	return *p
+}
+
+func (p *Pad) Check() error {
+	if p.Id != strings.TrimSpace(p.Id) {
+		return errors.New("pad id contains leading or trailing whitespace")
+	}
+
+	head := p.Head
+	if head < 0 {
+		return errors.New("pad head revision is negative")
+	}
+	if p.getSavedRevisionNumber() != len(p.SavedRevisions) {
+		return errors.New("pad saved revisions count mismatch")
+	}
+
+	preSavedRev := -1
+	for _, rev := range p.SavedRevisions {
+		if rev.RevNum <= preSavedRev {
+			return errors.New("pad saved revisions are not in ascending order")
+		}
+		preSavedRev = rev.RevNum
+	}
+
+	padPool := p.Pool
+	if err := padPool.Check(); err != nil {
+		return errors.New("pad pool check failed: " + err.Error())
+	}
+
+	authorIds := map[string]struct{}{}
+	padPool.EachAttrib(func(attrib apool.Attribute) {
+		if attrib.Key == "author" && attrib.Value != "" {
+			authorIds[attrib.Value] = struct{}{}
+		}
+	})
+
+	revs := make([]revision.Revision, 0)
+	for r := 0; r < head+1; r++ {
+		isKeyRev := r == p.getKeyRevisionNumber(r)
+		revChangeset, err := p.getRevisionChangeset(r)
+		if err != nil {
+			return errors.New("pad revision " + string(rune(r)) + " retrieval failed: " + err.Error())
+		}
+		revAuthor, err := p.GetRevisionAuthor(r)
+		if err != nil {
+			return errors.New("pad revision " + string(rune(r)) + " author retrieval failed: " + err.Error())
+		}
+		revTimestamp, err := p.GetRevisionDate(r)
+		if err != nil {
+			return errors.New("pad revision " + string(rune(r)) + " timestamp retrieval failed: " + err.Error())
+		}
+
+		atext, err := p.getKeyRevisionAText(r)
+		if err != nil {
+			return errors.New("pad revision " + string(rune(r)) + " atext retrieval failed: " + err.Error())
+		}
+
+		revs = append(revs, utils2.CreateRevision(*revChangeset, *revTimestamp, isKeyRev, revAuthor, *atext, padPool))
+	}
+
+	atext := changeset.MakeAText("\n", nil)
+	for _, rev := range revs {
+		if rev.Meta.Author != nil && *rev.Meta.Author != "" {
+			authorIds[*rev.Meta.Author] = struct{}{}
+		}
+		if rev.Meta.Timestamp < 0 {
+			return errors.New("pad revision has negative timestamp")
+		}
+
+		if rev.Changeset == "" {
+			return errors.New("pad revision has empty changeset")
+		}
+		if _, err := changeset.CheckRep(rev.Changeset); err != nil {
+			return errors.New("pad revision has invalid changeset: " + err.Error())
+		}
+		unpackedChangeset, err := changeset.Unpack(rev.Changeset)
+		if err != nil {
+			return errors.New("pad revision has invalid changeset: " + err.Error())
+		}
+
+		text := atext.Text
+
+		deserializedOps, err := changeset.DeserializeOps(unpackedChangeset.Ops)
+		if err != nil {
+			return errors.New("pad revision has invalid changeset ops: " + err.Error())
+		}
+		for _, op := range *deserializedOps {
+			if op.OpCode == "=" || op.OpCode == "-" {
+				if text == "" || utf8.RuneCountInString(text) < op.Chars {
+					return errors.New("pad revision has changeset op exceeding atext length")
+				}
+				consumed := text[0:op.Chars]
+				nlines := utils.CountLines(consumed, '\n')
+				if nlines != op.Lines {
+					return errors.New("pad revision has changeset op with mismatched lines count")
+				}
+				if op.Lines > 0 {
+					if !strings.HasSuffix(consumed, "\n") {
+						return errors.New("pad revision has changeset op with invalid lines content")
+					}
+				}
+				text = text[op.Chars:]
+			}
+			fromString := changeset.FromString(op.Attribs, &padPool)
+			if op.Attribs != fromString.String() {
+				return errors.New("pad revision has invalid changeset attribs")
+			}
+		}
+		atext = changeset.ApplyToAText(rev.Changeset, atext, padPool)
+		if rev.Meta.IsKeyRev {
+			if !apool.ATextsEqual(*rev.Meta.Atext, atext) {
+				return errors.New("pad key revision atext does not match computed atext")
+			}
+		}
+	}
+
+	if p.Text() != atext.Text {
+		return errors.New("pad atext does not match computed atext")
+	}
+
+	if !apool.ATextsEqual(p.AText, atext) {
+		return errors.New("pad atext does not match computed atext")
+	}
+
+	allAuthors := p.GetAllAuthors()
+	for authorId := range authorIds {
+		found := false
+		for _, aId := range allAuthors {
+			if aId == authorId {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return errors.New("pad contains reference to unknown author id: " + authorId)
+		}
+	}
+
+	if p.ChatHead < 0 {
+		return errors.New("pad chat head is negative")
+	}
+
+	chatMsgs, err := p.GetChatMessages(0, p.ChatHead)
+	if err != nil {
+		return errors.New("pad chat messages retrieval failed: " + err.Error())
+	}
+	for _, msg := range *chatMsgs {
+		if *msg.Time < 0 {
+			return errors.New("pad chat message has negative timestamp")
+		}
+		if msg.AuthorId == nil {
+			return errors.New("pad chat message has nil author id")
+		}
+		if msg.PadId != p.Id {
+			return errors.New("pad chat message has mismatched pad id")
+		}
+	}
+	return nil
 }
 
 func (p *Pad) AppendChatMessage(authorId *string, timestamp int64, text string) int {
@@ -276,15 +435,14 @@ func (p *Pad) getSavedRevisionsList() []int {
 	return savedRevisions
 }
 
-func (p *Pad) GetRevisionDate(rev int) int64 {
+func (p *Pad) GetRevisionDate(rev int) (*int64, error) {
 	revision, err := p.db.GetRevision(p.Id, rev)
 
 	if err != nil {
-		println("Error is", err.Error())
-		return 0
+		return nil, err
 	}
 
-	return revision.Timestamp
+	return &revision.Timestamp, nil
 }
 
 func (p *Pad) getPublicStatus() bool {

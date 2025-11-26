@@ -2,10 +2,10 @@ package utils
 
 import (
 	"github.com/ether/etherpad-go/lib/apool"
-	"github.com/ether/etherpad-go/lib/models/pad"
+	"github.com/ether/etherpad-go/lib/models/revision"
 )
 
-func CreateRevision(changeset string, timestamp int64, isKeyRev bool, authorId *string, atext apool.AText, attribPool apool.APool) pad.Revision {
+func CreateRevision(changeset string, timestamp int64, isKeyRev bool, authorId *string, atext apool.AText, attribPool apool.APool) revision.Revision {
 	if authorId != nil {
 		attribPool.PutAttrib(apool.Attribute{
 			Key:   "author",
@@ -13,9 +13,9 @@ func CreateRevision(changeset string, timestamp int64, isKeyRev bool, authorId *
 		}, nil)
 	}
 
-	rev := pad.Revision{
+	rev := revision.Revision{
 		Changeset: changeset,
-		Meta: pad.RevisionMeta{
+		Meta: revision.RevisionMeta{
 			Author:    authorId,
 			Timestamp: timestamp,
 		},
@@ -25,6 +25,7 @@ func CreateRevision(changeset string, timestamp int64, isKeyRev bool, authorId *
 		rev.Meta.Atext = &atext
 		rev.Meta.APool = &attribPool
 	}
+	rev.Meta.IsKeyRev = isKeyRev
 
 	return rev
 }

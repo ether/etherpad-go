@@ -1,7 +1,7 @@
 import {connect} from "./socketio.ts";
 import {useStore} from "../store/store.ts";
 
-const settingSocket = connect(`settings`);
+const settingSocket = connect();
 
 settingSocket.on('connect', () => {
 });

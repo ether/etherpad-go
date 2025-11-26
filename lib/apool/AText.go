@@ -9,3 +9,7 @@ func CopyAText(atext1 AText, atext2 *AText) {
 	atext2.Attribs = atext1.Attribs
 	atext2.Text = atext1.Text
 }
+
+func ATextsEqual(atext1 AText, atext2 AText) bool {
+	return atext1.Text == atext2.Text && atext1.Attribs == atext2.Attribs
+}

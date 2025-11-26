@@ -18,3 +18,15 @@ type PadLoadData struct {
 type PadDeleteData = string
 
 type PadCleanupData = string
+
+type PadCreateData struct {
+	PadName string `json:"padName"`
+}
+
+type ErrorMessage struct {
+	Error string `json:"error"`
+}
+
+type SuccessMessage struct {
+	Success string `json:"success"`
+}

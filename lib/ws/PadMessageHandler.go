@@ -237,7 +237,12 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 	session.Revision = newRev
 
 	if newRev != r {
-		session.Time = retrievedPad.GetRevisionDate(newRev)
+		optTime, err := retrievedPad.GetRevisionDate(newRev)
+		if err != nil {
+			println("Error retrieving revision date", err)
+			return
+		}
+		session.Time = *optTime
 	}
 	retrievedPad.Head = newRev
 	p.UpdatePadClients(retrievedPad)
@@ -818,10 +823,15 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 		var attribsForWire = changeset.PrepareForWire(atext.Attribs, retrievedPad.Pool)
 		atext.Attribs = attribsForWire.Translated
 		wirePool := attribsForWire.Pool.ToJsonable()
+		retrivedClientVars, err := p.factory.NewClientVars(*retrievedPad, thisSession, wirePool, historicalAuthorData, retrievedSettings)
+		if err != nil {
+			println("Error creating client vars", err)
+			return
+		}
 		var arr = make([]interface{}, 2)
 		arr[0] = "message"
 		arr[1] = Message{
-			Data: p.factory.NewClientVars(*retrievedPad, thisSession, wirePool, historicalAuthorData, retrievedSettings),
+			Data: *retrivedClientVars,
 			Type: "CLIENT_VARS",
 		}
 		var encoded, _ = json.Marshal(arr)

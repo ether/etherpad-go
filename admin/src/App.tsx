@@ -5,7 +5,7 @@ import {NavLink, Outlet} from "react-router-dom";
 import {LoadingScreen} from "./utils/LoadingScreen.tsx";
 import {Trans, useTranslation} from "react-i18next";
 import {Cable, Construction, Crown, NotepadText, Wrench, PhoneCall, LucideMenu} from "lucide-react";
-import './utils/globals.ts'
+
 
 
 export const App = () => {
