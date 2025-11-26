@@ -153,7 +153,13 @@ func (p *Pad) Check() error {
 				return errors.New("pad revision has invalid changeset attribs")
 			}
 		}
-		atext = changeset.ApplyToAText(rev.Changeset, atext, padPool)
+		optAtext, err := changeset.ApplyToAText(rev.Changeset, atext, padPool)
+		if err != nil {
+			return errors.New("pad revision changeset application failed: " + err.Error())
+		}
+
+		atext = *optAtext
+
 		if rev.Meta.IsKeyRev {
 			if !apool.ATextsEqual(*rev.Meta.Atext, atext) {
 				return errors.New("pad key revision atext does not match computed atext")
@@ -183,7 +189,7 @@ func (p *Pad) Check() error {
 		}
 	}
 
-	if p.ChatHead < 0 {
+	if p.ChatHead < -1 {
 		return errors.New("pad chat head is negative")
 	}
 
@@ -292,7 +298,11 @@ func (p *Pad) GetInternalRevisionAText(targetRev int) *apool.AText {
 		if err != nil {
 			return nil
 		}
-		atext = changeset.ApplyToAText(*changesetPad, atext, *p.apool())
+		optAtext, err := changeset.ApplyToAText(*changesetPad, atext, *p.apool())
+		if err != nil {
+			return nil
+		}
+		atext = *optAtext
 	}
 	return &atext
 }
@@ -407,8 +417,8 @@ func (p *Pad) GetRevisions(start int, end int) (*[]db2.PadSingleRevision, error)
 	return p.db.GetRevisions(p.Id, start, end)
 }
 
-func (p *Pad) Save() {
-	p.db.CreatePad(p.Id, db2.PadDB{
+func (p *Pad) Save() bool {
+	return p.db.CreatePad(p.Id, db2.PadDB{
 		SavedRevisions: make(map[int]db2.PadRevision),
 		RevNum:         p.Head,
 		Pool:           p.Pool.ToJsonable(),
@@ -454,13 +464,18 @@ func (p *Pad) AppendRevision(cs string, authorId *string) int {
 		authorId = new(string)
 		*authorId = ""
 	}
-	var newAText = changeset.ApplyToAText(cs, p.AText, p.Pool)
+	var newAText, err = changeset.ApplyToAText(cs, p.AText, p.Pool)
+
+	if err != nil {
+		println("Error applying changeset to atext:", err.Error())
+		return p.Head
+	}
 
 	if newAText.Text == p.AText.Text && newAText.Attribs == p.AText.Attribs && p.Head != -1 {
 		return p.Head
 	}
 
-	apool.CopyAText(newAText, &p.AText)
+	apool.CopyAText(*newAText, &p.AText)
 
 	p.Head++
 
@@ -482,7 +497,7 @@ func (p *Pad) AppendRevision(cs string, authorId *string) int {
 	poolToUse = p.Pool
 	atextToUse = p.AText
 
-	err := p.db.SaveRevision(p.Id, newRev, cs, atextToUse, poolToUse, authorId, time.Now().UnixNano()/int64(time.Millisecond))
+	err = p.db.SaveRevision(p.Id, newRev, cs, atextToUse, poolToUse, authorId, time.Now().UnixNano()/int64(time.Millisecond))
 
 	if err != nil {
 		println("Error saving revision", err.Error())

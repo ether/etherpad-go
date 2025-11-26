@@ -181,7 +181,12 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 		// client) are relative to revision r - 1. The follow function
 		// rebases "changeset" so that it is relative to revision r
 		// and can be applied after "c".
-		rebasedChangeset = changeset.Follow(revisionPad.Changeset, rebasedChangeset, false, &retrievedPad.Pool)
+		optRebasedChangeset, err := changeset.Follow(revisionPad.Changeset, rebasedChangeset, false, &retrievedPad.Pool)
+		if err != nil {
+			println("Error rebasing changeset", err)
+			return
+		}
+		rebasedChangeset = *optRebasedChangeset
 	}
 
 	prevText := retrievedPad.Text()
@@ -268,7 +273,12 @@ func (p *PadMessageHandler) ComposePadChangesets(retrievedPad *pad2.Pad, startNu
 	padPool := retrievedPad.Pool
 	for r := startNum + 1; r < endNum; r++ {
 		cs := (*requiredChangesets)[r]
-		startChangeset = changeset.Compose(startChangeset, cs.Changeset, padPool)
+		optStartChangeset, err := changeset.Compose(startChangeset, cs.Changeset, padPool)
+		if err != nil {
+			println("Error composing changesets", err)
+			return "", err
+		}
+		startChangeset = *optStartChangeset
 	}
 	return startChangeset, nil
 }

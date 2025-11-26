@@ -307,18 +307,23 @@ func (h AdminMessageHandler) DeleteRevisions(padId string, keepRevisions int) er
 		}
 		padContent.SavedRevisions = newSavedRevisions
 	}
-	if ok := padContent.Save; ok != nil {
+	if ok := padContent.Save(); !ok {
 		println("Error saving pad after revision cleanup:", ok)
 		return errors.New("error saving pad after revision cleanup")
 	}
 
 	newAtext := changeset.MakeAText("\n", nil)
 	pool := padContent.Pool
-	newAtext = changeset.ApplyToAText(compressedChangeset, newAtext, pool)
+	optNewAtext, err := changeset.ApplyToAText(compressedChangeset, newAtext, pool)
+	if err != nil {
+		println("Error applying compressed changeset to atext:", err.Error())
+		return err
+	}
+	newAtext = *optNewAtext
 
-	revision := utils.CreateRevision(compressedChangeset, (*revisionsToKeep)[cleanupUntilRevision].Timestamp, true, nil, newAtext, pool)
+	createdRevision := utils.CreateRevision(compressedChangeset, (*revisionsToKeep)[cleanupUntilRevision].Timestamp, true, nil, newAtext, pool)
 
-	if err := h.store.SaveRevision(padContent.Id, 0, revision.Changeset, newAtext, pool, revision.Meta.Author, revision.Meta.Timestamp); err != nil {
+	if err := h.store.SaveRevision(padContent.Id, 0, createdRevision.Changeset, newAtext, pool, createdRevision.Meta.Author, createdRevision.Meta.Timestamp); err != nil {
 		println("Error saving compressed revision:", err.Error())
 		return err
 	}
@@ -326,9 +331,15 @@ func (h AdminMessageHandler) DeleteRevisions(padId string, keepRevisions int) er
 		rev := i
 		newRev := rev - cleanupUntilRevision
 
-		newAtext = changeset.ApplyToAText((*revisionsToKeep)[rev].Changeset, newAtext, pool)
-		revision = utils.CreateRevision((*revisionsToKeep)[rev].Changeset, (*revisionsToKeep)[rev].Timestamp, true, (*revisionsToKeep)[rev].AuthorId, newAtext, pool)
-		if err := h.store.SaveRevision(padContent.Id, newRev, revision.Changeset, newAtext, pool, revision.Meta.Author, revision.Meta.Timestamp); err != nil {
+		optNewAtext, err = changeset.ApplyToAText((*revisionsToKeep)[rev].Changeset, newAtext, pool)
+		if err != nil {
+			println("Error applying changeset to atext for revision", rev, ":", err.Error())
+			return err
+		}
+		newAtext = *optNewAtext
+
+		createdRevision = utils.CreateRevision((*revisionsToKeep)[rev].Changeset, (*revisionsToKeep)[rev].Timestamp, true, (*revisionsToKeep)[rev].AuthorId, newAtext, pool)
+		if err := h.store.SaveRevision(padContent.Id, newRev, createdRevision.Changeset, newAtext, pool, createdRevision.Meta.Author, createdRevision.Meta.Timestamp); err != nil {
 			println("Error saving revision:", err.Error())
 			return err
 		}

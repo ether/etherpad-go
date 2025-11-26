@@ -55,7 +55,7 @@ func (m *Manager) mapAuthorWithDBKey(token string) (*Author, error) {
 	// update the timestamp of this author
 	return &Author{
 		Id: *author,
-	}
+	}, nil
 }
 
 /**
@@ -124,15 +124,22 @@ func (m *Manager) SetAuthorName(authorId string, authorName string) {
 	m.Db.SaveAuthorName(authorId, authorName)
 }
 
-func (m *Manager) GetAuthorId(token string) *Author {
-	var res = m.GetAuthor4Token(token)
+func (m *Manager) GetAuthorId(token string) (*Author, error) {
+	var res, err = m.GetAuthor4Token(token)
 
-	return res
+	if err != nil {
+		return nil, err
+	}
+
+	return res, nil
 }
 
-func (m *Manager) GetAuthor4Token(token string) *Author {
-	var author = m.mapAuthorWithDBKey(token)
-	return author
+func (m *Manager) GetAuthor4Token(token string) (*Author, error) {
+	var author, err = m.mapAuthorWithDBKey(token)
+	if err != nil {
+		return nil, err
+	}
+	return author, nil
 }
 
 /**
