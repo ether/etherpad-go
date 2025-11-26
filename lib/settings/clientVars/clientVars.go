@@ -31,7 +31,7 @@ func (f *Factory) NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apoo
 
 	var currentAuthor, err = f.AuthorManager.GetAuthor(sessionInfo.Author)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	var padOptions = make(map[string]*bool)

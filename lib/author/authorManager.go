@@ -32,7 +32,7 @@ func (m *Manager) SetAuthorColor(author string, colorId string) {
 	m.Db.SaveAuthorColor(author, colorId)
 }
 
-func (m *Manager) mapAuthorWithDBKey(token string) *Author {
+func (m *Manager) mapAuthorWithDBKey(token string) (*Author, error) {
 	author, err := m.Db.GetAuthorByToken(token)
 
 	if err != nil {
@@ -42,13 +42,13 @@ func (m *Manager) mapAuthorWithDBKey(token string) *Author {
 		err = m.Db.SetAuthorByToken(token, authorCreated.Id)
 
 		if err != nil {
-			panic(err.Error())
+			return nil, err
 		}
 
 		// return the author
 		return &Author{
 			Id: authorCreated.Id,
-		}
+		}, nil
 	}
 
 	// there is an author with this mapper
