@@ -2,6 +2,7 @@ package db
 
 import (
 	"errors"
+	"math"
 	"slices"
 	"strconv"
 	"strings"
@@ -74,7 +75,10 @@ func (m *MemoryDataStore) QueryPad(offset int, limit int, sortBy string, ascendi
 	if !ascending {
 		slices.Reverse(padKeys)
 	}
-	padsToSearch := padKeys[offset : offset+limit]
+
+	padEnd := math.Min(float64(len(padKeys)), float64(offset+limit))
+	padStart := math.Max(0, float64(offset))
+	padsToSearch := padKeys[int(padStart):int(padEnd)]
 	padSearch := make([]db.PadDBSearch, 0)
 
 	for _, padKey := range padsToSearch {
