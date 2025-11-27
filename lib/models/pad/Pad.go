@@ -138,6 +138,7 @@ func (p *Pad) Check() error {
 				}
 				consumed := text[0:op.Chars]
 				nlines := utils.CountLines(consumed, '\n')
+				println(nlines, op.Lines)
 				if nlines != op.Lines {
 					return errors.New("pad revision has changeset op with mismatched lines count")
 				}

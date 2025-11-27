@@ -92,13 +92,14 @@ export function decodeJwt(token: string): Record<string, unknown> | null {
 
 
 if (!isExpired(token, 60) && token) {
-    const refreshToken = sessionStorage.getItem('refresh_token')
+    let refreshToken = sessionStorage.getItem('refresh_token')
     if (!refreshToken) {
         sessionStorage.clear()
         window.location.reload()
         throw new Error('Refresh token not set')
     }
     setInterval(() => {
+        refreshToken = sessionStorage.getItem('refresh_token') || refreshToken!
         fetch(config?.authority + "/../token", {
             method: 'POST',
             headers: {
