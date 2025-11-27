@@ -153,3 +153,7 @@ func (m *Manager) GetPad(padID string, text *string, authorId *string) (*pad.Pad
 
 	return &newPad, nil
 }
+
+func (m *Manager) UnloadPad(id string) {
+	m.padList.RemovePad(id)
+}

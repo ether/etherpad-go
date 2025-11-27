@@ -1,6 +1,32 @@
 package admin
 
+import "encoding/json"
+
 type EventMessage struct {
-	Event string      `json:"event"`
-	Data  interface{} `json:"data"`
+	Event string          `json:"event"`
+	Data  json.RawMessage `json:"data"`
+}
+
+type PadLoadData struct {
+	Offset    int    `json:"offset"`
+	Limit     int    `json:"limit"`
+	Pattern   string `json:"pattern"`
+	SortBy    string `json:"sortBy"`
+	Ascending bool   `json:"ascending"`
+}
+
+type PadDeleteData = string
+
+type PadCleanupData = string
+
+type PadCreateData struct {
+	PadName string `json:"padName"`
+}
+
+type ErrorMessage struct {
+	Error string `json:"error"`
+}
+
+type SuccessMessage struct {
+	Success string `json:"success"`
 }

@@ -226,7 +226,11 @@ func TestApplyToAText(t *testing.T) {
 		Value: "a.1ukWCzcdcCbywn32",
 	}] = 0
 	p.NextNum = 1
-	var result = changeset.ApplyToAText(cs, atext, p)
+	var result, err = changeset.ApplyToAText(cs, atext, p)
+	if err != nil {
+		t.Error("Error in ApplyToAText " + err.Error())
+		return
+	}
 	if result.Text != "sa\n" {
 		t.Error("Error in ApplyToAText text")
 	}
@@ -256,10 +260,14 @@ func runApplyToAttributionTest(testId int, attribs []string, cs string, inAttr s
 		return
 	}
 
-	result := changeset.ApplyToAttribution(*resCS, inAttr, p)
+	result, err := changeset.ApplyToAttribution(*resCS, inAttr, p)
+	if err != nil {
+		t.Error(testId, "Error applying to attribution "+err.Error())
+		return
+	}
 
-	if result != outCorrect {
-		t.Error(testId, "Error comparing attributions original: "+*resCS+" "+result+" vs "+outCorrect)
+	if *result != outCorrect {
+		t.Error(testId, "Error comparing attributions original: "+*resCS+" "+*result+" vs "+outCorrect)
 	}
 }
 
@@ -432,7 +440,6 @@ func TestSplitJoinAttributionLines(t *testing.T) {
 }
 
 func TestComposeAttributes(t *testing.T) {
-	t.Skip()
 	var p = apool.NewAPool()
 	p.PutAttrib(apool.Attribute{
 		Key:   "bold",
@@ -442,10 +449,22 @@ func TestComposeAttributes(t *testing.T) {
 		Key:   "bold",
 		Value: "true",
 	}, nil)
-	var cs1, _ = changeset.CheckRep("Z:2>1*1+1*1=1$x")
-	var cs2, _ = changeset.CheckRep("Z:3>0*0|1=3$")
-	var comp = changeset.Compose(*cs1, *cs2, p)
-	var cs12, _ = changeset.CheckRep(comp)
+	cs1, err := changeset.CheckRep("Z:2>1*1+1*1=1$x")
+	if err != nil {
+		t.Error("Error in CheckRep " + err.Error())
+		return
+	}
+	cs2, err := changeset.CheckRep("Z:3>0*0|1=3$")
+	if err != nil {
+		t.Error("Error in CheckRep " + err.Error())
+		return
+	}
+	comp, err := changeset.Compose(*cs1, *cs2, p)
+	if err != nil {
+		t.Error("Error in ComposeAttributes " + err.Error())
+		return
+	}
+	var cs12, _ = changeset.CheckRep(*comp)
 
 	if *cs12 != "Z:2>1+1*0|1=2$x" {
 		t.Error("Error in ComposeAttributes")

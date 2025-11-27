@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "build-admin": "tsc && vite build --outDir ../assets/js/admin --emptyOutDir",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "build-copy": "tsc && vite build --outDir ../src/templates/admin --emptyOutDir",
     "preview": "vite preview"

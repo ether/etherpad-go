@@ -2,59 +2,18 @@ import {useEffect, useState} from 'react'
 import './App.css'
 
 import {NavLink, Outlet} from "react-router-dom";
-import {useStore} from "./store/store.ts";
 import {LoadingScreen} from "./utils/LoadingScreen.tsx";
 import {Trans, useTranslation} from "react-i18next";
 import {Cable, Construction, Crown, NotepadText, Wrench, PhoneCall, LucideMenu} from "lucide-react";
-import settingSocket from "./utils/globals.ts";
+
 
 
 export const App = () => {
-  const setSettings = useStore(state => state.setSettings);
   const {t} = useTranslation()
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(true)
 
   useEffect(() => {
     document.title = t('admin.page-title')
-
-    useStore.getState().setShowLoading(true);
-
-      settingSocket.on('connect', () => {
-    });
-
-
-    settingSocket.on('connect', () => {
-      useStore.getState().setShowLoading(false)
-      settingSocket.emit('load', {});
-      console.log('connected');
-    });
-
-    settingSocket.on('disconnect', (reason: string) => {
-      // The settingSocket.io client will automatically try to reconnect for all reasons other than "io
-      // server disconnect".
-      useStore.getState().setShowLoading(true)
-      if (reason === 'io server disconnect') {
-        settingSocket.connect();
-      }
-    });
-
-    settingSocket.on('settings', (settings: {
-        results: string
-    }) => {
-      /* Check whether the settings.json is authorized to be viewed */
-      if (settings.results === 'NOT_ALLOWED') {
-        console.log('Not allowed to view settings.json')
-        return;
-      }
-
-      /* Check to make sure the JSON is clean before proceeding */
-      setSettings(JSON.stringify(settings.results));
-      useStore.getState().setShowLoading(false);
-    });
-
-    settingSocket.on('saveprogress', (status: string) => {
-      console.log(status)
-    })
   }, []);
 
   return <div id="wrapper" className={`${sidebarOpen ? '': 'closed' }`}>

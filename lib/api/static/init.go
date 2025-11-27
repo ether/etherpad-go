@@ -49,7 +49,7 @@ func getAdminBody(uiAssets embed.FS, retrievedSettings *settings.Settings) (*str
 					Authority:   retrievedSettings.SSO.Issuer,
 					JwksUri:     retrievedSettings.SSO.Issuer + ".well-known/jwks.json",
 					RedirectUri: selectedClient.RedirectUris[0],
-					Scope:       []string{"openid", "profile", "email"},
+					Scope:       []string{"openid", "profile", "email", "offline"},
 				}
 				conf, _ := json.Marshal(oidcConfig)
 				return string(conf)

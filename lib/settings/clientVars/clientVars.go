@@ -19,7 +19,7 @@ type Factory struct {
 	AuthorManager   *author2.Manager
 }
 
-func (f *Factory) NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apool2.APool, historicalAuthorData map[string]author2.Author, retrievedSettings *settings.Settings) clientVars.ClientVars {
+func (f *Factory) NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apool2.APool, historicalAuthorData map[string]author2.Author, retrievedSettings *settings.Settings) (*clientVars.ClientVars, error) {
 	var historyData = make(map[string]clientVars.CollabAuthor)
 
 	for _, authorData := range historicalAuthorData {
@@ -31,7 +31,7 @@ func (f *Factory) NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apoo
 
 	var currentAuthor, err = f.AuthorManager.GetAuthor(sessionInfo.Author)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	var padOptions = make(map[string]*bool)
@@ -105,7 +105,10 @@ func (f *Factory) NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apoo
 		}
 	}
 
-	var currentTime = pad.GetRevisionDate(pad.Head)
+	currentTime, err := pad.GetRevisionDate(pad.Head)
+	if err != nil {
+		return nil, err
+	}
 	var readonlyId = f.ReadOnlyManager.GetIds(&pad.Id)
 
 	etherPadConvertedAttribs := make(map[string][]string)
@@ -123,7 +126,7 @@ func (f *Factory) NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apoo
 		sofficeAvailable = "yes"
 	}
 
-	return clientVars.ClientVars{
+	return &clientVars.ClientVars{
 		SkinName:            retrievedSettings.SkinName,
 		SkinVariants:        retrievedSettings.SkinVariants,
 		RandomVersionString: "f2cb49c4",
@@ -147,7 +150,7 @@ func (f *Factory) NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apoo
 				NextNum:     apool.NextNum,
 			},
 			Rev:  pad.Head,
-			Time: currentTime,
+			Time: *currentTime,
 		},
 		ColorPalette:                       utils.ColorPalette,
 		ClientIP:                           "127.0.0.1",
@@ -172,5 +175,5 @@ func (f *Factory) NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apoo
 		ScrollWhenFocusLineIsOutOfViewport: retrievedSettings.ScrollWhenFocusLineIsOutOfViewport,
 		Plugins:                            rootPlugin,
 		InitialChangesets:                  make([]string, 0),
-	}
+	}, nil
 }

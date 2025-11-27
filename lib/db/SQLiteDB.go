@@ -18,6 +18,115 @@ type SQLiteDB struct {
 	sqlDB *sql.DB
 }
 
+func (d SQLiteDB) GetRevisions(padId string, startRev int, endRev int) (*[]db.PadSingleRevision, error) {
+	var resultedSQL, args, err = sq.
+		Select("*").
+		From("padRev").
+		Where(sq.Eq{"id": padId}).
+		Where(sq.GtOrEq{"rev": startRev}).
+		Where(sq.LtOrEq{"rev": endRev}).
+		OrderBy("rev ASC").
+		ToSql()
+
+	if err != nil {
+		return nil, err
+	}
+
+	query, err := d.sqlDB.Query(resultedSQL, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer query.Close()
+
+	var revisions []db.PadSingleRevision
+	for query.Next() {
+		var revisionDB db.PadSingleRevision
+		query.Scan(&revisionDB.PadId, &revisionDB.RevNum, &revisionDB.Changeset, &revisionDB.AText.Text, &revisionDB.AText.Attribs, &revisionDB.AuthorId, &revisionDB.Timestamp)
+		revisions = append(revisions, revisionDB)
+	}
+	return &revisions, nil
+}
+
+func (d SQLiteDB) QueryPad(offset int, limit int, sortBy string, ascending bool, pattern string) (*db.PadDBSearchResult, error) {
+	var builder = sq.
+		Select("id", "data", "timestamp").
+		From("pad").
+		Join("padRev ON padRev.id = pad.id").
+		Where(sq.Eq{"padRev.rev": sq.Select("MAX(rev)").From("padRev").Where(sq.Eq{"padRev.id": sq.Expr("pad.id")})})
+
+	var countBuilder = sq.
+		Select("COUNT(*)").
+		From("pad").
+		Join("padRev ON padRev.id = pad.id").
+		Where(sq.Eq{"padRev.rev": sq.Select("MAX(rev)").From("padRev").Where(sq.Eq{"padRev.id": sq.Expr("pad.id")})})
+
+	if pattern != "" {
+		builder = builder.Where(sq.Like{"id": "%" + pattern + "%"})
+	}
+
+	if sortBy == "padName" {
+		if ascending {
+			builder = builder.OrderBy("id ASC")
+		}
+	}
+	if limit > 0 {
+		builder = builder.Limit(uint64(limit))
+	}
+	if offset > 0 {
+		builder = builder.Offset(uint64(offset))
+	}
+
+	resultedSQL, args, err := builder.ToSql()
+	if err != nil {
+		return nil, err
+	}
+
+	countSQL, countArgs, err := countBuilder.ToSql()
+	if err != nil {
+		return nil, err
+	}
+
+	query, err := d.sqlDB.Query(resultedSQL, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer query.Close()
+
+	countQuery, err := d.sqlDB.Query(countSQL, countArgs...)
+	if err != nil {
+		return nil, err
+	}
+
+	var padSearch []db.PadDBSearch
+	for query.Next() {
+		var padId string
+		var data string
+		var timestamp int64
+		query.Scan(&padId, &data, &timestamp)
+		var padDB db.PadDB
+		err = json.Unmarshal([]byte(data), &padDB)
+		if err != nil {
+			return nil, err
+		}
+		padSearch = append(padSearch, db.PadDBSearch{
+			Padname:        padId,
+			RevisionNumber: padDB.RevNum,
+			LastEdited:     timestamp,
+		})
+	}
+	var totalPads int
+	for countQuery.Next() {
+		countQuery.Scan(&totalPads)
+	}
+
+	_ = countQuery.Close()
+
+	return &db.PadDBSearchResult{
+		TotalPads: totalPads,
+		Pads:      padSearch,
+	}, nil
+}
+
 func (d SQLiteDB) GetChatsOfPad(padId string, start int, end int) (*[]db.ChatMessageDBWithDisplayName, error) {
 	var resultedSQL, args, err = sq.
 		Select("padChat.padid, padChat.padHead, padChat.chatText, padChat.authorId, padChat.timestamp, globalAuthor.name").
@@ -324,7 +433,7 @@ func (d SQLiteDB) GetPadIds() []string {
 	return padIds
 }
 
-func (d SQLiteDB) SaveRevision(padId string, rev int, changeset string, text apool.AText, pool apool.APool, authorId *string, timestamp int) error {
+func (d SQLiteDB) SaveRevision(padId string, rev int, changeset string, text apool.AText, pool apool.APool, authorId *string, timestamp int64) error {
 	toSql, i, err := sq.Insert("padRev").
 		Columns("id", "rev", "changeset", "atextText", "atextAttribs", "authorId", "timestamp").
 		Values(padId, rev, changeset, text.Text, text.Attribs, *authorId, timestamp).

@@ -103,9 +103,15 @@ func (s *SecurityManager) CheckAccess(padId *string, sessionCookie *string, toke
 		return nil, errors.New("invalid author token")
 	}
 
+	retrievedAuthorFromToken, err := s.AuthorManager.GetAuthorId(*token)
+	if err != nil {
+		println("An error occurred while retrieving author from token:", err.Error())
+		return nil, errors.New("access denied: invalid author token")
+	}
+
 	var grantedAccess = GrantedAccess{
 		AccessStatus: "grant",
-		AuthorId:     s.AuthorManager.GetAuthorId(*token).Id,
+		AuthorId:     retrievedAuthorFromToken.Id,
 	}
 
 	if !strings.Contains(*padId, "$") {

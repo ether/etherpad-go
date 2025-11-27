@@ -25,12 +25,12 @@ type PadSingleRevision struct {
 	Changeset string
 	AText     apool.AText
 	AuthorId  *string
-	Timestamp int
+	Timestamp int64
 }
 
 type PadDBMeta struct {
 	Author    *string
-	Timestamp int
+	Timestamp int64
 	Pool      *apool.APool
 	AText     *apool.AText
 }

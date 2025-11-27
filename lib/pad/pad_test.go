@@ -81,10 +81,14 @@ func TestUseProvidedContent(t *testing.T) {
 
 func TestApplyToAText(t *testing.T) {
 	var pool = apool.NewAPool()
-	var newText = changeset.ApplyToAText("Z:1>j+j$Welcome to Etherpad", apool.AText{
+	var newText, err = changeset.ApplyToAText("Z:1>j+j$Welcome to Etherpad", apool.AText{
 		Text:    "\n",
 		Attribs: "|1+1",
 	}, pool)
+	if err != nil {
+		t.Error("Error applying to atext ", err)
+		return
+	}
 	if newText.Text != "Welcome to Etherpad\n" || newText.Attribs != "|1+k" {
 		t.Error("Error ", newText.Attribs)
 	}
@@ -224,7 +228,7 @@ func TestUnpack(t *testing.T) {
 		},
 	}
 
-	changeset.ApplyZip("|1+1", unpacked.Ops, func(op *changeset.Op, op2 *changeset.Op) changeset.Op {
+	resString, err := changeset.ApplyZip("|1+1", unpacked.Ops, func(op *changeset.Op, op2 *changeset.Op) (*changeset.Op, error) {
 		if counter == 2 {
 			t.Error("Should only iterate twice")
 			panic("Error syncing")
@@ -241,6 +245,14 @@ func TestUnpack(t *testing.T) {
 		}
 		counter += 1
 
-		return *slicer
+		return slicer, nil
 	})
+	if err != nil {
+		t.Error("Error applying zip", err)
+		return
+	}
+	if *resString != "|1+k" {
+		t.Error("Error applying zip result string")
+		return
+	}
 }

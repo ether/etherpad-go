@@ -32,7 +32,7 @@ func (m *Manager) SetAuthorColor(author string, colorId string) {
 	m.Db.SaveAuthorColor(author, colorId)
 }
 
-func (m *Manager) mapAuthorWithDBKey(token string) *Author {
+func (m *Manager) mapAuthorWithDBKey(token string) (*Author, error) {
 	author, err := m.Db.GetAuthorByToken(token)
 
 	if err != nil {
@@ -42,20 +42,20 @@ func (m *Manager) mapAuthorWithDBKey(token string) *Author {
 		err = m.Db.SetAuthorByToken(token, authorCreated.Id)
 
 		if err != nil {
-			panic(err.Error())
+			return nil, err
 		}
 
 		// return the author
 		return &Author{
 			Id: authorCreated.Id,
-		}
+		}, nil
 	}
 
 	// there is an author with this mapper
 	// update the timestamp of this author
 	return &Author{
 		Id: *author,
-	}
+	}, nil
 }
 
 /**
@@ -124,15 +124,22 @@ func (m *Manager) SetAuthorName(authorId string, authorName string) {
 	m.Db.SaveAuthorName(authorId, authorName)
 }
 
-func (m *Manager) GetAuthorId(token string) *Author {
-	var res = m.GetAuthor4Token(token)
+func (m *Manager) GetAuthorId(token string) (*Author, error) {
+	var res, err = m.GetAuthor4Token(token)
 
-	return res
+	if err != nil {
+		return nil, err
+	}
+
+	return res, nil
 }
 
-func (m *Manager) GetAuthor4Token(token string) *Author {
-	var author = m.mapAuthorWithDBKey(token)
-	return author
+func (m *Manager) GetAuthor4Token(token string) (*Author, error) {
+	var author, err = m.mapAuthorWithDBKey(token)
+	if err != nil {
+		return nil, err
+	}
+	return author, nil
 }
 
 /**

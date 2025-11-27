@@ -11,7 +11,7 @@ declare global {
  * @return socket.io Socket object
  * @param namespace
  */
-export const connect = (namespace: string) => {
+export const connect = () => {
   // The API for socket.io's io() function is awkward. The documentation says that the first
   // argument is a URL, but it is not the URL of the socket.io endpoint. The URL's path part is used
   // as the name of the socket.io namespace to join, and the rest of the URL (including query
@@ -19,7 +19,7 @@ export const connect = (namespace: string) => {
   // is overridden here to allow users to host Etherpad at something like '/etherpad') to get the
   // URL of the socket.io endpoint.
 
-  window.socket = new SocketIoWrapper(namespace)
+  window.socket = new SocketIoWrapper()
 
   window.socket.on('connect_error', (error: any) => {
     console.log('Error connecting to pad', error);

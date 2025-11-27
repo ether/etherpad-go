@@ -26,7 +26,7 @@ type CollabClientVars struct {
 	HistoricalAuthorData  map[string]CollabAuthor `json:"historicalAuthorData"`
 	Apool                 APool                   `json:"apool"`
 	Rev                   int                     `json:"rev"`
-	Time                  int                     `json:"time"`
+	Time                  int64                   `json:"time"`
 }
 
 type ScrollWhenFocusLineIsOutOfViewportPercentage struct {

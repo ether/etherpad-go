@@ -1,20 +1,17 @@
-// typescript
-export function createSocket(path: string): WebSocket {
+export function createSocket(): WebSocket {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const url = `${protocol}//${window.location.host}/admin/ws?namespace=${encodeURIComponent(path)}`
+    const url = `${protocol}//${window.location.host}/admin/ws?token=${sessionStorage.getItem('token') || ''}`
     return new WebSocket(url)
 }
 
 export class SocketIoWrapper {
     private socket: WebSocket
     private static readonly eventCallbacks: { [key: string]: Function[] } = {}
-    private readonly namespace: string
     private queueMessages: Array<{ event: string; data?: any }> = []
 
-    constructor(namespace: string) {
-        this.namespace = namespace
+    constructor() {
         try {
-            this.socket = createSocket(namespace)
+            this.socket = createSocket()
         } catch (e) {
             console.error('WebSocket creation failed:', e)
             throw e
@@ -73,7 +70,7 @@ export class SocketIoWrapper {
         setTimeout(() => {
             console.log('Reconnecting...')
             try {
-                const socket = createSocket(this.namespace)
+                const socket = createSocket()
                 socket.onopen = this.handleOpen
                 socket.onclose = this.handleClose
                 socket.onerror = this.handleError

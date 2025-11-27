@@ -11,6 +11,7 @@ import (
 	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/gofiber/adaptor/v2"
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cors"
 	"go.uber.org/zap"
 )
 
@@ -62,6 +63,27 @@ func pkceS256(verifier string) string {
 
 func Init(app *fiber.App, retrievedSettings settings.Settings, setupLogger *zap.SugaredLogger) {
 	authenticator := NewAuthenticator(&retrievedSettings)
+	allowedUrls := make([]string, 0)
+	for _, sso := range retrievedSettings.SSO.Clients {
+		for _, redirectUri := range sso.RedirectUris {
+			u, err := url.Parse(redirectUri)
+			if err != nil {
+				setupLogger.Errorf("Invalid redirect URI in SSO client %s: %s", sso.ClientId, redirectUri)
+				continue
+			}
+			allowedUrls = append(allowedUrls, u.Scheme+"://"+u.Host)
+		}
+	}
+	app.Use(cors.New(cors.Config{
+		AllowOriginsFunc: func(origin string) bool {
+			for _, allowed := range allowedUrls {
+				if origin == allowed {
+					return true
+				}
+			}
+			return false
+		},
+	}))
 
 	app.Post("/oauth2/introspect", adaptor.HTTPHandler(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		authenticator.IntrospectionEndpoint(writer, request)
@@ -72,6 +94,7 @@ func Init(app *fiber.App, retrievedSettings settings.Settings, setupLogger *zap.
 	app.Post("/oauth2/token", adaptor.HTTPHandler(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		authenticator.TokenEndpoint(writer, request)
 	})))
+
 	app.Get("/oauth2/auth", adaptor.HTTPHandler(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		authenticator.AuthEndpoint(writer, request, setupLogger, retrievedSettings)
 	})))

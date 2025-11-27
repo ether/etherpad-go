@@ -30,8 +30,8 @@ type NewChangesMessageData struct {
 	Changeset   string      `json:"changeset"`
 	APool       apool.APool `json:"apool"`
 	Author      string      `json:"author"`
-	CurrentTime int         `json:"currentTime"`
-	TimeDelta   int         `json:"timeDelta"`
+	CurrentTime int64       `json:"currentTime"`
+	TimeDelta   int64       `json:"timeDelta"`
 }
 
 type NewChangesMessage struct {

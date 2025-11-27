@@ -19,6 +19,110 @@ type PostgresDB struct {
 	sqlDB   *sql.DB
 }
 
+func (d PostgresDB) GetRevisions(padId string, startRev int, endRev int) (*[]db.PadSingleRevision, error) {
+	var resultedSQL, args, err = psql.
+		Select("*").
+		From("padRev").
+		Where(sq.Eq{"id": padId}).
+		Where(sq.GtOrEq{"rev": startRev}).
+		Where(sq.LtOrEq{"rev": endRev}).
+		OrderBy("rev ASC").
+		ToSql()
+
+	if err != nil {
+		return nil, err
+	}
+
+	query, err := d.sqlDB.Query(resultedSQL, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer query.Close()
+
+	var revisions []db.PadSingleRevision
+	for query.Next() {
+		var revisionDB db.PadSingleRevision
+		query.Scan(&revisionDB.PadId, &revisionDB.RevNum, &revisionDB.Changeset, &revisionDB.AText.Text, &revisionDB.AText.Attribs, &revisionDB.AuthorId, &revisionDB.Timestamp)
+		revisions = append(revisions, revisionDB)
+	}
+	return &revisions, nil
+}
+
+func (d PostgresDB) QueryPad(offset int, limit int, sortBy string, ascending bool, pattern string) (*db.PadDBSearchResult, error) {
+	var builder = psql.
+		Select("pad.id", "pad.data", "padRev.timestamp").
+		From("pad").
+		Join("padrev ON pad.id = padRev.id AND padRev.rev = (SELECT MAX(rev) FROM padRev WHERE padRev.id = pad.id)").
+		Where(sq.Like{"pad.id": "%" + pattern + "%"}).
+		Offset(uint64(offset)).
+		Limit(uint64(limit))
+
+	var builderCount = psql.
+		Select("COUNT(*)").
+		From("pad").
+		Join("padrev ON pad.id = padRev.id AND padRev.rev = (SELECT MAX(rev) FROM padRev WHERE padRev.id = pad.id)").
+		Where(sq.Like{"pad.id": "%" + pattern + "%"})
+
+	if sortBy == "padName" {
+		if ascending {
+			builder = builder.OrderBy("pad.id ASC")
+		} else {
+			builder = builder.OrderBy("pad.id DESC")
+		}
+	}
+
+	var resultedSQL, args, err = builder.ToSql()
+	var countSQL, countArgs, countErr = builderCount.ToSql()
+
+	if err != nil {
+		return nil, err
+	}
+
+	if countErr != nil {
+		return nil, countErr
+	}
+
+	query, err := d.sqlDB.Query(resultedSQL, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer query.Close()
+
+	var padSearch []db.PadDBSearch
+	for query.Next() {
+		var padId string
+		var data string
+		var timestamp int64
+		query.Scan(&padId, &data, &timestamp)
+		var padDB db.PadDB
+		err = json.Unmarshal([]byte(data), &padDB)
+		if err != nil {
+			return nil, err
+		}
+		padSearch = append(padSearch, db.PadDBSearch{
+			Padname:        padId,
+			RevisionNumber: padDB.RevNum,
+			LastEdited:     timestamp,
+		})
+	}
+
+	countQuery, err := d.sqlDB.Query(countSQL, countArgs...)
+	if err != nil {
+		return nil, err
+	}
+	defer countQuery.Close()
+
+	totalPads := 0
+	for countQuery.Next() {
+		countQuery.Scan(&totalPads)
+	}
+	padDbSearch := db.PadDBSearchResult{
+		TotalPads: totalPads,
+		Pads:      padSearch,
+	}
+	return &padDbSearch, nil
+}
+
 var psql = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
 func (d PostgresDB) GetChatsOfPad(padId string, start int, end int) (*[]db.ChatMessageDBWithDisplayName, error) {
@@ -327,7 +431,7 @@ func (d PostgresDB) GetPadIds() []string {
 	return padIds
 }
 
-func (d PostgresDB) SaveRevision(padId string, rev int, changeset string, text apool.AText, pool apool.APool, authorId *string, timestamp int) error {
+func (d PostgresDB) SaveRevision(padId string, rev int, changeset string, text apool.AText, pool apool.APool, authorId *string, timestamp int64) error {
 	toSql, i, err := psql.Insert("padRev").
 		Columns("id", "rev", "changeset", "atextText", "atextAttribs", "authorId", "timestamp").
 		Values(padId, rev, changeset, text.Text, text.Attribs, *authorId, timestamp).

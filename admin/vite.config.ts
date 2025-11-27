@@ -6,8 +6,7 @@ function chartingLibrary(): PluginOption {
         enforce: 'pre',
         apply: 'serve',
         transformIndexHtml: async (html, ctx)=>{
-            const resp =  await fetch('http://localhost:3000/admin/index.html')
-            return await resp.text()
+            return html.replace('<div id="loading"></div>', 'div id="loading"></div><span id="config" data-config="{&#34;authority&#34;:&#34;http://localhost:3000/oauth2/&#34;,&#34;clientId&#34;:&#34;admin_client&#34;,&#34;jwksUri&#34;:&#34;http://localhost:3000/oauth2/.well-known/jwks.json&#34;,&#34;redirectUri&#34;:&#34;http://localhost:5173/admin/&#34;,&#34;scope&#34;:[&#34;openid&#34;,&#34;profile&#34;,&#34;email&#34;,&#34;offline&#34;]}"></span>')
         }
     };
 }
@@ -38,6 +37,26 @@ export default defineConfig({
                 }
             },
             '/admin-auth/': {
+                target: 'http://localhost:3000',
+                changeOrigin: true,
+            },
+            '/admin/locales': {
+                target: 'http://localhost:3000',
+                changeOrigin: true,
+            },
+            '/p/': {
+                target: 'http://localhost:3000',
+                changeOrigin: true,
+            },
+            '/js/pad': {
+                target: 'http://localhost:3000',
+                changeOrigin: true,
+            },
+            '/css': {
+                target: 'http://localhost:3000',
+                changeOrigin: true,
+            },
+            '/socket.io/': {
                 target: 'http://localhost:3000',
                 changeOrigin: true,
             }

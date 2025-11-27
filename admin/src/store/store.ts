@@ -27,7 +27,7 @@ type StoreState = {
 export const useStore = create<StoreState>()((set) => ({
     settings: undefined,
     setSettings: (settings: string) => set({settings}),
-    showLoading: false,
+    showLoading: true,
     setShowLoading: (show: boolean) => set({showLoading: show}),
     setToastState: (val )=>set({toastState: val}),
     toastState: {

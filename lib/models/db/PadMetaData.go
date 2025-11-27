@@ -9,5 +9,5 @@ type PadMetaData struct {
 	Atext        apool.AText
 	AtextAttribs string
 	AuthorId     *string
-	Timestamp    int
+	Timestamp    int64
 }

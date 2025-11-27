@@ -2,6 +2,8 @@ package ws
 
 import (
 	"encoding/json"
+	"errors"
+	"math"
 	"regexp"
 	"slices"
 	"time"
@@ -104,6 +106,10 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 	newAPool.NumToAttribRaw = task.message.Data.Data.Apool.NumToAttrib
 	wireApool = *wireApool.FromJsonable(newAPool)
 	var session = SessionStoreInstance.getSession(task.socket.SessionId)
+	if session == nil {
+		println("Session not found for user changes")
+		return
+	}
 
 	var retrievedPad, err = p.padManager.GetPad(session.PadId, nil, &session.Author)
 	if err != nil {
@@ -175,7 +181,12 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 		// client) are relative to revision r - 1. The follow function
 		// rebases "changeset" so that it is relative to revision r
 		// and can be applied after "c".
-		rebasedChangeset = changeset.Follow(revisionPad.Changeset, rebasedChangeset, false, &retrievedPad.Pool)
+		optRebasedChangeset, err := changeset.Follow(revisionPad.Changeset, rebasedChangeset, false, &retrievedPad.Pool)
+		if err != nil {
+			println("Error rebasing changeset", err)
+			return
+		}
+		rebasedChangeset = *optRebasedChangeset
 	}
 
 	prevText := retrievedPad.Text()
@@ -231,10 +242,45 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 	session.Revision = newRev
 
 	if newRev != r {
-		session.Time = retrievedPad.GetRevisionDate(newRev)
+		optTime, err := retrievedPad.GetRevisionDate(newRev)
+		if err != nil {
+			println("Error retrieving revision date", err)
+			return
+		}
+		session.Time = *optTime
 	}
 	retrievedPad.Head = newRev
 	p.UpdatePadClients(retrievedPad)
+}
+
+func (p *PadMessageHandler) ComposePadChangesets(retrievedPad *pad2.Pad, startNum int, endNum int) (string, error) {
+	headRev := retrievedPad.Head
+
+	endNum = int(math.Min(float64(endNum), float64(headRev+1)))
+	startNum = int(math.Max(float64(startNum), 0))
+
+	changesetsNeeded := make([]int, 0)
+	for i := startNum; i < endNum; i++ {
+		changesetsNeeded = append(changesetsNeeded, i)
+	}
+
+	requiredChangesets, err := retrievedPad.GetRevisions(changesetsNeeded[0], changesetsNeeded[len(changesetsNeeded)-1])
+	if err != nil {
+		println("Error retrieving revisions for composing changesets", err)
+		return "", err
+	}
+	startChangeset := (*requiredChangesets)[startNum].Changeset
+	padPool := retrievedPad.Pool
+	for r := startNum + 1; r < endNum; r++ {
+		cs := (*requiredChangesets)[r]
+		optStartChangeset, err := changeset.Compose(startChangeset, cs.Changeset, padPool)
+		if err != nil {
+			println("Error composing changesets", err)
+			return "", err
+		}
+		startChangeset = *optStartChangeset
+	}
+	return startChangeset, nil
 }
 
 func (p *PadMessageHandler) handleMessage(message any, client *Client, ctx *fiber.Ctx, retrievedSettings *settings.Settings, logger *zap.SugaredLogger) {
@@ -490,6 +536,24 @@ func (p *PadMessageHandler) HandlePadDelete(client *Client, padDeleteMessage Pad
 		return
 	}
 
+	err = p.DeletePad(retrievedPadObj.Id)
+	if err != nil {
+		println("Error deleting pad", err)
+		return
+	}
+}
+
+func (p *PadMessageHandler) DeletePad(padId string) error {
+	var retrievedPad = p.padManager.DoesPadExist(padId)
+	if !retrievedPad {
+		println("Pad does not exist")
+		return errors.New("pad does not exist")
+	}
+	var retrievedPadObj, err = p.padManager.GetPad(padId, nil, nil)
+	if err != nil {
+		println("Error retrieving pad")
+		return err
+	}
 	retrievedPadObj.Remove()
 	p.KickSessionsFromPad(retrievedPadObj.Id)
 	// remove the readonly entries
@@ -497,21 +561,22 @@ func (p *PadMessageHandler) HandlePadDelete(client *Client, padDeleteMessage Pad
 	err = p.readOnlyManager.RemoveReadOnlyPad(readonlyId, retrievedPadObj.Id)
 	if err != nil {
 		println("Error removing read-only pad mapping")
-		return
+		return err
 	}
 	if err := retrievedPadObj.RemoveAllChats(); err != nil {
 		println("Error removing all chats " + err.Error())
-		return
+		return err
 	}
 
 	if err := retrievedPadObj.RemoveAllSavedRevisions(); err != nil {
 		println("Error removing all saved revisions " + err.Error())
-		return
+		return err
 	}
 	if err := p.padManager.RemovePad(retrievedPadObj.Id); err != nil {
 		println("Error removing pad " + err.Error())
-		return
+		return err
 	}
+	return nil
 }
 
 func (p *PadMessageHandler) HandleUserInfoUpdate(userInfo UserInfoUpdate, client *Client) {
@@ -744,6 +809,9 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 			continue
 		}
 		var sinfo = SessionStoreInstance.getSession(otherSocket.SessionId)
+		if sinfo == nil {
+			continue
+		}
 
 		if sinfo.Author == thisSession.Author {
 			SessionStoreInstance.resetSession(otherSocket.SessionId)
@@ -765,10 +833,15 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 		var attribsForWire = changeset.PrepareForWire(atext.Attribs, retrievedPad.Pool)
 		atext.Attribs = attribsForWire.Translated
 		wirePool := attribsForWire.Pool.ToJsonable()
+		retrivedClientVars, err := p.factory.NewClientVars(*retrievedPad, thisSession, wirePool, historicalAuthorData, retrievedSettings)
+		if err != nil {
+			println("Error creating client vars", err)
+			return
+		}
 		var arr = make([]interface{}, 2)
 		arr[0] = "message"
 		arr[1] = Message{
-			Data: p.factory.NewClientVars(*retrievedPad, thisSession, wirePool, historicalAuthorData, retrievedSettings),
+			Data: *retrivedClientVars,
 			Type: "CLIENT_VARS",
 		}
 		var encoded, _ = json.Marshal(arr)
@@ -820,6 +893,9 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 			continue
 		}
 		var sinfo = SessionStoreInstance.getSession(socket.SessionId)
+		if sinfo == nil {
+			continue
+		}
 		otherAuthor, err := p.authorManager.GetAuthor(sinfo.Author)
 		if err != nil {
 			println("Error retrieving author for USER_NEWINFO send to new client")
@@ -862,6 +938,9 @@ func (p *PadMessageHandler) UpdatePadClients(pad *pad2.Pad) {
 	var revCache = make(map[int]*db.PadSingleRevision)
 	for _, socket := range roomSockets {
 		var sessionInfo = SessionStoreInstance.getSession(socket.SessionId)
+		if sessionInfo == nil {
+			continue
+		}
 
 		for sessionInfo.Revision < pad.Head {
 			println("Sending NEW_CHANGES to client for pad", pad.Id, "from rev", sessionInfo.Revision, "to", pad.Head)
@@ -910,7 +989,8 @@ func (p *PadMessageHandler) UpdatePadClients(pad *pad2.Pad) {
 func (p *PadMessageHandler) GetRoomSockets(padID string) []Client {
 	var sockets = make([]Client, 0)
 	for k := range HubGlob.clients {
-		if SessionStoreInstance.getSession(k.SessionId).PadId == padID {
+		sessId := SessionStoreInstance.getSession(k.SessionId)
+		if sessId != nil && sessId.PadId == padID {
 			sockets = append(sockets, *k)
 		}
 	}
@@ -919,7 +999,15 @@ func (p *PadMessageHandler) GetRoomSockets(padID string) []Client {
 
 func (p *PadMessageHandler) KickSessionsFromPad(padID string) {
 	for k := range HubGlob.clients {
-		if SessionStoreInstance.getSession(k.SessionId).PadId == padID {
+		if k == nil || k.SessionId == "" {
+			continue
+		}
+		retrievedSession := SessionStoreInstance.getSession(k.SessionId)
+		if retrievedSession == nil {
+			continue
+		}
+
+		if retrievedSession.PadId == padID {
 			k.SendPadDelete()
 		}
 	}

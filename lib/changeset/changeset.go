@@ -253,7 +253,7 @@ func followAttributes(att1 string, att2 string, pool *apool.APool) string {
 	return buf.String()
 }
 
-func Follow(c string, rebasedChangeset string, reverseInsertOrder bool, pool *apool.APool) string {
+func Follow(c string, rebasedChangeset string, reverseInsertOrder bool, pool *apool.APool) (*string, error) {
 	var unpacked1, _ = Unpack(c)
 	var unpacked2, _ = Unpack(rebasedChangeset)
 
@@ -277,7 +277,7 @@ func Follow(c string, rebasedChangeset string, reverseInsertOrder bool, pool *ap
 		}, pool)(&attrib)
 	}
 
-	newOps := ApplyZip(unpacked1.Ops, unpacked2.Ops, func(op1, op2 *Op) Op {
+	newOps, err := ApplyZip(unpacked1.Ops, unpacked2.Ops, func(op1, op2 *Op) (*Op, error) {
 		var opOut = NewOp(nil)
 		if op1.OpCode == "+" || op2.OpCode == "+" {
 			var whichToDo int
@@ -410,11 +410,15 @@ func Follow(c string, rebasedChangeset string, reverseInsertOrder bool, pool *ap
 				break
 			}
 		}
-		return opOut
+		return &opOut, nil
 	})
+	if err != nil {
+		return nil, err
+	}
 
 	newLen += oldLen - oldPos
-	return Pack(oldLen, newLen, newOps, unpacked2.CharBank)
+	packedFollow := Pack(oldLen, newLen, *newOps, unpacked1.CharBank+unpacked2.CharBank)
+	return &packedFollow, nil
 }
 
 func OldLen(cs string) int {
@@ -551,7 +555,7 @@ func ApplyToText(cs string, text string) (*string, error) {
 	return &stringRep, nil
 }
 
-func ApplyZip(in1 string, in2 string, callback func(*Op, *Op) Op) string {
+func ApplyZip(in1 string, in2 string, callback func(*Op, *Op) (*Op, error)) (*string, error) {
 	var ops1, _ = DeserializeOps(in1)
 	var ops2, _ = DeserializeOps(in2)
 
@@ -594,13 +598,17 @@ func ApplyZip(in1 string, in2 string, callback func(*Op, *Op) Op) string {
 			break
 		}
 
-		opOut := callback(op1, op2)
+		opOut, err := callback(op1, op2)
+		if err != nil {
+			return nil, err
+		}
 		if opOut.OpCode != "" {
-			assem.Append(opOut)
+			assem.Append(*opOut)
 		}
 	}
 	assem.EndDocument()
-	return assem.String()
+	stringified := assem.String()
+	return &stringified, nil
 }
 
 func Subattribution(astr string, start int, optEnd *int) (*string, error) {
@@ -713,14 +721,14 @@ func DeserializeOps(ops string) (*[]Op, error) {
 	return &opsToReturn, nil
 }
 
-func Compose(cs1 string, cs2 string, pool apool.APool) string {
+func Compose(cs1 string, cs2 string, pool apool.APool) (*string, error) {
 	var unpacked1, _ = Unpack(cs1)
 	var unpacked2, _ = Unpack(cs2)
 	var len1 = unpacked1.OldLen
 	var len2 = unpacked1.NewLen
 
 	if len2 != unpacked2.OldLen {
-		panic("mismatched new length in cs2")
+		return nil, errors.New("mismatched lengths in compose")
 	}
 
 	var len3 = unpacked2.NewLen
@@ -728,13 +736,13 @@ func Compose(cs1 string, cs2 string, pool apool.APool) string {
 	var bankIter2 = NewStringIterator(unpacked2.CharBank)
 	var bankAssem = NewStringAssembler()
 
-	var newOps = ApplyZip(unpacked1.Ops, unpacked2.Ops, func(op1, op2 *Op) Op {
+	var newOps, err = ApplyZip(unpacked1.Ops, unpacked2.Ops, func(op1, op2 *Op) (*Op, error) {
 		var op1code = op1.OpCode
 		var op2code = op2.OpCode
 
 		if op1code == "+" && op2code == "-" {
 			if err := bankIter1.Skip(int(math.Min(float64(op1.Chars), float64(op2.Chars)))); err != nil {
-				panic(fmt.Sprintf("Error skipping chars in bankIter1: %v", err))
+				return nil, err
 			}
 		}
 
@@ -745,15 +753,21 @@ func Compose(cs1 string, cs2 string, pool apool.APool) string {
 		}
 
 		if opOut.OpCode == "+" {
-			bankAssem.Append(bankIter2.Take(opOut.Chars))
-		} else {
-			bankAssem.Append(bankIter1.Take(opOut.Chars))
+			if op2code == "+" {
+				bankAssem.Append(bankIter2.Take(opOut.Chars))
+			} else {
+				bankAssem.Append(bankIter1.Take(opOut.Chars))
+			}
 		}
-
-		return *opOut
+		return opOut, nil
 	})
+	if err != nil {
+		return nil, err
+	}
 
-	return Pack(len1, len3, newOps, bankAssem.String())
+	packedChangeset := Pack(len1, len3, *newOps, bankAssem.String())
+
+	return &packedChangeset, nil
 }
 
 func ComposeAttributes(attribs1 string, attribs2 string, resultIsMutation bool, pool *apool.APool) string {
@@ -867,31 +881,34 @@ func SlicerZipperFunc(attOp *Op, csOp *Op, pool *apool.APool) (*Op, error) {
 	return &opOut, nil
 }
 
-func ApplyToAttribution(cs string, astr string, pool apool.APool) string {
+func ApplyToAttribution(cs string, astr string, pool apool.APool) (*string, error) {
 	var unpacked, _ = Unpack(cs)
-	return ApplyZip(astr, unpacked.Ops, func(op1, op2 *Op) Op {
+	return ApplyZip(astr, unpacked.Ops, func(op1, op2 *Op) (*Op, error) {
 		res, err := SlicerZipperFunc(op1, op2, &pool)
 
 		if err != nil {
-			println("Error is" + err.Error())
+			return nil, err
 		}
 
-		return *res
+		return res, nil
 	})
 }
 
-func ApplyToAText(cs string, atext apool.AText, pool apool.APool) apool.AText {
-	var text, err = ApplyToText(cs, atext.Text)
-	var attribs = ApplyToAttribution(cs, atext.Attribs, pool)
+func ApplyToAText(cs string, atext apool.AText, pool apool.APool) (*apool.AText, error) {
+	text, err := ApplyToText(cs, atext.Text)
+	if err != nil {
+		return nil, err
+	}
+	attribs, err := ApplyToAttribution(cs, atext.Attribs, pool)
 
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
-	return apool.AText{
+	return &apool.AText{
 		Text:    *text,
-		Attribs: attribs,
-	}
+		Attribs: *attribs,
+	}, nil
 }
 
 func MakeAttribution(text string) string {
