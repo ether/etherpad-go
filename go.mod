@@ -1,8 +1,6 @@
 module github.com/ether/etherpad-go
 
-go 1.24.0
-
-toolchain go1.24.9
+go 1.25.0
 
 require (
 	github.com/Masterminds/squirrel v1.5.4
@@ -24,7 +22,6 @@ require (
 	github.com/swaggo/swag v1.16.4
 	go.uber.org/zap v1.27.0
 	modernc.org/sqlite v1.34.1
-
 )
 
 require (
