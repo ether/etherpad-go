@@ -300,13 +300,13 @@ func (d PostgresDB) GetGroup(groupId string) (*string, error) {
 	return nil, errors.New("group not found")
 }
 
-func (d PostgresDB) GetSessionById(sessionID string) *session2.Session {
+func (d PostgresDB) GetSessionById(sessionID string) (*session2.Session, error) {
 	var createdSQL, arr, _ = psql.Select("*").From("session").Where(sq.Eq{"id": sessionID}).ToSql()
 
 	query, err := d.sqlDB.Query(createdSQL, arr...)
 
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	var possibleSession *session2.Session
@@ -315,18 +315,20 @@ func (d PostgresDB) GetSessionById(sessionID string) *session2.Session {
 		query.Scan(possibleSession)
 	}
 
-	return possibleSession
+	return possibleSession, nil
 }
 
-func (d PostgresDB) SetSessionById(sessionID string, session session2.Session) {
+func (d PostgresDB) SetSessionById(sessionID string, session session2.Session) error {
 	var retrievedSql, inserts, _ = psql.Insert("session").Columns("id", "originalMaxAge", "expires", "secure", "httpOnly", "path", "sameSite", "connections").
 		Values(sessionID, session.OriginalMaxAge, session.Expires, session.Secure, session.HttpOnly, session.Path, session.SameSite).ToSql()
 
 	_, err := d.sqlDB.Exec(retrievedSql, inserts...)
 
 	if err != nil {
-		panic(err)
+		return err
 	}
+
+	return nil
 }
 
 func (d PostgresDB) GetRevision(padId string, rev int) (*db.PadSingleRevision, error) {
@@ -348,7 +350,7 @@ func (d PostgresDB) GetRevision(padId string, rev int) (*db.PadSingleRevision, e
 	return nil, errors.New("revision not found")
 }
 
-func (d PostgresDB) DoesPadExist(padID string) bool {
+func (d PostgresDB) DoesPadExist(padID string) (*bool, error) {
 	var resultedSQL, args, err = psql.
 		Select("id").
 		From("pad").
@@ -361,26 +363,31 @@ func (d PostgresDB) DoesPadExist(padID string) bool {
 
 	query, err := d.sqlDB.Query(resultedSQL, args...)
 	if err != nil {
-		println(err.Error())
+		return nil, err
 	}
 
-	for query != nil && query.Next() {
-		return true
+	for query.Next() {
+		trueVal := true
+		return &trueVal, nil
 	}
 
 	defer query.Close()
-	return false
+	falseVal := false
+	return &falseVal, nil
 }
 
-func (d PostgresDB) RemoveSessionById(sid string) *session2.Session {
+func (d PostgresDB) RemoveSessionById(sid string) (*session2.Session, error) {
 
-	var foundSession = d.GetSessionById(sid)
-
-	if foundSession == nil {
-		return nil
+	var foundSession, err = d.GetSessionById(sid)
+	if err != nil {
+		return nil, err
 	}
 
-	var resultedSQL, args, err = psql.Delete("session").Where(sq.Eq{"id": sid}).ToSql()
+	if foundSession == nil {
+		return nil, errors.New("session not found")
+	}
+
+	resultedSQL, args, err := psql.Delete("session").Where(sq.Eq{"id": sid}).ToSql()
 
 	if err != nil {
 		panic(err)
@@ -392,17 +399,17 @@ func (d PostgresDB) RemoveSessionById(sid string) *session2.Session {
 		panic(err)
 	}
 
-	return foundSession
+	return foundSession, nil
 }
 
-func (d PostgresDB) CreatePad(padID string, padDB db.PadDB) bool {
+func (d PostgresDB) CreatePad(padID string, padDB db.PadDB) error {
 
 	_, notFound := d.GetPad(padID)
 
 	var marshalled, err = json.Marshal(padDB)
 
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	var resultedSQL string
@@ -423,19 +430,19 @@ func (d PostgresDB) CreatePad(padID string, padDB db.PadDB) bool {
 			}).ToSql()
 	}
 	if err1 != nil {
-		panic(err)
+		return err1
 	}
 
 	_, err = d.sqlDB.Exec(resultedSQL, args...)
 
 	if err != nil {
-		return false
+		return err
 	}
 
-	return true
+	return err
 }
 
-func (d PostgresDB) GetPadIds() []string {
+func (d PostgresDB) GetPadIds() (*[]string, error) {
 	var padIds []string
 	var resultedSQL, _, err = psql.
 		Select("id").
@@ -444,14 +451,14 @@ func (d PostgresDB) GetPadIds() []string {
 		ToSql()
 
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	query, err := d.sqlDB.Query(resultedSQL)
-	defer query.Close()
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
+	defer query.Close()
 
 	for query.Next() {
 		var padId string
@@ -459,7 +466,7 @@ func (d PostgresDB) GetPadIds() []string {
 		padIds = append(padIds, strings.TrimPrefix(padId, "pad:"))
 	}
 
-	return padIds
+	return &padIds, nil
 }
 
 func (d PostgresDB) SaveRevision(padId string, rev int, changeset string, text apool.AText, pool apool.APool, authorId *string, timestamp int64) error {
@@ -494,10 +501,10 @@ func (d PostgresDB) GetPad(padID string) (*db.PadDB, error) {
 	}
 
 	query, err := d.sqlDB.Query(resultedSQL, args...)
-	defer query.Close()
 	if err != nil {
 		return nil, err
 	}
+	defer query.Close()
 
 	var padDB *db.PadDB
 	for query.Next() {
@@ -524,14 +531,14 @@ func (d PostgresDB) GetReadonlyPad(padId string) (*string, error) {
 		ToSql()
 
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	query, err := d.sqlDB.Query(resultedSQL, args...)
-	defer query.Close()
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
+	defer query.Close()
 
 	var readonlyId string
 	for query.Next() {
@@ -542,7 +549,7 @@ func (d PostgresDB) GetReadonlyPad(padId string) (*string, error) {
 	return nil, errors.New("no read only id found")
 }
 
-func (d PostgresDB) CreatePad2ReadOnly(padId string, readonlyId string) {
+func (d PostgresDB) CreatePad2ReadOnly(padId string, readonlyId string) error {
 	var resultedSQL, args, err = psql.
 		Insert("pad2readonly").
 		Columns("id", "data").
@@ -550,16 +557,17 @@ func (d PostgresDB) CreatePad2ReadOnly(padId string, readonlyId string) {
 		ToSql()
 
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	_, err = d.sqlDB.Exec(resultedSQL, args...)
 	if err != nil {
-		panic(err)
+		return err
 	}
+	return nil
 }
 
-func (d PostgresDB) CreateReadOnly2Pad(padId string, readonlyId string) {
+func (d PostgresDB) CreateReadOnly2Pad(padId string, readonlyId string) error {
 	var resultedSQL, args, err = psql.
 		Insert("readonly2pad").
 		Columns("id", "data").
@@ -567,17 +575,18 @@ func (d PostgresDB) CreateReadOnly2Pad(padId string, readonlyId string) {
 		ToSql()
 
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	_, err = d.sqlDB.Exec(resultedSQL, args...)
 
 	if err != nil {
-		panic(err)
+		return err
 	}
+	return nil
 }
 
-func (d PostgresDB) GetReadOnly2Pad(id string) *string {
+func (d PostgresDB) GetReadOnly2Pad(id string) (*string, error) {
 	var resultedSQL, _, err = psql.
 		Select("id").
 		From("readonly2pad").
@@ -589,18 +598,18 @@ func (d PostgresDB) GetReadOnly2Pad(id string) *string {
 	}
 
 	query, err := d.sqlDB.Query(resultedSQL)
-	defer query.Close()
 	if err != nil {
 		panic(err)
 	}
+	defer query.Close()
 
 	var padId string
 	for query.Next() {
 		query.Scan(&padId)
-		return &padId
+		return &padId, nil
 	}
 
-	return nil
+	return nil, errors.New("no pad id found")
 }
 
 func (d PostgresDB) SetAuthorByToken(token, authorId string) error {
@@ -763,6 +772,10 @@ func (d PostgresDB) GetPadMetaData(padId string, revNum int) (*db.PadMetaData, e
 	defer query.Close()
 
 	return &padMetaData, nil
+}
+
+func (d PostgresDB) Close() error {
+	return d.sqlDB.Close()
 }
 
 type PostgresOptions struct {

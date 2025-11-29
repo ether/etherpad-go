@@ -56,8 +56,12 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 			if err := json.Unmarshal(message.Data, &padCreateData); err != nil {
 				println("Error unmarshalling padCreate data:", err.Error())
 			}
-			padExists := h.padManager.DoesPadExist(padCreateData.PadName)
-			if padExists {
+			padExists, err := h.padManager.DoesPadExist(padCreateData.PadName)
+			if err != nil {
+				h.Logger.Errorf("Error checking if Pad exists: %s", err.Error())
+				return
+			}
+			if *padExists {
 				h.Logger.Warnf("Pad %s already exists", padCreateData.PadName)
 				errorMessage := admin.ErrorMessage{
 					Error: "Pad already exists",
@@ -200,8 +204,12 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 				return
 			}
 
-			padExists := h.padManager.DoesPadExist(padDeleteData)
-			if !padExists {
+			padExists, err := h.padManager.DoesPadExist(padDeleteData)
+			if err != nil {
+				h.Logger.Errorf("Error checking if Pad exists: %s", err.Error())
+				return
+			}
+			if !*padExists {
 				h.Logger.Warnf("Pad %s does not exist", padDeleteData)
 				return
 			}
@@ -307,9 +315,8 @@ func (h AdminMessageHandler) DeleteRevisions(padId string, keepRevisions int) er
 		}
 		padContent.SavedRevisions = newSavedRevisions
 	}
-	if ok := padContent.Save(); !ok {
-		println("Error saving pad after revision cleanup:", ok)
-		return errors.New("error saving pad after revision cleanup")
+	if err := padContent.Save(); err != nil {
+		return errors.New("error saving pad after revision cleanup" + err.Error())
 	}
 
 	newAtext := changeset.MakeAText("\n", nil)

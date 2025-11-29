@@ -296,8 +296,14 @@ func (p *PadMessageHandler) handleMessage(message any, client *Client, ctx *fibe
 
 	if ok {
 		thisSession = SessionStoreInstance.addHandleClientInformation(client.SessionId, castedMessage.Data.PadID, castedMessage.Data.Token)
+		exists, err := p.padManager.DoesPadExist(thisSession.Auth.PadId)
 
-		if !p.padManager.DoesPadExist(thisSession.Auth.PadId) {
+		if err != nil {
+			println("Error checking pad existence", err.Error())
+			return
+		}
+
+		if !*exists {
 			var padId, err = p.padManager.SanitizePadId(castedMessage.Data.PadID)
 
 			if err != nil {
@@ -307,7 +313,11 @@ func (p *PadMessageHandler) handleMessage(message any, client *Client, ctx *fibe
 			thisSession.PadId = *padId
 		}
 
-		var padIds = p.readOnlyManager.GetIds(&thisSession.Auth.PadId)
+		padIds, err := p.readOnlyManager.GetIds(&thisSession.Auth.PadId)
+		if err != nil {
+			println("Error retrieving read-only pad IDs", err.Error())
+			return
+		}
 		SessionStoreInstance.addPadReadOnlyIds(client.SessionId, padIds.PadId, padIds.ReadOnlyPadId, padIds.ReadOnly)
 		thisSession = SessionStoreInstance.getSession(client.SessionId)
 	}
@@ -514,12 +524,16 @@ func (p *PadMessageHandler) HandlePadDelete(client *Client, padDeleteMessage Pad
 		return
 	}
 
-	var retrievedPad = p.padManager.DoesPadExist(padDeleteMessage.Data.PadID)
-	if !retrievedPad {
+	retrievedPad, err := p.padManager.DoesPadExist(padDeleteMessage.Data.PadID)
+	if err != nil {
+		println("Error checking pad existence")
+		return
+	}
+	if !*retrievedPad {
 		println("Pad does not exist")
 		return
 	}
-	var retrievedPadObj, err = p.padManager.GetPad(padDeleteMessage.Data.PadID, nil, nil)
+	retrievedPadObj, err := p.padManager.GetPad(padDeleteMessage.Data.PadID, nil, nil)
 	if err != nil {
 		println("Error retrieving pad")
 		return
@@ -544,12 +558,16 @@ func (p *PadMessageHandler) HandlePadDelete(client *Client, padDeleteMessage Pad
 }
 
 func (p *PadMessageHandler) DeletePad(padId string) error {
-	var retrievedPad = p.padManager.DoesPadExist(padId)
-	if !retrievedPad {
+	retrievedPad, err := p.padManager.DoesPadExist(padId)
+	if err != nil {
+		println("Error checking pad existence")
+		return err
+	}
+	if !*retrievedPad {
 		println("Pad does not exist")
 		return errors.New("pad does not exist")
 	}
-	var retrievedPadObj, err = p.padManager.GetPad(padId, nil, nil)
+	retrievedPadObj, err := p.padManager.GetPad(padId, nil, nil)
 	if err != nil {
 		println("Error retrieving pad")
 		return err

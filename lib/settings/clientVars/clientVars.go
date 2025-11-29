@@ -109,7 +109,10 @@ func (f *Factory) NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apoo
 	if err != nil {
 		return nil, err
 	}
-	var readonlyId = f.ReadOnlyManager.GetIds(&pad.Id)
+	readonlyId, err := f.ReadOnlyManager.GetIds(&pad.Id)
+	if err != nil {
+		return nil, err
+	}
 
 	etherPadConvertedAttribs := make(map[string][]string)
 	for k, v := range apool.NumToAttrib {

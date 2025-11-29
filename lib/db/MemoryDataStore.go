@@ -202,30 +202,31 @@ func (m *MemoryDataStore) GetGroup(groupId string) (*string, error) {
 	return &group, nil
 }
 
-func (m *MemoryDataStore) GetSessionById(sessionID string) *session2.Session {
+func (m *MemoryDataStore) GetSessionById(sessionID string) (*session2.Session, error) {
 	var retrievedSession, ok = m.sessionStore[sessionID]
 
 	if !ok {
-		return nil
+		return nil, errors.New("session not found")
 	}
 
-	return &retrievedSession
+	return &retrievedSession, nil
 }
 
-func (m *MemoryDataStore) SetSessionById(sessionID string, session session2.Session) {
+func (m *MemoryDataStore) SetSessionById(sessionID string, session session2.Session) error {
 	m.sessionStore[sessionID] = session
+	return nil
 }
 
-func (m *MemoryDataStore) RemoveSessionById(sessionID string) *session2.Session {
+func (m *MemoryDataStore) RemoveSessionById(sessionID string) (*session2.Session, error) {
 	var retrievedSession, ok = m.sessionStore[sessionID]
 
 	if !ok {
-		return nil
+		return nil, nil
 	}
 
 	delete(m.sessionStore, sessionID)
 
-	return &retrievedSession
+	return &retrievedSession, nil
 }
 
 func (m *MemoryDataStore) SetAuthorByToken(token string, author string) error {
@@ -276,12 +277,12 @@ func (m *MemoryDataStore) GetPadMetaData(padId string, revNum int) (*db.PadMetaD
 	}, nil
 }
 
-func (m *MemoryDataStore) GetPadIds() []string {
+func (m *MemoryDataStore) GetPadIds() (*[]string, error) {
 	var padIds []string
 	for k := range m.padStore {
 		padIds = append(padIds, k)
 	}
-	return padIds
+	return &padIds, nil
 }
 
 func NewMemoryDataStore() *MemoryDataStore {
@@ -298,14 +299,14 @@ func NewMemoryDataStore() *MemoryDataStore {
 	}
 }
 
-func (m *MemoryDataStore) DoesPadExist(padID string) bool {
+func (m *MemoryDataStore) DoesPadExist(padID string) (*bool, error) {
 	_, ok := m.padStore[padID]
-	return ok
+	return &ok, nil
 }
 
-func (m *MemoryDataStore) CreatePad(padID string, padDB db.PadDB) bool {
+func (m *MemoryDataStore) CreatePad(padID string, padDB db.PadDB) error {
 	m.padStore[padID] = padDB
-	return true
+	return nil
 }
 
 func (m *MemoryDataStore) SaveRevision(padId string, rev int, changeset string,
@@ -347,22 +348,24 @@ func (m *MemoryDataStore) GetReadonlyPad(padId string) (*string, error) {
 	return &pad, nil
 }
 
-func (m *MemoryDataStore) CreatePad2ReadOnly(padId string, readonlyId string) {
+func (m *MemoryDataStore) CreatePad2ReadOnly(padId string, readonlyId string) error {
 	m.pad2Readonly[padId] = readonlyId
+	return nil
 }
 
-func (m *MemoryDataStore) CreateReadOnly2Pad(padId string, readonlyId string) {
+func (m *MemoryDataStore) CreateReadOnly2Pad(padId string, readonlyId string) error {
 	m.readonly2Pad[readonlyId] = padId
+	return nil
 }
 
-func (m *MemoryDataStore) GetReadOnly2Pad(id string) *string {
+func (m *MemoryDataStore) GetReadOnly2Pad(id string) (*string, error) {
 	res, ok := m.readonly2Pad[id]
 
 	if !ok {
-		return nil
+		return nil, nil
 	}
 
-	return &res
+	return &res, nil
 }
 
 func (m *MemoryDataStore) GetAuthor(author string) (*db.AuthorDB, error) {
@@ -405,6 +408,10 @@ func (m *MemoryDataStore) SaveAuthorColor(authorId string, authorColor string) e
 	}
 	retrievedAuthor.ColorId = authorColor
 	m.authorStore[authorId] = retrievedAuthor
+	return nil
+}
+
+func (m *MemoryDataStore) Close() error {
 	return nil
 }
 

@@ -93,7 +93,11 @@ func CheckAccess(ctx *fiber.Ctx, logger *zap.SugaredLogger, retrievedSettings *s
 
 			if readOnlyManager.isReadOnlyID(&padId) {
 				// pad is read-only, first get the real pad ID
-				var realPadId = readOnlyManager.getPadId(padId)
+				var realPadId, err = readOnlyManager.getPadId(padId)
+				if err != nil {
+					println("Error getting real pad ID:", err.Error())
+					return false
+				}
 				if realPadId == nil {
 					return false
 				}

@@ -13,13 +13,16 @@ func GetPadSafe(padID string, shouldExist bool, text *string, authorId *string, 
 		return nil, errors.New("padID is not valid")
 	}
 
-	var exists = padManagerToUse.DoesPadExist(padID)
+	var exists, err = padManagerToUse.DoesPadExist(padID)
+	if err != nil {
+		return nil, err
+	}
 
-	if !exists && shouldExist {
+	if !*exists && shouldExist {
 		return nil, errors.New("padID does not exist")
 	}
 
-	if exists && !shouldExist {
+	if *exists && !shouldExist {
 		return nil, errors.New("padID already exists")
 	}
 

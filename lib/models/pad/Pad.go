@@ -418,7 +418,7 @@ func (p *Pad) GetRevisions(start int, end int) (*[]db2.PadSingleRevision, error)
 	return p.db.GetRevisions(p.Id, start, end)
 }
 
-func (p *Pad) Save() bool {
+func (p *Pad) Save() error {
 	return p.db.CreatePad(p.Id, db2.PadDB{
 		SavedRevisions: make(map[int]db2.PadRevision),
 		RevNum:         p.Head,
