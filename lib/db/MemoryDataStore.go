@@ -84,7 +84,7 @@ func (m *MemoryDataStore) QueryPad(offset int, limit int, sortBy string, ascendi
 	for _, padKey := range padsToSearch {
 		retrievedPad, ok := m.padStore[padKey]
 		if !ok {
-			continue
+			continue // NOSONAR
 		}
 		padSearch = append(padSearch, db.PadDBSearch{
 			Padname:        padKey,
