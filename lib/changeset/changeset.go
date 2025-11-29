@@ -287,8 +287,14 @@ func Follow(c string, rebasedChangeset string, reverseInsertOrder bool, pool *ap
 			} else if op1.OpCode != "+" {
 				whichToDo = 2
 			} else {
-				var firstChar1 = chars1.Peek(1)
-				var firstChar2 = chars2.Peek(1)
+				firstChar1, err := chars1.Peek(1)
+				if err != nil {
+					return nil, err
+				}
+				firstChar2, err := chars2.Peek(1)
+				if err != nil {
+					return nil, err
+				}
 
 				var insertFirst1 = hasInsertFirst(op1.Attribs)
 				var insertFirst2 = hasInsertFirst(op2.Attribs)
@@ -297,9 +303,9 @@ func Follow(c string, rebasedChangeset string, reverseInsertOrder bool, pool *ap
 					whichToDo = 1
 				} else if insertFirst2 && !insertFirst1 {
 					whichToDo = 2
-				} else if firstChar1 == "\n" && firstChar2 != "\n" {
+				} else if *firstChar1 == "\n" && *firstChar2 != "\n" {
 					whichToDo = 2
-				} else if firstChar1 != "\n" && firstChar2 == "\n" {
+				} else if *firstChar1 != "\n" && *firstChar2 == "\n" {
 					whichToDo = 1
 				} else if reverseInsertOrder {
 					// break symmetry:
@@ -525,32 +531,55 @@ func ApplyToText(cs string, text string) (*string, error) {
 	for _, op := range *deserializedOp {
 		switch op.OpCode {
 		case "+":
-			if op.Lines != len(strings.Split(bankIter.Peek(op.Chars), "\n"))-1 {
+			peekedChars, err := bankIter.Peek(op.Chars)
+			if err != nil {
+				return nil, err
+			}
+			if op.Lines != len(strings.Split(*peekedChars, "\n"))-1 {
 				return nil, errors.New("newline count is wrong in op +; cs:${cs} and text:${str}")
 			}
-			assem.Append(bankIter.Take(op.Chars))
+			takenAssem, err := bankIter.Take(op.Chars)
+			if err != nil {
+				return nil, err
+			}
+			assem.Append(*takenAssem)
 			break
 		case "-":
-			if op.Lines != len(strings.Split(strIter.Peek(op.Chars), "\n"))-1 {
+			peekedStr, err := strIter.Peek(op.Chars)
+			if err != nil {
+				return nil, err
+			}
+			if op.Lines != len(strings.Split(*peekedStr, "\n"))-1 {
 				return nil, errors.New("newline count is wrong in op -; cs:${cs} and text:${str}")
 			}
-			err := strIter.Skip(op.Chars)
+			err = strIter.Skip(op.Chars)
 			if err != nil {
 				return nil, err
 			}
 			break
 		case "=":
-			if op.Lines != len(strings.Split(strIter.Peek(op.Chars), "\n"))-1 {
+			peekedStr, err := strIter.Peek(op.Chars)
+			if err != nil {
+				return nil, err
+			}
+			if op.Lines != len(strings.Split(*peekedStr, "\n"))-1 {
 				return nil, errors.New("newline count is wrong in op -; cs:${cs} and text:${str}")
 			}
-			var iter = strIter.Take(op.Chars)
-			assem.Append(iter)
+			iter, err := strIter.Take(op.Chars)
+			if err != nil {
+				return nil, err
+			}
+			assem.Append(*iter)
 			break
 		default:
 			return nil, errors.New("invalid op type")
 		}
 	}
-	assem.Append(strIter.Take(strIter.Remaining()))
+	takenRemaining, err := strIter.Take(strIter.Remaining())
+	if err != nil {
+		return nil, err
+	}
+	assem.Append(*takenRemaining)
 	var stringRep = assem.String()
 	return &stringRep, nil
 }
@@ -754,9 +783,17 @@ func Compose(cs1 string, cs2 string, pool apool.APool) (*string, error) {
 
 		if opOut.OpCode == "+" {
 			if op2code == "+" {
-				bankAssem.Append(bankIter2.Take(opOut.Chars))
+				takenFromBankIter2, err := bankIter2.Take(opOut.Chars)
+				if err != nil {
+					return nil, err
+				}
+				bankAssem.Append(*takenFromBankIter2)
 			} else {
-				bankAssem.Append(bankIter1.Take(opOut.Chars))
+				takenFromBankIter1, err := bankIter1.Take(opOut.Chars)
+				if err != nil {
+					return nil, err
+				}
+				bankAssem.Append(*takenFromBankIter1)
 			}
 		}
 		return opOut, nil

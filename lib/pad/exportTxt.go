@@ -210,9 +210,12 @@ func GetTxtFromAText(retrievedPad *pad.Pad, atext apool.AText) (*string, error) 
 				if op.Lines > 0 {
 					chars-- // don't include linebreak char
 				}
-				s := taker.Take(chars)
+				s, err := taker.Take(chars)
+				if err != nil {
+					return err
+				}
 
-				assem.Append(s)
+				assem.Append(*s)
 			}
 
 			tags2close := make([]int, 0)
