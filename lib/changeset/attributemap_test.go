@@ -19,6 +19,102 @@ func PrepareAttribPool(t *testing.T) (apool.APool, [][]string) {
 	return pool, attribs
 }
 
+func TestUpdateWithEmptyValueIsDeleteTrue(t *testing.T) {
+	var p, _ = PrepareAttribPool(t)
+	var m = NewAttributeMap(&p)
+	m.Set("foo", "bar")
+	if m.Size() != 1 {
+		t.Error("Expected 1, got ", m.Size())
+	}
+
+	m.Set("foo", "")
+	if m.Size() != 1 {
+		t.Error("Expected 0, got ", m.Size())
+	}
+
+	if *m.Get("foo") != "" {
+		t.Error("Expected nil, got ", m.Get("foo"))
+	}
+	trueVal := true
+	m.Update([]apool.Attribute{
+		{Key: "foo", Value: ""},
+	}, &trueVal)
+
+	if m.Size() != 0 {
+		t.Error("Expected 0, got ", m.Size())
+	}
+}
+
+func TestUpdateWithEmptyValueIsDeleteFalse(t *testing.T) {
+	var p, _ = PrepareAttribPool(t)
+	var m = NewAttributeMap(&p)
+	m.Set("foo", "bar")
+	if m.Size() != 1 {
+		t.Error("Expected 1, got ", m.Size())
+	}
+
+	m.Set("foo", "")
+	if m.Size() != 1 {
+		t.Error("Expected 0, got ", m.Size())
+	}
+
+	if *m.Get("foo") != "" {
+		t.Error("Expected nil, got ", m.Get("foo"))
+	}
+	falseVal := false
+	m.Update([]apool.Attribute{
+		{Key: "foo", Value: ""},
+	}, &falseVal)
+
+	if m.Size() != 1 {
+		t.Error("Expected 1, got ", m.Size())
+	}
+}
+
+func TestHasTrue(t *testing.T) {
+	var p, _ = PrepareAttribPool(t)
+	var m = NewAttributeMap(&p)
+	m.Set("foo", "bar")
+
+	if !m.Has("foo") {
+		t.Error("Expected true, got false")
+	}
+}
+
+func TestHasFalse(t *testing.T) {
+	var p, _ = PrepareAttribPool(t)
+	var m = NewAttributeMap(&p)
+	m.Set("foo", "bar")
+
+	if m.Has("foobaz") {
+		t.Error("Expected true, got false")
+	}
+}
+
+func TestGetOnNonExistentKey(t *testing.T) {
+	var p, _ = PrepareAttribPool(t)
+	var m = NewAttributeMap(&p)
+	m.Set("foo", "bar")
+
+	if m.Get("foobaz") != nil {
+		t.Error("Expected true, got false")
+	}
+}
+
+func TestAddAttributesToStringWithEmptyPool(t *testing.T) {
+	var p = apool.NewAPool()
+	p.AttribToNum[apool.Attribute{Key: "foo12313", Value: "bar"}] = -500
+	p.AttribToNum[apool.Attribute{Key: "foo12313123", Value: "bar"}] = -1500
+	var m = NewAttributeMap(&p)
+	m.attrs["hello"] = "world"
+	m.Set("foo", "bar")
+
+	res := m.String()
+	if res != "*0*1" {
+		t.Error("Expected error, got nil")
+	}
+}
+
 func TestSet(t *testing.T) {
 	var p, _ = PrepareAttribPool(t)
 	var m = NewAttributeMap(&p)
