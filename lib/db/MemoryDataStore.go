@@ -24,6 +24,16 @@ type MemoryDataStore struct {
 	groupStore   map[string]string
 }
 
+func (m *MemoryDataStore) SaveGroup(groupId string) error {
+	m.groupStore[groupId] = groupId
+	return nil
+}
+
+func (m *MemoryDataStore) RemoveGroup(groupId string) error {
+	delete(m.groupStore, groupId)
+	return nil
+}
+
 func (m *MemoryDataStore) GetRevisions(padId string, startRev int, endRev int) (*[]db.PadSingleRevision, error) {
 	var pad, ok = m.padStore[padId]
 
@@ -252,7 +262,7 @@ func (m *MemoryDataStore) GetPadMetaData(padId string, revNum int) (*db.PadMetaD
 	var retrievedPad, ok = m.padStore[padId]
 
 	if !ok {
-		panic("Pad not found")
+		return nil, errors.New("pad not found")
 	}
 	var rev, found = retrievedPad.SavedRevisions[revNum]
 
@@ -373,23 +383,29 @@ func (m *MemoryDataStore) GetAuthorByToken(token string) (*string, error) {
 	return &author, nil
 }
 
-func (m *MemoryDataStore) SaveAuthor(author db.AuthorDB) {
+func (m *MemoryDataStore) SaveAuthor(author db.AuthorDB) error {
 	m.authorStore[author.ID] = author
+	return nil
 }
 
-func (m *MemoryDataStore) SaveAuthorName(authorId string, authorName string) {
+func (m *MemoryDataStore) SaveAuthorName(authorId string, authorName string) error {
 	var retrievedAuthor, ok = m.authorStore[authorId]
 	if !ok {
-		return
+		return errors.New("author not found")
 	}
 	retrievedAuthor.Name = &authorName
 	m.authorStore[authorId] = retrievedAuthor
+	return nil
 }
 
-func (m *MemoryDataStore) SaveAuthorColor(authorId string, authorColor string) {
-	var retrievedAuthor, _ = m.authorStore[authorId]
+func (m *MemoryDataStore) SaveAuthorColor(authorId string, authorColor string) error {
+	var retrievedAuthor, ok = m.authorStore[authorId]
+	if !ok {
+		return errors.New("author not found")
+	}
 	retrievedAuthor.ColorId = authorColor
 	m.authorStore[authorId] = retrievedAuthor
+	return nil
 }
 
 var _ DataStore = (*MemoryDataStore)(nil)

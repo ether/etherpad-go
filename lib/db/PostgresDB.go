@@ -19,6 +19,37 @@ type PostgresDB struct {
 	sqlDB   *sql.DB
 }
 
+func (d PostgresDB) SaveGroup(groupId string) error {
+	var resultedSQL, args, err = psql.Insert("groupPadGroup").
+		Columns("id").
+		Values(groupId).
+		ToSql()
+	if err != nil {
+		return err
+	}
+	_, err = d.sqlDB.Exec(resultedSQL, args...)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (d PostgresDB) RemoveGroup(groupId string) error {
+	var resultedSQL, args, err = psql.Delete("groupPadGroup").
+		Where(sq.Eq{"id": groupId}).
+		ToSql()
+	if err != nil {
+		return err
+	}
+	_, err = d.sqlDB.Exec(resultedSQL, args...)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (d PostgresDB) GetRevisions(padId string, startRev int, endRev int) (*[]db.PadSingleRevision, error) {
 	var resultedSQL, args, err = psql.
 		Select("*").
@@ -598,10 +629,10 @@ func (d PostgresDB) GetAuthor(author string) (*db.AuthorDB, error) {
 		Where(sq.Eq{"id": author}).ToSql()
 
 	query, err := d.sqlDB.Query(resultedSQL, args...)
-	defer query.Close()
 	if err != nil {
 		return nil, err
 	}
+	defer query.Close()
 
 	var authorDB *db.AuthorDB
 	for query.Next() {
@@ -621,14 +652,14 @@ func (d PostgresDB) GetAuthorByToken(token string) (*string, error) {
 		ToSql()
 
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	query, err := d.sqlDB.Query(resultedSQL, args...)
-	defer query.Close()
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
+	defer query.Close()
 
 	var authorID string
 	for query.Next() {
@@ -642,9 +673,9 @@ func (d PostgresDB) GetAuthorByToken(token string) (*string, error) {
 	return &authorID, nil
 }
 
-func (d PostgresDB) SaveAuthor(author db.AuthorDB) {
+func (d PostgresDB) SaveAuthor(author db.AuthorDB) error {
 	if author.ID == "" {
-		return
+		return errors.New("author ID is empty")
 	}
 	var foundAuthor, err = d.GetAuthor(author.ID)
 
@@ -656,7 +687,7 @@ func (d PostgresDB) SaveAuthor(author db.AuthorDB) {
 			ToSql()
 		_, err = d.sqlDB.Exec(resultedSQL, i...)
 		if err != nil {
-			panic(err)
+			return err
 		}
 	} else {
 		var resultedSQL, i, err = psql.
@@ -668,38 +699,41 @@ func (d PostgresDB) SaveAuthor(author db.AuthorDB) {
 			ToSql()
 		_, err = d.sqlDB.Exec(resultedSQL, i...)
 		if err != nil {
-			panic(err)
+			return err
 		}
 	}
+	return nil
 }
 
-func (d PostgresDB) SaveAuthorName(authorId string, authorName string) {
+func (d PostgresDB) SaveAuthorName(authorId string, authorName string) error {
 	if authorId == "" {
-		return
+		return errors.New("authorId is empty")
 	}
 	var authorString, err = d.GetAuthor(authorId)
 
 	if err != nil || authorString == nil {
-		return
+		return err
 	}
 
 	authorString.Name = &authorName
 	d.SaveAuthor(*authorString)
+	return nil
 }
 
-func (d PostgresDB) SaveAuthorColor(authorId string, authorColor string) {
+func (d PostgresDB) SaveAuthorColor(authorId string, authorColor string) error {
 	if authorId == "" {
-		return
+		return errors.New("authorId is empty")
 	}
 
 	var authorString, err = d.GetAuthor(authorId)
 
 	if err != nil || authorString == nil {
-		return
+		return err
 	}
 
 	authorString.ColorId = authorColor
 	d.SaveAuthor(*authorString)
+	return nil
 }
 
 func (d PostgresDB) GetPadMetaData(padId string, revNum int) (*db.PadMetaData, error) {

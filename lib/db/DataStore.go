@@ -34,9 +34,9 @@ type AuthorMethods interface {
 	GetAuthor(author string) (*db.AuthorDB, error)
 	GetAuthorByToken(token string) (*string, error)
 	SetAuthorByToken(token string, author string) error
-	SaveAuthor(author db.AuthorDB)
-	SaveAuthorName(authorId string, authorName string)
-	SaveAuthorColor(authorId string, authorColor string)
+	SaveAuthor(author db.AuthorDB) error
+	SaveAuthorName(authorId string, authorName string) error
+	SaveAuthorColor(authorId string, authorColor string) error
 }
 
 type SessionMethods interface {
@@ -47,6 +47,8 @@ type SessionMethods interface {
 
 type GroupMethods interface {
 	GetGroup(groupId string) (*string, error)
+	SaveGroup(groupId string) error
+	RemoveGroup(groupId string) error
 }
 
 type ChatMethods interface {

@@ -18,6 +18,42 @@ type SQLiteDB struct {
 	sqlDB *sql.DB
 }
 
+func (d SQLiteDB) SaveGroup(groupId string) error {
+	var resultedSQL, args, err = sq.Insert("groupPadGroup").
+		Columns("id").
+		Values(groupId).
+		ToSql()
+
+	if err != nil {
+		return err
+	}
+	_, err = d.sqlDB.Exec(resultedSQL, args...)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (d SQLiteDB) RemoveGroup(groupId string) error {
+	var resultedSQL, args, err = sq.
+		Delete("groupPadGroup").
+		Where(sq.Eq{"id": groupId}).
+		ToSql()
+
+	if err != nil {
+		return err
+	}
+	_, err = d.sqlDB.Exec(resultedSQL, args...)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (d SQLiteDB) GetRevisions(padId string, startRev int, endRev int) (*[]db.PadSingleRevision, error) {
 	var resultedSQL, args, err = sq.
 		Select("*").
@@ -644,9 +680,9 @@ func (d SQLiteDB) GetAuthorByToken(token string) (*string, error) {
 	return &authorID, nil
 }
 
-func (d SQLiteDB) SaveAuthor(author db.AuthorDB) {
+func (d SQLiteDB) SaveAuthor(author db.AuthorDB) error {
 	if author.ID == "" {
-		return
+		return errors.New("author ID is empty")
 	}
 	var foundAuthor, err = d.GetAuthor(author.ID)
 
@@ -658,7 +694,7 @@ func (d SQLiteDB) SaveAuthor(author db.AuthorDB) {
 			ToSql()
 		_, err = d.sqlDB.Exec(resultedSQL, i...)
 		if err != nil {
-			panic(err)
+			return err
 		}
 	} else {
 		var resultedSQL, i, err = sq.
@@ -670,38 +706,41 @@ func (d SQLiteDB) SaveAuthor(author db.AuthorDB) {
 			ToSql()
 		_, err = d.sqlDB.Exec(resultedSQL, i...)
 		if err != nil {
-			panic(err)
+			return err
 		}
 	}
+	return nil
 }
 
-func (d SQLiteDB) SaveAuthorName(authorId string, authorName string) {
+func (d SQLiteDB) SaveAuthorName(authorId string, authorName string) error {
 	if authorId == "" {
-		return
+		return errors.New("authorId is empty")
 	}
 	var authorString, err = d.GetAuthor(authorId)
 
 	if err != nil || authorString == nil {
-		return
+		return err
 	}
 
 	authorString.Name = &authorName
 	d.SaveAuthor(*authorString)
+	return nil
 }
 
-func (d SQLiteDB) SaveAuthorColor(authorId string, authorColor string) {
+func (d SQLiteDB) SaveAuthorColor(authorId string, authorColor string) error {
 	if authorId == "" {
-		return
+		return errors.New("authorId is empty")
 	}
 
 	var authorString, err = d.GetAuthor(authorId)
 
 	if err != nil || authorString == nil {
-		return
+		return errors.New("author not found")
 	}
 
 	authorString.ColorId = authorColor
 	d.SaveAuthor(*authorString)
+	return nil
 }
 
 func (d SQLiteDB) GetPadMetaData(padId string, revNum int) (*db.PadMetaData, error) {

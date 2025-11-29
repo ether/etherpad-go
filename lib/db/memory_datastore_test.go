@@ -134,6 +134,15 @@ func TestRemoveNonExistingSession(t *testing.T) {
 	}
 }
 
+func TestGetRevisionOnNonExistingRevision(t *testing.T) {
+	m := NewMemoryDataStore()
+	m.CreatePad("padA", CreateRandomPad())
+	_, err := m.GetRevision("padA", 5)
+	if err == nil || err.Error() != "revision of pad not found" {
+		t.Fatalf("should return error for nonexistent revision")
+	}
+}
+
 func TestSaveAndGetRevisionAndMetaData(t *testing.T) {
 	m := NewMemoryDataStore()
 	text := apool.AText{}
@@ -178,6 +187,63 @@ func TestSaveAndGetRevisionAndMetaData(t *testing.T) {
 	}
 	if meta.AuthorId == nil || *meta.AuthorId != author {
 		t.Fatalf("GetPadMetaData AuthorId mismatch")
+	}
+}
+
+func TestGetPadMetadataOnNonExistingPad(t *testing.T) {
+	m := NewMemoryDataStore()
+	_, err := m.GetPadMetaData("nonexistentPad", 0)
+	if err == nil || err.Error() != "pad not found" {
+		t.Fatalf("should return error for nonexistent pad")
+	}
+}
+
+func TestGetPadMetadataOnNonExistingPadRevision(t *testing.T) {
+	m := NewMemoryDataStore()
+	m.CreatePad("nonexistentPad", CreateRandomPad())
+	_, err := m.GetPadMetaData("nonexistentPad", 23)
+	if err == nil || err.Error() != "revision not found" {
+		t.Fatalf("should return error when pad revision does not exist")
+	}
+}
+
+func TestGetPadOnNonExistingPad(t *testing.T) {
+	m := NewMemoryDataStore()
+	_, err := m.GetPad("nonexistentPad")
+	if err == nil || err.Error() != "pad not found" {
+		t.Fatalf("should return error for nonexistent pad")
+	}
+}
+
+func TestGetReadonlyPadOnNonExistingPad(t *testing.T) {
+	m := NewMemoryDataStore()
+	_, err := m.GetReadonlyPad("nonexistentPad")
+	if err == nil || err.Error() != "read only id not found" {
+		t.Fatalf("should return error for nonexistent readonly pad mapping")
+	}
+}
+
+func TestGetAuthorOnNonExistingAuthor(t *testing.T) {
+	m := NewMemoryDataStore()
+	_, err := m.GetAuthor("nonexistentAuthor")
+	if err == nil || err.Error() != "Author not found" {
+		t.Fatalf("should return error for nonexistent author")
+	}
+}
+
+func TestGetAuthorByTokenOnNonExistingToken(t *testing.T) {
+	m := NewMemoryDataStore()
+	_, err := m.GetAuthorByToken("nonexistentToken")
+	if err == nil || err.Error() != "no author available for token" {
+		t.Fatalf("should return error for nonexistent token")
+	}
+}
+
+func TestSaveAuthorNameOnNonExistingAuthor(t *testing.T) {
+	m := NewMemoryDataStore()
+	err := m.SaveAuthorName("nonexistentAuthor", "NewName")
+	if err == nil || err.Error() != "author not found" {
+		t.Fatalf("should return error for nonexistent author")
 	}
 }
 
@@ -233,6 +299,45 @@ func TestQueryPadSortingAndPattern(t *testing.T) {
 	sort.Sort(sort.Reverse(sort.StringSlice(sorted)))
 	if !reflect.DeepEqual(sorted, gotNames) {
 		t.Fatalf("expected descending order, got %v", gotNames)
+	}
+}
+
+func TestSaveChatHeadOfPadOnNonExistentPad(t *testing.T) {
+	m := NewMemoryDataStore()
+	err := m.SaveChatHeadOfPad("nonexistentPad", 10)
+	if err == nil || err.Error() != "pad not found" {
+		t.Fatalf("should return error for nonexistent pad")
+	}
+}
+
+func TestRemovePad2ReadOnly(t *testing.T) {
+	m := NewMemoryDataStore()
+	m.CreatePad2ReadOnly("padROTest", "ro1")
+	err := m.RemovePad2ReadOnly("padROTest")
+	if err != nil {
+		t.Fatalf("RemovePad2ReadOnly failed: %v", err)
+	}
+	_, err = m.GetReadonlyPad("padROTest")
+	if err == nil {
+		t.Fatalf("GetReadonlyPad failed: %v", err)
+	}
+}
+
+func TestGetGroupNonExistingGroup(t *testing.T) {
+	m := NewMemoryDataStore()
+	group, err := m.GetGroup("nonexistentGroup")
+	if err == nil || group != nil {
+		t.Fatalf("GetGroup should return error and nil for nonexistent group")
+	}
+}
+
+func TestGetGroupOnExistingGroup(t *testing.T) {
+	m := NewMemoryDataStore()
+
+	m.SaveGroup("group1")
+	group, err := m.GetGroup("group1")
+	if err != nil || group == nil || *group != "group1" {
+		t.Fatalf("GetGroup failed: %v %#v", err, group)
 	}
 }
 
