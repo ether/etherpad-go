@@ -33,7 +33,7 @@ jobs:
       - name: Test
         run: go test -coverprofile=coverage.out -covermode=atomic ./...
       - name: SonarQube Scan
-        uses: sonarqube-quality-gate-action@master
+        uses: sonarsource/sonarqube-quality-gate-action@master
         with:
           scanMetadataReportFile: target/sonar/report-task.txt
         env:
