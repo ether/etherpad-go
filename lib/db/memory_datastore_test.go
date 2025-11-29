@@ -247,6 +247,14 @@ func TestSaveAuthorNameOnNonExistingAuthor(t *testing.T) {
 	}
 }
 
+func TestSaveAuthorColorOnNonExistingAuthor(t *testing.T) {
+	m := NewMemoryDataStore()
+	err := m.SaveAuthorColor("nonexistentAuthor", "NewName")
+	if err == nil || err.Error() != "author not found" {
+		t.Fatalf("should return error for nonexistent author")
+	}
+}
+
 func TestQueryPadSortingAndPattern(t *testing.T) {
 	m := NewMemoryDataStore()
 
@@ -338,6 +346,21 @@ func TestGetGroupOnExistingGroup(t *testing.T) {
 	group, err := m.GetGroup("group1")
 	if err != nil || group == nil || *group != "group1" {
 		t.Fatalf("GetGroup failed: %v %#v", err, group)
+	}
+}
+
+func TestSaveAndRemoveGroup(t *testing.T) {
+	m := NewMemoryDataStore()
+
+	m.SaveGroup("group1")
+	group, err := m.GetGroup("group1")
+	if err != nil || group == nil || *group != "group1" {
+		t.Fatalf("GetGroup failed: %v %#v", err, group)
+	}
+	m.RemoveGroup("group1")
+	group2, err := m.GetGroup("group1")
+	if err == nil || group2 != nil {
+		t.Fatalf("GetGroup should return error and nil after removal")
 	}
 }
 
