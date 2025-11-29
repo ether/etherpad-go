@@ -39,7 +39,6 @@ func TestAllDataStores(t *testing.T) {
 	}
 
 	for name, newDS := range datastores {
-
 		t.Run(name, func(t *testing.T) {
 			runAllDataStoreTests(t, newDS)
 		})
