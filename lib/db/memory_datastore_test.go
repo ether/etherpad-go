@@ -64,7 +64,24 @@ func TestGetRevisionOnNonexistentPad(t *testing.T) {
 func TestGetRevisionsOnNonexistentPad(t *testing.T) {
 	m := NewMemoryDataStore()
 	_, err := m.GetRevisions("nonexistentPad", 0, 100)
-	if err == nil {
+	if err == nil || err.Error() != "pad not found" {
+		t.Fatalf("should return error for nonexistent pad")
+	}
+}
+
+func TestSaveRevisionsOnNonexistentPad(t *testing.T) {
+	m := NewMemoryDataStore()
+	err := m.SaveRevision("nonexistentPad", 0, "test", apool.AText{}, apool.APool{}, nil, 1234)
+	if err == nil || err.Error() != "pad not found" {
+		t.Fatalf("should return error for nonexistent pad")
+	}
+}
+
+func TestGetRevisionsOnExistentPadWithNonExistingRevision(t *testing.T) {
+	m := NewMemoryDataStore()
+	m.CreatePad("padA", CreateRandomPad())
+	_, err := m.GetRevisions("padA", 0, 100)
+	if err == nil || err.Error() != "revision of pad not found" {
 		t.Fatalf("should return error for nonexistent pad")
 	}
 }
@@ -292,6 +309,14 @@ func TestSessionsTokensAuthors(t *testing.T) {
 	gotA2, _ := m.GetAuthor("authY")
 	if gotA2.Name == nil || *gotA2.Name != "NameY" || gotA2.ColorId != "blue" {
 		t.Fatalf("author updates failed: %#v", gotA2)
+	}
+}
+
+func TestRemoveRevisionsOfPadNonExistingPad(t *testing.T) {
+	m := NewMemoryDataStore()
+	err := m.RemoveRevisionsOfPad("nonexistentPad")
+	if err == nil || err.Error() != "pad not found" {
+		t.Fatalf("should return error for nonexistent pad")
 	}
 }
 

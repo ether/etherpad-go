@@ -171,7 +171,7 @@ func (m *MemoryDataStore) RemoveReadOnly2Pad(id string) error {
 }
 
 func (m *MemoryDataStore) RemovePad2ReadOnly(id string) error {
-	delete(m.readonly2Pad, id)
+	delete(m.pad2Readonly, id)
 	return nil
 }
 
