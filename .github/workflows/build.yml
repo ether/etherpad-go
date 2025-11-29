@@ -34,6 +34,10 @@ jobs:
         uses: docker/setup-docker-action@v4
       - name: Test
         run: go test -coverprofile=coverage.out -covermode=atomic ./...
+      - name: Setup SonarQube
+        uses: warchant/setup-sonar-scanner@v8
+        with:
+          version: 7.2.0.5079
       - name: Run SonarQube Scanner
         run: sonar-scanner
         env:
