@@ -1,9 +1,11 @@
 package changeset
 
 import (
+	"fmt"
 	"reflect"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -333,6 +335,110 @@ func TestDecodeAttribString_ValidCases(t *testing.T) {
 
 			if !reflect.DeepEqual(result, tt.expected) {
 				t.Errorf("expected %v, got %v", tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestDecodeAttribString_EdgeCases(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		shouldError bool
+		description string
+	}{
+		{
+			name:        "malformed regex match",
+			input:       "*", // Dies könnte einen unvollständigen Match erzeugen
+			shouldError: true,
+			description: "should trigger invalid match error",
+		},
+
+		{
+			name:        "base36 overflow",
+			input:       "*zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz", // Sehr große base36 Zahl
+			shouldError: true,
+			description: "should trigger parseInt error",
+		},
+
+		{
+			name:        "extreme base36",
+			input:       "*" + strings.Repeat("z", 20), // 20 mal 'z'
+			shouldError: true,
+			description: "should trigger parseInt overflow error",
+		},
+
+		{
+			name:        "invalid base36 after asterisk",
+			input:       "*{", // Falls regex-Implementierung inkonsistent ist
+			shouldError: true,
+			description: "should trigger error in parseInt or match validation",
+		},
+
+		{
+			name:        "empty after asterisk",
+			input:       "*\x00", // Null-Byte könnte regex verwirren
+			shouldError: true,
+			description: "should trigger regex or parsing error",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := DecodeAttribString(tt.input)
+
+			if tt.shouldError {
+				if err == nil {
+					t.Errorf("%s: expected error but got none for input: %s", tt.description, tt.input)
+				}
+				if result != nil {
+					t.Errorf("expected nil result on error, but got: %v", result)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+				}
+			}
+		})
+	}
+}
+
+func TestDecodeAttribString_ParseIntErrors(t *testing.T) {
+	tests := []string{
+		"*" + strings.Repeat("z", 15),
+		"*" + strings.Repeat("9", 20),
+	}
+
+	for i, input := range tests {
+		t.Run(fmt.Sprintf("parseInt_error_%d", i), func(t *testing.T) {
+			result, err := DecodeAttribString(input)
+
+			// Diese sollten einen parseInt Error auslösen
+			if err == nil {
+				t.Errorf("expected parseInt error for input: %s", input)
+			}
+			if result != nil {
+				t.Errorf("expected nil result on error")
+			}
+		})
+	}
+}
+
+func TestDecodeAttribString_RegexEdgeCases(t *testing.T) {
+	edgeCases := []string{
+		"\x01*1", // Control character before *
+		"*\x7F",  // DEL character after *
+		"*\xFF",  // Byte with all bits set
+	}
+
+	for i, input := range edgeCases {
+		t.Run(fmt.Sprintf("regex_edge_%d", i), func(t *testing.T) {
+			result, err := DecodeAttribString(input)
+
+			if err != nil {
+				t.Logf("Got expected error for edge case: %v", err)
+			} else if result != nil {
+				t.Logf("Successfully processed edge case, result: %v", result)
 			}
 		})
 	}
