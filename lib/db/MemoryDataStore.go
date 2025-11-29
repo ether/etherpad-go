@@ -82,10 +82,7 @@ func (m *MemoryDataStore) QueryPad(offset int, limit int, sortBy string, ascendi
 	padSearch := make([]db.PadDBSearch, 0)
 
 	for _, padKey := range padsToSearch {
-		retrievedPad, ok := m.padStore[padKey]
-		if !ok {
-			continue // NOSONAR
-		}
+		retrievedPad := m.padStore[padKey]
 		padSearch = append(padSearch, db.PadDBSearch{
 			Padname:        padKey,
 			RevisionNumber: m.padStore[padKey].RevNum,
@@ -103,7 +100,7 @@ func (m *MemoryDataStore) QueryPad(offset int, limit int, sortBy string, ascendi
 func (m *MemoryDataStore) GetChatsOfPad(padId string, start int, end int) (*[]db.ChatMessageDBWithDisplayName, error) {
 	var chatMessages []db.ChatMessageDBWithDisplayName
 	for head := start; head <= end; head++ {
-		var chatMessageKey = padId + strconv.Itoa(head)
+		var chatMessageKey = calcChatMessageKey(padId, head)
 		chatMessage, ok := m.chatPads[chatMessageKey]
 		if ok {
 			var displayName *string
@@ -134,6 +131,10 @@ func (m *MemoryDataStore) SaveChatHeadOfPad(padId string, head int) error {
 	return nil
 }
 
+func calcChatMessageKey(padId string, head int) string {
+	return padId + ":" + strconv.Itoa(head)
+}
+
 func (m *MemoryDataStore) SaveChatMessage(padId string, head int, authorId *string, timestamp int64, text string) error {
 	var chatMessage = db.ChatMessageDB{
 		PadId:    padId,
@@ -142,7 +143,7 @@ func (m *MemoryDataStore) SaveChatMessage(padId string, head int, authorId *stri
 		Time:     &timestamp,
 		Message:  text,
 	}
-	m.chatPads[padId+strconv.Itoa(head)] = chatMessage
+	m.chatPads[calcChatMessageKey(padId, head)] = chatMessage
 	return nil
 }
 
@@ -176,7 +177,7 @@ func (m *MemoryDataStore) RemovePad2ReadOnly(id string) error {
 
 func (m *MemoryDataStore) RemoveChat(padId string) error {
 	for k := range m.chatPads {
-		if k == padId {
+		if strings.HasPrefix(k, padId+":") {
 			delete(m.chatPads, k)
 		}
 	}
@@ -301,7 +302,7 @@ func (m *MemoryDataStore) SaveRevision(padId string, rev int, changeset string,
 	text apool.AText, pool apool.APool, authorId *string, timestamp int64) error {
 	var retrievedPad, ok = m.padStore[padId]
 	if !ok {
-		panic("Pad not found")
+		return errors.New("pad not found")
 	}
 	retrievedPad.RevNum = rev
 

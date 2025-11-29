@@ -53,6 +53,70 @@ func TestCreateGetRemovePadAndIds(t *testing.T) {
 	}
 }
 
+func TestGetRevisionOnNonexistentPad(t *testing.T) {
+	m := NewMemoryDataStore()
+	_, err := m.GetRevision("nonexistentPad", 0)
+	if err == nil {
+		t.Fatalf("should return error for nonexistent pad")
+	}
+}
+
+func TestGetRevisionsOnNonexistentPad(t *testing.T) {
+	m := NewMemoryDataStore()
+	_, err := m.GetRevisions("nonexistentPad", 0, 100)
+	if err == nil {
+		t.Fatalf("should return error for nonexistent pad")
+	}
+}
+
+func TestRemoveChatOnNonExistingPad(t *testing.T) {
+	m := NewMemoryDataStore()
+	err := m.RemoveChat("nonexistentPad")
+	if err != nil {
+		t.Fatalf("RemoveChat should not return error for nonexistent pad")
+	}
+}
+
+func TestRemoveChatOnExistingPadWithNoChatMessage(t *testing.T) {
+	m := NewMemoryDataStore()
+	randomPad := CreateRandomPad()
+	m.CreatePad("existentPad", randomPad)
+
+	err := m.RemoveChat("existentPad")
+	if err != nil {
+		t.Fatalf("RemoveChat should not return error for nonexistent pad")
+	}
+}
+
+func TestRemoveChatOnExistingPadWithOneChatMessage(t *testing.T) {
+	m := NewMemoryDataStore()
+	randomPad := CreateRandomPad()
+	m.CreatePad("existentPad", randomPad)
+	if err := m.SaveChatMessage("existentPad", 0, nil, 1234, "hello"); err != nil {
+		t.Fatalf("SaveChatMessage failed: %v", err)
+	}
+
+	err := m.RemoveChat("existentPad")
+	if err != nil {
+		t.Fatalf("RemoveChat should not return error for existent pad: %v", err)
+	}
+	res, err := m.GetChatsOfPad("existentPad", 0, 0)
+	if err != nil {
+		t.Fatalf("GetChatsOfPad failed: %v", err)
+	}
+	if len(*res) != 0 {
+		t.Fatalf("expected 0 chat messages after RemoveChat, got %d", len(*res))
+	}
+}
+
+func TestRemoveNonExistingSession(t *testing.T) {
+	m := NewMemoryDataStore()
+	removed := m.RemoveSessionById("nonexistentSession")
+	if removed != nil {
+		t.Fatalf("RemoveSessionById should return nil for nonexistent session")
+	}
+}
+
 func TestSaveAndGetRevisionAndMetaData(t *testing.T) {
 	m := NewMemoryDataStore()
 	text := apool.AText{}
