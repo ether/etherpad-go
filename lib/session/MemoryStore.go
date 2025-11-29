@@ -138,11 +138,15 @@ func (m *MemoryStore) Destroy(sid string) *session.Session {
 	if ok {
 		retrievedExp.Timeout.Stop()
 	}
-	sess, err := m.db.RemoveSessionById(sid)
+	foundSession, err := m.db.GetSessionById(sid)
 	if err != nil {
 		return nil
 	}
-	return sess
+	err = m.db.RemoveSessionById(sid)
+	if err != nil {
+		return nil
+	}
+	return foundSession
 }
 
 func (m *MemoryStore) Write(sid string, session session.Session) {
