@@ -45,29 +45,43 @@ func TestUpdateWithEmptyValueIsDeleteTrue(t *testing.T) {
 	}
 }
 
-func TestUpdateWithEmptyValueIsDeleteFalse(t *testing.T) {
-	var p, _ = PrepareAttribPool(t)
-	var m = NewAttributeMap(&p)
-	m.Set("foo", "bar")
-	if m.Size() != 1 {
-		t.Error("Expected 1, got ", m.Size())
+func TestUpdateWithEmptyValue_Parametrized(t *testing.T) {
+	cases := []struct {
+		name         string
+		deleteFlag   *bool
+		expectedSize int
+	}{
+		{"nil", nil, 1},
+		{"false", func() *bool { v := false; return &v }(), 1},
 	}
 
-	m.Set("foo", "")
-	if m.Size() != 1 {
-		t.Error("Expected 0, got ", m.Size())
-	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			p, _ := PrepareAttribPool(t)
+			m := NewAttributeMap(&p)
 
-	if *m.Get("foo") != "" {
-		t.Error("Expected nil, got ", m.Get("foo"))
-	}
-	falseVal := false
-	m.Update([]apool.Attribute{
-		{Key: "foo", Value: ""},
-	}, &falseVal)
+			// initial set
+			m.Set("foo", "bar")
+			if m.Size() != 1 {
+				t.Fatalf("initial: expected size 1, got %d", m.Size())
+			}
 
-	if m.Size() != 1 {
-		t.Error("Expected 1, got ", m.Size())
+			// set empty value (marks as empty but not yet deleted)
+			m.Set("foo", "")
+			if m.Size() != 1 {
+				t.Fatalf("after Set empty: expected size 1, got %d", m.Size())
+			}
+			if got := m.Get("foo"); got == nil || *got != "" {
+				t.Fatalf("after Set empty: expected present with empty string, got %v", got)
+			}
+
+			// apply Update with parametrized flag
+			m.Update([]apool.Attribute{{Key: "foo", Value: ""}}, tc.deleteFlag)
+
+			if m.Size() != tc.expectedSize {
+				t.Fatalf("after Update(%s): expected size %d, got %d", tc.name, tc.expectedSize, m.Size())
+			}
+		})
 	}
 }
 
