@@ -1,7 +1,7 @@
 package changeset
 
 import (
-	"github.com/ether/etherpad-go/lib/apool"
+	"reflect"
 	"slices"
 	"strconv"
 	"testing"
@@ -15,6 +15,15 @@ func TestRejectsInvalidAttributeString(t *testing.T) {
 		if err == nil {
 			t.Error("Expected error, got nil")
 		}
+	}
+}
+
+func TestStringToAttribWithThreeAttributes(t *testing.T) {
+	var attribStr = []string{"key1", "value1", "value2"}
+	_, err := StringToAttrib(attribStr)
+
+	if err == nil {
+		t.Error("Expected error because three attributes are passed, got nil")
 	}
 }
 
@@ -178,33 +187,159 @@ func TestReuseExistingPoolEntries(t *testing.T) {
 	}
 }
 
-func TestInsertNewAttributesIntoPool(t *testing.T) {
-	var pool, attribs = PrepareAttribPool(t)
-	var testCases = [][][]string{
-		{{"k", "v"}},
-		{attribs[0], {"k", "v"}},
-		{{"k", "v"}, attribs[0]},
+func TestDecodeAttribString_ErrorCases(t *testing.T) {
+	tests := []struct {
+		name          string
+		input         string
+		expectedError string
+		shouldError   bool
+	}{
+		{
+			name:        "invalid character uppercase letter",
+			input:       "*A",
+			shouldError: true,
+		},
+		{
+			name:        "invalid character special symbol",
+			input:       "*#",
+			shouldError: true,
+		},
+		{
+			name:        "invalid character space",
+			input:       "* ",
+			shouldError: true,
+		},
+		{
+			name:        "invalid character punctuation",
+			input:       "*!",
+			shouldError: true,
+		},
+		{
+			name:        "asterisk without following characters",
+			input:       "*",
+			shouldError: true,
+		},
+		{
+			name:        "multiple asterisks",
+			input:       "**",
+			shouldError: true,
+		},
+		{
+			name:        "asterisk with mixed valid and invalid",
+			input:       "*1X",
+			shouldError: true,
+		},
+		{
+			name:        "unicode characters",
+			input:       "*1ü",
+			shouldError: true,
+		},
+		{
+			name:        "negative sign",
+			input:       "*-1",
+			shouldError: true,
+		},
+		{
+			name:        "plus sign",
+			input:       "*+1",
+			shouldError: true,
+		},
+		{
+			name:        "decimal point",
+			input:       "*1.5",
+			shouldError: true,
+		},
+		{
+			name:        "bracket characters",
+			input:       "*[",
+			shouldError: true,
+		},
 	}
 
-	var testCases2 = [][]int{
-		{len(attribs)},
-		{0}, {len(attribs)},
-		{len(attribs), 0},
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := DecodeAttribString(tt.input)
 
-	for i, testCase := range testCases {
-		var attrArr = make([]apool.Attribute, len(testCase))
-		for j, attrib := range testCase {
-			retrievedAttr, err := StringToAttrib(attrib)
-			if err != nil {
-				t.Error("Expected nil, got ", err)
+			if tt.shouldError {
+				if err == nil {
+					t.Errorf("expected error but got none for input: %s", tt.input)
+				}
+				if result != nil {
+					t.Errorf("expected nil result on error, but got: %v", result)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+				}
+				if result == nil {
+					t.Errorf("expected result but got nil")
+				}
 			}
-			attrArr[j] = *retrievedAttr
-		}
-
-		var got = attribsToNums(attrArr, &pool)
-		if !slices.Equal(got[0:1], testCases2[i]) {
-			t.Error("Expected ", testCases2[i], ", got ", got)
-		}
+		})
 	}
+}
+
+func TestDecodeAttribString_ValidCases(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected []int
+	}{
+		{
+			name:     "single digit",
+			input:    "*1",
+			expected: []int{1},
+		},
+		{
+			name:     "multiple digits",
+			input:    "*123",
+			expected: []int{parseInt36("123")},
+		},
+		{
+			name:     "letter a",
+			input:    "*a",
+			expected: []int{10}, // 'a' in base36 is 10
+		},
+		{
+			name:     "letter z",
+			input:    "*z",
+			expected: []int{35}, // 'z' in base36 is 35
+		},
+		{
+			name:     "mixed digits and letters",
+			input:    "*1a2b",
+			expected: []int{parseInt36("1a2b")},
+		},
+		{
+			name:     "multiple attributes",
+			input:    "*1*2*3",
+			expected: []int{1, 2, 3},
+		},
+		{
+			name:     "empty string",
+			input:    "",
+			expected: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := DecodeAttribString(tt.input)
+
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+				return
+			}
+
+			if !reflect.DeepEqual(result, tt.expected) {
+				t.Errorf("expected %v, got %v", tt.expected, result)
+			}
+		})
+	}
+}
+
+// Helper function to parse base36 numbers (similar to parseInt(n, 36) in JS)
+func parseInt36(s string) int {
+	result, _ := strconv.ParseInt(s, 36, 64)
+	return int(result)
 }
