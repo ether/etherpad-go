@@ -32,8 +32,10 @@ jobs:
         run: templ generate
       - name: Set up Docker
         uses: docker/setup-docker-action@v4
-      - name: Test
-        run: go test -coverprofile=coverage.out -covermode=atomic ./...
+      - name: Run tests with coverage
+        run: |
+          go test -v -coverprofile=coverage.out ./...
+          go tool cover -html=coverage.out -o coverage.html
       - name: Setup SonarQube
         uses: warchant/setup-sonar-scanner@v9
       - name: Run SonarQube Scanner
