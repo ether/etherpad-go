@@ -26,6 +26,16 @@ func TestSmartOpAssembler_Append(t *testing.T) {
 	}
 }
 
+func TestReturnsOpAssembler_OnEmptyOpCode(t *testing.T) {
+	var smartOps = NewSmartOpAssembler()
+	var opToAppend = Op{}
+	smartOps.Append(opToAppend)
+
+	if smartOps.lastOpcode != "" {
+		t.Error("Expected lastOpcode to remain empty, got ", smartOps.lastOpcode)
+	}
+}
+
 func TestSmartOpAssembler_AppendBaseline(t *testing.T) {
 	var x = "-c*3*4+6|3=az*asdf0*1*2*3+1=1-1+1*0+1=1-1+1|c=c-1"
 	var smartOps = NewSmartOpAssembler()
@@ -153,6 +163,10 @@ func TestSmartAssembler_Clear_Should_Empty_Internal_Assembler(t *testing.T) {
 	assembler.EndDocument()
 	if assembler.String() != "-1+1*0+1=1-1+1|c=c-1" {
 		t.Error("Expected -1+1*0+1=1-1+1|c=c-1, got ", assembler.String())
+	}
+
+	if assembler.LengthChange() != 0 {
+		t.Error("Expected LengthChange to be 0, got ", assembler.LengthChange())
 	}
 }
 
