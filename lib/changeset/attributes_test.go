@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/ether/etherpad-go/lib/apool"
 )
 
 func TestRejectsInvalidAttributeString(t *testing.T) {
@@ -403,6 +405,10 @@ func TestDecodeAttribString_EdgeCases(t *testing.T) {
 	}
 }
 
+func TestAttribsFromStringErrorsOnDecodeAttribString(t *testing.T) {
+
+}
+
 func TestDecodeAttribString_ParseIntErrors(t *testing.T) {
 	tests := []string{
 		"*" + strings.Repeat("z", 15),
@@ -439,6 +445,152 @@ func TestDecodeAttribString_RegexEdgeCases(t *testing.T) {
 				t.Logf("Got expected error for edge case: %v", err)
 			} else if result != nil {
 				t.Logf("Successfully processed edge case, result: %v", result)
+			}
+		})
+	}
+}
+
+func TestAttribsFromNums_DirectError(t *testing.T) {
+	pool := apool.APool{}
+
+	invalidIndices := [][]int{
+		{1},
+		{0, 5},
+		{100},
+		{-1},
+	}
+
+	for i, indices := range invalidIndices {
+		t.Run(fmt.Sprintf("invalid_indices_%d", i), func(t *testing.T) {
+			result, err := attribsFromNums(indices, pool)
+
+			if err == nil {
+				t.Errorf("expected error for invalid indices %v, but got none", indices)
+			}
+
+			if result != nil {
+				t.Errorf("expected nil result on error, but got: %v", result)
+			}
+		})
+	}
+}
+
+func TestAttribsFromString_ErrorCases(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		pool        apool.APool
+		shouldError bool
+		description string
+	}{
+		{
+			name:        "decode_error_invalid_char",
+			input:       "*A",
+			pool:        apool.APool{},
+			shouldError: true,
+			description: "should trigger DecodeAttribString error",
+		},
+		{
+			name:        "decode_error_special_char",
+			input:       "*#",
+			pool:        apool.APool{},
+			shouldError: true,
+			description: "should trigger DecodeAttribString error",
+		},
+		{
+			name:        "attribs_error_invalid_index",
+			input:       "*5",
+			pool:        apool.APool{},
+			shouldError: true,
+			description: "should trigger attribsFromNums error - index out of range",
+		},
+		{
+			name:        "attribs_error_large_index",
+			input:       "*z",
+			pool:        apool.APool{},
+			shouldError: true,
+			description: "should trigger attribsFromNums error - large index",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := AttribsFromString(tt.input, tt.pool)
+
+			if tt.shouldError {
+				if result != nil {
+					t.Errorf("%s: expected nil result but got: %v", tt.description, result)
+				}
+			} else {
+				if result == nil {
+					t.Errorf("%s: expected non-nil result but got nil", tt.description)
+				}
+			}
+		})
+	}
+}
+
+// Zusätzliche Tests für spezifische attribsFromNums Fehler
+func TestAttribsFromString_AttribsFromNumsErrors(t *testing.T) {
+	// Erstelle einen Pool mit bekannten Attributen
+	pool := apool.APool{}
+	// Angenommen, der Pool hat nur Attribute bei Index 0 und 1
+
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{"index_2_not_exists", "*2"},  // Index 2 existiert nicht
+		{"index_10_not_exists", "*a"}, // Index 10 existiert nicht
+		{"index_35_not_exists", "*z"}, // Index 35 existiert nicht
+		{"multiple_invalid", "*2*3"},  // Multiple ungültige Indizes
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := AttribsFromString(tt.input, pool)
+
+			if result != nil {
+				t.Errorf("expected nil result for invalid attribute index, but got: %v", result)
+			}
+		})
+	}
+}
+
+// Test mit einem richtig initialisierten Pool
+func TestAttribsFromString_ValidPool(t *testing.T) {
+	// Erstelle einen Pool mit einigen Attributen
+	pool := apool.NewAPool()
+
+	pool.PutAttrib(apool.Attribute{
+		Key:   "bold",
+		Value: "true",
+	}, nil)
+	pool.PutAttrib(apool.Attribute{
+		Key:   "italic",
+		Value: "true",
+	}, nil)
+
+	tests := []struct {
+		name     string
+		input    string
+		expected int
+	}{
+		{"valid_single", "*0", 1},
+		{"valid_multiple", "*0*1", 2},
+		{"empty_string", "", 0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := AttribsFromString(tt.input, pool)
+
+			if result == nil && tt.expected > 0 {
+				t.Errorf("expected %d attributes but got nil", tt.expected)
+			}
+
+			if result != nil && len(result) != tt.expected {
+				t.Errorf("expected %d attributes but got %d", tt.expected, len(result))
 			}
 		})
 	}

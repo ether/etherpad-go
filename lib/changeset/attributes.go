@@ -33,9 +33,11 @@ func DecodeAttribString(s string) ([]int, error) {
 	matches := regex.FindAllStringSubmatch(s, -1)
 
 	for _, match := range matches {
+		/* Not possible to occur because of regex pattern
+
 		if len(match) != 2 {
 			return nil, errors.New("invalid match")
-		}
+		}*/
 		if match[1] == "" {
 			return nil, errors.New("invalid character in attribute string: " + match[0])
 		}
