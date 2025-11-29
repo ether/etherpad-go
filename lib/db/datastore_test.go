@@ -97,7 +97,10 @@ func testCreateGetRemovePadAndIds(t *testing.T, ds DataStore) {
 	}
 
 	pad := CreateRandomPad()
-	ds.CreatePad("padA", pad)
+	err := ds.CreatePad("padA", pad)
+	if err != nil {
+		t.Fatalf("CreatePad for padA returned error: %v", err)
+	}
 	padExists, err := ds.DoesPadExist("padA")
 	if err != nil {
 		t.Fatalf("DoesPadExist returned error: %v", err)
@@ -114,7 +117,10 @@ func testCreateGetRemovePadAndIds(t *testing.T, ds DataStore) {
 		t.Fatalf("unexpected RevNum, got %d", gotPad.RevNum)
 	}
 
-	ds.CreatePad("padB", pad)
+	err = ds.CreatePad("padB", pad)
+	if err != nil {
+		t.Fatalf("CreatePad for padB returned error: %v", err)
+	}
 	ids, err := ds.GetPadIds()
 	if err != nil {
 		t.Fatalf("GetPadIds returned error: %v", err)
@@ -157,8 +163,11 @@ func testSaveRevisionsOnNonexistentPad(t *testing.T, ds DataStore) {
 }
 
 func testGetRevisionsOnExistentPadWithNonExistingRevision(t *testing.T, ds DataStore) {
-	ds.CreatePad("padA", CreateRandomPad())
-	_, err := ds.GetRevisions("padA", 0, 100)
+	err := ds.CreatePad("padA", CreateRandomPad())
+	if err != nil {
+		t.Fatalf("CreatePad returned error: %v", err)
+	}
+	_, err = ds.GetRevisions("padA", 0, 100)
 	if err == nil || err.Error() != PadRevisionNotFoundError {
 		t.Fatalf("should return error for nonexistent pad")
 	}
@@ -173,9 +182,12 @@ func testRemoveChatOnNonExistingPad(t *testing.T, ds DataStore) {
 
 func testRemoveChatOnExistingPadWithNoChatMessage(t *testing.T, ds DataStore) {
 	randomPad := CreateRandomPad()
-	ds.CreatePad("existentPad", randomPad)
+	err := ds.CreatePad("existentPad", randomPad)
+	if err != nil {
+		t.Fatalf("CreatePad should not return error for nonexistent pad")
+	}
 
-	err := ds.RemoveChat("existentPad")
+	err = ds.RemoveChat("existentPad")
 	if err != nil {
 		t.Fatalf("RemoveChat should not return error for nonexistent pad")
 	}
@@ -183,12 +195,15 @@ func testRemoveChatOnExistingPadWithNoChatMessage(t *testing.T, ds DataStore) {
 
 func testRemoveChatOnExistingPadWithOneChatMessage(t *testing.T, ds DataStore) {
 	randomPad := CreateRandomPad()
-	ds.CreatePad("existentPad", randomPad)
+	err := ds.CreatePad("existentPad", randomPad)
+	if err != nil {
+		t.Fatalf("RemoveChat should not return error for nonexistent pad")
+	}
 	if err := ds.SaveChatMessage("existentPad", 0, nil, 1234, "hello"); err != nil {
 		t.Fatalf("SaveChatMessage failed: %v", err)
 	}
 
-	err := ds.RemoveChat("existentPad")
+	err = ds.RemoveChat("existentPad")
 	if err != nil {
 		t.Fatalf("RemoveChat should not return error for existent pad: %v", err)
 	}
@@ -209,8 +224,11 @@ func testRemoveNonExistingSession(t *testing.T, ds DataStore) {
 }
 
 func testGetRevisionOnNonExistingRevision(t *testing.T, ds DataStore) {
-	ds.CreatePad("padA", CreateRandomPad())
-	_, err := ds.GetRevision("padA", 5)
+	err := ds.CreatePad("padA", CreateRandomPad())
+	if err != nil {
+		t.Fatalf("CreatePad failed: %v", err)
+	}
+	_, err = ds.GetRevision("padA", 5)
 	if err == nil || err.Error() != PadRevisionNotFoundError {
 		t.Fatalf("should return error for nonexistent revision")
 	}
@@ -391,8 +409,11 @@ func testSaveChatHeadOfPadOnNonExistentPad(t *testing.T, ds DataStore) {
 }
 
 func testRemovePad2ReadOnly(t *testing.T, ds DataStore) {
-	ds.CreatePad2ReadOnly("padROTest", "ro1")
-	err := ds.RemovePad2ReadOnly("padROTest")
+	err := ds.CreatePad2ReadOnly("padROTest", "ro1")
+	if err != nil {
+		t.Fatalf("CreatePad2ReadOnly failed: %v", err)
+	}
+	err = ds.RemovePad2ReadOnly("padROTest")
 	if err != nil {
 		t.Fatalf("RemovePad2ReadOnly failed: %v", err)
 	}
@@ -411,7 +432,10 @@ func testGetGroupNonExistingGroup(t *testing.T, ds DataStore) {
 
 func testGetGroupOnExistingGroup(t *testing.T, ds DataStore) {
 
-	ds.SaveGroup("group1")
+	err := ds.SaveGroup("group1")
+	if err != nil {
+		t.Fatalf("SaveGroup failed: %v", err)
+	}
 	group, err := ds.GetGroup("group1")
 	if err != nil || group == nil || *group != "group1" {
 		t.Fatalf("GetGroup failed: %v %#v", err, group)
@@ -420,12 +444,18 @@ func testGetGroupOnExistingGroup(t *testing.T, ds DataStore) {
 
 func testSaveAndRemoveGroup(t *testing.T, ds DataStore) {
 
-	ds.SaveGroup("group1")
+	err := ds.SaveGroup("group1")
+	if err != nil {
+		t.Fatalf("SaveGroup failed: %v", err)
+	}
 	group, err := ds.GetGroup("group1")
 	if err != nil || group == nil || *group != "group1" {
 		t.Fatalf("GetGroup failed: %v %#v", err, group)
 	}
-	ds.RemoveGroup("group1")
+	err = ds.RemoveGroup("group1")
+	if err != nil {
+		t.Fatalf("RemoveGroup failed: %v", err)
+	}
 	group2, err := ds.GetGroup("group1")
 	if err == nil || group2 != nil {
 		t.Fatalf("GetGroup should return error and nil after removal")
@@ -433,7 +463,10 @@ func testSaveAndRemoveGroup(t *testing.T, ds DataStore) {
 }
 
 func testChatSaveGetAndHead(t *testing.T, ds DataStore) {
-	ds.CreatePad("padX", CreateRandomPad())
+	err := ds.CreatePad("padX", CreateRandomPad())
+	if err != nil {
+		t.Fatalf("CreatePad failed: %v", err)
+	}
 	author := "auth1"
 	displayName := "Display"
 	if err := ds.SaveAuthor(modeldb.AuthorDB{ID: author, Name: &displayName}); err != nil {
@@ -506,13 +539,22 @@ func testSessionsTokensAuthors(t *testing.T, ds DataStore) {
 	}
 
 	a := modeldb.AuthorDB{ID: "authY", Name: nil, ColorId: ""}
-	ds.SaveAuthor(a)
+	err = ds.SaveAuthor(a)
+	if err != nil {
+		t.Fatalf("SaveAuthor failed: %v", err)
+	}
 	gotA, err := ds.GetAuthor("authY")
 	if err != nil || gotA.ID != "authY" {
 		t.Fatalf("GetAuthor failed: %v %#v", err, gotA)
 	}
-	ds.SaveAuthorName("authY", "NameY")
-	ds.SaveAuthorColor("authY", "blue")
+	err = ds.SaveAuthorName("authY", "NameY")
+	if err != nil {
+		t.Fatalf("SaveAuthorName failed: %v", err)
+	}
+	err = ds.SaveAuthorColor("authY", "blue")
+	if err != nil {
+		t.Fatalf("SaveAuthorColor failed: %v", err)
+	}
 	gotA2, _ := ds.GetAuthor("authY")
 	if gotA2.Name == nil || *gotA2.Name != "NameY" || gotA2.ColorId != "blue" {
 		t.Fatalf("author updates failed: %#v", gotA2)
@@ -562,7 +604,10 @@ func testReadonlyMappingsAndRemoveRevisions(t *testing.T, ds DataStore) {
 		RevNum:         2,
 		SavedRevisions: map[int]modeldb.PadRevision{0: {Content: "c", PadDBMeta: modeldb.PadDBMeta{AText: &text, Pool: &pool, Author: &author, Timestamp: 1}}},
 	}
-	ds.CreatePad("padRem", pad)
+	err = ds.CreatePad("padRem", pad)
+	if err != nil {
+		t.Fatalf("CreatePad failed: %v", err)
+	}
 	if err := ds.RemoveRevisionsOfPad("padRem"); err != nil {
 		t.Fatalf("RemoveRevisionsOfPad failed: %v", err)
 	}
