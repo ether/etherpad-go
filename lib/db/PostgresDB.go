@@ -376,30 +376,30 @@ func (d PostgresDB) DoesPadExist(padID string) (*bool, error) {
 	return &falseVal, nil
 }
 
-func (d PostgresDB) RemoveSessionById(sid string) (*session2.Session, error) {
+func (d PostgresDB) RemoveSessionById(sid string) error {
 
 	var foundSession, err = d.GetSessionById(sid)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	if foundSession == nil {
-		return nil, errors.New("session not found")
+		return errors.New(SessionNotFoundError)
 	}
 
 	resultedSQL, args, err := psql.Delete("session").Where(sq.Eq{"id": sid}).ToSql()
 
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	_, err = d.sqlDB.Exec(resultedSQL, args...)
 
 	if err != nil {
-		panic(err)
+		return err
 	}
 
-	return foundSession, nil
+	return nil
 }
 
 func (d PostgresDB) CreatePad(padID string, padDB db.PadDB) error {

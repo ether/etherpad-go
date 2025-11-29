@@ -18,7 +18,6 @@ type MemoryDataStore struct {
 	readonly2Pad map[string]string
 	pad2Readonly map[string]string
 	chatPads     map[string]db.ChatMessageDB
-	authorMapper map[string]string
 	sessionStore map[string]session2.Session
 	tokenStore   map[string]string
 	groupStore   map[string]string
@@ -38,7 +37,7 @@ func (m *MemoryDataStore) GetRevisions(padId string, startRev int, endRev int) (
 	var pad, ok = m.padStore[padId]
 
 	if !ok {
-		return nil, errors.New("pad not found")
+		return nil, errors.New(PadDoesNotExistError)
 	}
 
 	var revisions []db.PadSingleRevision
@@ -46,7 +45,7 @@ func (m *MemoryDataStore) GetRevisions(padId string, startRev int, endRev int) (
 		var revisionFromPad, okRev = pad.SavedRevisions[rev]
 
 		if !okRev {
-			return nil, errors.New("revision of pad not found")
+			return nil, errors.New(PadRevisionNotFoundError)
 		}
 
 		var padSingleRevision = db.PadSingleRevision{
@@ -116,8 +115,9 @@ func (m *MemoryDataStore) GetChatsOfPad(padId string, start int, end int) (*[]db
 			var displayName *string
 			if chatMessage.AuthorId != nil {
 				authorId := *chatMessage.AuthorId
-				if name, ok := m.authorMapper[authorId]; ok {
-					displayName = &name
+				if authorFromDB, ok := m.authorStore[authorId]; ok {
+
+					displayName = authorFromDB.Name
 				}
 			}
 			chatMessages = append(chatMessages, db.ChatMessageDBWithDisplayName{
@@ -206,7 +206,7 @@ func (m *MemoryDataStore) GetSessionById(sessionID string) (*session2.Session, e
 	var retrievedSession, ok = m.sessionStore[sessionID]
 
 	if !ok {
-		return nil, errors.New("session not found")
+		return nil, nil
 	}
 
 	return &retrievedSession, nil
@@ -217,16 +217,16 @@ func (m *MemoryDataStore) SetSessionById(sessionID string, session session2.Sess
 	return nil
 }
 
-func (m *MemoryDataStore) RemoveSessionById(sessionID string) (*session2.Session, error) {
-	var retrievedSession, ok = m.sessionStore[sessionID]
+func (m *MemoryDataStore) RemoveSessionById(sessionID string) error {
+	_, ok := m.sessionStore[sessionID]
 
 	if !ok {
-		return nil, nil
+		return errors.New(SessionNotFoundError)
 	}
 
 	delete(m.sessionStore, sessionID)
 
-	return &retrievedSession, nil
+	return nil
 }
 
 func (m *MemoryDataStore) SetAuthorByToken(token string, author string) error {
@@ -238,13 +238,13 @@ func (m *MemoryDataStore) GetRevision(padId string, rev int) (*db.PadSingleRevis
 	var pad, ok = m.padStore[padId]
 
 	if !ok {
-		return nil, errors.New("pad not found")
+		return nil, errors.New(PadDoesNotExistError)
 	}
 
 	var revisionFromPad, okRev = pad.SavedRevisions[rev]
 
 	if !okRev {
-		return nil, errors.New("revision of pad not found")
+		return nil, errors.New(PadRevisionNotFoundError)
 	}
 
 	var padSingleRevision = db.PadSingleRevision{
@@ -263,12 +263,12 @@ func (m *MemoryDataStore) GetPadMetaData(padId string, revNum int) (*db.PadMetaD
 	var retrievedPad, ok = m.padStore[padId]
 
 	if !ok {
-		return nil, errors.New("pad not found")
+		return nil, errors.New(PadDoesNotExistError)
 	}
 	var rev, found = retrievedPad.SavedRevisions[revNum]
 
 	if !found {
-		return nil, errors.New("revision not found")
+		return nil, errors.New(PadRevisionNotFoundError)
 	}
 
 	return &db.PadMetaData{
@@ -291,7 +291,6 @@ func NewMemoryDataStore() *MemoryDataStore {
 		authorStore:  make(map[string]db.AuthorDB),
 		pad2Readonly: make(map[string]string),
 		readonly2Pad: make(map[string]string),
-		authorMapper: make(map[string]string),
 		sessionStore: make(map[string]session2.Session),
 		tokenStore:   make(map[string]string),
 		groupStore:   make(map[string]string),
@@ -343,7 +342,7 @@ func (m *MemoryDataStore) GetReadonlyPad(padId string) (*string, error) {
 	pad, ok := m.pad2Readonly[padId]
 
 	if !ok {
-		return nil, errors.New("read only id not found")
+		return nil, errors.New(PadReadOnlyIdNotFoundError)
 	}
 	return &pad, nil
 }
@@ -372,7 +371,7 @@ func (m *MemoryDataStore) GetAuthor(author string) (*db.AuthorDB, error) {
 	retrievedAuthor, ok := m.authorStore[author]
 
 	if !ok {
-		return nil, errors.New("Author not found")
+		return nil, errors.New(AuthorNotFoundError)
 	}
 
 	return &retrievedAuthor, nil
@@ -381,7 +380,7 @@ func (m *MemoryDataStore) GetAuthor(author string) (*db.AuthorDB, error) {
 func (m *MemoryDataStore) GetAuthorByToken(token string) (*string, error) {
 	var author, ok = m.tokenStore[token]
 	if !ok {
-		return nil, errors.New("no author available for token")
+		return nil, errors.New(AuthorNotFoundError)
 	}
 	return &author, nil
 }

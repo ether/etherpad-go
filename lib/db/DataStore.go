@@ -42,7 +42,7 @@ type AuthorMethods interface {
 type SessionMethods interface {
 	GetSessionById(sessionID string) (*session2.Session, error)
 	SetSessionById(sessionID string, session session2.Session) error
-	RemoveSessionById(sessionID string) (*session2.Session, error)
+	RemoveSessionById(sessionID string) error
 }
 
 type GroupMethods interface {
