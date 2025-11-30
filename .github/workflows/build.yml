@@ -32,6 +32,8 @@ jobs:
         run: templ generate
       - name: Set up Docker
         uses: docker/setup-docker-action@v4
+      - name: Build app
+        run: go build -o etherpad-go
       - name: Run tests with coverage
         run: |
           go test -v -coverprofile=coverage.out ./...
