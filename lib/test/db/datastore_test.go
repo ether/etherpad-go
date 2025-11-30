@@ -3,7 +3,6 @@ package db
 import (
 	"database/sql"
 	"fmt"
-	"os"
 	"reflect"
 	"sort"
 	"strconv"
@@ -27,15 +26,6 @@ func containsString(slice []string, s string) bool {
 }
 
 var testDbInstance *utils.TestContainerConfiguration
-
-func TestMain(m *testing.M) {
-	testDB, err := utils.PreparePostgresDB()
-	if err != nil {
-		panic(err)
-	}
-	testDbInstance = testDB
-	os.Exit(m.Run())
-}
 
 func cleanupPostgresTables() error {
 	if testDbInstance == nil {
@@ -115,9 +105,16 @@ func TestAllDataStores(t *testing.T) {
 			return sqliteDB
 		},
 		"Postgres": func() db.DataStore {
+
 			return initPostgres()
 		},
 	}
+
+	testDB, err := utils.PreparePostgresDB()
+	if err != nil {
+		panic(err)
+	}
+	testDbInstance = testDB
 
 	for name, newDS := range datastores {
 		t.Run(name, func(t *testing.T) {
