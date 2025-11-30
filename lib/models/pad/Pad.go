@@ -212,17 +212,17 @@ func (p *Pad) Check() error {
 	return nil
 }
 
-func (p *Pad) AppendChatMessage(authorId *string, timestamp int64, text string) int {
+func (p *Pad) AppendChatMessage(authorId *string, timestamp int64, text string) (*int, error) {
 	p.ChatHead = p.ChatHead + 1
 	err := p.db.SaveChatMessage(p.Id, p.ChatHead, authorId, timestamp, text)
 	if err != nil {
-		println("Error saving chat message:", err.Error())
+		return nil, err
 	}
 	if err := p.db.SaveChatHeadOfPad(p.Id, p.ChatHead); err != nil {
-		println("Error saving chat head of pad:", err.Error())
+		return nil, err
 	}
 
-	return p.ChatHead
+	return &p.ChatHead, nil
 }
 
 func (p *Pad) RemoveAllChats() error {
@@ -418,7 +418,7 @@ func (p *Pad) GetRevisions(start int, end int) (*[]db2.PadSingleRevision, error)
 	return p.db.GetRevisions(p.Id, start, end)
 }
 
-func (p *Pad) Save() bool {
+func (p *Pad) Save() error {
 	return p.db.CreatePad(p.Id, db2.PadDB{
 		SavedRevisions: make(map[int]db2.PadRevision),
 		RevNum:         p.Head,

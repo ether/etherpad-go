@@ -49,11 +49,11 @@ func (r *ReadOnlyManager) RemoveReadOnlyPad(readonlyId, padId string) error {
 	return err
 }
 
-func (r *ReadOnlyManager) getPadId(readonlyId string) *string {
+func (r *ReadOnlyManager) getPadId(readonlyId string) (*string, error) {
 	return r.Store.GetReadOnly2Pad(readonlyId)
 }
 
-func (r *ReadOnlyManager) GetIds(id *string) IdRequest {
+func (r *ReadOnlyManager) GetIds(id *string) (*IdRequest, error) {
 	readonly := r.isReadOnlyID(id)
 	var readOnlyPadId string
 	if readonly {
@@ -65,15 +65,20 @@ func (r *ReadOnlyManager) GetIds(id *string) IdRequest {
 	var padId string
 
 	if readonly {
-		padId = *r.getPadId(readOnlyPadId)
+		padIdPtr, err := r.getPadId(readOnlyPadId)
+		if err != nil {
+			return nil, err
+		}
+
+		padId = *padIdPtr
 	} else {
 		padId = *id
 	}
 
-	return IdRequest{
+	return &IdRequest{
 		ReadOnlyPadId: readOnlyPadId,
 		PadId:         padId,
 		ReadOnly:      readonly,
-	}
+	}, nil
 
 }

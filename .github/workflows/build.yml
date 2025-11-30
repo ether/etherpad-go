@@ -12,6 +12,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
@@ -28,10 +30,33 @@ jobs:
         run: go install github.com/a-h/templ/cmd/templ@latest
       - name: Generate templ
         run: templ generate
-      - name: Set up Docker
-        uses: docker/setup-docker-action@v4
-      - name: Test
-        run: go test ./...
+      - name: Build app
+        run: go build -o etherpad-go
+      - name: Run tests with coverage
+        run: |
+          go test -v -coverpkg=./... -coverprofile=coverage.out ./...
+          go tool cover -html=coverage.out -o coverage.html
+      - name: Setup SonarQube
+        uses: warchant/setup-sonar-scanner@v9
+      - name: Run SonarQube Scanner
+        run: sonar-scanner
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+          PROJECT_KEY: etherpad-go
+
+      - name: SonarQube Quality Gate Check
+        # Temporarily continue on error to avoid blocking PRs
+        continue-on-error: true
+        uses: sonarsource/sonarqube-quality-gate-action@master
+        with:
+          scanMetadataReportFile: .scannerwork/report-task.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+        timeout-minutes: 5
   build:
     if: github.ref == 'refs/heads/main'
     needs:

@@ -2,10 +2,11 @@ package changeset
 
 import (
 	"errors"
-	"github.com/ether/etherpad-go/lib/apool"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/ether/etherpad-go/lib/apool"
 )
 
 var regex *regexp.Regexp
@@ -32,9 +33,11 @@ func DecodeAttribString(s string) ([]int, error) {
 	matches := regex.FindAllStringSubmatch(s, -1)
 
 	for _, match := range matches {
+		/* Not possible to occur because of regex pattern
+
 		if len(match) != 2 {
 			return nil, errors.New("invalid match")
-		}
+		}*/
 		if match[1] == "" {
 			return nil, errors.New("invalid character in attribute string: " + match[0])
 		}
@@ -49,9 +52,9 @@ func DecodeAttribString(s string) ([]int, error) {
 	return attribs, nil
 }
 
-func checkAttribNum(n int) error {
+func checkAttribNum(n int64) error {
 	if n < 0 {
-		return errors.New("Attrib number is negative")
+		return errors.New("attrib number is negative")
 	}
 	return nil
 }
@@ -61,8 +64,8 @@ func encodeAttribString(attribNums []int) (*string, error) {
 	for _, num := range attribNums {
 		var encodedInt = int64(num)
 
-		if encodedInt < 0 {
-			return nil, errors.New("Attrib number is negative")
+		if err := checkAttribNum(encodedInt); err != nil {
+			return nil, err
 		}
 
 		str += "*" + strings.ToLower(strconv.FormatInt(encodedInt, 36))

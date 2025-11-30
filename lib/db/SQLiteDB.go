@@ -18,8 +18,51 @@ type SQLiteDB struct {
 	sqlDB *sql.DB
 }
 
-func (d SQLiteDB) GetRevisions(padId string, startRev int, endRev int) (*[]db.PadSingleRevision, error) {
+func (d SQLiteDB) SaveGroup(groupId string) error {
+	var resultedSQL, args, err = sq.Insert("groupPadGroup").
+		Columns("id").
+		Values(groupId).
+		ToSql()
+
+	if err != nil {
+		return err
+	}
+	_, err = d.sqlDB.Exec(resultedSQL, args...)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (d SQLiteDB) RemoveGroup(groupId string) error {
 	var resultedSQL, args, err = sq.
+		Delete("groupPadGroup").
+		Where(sq.Eq{"id": groupId}).
+		ToSql()
+
+	if err != nil {
+		return err
+	}
+	_, err = d.sqlDB.Exec(resultedSQL, args...)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (d SQLiteDB) GetRevisions(padId string, startRev int, endRev int) (*[]db.PadSingleRevision, error) {
+	padExists, err := d.DoesPadExist(padId)
+	if err != nil {
+		return nil, err
+	}
+	if !*padExists {
+		return nil, errors.New(PadDoesNotExistError)
+	}
+	resultedSQL, args, err := sq.
 		Select("*").
 		From("padRev").
 		Where(sq.Eq{"id": padId}).
@@ -44,29 +87,78 @@ func (d SQLiteDB) GetRevisions(padId string, startRev int, endRev int) (*[]db.Pa
 		query.Scan(&revisionDB.PadId, &revisionDB.RevNum, &revisionDB.Changeset, &revisionDB.AText.Text, &revisionDB.AText.Attribs, &revisionDB.AuthorId, &revisionDB.Timestamp)
 		revisions = append(revisions, revisionDB)
 	}
+
+	if len(revisions) != (endRev - startRev + 1) {
+		return nil, errors.New(PadRevisionNotFoundError)
+	}
+
 	return &revisions, nil
 }
 
-func (d SQLiteDB) QueryPad(offset int, limit int, sortBy string, ascending bool, pattern string) (*db.PadDBSearchResult, error) {
-	var builder = sq.
-		Select("id", "data", "timestamp").
-		From("pad").
-		Join("padRev ON padRev.id = pad.id").
-		Where(sq.Eq{"padRev.rev": sq.Select("MAX(rev)").From("padRev").Where(sq.Eq{"padRev.id": sq.Expr("pad.id")})})
+func (d SQLiteDB) countQuery(pattern string) (*int, error) {
+	subQuery := sq.Select("MAX(rev)").
+		From("padRev").
+		Where(sq.Eq{"padRev.id": sq.Expr("pad.id")})
+
+	subSQL, subArgs, err := subQuery.ToSql()
+	if err != nil {
+		return nil, err
+	}
 
 	var countBuilder = sq.
 		Select("COUNT(*)").
 		From("pad").
 		Join("padRev ON padRev.id = pad.id").
-		Where(sq.Eq{"padRev.rev": sq.Select("MAX(rev)").From("padRev").Where(sq.Eq{"padRev.id": sq.Expr("pad.id")})})
+		Where(sq.Expr("padRev.rev = ("+subSQL+")", subArgs...))
 
 	if pattern != "" {
-		builder = builder.Where(sq.Like{"id": "%" + pattern + "%"})
+		countBuilder = countBuilder.Where(sq.Like{"pad.id": "%" + pattern + "%"})
+	}
+
+	countSQL, countArgs, err := countBuilder.ToSql()
+	if err != nil {
+		return nil, err
+	}
+
+	countQuery, err := d.sqlDB.Query(countSQL, countArgs...)
+	if err != nil {
+		return nil, err
+	}
+	defer countQuery.Close()
+
+	var totalPads int
+	for countQuery.Next() {
+		countQuery.Scan(&totalPads)
+	}
+
+	return &totalPads, nil
+}
+
+func (d SQLiteDB) queryPad(pattern string, sortBy string, limit int, offset int, ascending bool) (*[]db.PadDBSearch, error) {
+	subQuery := sq.Select("MAX(rev)").
+		From("padRev").
+		Where(sq.Eq{"padRev.id": sq.Expr("pad.id")})
+
+	subSQL, subArgs, err := subQuery.ToSql()
+	if err != nil {
+		return nil, err
+	}
+
+	var builder = sq.
+		Select("pad.id", "pad.data", "padRev.timestamp").
+		From("pad").
+		Join("padRev ON padRev.id = pad.id").
+		Where(sq.Expr("padRev.rev = ("+subSQL+")", subArgs...))
+
+	if pattern != "" {
+		builder = builder.Where(sq.Like{"pad.id": "%" + pattern + "%"})
 	}
 
 	if sortBy == "padName" {
-		if ascending {
-			builder = builder.OrderBy("id ASC")
+		if !ascending {
+			builder = builder.OrderBy("pad.id DESC")
+		} else {
+			builder = builder.OrderBy("pad.id ASC")
 		}
 	}
 	if limit > 0 {
@@ -81,21 +173,11 @@ func (d SQLiteDB) QueryPad(offset int, limit int, sortBy string, ascending bool,
 		return nil, err
 	}
 
-	countSQL, countArgs, err := countBuilder.ToSql()
-	if err != nil {
-		return nil, err
-	}
-
 	query, err := d.sqlDB.Query(resultedSQL, args...)
 	if err != nil {
 		return nil, err
 	}
 	defer query.Close()
-
-	countQuery, err := d.sqlDB.Query(countSQL, countArgs...)
-	if err != nil {
-		return nil, err
-	}
 
 	var padSearch []db.PadDBSearch
 	for query.Next() {
@@ -114,16 +196,23 @@ func (d SQLiteDB) QueryPad(offset int, limit int, sortBy string, ascending bool,
 			LastEdited:     timestamp,
 		})
 	}
-	var totalPads int
-	for countQuery.Next() {
-		countQuery.Scan(&totalPads)
+	return &padSearch, nil
+}
+
+func (d SQLiteDB) QueryPad(offset int, limit int, sortBy string, ascending bool, pattern string) (*db.PadDBSearchResult, error) {
+
+	padSearch, err := d.queryPad(pattern, sortBy, limit, offset, ascending)
+	if err != nil {
+		return nil, err
+	}
+	totalPads, err := d.countQuery(pattern)
+	if err != nil {
+		return nil, err
 	}
 
-	_ = countQuery.Close()
-
 	return &db.PadDBSearchResult{
-		TotalPads: totalPads,
-		Pads:      padSearch,
+		TotalPads: *totalPads,
+		Pads:      *padSearch,
 	}, nil
 }
 
@@ -197,7 +286,14 @@ func (d SQLiteDB) RemovePad(padID string) error {
 }
 
 func (d SQLiteDB) RemoveRevisionsOfPad(padId string) error {
-	var resultedSQL, args, err = sq.
+	existingPad, err := d.DoesPadExist(padId)
+	if err != nil {
+		return err
+	}
+	if !*existingPad {
+		return errors.New(PadDoesNotExistError)
+	}
+	resultedSQL, args, err := sq.
 		Delete("padRev").
 		Where(sq.Eq{"id": padId}).
 		ToSql()
@@ -271,41 +367,54 @@ func (d SQLiteDB) GetGroup(groupId string) (*string, error) {
 	return nil, errors.New("group not found")
 }
 
-func (d SQLiteDB) GetSessionById(sessionID string) *session2.Session {
-	var createdSQL, arr, _ = sq.Select("*").From("session").Where(sq.Eq{"id": sessionID}).ToSql()
+func (d SQLiteDB) GetSessionById(sessionID string) (*session2.Session, error) {
+	var createdSQL, arr, err = sq.Select("*").From("sessionstorage").Where(sq.Eq{"id": sessionID}).ToSql()
+	if err != nil {
+		return nil, err
+	}
 
 	query, err := d.sqlDB.Query(createdSQL, arr...)
 
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-
-	var possibleSession *session2.Session
+	defer query.Close()
 
 	for query.Next() {
-		query.Scan(possibleSession)
+		var possibleSession session2.Session
+		query.Scan(&possibleSession.Id, &possibleSession.OriginalMaxAge, &possibleSession.Expires, &possibleSession.Secure, &possibleSession.HttpOnly, &possibleSession.Path, &possibleSession.SameSite, &possibleSession.Connections)
+		return &possibleSession, nil
 	}
 
-	return possibleSession
+	return nil, nil
 }
 
-func (d SQLiteDB) SetSessionById(sessionID string, session session2.Session) {
-	var retrievedSql, inserts, _ = sq.Insert("session").Columns("id", "originalMaxAge", "expires", "secure", "httpOnly", "path", "sameSite", "connections").
-		Values(sessionID, session.OriginalMaxAge, session.Expires, session.Secure, session.HttpOnly, session.Path, session.SameSite).ToSql()
+func (d SQLiteDB) SetSessionById(sessionID string, session session2.Session) error {
+	var retrievedSql, inserts, _ = sq.Insert("sessionstorage").Columns("id", "originalMaxAge", "expires", "secure", "httpOnly", "path", "sameSite", "connections").
+		Values(sessionID, session.OriginalMaxAge, session.Expires, session.Secure, session.HttpOnly, session.Path, session.SameSite, "").ToSql()
 
 	_, err := d.sqlDB.Exec(retrievedSql, inserts...)
 
 	if err != nil {
-		panic(err)
+		return err
 	}
+	return nil
 }
 
 func (d SQLiteDB) GetRevision(padId string, rev int) (*db.PadSingleRevision, error) {
+	padExists, err := d.DoesPadExist(padId)
+	if err != nil {
+		return nil, err
+	}
+	if !*padExists {
+		return nil, errors.New(PadDoesNotExistError)
+	}
+
 	var retrievedSql, args, _ = sq.Select("*").From("padRev").Where(sq.Eq{"id": padId}).Where(sq.Eq{"rev": rev}).ToSql()
 
 	query, err := d.sqlDB.Query(retrievedSql, args...)
 	if err != nil {
-		println("Error getting revision", err)
+		return nil, err
 	}
 
 	defer query.Close()
@@ -316,10 +425,10 @@ func (d SQLiteDB) GetRevision(padId string, rev int) (*db.PadSingleRevision, err
 		return &revisionDB, nil
 	}
 
-	return nil, errors.New("revision not found")
+	return nil, errors.New(PadRevisionNotFoundError)
 }
 
-func (d SQLiteDB) DoesPadExist(padID string) bool {
+func (d SQLiteDB) DoesPadExist(padID string) (*bool, error) {
 	var resultedSQL, args, err = sq.
 		Select("id").
 		From("pad").
@@ -327,53 +436,58 @@ func (d SQLiteDB) DoesPadExist(padID string) bool {
 		ToSql()
 
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	query, err := d.sqlDB.Query(resultedSQL, args...)
 	if err != nil {
-		println(err.Error())
+		return nil, err
 	}
-
-	for query != nil && query.Next() {
-		return true
-	}
-
 	defer query.Close()
-	return false
+
+	for query.Next() {
+		trueVal := true
+		return &trueVal, nil
+	}
+
+	falseVal := false
+	return &falseVal, nil
 }
 
-func (d SQLiteDB) RemoveSessionById(sid string) *session2.Session {
+func (d SQLiteDB) RemoveSessionById(sid string) error {
 
-	var foundSession = d.GetSessionById(sid)
-
-	if foundSession == nil {
-		return nil
+	var foundSession, err = d.GetSessionById(sid)
+	if err != nil {
+		return err
 	}
 
-	var resultedSQL, args, err = sq.Delete("session").Where(sq.Eq{"id": sid}).ToSql()
+	if foundSession == nil {
+		return errors.New(SessionNotFoundError)
+	}
+
+	resultedSQL, args, err := sq.Delete("sessionstorage").Where(sq.Eq{"id": sid}).ToSql()
 
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	_, err = d.sqlDB.Exec(resultedSQL, args...)
 
 	if err != nil {
-		panic(err)
+		return err
 	}
 
-	return foundSession
+	return nil
 }
 
-func (d SQLiteDB) CreatePad(padID string, padDB db.PadDB) bool {
+func (d SQLiteDB) CreatePad(padID string, padDB db.PadDB) error {
 
 	_, notFound := d.GetPad(padID)
 
 	var marshalled, err = json.Marshal(padDB)
 
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	var resultedSQL string
@@ -400,29 +514,28 @@ func (d SQLiteDB) CreatePad(padID string, padDB db.PadDB) bool {
 	_, err = d.sqlDB.Exec(resultedSQL, args...)
 
 	if err != nil {
-		return false
+		return err
 	}
 
-	return true
+	return nil
 }
 
-func (d SQLiteDB) GetPadIds() []string {
+func (d SQLiteDB) GetPadIds() (*[]string, error) {
 	var padIds []string
 	var resultedSQL, _, err = sq.
 		Select("id").
 		From("pad").
-		Where(sq.Like{"id": "%"}).
 		ToSql()
 
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	query, err := d.sqlDB.Query(resultedSQL)
-	defer query.Close()
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
+	defer query.Close()
 
 	for query.Next() {
 		var padId string
@@ -430,13 +543,22 @@ func (d SQLiteDB) GetPadIds() []string {
 		padIds = append(padIds, strings.TrimPrefix(padId, "pad:"))
 	}
 
-	return padIds
+	return &padIds, nil
 }
 
 func (d SQLiteDB) SaveRevision(padId string, rev int, changeset string, text apool.AText, pool apool.APool, authorId *string, timestamp int64) error {
+	exists, err := d.DoesPadExist(padId)
+	if err != nil {
+		return err
+	}
+
+	if !*exists {
+		return errors.New(PadDoesNotExistError)
+	}
+
 	toSql, i, err := sq.Insert("padRev").
 		Columns("id", "rev", "changeset", "atextText", "atextAttribs", "authorId", "timestamp").
-		Values(padId, rev, changeset, text.Text, text.Attribs, *authorId, timestamp).
+		Values(padId, rev, changeset, text.Text, text.Attribs, authorId, timestamp).
 		ToSql()
 
 	if err != nil {
@@ -453,7 +575,6 @@ func (d SQLiteDB) SaveRevision(padId string, rev int, changeset string, text apo
 }
 
 func (d SQLiteDB) GetPad(padID string) (*db.PadDB, error) {
-
 	var resultedSQL, args, err = sq.
 		Select("data").
 		From("pad").
@@ -465,10 +586,10 @@ func (d SQLiteDB) GetPad(padID string) (*db.PadDB, error) {
 	}
 
 	query, err := d.sqlDB.Query(resultedSQL, args...)
-	defer query.Close()
 	if err != nil {
 		return nil, err
 	}
+	defer query.Close()
 
 	var padDB *db.PadDB
 	for query.Next() {
@@ -481,39 +602,40 @@ func (d SQLiteDB) GetPad(padID string) (*db.PadDB, error) {
 	}
 
 	if padDB == nil {
-		return nil, errors.New("pad not found")
+		return nil, errors.New(PadDoesNotExistError)
 	}
 
 	return padDB, nil
 }
 
 func (d SQLiteDB) GetReadonlyPad(padId string) (*string, error) {
-	var resultedSQL, args, err = sq.
-		Select("id").
+
+	resultedSQL, args, err := sq.
+		Select("data").
 		From("pad2readonly").
 		Where(sq.Eq{"id": padId}).
 		ToSql()
 
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	query, err := d.sqlDB.Query(resultedSQL, args...)
-	defer query.Close()
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
+	defer query.Close()
 
-	var readonlyId string
 	for query.Next() {
+		var readonlyId string
 		query.Scan(&readonlyId)
 		return &readonlyId, nil
 	}
 
-	return nil, errors.New("no read only id found")
+	return nil, errors.New(PadReadOnlyIdNotFoundError)
 }
 
-func (d SQLiteDB) CreatePad2ReadOnly(padId string, readonlyId string) {
+func (d SQLiteDB) CreatePad2ReadOnly(padId string, readonlyId string) error {
 	var resultedSQL, args, err = sq.
 		Insert("pad2readonly").
 		Columns("id", "data").
@@ -521,16 +643,17 @@ func (d SQLiteDB) CreatePad2ReadOnly(padId string, readonlyId string) {
 		ToSql()
 
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	_, err = d.sqlDB.Exec(resultedSQL, args...)
 	if err != nil {
-		panic(err)
+		return err
 	}
+	return nil
 }
 
-func (d SQLiteDB) CreateReadOnly2Pad(padId string, readonlyId string) {
+func (d SQLiteDB) CreateReadOnly2Pad(padId string, readonlyId string) error {
 	var resultedSQL, args, err = sq.
 		Insert("readonly2pad").
 		Columns("id", "data").
@@ -538,40 +661,41 @@ func (d SQLiteDB) CreateReadOnly2Pad(padId string, readonlyId string) {
 		ToSql()
 
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	_, err = d.sqlDB.Exec(resultedSQL, args...)
 
 	if err != nil {
-		panic(err)
+		return err
 	}
+	return nil
 }
 
-func (d SQLiteDB) GetReadOnly2Pad(id string) *string {
-	var resultedSQL, _, err = sq.
-		Select("id").
+func (d SQLiteDB) GetReadOnly2Pad(id string) (*string, error) {
+	var resultedSQL, args, err = sq.
+		Select("data").
 		From("readonly2pad").
 		Where(sq.Eq{"id": id}).
 		ToSql()
 
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
-	query, err := d.sqlDB.Query(resultedSQL)
-	defer query.Close()
+	query, err := d.sqlDB.Query(resultedSQL, args...)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
+	defer query.Close()
 
-	var padId string
 	for query.Next() {
+		var padId string
 		query.Scan(&padId)
-		return &padId
+		return &padId, nil
 	}
 
-	return nil
+	return nil, nil
 }
 
 func (d SQLiteDB) SetAuthorByToken(token, authorId string) error {
@@ -600,19 +724,19 @@ func (d SQLiteDB) GetAuthor(author string) (*db.AuthorDB, error) {
 		Where(sq.Eq{"id": author}).ToSql()
 
 	query, err := d.sqlDB.Query(resultedSQL, args...)
-	defer query.Close()
 	if err != nil {
 		return nil, err
 	}
-
-	var authorDB *db.AuthorDB
+	defer query.Close()
 	for query.Next() {
+		var authorDB *db.AuthorDB
 		var authorCopy db.AuthorDB
 		query.Scan(&authorCopy.ID, &authorCopy.ColorId, &authorCopy.Name, &authorCopy.Timestamp)
 		authorDB = &authorCopy
+		return authorDB, nil
 	}
 
-	return authorDB, nil
+	return nil, errors.New(AuthorNotFoundError)
 }
 
 func (d SQLiteDB) GetAuthorByToken(token string) (*string, error) {
@@ -623,34 +747,32 @@ func (d SQLiteDB) GetAuthorByToken(token string) (*string, error) {
 		ToSql()
 
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	query, err := d.sqlDB.Query(resultedSQL, args...)
-	defer query.Close()
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-
-	var authorID string
+	defer query.Close()
 	for query.Next() {
+		var authorID string
 		query.Scan(&authorID)
+		return &authorID, nil
 	}
-
-	if authorID == "" {
-		return nil, errors.New("author for token not found")
-	}
-
-	return &authorID, nil
+	return nil, errors.New(AuthorNotFoundError)
 }
 
-func (d SQLiteDB) SaveAuthor(author db.AuthorDB) {
+func (d SQLiteDB) SaveAuthor(author db.AuthorDB) error {
 	if author.ID == "" {
-		return
+		return errors.New("author ID is empty")
 	}
 	var foundAuthor, err = d.GetAuthor(author.ID)
+	if err != nil && err.Error() != AuthorNotFoundError {
+		return err
+	}
 
-	if foundAuthor == nil && err == nil {
+	if foundAuthor == nil {
 		var resultedSQL, i, err = sq.
 			Insert("globalAuthor").
 			Columns("id", "colorId", "name", "timestamp").
@@ -658,7 +780,7 @@ func (d SQLiteDB) SaveAuthor(author db.AuthorDB) {
 			ToSql()
 		_, err = d.sqlDB.Exec(resultedSQL, i...)
 		if err != nil {
-			panic(err)
+			return err
 		}
 	} else {
 		var resultedSQL, i, err = sq.
@@ -670,42 +792,53 @@ func (d SQLiteDB) SaveAuthor(author db.AuthorDB) {
 			ToSql()
 		_, err = d.sqlDB.Exec(resultedSQL, i...)
 		if err != nil {
-			panic(err)
+			return err
 		}
 	}
+	return nil
 }
 
-func (d SQLiteDB) SaveAuthorName(authorId string, authorName string) {
+func (d SQLiteDB) SaveAuthorName(authorId string, authorName string) error {
 	if authorId == "" {
-		return
+		return errors.New("authorId is empty")
 	}
 	var authorString, err = d.GetAuthor(authorId)
 
 	if err != nil || authorString == nil {
-		return
+		return err
 	}
 
 	authorString.Name = &authorName
 	d.SaveAuthor(*authorString)
+	return nil
 }
 
-func (d SQLiteDB) SaveAuthorColor(authorId string, authorColor string) {
+func (d SQLiteDB) SaveAuthorColor(authorId string, authorColor string) error {
 	if authorId == "" {
-		return
+		return errors.New("authorId is empty")
 	}
 
 	var authorString, err = d.GetAuthor(authorId)
 
 	if err != nil || authorString == nil {
-		return
+		return errors.New("author not found")
 	}
 
 	authorString.ColorId = authorColor
 	d.SaveAuthor(*authorString)
+	return nil
 }
 
 func (d SQLiteDB) GetPadMetaData(padId string, revNum int) (*db.PadMetaData, error) {
-	var resultedSQL, args, err = sq.
+	padExists, err := d.DoesPadExist(padId)
+	if err != nil {
+		return nil, err
+	}
+	if !*padExists {
+		return nil, errors.New(PadDoesNotExistError)
+	}
+
+	resultedSQL, args, err := sq.
 		Select("*").
 		From("padRev").
 		Where(sq.Eq{"id": padId}).
@@ -713,56 +846,78 @@ func (d SQLiteDB) GetPadMetaData(padId string, revNum int) (*db.PadMetaData, err
 		ToSql()
 
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	query, err := d.sqlDB.Query(resultedSQL, args...)
 	if err != nil {
-		panic(err)
-	}
-
-	var padMetaData db.PadMetaData
-	for query.Next() {
-		err := query.Scan(&padMetaData.Id, &padMetaData.RevNum, &padMetaData.ChangeSet, &padMetaData.Atext, &padMetaData.AtextAttribs, &padMetaData.AuthorId, &padMetaData.Timestamp)
-		if err != nil {
-			return nil, err
-		}
+		return nil, err
 	}
 	defer query.Close()
 
-	return &padMetaData, nil
+	for query.Next() {
+		var padMetaData db.PadMetaData
+		err := query.Scan(&padMetaData.Id, &padMetaData.RevNum, &padMetaData.ChangeSet, &padMetaData.Atext.Text, &padMetaData.AtextAttribs, &padMetaData.AuthorId, &padMetaData.Timestamp)
+		if err != nil {
+			return nil, err
+		}
+		return &padMetaData, nil
+	}
+
+	return nil, errors.New(PadRevisionNotFoundError)
+}
+
+func (d SQLiteDB) Close() error {
+	return d.sqlDB.Close()
 }
 
 // NewSQLiteDB This function creates a new PostgresDB and returns a pointer to it.
 func NewSQLiteDB(path string) (*SQLiteDB, error) {
-	sqlDb, err := sql.Open("sqlite", path)
-	if err != nil {
-		panic(err)
+	if path == ":memory" {
+		path = "file::memory:?cache=shared"
 	}
 
-	sqlDb.Exec("PRAGMA foreign_keys = ON")
-	sqlDb.Exec("PRAGMA journal_mode = WAL")
-	sqlDb.Exec("PRAGMA encoding = 'UTF-8'")
+	sqlDb, err := sql.Open("sqlite", path)
+	if err != nil {
+		return nil, err
+	}
+
+	if strings.Contains(path, ":memory:") {
+		sqlDb.SetMaxOpenConns(1)
+	}
+
+	if _, err = sqlDb.Exec("PRAGMA journal_mode = WAL"); err != nil {
+		sqlDb.Close()
+		return nil, err
+	}
+	if _, err = sqlDb.Exec("PRAGMA busy_timeout = 5000"); err != nil { // 5s Timeout
+		sqlDb.Close()
+		return nil, err
+	}
+	if _, err = sqlDb.Exec("PRAGMA foreign_keys = ON"); err != nil {
+		sqlDb.Close()
+		return nil, err
+	}
 
 	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS pad (id TEXT PRIMARY KEY, data TEXT)")
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS padRev(id TEXT, rev INTEGER, changeset TEXT, atextText TEXT, atextAttribs TEXT, authorId TEXT, timestamp INTEGER, PRIMARY KEY (id, rev))")
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS token2author(token TEXT PRIMARY KEY, author TEXT)")
 
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS globalAuthorPads(id TEXT NOT NULL, padID TEXT NOT NULL,  PRIMARY KEY(id, padID) )")
 
 	if err != nil {
-		panic(err.Error())
+		return nil, err
 	}
 
 	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS globalAuthor(id TEXT PRIMARY KEY, colorId TEXT, name TEXT, timestamp BIGINT)")
@@ -772,25 +927,25 @@ func NewSQLiteDB(path string) (*SQLiteDB, error) {
 	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS readonly2pad(id TEXT PRIMARY KEY, data TEXT)")
 
 	if err != nil {
-		panic(err.Error())
+		return nil, err
 	}
 
-	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS sessionstorage(id TEXT PRIMARY KEY, originalMaxAge INTEGER, expires TEXT, secure BOOLEAN, httpOnly BOOLEAN, path TEXT, sameSeite TEXT, connections TEXT)")
+	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS sessionstorage(id TEXT PRIMARY KEY, originalMaxAge INTEGER, expires TEXT, secure BOOLEAN, httpOnly BOOLEAN, path TEXT, sameSite TEXT, connections TEXT)")
 
 	if err != nil {
-		panic(err.Error())
+		return nil, err
 	}
 
 	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS groupPadGroup(id TEXT PRIMARY KEY, name TEXT)")
 
 	if err != nil {
-		panic(err.Error())
+		return nil, err
 	}
 
 	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS padChat(padId TEXT NOT NULL, padHead INTEGER,  chatText TEXT NOT NULL, authorId TEXT, timestamp BIGINT, PRIMARY KEY(padId, padHead), FOREIGN KEY(padId) REFERENCES pad(id) ON DELETE CASCADE)")
 
 	if err != nil {
-		panic(err.Error())
+		return nil, err
 	}
 
 	return &SQLiteDB{

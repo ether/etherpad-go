@@ -7,19 +7,19 @@ import (
 )
 
 type PadMethods interface {
-	DoesPadExist(padID string) bool
+	DoesPadExist(padID string) (*bool, error)
 	RemovePad(padID string) error
-	CreatePad(padID string, padDB db.PadDB) bool
-	GetPadIds() []string
+	CreatePad(padID string, padDB db.PadDB) error
+	GetPadIds() (*[]string, error)
 	SaveRevision(padId string, rev int, changeset string, text apool.AText, pool apool.APool, authorId *string, timestamp int64) error
 	GetRevision(padId string, rev int) (*db.PadSingleRevision, error)
 	RemoveRevisionsOfPad(padId string) error
 	GetRevisions(padId string, startRev int, endRev int) (*[]db.PadSingleRevision, error)
 	GetPad(padID string) (*db.PadDB, error)
 	GetReadonlyPad(padId string) (*string, error)
-	CreatePad2ReadOnly(padId string, readonlyId string)
-	CreateReadOnly2Pad(padId string, readonlyId string)
-	GetReadOnly2Pad(id string) *string
+	CreatePad2ReadOnly(padId string, readonlyId string) error
+	CreateReadOnly2Pad(padId string, readonlyId string) error
+	GetReadOnly2Pad(id string) (*string, error)
 	RemoveReadOnly2Pad(id string) error
 	RemovePad2ReadOnly(id string) error
 	SaveChatHeadOfPad(padId string, head int) error
@@ -34,19 +34,21 @@ type AuthorMethods interface {
 	GetAuthor(author string) (*db.AuthorDB, error)
 	GetAuthorByToken(token string) (*string, error)
 	SetAuthorByToken(token string, author string) error
-	SaveAuthor(author db.AuthorDB)
-	SaveAuthorName(authorId string, authorName string)
-	SaveAuthorColor(authorId string, authorColor string)
+	SaveAuthor(author db.AuthorDB) error
+	SaveAuthorName(authorId string, authorName string) error
+	SaveAuthorColor(authorId string, authorColor string) error
 }
 
 type SessionMethods interface {
-	GetSessionById(sessionID string) *session2.Session
-	SetSessionById(sessionID string, session session2.Session)
-	RemoveSessionById(sessionID string) *session2.Session
+	GetSessionById(sessionID string) (*session2.Session, error)
+	SetSessionById(sessionID string, session session2.Session) error
+	RemoveSessionById(sessionID string) error
 }
 
 type GroupMethods interface {
 	GetGroup(groupId string) (*string, error)
+	SaveGroup(groupId string) error
+	RemoveGroup(groupId string) error
 }
 
 type ChatMethods interface {
@@ -62,4 +64,5 @@ type DataStore interface {
 	SessionMethods
 	GroupMethods
 	ChatMethods
+	Close() error
 }

@@ -19,6 +19,116 @@ func PrepareAttribPool(t *testing.T) (apool.APool, [][]string) {
 	return pool, attribs
 }
 
+func TestUpdateWithEmptyValueIsDeleteTrue(t *testing.T) {
+	var p, _ = PrepareAttribPool(t)
+	var m = NewAttributeMap(&p)
+	m.Set("foo", "bar")
+	if m.Size() != 1 {
+		t.Error("Expected 1, got ", m.Size())
+	}
+
+	m.Set("foo", "")
+	if m.Size() != 1 {
+		t.Error("Expected 0, got ", m.Size())
+	}
+
+	if *m.Get("foo") != "" {
+		t.Error("Expected nil, got ", m.Get("foo"))
+	}
+	trueVal := true
+	m.Update([]apool.Attribute{
+		{Key: "foo", Value: ""},
+	}, &trueVal)
+
+	if m.Size() != 0 {
+		t.Error("Expected 0, got ", m.Size())
+	}
+}
+
+func TestUpdateWithEmptyValue_Parametrized(t *testing.T) {
+	cases := []struct {
+		name         string
+		deleteFlag   *bool
+		expectedSize int
+	}{
+		{"nil", nil, 1},
+		{"false", func() *bool { v := false; return &v }(), 1},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			p, _ := PrepareAttribPool(t)
+			m := NewAttributeMap(&p)
+
+			// initial set
+			m.Set("foo", "bar")
+			if m.Size() != 1 {
+				t.Fatalf("initial: expected size 1, got %d", m.Size())
+			}
+
+			// set empty value (marks as empty but not yet deleted)
+			m.Set("foo", "")
+			if m.Size() != 1 {
+				t.Fatalf("after Set empty: expected size 1, got %d", m.Size())
+			}
+			if got := m.Get("foo"); got == nil || *got != "" {
+				t.Fatalf("after Set empty: expected present with empty string, got %v", got)
+			}
+
+			// apply Update with parametrized flag
+			m.Update([]apool.Attribute{{Key: "foo", Value: ""}}, tc.deleteFlag)
+
+			if m.Size() != tc.expectedSize {
+				t.Fatalf("after Update(%s): expected size %d, got %d", tc.name, tc.expectedSize, m.Size())
+			}
+		})
+	}
+}
+
+func TestHasTrue(t *testing.T) {
+	var p, _ = PrepareAttribPool(t)
+	var m = NewAttributeMap(&p)
+	m.Set("foo", "bar")
+
+	if !m.Has("foo") {
+		t.Error("Expected true, got false")
+	}
+}
+
+func TestHasFalse(t *testing.T) {
+	var p, _ = PrepareAttribPool(t)
+	var m = NewAttributeMap(&p)
+	m.Set("foo", "bar")
+
+	if m.Has("foobaz") {
+		t.Error("Expected true, got false")
+	}
+}
+
+func TestGetOnNonExistentKey(t *testing.T) {
+	var p, _ = PrepareAttribPool(t)
+	var m = NewAttributeMap(&p)
+	m.Set("foo", "bar")
+
+	if m.Get("foobaz") != nil {
+		t.Error("Expected true, got false")
+	}
+}
+
+func TestAddAttributesToStringWithEmptyPool(t *testing.T) {
+	var p = apool.NewAPool()
+	p.AttribToNum[apool.Attribute{Key: "foo12313", Value: "bar"}] = -500
+	p.AttribToNum[apool.Attribute{Key: "foo12313123", Value: "bar"}] = -1500
+	var m = NewAttributeMap(&p)
+	m.attrs["hello"] = "world"
+	m.Set("foo", "bar")
+
+	res := m.String()
+	if res != "*0*1" {
+		t.Error("Expected error, got nil")
+	}
+}
+
 func TestSet(t *testing.T) {
 	var p, _ = PrepareAttribPool(t)
 	var m = NewAttributeMap(&p)

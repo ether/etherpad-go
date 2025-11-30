@@ -10,6 +10,7 @@ import (
 
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/changeset"
+	"github.com/ether/etherpad-go/lib/test/testutils"
 )
 
 func TestMakeSplice(t *testing.T) {
@@ -24,6 +25,127 @@ func TestMakeSplice(t *testing.T) {
 	}
 	if *t2 != "a\nb\ncdef\n" {
 		t.Error("Expected a\nb\ncdef\n, got ", *t2)
+	}
+}
+
+func TestAttributeTesterWithNilPool(t *testing.T) {
+	testArg := "bold,true"
+	returnedFunc := changeset.AttributeTester(apool.Attribute{}, nil)
+
+	if returnedFunc(&testArg) != false {
+		t.Error("Expected false when pool is nil")
+	}
+}
+
+func TestAttributeTesterWithNegativeNumAttribPool(t *testing.T) {
+	testArg := "bold,true"
+	poolToTest := apool.NewAPool()
+	poolToTest.NextNum = -50
+	returnedFunc := changeset.AttributeTester(apool.Attribute{
+		Key:   "bold",
+		Value: "true",
+	}, &poolToTest)
+
+	if returnedFunc(&testArg) != false {
+		t.Error("Expected false when pool is nil")
+	}
+}
+
+func TestAttributeTesterWithInvalidAttribString(t *testing.T) {
+	poolToTest := apool.NewAPool()
+	poolToTest.NextNum = 50
+	returnedFunc := changeset.AttributeTester(apool.Attribute{
+		Key:   "bold",
+		Value: "true",
+	}, &poolToTest)
+
+	tests := []string{
+		"*a",
+		"*a|1+5",
+		"foo*a",
+		"*a\n",
+		"*a1",
+		"*ab",
+		"*a0",
+		"a*ab",
+	}
+
+	for _, test := range tests {
+		result := returnedFunc(&test)
+		if result != false {
+			t.Error("Expected false for test string: " + test)
+		}
+	}
+}
+
+func TestFollow(t *testing.T) {
+	for i := 0; i < 30; i++ {
+		t.Run("Follow test "+fmt.Sprint(i), func(t *testing.T) {
+			p := apool.NewAPool()
+			startText := testutils.RandomMultiline(10, 20) + "\n"
+
+			cs1, _ := testutils.RandomTestChangeset(startText, false)
+			cs2, _ := testutils.RandomTestChangeset(startText, false)
+
+			println("Starting follow test with changesets:")
+			newFollowedStr1, err := changeset.Follow(cs1, cs2, false, &p)
+			println("Ending following test with changesets:")
+			if err != nil {
+				t.Fatal("Error in Follow: " + err.Error())
+			}
+			newFollowedStr2, err := changeset.Follow(cs2, cs1, true, &p)
+			if err != nil {
+				t.Fatal("Error in Follow: " + err.Error())
+			}
+
+			afb, err := changeset.CheckRep(*newFollowedStr1)
+			if err != nil {
+				t.Fatal("Error in CheckRep: " + err.Error())
+			}
+			bfa, err := changeset.CheckRep(*newFollowedStr2)
+			if err != nil {
+				t.Fatal("Error in CheckRep: " + err.Error())
+			}
+
+			compose1, err := changeset.Compose(cs1, *afb, nil)
+			if err != nil {
+				t.Fatal("Error in Compose: " + err.Error())
+			}
+			compose2, err := changeset.Compose(cs2, *bfa, nil)
+			if err != nil {
+				t.Fatal("Error in Compose: " + err.Error())
+			}
+			merge1, err := changeset.CheckRep(*compose1)
+			if err != nil {
+				t.Fatal("Error in CheckRep: " + err.Error())
+			}
+			merge2, err := changeset.CheckRep(*compose2)
+			if err != nil {
+				t.Fatal("Error in CheckRep: " + err.Error())
+			}
+			if *merge1 != *merge2 {
+				t.Fatalf("Followed changesets do not match:\n%s\n%s", *merge1, *merge2)
+			}
+		})
+	}
+}
+
+func TestAttributeTesterWithValidAttribString(t *testing.T) {
+	poolToTest := apool.NewAPool()
+	for i := 0; i < 10; i++ {
+		poolToTest.PutAttrib(apool.Attribute{Key: "dummy", Value: fmt.Sprint(i)}, nil)
+	}
+	puttedAttrib := apool.Attribute{Key: "bold", Value: "true"}
+	poolToTest.PutAttrib(puttedAttrib, nil) // bekommt Nummer 10 → "*a"
+
+	returnedFunc := changeset.AttributeTester(puttedAttrib, &poolToTest)
+
+	tests := []string{"*a", "*a*b", "*a|1+5"}
+	for _, test := range tests {
+		result := returnedFunc(&test)
+		if result != true {
+			t.Error("Expected true for test string: " + test)
+		}
 	}
 }
 
@@ -459,7 +581,7 @@ func TestComposeAttributes(t *testing.T) {
 		t.Error("Error in CheckRep " + err.Error())
 		return
 	}
-	comp, err := changeset.Compose(*cs1, *cs2, p)
+	comp, err := changeset.Compose(*cs1, *cs2, &p)
 	if err != nil {
 		t.Error("Error in ComposeAttributes " + err.Error())
 		return
@@ -593,6 +715,6 @@ func SimpleComposeAttributes(t *testing.T) {
 		return
 	}
 
-	changeset.Compose(*cs1, *cs2, pool)
+	changeset.Compose(*cs1, *cs2, &pool)
 
 }

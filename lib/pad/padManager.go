@@ -48,8 +48,11 @@ func (l *List) RemovePad(padID string) {
 
 func (l *List) GetPads() []string {
 	if !l._loaded {
-		var dbData = l.db.GetPadIds()
-		for _, padId := range dbData {
+		var dbData, err = l.db.GetPadIds()
+		if err != nil {
+			return l._cachedList
+		}
+		for _, padId := range *dbData {
 			l.AddPad(padId)
 		}
 	}
@@ -101,7 +104,7 @@ func NewManager(db db.DataStore, hook *hooks.Hook) Manager {
 	}
 }
 
-func (m *Manager) DoesPadExist(padID string) bool {
+func (m *Manager) DoesPadExist(padID string) (*bool, error) {
 	return m.store.DoesPadExist(padID)
 }
 

@@ -28,22 +28,23 @@ func (si *StringIterator) AssertRemaining(n int) error {
 	return nil
 }
 
-func (si *StringIterator) Take(n int) string {
+func (si *StringIterator) Take(n int) (*string, error) {
 	if err := si.AssertRemaining(n); err != nil {
-		panic(err)
+		return nil, err
 	}
 	segment := si.str[si.curIndex : si.curIndex+n]
 	s := string(segment)
 	si.newLines -= countNewlines(segment)
 	si.curIndex += n
-	return s
+	return &s, nil
 }
 
-func (si *StringIterator) Peek(n int) string {
+func (si *StringIterator) Peek(n int) (*string, error) {
 	if err := si.AssertRemaining(n); err != nil {
-		panic(err)
+		return nil, err
 	}
-	return string(si.str[si.curIndex : si.curIndex+n])
+	peekStr := string(si.str[si.curIndex : si.curIndex+n])
+	return &peekStr, nil
 }
 
 func (si *StringIterator) Skip(n int) error {

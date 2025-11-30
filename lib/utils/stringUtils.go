@@ -35,3 +35,20 @@ func CountLines(s string, r rune) int {
 	}
 	return count
 }
+
+func CountLinesRunes(s []rune, r rune) int {
+	count := 0
+	for _, c := range s {
+		if c == r {
+			count++
+		}
+	}
+	return count
+}
+
+func EndsWithNewLine(s []rune) bool {
+	if len(s) == 0 {
+		return false
+	}
+	return s[len(s)-1] == '\n'
+}

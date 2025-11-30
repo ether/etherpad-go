@@ -138,7 +138,15 @@ func (m *MemoryStore) Destroy(sid string) *session.Session {
 	if ok {
 		retrievedExp.Timeout.Stop()
 	}
-	return m.db.RemoveSessionById(sid)
+	foundSession, err := m.db.GetSessionById(sid)
+	if err != nil {
+		return nil
+	}
+	err = m.db.RemoveSessionById(sid)
+	if err != nil {
+		return nil
+	}
+	return foundSession
 }
 
 func (m *MemoryStore) Write(sid string, session session.Session) {
@@ -191,9 +199,9 @@ func (m *MemoryStore) Touch(sid string, session *session.Session) {
 }
 
 func (m *MemoryStore) Get(sid string) *session.Session {
-	var retrievedSession = m.db.GetSessionById(sid)
+	var retrievedSession, err = m.db.GetSessionById(sid)
 
-	if retrievedSession == nil {
+	if err != nil {
 		return nil
 	}
 

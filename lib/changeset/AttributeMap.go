@@ -34,7 +34,8 @@ func FromString(s string, pool *apool.APool) AttributeMap {
  */
 func (a *AttributeMap) Update(entries []apool.Attribute, emptyValueISDelete *bool) *AttributeMap {
 	if emptyValueISDelete == nil {
-		*emptyValueISDelete = false
+		var falseVar = false
+		emptyValueISDelete = &falseVar
 	}
 
 	for _, entry := range entries {
@@ -93,10 +94,8 @@ func (a *AttributeMap) UpdateFromString(key string, emptyValueIsDelete *bool) *A
 }
 
 func (a *AttributeMap) String() string {
-	resolvedString, err := AttribsToString(a.sortAttribs(), a.pool)
-	if err != nil {
-		return ""
-	}
+	resolvedString, _ := AttribsToString(a.sortAttribs(), a.pool)
+
 	return *resolvedString
 }
 

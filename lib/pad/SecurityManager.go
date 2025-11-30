@@ -40,9 +40,9 @@ func (s *SecurityManager) CheckAccess(padId *string, sessionCookie *string, toke
 	var canCreate = !settings.Displayed.EditOnly
 	if s.ReadOnlyManager.isReadOnlyID(padId) {
 		canCreate = false
-		foundPadId := s.ReadOnlyManager.getPadId(*padId)
+		foundPadId, err := s.ReadOnlyManager.getPadId(*padId)
 
-		if foundPadId == nil {
+		if err == nil {
 			return nil, errors.New("padId not found")
 		}
 		padId = foundPadId
@@ -85,9 +85,13 @@ func (s *SecurityManager) CheckAccess(padId *string, sessionCookie *string, toke
 		}
 	}
 
-	var padExists = s.PadManager.DoesPadExist(*padId)
+	var padExists, err = s.PadManager.DoesPadExist(*padId)
+	if err != nil {
+		println("An error occurred while checking pad existence:", err.Error())
+		return nil, errors.New("internal error while checking pad existence")
+	}
 
-	if !padExists && !canCreate {
+	if !*padExists && !canCreate {
 		return nil, errors.New("pad does not exist and can't be created due to settings")
 	}
 
@@ -118,7 +122,7 @@ func (s *SecurityManager) CheckAccess(padId *string, sessionCookie *string, toke
 		return &grantedAccess, nil
 	}
 
-	if !padExists {
+	if !*padExists {
 		if sessionAuthorID == nil {
 			return nil, errors.New("access denied: must have an HTTP API session to create a group pad")
 		}
