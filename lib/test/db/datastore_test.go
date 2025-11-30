@@ -150,17 +150,14 @@ func runAllDataStoreTests(testHandler *testutils.TestDBHandler) {
 	)
 }
 
-func testCreateGetRemovePadAndIds(t *testing.T, ds db.DataStore) {
-	if ds == nil {
-		t.Fatalf("NewMemoryDataStore returned nil")
-	}
+func testCreateGetRemovePadAndIds(t *testing.T, testDSStore testutils.TestDataStore) {
 
 	pad := db.CreateRandomPad()
-	err := ds.CreatePad("padA", pad)
+	err := testDSStore.DS.CreatePad("padA", pad)
 	if err != nil {
 		t.Fatalf("CreatePad for padA returned error: %v", err)
 	}
-	padExists, err := ds.DoesPadExist("padA")
+	padExists, err := testDSStore.DS.DoesPadExist("padA")
 	if err != nil {
 		t.Fatalf("DoesPadExist returned error: %v", err)
 	}
@@ -168,7 +165,7 @@ func testCreateGetRemovePadAndIds(t *testing.T, ds db.DataStore) {
 		t.Fatalf("padA should exist after CreatePad")
 	}
 
-	gotPad, err := ds.GetPad("padA")
+	gotPad, err := testDSStore.DS.GetPad("padA")
 	if err != nil {
 		t.Fatalf("GetPad failed: %v", err)
 	}
@@ -176,11 +173,11 @@ func testCreateGetRemovePadAndIds(t *testing.T, ds db.DataStore) {
 		t.Fatalf("unexpected RevNum, got %d", gotPad.RevNum)
 	}
 
-	err = ds.CreatePad("padB", pad)
+	err = testDSStore.DS.CreatePad("padB", pad)
 	if err != nil {
 		t.Fatalf("CreatePad for padB returned error: %v", err)
 	}
-	ids, err := ds.GetPadIds()
+	ids, err := testDSStore.DS.GetPadIds()
 	if err != nil {
 		t.Fatalf("GetPadIds returned error: %v", err)
 	}
@@ -188,10 +185,10 @@ func testCreateGetRemovePadAndIds(t *testing.T, ds db.DataStore) {
 		t.Fatalf("GetPadIds missing pads: %v", ids)
 	}
 
-	if err := ds.RemovePad("padA"); err != nil {
+	if err := testDSStore.DS.RemovePad("padA"); err != nil {
 		t.Fatalf("RemovePad returned error: %v", err)
 	}
-	doesAPadExists, err := ds.DoesPadExist("padA")
+	doesAPadExists, err := testDSStore.DS.DoesPadExist("padA")
 	if err != nil {
 		t.Fatalf("DoesPadExist returned error: %v", err)
 	}
@@ -200,73 +197,73 @@ func testCreateGetRemovePadAndIds(t *testing.T, ds db.DataStore) {
 	}
 }
 
-func testGetRevisionOnNonexistentPad(t *testing.T, ds db.DataStore) {
-	_, err := ds.GetRevision("nonexistentPad", 0)
+func testGetRevisionOnNonexistentPad(t *testing.T, testStore testutils.TestDataStore) {
+	_, err := testStore.DS.GetRevision("nonexistentPad", 0)
 	if err == nil {
 		t.Fatalf("should return error for nonexistent pad")
 	}
 }
 
-func testGetRevisionsOnNonexistentPad(t *testing.T, ds db.DataStore) {
-	_, err := ds.GetRevisions("nonexistentPad", 0, 100)
+func testGetRevisionsOnNonexistentPad(t *testing.T, ds testutils.TestDataStore) {
+	_, err := ds.DS.GetRevisions("nonexistentPad", 0, 100)
 	if err == nil || err.Error() != "pad not found" {
 		t.Fatalf("should return error for nonexistent pad")
 	}
 }
 
-func testSaveRevisionsOnNonexistentPad(t *testing.T, ds db.DataStore) {
-	err := ds.SaveRevision("nonexistentPad", 0, "test", apool.AText{}, apool.APool{}, nil, 1234)
+func testSaveRevisionsOnNonexistentPad(t *testing.T, ds testutils.TestDataStore) {
+	err := ds.DS.SaveRevision("nonexistentPad", 0, "test", apool.AText{}, apool.APool{}, nil, 1234)
 	if err == nil || err.Error() != "pad not found" {
 		t.Fatalf("should return error for nonexistent pad")
 	}
 }
 
-func testGetRevisionsOnExistentPadWithNonExistingRevision(t *testing.T, ds db.DataStore) {
-	err := ds.CreatePad("padA", db.CreateRandomPad())
+func testGetRevisionsOnExistentPadWithNonExistingRevision(t *testing.T, ds testutils.TestDataStore) {
+	err := ds.DS.CreatePad("padA", db.CreateRandomPad())
 	if err != nil {
 		t.Fatalf("CreatePad returned error: %v", err)
 	}
-	_, err = ds.GetRevisions("padA", 0, 100)
+	_, err = ds.DS.GetRevisions("padA", 0, 100)
 	if err == nil || err.Error() != db.PadRevisionNotFoundError {
 		t.Fatalf("should return error for nonexistent pad")
 	}
 }
 
-func testRemoveChatOnNonExistingPad(t *testing.T, ds db.DataStore) {
-	err := ds.RemoveChat("nonexistentPad")
+func testRemoveChatOnNonExistingPad(t *testing.T, ds testutils.TestDataStore) {
+	err := ds.DS.RemoveChat("nonexistentPad")
 	if err != nil {
 		t.Fatalf("RemoveChat should not return error for nonexistent pad")
 	}
 }
 
-func testRemoveChatOnExistingPadWithNoChatMessage(t *testing.T, ds db.DataStore) {
+func testRemoveChatOnExistingPadWithNoChatMessage(t *testing.T, ds testutils.TestDataStore) {
 	randomPad := db.CreateRandomPad()
-	err := ds.CreatePad("existentPad", randomPad)
+	err := ds.DS.CreatePad("existentPad", randomPad)
 	if err != nil {
 		t.Fatalf("CreatePad should not return error for nonexistent pad")
 	}
 
-	err = ds.RemoveChat("existentPad")
+	err = ds.DS.RemoveChat("existentPad")
 	if err != nil {
 		t.Fatalf("RemoveChat should not return error for nonexistent pad")
 	}
 }
 
-func testRemoveChatOnExistingPadWithOneChatMessage(t *testing.T, ds db.DataStore) {
+func testRemoveChatOnExistingPadWithOneChatMessage(t *testing.T, ds testutils.TestDataStore) {
 	randomPad := db.CreateRandomPad()
-	err := ds.CreatePad("existentPad", randomPad)
+	err := ds.DS.CreatePad("existentPad", randomPad)
 	if err != nil {
 		t.Fatalf("RemoveChat should not return error for nonexistent pad")
 	}
-	if err := ds.SaveChatMessage("existentPad", 0, nil, 1234, "hello"); err != nil {
+	if err := ds.DS.SaveChatMessage("existentPad", 0, nil, 1234, "hello"); err != nil {
 		t.Fatalf("SaveChatMessage failed: %v", err)
 	}
 
-	err = ds.RemoveChat("existentPad")
+	err = ds.DS.RemoveChat("existentPad")
 	if err != nil {
 		t.Fatalf("RemoveChat should not return error for existent pad: %v", err)
 	}
-	res, err := ds.GetChatsOfPad("existentPad", 0, 0)
+	res, err := ds.DS.GetChatsOfPad("existentPad", 0, 0)
 	if err != nil {
 		t.Fatalf("GetChatsOfPad failed: %v", err)
 	}
@@ -275,25 +272,25 @@ func testRemoveChatOnExistingPadWithOneChatMessage(t *testing.T, ds db.DataStore
 	}
 }
 
-func testRemoveNonExistingSession(t *testing.T, ds db.DataStore) {
-	err := ds.RemoveSessionById("nonexistentSession")
+func testRemoveNonExistingSession(t *testing.T, ds testutils.TestDataStore) {
+	err := ds.DS.RemoveSessionById("nonexistentSession")
 	if err == nil {
 		t.Fatalf("RemoveSessionById should return error for nonexistent session")
 	}
 }
 
-func testGetRevisionOnNonExistingRevision(t *testing.T, ds db.DataStore) {
-	err := ds.CreatePad("padA", db.CreateRandomPad())
+func testGetRevisionOnNonExistingRevision(t *testing.T, ds testutils.TestDataStore) {
+	err := ds.DS.CreatePad("padA", db.CreateRandomPad())
 	if err != nil {
 		t.Fatalf("CreatePad failed: %v", err)
 	}
-	_, err = ds.GetRevision("padA", 5)
+	_, err = ds.DS.GetRevision("padA", 5)
 	if err == nil || err.Error() != db.PadRevisionNotFoundError {
 		t.Fatalf("should return error for nonexistent revision")
 	}
 }
 
-func testSaveAndGetRevisionAndMetaData(t *testing.T, ds db.DataStore) {
+func testSaveAndGetRevisionAndMetaData(t *testing.T, ds testutils.TestDataStore) {
 	text := apool.AText{}
 	pool := apool.APool{}
 	author := "author1"
@@ -302,15 +299,15 @@ func testSaveAndGetRevisionAndMetaData(t *testing.T, ds db.DataStore) {
 		RevNum:         -1,
 		SavedRevisions: make(map[int]modeldb.PadRevision),
 	}
-	if err := ds.CreatePad("pad1", pad); err != nil {
+	if err := ds.DS.CreatePad("pad1", pad); err != nil {
 		t.Fatalf("CreatePad failed: %v", err)
 	}
 
-	if err := ds.SaveRevision("pad1", 0, "changeset0", text, pool, &author, 12345); err != nil {
+	if err := ds.DS.SaveRevision("pad1", 0, "changeset0", text, pool, &author, 12345); err != nil {
 		t.Fatalf("SaveRevision failed: %v", err)
 	}
 
-	rev, err := ds.GetRevision("pad1", 0)
+	rev, err := ds.DS.GetRevision("pad1", 0)
 	if err != nil {
 		t.Fatalf("GetRevision failed: %v", err)
 	}
@@ -321,7 +318,7 @@ func testSaveAndGetRevisionAndMetaData(t *testing.T, ds db.DataStore) {
 		t.Fatalf("AText mismatch")
 	}
 
-	list, err := ds.GetRevisions("pad1", 0, 0)
+	list, err := ds.DS.GetRevisions("pad1", 0, 0)
 	if err != nil {
 		t.Fatalf("GetRevisions failed: %v", err)
 	}
@@ -329,7 +326,7 @@ func testSaveAndGetRevisionAndMetaData(t *testing.T, ds db.DataStore) {
 		t.Fatalf("GetRevisions returned unexpected: %#v", list)
 	}
 
-	meta, err := ds.GetPadMetaData("pad1", 0)
+	meta, err := ds.DS.GetPadMetaData("pad1", 0)
 	if err != nil {
 		t.Fatalf("GetPadMetaData failed: %v", err)
 	}
@@ -341,67 +338,67 @@ func testSaveAndGetRevisionAndMetaData(t *testing.T, ds db.DataStore) {
 	}
 }
 
-func testGetPadMetadataOnNonExistingPad(t *testing.T, ds db.DataStore) {
-	_, err := ds.GetPadMetaData("nonexistentPad", 0)
+func testGetPadMetadataOnNonExistingPad(t *testing.T, ds testutils.TestDataStore) {
+	_, err := ds.DS.GetPadMetaData("nonexistentPad", 0)
 	if err == nil || err.Error() != "pad not found" {
 		t.Fatalf("should return error for nonexistent pad")
 	}
 }
 
-func testGetPadMetadataOnNonExistingPadRevision(t *testing.T, ds db.DataStore) {
-	err := ds.CreatePad("nonexistentPad", db.CreateRandomPad())
+func testGetPadMetadataOnNonExistingPadRevision(t *testing.T, ds testutils.TestDataStore) {
+	err := ds.DS.CreatePad("nonexistentPad", db.CreateRandomPad())
 	if err != nil {
 		t.Fatalf("CreatePad failed: %v", err)
 	}
-	_, err = ds.GetPadMetaData("nonexistentPad", 23)
+	_, err = ds.DS.GetPadMetaData("nonexistentPad", 23)
 	if err == nil || err.Error() != db.PadRevisionNotFoundError {
 		t.Fatalf("should return error when pad revision does not exist")
 	}
 }
 
-func testGetPadOnNonExistingPad(t *testing.T, ds db.DataStore) {
-	pad, err := ds.GetPad("nonexistentPad")
+func testGetPadOnNonExistingPad(t *testing.T, ds testutils.TestDataStore) {
+	pad, err := ds.DS.GetPad("nonexistentPad")
 	if pad != nil && err == nil || err.Error() != db.PadDoesNotExistError {
 		t.Fatalf("should return error for nonexistent pad")
 	}
 }
 
-func testGetReadonlyPadOnNonExistingPad(t *testing.T, ds db.DataStore) {
-	_, err := ds.GetReadonlyPad("nonexistentPad")
+func testGetReadonlyPadOnNonExistingPad(t *testing.T, ds testutils.TestDataStore) {
+	_, err := ds.DS.GetReadonlyPad("nonexistentPad")
 	if err == nil || err.Error() != db.PadReadOnlyIdNotFoundError {
 		t.Fatalf("should return error for nonexistent readonly pad mapping")
 	}
 }
 
-func testGetAuthorOnNonExistingAuthor(t *testing.T, ds db.DataStore) {
-	_, err := ds.GetAuthor("nonexistentAuthor")
+func testGetAuthorOnNonExistingAuthor(t *testing.T, ds testutils.TestDataStore) {
+	_, err := ds.DS.GetAuthor("nonexistentAuthor")
 	if err == nil || err.Error() != db.AuthorNotFoundError {
 		t.Fatalf("should return error for nonexistent author")
 	}
 }
 
-func testGetAuthorByTokenOnNonExistingToken(t *testing.T, ds db.DataStore) {
-	_, err := ds.GetAuthorByToken("nonexistentToken")
+func testGetAuthorByTokenOnNonExistingToken(t *testing.T, ds testutils.TestDataStore) {
+	_, err := ds.DS.GetAuthorByToken("nonexistentToken")
 	if err == nil || err.Error() != db.AuthorNotFoundError {
 		t.Fatalf("should return error for nonexistent token")
 	}
 }
 
-func testSaveAuthorNameOnNonExistingAuthor(t *testing.T, ds db.DataStore) {
-	err := ds.SaveAuthorName("nonexistentAuthor", "NewName")
+func testSaveAuthorNameOnNonExistingAuthor(t *testing.T, ds testutils.TestDataStore) {
+	err := ds.DS.SaveAuthorName("nonexistentAuthor", "NewName")
 	if err == nil || err.Error() != "author not found" {
 		t.Fatalf("should return error for nonexistent author")
 	}
 }
 
-func testSaveAuthorColorOnNonExistingAuthor(t *testing.T, ds db.DataStore) {
-	err := ds.SaveAuthorColor("nonexistentAuthor", "NewName")
+func testSaveAuthorColorOnNonExistingAuthor(t *testing.T, ds testutils.TestDataStore) {
+	err := ds.DS.SaveAuthorColor("nonexistentAuthor", "NewName")
 	if err == nil || err.Error() != "author not found" {
 		t.Fatalf("should return error for nonexistent author")
 	}
 }
 
-func testQueryPadSortingAndPattern(t *testing.T, ds db.DataStore) {
+func testQueryPadSortingAndPattern(t *testing.T, ds testutils.TestDataStore) {
 
 	makePad := func(name string, rev int, ts int64) {
 		text := apool.AText{}
@@ -411,10 +408,10 @@ func testQueryPadSortingAndPattern(t *testing.T, ds db.DataStore) {
 			RevNum:         rev,
 			SavedRevisions: map[int]modeldb.PadRevision{rev: {Content: "c", PadDBMeta: modeldb.PadDBMeta{AText: &text, Pool: &pool, Author: &author, Timestamp: ts}}},
 		}
-		if err := ds.CreatePad(name, p); err != nil {
+		if err := ds.DS.CreatePad(name, p); err != nil {
 			t.Fatalf("CreatePad failed: %v", err)
 		}
-		if err := ds.SaveRevision(name, rev, "changeset", text, pool, &author, ts); err != nil {
+		if err := ds.DS.SaveRevision(name, rev, "changeset", text, pool, &author, ts); err != nil {
 			t.Fatalf("SaveRevision failed: %v", err)
 		}
 	}
@@ -423,7 +420,7 @@ func testQueryPadSortingAndPattern(t *testing.T, ds db.DataStore) {
 	makePad("aPad", 2, 30)
 	makePad("cPad", 3, 10)
 
-	res, err := ds.QueryPad(0, 2, "padName", true, "")
+	res, err := ds.DS.QueryPad(0, 2, "padName", true, "")
 	if err != nil {
 		t.Fatalf("QueryPad failed: %v", err)
 	}
@@ -436,7 +433,7 @@ func testQueryPadSortingAndPattern(t *testing.T, ds db.DataStore) {
 		t.Fatalf("expected %v got %v", expected, names)
 	}
 
-	res2, err := ds.QueryPad(0, 10, "", true, "bPad")
+	res2, err := ds.DS.QueryPad(0, 10, "", true, "bPad")
 	if err != nil {
 		t.Fatalf("QueryPad with pattern failed: %v", err)
 	}
@@ -444,7 +441,7 @@ func testQueryPadSortingAndPattern(t *testing.T, ds db.DataStore) {
 		t.Fatalf("pattern filtering failed: %#v", res2)
 	}
 
-	res3, err := ds.QueryPad(0, 3, "padName", false, "")
+	res3, err := ds.DS.QueryPad(0, 3, "padName", false, "")
 	if err != nil {
 		t.Fatalf("QueryPad desc failed: %v", err)
 	}
@@ -460,90 +457,90 @@ func testQueryPadSortingAndPattern(t *testing.T, ds db.DataStore) {
 	}
 }
 
-func testSaveChatHeadOfPadOnNonExistentPad(t *testing.T, ds db.DataStore) {
-	err := ds.SaveChatHeadOfPad("nonexistentPad", 10)
+func testSaveChatHeadOfPadOnNonExistentPad(t *testing.T, ds testutils.TestDataStore) {
+	err := ds.DS.SaveChatHeadOfPad("nonexistentPad", 10)
 	if err == nil || err.Error() != "pad not found" {
 		t.Fatalf("should return error for nonexistent pad")
 	}
 }
 
-func testRemovePad2ReadOnly(t *testing.T, ds db.DataStore) {
-	err := ds.CreatePad2ReadOnly("padROTest", "ro1")
+func testRemovePad2ReadOnly(t *testing.T, ds testutils.TestDataStore) {
+	err := ds.DS.CreatePad2ReadOnly("padROTest", "ro1")
 	if err != nil {
 		t.Fatalf("CreatePad2ReadOnly failed: %v", err)
 	}
-	err = ds.RemovePad2ReadOnly("padROTest")
+	err = ds.DS.RemovePad2ReadOnly("padROTest")
 	if err != nil {
 		t.Fatalf("RemovePad2ReadOnly failed: %v", err)
 	}
-	_, err = ds.GetReadonlyPad("padROTest")
+	_, err = ds.DS.GetReadonlyPad("padROTest")
 	if err == nil {
 		t.Fatalf("GetReadonlyPad failed: %v", err)
 	}
 }
 
-func testGetGroupNonExistingGroup(t *testing.T, ds db.DataStore) {
-	group, err := ds.GetGroup("nonexistentGroup")
+func testGetGroupNonExistingGroup(t *testing.T, ds testutils.TestDataStore) {
+	group, err := ds.DS.GetGroup("nonexistentGroup")
 	if err == nil || group != nil {
 		t.Fatalf("GetGroup should return error and nil for nonexistent group")
 	}
 }
 
-func testGetGroupOnExistingGroup(t *testing.T, ds db.DataStore) {
+func testGetGroupOnExistingGroup(t *testing.T, ds testutils.TestDataStore) {
 
-	err := ds.SaveGroup("group1")
+	err := ds.DS.SaveGroup("group1")
 	if err != nil {
 		t.Fatalf("SaveGroup failed: %v", err)
 	}
-	group, err := ds.GetGroup("group1")
+	group, err := ds.DS.GetGroup("group1")
 	if err != nil || group == nil || *group != "group1" {
 		t.Fatalf("GetGroup failed: %v %#v", err, group)
 	}
 }
 
-func testSaveAndRemoveGroup(t *testing.T, ds db.DataStore) {
+func testSaveAndRemoveGroup(t *testing.T, ds testutils.TestDataStore) {
 
-	err := ds.SaveGroup("group1")
+	err := ds.DS.SaveGroup("group1")
 	if err != nil {
 		t.Fatalf("SaveGroup failed: %v", err)
 	}
-	group, err := ds.GetGroup("group1")
+	group, err := ds.DS.GetGroup("group1")
 	if err != nil || group == nil || *group != "group1" {
 		t.Fatalf("GetGroup failed: %v %#v", err, group)
 	}
-	err = ds.RemoveGroup("group1")
+	err = ds.DS.RemoveGroup("group1")
 	if err != nil {
 		t.Fatalf("RemoveGroup failed: %v", err)
 	}
-	group2, err := ds.GetGroup("group1")
+	group2, err := ds.DS.GetGroup("group1")
 	if err == nil || group2 != nil {
 		t.Fatalf("GetGroup should return error and nil after removal")
 	}
 }
 
-func testChatSaveGetAndHead(t *testing.T, ds db.DataStore) {
-	err := ds.CreatePad("padX", db.CreateRandomPad())
+func testChatSaveGetAndHead(t *testing.T, ds testutils.TestDataStore) {
+	err := ds.DS.CreatePad("padX", db.CreateRandomPad())
 	if err != nil {
 		t.Fatalf("CreatePad failed: %v", err)
 	}
 	author := "auth1"
 	displayName := "Display"
-	if err := ds.SaveAuthor(modeldb.AuthorDB{ID: author, Name: &displayName}); err != nil {
+	if err := ds.DS.SaveAuthor(modeldb.AuthorDB{ID: author, Name: &displayName}); err != nil {
 		t.Fatalf("SaveAuthor failed: %v", err)
 	}
-	foundAuthor, err := ds.GetAuthor(author)
+	foundAuthor, err := ds.DS.GetAuthor(author)
 	if err != nil || foundAuthor.ID != author {
 		t.Fatalf("GetAuthor failed: %v %#v", err, foundAuthor)
 	}
 
-	if err := ds.SaveChatMessage("padX", 0, &author, 1000, "hello"); err != nil {
+	if err := ds.DS.SaveChatMessage("padX", 0, &author, 1000, "hello"); err != nil {
 		t.Fatalf("SaveChatMessage failed: %v", err)
 	}
-	if err := ds.SaveChatMessage("padX", 1, &author, 1001, "anon"); err != nil {
+	if err := ds.DS.SaveChatMessage("padX", 1, &author, 1001, "anon"); err != nil {
 		t.Fatalf("SaveChatMessage failed: %v", err)
 	}
 
-	chats, err := ds.GetChatsOfPad("padX", 0, 1)
+	chats, err := ds.DS.GetChatsOfPad("padX", 0, 1)
 	if err != nil {
 		t.Fatalf("GetChatsOfPad failed: %v", err)
 	}
@@ -557,98 +554,98 @@ func testChatSaveGetAndHead(t *testing.T, ds db.DataStore) {
 		t.Fatalf("expected display name 'Display', got %#v", (*chats)[0].DisplayName)
 	}
 
-	if err := ds.SaveChatHeadOfPad("padX", 5); err != nil {
+	if err := ds.DS.SaveChatHeadOfPad("padX", 5); err != nil {
 		t.Fatalf("SaveChatHeadOfPad failed: %v", err)
 	}
-	pad, _ := ds.GetPad("padX")
+	pad, _ := ds.DS.GetPad("padX")
 	if pad.ChatHead != 5 {
 		t.Fatalf("ChatHead not updated, got %d", pad.ChatHead)
 	}
 }
 
-func testSessionsTokensAuthors(t *testing.T, ds db.DataStore) {
+func testSessionsTokensAuthors(t *testing.T, ds testutils.TestDataStore) {
 
 	s := sessionmodel.Session{}
-	if err := ds.SetSessionById("sess1", s); err != nil {
+	if err := ds.DS.SetSessionById("sess1", s); err != nil {
 		t.Fatalf("SetSessionById failed: %v", err)
 	}
-	got, err := ds.GetSessionById("sess1")
+	got, err := ds.DS.GetSessionById("sess1")
 	if err != nil {
 		t.Fatalf("GetSessionById failed: %v", err)
 	}
 	if got == nil {
 		t.Fatalf("GetSessionById returned nil")
 	}
-	err = ds.RemoveSessionById("sess1")
+	err = ds.DS.RemoveSessionById("sess1")
 	if err != nil {
 		t.Fatalf("RemoveSessionById failed: %v", err)
 	}
 
-	retrievedSess, err := ds.GetSessionById("sess1")
+	retrievedSess, err := ds.DS.GetSessionById("sess1")
 	if err != nil || retrievedSess != nil {
 		t.Fatalf("session should be removed")
 	}
 
-	if err := ds.SetAuthorByToken("tok1", "authX"); err != nil {
+	if err := ds.DS.SetAuthorByToken("tok1", "authX"); err != nil {
 		t.Fatalf("SetAuthorByToken failed: %v", err)
 	}
-	authorPtr, err := ds.GetAuthorByToken("tok1")
+	authorPtr, err := ds.DS.GetAuthorByToken("tok1")
 	if err != nil || authorPtr == nil || *authorPtr != "authX" {
 		t.Fatalf("GetAuthorByToken mismatch: %v %v", err, authorPtr)
 	}
 
 	a := modeldb.AuthorDB{ID: "authY", Name: nil, ColorId: ""}
-	err = ds.SaveAuthor(a)
+	err = ds.DS.SaveAuthor(a)
 	if err != nil {
 		t.Fatalf("SaveAuthor failed: %v", err)
 	}
-	gotA, err := ds.GetAuthor("authY")
+	gotA, err := ds.DS.GetAuthor("authY")
 	if err != nil || gotA.ID != "authY" {
 		t.Fatalf("GetAuthor failed: %v %#v", err, gotA)
 	}
-	err = ds.SaveAuthorName("authY", "NameY")
+	err = ds.DS.SaveAuthorName("authY", "NameY")
 	if err != nil {
 		t.Fatalf("SaveAuthorName failed: %v", err)
 	}
-	err = ds.SaveAuthorColor("authY", "blue")
+	err = ds.DS.SaveAuthorColor("authY", "blue")
 	if err != nil {
 		t.Fatalf("SaveAuthorColor failed: %v", err)
 	}
-	gotA2, _ := ds.GetAuthor("authY")
+	gotA2, _ := ds.DS.GetAuthor("authY")
 	if gotA2.Name == nil || *gotA2.Name != "NameY" || gotA2.ColorId != "blue" {
 		t.Fatalf("author updates failed: %#v", gotA2)
 	}
 }
 
-func testRemoveRevisionsOfPadNonExistingPad(t *testing.T, ds db.DataStore) {
-	err := ds.RemoveRevisionsOfPad("nonexistentPad")
+func testRemoveRevisionsOfPadNonExistingPad(t *testing.T, ds testutils.TestDataStore) {
+	err := ds.DS.RemoveRevisionsOfPad("nonexistentPad")
 	if err == nil || err.Error() != "pad not found" {
 		t.Fatalf("should return error for nonexistent pad")
 	}
 }
 
-func testReadonlyMappingsAndRemoveRevisions(t *testing.T, ds db.DataStore) {
-	if err := ds.CreatePad2ReadOnly("padR", "r1"); err != nil {
+func testReadonlyMappingsAndRemoveRevisions(t *testing.T, ds testutils.TestDataStore) {
+	if err := ds.DS.CreatePad2ReadOnly("padR", "r1"); err != nil {
 		t.Fatalf("CreatePad2ReadOnly failed: %v", err)
 	}
-	gotRO, err := ds.GetReadonlyPad("padR")
+	gotRO, err := ds.DS.GetReadonlyPad("padR")
 	if err != nil || gotRO == nil || *gotRO != "r1" {
 		t.Fatalf("CreatePad2ReadOnly/GetReadonlyPad failed")
 	}
-	if err := ds.CreateReadOnly2Pad("padR", "r1"); err != nil {
+	if err := ds.DS.CreateReadOnly2Pad("padR", "r1"); err != nil {
 		t.Fatalf("CreateReadOnly2Pad failed: %v", err)
 	}
-	rev, err := ds.GetReadOnly2Pad("r1")
+	rev, err := ds.DS.GetReadOnly2Pad("r1")
 	if err != nil {
 		t.Fatalf("GetReadOnly2Pad failed: %v", err)
 	}
 	if rev == nil || *rev != "padR" {
 		t.Fatalf("CreateReadOnly2Pad/GetReadOnly2Pad failed")
 	}
-	if err := ds.RemoveReadOnly2Pad("r1"); err != nil {
+	if err := ds.DS.RemoveReadOnly2Pad("r1"); err != nil {
 		t.Fatalf("RemoveReadOnly2Pad failed: %v", err)
 	}
-	readOnlyPad, err := ds.GetReadOnly2Pad("r1")
+	readOnlyPad, err := ds.DS.GetReadOnly2Pad("r1")
 	if err != nil {
 		t.Fatalf("GetReadOnly2Pad after removal failed: %v", err)
 	}
@@ -663,11 +660,11 @@ func testReadonlyMappingsAndRemoveRevisions(t *testing.T, ds db.DataStore) {
 		RevNum:         2,
 		SavedRevisions: map[int]modeldb.PadRevision{0: {Content: "c", PadDBMeta: modeldb.PadDBMeta{AText: &text, Pool: &pool, Author: &author, Timestamp: 1}}},
 	}
-	err = ds.CreatePad("padRem", pad)
+	err = ds.DS.CreatePad("padRem", pad)
 	if err != nil {
 		t.Fatalf("CreatePad failed: %v", err)
 	}
-	if err := ds.RemoveRevisionsOfPad("padRem"); err != nil {
+	if err := ds.DS.RemoveRevisionsOfPad("padRem"); err != nil {
 		t.Fatalf("RemoveRevisionsOfPad failed: %v", err)
 	}
 	// TODO fix this inconsistency. SQL uses separate revisions table, memory store keeps revisions in pad struct

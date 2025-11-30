@@ -10,14 +10,20 @@ import (
 	"time"
 
 	"github.com/docker/go-connections/nat"
+	"github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/db"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
+type TestDataStore struct {
+	DS            db.DataStore
+	AuthorManager *author.Manager
+}
+
 type TestRunConfig struct {
 	Name string
-	Test func(t *testing.T, ds db.DataStore)
+	Test func(t *testing.T, tsStore TestDataStore)
 }
 
 type TestDBHandler struct {
@@ -208,7 +214,11 @@ func (test *TestDBHandler) InitPostgres() *db.PostgresDB {
 func (test *TestDBHandler) TestRun(t *testing.T, testRun TestRunConfig, newDS func() db.DataStore) {
 	t.Run(testRun.Name, func(t *testing.T) {
 		ds := newDS()
-		testRun.Test(t, ds)
+		authManager := author.NewManager(ds)
+		testRun.Test(t, TestDataStore{
+			DS:            ds,
+			AuthorManager: authManager,
+		})
 		t.Cleanup(func() {
 			if err := ds.Close(); err != nil {
 				t.Fatalf("Failed to close SQLite DataStore: %v", err)

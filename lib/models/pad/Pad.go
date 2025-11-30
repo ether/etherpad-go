@@ -212,17 +212,17 @@ func (p *Pad) Check() error {
 	return nil
 }
 
-func (p *Pad) AppendChatMessage(authorId *string, timestamp int64, text string) int {
+func (p *Pad) AppendChatMessage(authorId *string, timestamp int64, text string) (*int, error) {
 	p.ChatHead = p.ChatHead + 1
 	err := p.db.SaveChatMessage(p.Id, p.ChatHead, authorId, timestamp, text)
 	if err != nil {
-		println("Error saving chat message:", err.Error())
+		return nil, err
 	}
 	if err := p.db.SaveChatHeadOfPad(p.Id, p.ChatHead); err != nil {
-		println("Error saving chat head of pad:", err.Error())
+		return nil, err
 	}
 
-	return p.ChatHead
+	return &p.ChatHead, nil
 }
 
 func (p *Pad) RemoveAllChats() error {

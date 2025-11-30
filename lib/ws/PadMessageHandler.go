@@ -482,7 +482,11 @@ func (p *PadMessageHandler) SendChatMessageToPadClients(session *ws.Session, cha
 	}
 	// pad.appendChatMessage() ignores the displayName property so we don't need to wait for
 	// authorManager.getAuthorName() to resolve before saving the message to the database.
-	retrievedPad.AppendChatMessage(chatMessage.AuthorId, *chatMessage.Time, chatMessage.Text)
+	_, err = retrievedPad.AppendChatMessage(chatMessage.AuthorId, *chatMessage.Time, chatMessage.Text)
+	if err != nil {
+		println("Error appending chat message to pad", err)
+		return
+	}
 	authorName, err := p.authorManager.GetAuthorName(*chatMessage.AuthorId)
 	if err != nil {
 		println("Error retrieving author name for chat message", err)
