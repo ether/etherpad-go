@@ -1,19 +1,16 @@
 package db
 
 import (
-	"database/sql"
-	"fmt"
 	"reflect"
 	"sort"
-	"strconv"
-	"strings"
+
 	"testing"
 
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/db"
 	modeldb "github.com/ether/etherpad-go/lib/models/db"
 	sessionmodel "github.com/ether/etherpad-go/lib/models/session"
-	"github.com/ether/etherpad-go/lib/utils"
+	"github.com/ether/etherpad-go/lib/test/testutils"
 )
 
 func containsString(slice []string, s string) bool {
@@ -25,155 +22,132 @@ func containsString(slice []string, s string) bool {
 	return false
 }
 
-var testDbInstance *utils.TestContainerConfiguration
-
-func cleanupPostgresTables() error {
-	if testDbInstance == nil {
-		return nil
-	}
-	port, err := strconv.Atoi(testDbInstance.Port)
-	if err != nil {
-		return err
-	}
-	dsn := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable",
-		testDbInstance.Username, testDbInstance.Password, testDbInstance.Host, port, testDbInstance.Database)
-	conn, err := sql.Open("postgres", dsn)
-	if err != nil {
-		return err
-	}
-	defer conn.Close()
-
-	rows, err := conn.Query("SELECT tablename FROM pg_tables WHERE schemaname = 'public'")
-	if err != nil {
-		return err
-	}
-	defer rows.Close()
-
-	var tables []string
-	for rows.Next() {
-		var t string
-		if err := rows.Scan(&t); err != nil {
-			return err
-		}
-		if t == "schema_migrations" || t == "migrations" {
-			continue
-		}
-		quoted := `"` + strings.ReplaceAll(t, `"`, `""`) + `"`
-		tables = append(tables, quoted)
-	}
-	if err := rows.Err(); err != nil {
-		return err
-	}
-	if len(tables) == 0 {
-		return nil
-	}
-
-	_, err = conn.Exec("TRUNCATE TABLE " + strings.Join(tables, ",") + " RESTART IDENTITY CASCADE")
-	return err
-}
-
-func initPostgres() *db.PostgresDB {
-	port, err := strconv.Atoi(testDbInstance.Port)
-	if err != nil {
-		panic(err)
-	}
-	postgresOpts := db.PostgresOptions{
-		Username: testDbInstance.Username,
-		Password: testDbInstance.Password,
-		Database: testDbInstance.Database,
-		Host:     testDbInstance.Host,
-		Port:     port,
-	}
-	postresDB, err := db.NewPostgresDB(postgresOpts)
-	if err != nil {
-		panic(err)
-	}
-	return postresDB
-}
-
 func TestAllDataStores(t *testing.T) {
-	datastores := map[string]func() db.DataStore{
-		"Memory": func() db.DataStore {
-			return db.NewMemoryDataStore()
-		},
-		"SQLite": func() db.DataStore {
-			sqliteDB, err := db.NewSQLiteDB(":memory:")
-			if err != nil {
-				t.Fatalf("Failed to create SQLite DataStore: %v", err)
-			}
-
-			return sqliteDB
-		},
-		"Postgres": func() db.DataStore {
-
-			return initPostgres()
-		},
-	}
-
-	testDB, err := utils.PreparePostgresDB()
-	if err != nil {
-		panic(err)
-	}
-	testDbInstance = testDB
-
-	for name, newDS := range datastores {
-		t.Run(name, func(t *testing.T) {
-			runAllDataStoreTests(t, newDS)
-		})
-
-	}
+	testHandler := testutils.NewTestDBHandler(t)
+	runAllDataStoreTests(testHandler)
 }
 
-func testRun(t *testing.T, name string, testFunc func(t *testing.T, ds db.DataStore), newDS func() db.DataStore) {
-	t.Run(name, func(t *testing.T) {
-		ds := newDS()
-		testFunc(t, ds)
-		t.Cleanup(func() {
-			if err := ds.Close(); err != nil {
-				t.Fatalf("Failed to close SQLite DataStore: %v", err)
-			}
-			if testDbInstance != nil {
-				if err := cleanupPostgresTables(); err != nil {
-					t.Fatalf("Postgres cleanup failed: %v", err)
-				}
-			}
-			if err := ds.Close(); err != nil {
-				t.Fatalf("Failed to close DataStore: %v", err)
-			}
-		})
-	})
-}
+func runAllDataStoreTests(testHandler *testutils.TestDBHandler) {
 
-func runAllDataStoreTests(t *testing.T, newDS func() db.DataStore) {
-	testRun(t, "CreateGetRemovePadAndIds", testCreateGetRemovePadAndIds, newDS)
-	testRun(t, "GetRevisionOnNonexistentPad", testGetRevisionOnNonexistentPad, newDS)
-	testRun(t, "GetRevisionsOnNonexistentPad", testGetRevisionsOnNonexistentPad, newDS)
-	testRun(t, "SaveRevisionsOnNonexistentPad", testSaveRevisionsOnNonexistentPad, newDS)
-	testRun(t, "GetRevisionsOnExistentPadWithNonExistingRevision", testGetRevisionsOnExistentPadWithNonExistingRevision, newDS)
-	testRun(t, "RemoveChatOnNonExistingPad", testRemoveChatOnNonExistingPad, newDS)
-	testRun(t, "RemoveChatOnExistingPadWithNoChatMessage", testRemoveChatOnExistingPadWithNoChatMessage, newDS)
-	testRun(t, "RemoveChatOnExistingPadWithOneChatMessage", testRemoveChatOnExistingPadWithOneChatMessage, newDS)
-	testRun(t, "RemoveNonExistingSession", testRemoveNonExistingSession, newDS)
-	testRun(t, "GetRevisionOnNonExistingRevision", testGetRevisionOnNonExistingRevision, newDS)
-	testRun(t, "SaveAndGetRevisionAndMetaData", testSaveAndGetRevisionAndMetaData, newDS)
-	testRun(t, "GetPadMetadataOnNonExistingPad", testGetPadMetadataOnNonExistingPad, newDS)
-	testRun(t, "GetPadMetadataOnNonExistingPadRevision", testGetPadMetadataOnNonExistingPadRevision, newDS)
-	testRun(t, "GetPadOnNonExistingPad", testGetPadOnNonExistingPad, newDS)
-	testRun(t, "testGetReadonlyPadOnNonExistingPad", testGetReadonlyPadOnNonExistingPad, newDS)
-	testRun(t, "GetAuthorOnNonExistingAuthor", testGetAuthorOnNonExistingAuthor, newDS)
-	testRun(t, "GetAuthorByTokenOnNonExistingToken", testGetAuthorByTokenOnNonExistingToken, newDS)
-	testRun(t, "SaveAuthorNameOnNonExistingAuthor", testSaveAuthorNameOnNonExistingAuthor, newDS)
-	testRun(t, "SaveAuthorColorOnNonExistingAuthor", testSaveAuthorColorOnNonExistingAuthor, newDS)
-	testRun(t, "QueryPadSortingAndPattern", testQueryPadSortingAndPattern, newDS)
-	testRun(t, "SaveChatHeadOfPadOnNonExistentPad", testSaveChatHeadOfPadOnNonExistentPad, newDS)
-	testRun(t, "RemovePad2ReadOnly", testRemovePad2ReadOnly, newDS)
-	testRun(t, "GetGroupNonExistingGroup", testGetGroupNonExistingGroup, newDS)
-	testRun(t, "GetGroupOnExistingGroup", testGetGroupOnExistingGroup, newDS)
-	testRun(t, "SaveAndRemoveGroup", testSaveAndRemoveGroup, newDS)
-	testRun(t, "ChatSaveGetAndHead", testChatSaveGetAndHead, newDS)
-	testRun(t, "SessionsTokensAuthors", testSessionsTokensAuthors, newDS)
-	testRun(t, "RemoveRevisionsOfPadNonExistingPad", testRemoveRevisionsOfPadNonExistingPad, newDS)
-	testRun(t, "ReadonlyMappingsAndRemoveRevisions", testReadonlyMappingsAndRemoveRevisions, newDS)
+	defer testHandler.StartTestDBHandler()
+	testHandler.AddTests(
+		testutils.TestRunConfig{
+			Name: "CreateGetRemovePadAndIds",
+			Test: testCreateGetRemovePadAndIds,
+		},
+		testutils.TestRunConfig{
+			Name: "GetRevisionOnNonexistentPad",
+			Test: testGetRevisionOnNonexistentPad,
+		},
+		testutils.TestRunConfig{
+			Name: "GetRevisionsOnNonexistentPad",
+			Test: testGetRevisionsOnNonexistentPad,
+		},
+		testutils.TestRunConfig{
+			Name: "SaveRevisionsOnNonexistentPad",
+			Test: testSaveRevisionsOnNonexistentPad,
+		},
+		testutils.TestRunConfig{
+			Name: "GetRevisionsOnExistentPadWithNonExistingRevision",
+			Test: testGetRevisionsOnExistentPadWithNonExistingRevision,
+		},
+		testutils.TestRunConfig{
+			Name: "RemoveChatOnNonExistingPad",
+			Test: testRemoveChatOnNonExistingPad,
+		},
+		testutils.TestRunConfig{
+			Name: "RemoveChatOnExistingPadWithNoChatMessage",
+			Test: testRemoveChatOnExistingPadWithNoChatMessage,
+		},
+		testutils.TestRunConfig{
+			Name: "RemoveChatOnExistingPadWithOneChatMessage",
+			Test: testRemoveChatOnExistingPadWithOneChatMessage,
+		},
+		testutils.TestRunConfig{
+			Name: "RemoveNonExistingSession",
+			Test: testRemoveNonExistingSession,
+		},
+		testutils.TestRunConfig{
+			Name: "GetRevisionOnNonExistingRevision",
+			Test: testGetRevisionOnNonExistingRevision,
+		},
+		testutils.TestRunConfig{
+			Name: "SaveAndGetRevisionAndMetaData",
+			Test: testSaveAndGetRevisionAndMetaData,
+		},
+		testutils.TestRunConfig{
+			Name: "GetPadMetadataOnNonExistingPad",
+			Test: testGetPadMetadataOnNonExistingPad,
+		},
+		testutils.TestRunConfig{
+			Name: "GetPadMetadataOnNonExistingPadRevision",
+			Test: testGetPadMetadataOnNonExistingPadRevision,
+		},
+		testutils.TestRunConfig{
+			Name: "GetPadOnNonExistingPad",
+			Test: testGetPadOnNonExistingPad,
+		},
+		testutils.TestRunConfig{
+			Name: "testGetReadonlyPadOnNonExistingPad",
+			Test: testGetReadonlyPadOnNonExistingPad,
+		},
+		testutils.TestRunConfig{
+			Name: "GetAuthorOnNonExistingAuthor",
+			Test: testGetAuthorOnNonExistingAuthor,
+		},
+		testutils.TestRunConfig{
+			Name: "GetAuthorByTokenOnNonExistingToken",
+			Test: testGetAuthorByTokenOnNonExistingToken,
+		},
+		testutils.TestRunConfig{
+			Name: "SaveAuthorNameOnNonExistingAuthor",
+			Test: testSaveAuthorNameOnNonExistingAuthor,
+		},
+		testutils.TestRunConfig{
+			Name: "SaveAuthorColorOnNonExistingAuthor",
+			Test: testSaveAuthorColorOnNonExistingAuthor,
+		},
+		testutils.TestRunConfig{
+			Name: "QueryPadSortingAndPattern",
+			Test: testQueryPadSortingAndPattern,
+		},
+		testutils.TestRunConfig{
+			Name: "SaveChatHeadOfPadOnNonExistentPad",
+			Test: testSaveChatHeadOfPadOnNonExistentPad,
+		},
+		testutils.TestRunConfig{
+			Name: "RemovePad2ReadOnly",
+			Test: testRemovePad2ReadOnly,
+		},
+		testutils.TestRunConfig{
+			Name: "GetGroupNonExistingGroup",
+			Test: testGetGroupNonExistingGroup,
+		},
+		testutils.TestRunConfig{
+			Name: "GetGroupOnExistingGroup",
+			Test: testGetGroupOnExistingGroup,
+		},
+		testutils.TestRunConfig{
+			Name: "SaveAndRemoveGroup",
+			Test: testSaveAndRemoveGroup,
+		},
+		testutils.TestRunConfig{
+			Name: "ChatSaveGetAndHead",
+			Test: testChatSaveGetAndHead,
+		},
+		testutils.TestRunConfig{
+			Name: "SessionsTokensAuthors",
+			Test: testSessionsTokensAuthors,
+		},
+		testutils.TestRunConfig{
+			Name: "RemoveRevisionsOfPadNonExistingPad",
+			Test: testRemoveRevisionsOfPadNonExistingPad,
+		},
+		testutils.TestRunConfig{
+			Name: "ReadonlyMappingsAndRemoveRevisions",
+			Test: testReadonlyMappingsAndRemoveRevisions,
+		},
+	)
 }
 
 func testCreateGetRemovePadAndIds(t *testing.T, ds db.DataStore) {
