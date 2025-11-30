@@ -51,7 +51,15 @@ func (d PostgresDB) RemoveGroup(groupId string) error {
 }
 
 func (d PostgresDB) GetRevisions(padId string, startRev int, endRev int) (*[]db.PadSingleRevision, error) {
-	var resultedSQL, args, err = psql.
+	padExists, err := d.DoesPadExist(padId)
+	if err != nil {
+		return nil, err
+	}
+	if !*padExists {
+		return nil, errors.New(PadDoesNotExistError)
+	}
+
+	resultedSQL, args, err := psql.
 		Select("*").
 		From("padRev").
 		Where(sq.Eq{"id": padId}).
@@ -76,41 +84,90 @@ func (d PostgresDB) GetRevisions(padId string, startRev int, endRev int) (*[]db.
 		query.Scan(&revisionDB.PadId, &revisionDB.RevNum, &revisionDB.Changeset, &revisionDB.AText.Text, &revisionDB.AText.Attribs, &revisionDB.AuthorId, &revisionDB.Timestamp)
 		revisions = append(revisions, revisionDB)
 	}
+
+	if len(revisions) != (endRev - startRev + 1) {
+		return nil, errors.New(PadRevisionNotFoundError)
+	}
+
 	return &revisions, nil
 }
 
-func (d PostgresDB) QueryPad(offset int, limit int, sortBy string, ascending bool, pattern string) (*db.PadDBSearchResult, error) {
-	var builder = psql.
-		Select("pad.id", "pad.data", "padRev.timestamp").
-		From("pad").
-		Join("padrev ON pad.id = padRev.id AND padRev.rev = (SELECT MAX(rev) FROM padRev WHERE padRev.id = pad.id)").
-		Where(sq.Like{"pad.id": "%" + pattern + "%"}).
-		Offset(uint64(offset)).
-		Limit(uint64(limit))
+func (d PostgresDB) countQuery(pattern string) (*int, error) {
+	subQuery := psql.Select("MAX(rev)").
+		From("padRev").
+		Where(sq.Expr("padRev.id = pad.id"))
 
-	var builderCount = psql.
-		Select("COUNT(*)").
-		From("pad").
-		Join("padrev ON pad.id = padRev.id AND padRev.rev = (SELECT MAX(rev) FROM padRev WHERE padRev.id = pad.id)").
-		Where(sq.Like{"pad.id": "%" + pattern + "%"})
-
-	if sortBy == "padName" {
-		if ascending {
-			builder = builder.OrderBy("pad.id ASC")
-		} else {
-			builder = builder.OrderBy("pad.id DESC")
-		}
-	}
-
-	var resultedSQL, args, err = builder.ToSql()
-	var countSQL, countArgs, countErr = builderCount.ToSql()
-
+	subSQL, subArgs, err := subQuery.ToSql()
 	if err != nil {
 		return nil, err
 	}
 
-	if countErr != nil {
-		return nil, countErr
+	var countBuilder = psql.
+		Select("COUNT(*)").
+		From("pad").
+		Join("padRev ON padRev.id = pad.id").
+		Where(sq.Expr("padRev.rev = ("+subSQL+")", subArgs...))
+
+	if pattern != "" {
+		countBuilder = countBuilder.Where(sq.Like{"pad.id": "%" + pattern + "%"})
+	}
+
+	countSQL, countArgs, err := countBuilder.ToSql()
+	if err != nil {
+		return nil, err
+	}
+
+	countQuery, err := d.sqlDB.Query(countSQL, countArgs...)
+	if err != nil {
+		return nil, err
+	}
+	defer countQuery.Close()
+
+	var totalPads int
+	for countQuery.Next() {
+		countQuery.Scan(&totalPads)
+	}
+
+	return &totalPads, nil
+}
+
+func (d PostgresDB) queryPad(pattern string, sortBy string, limit int, offset int, ascending bool) (*[]db.PadDBSearch, error) {
+	subQuery := psql.Select("MAX(rev)").
+		From("padRev").
+		Where(sq.Expr("padRev.id = pad.id"))
+
+	subSQL, subArgs, err := subQuery.ToSql()
+	if err != nil {
+		return nil, err
+	}
+
+	var builder = psql.
+		Select("pad.id", "pad.data", "padRev.timestamp").
+		From("pad").
+		Join("padRev ON padRev.id = pad.id").
+		Where(sq.Expr("padRev.rev = ("+subSQL+")", subArgs...))
+
+	if pattern != "" {
+		builder = builder.Where(sq.Like{"pad.id": "%" + pattern + "%"})
+	}
+
+	if sortBy == "padName" {
+		if !ascending {
+			builder = builder.OrderBy("pad.id DESC")
+		} else {
+			builder = builder.OrderBy("pad.id ASC")
+		}
+	}
+	if limit > 0 {
+		builder = builder.Limit(uint64(limit))
+	}
+	if offset > 0 {
+		builder = builder.Offset(uint64(offset))
+	}
+
+	resultedSQL, args, err := builder.ToSql()
+	if err != nil {
+		return nil, err
 	}
 
 	query, err := d.sqlDB.Query(resultedSQL, args...)
@@ -136,22 +193,24 @@ func (d PostgresDB) QueryPad(offset int, limit int, sortBy string, ascending boo
 			LastEdited:     timestamp,
 		})
 	}
+	return &padSearch, nil
+}
 
-	countQuery, err := d.sqlDB.Query(countSQL, countArgs...)
+func (d PostgresDB) QueryPad(offset int, limit int, sortBy string, ascending bool, pattern string) (*db.PadDBSearchResult, error) {
+
+	padSearch, err := d.queryPad(pattern, sortBy, limit, offset, ascending)
 	if err != nil {
 		return nil, err
 	}
-	defer countQuery.Close()
+	totalPads, err := d.countQuery(pattern)
+	if err != nil {
+		return nil, err
+	}
 
-	totalPads := 0
-	for countQuery.Next() {
-		countQuery.Scan(&totalPads)
-	}
-	padDbSearch := db.PadDBSearchResult{
-		TotalPads: totalPads,
-		Pads:      padSearch,
-	}
-	return &padDbSearch, nil
+	return &db.PadDBSearchResult{
+		TotalPads: *totalPads,
+		Pads:      *padSearch,
+	}, nil
 }
 
 var psql = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
@@ -226,7 +285,15 @@ func (d PostgresDB) RemovePad(padID string) error {
 }
 
 func (d PostgresDB) RemoveRevisionsOfPad(padId string) error {
-	var resultedSQL, args, err = psql.
+	existingPad, err := d.DoesPadExist(padId)
+	if err != nil {
+		return err
+	}
+	if !*existingPad {
+		return errors.New(PadDoesNotExistError)
+	}
+
+	resultedSQL, args, err := psql.
 		Delete("padRev").
 		Where(sq.Eq{"id": padId}).
 		ToSql()
@@ -301,26 +368,30 @@ func (d PostgresDB) GetGroup(groupId string) (*string, error) {
 }
 
 func (d PostgresDB) GetSessionById(sessionID string) (*session2.Session, error) {
-	var createdSQL, arr, _ = psql.Select("*").From("session").Where(sq.Eq{"id": sessionID}).ToSql()
+	var createdSQL, arr, err = psql.Select("*").From("sessionstorage").Where(sq.Eq{"id": sessionID}).ToSql()
+	if err != nil {
+		return nil, err
+	}
 
 	query, err := d.sqlDB.Query(createdSQL, arr...)
 
 	if err != nil {
 		return nil, err
 	}
-
-	var possibleSession *session2.Session
+	defer query.Close()
 
 	for query.Next() {
-		query.Scan(possibleSession)
+		var possibleSession session2.Session
+		query.Scan(&possibleSession.Id, &possibleSession.OriginalMaxAge, &possibleSession.Expires, &possibleSession.Secure, &possibleSession.HttpOnly, &possibleSession.Path, &possibleSession.SameSite, &possibleSession.Connections)
+		return &possibleSession, nil
 	}
 
-	return possibleSession, nil
+	return nil, nil
 }
 
 func (d PostgresDB) SetSessionById(sessionID string, session session2.Session) error {
-	var retrievedSql, inserts, _ = psql.Insert("session").Columns("id", "originalMaxAge", "expires", "secure", "httpOnly", "path", "sameSite", "connections").
-		Values(sessionID, session.OriginalMaxAge, session.Expires, session.Secure, session.HttpOnly, session.Path, session.SameSite).ToSql()
+	var retrievedSql, inserts, _ = psql.Insert("sessionstorage").Columns("id", "originalMaxAge", "expires", "secure", "httpOnly", "path", "sameSite", "connections").
+		Values(sessionID, session.OriginalMaxAge, session.Expires, session.Secure, session.HttpOnly, session.Path, session.SameSite, "").ToSql()
 
 	_, err := d.sqlDB.Exec(retrievedSql, inserts...)
 
@@ -347,7 +418,7 @@ func (d PostgresDB) GetRevision(padId string, rev int) (*db.PadSingleRevision, e
 		return &revisionDB, nil
 	}
 
-	return nil, errors.New("revision not found")
+	return nil, errors.New(PadRevisionNotFoundError)
 }
 
 func (d PostgresDB) DoesPadExist(padID string) (*bool, error) {
@@ -358,7 +429,7 @@ func (d PostgresDB) DoesPadExist(padID string) (*bool, error) {
 		ToSql()
 
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	query, err := d.sqlDB.Query(resultedSQL, args...)
@@ -387,7 +458,7 @@ func (d PostgresDB) RemoveSessionById(sid string) error {
 		return errors.New(SessionNotFoundError)
 	}
 
-	resultedSQL, args, err := psql.Delete("session").Where(sq.Eq{"id": sid}).ToSql()
+	resultedSQL, args, err := psql.Delete("sessionstorage").Where(sq.Eq{"id": sid}).ToSql()
 
 	if err != nil {
 		return err
@@ -447,7 +518,6 @@ func (d PostgresDB) GetPadIds() (*[]string, error) {
 	var resultedSQL, _, err = psql.
 		Select("id").
 		From("pad").
-		Where(sq.Like{"id": "%"}).
 		ToSql()
 
 	if err != nil {
@@ -470,9 +540,18 @@ func (d PostgresDB) GetPadIds() (*[]string, error) {
 }
 
 func (d PostgresDB) SaveRevision(padId string, rev int, changeset string, text apool.AText, pool apool.APool, authorId *string, timestamp int64) error {
+	exists, err := d.DoesPadExist(padId)
+	if err != nil {
+		return err
+	}
+
+	if !*exists {
+		return errors.New(PadDoesNotExistError)
+	}
+
 	toSql, i, err := psql.Insert("padRev").
 		Columns("id", "rev", "changeset", "atextText", "atextAttribs", "authorId", "timestamp").
-		Values(padId, rev, changeset, text.Text, text.Attribs, *authorId, timestamp).
+		Values(padId, rev, changeset, text.Text, text.Attribs, authorId, timestamp).
 		ToSql()
 
 	if err != nil {
@@ -517,7 +596,7 @@ func (d PostgresDB) GetPad(padID string) (*db.PadDB, error) {
 	}
 
 	if padDB == nil {
-		return nil, errors.New("pad not found")
+		return nil, errors.New(PadDoesNotExistError)
 	}
 
 	return padDB, nil
@@ -525,7 +604,7 @@ func (d PostgresDB) GetPad(padID string) (*db.PadDB, error) {
 
 func (d PostgresDB) GetReadonlyPad(padId string) (*string, error) {
 	var resultedSQL, args, err = psql.
-		Select("id").
+		Select("data").
 		From("pad2readonly").
 		Where(sq.Eq{"id": padId}).
 		ToSql()
@@ -540,13 +619,13 @@ func (d PostgresDB) GetReadonlyPad(padId string) (*string, error) {
 	}
 	defer query.Close()
 
-	var readonlyId string
 	for query.Next() {
+		var readonlyId string
 		query.Scan(&readonlyId)
 		return &readonlyId, nil
 	}
 
-	return nil, errors.New("no read only id found")
+	return nil, errors.New(PadReadOnlyIdNotFoundError)
 }
 
 func (d PostgresDB) CreatePad2ReadOnly(padId string, readonlyId string) error {
@@ -587,29 +666,29 @@ func (d PostgresDB) CreateReadOnly2Pad(padId string, readonlyId string) error {
 }
 
 func (d PostgresDB) GetReadOnly2Pad(id string) (*string, error) {
-	var resultedSQL, _, err = psql.
-		Select("id").
+	var resultedSQL, args, err = psql.
+		Select("data").
 		From("readonly2pad").
 		Where(sq.Eq{"id": id}).
 		ToSql()
 
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
-	query, err := d.sqlDB.Query(resultedSQL)
+	query, err := d.sqlDB.Query(resultedSQL, args...)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	defer query.Close()
 
-	var padId string
 	for query.Next() {
+		var padId string
 		query.Scan(&padId)
 		return &padId, nil
 	}
 
-	return nil, errors.New("no pad id found")
+	return nil, nil
 }
 
 func (d PostgresDB) SetAuthorByToken(token, authorId string) error {
@@ -621,7 +700,7 @@ func (d PostgresDB) SetAuthorByToken(token, authorId string) error {
 	_, err := d.sqlDB.Exec(resulltedSQL, arg...)
 
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	return nil
@@ -648,9 +727,10 @@ func (d PostgresDB) GetAuthor(author string) (*db.AuthorDB, error) {
 		var authorCopy db.AuthorDB
 		query.Scan(&authorCopy.ID, &authorCopy.ColorId, &authorCopy.Name, &authorCopy.Timestamp)
 		authorDB = &authorCopy
+		return authorDB, nil
 	}
 
-	return authorDB, nil
+	return nil, errors.New(AuthorNotFoundError)
 }
 
 func (d PostgresDB) GetAuthorByToken(token string) (*string, error) {
@@ -670,16 +750,13 @@ func (d PostgresDB) GetAuthorByToken(token string) (*string, error) {
 	}
 	defer query.Close()
 
-	var authorID string
 	for query.Next() {
+		var authorID string
 		query.Scan(&authorID)
+		return &authorID, nil
 	}
 
-	if authorID == "" {
-		return nil, errors.New("author for token not found")
-	}
-
-	return &authorID, nil
+	return nil, errors.New(AuthorNotFoundError)
 }
 
 func (d PostgresDB) SaveAuthor(author db.AuthorDB) error {
@@ -687,8 +764,11 @@ func (d PostgresDB) SaveAuthor(author db.AuthorDB) error {
 		return errors.New("author ID is empty")
 	}
 	var foundAuthor, err = d.GetAuthor(author.ID)
+	if err != nil && err.Error() != AuthorNotFoundError {
+		return err
+	}
 
-	if foundAuthor == nil && err == nil {
+	if foundAuthor == nil {
 		var resultedSQL, i, err = psql.
 			Insert("globalAuthor").
 			Columns("id", "colorId", "name", "timestamp").
@@ -746,7 +826,15 @@ func (d PostgresDB) SaveAuthorColor(authorId string, authorColor string) error {
 }
 
 func (d PostgresDB) GetPadMetaData(padId string, revNum int) (*db.PadMetaData, error) {
-	var resultedSQL, args, err = psql.
+	padExists, err := d.DoesPadExist(padId)
+	if err != nil {
+		return nil, err
+	}
+	if !*padExists {
+		return nil, errors.New(PadDoesNotExistError)
+	}
+
+	resultedSQL, args, err := psql.
 		Select("*").
 		From("padRev").
 		Where(sq.Eq{"id": padId}).
@@ -754,24 +842,25 @@ func (d PostgresDB) GetPadMetaData(padId string, revNum int) (*db.PadMetaData, e
 		ToSql()
 
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	query, err := d.sqlDB.Query(resultedSQL, args...)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	var padMetaData db.PadMetaData
 	for query.Next() {
-		err := query.Scan(&padMetaData.Id, &padMetaData.RevNum, &padMetaData.ChangeSet, &padMetaData.Atext, &padMetaData.AtextAttribs, &padMetaData.AuthorId, &padMetaData.Timestamp)
+		err := query.Scan(&padMetaData.Id, &padMetaData.RevNum, &padMetaData.ChangeSet, &padMetaData.Atext.Text, &padMetaData.AtextAttribs, &padMetaData.AuthorId, &padMetaData.Timestamp)
 		if err != nil {
 			return nil, err
 		}
+		return &padMetaData, nil
 	}
 	defer query.Close()
 
-	return &padMetaData, nil
+	return nil, errors.New(PadRevisionNotFoundError)
 }
 
 func (d PostgresDB) Close() error {
@@ -791,27 +880,27 @@ func NewPostgresDB(options PostgresOptions) (*PostgresDB, error) {
 	dbUrl := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable", options.Username, options.Password, options.Host, options.Port, options.Database)
 	sqlDb, err := sql.Open("postgres", dbUrl)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS pad (id TEXT PRIMARY KEY, data TEXT)")
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS padRev(id TEXT, rev INTEGER, changeset TEXT, atextText TEXT, atextAttribs TEXT, authorId TEXT, timestamp BIGINT, PRIMARY KEY (id, rev))")
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS token2author(token TEXT PRIMARY KEY, author TEXT)")
 
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS globalAuthorPads(id TEXT NOT NULL, padID TEXT NOT NULL,  PRIMARY KEY(id, padID) )")
 
 	if err != nil {
-		panic(err.Error())
+		return nil, err
 	}
 
 	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS globalAuthor(id TEXT PRIMARY KEY, colorId TEXT, name TEXT, timestamp BIGINT)")
@@ -821,25 +910,25 @@ func NewPostgresDB(options PostgresOptions) (*PostgresDB, error) {
 	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS readonly2pad(id TEXT PRIMARY KEY, data TEXT)")
 
 	if err != nil {
-		panic(err.Error())
+		return nil, err
 	}
 
-	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS sessionstorage(id TEXT PRIMARY KEY, originalMaxAge INTEGER, expires TEXT, secure BOOLEAN, httpOnly BOOLEAN, path TEXT, sameSeite TEXT, connections TEXT)")
+	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS sessionstorage(id TEXT PRIMARY KEY, originalMaxAge INTEGER, expires TEXT, secure BOOLEAN, httpOnly BOOLEAN, path TEXT, sameSite TEXT, connections TEXT)")
 
 	if err != nil {
-		panic(err.Error())
+		return nil, err
 	}
 
 	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS groupPadGroup(id TEXT PRIMARY KEY, name TEXT)")
 
 	if err != nil {
-		panic(err.Error())
+		return nil, err
 	}
 
 	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS padChat(padId TEXT NOT NULL, padHead INTEGER,  chatText TEXT NOT NULL, authorId TEXT, timestamp BIGINT, PRIMARY KEY(padId, padHead), FOREIGN KEY(padId) REFERENCES pad(id) ON DELETE CASCADE)")
 
 	if err != nil {
-		panic(err.Error())
+		return nil, err
 	}
 
 	return &PostgresDB{
