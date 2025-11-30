@@ -27,6 +27,75 @@ func TestMakeSplice(t *testing.T) {
 	}
 }
 
+func TestAttributeTesterWithNilPool(t *testing.T) {
+	testArg := "bold,true"
+	returnedFunc := changeset.AttributeTester(apool.Attribute{}, nil)
+
+	if returnedFunc(&testArg) != false {
+		t.Error("Expected false when pool is nil")
+	}
+}
+
+func TestAttributeTesterWithNegativeNumAttribPool(t *testing.T) {
+	testArg := "bold,true"
+	poolToTest := apool.NewAPool()
+	poolToTest.NextNum = -50
+	returnedFunc := changeset.AttributeTester(apool.Attribute{
+		Key:   "bold",
+		Value: "true",
+	}, &poolToTest)
+
+	if returnedFunc(&testArg) != false {
+		t.Error("Expected false when pool is nil")
+	}
+}
+
+func TestAttributeTesterWithInvalidAttribString(t *testing.T) {
+	poolToTest := apool.NewAPool()
+	poolToTest.NextNum = 50
+	returnedFunc := changeset.AttributeTester(apool.Attribute{
+		Key:   "bold",
+		Value: "true",
+	}, &poolToTest)
+
+	tests := []string{
+		"*a",
+		"*a|1+5",
+		"foo*a",
+		"*a\n",
+		"*a1",
+		"*ab",
+		"*a0",
+		"a*ab",
+	}
+
+	for _, test := range tests {
+		result := returnedFunc(&test)
+		if result != false {
+			t.Error("Expected false for test string: " + test)
+		}
+	}
+}
+
+func TestAttributeTesterWithValidAttribString(t *testing.T) {
+	poolToTest := apool.NewAPool()
+	for i := 0; i < 10; i++ {
+		poolToTest.PutAttrib(apool.Attribute{Key: "dummy", Value: fmt.Sprint(i)}, nil)
+	}
+	puttedAttrib := apool.Attribute{Key: "bold", Value: "true"}
+	poolToTest.PutAttrib(puttedAttrib, nil) // bekommt Nummer 10 → "*a"
+
+	returnedFunc := changeset.AttributeTester(puttedAttrib, &poolToTest)
+
+	tests := []string{"*a", "*a*b", "*a|1+5"}
+	for _, test := range tests {
+		result := returnedFunc(&test)
+		if result != true {
+			t.Error("Expected true for test string: " + test)
+		}
+	}
+}
+
 func TestMakeSpliceAtEnd(t *testing.T) {
 	var orig = "123"
 	var ins = "456"

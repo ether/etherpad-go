@@ -7,8 +7,8 @@ import (
 	"reflect"
 	"regexp"
 	"slices"
-	"strconv"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/ether/etherpad-go/lib/apool"
@@ -193,9 +193,18 @@ func AttributeTester(attribPair apool.Attribute, pool *apool.APool) func(arg *st
 		return never
 	}
 
-	var re = regexp.MustCompile("\\*" + strconv.FormatInt(int64(attribNum), 36) + "(?!\\w)")
+	var tokenStr = "*" + utils.NumToString(attribNum)
 	return func(attribs *string) bool {
-		return re.MatchString(*attribs)
+		idx := strings.Index(*attribs, tokenStr)
+		if idx == -1 {
+			return false
+		}
+		endPos := idx + len(tokenStr)
+		if endPos >= len(*attribs) {
+			return true
+		}
+		nextChar := rune((*attribs)[endPos])
+		return !unicode.IsLetter(nextChar) && !unicode.IsDigit(nextChar) && nextChar != '_'
 	}
 }
 
