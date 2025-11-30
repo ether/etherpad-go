@@ -34,7 +34,7 @@ jobs:
         run: go build -o etherpad-go
       - name: Run tests with coverage
         run: |
-          go test -v -coverprofile=coverage.out ./...
+          go test -v -coverpkg=./... -coverprofile=coverage.out ./...
           go tool cover -html=coverage.out -o coverage.html
       - name: Setup SonarQube
         uses: warchant/setup-sonar-scanner@v9
