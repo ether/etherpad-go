@@ -273,7 +273,7 @@ func (p *PadMessageHandler) ComposePadChangesets(retrievedPad *pad2.Pad, startNu
 	padPool := retrievedPad.Pool
 	for r := startNum + 1; r < endNum; r++ {
 		cs := (*requiredChangesets)[r]
-		optStartChangeset, err := changeset.Compose(startChangeset, cs.Changeset, padPool)
+		optStartChangeset, err := changeset.Compose(startChangeset, cs.Changeset, &padPool)
 		if err != nil {
 			println("Error composing changesets", err)
 			return "", err

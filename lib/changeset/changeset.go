@@ -263,13 +263,19 @@ func followAttributes(att1 string, att2 string, pool *apool.APool) string {
 }
 
 func Follow(c string, rebasedChangeset string, reverseInsertOrder bool, pool *apool.APool) (*string, error) {
-	var unpacked1, _ = Unpack(c)
-	var unpacked2, _ = Unpack(rebasedChangeset)
+	unpacked1, err := Unpack(c)
+	if err != nil {
+		return nil, err
+	}
+	unpacked2, err := Unpack(rebasedChangeset)
+	if err != nil {
+		return nil, err
+	}
 
 	var len1 = unpacked1.OldLen
-	var len2 = unpacked2.NewLen
+	var len2 = unpacked2.OldLen
 	if len1 != len2 {
-		panic("mismatched lengths in follow")
+		return nil, errors.New("mismatched lengths in Follow")
 	}
 
 	var chars1 = NewStringIterator(unpacked1.CharBank)
@@ -290,7 +296,6 @@ func Follow(c string, rebasedChangeset string, reverseInsertOrder bool, pool *ap
 		var opOut = NewOp(nil)
 		if op1.OpCode == "+" || op2.OpCode == "+" {
 			var whichToDo int
-
 			if op2.OpCode != "+" {
 				whichToDo = 1
 			} else if op1.OpCode != "+" {
@@ -336,12 +341,14 @@ func Follow(c string, rebasedChangeset string, reverseInsertOrder bool, pool *ap
 				op1.OpCode = ""
 			} else {
 				// whichToDo == 2
-				chars2.Skip(op2.Chars)
+				if err := chars2.Skip(op2.Chars); err != nil {
+					return nil, err
+				}
 				copyOp(*op2, &opOut)
 				op2.OpCode = ""
 			}
 		} else if op1.OpCode == "-" {
-			if op2.OpCode != "" {
+			if op2.OpCode == "" {
 				op1.OpCode = ""
 			} else if op1.Chars <= op2.Chars {
 				op2.Chars -= op1.Chars
@@ -387,7 +394,7 @@ func Follow(c string, rebasedChangeset string, reverseInsertOrder bool, pool *ap
 			op1.OpCode = ""
 		} else {
 			// both keeps
-			opOut.OpCode = ""
+			opOut.OpCode = "="
 			opOut.Attribs = followAttributes(op1.Attribs, op2.Attribs, pool)
 			if op1.Chars <= op2.Chars {
 				opOut.Chars = op1.Chars
@@ -432,7 +439,7 @@ func Follow(c string, rebasedChangeset string, reverseInsertOrder bool, pool *ap
 	}
 
 	newLen += oldLen - oldPos
-	packedFollow := Pack(oldLen, newLen, *newOps, unpacked1.CharBank+unpacked2.CharBank)
+	packedFollow := Pack(oldLen, newLen, *newOps, unpacked2.CharBank)
 	return &packedFollow, nil
 }
 
@@ -478,25 +485,23 @@ func CheckRep(cs string) (*string, error) {
 				}
 			}
 		case "+":
-			// Arbeit mit Runes statt Bytes
 			bankRunes := []rune(charBank)
-			if !(len(bankRunes) >= o.Chars) {
+			if len(bankRunes) < o.Chars {
 				return nil, errors.New("invalid changeset: not enough chars in charBank")
 			}
-			var chars = string(bankRunes[0:o.Chars])
-			var nlines = utils.CountLines(chars, '\n')
-			if !(nlines == o.Lines) {
+			var chars = bankRunes[0:o.Chars]
+			var nlines = utils.CountLinesRunes(chars, '\n')
+			if nlines != o.Lines {
 				return nil, errors.New("invalid changeset: number of newlines in insert op does not match the charBank")
 			}
 
-			if !(o.Lines == 0 || strings.HasSuffix(chars, "\n")) {
+			if !(o.Lines == 0 || utils.EndsWithNewLine(chars)) {
 				return nil, errors.New("invalid changeset: multiline insert op does not end with a new line")
 			}
 
-			// Rest des Banks ebenfalls rune-basiert
 			charBank = string(bankRunes[o.Chars:])
 			calcNewLen += o.Chars
-			if !(calcNewLen <= newLen) {
+			if calcNewLen > newLen {
 				return nil, errors.New("CalcNewLen > NewLen in cs")
 			}
 		default:
@@ -594,8 +599,14 @@ func ApplyToText(cs string, text string) (*string, error) {
 }
 
 func ApplyZip(in1 string, in2 string, callback func(*Op, *Op) (*Op, error)) (*string, error) {
-	var ops1, _ = DeserializeOps(in1)
-	var ops2, _ = DeserializeOps(in2)
+	var ops1, err = DeserializeOps(in1)
+	if err != nil {
+		return nil, err
+	}
+	ops2, err := DeserializeOps(in2)
+	if err != nil {
+		return nil, err
+	}
 
 	var assem = NewSmartOpAssembler()
 	var ops1Iterator = Iterator[Op]{
@@ -739,7 +750,7 @@ func DeserializeOps(ops string) (*[]Op, error) {
 			continue
 		}
 		if match[5] != "" {
-			panic("Invalid operation")
+			return nil, errors.New("invalid op string")
 		}
 		var opMatch = match[3]
 		var op = NewOp(&opMatch)
@@ -759,7 +770,7 @@ func DeserializeOps(ops string) (*[]Op, error) {
 	return &opsToReturn, nil
 }
 
-func Compose(cs1 string, cs2 string, pool apool.APool) (*string, error) {
+func Compose(cs1 string, cs2 string, pool *apool.APool) (*string, error) {
 	var unpacked1, _ = Unpack(cs1)
 	var unpacked2, _ = Unpack(cs2)
 	var len1 = unpacked1.OldLen
@@ -784,7 +795,7 @@ func Compose(cs1 string, cs2 string, pool apool.APool) (*string, error) {
 			}
 		}
 
-		var opOut, err = SlicerZipperFunc(op1, op2, &pool)
+		var opOut, err = SlicerZipperFunc(op1, op2, pool)
 
 		if err != nil {
 			panic(fmt.Sprintf("Error in SlicerZipperFunc: %v", err))
@@ -877,15 +888,15 @@ func SlicerZipperFunc(attOp *Op, csOp *Op, pool *apool.APool) (*Op, error) {
 		}
 
 		if !condition {
-			panic("line count mismatch when composing changesets A*B; ")
+			return nil, errors.New("line count mismatch when composing changesets A*B; ")
 		}
 
 		if !slices.Contains([]string{"=", "+"}, attOp.OpCode) {
-			panic("unexpected opcode in op: " + attOp.String())
+			return nil, errors.New("unexpected opcode in op: " + attOp.String())
 		}
 
 		if !slices.Contains([]string{"=", "-"}, csOp.OpCode) {
-			panic("unexpected opcode in op: " + csOp.String())
+			return nil, errors.New("unexpected opcode in op: " + csOp.String())
 		}
 
 		if attOp.OpCode == "+" {
