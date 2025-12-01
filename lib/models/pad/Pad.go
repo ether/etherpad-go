@@ -3,6 +3,7 @@ package pad
 import (
 	"errors"
 	"math"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -19,6 +20,16 @@ import (
 	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/ether/etherpad-go/lib/utils"
 )
+
+var padRegex *regexp.Regexp
+
+func init() {
+	padRegex, _ = regexp.Compile(`^(g\.[A-Za-z0-9]{16})?[^ \t\r\n\f\v$]{1,50}$`)
+}
+
+func IsValidPadId(padID string) bool {
+	return padRegex.MatchString(padID)
+}
 
 type Pad struct {
 	db             db.DataStore
@@ -49,7 +60,7 @@ func NewPad(id string, db db.DataStore, hook *hooks.Hook) Pad {
 }
 
 func (p *Pad) Check() error {
-	if p.Id != strings.TrimSpace(p.Id) {
+	if !IsValidPadId(p.Id) {
 		return errors.New("pad id contains leading or trailing whitespace")
 	}
 

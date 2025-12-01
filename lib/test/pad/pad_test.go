@@ -39,8 +39,8 @@ func TestPad(t *testing.T) {
 func testCheckWithWhiteSpaceInPadID(t *testing.T, ts testutils.TestDataStore) {
 	padToTest := pad.CreateNewPad(ts.DS)
 	padToTest.Id = "pad with spaces"
-	if err := padToTest.Check(); err == nil {
-		t.Fatal("should fail with whitespaces", err)
+	if err := padToTest.Check(); err == nil || err.Error() != "pad id contains leading or trailing whitespace" {
+		t.Fatal("should fail with whitespaces" + err.Error())
 	}
 }
 
@@ -71,7 +71,10 @@ func testAppendChatMessage(t *testing.T, ts testutils.TestDataStore) {
 		t.Fatal("failed to save pad:", err)
 	}
 	randomAuthor := author.NewRandomAuthor()
-	createdAuthor := ts.AuthorManager.CreateAuthor(randomAuthor.Name)
+	createdAuthor, err := ts.AuthorManager.CreateAuthor(randomAuthor.Name)
+	if err != nil {
+		t.Fatal("failed to create author:", err)
+	}
 
 	padHead, err := padToTest.AppendChatMessage(&createdAuthor.Id, 1234567890, "Hello, world!")
 	if err != nil {
@@ -87,9 +90,12 @@ func testAppendChatMessage(t *testing.T, ts testutils.TestDataStore) {
 func testAppendChatMessageOnNonExistingPad(t *testing.T, ts testutils.TestDataStore) {
 	padToTest := pad.CreateNewPad(ts.DS)
 	randomAuthor := author.NewRandomAuthor()
-	createdAuthor := ts.AuthorManager.CreateAuthor(randomAuthor.Name)
+	createdAuthor, err := ts.AuthorManager.CreateAuthor(randomAuthor.Name)
+	if err != nil {
+		t.Fatal("failed to create author:", err)
+	}
 
-	_, err := padToTest.AppendChatMessage(&createdAuthor.Id, 1234567890, "Hello, world!")
+	_, err = padToTest.AppendChatMessage(&createdAuthor.Id, 1234567890, "Hello, world!")
 	if err == nil {
 		t.Fatal("should error with non existing pad:", err)
 	}

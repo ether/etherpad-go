@@ -37,7 +37,13 @@ func Init(c *fiber.App, db db.DataStore, validator *validator.Validate) {
 			})
 		}
 
-		var createdAuthor = authorManager.CreateAuthor(&dto.Name)
+		createdAuthor, err := authorManager.CreateAuthor(&dto.Name)
+		if err != nil {
+			return c.Status(500).JSON(error2.Error{
+				Message: "Internal server error",
+				Error:   500,
+			})
+		}
 		return c.JSON(CreateDtoResponse{
 			AuthorId: createdAuthor.Id,
 		})

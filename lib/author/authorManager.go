@@ -37,7 +37,10 @@ func (m *Manager) mapAuthorWithDBKey(token string) (*Author, error) {
 
 	if err != nil {
 		// there is no author with this mapper, so create one
-		var authorCreated = m.CreateAuthor(nil)
+		var authorCreated, err = m.CreateAuthor(nil)
+		if err != nil {
+			return nil, err
+		}
 		// create the token2author relation
 		err = m.Db.SetAuthorByToken(token, authorCreated.Id)
 
@@ -73,7 +76,7 @@ func (m *Manager) mapAuthorWithDBKey(token string) (*Author, error) {
 	return author
 }*/
 
-func (m *Manager) CreateAuthor(name *string) Author {
+func (m *Manager) CreateAuthor(name *string) (*Author, error) {
 	authorId := "a." + utils.RandomString(16)
 
 	author := Author{
@@ -84,17 +87,19 @@ func (m *Manager) CreateAuthor(name *string) Author {
 		Timestamp: time.Now().Unix(),
 	}
 
-	m.Db.SaveAuthor(db2.AuthorDB{
+	if err := m.Db.SaveAuthor(db2.AuthorDB{
 		ID:        author.Id,
 		Name:      author.Name,
 		ColorId:   author.ColorId,
 		PadIDs:    author.PadIDs,
 		Timestamp: author.Timestamp,
-	})
-
-	return Author{
-		Id: authorId,
+	}); err != nil {
+		return nil, err
 	}
+
+	return &Author{
+		Id: authorId,
+	}, nil
 }
 
 func (m *Manager) saveAuthor(author Author) {

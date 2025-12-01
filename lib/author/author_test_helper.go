@@ -2,6 +2,7 @@ package author
 
 import (
 	"github.com/brianvoe/gofakeit/v7"
+	"github.com/ether/etherpad-go/lib/models/db"
 )
 
 func NewRandomAuthor() *Author {
@@ -14,4 +15,14 @@ func NewRandomAuthor() *Author {
 		PadIDs:    make(map[string]struct{}),
 	}
 	return &author
+}
+
+func ToDBAuthor(author *Author) *db.AuthorDB {
+	return &db.AuthorDB{
+		ID:        author.Id,
+		Name:      author.Name,
+		Timestamp: author.Timestamp,
+		ColorId:   author.ColorId,
+		PadIDs:    author.PadIDs,
+	}
 }
