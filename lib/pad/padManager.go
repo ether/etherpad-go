@@ -89,8 +89,8 @@ type Manager struct {
 	padList        List
 }
 
-func NewManager(db db.DataStore, hook *hooks.Hook) Manager {
-	return Manager{
+func NewManager(db db.DataStore, hook *hooks.Hook) *Manager {
+	return &Manager{
 		store: db,
 		hook:  hook,
 		author: &author.Manager{

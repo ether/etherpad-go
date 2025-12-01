@@ -12,6 +12,8 @@ import (
 	"github.com/docker/go-connections/nat"
 	"github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/db"
+	hooks2 "github.com/ether/etherpad-go/lib/hooks"
+	"github.com/ether/etherpad-go/lib/pad"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
@@ -19,6 +21,7 @@ import (
 type TestDataStore struct {
 	DS            db.DataStore
 	AuthorManager *author.Manager
+	PadManager    *pad.Manager
 }
 
 type TestRunConfig struct {
@@ -215,9 +218,12 @@ func (test *TestDBHandler) TestRun(t *testing.T, testRun TestRunConfig, newDS fu
 	t.Run(testRun.Name, func(t *testing.T) {
 		ds := newDS()
 		authManager := author.NewManager(ds)
+		hooks := hooks2.NewHook()
+		padManager := pad.NewManager(ds, &hooks)
 		testRun.Test(t, TestDataStore{
 			DS:            ds,
 			AuthorManager: authManager,
+			PadManager:    padManager,
 		})
 		t.Cleanup(func() {
 			if err := ds.Close(); err != nil {
