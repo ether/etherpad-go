@@ -19,7 +19,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func InitAPI(c *fiber.App, uiAssets embed.FS, retrievedSettings settings.Settings, cookieStore *session.Store, store db.DataStore, handler *ws.PadMessageHandler, manager *pad2.Manager, validator *validator.Validate, setupLogger *zap.SugaredLogger) {
+func InitAPI(c *fiber.App, uiAssets embed.FS, retrievedSettings *settings.Settings, cookieStore *session.Store, store db.DataStore, handler *ws.PadMessageHandler, manager *pad2.Manager, validator *validator.Validate, setupLogger *zap.SugaredLogger) {
 	locales.Init(uiAssets)
 	author.Init(c, store, validator)
 	pad.Init(c, handler, manager)

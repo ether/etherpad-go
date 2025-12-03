@@ -117,7 +117,7 @@ func main() {
 		})(c)
 	})
 
-	api2.InitAPI(app, uiAssets, settings, cookieStore, dataStore, padMessageHandler, padManager, validatorEvaluator, setupLogger)
+	api2.InitAPI(app, uiAssets, &settings, cookieStore, dataStore, padMessageHandler, padManager, validatorEvaluator, setupLogger)
 
 	fiberString := fmt.Sprintf("%s:%s", settings.IP, settings.Port)
 	setupLogger.Info("Starting Web UI on " + fiberString)

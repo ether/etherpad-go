@@ -102,7 +102,7 @@ func getAdminBody(uiAssets embed.FS, retrievedSettings *settings.Settings) (*str
 	return &result, nil
 }
 
-func Init(app *fiber.App, uiAssets embed.FS, retrievedSettings settings.Settings, cookieStore *session.Store, setupLogger *zap.SugaredLogger) {
+func Init(app *fiber.App, uiAssets embed.FS, retrievedSettings *settings.Settings, cookieStore *session.Store, setupLogger *zap.SugaredLogger) {
 	app.Use("/p/", func(c *fiber.Ctx) error {
 		c.Path()
 

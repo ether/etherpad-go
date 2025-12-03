@@ -8,6 +8,7 @@ import (
 	"log"
 	"math/big"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/ether/etherpad-go/assets/login"
@@ -18,6 +19,7 @@ import (
 	"github.com/ory/fosite/handler/openid"
 	"github.com/ory/fosite/token/jwt"
 	"go.uber.org/zap"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type Authenticator struct {
@@ -30,16 +32,32 @@ type Authenticator struct {
 func NewAuthenticator(retrievedSettings *settings.Settings) *Authenticator {
 	store := NewMemoryStore()
 	for _, sso := range retrievedSettings.SSO.Clients {
-		store.Clients[sso.ClientId] = &fosite.DefaultClient{
+		isPublic := false
+
+		if !slices.Contains(sso.GrantTypes, "client_credentials") {
+			isPublic = true
+		}
+
+		clientToSso := &fosite.DefaultClient{
 			ID:            sso.ClientId,
-			Secret:        []byte(sso.ClientSecret),
 			RedirectURIs:  sso.RedirectUris,
 			GrantTypes:    sso.GrantTypes,
 			Audience:      []string{"etherpad-go"},
-			Public:        true,
+			Public:        isPublic,
 			ResponseTypes: []string{"code"},
 			Scopes:        []string{"openid", "email", "profile", "offline"},
 		}
+
+		if sso.ClientSecret != nil && *sso.ClientSecret != "" {
+			hashedSecret, err := bcrypt.GenerateFromPassword([]byte(*sso.ClientSecret), bcrypt.DefaultCost)
+			if err != nil {
+				log.Fatalf("Error hashing client secret: %v", err)
+			}
+
+			clientToSso.Secret = hashedSecret
+		}
+		store.Clients[sso.ClientId] = clientToSso
+
 	}
 
 	for username, user := range retrievedSettings.Users {
@@ -181,7 +199,7 @@ func (a *Authenticator) OicWellKnown(rw http.ResponseWriter, req *http.Request, 
 	rw.Write(byteResponse)
 }
 
-func (a *Authenticator) AuthEndpoint(rw http.ResponseWriter, req *http.Request, setupLogger *zap.SugaredLogger, retrievedSettings settings.Settings) {
+func (a *Authenticator) AuthEndpoint(rw http.ResponseWriter, req *http.Request, setupLogger *zap.SugaredLogger, retrievedSettings *settings.Settings) {
 	ctx := req.Context()
 
 	ar, err := a.provider.NewAuthorizeRequest(ctx, req)
@@ -208,12 +226,12 @@ func (a *Authenticator) AuthEndpoint(rw http.ResponseWriter, req *http.Request, 
 			scopes = append(scopes, scope)
 		}
 		loginComp := login.Login(clientFound, scopes, nil)
+		req.Header.Set("Content-Type", "text/html; charset=utf-8")
 		loginComp.Render(req.Context(), rw)
 		return
 	}
 
 	for _, scope := range req.PostForm["scopes"] {
-		println(scope)
 		ar.GrantScope(scope)
 	}
 
