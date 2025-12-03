@@ -73,7 +73,7 @@ func analyzeLine(text string, aline string, attrpool apool.APool) (*LineModel, e
 		}
 	}
 
-	if lineMarker != 0 {
+	if lineMarker == 1 {
 		runedText := []rune(text)
 		if len(runedText) > 0 {
 			line.Text = runedText[1:]

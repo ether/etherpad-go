@@ -62,8 +62,7 @@ func (l *List) GetPads() []string {
 var padRegex *regexp.Regexp
 
 func init() {
-
-	padRegex, _ = regexp.Compile("^(g.[a-zA-Z0-9]{16}$)?[^$]{1,50}$")
+	padRegex, _ = regexp.Compile(`^(g\.[A-Za-z0-9]{16})?[^ \t\r\n\f\v$]{1,50}$`)
 }
 
 type GlobalPadCache struct {
@@ -90,8 +89,8 @@ type Manager struct {
 	padList        List
 }
 
-func NewManager(db db.DataStore, hook *hooks.Hook) Manager {
-	return Manager{
+func NewManager(db db.DataStore, hook *hooks.Hook) *Manager {
+	return &Manager{
 		store: db,
 		hook:  hook,
 		author: &author.Manager{

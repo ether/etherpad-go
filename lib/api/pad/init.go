@@ -3,7 +3,7 @@ package pad
 import (
 	"errors"
 
-	apiError "github.com/ether/etherpad-go/lib/api/error"
+	errors2 "github.com/ether/etherpad-go/lib/api/errors"
 	utils2 "github.com/ether/etherpad-go/lib/api/utils"
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/pad"
@@ -50,9 +50,7 @@ func Init(c *fiber.App, handler *ws.PadMessageHandler, manager *pad.Manager) {
 	c.Get("/pads/:padId/text", func(c *fiber.Ctx) error {
 		foundPad, err := utils2.GetPadSafe(c.Params("padID", ""), true, nil, nil, manager)
 		if err != nil {
-			return c.Status(404).JSON(apiError.Error{
-				Message: "Pad not found",
-			})
+			return c.Status(404).JSON(errors2.PadNotFoundError)
 		}
 
 		head := foundPad.Head
@@ -61,21 +59,15 @@ func Init(c *fiber.App, handler *ws.PadMessageHandler, manager *pad.Manager) {
 		if optRev != "" {
 			revNum, err := utils.CheckValidRev(optRev)
 			if err != nil {
-				return c.Status(400).JSON(apiError.Error{
-					Message: "Invalid revision number",
-				})
+				return c.Status(400).JSON(errors2.InvalidRevisionError)
 			}
 			if *revNum > head {
-				return c.Status(400).JSON(apiError.Error{
-					Message: "Revision number is higher than head",
-				})
+				return c.Status(400).JSON(errors2.RevisionHigherThanHeadError)
 			}
 
 			foundText := foundPad.GetInternalRevisionAText(*revNum)
 			if foundText == nil {
-				return c.Status(500).JSON(apiError.Error{
-					Message: "Internal server error",
-				})
+				return c.Status(500).JSON(errors2.InternalApiError)
 			}
 			return c.JSON(fiber.Map{
 				"text": foundText.Text,
@@ -84,9 +76,7 @@ func Init(c *fiber.App, handler *ws.PadMessageHandler, manager *pad.Manager) {
 
 		text, err := pad.GetTxtFromAText(foundPad, foundPad.AText)
 		if err != nil {
-			return c.Status(500).JSON(apiError.Error{
-				Message: "Internal server error",
-			})
+			return c.Status(500).JSON(errors2.InternalApiError)
 		}
 		return c.JSON(fiber.Map{
 			"text": *text,
@@ -97,10 +87,7 @@ func Init(c *fiber.App, handler *ws.PadMessageHandler, manager *pad.Manager) {
 		var padIdToFind = ctx.Params("padId")
 		var padFound, err = utils2.GetPadSafe(padIdToFind, true, nil, nil, manager)
 		if err != nil {
-			return ctx.Status(404).JSON(apiError.Error{
-				Message: "Pad not found",
-				Error:   404,
-			})
+			return ctx.Status(404).JSON(errors2.PadNotFoundError)
 		}
 
 		return ctx.JSON(AttributePoolResponse{
@@ -113,34 +100,22 @@ func Init(c *fiber.App, handler *ws.PadMessageHandler, manager *pad.Manager) {
 
 		var revNum, errorForPad = utils.CheckValidRev(rev)
 		if errorForPad != nil {
-			return ctx.Status(400).JSON(apiError.Error{
-				Message: "Invalid revision number",
-				Error:   400,
-			})
+			return ctx.Status(400).JSON(errors2.InvalidRevisionError)
 		}
 
 		var pad, errorForPad2 = utils2.GetPadSafe(padId, true, nil, nil, manager)
 		if errorForPad2 != nil {
-			return ctx.Status(404).JSON(apiError.Error{
-				Message: "Pad not found",
-				Error:   404,
-			})
+			return ctx.Status(404).JSON(errors2.PadNotFoundError)
 		}
 		var head = pad.Head
 
 		if *revNum > head {
-			return ctx.Status(400).JSON(apiError.Error{
-				Message: "Revision number is higher than head",
-				Error:   400,
-			})
+			return ctx.Status(400).JSON(errors2.RevisionHigherThanHeadError)
 		}
 
 		var revision, err = pad.GetRevision(*revNum)
 		if err != nil {
-			return ctx.Status(404).JSON(apiError.Error{
-				Message: "Revision not found",
-				Error:   404,
-			})
+			return ctx.Status(404).JSON(errors2.RevisionNotFoundError)
 		}
 
 		return ctx.JSON(revision.Changeset)
@@ -157,27 +132,18 @@ func Init(c *fiber.App, handler *ws.PadMessageHandler, manager *pad.Manager) {
 		err := ctx.BodyParser(&request)
 
 		if err != nil {
-			return ctx.Status(400).JSON(apiError.Error{
-				Message: "Invalid request",
-				Error:   400,
-			})
+			return ctx.Status(400).JSON(errors2.InvalidRequestError)
 		}
 
-		var pad, errPadSafe = utils2.GetPadSafe(padId, true, nil, nil, manager)
+		var retrievedPad, errPadSafe = utils2.GetPadSafe(padId, true, nil, nil, manager)
 		if errPadSafe != nil {
-			return ctx.Status(404).JSON(apiError.Error{
-				Message: "Pad not found",
-				Error:   404,
-			})
+			return ctx.Status(404).JSON(errors2.PadNotFoundError)
 		}
-		err = pad.SetText(request.Text, nil)
+		err = retrievedPad.SetText(request.Text, nil)
 		if err != nil {
-			return ctx.Status(500).JSON(apiError.Error{
-				Message: "Internal server error",
-				Error:   500,
-			})
+			return ctx.Status(500).JSON(errors2.InternalServerError)
 		}
-		handler.UpdatePadClients(pad)
+		handler.UpdatePadClients(retrievedPad)
 		return ctx.SendStatus(200)
 	})
 }

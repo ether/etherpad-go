@@ -23,13 +23,13 @@ func InitMemoryUtils() *TestUtilFields {
 	hooks := hooks2.NewHook()
 	manager := pad.NewManager(db, &hooks)
 	managerAuthor := author.NewManager(db)
-	padHandler := ws.NewPadMessageHandler(db, &hooks, &manager)
+	padHandler := ws.NewPadMessageHandler(db, &hooks, manager)
 	validatorEvaluator := validator.New(validator.WithRequiredStructEnabled())
 
 	return &TestUtilFields{
 		DB:                db,
 		Hooks:             &hooks,
-		PadManager:        &manager,
+		PadManager:        manager,
 		PadMessageHandler: padHandler,
 		Validator:         validatorEvaluator,
 		AuthorManager:     managerAuthor,

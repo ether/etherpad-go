@@ -61,8 +61,8 @@ func pkceS256(verifier string) string {
 	return base64.RawURLEncoding.EncodeToString(sum[:])
 }
 
-func Init(app *fiber.App, retrievedSettings settings.Settings, setupLogger *zap.SugaredLogger) {
-	authenticator := NewAuthenticator(&retrievedSettings)
+func Init(app *fiber.App, retrievedSettings *settings.Settings, setupLogger *zap.SugaredLogger) {
+	authenticator := NewAuthenticator(retrievedSettings)
 	allowedUrls := make([]string, 0)
 	for _, sso := range retrievedSettings.SSO.Clients {
 		for _, redirectUri := range sso.RedirectUris {
@@ -103,7 +103,7 @@ func Init(app *fiber.App, retrievedSettings settings.Settings, setupLogger *zap.
 	})))
 
 	app.Get("/.well-known/openid-configuration", adaptor.HTTPHandler(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		authenticator.OicWellKnown(writer, request, &retrievedSettings)
+		authenticator.OicWellKnown(writer, request, retrievedSettings)
 	})))
 	app.Get("/.well-known/jwks.json", adaptor.HTTPHandler(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		authenticator.JwksEndpoint(writer, request)

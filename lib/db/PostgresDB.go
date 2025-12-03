@@ -883,31 +883,37 @@ func NewPostgresDB(options PostgresOptions) (*PostgresDB, error) {
 		return nil, err
 	}
 	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS pad (id TEXT PRIMARY KEY, data TEXT)")
-	if err != nil {
-		return nil, err
-	}
-	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS padRev(id TEXT, rev INTEGER, changeset TEXT, atextText TEXT, atextAttribs TEXT, authorId TEXT, timestamp BIGINT, PRIMARY KEY (id, rev))")
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS token2author(token TEXT PRIMARY KEY, author TEXT)")
-
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS globalAuthorPads(id TEXT NOT NULL, padID TEXT NOT NULL,  PRIMARY KEY(id, padID) )")
-
-	if err != nil {
-		return nil, err
-	}
 
 	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS globalAuthor(id TEXT PRIMARY KEY, colorId TEXT, name TEXT, timestamp BIGINT)")
+	if err != nil {
+		return nil, err
+	}
 
-	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS pad2readonly(id TEXT PRIMARY KEY, data TEXT)")
+	if err != nil {
+		return nil, err
+	}
+	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS padRev(id TEXT, rev INTEGER, changeset TEXT, atextText TEXT, atextAttribs TEXT, authorId TEXT, timestamp BIGINT, PRIMARY KEY (id, rev), FOREIGN KEY(id) REFERENCES pad(id) ON DELETE CASCADE)")
+	if err != nil {
+		return nil, err
+	}
 
-	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS readonly2pad(id TEXT PRIMARY KEY, data TEXT)")
+	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS token2author(token TEXT PRIMARY KEY, author TEXT, FOREIGN KEY(author) REFERENCES globalAuthor(id) ON DELETE CASCADE)")
+
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS globalAuthorPads(id TEXT NOT NULL, padID TEXT NOT NULL,  PRIMARY KEY(id, padID), FOREIGN KEY(id) REFERENCES globalAuthor(id) ON DELETE CASCADE, FOREIGN KEY(padID) REFERENCES pad(id) ON DELETE CASCADE)")
+
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS pad2readonly(id TEXT PRIMARY KEY, data TEXT, FOREIGN KEY(id) REFERENCES pad(id) ON DELETE CASCADE)")
+	if err != nil {
+		return nil, err
+	}
+	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS readonly2pad(id TEXT PRIMARY KEY, data TEXT, FOREIGN KEY(data) REFERENCES pad(id) ON DELETE CASCADE)")
 
 	if err != nil {
 		return nil, err

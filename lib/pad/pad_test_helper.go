@@ -9,6 +9,6 @@ import (
 
 func CreateNewPad(ds db.DataStore) *pad.Pad {
 	hooksToInject := hooks2.NewHook()
-	createdPad := pad.NewPad(gofakeit.Name(), ds, &hooksToInject)
+	createdPad := pad.NewPad(gofakeit.FirstName(), ds, &hooksToInject)
 	return &createdPad
 }

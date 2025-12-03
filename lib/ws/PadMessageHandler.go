@@ -23,6 +23,7 @@ import (
 	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/ether/etherpad-go/lib/settings/clientVars"
 	"github.com/ether/etherpad-go/lib/utils"
+	"github.com/ether/etherpad-go/lib/ws/constants"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
@@ -299,7 +300,6 @@ func (p *PadMessageHandler) handleMessage(message any, client *Client, ctx *fibe
 		exists, err := p.padManager.DoesPadExist(thisSession.Auth.PadId)
 
 		if err != nil {
-			println("Error checking pad existence", err.Error())
 			return
 		}
 
@@ -530,7 +530,6 @@ func (p *PadMessageHandler) HandlePadDelete(client *Client, padDeleteMessage Pad
 
 	retrievedPad, err := p.padManager.DoesPadExist(padDeleteMessage.Data.PadID)
 	if err != nil {
-		println("Error checking pad existence")
 		return
 	}
 	if !*retrievedPad {
@@ -564,16 +563,13 @@ func (p *PadMessageHandler) HandlePadDelete(client *Client, padDeleteMessage Pad
 func (p *PadMessageHandler) DeletePad(padId string) error {
 	retrievedPad, err := p.padManager.DoesPadExist(padId)
 	if err != nil {
-		println("Error checking pad existence")
 		return err
 	}
 	if !*retrievedPad {
-		println("Pad does not exist")
-		return errors.New("pad does not exist")
+		return errors.New(constants.ErrorPadDoesNotExist)
 	}
 	retrievedPadObj, err := p.padManager.GetPad(padId, nil, nil)
 	if err != nil {
-		println("Error retrieving pad")
 		return err
 	}
 	retrievedPadObj.Remove()
@@ -582,20 +578,16 @@ func (p *PadMessageHandler) DeletePad(padId string) error {
 	var readonlyId = p.readOnlyManager.GetReadOnlyId(retrievedPadObj.Id)
 	err = p.readOnlyManager.RemoveReadOnlyPad(readonlyId, retrievedPadObj.Id)
 	if err != nil {
-		println("Error removing read-only pad mapping")
 		return err
 	}
 	if err := retrievedPadObj.RemoveAllChats(); err != nil {
-		println("Error removing all chats " + err.Error())
 		return err
 	}
 
 	if err := retrievedPadObj.RemoveAllSavedRevisions(); err != nil {
-		println("Error removing all saved revisions " + err.Error())
 		return err
 	}
 	if err := p.padManager.RemovePad(retrievedPadObj.Id); err != nil {
-		println("Error removing pad " + err.Error())
 		return err
 	}
 	return nil

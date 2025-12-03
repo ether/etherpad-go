@@ -47,8 +47,6 @@ jobs:
           PROJECT_KEY: etherpad-go
 
       - name: SonarQube Quality Gate Check
-        # Temporarily continue on error to avoid blocking PRs
-        continue-on-error: true
         uses: sonarsource/sonarqube-quality-gate-action@master
         with:
           scanMetadataReportFile: .scannerwork/report-task.txt

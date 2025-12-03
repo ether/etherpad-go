@@ -31,6 +31,14 @@ func TestPad(t *testing.T) {
 			Name: "Append Chat Message to Non-Existing Pad",
 			Test: testAppendChatMessageOnNonExistingPad,
 		},
+		testutils.TestRunConfig{
+			Name: "Get Revision Changesets on Non-Existing Pad",
+			Test: testGetRevisionChangesetsOnNonExistingPad,
+		},
+		testutils.TestRunConfig{
+			Name: "Get Revision Changesets on Existing Pad non-Existing Revision",
+			Test: testGetRevisionChangesetsOnExistingPadNonExistingRevision,
+		},
 	)
 
 	defer testHandler.StartTestDBHandler()
@@ -39,39 +47,44 @@ func TestPad(t *testing.T) {
 func testCheckWithWhiteSpaceInPadID(t *testing.T, ts testutils.TestDataStore) {
 	padToTest := pad.CreateNewPad(ts.DS)
 	padToTest.Id = "pad with spaces"
-	if err := padToTest.Check(); err == nil {
-		t.Fatal("should fail with whitespaces", err)
+	if err := padToTest.Check(); err == nil || err.Error() != "pad id contains leading or trailing whitespace" {
+		t.Fatal("should fail with whitespaces" + err.Error())
 	}
 }
 
 func testCheckWithNegativeHead(t *testing.T, ts testutils.TestDataStore) {
 	padToTest := pad.CreateNewPad(ts.DS)
 	padToTest.Head = -1
-	if err := padToTest.Check(); err == nil {
+	if err := padToTest.Check(); err == nil || err.Error() != "pad head revision is negative" {
 		t.Fatal("should fail with negative head", err)
 	}
 }
 
 func testDifferentSavedRevisionNumbers(t *testing.T, ts testutils.TestDataStore) {
 	padToTest := pad.CreateNewPad(ts.DS)
-	padToTest.SavedRevisions = append(padToTest.SavedRevisions, revision.SavedRevision{
-		RevNum: 23,
-	})
+	padToTest.Head = 1
 	padToTest.SavedRevisions = append(padToTest.SavedRevisions, revision.SavedRevision{
 		RevNum: 25,
 	})
-	if err := padToTest.Check(); err == nil {
+	padToTest.SavedRevisions = append(padToTest.SavedRevisions, revision.SavedRevision{
+		RevNum: 23,
+	})
+	if err := padToTest.Check(); err == nil || err.Error() != "pad saved revisions are not in ascending order" {
 		t.Fatal("should fail with different saved revision numbers", err)
 	}
 }
 
 func testAppendChatMessage(t *testing.T, ts testutils.TestDataStore) {
 	padToTest := pad.CreateNewPad(ts.DS)
+	padToTest.Head = 1
 	if err := padToTest.Save(); err != nil {
 		t.Fatal("failed to save pad:", err)
 	}
 	randomAuthor := author.NewRandomAuthor()
-	createdAuthor := ts.AuthorManager.CreateAuthor(randomAuthor.Name)
+	createdAuthor, err := ts.AuthorManager.CreateAuthor(randomAuthor.Name)
+	if err != nil {
+		t.Fatal("failed to create author:", err)
+	}
 
 	padHead, err := padToTest.AppendChatMessage(&createdAuthor.Id, 1234567890, "Hello, world!")
 	if err != nil {
@@ -83,14 +96,38 @@ func testAppendChatMessage(t *testing.T, ts testutils.TestDataStore) {
 	}
 }
 
-// TODO check on sqlite, postgres and memory for existing author id
 func testAppendChatMessageOnNonExistingPad(t *testing.T, ts testutils.TestDataStore) {
 	padToTest := pad.CreateNewPad(ts.DS)
 	randomAuthor := author.NewRandomAuthor()
-	createdAuthor := ts.AuthorManager.CreateAuthor(randomAuthor.Name)
+	createdAuthor, err := ts.AuthorManager.CreateAuthor(randomAuthor.Name)
+	if err != nil {
+		t.Fatal("failed to create author:", err)
+	}
 
-	_, err := padToTest.AppendChatMessage(&createdAuthor.Id, 1234567890, "Hello, world!")
+	_, err = padToTest.AppendChatMessage(&createdAuthor.Id, 1234567890, "Hello, world!")
 	if err == nil {
 		t.Fatal("should error with non existing pad:", err)
+	}
+}
+
+func testGetRevisionChangesetsOnNonExistingPad(t *testing.T, ts testutils.TestDataStore) {
+	padToTest := pad.CreateNewPad(ts.DS)
+
+	_, err := padToTest.GetRevisionChangeset(100)
+	if err == nil {
+		t.Fatal("should error with non existing pad:", err)
+	}
+}
+
+func testGetRevisionChangesetsOnExistingPadNonExistingRevision(t *testing.T, ts testutils.TestDataStore) {
+	padToTest := pad.CreateNewPad(ts.DS)
+	gotPad, err := ts.PadManager.GetPad(padToTest.Id, nil, nil)
+	if err != nil {
+		t.Fatal("failed to get pad:", err)
+	}
+
+	_, err = gotPad.GetRevisionChangeset(100)
+	if err == nil || err.Error() != "pad revision not found" {
+		t.Fatal("should work with existing pad:", err)
 	}
 }

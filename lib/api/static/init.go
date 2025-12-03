@@ -102,7 +102,7 @@ func getAdminBody(uiAssets embed.FS, retrievedSettings *settings.Settings) (*str
 	return &result, nil
 }
 
-func Init(app *fiber.App, uiAssets embed.FS, retrievedSettings settings.Settings, cookieStore *session.Store, setupLogger *zap.SugaredLogger) {
+func Init(app *fiber.App, uiAssets embed.FS, retrievedSettings *settings.Settings, cookieStore *session.Store, setupLogger *zap.SugaredLogger) {
 	app.Use("/p/", func(c *fiber.Ctx) error {
 		c.Path()
 
@@ -116,7 +116,7 @@ func Init(app *fiber.App, uiAssets embed.FS, retrievedSettings settings.Settings
 
 	app.Get("/pluginfw/plugin-definitions.json", plugins.ReturnPluginResponse)
 
-	adminHtml, err := getAdminBody(uiAssets, &retrievedSettings)
+	adminHtml, err := getAdminBody(uiAssets, retrievedSettings)
 
 	if err != nil {
 		setupLogger.Errorf("Error setting up admin page: %v", err)

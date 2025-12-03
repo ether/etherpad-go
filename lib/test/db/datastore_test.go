@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/ether/etherpad-go/lib/apool"
+	author2 "github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/db"
 	modeldb "github.com/ether/etherpad-go/lib/models/db"
 	sessionmodel "github.com/ether/etherpad-go/lib/models/session"
@@ -293,7 +294,12 @@ func testGetRevisionOnNonExistingRevision(t *testing.T, ds testutils.TestDataSto
 func testSaveAndGetRevisionAndMetaData(t *testing.T, ds testutils.TestDataStore) {
 	text := apool.AText{}
 	pool := apool.APool{}
-	author := "author1"
+	randomAuthor := author2.NewRandomAuthor()
+
+	err := ds.DS.SaveAuthor(*author2.ToDBAuthor(randomAuthor))
+	if err != nil {
+		t.Fatalf("SaveAuthor failed: %v", err)
+	}
 
 	pad := modeldb.PadDB{
 		RevNum:         -1,
@@ -303,7 +309,7 @@ func testSaveAndGetRevisionAndMetaData(t *testing.T, ds testutils.TestDataStore)
 		t.Fatalf("CreatePad failed: %v", err)
 	}
 
-	if err := ds.DS.SaveRevision("pad1", 0, "changeset0", text, pool, &author, 12345); err != nil {
+	if err := ds.DS.SaveRevision("pad1", 0, "changeset0", text, pool, &randomAuthor.Id, 12345); err != nil {
 		t.Fatalf("SaveRevision failed: %v", err)
 	}
 
@@ -333,7 +339,7 @@ func testSaveAndGetRevisionAndMetaData(t *testing.T, ds testutils.TestDataStore)
 	if meta.Timestamp != 12345 {
 		t.Fatalf("GetPadMetaData Timestamp mismatch")
 	}
-	if meta.AuthorId == nil || *meta.AuthorId != author {
+	if meta.AuthorId == nil || *meta.AuthorId != randomAuthor.Id {
 		t.Fatalf("GetPadMetaData AuthorId mismatch")
 	}
 }
@@ -403,15 +409,24 @@ func testQueryPadSortingAndPattern(t *testing.T, ds testutils.TestDataStore) {
 	makePad := func(name string, rev int, ts int64) {
 		text := apool.AText{}
 		pool := apool.APool{}
-		author := name + "_a"
+		randomAuthor := author2.NewRandomAuthor()
+		dbAuthor := author2.ToDBAuthor(randomAuthor)
+		dbAuthor.ID = name + "_a"
+
+		savedAuthor, err := ds.AuthorManager.CreateAuthor(&dbAuthor.ID)
+
+		if err != nil {
+			t.Fatalf("CreateAuthor failed: %v", err)
+		}
+
 		p := modeldb.PadDB{
 			RevNum:         rev,
-			SavedRevisions: map[int]modeldb.PadRevision{rev: {Content: "c", PadDBMeta: modeldb.PadDBMeta{AText: &text, Pool: &pool, Author: &author, Timestamp: ts}}},
+			SavedRevisions: map[int]modeldb.PadRevision{rev: {Content: "c", PadDBMeta: modeldb.PadDBMeta{AText: &text, Pool: &pool, Author: &savedAuthor.Id, Timestamp: ts}}},
 		}
 		if err := ds.DS.CreatePad(name, p); err != nil {
 			t.Fatalf("CreatePad failed: %v", err)
 		}
-		if err := ds.DS.SaveRevision(name, rev, "changeset", text, pool, &author, ts); err != nil {
+		if err := ds.DS.SaveRevision(name, rev, "changeset", text, pool, &savedAuthor.Id, ts); err != nil {
 			t.Fatalf("SaveRevision failed: %v", err)
 		}
 	}
@@ -465,6 +480,10 @@ func testSaveChatHeadOfPadOnNonExistentPad(t *testing.T, ds testutils.TestDataSt
 }
 
 func testRemovePad2ReadOnly(t *testing.T, ds testutils.TestDataStore) {
+	if err := ds.DS.CreatePad("padROTest", db.CreateRandomPad()); err != nil {
+		t.Fatalf("CreatePad failed: %v", err)
+	}
+
 	err := ds.DS.CreatePad2ReadOnly("padROTest", "ro1")
 	if err != nil {
 		t.Fatalf("CreatePad2ReadOnly failed: %v", err)
@@ -566,6 +585,11 @@ func testChatSaveGetAndHead(t *testing.T, ds testutils.TestDataStore) {
 func testSessionsTokensAuthors(t *testing.T, ds testutils.TestDataStore) {
 
 	s := sessionmodel.Session{}
+	authorId := "authX"
+	createdAuthor, err := ds.AuthorManager.CreateAuthor(&authorId)
+	if err != nil {
+		t.Fatalf("CreateAuthor failed: %v", err)
+	}
 	if err := ds.DS.SetSessionById("sess1", s); err != nil {
 		t.Fatalf("SetSessionById failed: %v", err)
 	}
@@ -586,11 +610,11 @@ func testSessionsTokensAuthors(t *testing.T, ds testutils.TestDataStore) {
 		t.Fatalf("session should be removed")
 	}
 
-	if err := ds.DS.SetAuthorByToken("tok1", "authX"); err != nil {
+	if err := ds.DS.SetAuthorByToken("tok1", createdAuthor.Id); err != nil {
 		t.Fatalf("SetAuthorByToken failed: %v", err)
 	}
 	authorPtr, err := ds.DS.GetAuthorByToken("tok1")
-	if err != nil || authorPtr == nil || *authorPtr != "authX" {
+	if err != nil || authorPtr == nil || *authorPtr != createdAuthor.Id {
 		t.Fatalf("GetAuthorByToken mismatch: %v %v", err, authorPtr)
 	}
 
@@ -625,6 +649,12 @@ func testRemoveRevisionsOfPadNonExistingPad(t *testing.T, ds testutils.TestDataS
 }
 
 func testReadonlyMappingsAndRemoveRevisions(t *testing.T, ds testutils.TestDataStore) {
+	padDb := db.CreateRandomPad()
+
+	if err := ds.DS.CreatePad("padR", padDb); err != nil {
+		t.Fatalf("CreatePad failed: %v", err)
+	}
+
 	if err := ds.DS.CreatePad2ReadOnly("padR", "r1"); err != nil {
 		t.Fatalf("CreatePad2ReadOnly failed: %v", err)
 	}

@@ -8,9 +8,11 @@ import (
 	"log"
 	"math/big"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/ether/etherpad-go/assets/login"
+	"github.com/ether/etherpad-go/lib/api/constants"
 	"github.com/ether/etherpad-go/lib/models/oidc"
 	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/ory/fosite"
@@ -18,6 +20,7 @@ import (
 	"github.com/ory/fosite/handler/openid"
 	"github.com/ory/fosite/token/jwt"
 	"go.uber.org/zap"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type Authenticator struct {
@@ -30,16 +33,32 @@ type Authenticator struct {
 func NewAuthenticator(retrievedSettings *settings.Settings) *Authenticator {
 	store := NewMemoryStore()
 	for _, sso := range retrievedSettings.SSO.Clients {
-		store.Clients[sso.ClientId] = &fosite.DefaultClient{
+		isPublic := false
+
+		if !slices.Contains(sso.GrantTypes, "client_credentials") {
+			isPublic = true
+		}
+
+		clientToSso := &fosite.DefaultClient{
 			ID:            sso.ClientId,
-			Secret:        []byte(sso.ClientSecret),
 			RedirectURIs:  sso.RedirectUris,
 			GrantTypes:    sso.GrantTypes,
 			Audience:      []string{"etherpad-go"},
-			Public:        true,
+			Public:        isPublic,
 			ResponseTypes: []string{"code"},
 			Scopes:        []string{"openid", "email", "profile", "offline"},
 		}
+
+		if sso.ClientSecret != nil && *sso.ClientSecret != "" {
+			hashedSecret, err := bcrypt.GenerateFromPassword([]byte(*sso.ClientSecret), bcrypt.DefaultCost)
+			if err != nil {
+				log.Fatalf("Error hashing client secret: %v", err)
+			}
+
+			clientToSso.Secret = hashedSecret
+		}
+		store.Clients[sso.ClientId] = clientToSso
+
 	}
 
 	for username, user := range retrievedSettings.Users {
@@ -181,7 +200,26 @@ func (a *Authenticator) OicWellKnown(rw http.ResponseWriter, req *http.Request, 
 	rw.Write(byteResponse)
 }
 
-func (a *Authenticator) AuthEndpoint(rw http.ResponseWriter, req *http.Request, setupLogger *zap.SugaredLogger, retrievedSettings settings.Settings) {
+func renderLoginPage(rw http.ResponseWriter, req *http.Request, clients []settings.SSOClient, ar fosite.AuthorizeRequester, errorMessage *string) {
+	clientId := req.URL.Query().Get("client_id")
+	var clientFound settings.SSOClient
+
+	for _, sso := range clients {
+		if sso.ClientId == clientId {
+			clientFound = sso
+		}
+	}
+
+	scopes := make([]string, 0)
+	for _, scope := range ar.GetRequestedScopes() {
+		scopes = append(scopes, scope)
+	}
+	loginComp := login.Login(clientFound, scopes, errorMessage)
+	req.Header.Set("Content-Type", constants.ContentTypeHTML)
+	loginComp.Render(req.Context(), rw)
+}
+
+func (a *Authenticator) AuthEndpoint(rw http.ResponseWriter, req *http.Request, setupLogger *zap.SugaredLogger, retrievedSettings *settings.Settings) {
 	ctx := req.Context()
 
 	ar, err := a.provider.NewAuthorizeRequest(ctx, req)
@@ -193,27 +231,11 @@ func (a *Authenticator) AuthEndpoint(rw http.ResponseWriter, req *http.Request, 
 
 	req.ParseForm()
 	if req.Method == "GET" {
-		clientId := req.URL.Query().Get("client_id")
-		var clientFound settings.SSOClient
-
-		for _, sso := range retrievedSettings.SSO.Clients {
-			if sso.ClientId == clientId {
-				clientFound = sso
-			}
-		}
-
-		rw.Header().Set("Content-Type", "text/html; charset=utf-8")
-		scopes := make([]string, 0)
-		for _, scope := range ar.GetRequestedScopes() {
-			scopes = append(scopes, scope)
-		}
-		loginComp := login.Login(clientFound, scopes, nil)
-		loginComp.Render(req.Context(), rw)
+		renderLoginPage(rw, req, retrievedSettings.SSO.Clients, ar, nil)
 		return
 	}
 
 	for _, scope := range req.PostForm["scopes"] {
-		println(scope)
 		ar.GrantScope(scope)
 	}
 
@@ -225,22 +247,8 @@ func (a *Authenticator) AuthEndpoint(rw http.ResponseWriter, req *http.Request, 
 	if !ok || user.Password != password {
 		time.Sleep(500 * time.Millisecond)
 		rw.WriteHeader(http.StatusOK)
-		var clientFound settings.SSOClient
-
-		for _, sso := range retrievedSettings.SSO.Clients {
-			if sso.ClientId == clientId {
-				clientFound = sso
-			}
-		}
-
-		rw.Header().Set("Content-Type", "text/html; charset=utf-8")
 		usernameOrPasswordInvalid := "Username or password invalid"
-		scopes := make([]string, 0)
-		for _, scope := range ar.GetRequestedScopes() {
-			scopes = append(scopes, scope)
-		}
-		loginComp := login.Login(clientFound, scopes, &usernameOrPasswordInvalid)
-		loginComp.Render(req.Context(), rw)
+		renderLoginPage(rw, req, retrievedSettings.SSO.Clients, ar, &usernameOrPasswordInvalid)
 		return
 	}
 

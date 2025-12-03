@@ -1,21 +1,21 @@
-package testutils
+package changeset
 
 import (
 	"math/rand"
 	"regexp"
 	"strings"
 
-	"github.com/ether/etherpad-go/lib/changeset"
+	"github.com/ether/etherpad-go/lib/test/testutils/general"
 )
 
 func RandomTestChangeset(origText string, withAttribs bool) (string, string) {
-	var charBank = changeset.NewStringAssembler()
+	var charBank = NewStringAssembler()
 	textLeft := origText
-	var outTextAssem = changeset.NewStringAssembler()
-	opAssem := changeset.NewSmartOpAssembler()
+	var outTextAssem = NewStringAssembler()
+	opAssem := NewSmartOpAssembler()
 	oldLen := len(origText)
 
-	nextOp := changeset.NewOp(nil)
+	nextOp := NewOp(nil)
 
 	appendMultilineOp := func(opcode string, txt string) {
 		nextOp.OpCode = opcode
@@ -66,8 +66,8 @@ func RandomTestChangeset(origText string, withAttribs bool) (string, string) {
 
 	outText := outTextAssem.String() + "\n"
 	opAssem.EndDocument()
-	cs := changeset.Pack(oldLen, len(outText), opAssem.String(), charBank.String())
-	_, err := changeset.CheckRep(cs)
+	cs := Pack(oldLen, len(outText), opAssem.String(), charBank.String())
+	_, err := CheckRep(cs)
 	if err != nil {
 		println("Original Text:", origText)
 		println("Generated Changeset:", cs)
@@ -90,7 +90,7 @@ func randomStringOperation(numCharsLeft int) stringOperation {
 	case 0:
 		// insert char
 		result = stringOperation{
-			insert: RandomInlineString(1),
+			insert: general.RandomInlineString(1),
 		}
 	case 1:
 		// delete char
@@ -105,7 +105,7 @@ func randomStringOperation(numCharsLeft int) stringOperation {
 	case 3:
 		// insert small
 		result = stringOperation{
-			insert: RandomInlineString(rand.Intn(4) + 1),
+			insert: general.RandomInlineString(rand.Intn(4) + 1),
 		}
 	case 4:
 		// delete small
@@ -120,7 +120,7 @@ func randomStringOperation(numCharsLeft int) stringOperation {
 	case 6:
 		// insert multiline
 		result = stringOperation{
-			insert: RandomMultiline(5, 20),
+			insert: general.RandomMultiline(5, 20),
 		}
 	case 7:
 		// delete multiline
