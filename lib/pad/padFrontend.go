@@ -13,7 +13,7 @@ import (
 )
 import padAsset "github.com/ether/etherpad-go/assets/pad"
 
-func HandlePadOpen(c *fiber.Ctx, uiAssets embed.FS, retrievedSettings settings.Settings) error {
+func HandlePadOpen(c *fiber.Ctx, uiAssets embed.FS, retrievedSettings *settings.Settings) error {
 	pad := models.Model{
 		Name: "test",
 	}

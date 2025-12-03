@@ -319,7 +319,7 @@ templ ChatBox(translations map[string]string) {
 
 
 
-templ Greeting(pad padModel.Model, jsScript string, translations map[string]string, settings settings.Settings) {
+templ Greeting(pad padModel.Model, jsScript string, translations map[string]string, settings *settings.Settings) {
   <html class="pad super-light-toolbar super-light-editor light-background">
   <head>
     <title>{settings.Title}</title>

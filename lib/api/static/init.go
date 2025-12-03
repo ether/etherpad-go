@@ -116,7 +116,7 @@ func Init(app *fiber.App, uiAssets embed.FS, retrievedSettings *settings.Setting
 
 	app.Get("/pluginfw/plugin-definitions.json", plugins.ReturnPluginResponse)
 
-	adminHtml, err := getAdminBody(uiAssets, &retrievedSettings)
+	adminHtml, err := getAdminBody(uiAssets, retrievedSettings)
 
 	if err != nil {
 		setupLogger.Errorf("Error setting up admin page: %v", err)

@@ -6,7 +6,7 @@ import (
 	"strconv"
 )
 
-templ Page(settings settings.Settings, translations map[string]string) {
+templ Page(settings *settings.Settings, translations map[string]string) {
 	<html lang="en">
 		<head>
 			<script>
