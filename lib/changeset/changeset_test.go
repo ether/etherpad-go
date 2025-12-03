@@ -1,25 +1,26 @@
-package test
+package changeset
 
 import (
 	"fmt"
 	"regexp"
-	"slices"
 	"strings"
 	"testing"
 	"unicode/utf8"
 
 	"github.com/ether/etherpad-go/lib/apool"
-	"github.com/ether/etherpad-go/lib/changeset"
-	"github.com/ether/etherpad-go/lib/test/testutils"
+	"github.com/ether/etherpad-go/lib/test/testutils/general"
+	"github.com/ether/etherpad-go/lib/utils"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMakeSplice(t *testing.T) {
 	var testString = "a\nb\nc\n"
-	var splicedText, _ = changeset.MakeSplice(testString, 5, 0, "def", nil, nil)
+	var splicedText, _ = MakeSplice(testString, 5, 0, "def", nil, nil)
 	if splicedText != "Z:6>3|2=4=1+3$def" {
 		t.Error("Expected Z:6>3|2=4=1+3$def, got ", splicedText)
 	}
-	var t2, err = changeset.ApplyToText(splicedText, testString)
+	var t2, err = ApplyToText(splicedText, testString)
 	if err != nil {
 		t.Error(err)
 	}
@@ -30,18 +31,150 @@ func TestMakeSplice(t *testing.T) {
 
 func TestAttributeTesterWithNilPool(t *testing.T) {
 	testArg := "bold,true"
-	returnedFunc := changeset.AttributeTester(apool.Attribute{}, nil)
+	returnedFunc := AttributeTester(apool.Attribute{}, nil)
 
 	if returnedFunc(&testArg) != false {
 		t.Error("Expected false when pool is nil")
 	}
 }
 
+func TestFollowAttributes_Att2EmptyAndPoolNil(t *testing.T) {
+	result, err := followAttributes("test", "", nil)
+	require.NoError(t, err)
+	assert.Equal(t, *result, "")
+}
+
+func TestFollowAttributes_Att1Empty(t *testing.T) {
+	pool := apool.NewAPool()
+	att2 := "*0*1"
+	result, err := followAttributes("", att2, &pool)
+	require.NoError(t, err)
+	assert.Equal(t, att2, *result)
+}
+
+func TestFollowAttributes_DetailedDebug(t *testing.T) {
+	pool := apool.NewAPool()
+	pool.PutAttrib(apool.Attribute{Key: "color", Value: "red"}, nil)
+	pool.PutAttrib(apool.Attribute{Key: "size", Value: "large"}, nil)
+
+	att1 := "*0" // color: red
+	att2 := "*1" // size: large
+
+	atts := make(map[string]string)
+
+	_, _, err := replaceAttributes(att2, func(a string) (*string, error) {
+		parsedNum, _ := utils.ParseNum(a)
+		attrib, _ := pool.GetAttrib(parsedNum)
+		atts[attrib.Key] = attrib.Value
+		emptyStr := ""
+		return &emptyStr, nil
+	})
+	require.NoError(t, err)
+
+	_, _, err = replaceAttributes(att1, func(a string) (*string, error) {
+		parsedNum, _ := utils.ParseNum(a)
+		attrib, _ := pool.GetAttrib(parsedNum)
+		res, ok := atts[attrib.Key]
+
+		if ok && attrib.Value <= res {
+			delete(atts, attrib.Key)
+		} else {
+		}
+		emptyStr := ""
+		return &emptyStr, nil
+	})
+	require.NoError(t, err)
+}
+
+func TestFollowAttributes_ConflictLexicalEarlierInAtt1(t *testing.T) {
+	pool := apool.NewAPool()
+	pool.PutAttrib(apool.Attribute{Key: "color", Value: "blue"}, nil)
+	pool.PutAttrib(apool.Attribute{Key: "color", Value: "red"}, nil)
+
+	att1 := "*0"
+	att2 := "*1"
+
+	result, err := followAttributes(att1, att2, &pool)
+	require.NoError(t, err)
+	assert.Equal(t, "", *result)
+}
+
+func TestFollowAttributes_ConflictLexicalEarlierInAtt2(t *testing.T) {
+	pool := apool.NewAPool()
+	pool.PutAttrib(apool.Attribute{Key: "color", Value: "red"}, nil)
+	pool.PutAttrib(apool.Attribute{Key: "color", Value: "blue"}, nil)
+
+	att1 := "*0" // color: red
+	att2 := "*1" // color: blue (lexically earlier than red)
+
+	result, err := followAttributes(att1, att2, &pool)
+	require.NoError(t, err)
+	assert.Equal(t, "*1", *result)
+}
+
+func TestFollowAttributes_MultipleAttributes(t *testing.T) {
+	pool := apool.NewAPool()
+	pool.PutAttrib(apool.Attribute{Key: "color", Value: "blue"}, nil)
+	pool.PutAttrib(apool.Attribute{Key: "size", Value: "large"}, nil)
+	pool.PutAttrib(apool.Attribute{Key: "color", Value: "red"}, nil)
+
+	att1 := "*0*1" // color: blue, size: large
+	att2 := "*2"   // color: red
+
+	result, err := followAttributes(att1, att2, &pool)
+	require.NoError(t, err)
+	assert.Equal(t, "", *result)
+}
+
+func TestFollowAttributes_ErrorParsingAtt2(t *testing.T) {
+	pool := apool.NewAPool()
+	att2 := "*invalid"
+
+	_, err := followAttributes("*0", att2, &pool)
+	assert.Error(t, err)
+}
+
+func TestFollowAttributes_ErrorParsingAtt1(t *testing.T) {
+	pool := apool.NewAPool()
+	att1 := "*invalid"
+	att2 := "*0"
+
+	_, err := followAttributes(att1, att2, &pool)
+	assert.Error(t, err)
+}
+
+func TestFollowAttributes_EmptyAtt2WithPool(t *testing.T) {
+	pool := apool.NewAPool()
+	result, err := followAttributes("*0", "", &pool)
+	require.NoError(t, err)
+	assert.Equal(t, "", *result)
+}
+
+func TestFollowAttributes_Att2NilEquivalent(t *testing.T) {
+	pool := apool.NewAPool()
+	result, err := followAttributes("*0", "", &pool)
+	require.NoError(t, err)
+	assert.Equal(t, "", *result)
+}
+
+func TestFollowAttributes_BuildStringFromMap(t *testing.T) {
+	pool := apool.NewAPool()
+	pool.PutAttrib(apool.Attribute{Key: "color", Value: "red"}, nil)
+	pool.PutAttrib(apool.Attribute{Key: "size", Value: "small"}, nil)
+
+	att1 := "*0" // color: red
+	att2 := "*1" // size: small
+
+	result, err := followAttributes(att1, att2, &pool)
+	require.NoError(t, err)
+	assert.Contains(t, *result, "*")
+}
+
 func TestAttributeTesterWithNegativeNumAttribPool(t *testing.T) {
 	testArg := "bold,true"
 	poolToTest := apool.NewAPool()
 	poolToTest.NextNum = -50
-	returnedFunc := changeset.AttributeTester(apool.Attribute{
+	returnedFunc := AttributeTester(apool.Attribute{
 		Key:   "bold",
 		Value: "true",
 	}, &poolToTest)
@@ -54,7 +187,7 @@ func TestAttributeTesterWithNegativeNumAttribPool(t *testing.T) {
 func TestAttributeTesterWithInvalidAttribString(t *testing.T) {
 	poolToTest := apool.NewAPool()
 	poolToTest.NextNum = 50
-	returnedFunc := changeset.AttributeTester(apool.Attribute{
+	returnedFunc := AttributeTester(apool.Attribute{
 		Key:   "bold",
 		Value: "true",
 	}, &poolToTest)
@@ -82,44 +215,42 @@ func TestFollow(t *testing.T) {
 	for i := 0; i < 30; i++ {
 		t.Run("Follow test "+fmt.Sprint(i), func(t *testing.T) {
 			p := apool.NewAPool()
-			startText := testutils.RandomMultiline(10, 20) + "\n"
+			startText := general.RandomMultiline(10, 20) + "\n"
 
-			cs1, _ := testutils.RandomTestChangeset(startText, false)
-			cs2, _ := testutils.RandomTestChangeset(startText, false)
+			cs1, _ := RandomTestChangeset(startText, false)
+			cs2, _ := RandomTestChangeset(startText, false)
 
-			println("Starting follow test with changesets:")
-			newFollowedStr1, err := changeset.Follow(cs1, cs2, false, &p)
-			println("Ending following test with changesets:")
+			newFollowedStr1, err := Follow(cs1, cs2, false, &p)
 			if err != nil {
 				t.Fatal("Error in Follow: " + err.Error())
 			}
-			newFollowedStr2, err := changeset.Follow(cs2, cs1, true, &p)
+			newFollowedStr2, err := Follow(cs2, cs1, true, &p)
 			if err != nil {
 				t.Fatal("Error in Follow: " + err.Error())
 			}
 
-			afb, err := changeset.CheckRep(*newFollowedStr1)
+			afb, err := CheckRep(*newFollowedStr1)
 			if err != nil {
 				t.Fatal("Error in CheckRep: " + err.Error())
 			}
-			bfa, err := changeset.CheckRep(*newFollowedStr2)
+			bfa, err := CheckRep(*newFollowedStr2)
 			if err != nil {
 				t.Fatal("Error in CheckRep: " + err.Error())
 			}
 
-			compose1, err := changeset.Compose(cs1, *afb, nil)
+			compose1, err := Compose(cs1, *afb, nil)
 			if err != nil {
 				t.Fatal("Error in Compose: " + err.Error())
 			}
-			compose2, err := changeset.Compose(cs2, *bfa, nil)
+			compose2, err := Compose(cs2, *bfa, nil)
 			if err != nil {
 				t.Fatal("Error in Compose: " + err.Error())
 			}
-			merge1, err := changeset.CheckRep(*compose1)
+			merge1, err := CheckRep(*compose1)
 			if err != nil {
 				t.Fatal("Error in CheckRep: " + err.Error())
 			}
-			merge2, err := changeset.CheckRep(*compose2)
+			merge2, err := CheckRep(*compose2)
 			if err != nil {
 				t.Fatal("Error in CheckRep: " + err.Error())
 			}
@@ -136,9 +267,9 @@ func TestAttributeTesterWithValidAttribString(t *testing.T) {
 		poolToTest.PutAttrib(apool.Attribute{Key: "dummy", Value: fmt.Sprint(i)}, nil)
 	}
 	puttedAttrib := apool.Attribute{Key: "bold", Value: "true"}
-	poolToTest.PutAttrib(puttedAttrib, nil) // bekommt Nummer 10 → "*a"
+	poolToTest.PutAttrib(puttedAttrib, nil)
 
-	returnedFunc := changeset.AttributeTester(puttedAttrib, &poolToTest)
+	returnedFunc := AttributeTester(puttedAttrib, &poolToTest)
 
 	tests := []string{"*a", "*a*b", "*a|1+5"}
 	for _, test := range tests {
@@ -152,13 +283,13 @@ func TestAttributeTesterWithValidAttribString(t *testing.T) {
 func TestMakeSpliceAtEnd(t *testing.T) {
 	var orig = "123"
 	var ins = "456"
-	var splice, err = changeset.MakeSplice(orig, utf8.RuneCountInString(orig), 0, ins, nil, nil)
+	var splice, err = MakeSplice(orig, utf8.RuneCountInString(orig), 0, ins, nil, nil)
 
 	if err != nil {
 		t.Error("Error making splice" + err.Error())
 	}
 
-	atext, err := changeset.ApplyToText(splice, orig)
+	atext, err := ApplyToText(splice, orig)
 
 	if *atext != orig+ins {
 		t.Error("They need to be the same")
@@ -167,7 +298,7 @@ func TestMakeSpliceAtEnd(t *testing.T) {
 
 func testSubAttribution(testId int, astr string, start int, end *int, correctOutput string, t *testing.T) {
 	t.Run("SubAttribution test "+fmt.Sprint(testId), func(t *testing.T) {
-		var result, err = changeset.Subattribution(astr, start, end)
+		var result, err = Subattribution(astr, start, end)
 		if err != nil {
 			t.Error("Error in Subattribution " + err.Error())
 		}
@@ -233,7 +364,7 @@ func TestSubAttribution(t *testing.T) {
 
 func TestOpsFromTextWithEqual(t *testing.T) {
 	var teststring = "a\nb\nc\n"
-	var ops = changeset.OpsFromText("=", teststring[0:5], nil, nil)
+	var ops = OpsFromText("=", teststring[0:5], nil, nil)
 	if len(ops) != 2 {
 		t.Error("Expected 2, got ", len(ops))
 	}
@@ -264,7 +395,7 @@ func TestOpsFromTextWithEqual(t *testing.T) {
 }
 
 func TestOpsFromTextWithMinus(t *testing.T) {
-	var ops = changeset.OpsFromText("-", "", nil, nil)
+	var ops = OpsFromText("-", "", nil, nil)
 
 	if len(ops) != 1 {
 		t.Error("Expected 1, got ", len(ops))
@@ -280,7 +411,7 @@ func TestOpsFromTextWithMinus(t *testing.T) {
 }
 
 func TestOpsFromTextWithPlus(t *testing.T) {
-	var ops = changeset.OpsFromText("+", "def", nil, nil)
+	var ops = OpsFromText("+", "def", nil, nil)
 
 	if len(ops) != 1 {
 		t.Error("Expected 1, got ", len(ops))
@@ -297,7 +428,7 @@ func TestOpsFromTextWithPlus(t *testing.T) {
 
 func TestUnpackChangeset(t *testing.T) {
 	var cs = "Z:z>1|2=m=b*0|1+1$\n"
-	var unpacked, err = changeset.Unpack(cs)
+	var unpacked, err = Unpack(cs)
 
 	if err != nil {
 		t.Error("Error unpacking changeset " + err.Error())
@@ -348,7 +479,7 @@ func TestApplyToAText(t *testing.T) {
 		Value: "a.1ukWCzcdcCbywn32",
 	}] = 0
 	p.NextNum = 1
-	var result, err = changeset.ApplyToAText(cs, atext, p)
+	var result, err = ApplyToAText(cs, atext, p)
 	if err != nil {
 		t.Error("Error in ApplyToAText " + err.Error())
 		return
@@ -375,14 +506,14 @@ func createPool(attribs []string) apool.APool {
 
 func runApplyToAttributionTest(testId int, attribs []string, cs string, inAttr string, outCorrect string, t *testing.T) {
 	var p = createPool(attribs)
-	var resCS, err = changeset.CheckRep(cs)
+	var resCS, err = CheckRep(cs)
 
 	if err != nil {
 		t.Error("CheckRep threw an error" + err.Error())
 		return
 	}
 
-	result, err := changeset.ApplyToAttribution(*resCS, inAttr, p)
+	result, err := ApplyToAttribution(*resCS, inAttr, p)
 	if err != nil {
 		t.Error(testId, "Error applying to attribution "+err.Error())
 		return
@@ -412,13 +543,13 @@ func TestMoveOpsToNewPool(t *testing.T) {
 		Value: "bar",
 	}, nil)
 
-	var changesetMoved = changeset.MoveOpsToNewPool("Z:1>2*1+1*0+1$ab", &pool1, &pool2)
+	var changesetMoved = MoveOpsToNewPool("Z:1>2*1+1*0+1$ab", &pool1, &pool2)
 
 	if changesetMoved != "Z:1>2*0+1*1+1$ab" {
 		t.Error("Error in MoveOpsToNewPool")
 	}
 
-	var changesetMoved2 = changeset.MoveOpsToNewPool("*1+1*0+1", &pool1, &pool2)
+	var changesetMoved2 = MoveOpsToNewPool("*1+1*0+1", &pool1, &pool2)
 	if changesetMoved2 != "*0+1*1+1" {
 		t.Error("Error in MoveOpsToNewPool")
 	}
@@ -456,21 +587,21 @@ func TestSlicerZipperFunc(t *testing.T) {
 		AttribToNum: attribToNum,
 	}
 
-	var op1 = changeset.Op{
+	var op1 = Op{
 		OpCode:  "+",
 		Chars:   1,
 		Lines:   0,
 		Attribs: "",
 	}
 
-	var op2 = changeset.Op{
+	var op2 = Op{
 		OpCode:  "-",
 		Chars:   1,
 		Lines:   0,
 		Attribs: "",
 	}
 
-	ops, err := changeset.SlicerZipperFunc(&op1, &op2, &pool)
+	ops, err := SlicerZipperFunc(&op1, &op2, &pool)
 
 	if err != nil {
 		t.Error("Error in SlicerZipperFunc " + err.Error())
@@ -483,9 +614,9 @@ func TestSlicerZipperFunc(t *testing.T) {
 }
 
 func stringToOps(str string) string {
-	var assem = changeset.NewMergingOpAssembler()
+	var assem = NewMergingOpAssembler()
 	var opCode = "+"
-	var o = changeset.NewOp(&opCode)
+	var o = NewOp(&opCode)
 	o.Chars = 1
 
 	for i := 0; i < len(str); i++ {
@@ -507,60 +638,6 @@ func stringToOps(str string) string {
 	return assem.String()
 }
 
-func testSplitJoinAttributionLines(t *testing.T) {
-	var regexSplitLines = regexp.MustCompile("[^\n]*\n")
-	var doc = `hsdxvuhehpo
-
-
-lkrfrk
-
-
-ezaxyidzrqi
-ivmxtsnewx
-imme
-`
-	var theJoined = stringToOps(doc)
-
-	var expectedSplit = []string{
-		"|1+c", "|1+1",
-		"|1+1", "|1+7",
-		"|1+1", "|1+1",
-		"+2*a+1|1+9", "|1+b",
-		"|1+5",
-	}
-
-	if theJoined != "|6+n+2*a+1|3+p" {
-		t.Error("Error in stringToOps")
-	}
-
-	var theSplitTemporary = regexSplitLines.FindAllString(theJoined, -1)
-	var theSplit = make([]string, len(theSplitTemporary))
-	for i, v := range theSplitTemporary {
-		theSplit[i] = stringToOps(v)
-	}
-
-	var res, err = changeset.SplitAttributionLines(theJoined, doc)
-	var res2 = changeset.JoinAttributionLines(theSplit)
-
-	if err != nil {
-		t.Error("Error in SplitAttributionLines " + err.Error())
-	}
-
-	if !slices.Equal(res, expectedSplit) {
-		t.Error("Error in SplitAttributionLines")
-	}
-
-	if res2 != theJoined {
-		t.Error("Error in JoinAttributionLines")
-	}
-
-}
-
-func TestSplitJoinAttributionLines(t *testing.T) {
-	t.Skip()
-	testSplitJoinAttributionLines(t)
-}
-
 func TestComposeAttributes(t *testing.T) {
 	var p = apool.NewAPool()
 	p.PutAttrib(apool.Attribute{
@@ -571,22 +648,22 @@ func TestComposeAttributes(t *testing.T) {
 		Key:   "bold",
 		Value: "true",
 	}, nil)
-	cs1, err := changeset.CheckRep("Z:2>1*1+1*1=1$x")
+	cs1, err := CheckRep("Z:2>1*1+1*1=1$x")
 	if err != nil {
 		t.Error("Error in CheckRep " + err.Error())
 		return
 	}
-	cs2, err := changeset.CheckRep("Z:3>0*0|1=3$")
+	cs2, err := CheckRep("Z:3>0*0|1=3$")
 	if err != nil {
 		t.Error("Error in CheckRep " + err.Error())
 		return
 	}
-	comp, err := changeset.Compose(*cs1, *cs2, &p)
+	comp, err := Compose(*cs1, *cs2, &p)
 	if err != nil {
 		t.Error("Error in ComposeAttributes " + err.Error())
 		return
 	}
-	var cs12, _ = changeset.CheckRep(*comp)
+	var cs12, _ = CheckRep(*comp)
 
 	if *cs12 != "Z:2>1+1*0|1=2$x" {
 		t.Error("Error in ComposeAttributes")
@@ -595,45 +672,12 @@ func TestComposeAttributes(t *testing.T) {
 
 func TestDeserializeOps(t *testing.T) {
 	var changesetToCheck = "-1*0=1*1=1=3+4"
-	res, err := changeset.DeserializeOps(changesetToCheck)
-	if err != nil {
-		t.Error("Error should be nil")
-	}
+	res, err := DeserializeOps(changesetToCheck)
+	assert.NoError(t, err)
 
 	if len(*res) != 5 {
 		t.Error("too short", len(*res))
 	}
-}
-
-// Utility function to print full match details
-func printMatchDetails(matches [][]string, input string) {
-	for i, match := range matches {
-		fmt.Printf("Match %d is:\n", i)
-		for j, group := range match {
-			if i == 0 {
-				// Full Match
-				fmt.Printf("  '%v'\n", group)
-			} else {
-				fmt.Printf("  Group %d: '%v'\n", j, group)
-			}
-		}
-		fmt.Printf("  index: %d\n", matchIndex(input, match[0]))
-	}
-}
-
-// Helper function to find match index
-func matchIndex(input, match string) int {
-	return regexp.MustCompile(regexp.QuoteMeta(match)).FindStringIndex(input)[0]
-}
-
-func TestRegexMatcher(t *testing.T) {
-	input := "+1*1+1|1+5"
-	pattern := `((?:\*[0-9a-z]+)*)(?:\|([0-9a-z]+))?([-+=])([0-9a-z]+)|(.)`
-	regex := regexp.MustCompile(pattern)
-
-	var i = regex.FindAllStringSubmatch(input, -1)
-	printMatchDetails(i, input)
-
 }
 
 func TestRegexMatcher2(t *testing.T) {
@@ -642,7 +686,6 @@ func TestRegexMatcher2(t *testing.T) {
 	regex := regexp.MustCompile(pattern)
 	var i = regex.FindAllStringSubmatch(input, -1)
 
-	// First regex matching
 	if i[0][0] != "-1" && i[0][1] != "" && i[0][2] != "" && i[0][3] != "-" && i[0][4] != "1" && i[0][5] != "" {
 		t.Error("Not correctly resolved")
 	}
@@ -669,7 +712,7 @@ func TestRegexMatcher3(t *testing.T) {
 
 func TestSerializeChangeset(t *testing.T) {
 	input := "+1*1+1|1+5"
-	var ops, _ = changeset.DeserializeOps(input)
+	var ops, _ = DeserializeOps(input)
 	var deserializedOps = *ops
 	if deserializedOps[0].OpCode != "+" &&
 		deserializedOps[0].Chars != 1 &&
@@ -704,17 +747,17 @@ func SimpleComposeAttributes(t *testing.T) {
 		Value: "true",
 	}, nil)
 
-	cs1, err := changeset.CheckRep("Z:2>1*1+1*1=1$x")
+	cs1, err := CheckRep("Z:2>1*1+1*1=1$x")
 	if err != nil {
 		t.Error("Error in CheckRep", err)
 		return
 	}
-	cs2, err := changeset.CheckRep("Z:3>0*0|1=3$")
+	cs2, err := CheckRep("Z:3>0*0|1=3$")
 	if err != nil {
 		t.Error("Error in CheckRep", err)
 		return
 	}
 
-	changeset.Compose(*cs1, *cs2, &pool)
+	Compose(*cs1, *cs2, &pool)
 
 }

@@ -208,13 +208,33 @@ func AttributeTester(attribPair apool.Attribute, pool *apool.APool) func(arg *st
 	}
 }
 
-func replaceAttributes(att2 string, callback func(match string) string) (string, map[string]string, error) {
+func replaceAttributes(att2 string, callback func(match string) (*string, error)) (string, map[string]string, error) {
 	re := regexp.MustCompile(`\*([0-9a-z]+)`)
 	atts := make(map[string]string)
+	var callbackErr error = nil
+	result := re.ReplaceAllStringFunc(att2, func(match string) string {
+		submatches := re.FindStringSubmatch(match)
+		if len(submatches) > 1 {
+			val, err := callback(submatches[1])
+			if err != nil {
+				callbackErr = err
+			}
+			if val == nil {
+				return ""
+			}
+			return *val
+		}
+		val, err := callback(match)
+		if err != nil {
+			callbackErr = err
+		}
+		if val == nil {
+			return ""
+		}
+		return *val
+	})
 
-	result := re.ReplaceAllStringFunc(att2, callback)
-
-	return result, atts, nil
+	return result, atts, callbackErr
 }
 
 func followAttributes(att1 string, att2 string, pool *apool.APool) (*string, error) {
@@ -224,8 +244,9 @@ func followAttributes(att1 string, att2 string, pool *apool.APool) (*string, err
 	// both attribute sets are taken.  This operation is the "follow",
 	// so a set of changes is produced that can be applied to att1
 	// to produce the merged set.
-	if att2 == "" && pool == nil {
-		return nil, nil
+	if att2 == "" || pool == nil {
+		emptyString := ""
+		return &emptyString, nil
 	}
 
 	if att1 == "" {
@@ -233,23 +254,31 @@ func followAttributes(att1 string, att2 string, pool *apool.APool) (*string, err
 	}
 
 	var atts = make(map[string]string)
-	if _, _, err := replaceAttributes(att2, func(a string) string {
+	if _, _, err := replaceAttributes(att2, func(a string) (*string, error) {
 		parsedNum, _ := utils.ParseNum(a)
-		var attrib, _ = pool.GetAttrib(parsedNum)
+		var attrib, err = pool.GetAttrib(parsedNum)
+		if err != nil {
+			return nil, err
+		}
 		atts[attrib.Key] = attrib.Value
-		return ""
+		emptyStr := ""
+		return &emptyStr, nil
 	}); err != nil {
 		return nil, err
 	}
-	if _, _, err := replaceAttributes(att1, func(a string) string {
+	if _, _, err := replaceAttributes(att1, func(a string) (*string, error) {
 		parsedNum, _ := utils.ParseNum(a)
-		var attrib, _ = pool.GetAttrib(parsedNum)
+		var attrib, err = pool.GetAttrib(parsedNum)
+		if err != nil {
+			return nil, err
+		}
 		var res, ok = atts[attrib.Key]
 
 		if ok && attrib.Value <= res {
 			delete(atts, attrib.Key)
 		}
-		return ""
+		emptyStr := ""
+		return &emptyStr, nil
 	}); err != nil {
 		return nil, err
 	}
