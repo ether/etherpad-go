@@ -31,12 +31,18 @@ func (h *Hub) Run() {
 		case client := <-h.Register:
 			h.clients[client] = true
 		case client := <-h.Unregister:
+			if client == nil {
+				continue
+			}
 			if _, ok := h.clients[client]; ok {
 				delete(h.clients, client)
 				close(client.Send)
 			}
 		case message := <-h.Broadcast:
 			for client := range h.clients {
+				if client == nil {
+					continue
+				}
 				select {
 				case client.Send <- message:
 				default:

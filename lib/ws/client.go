@@ -36,7 +36,7 @@ var (
 type Client struct {
 	hub *Hub
 	// The websocket connection.
-	conn *websocket.Conn
+	conn WebSocketConn
 	// Buffered channel of outbound messages.
 	Send         chan []byte
 	Room         string
