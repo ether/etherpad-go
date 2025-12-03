@@ -133,7 +133,7 @@ func (m *MemoryDataStore) SaveChatHeadOfPad(padId string, head int) error {
 	var pad, ok = m.padStore[padId]
 
 	if !ok {
-		return errors.New("pad not found")
+		return errors.New(PadDoesNotExistError)
 	}
 
 	pad.ChatHead = head
@@ -166,7 +166,7 @@ func (m *MemoryDataStore) RemoveRevisionsOfPad(padId string) error {
 	var pad, ok = m.padStore[padId]
 
 	if !ok {
-		return errors.New("pad not found")
+		return errors.New(PadDoesNotExistError)
 	}
 
 	pad.SavedRevisions = make(map[int]db.PadRevision)
@@ -312,7 +312,7 @@ func (m *MemoryDataStore) SaveRevision(padId string, rev int, changeset string,
 	text apool.AText, pool apool.APool, authorId *string, timestamp int64) error {
 	var retrievedPad, ok = m.padStore[padId]
 	if !ok {
-		return errors.New("pad not found")
+		return errors.New(PadDoesNotExistError)
 	}
 	retrievedPad.RevNum = rev
 
@@ -332,7 +332,7 @@ func (m *MemoryDataStore) GetPad(padID string) (*db.PadDB, error) {
 	pad, ok := m.padStore[padID]
 
 	if !ok {
-		return nil, errors.New("pad not found")
+		return nil, errors.New(PadDoesNotExistError)
 	}
 
 	return &pad, nil
