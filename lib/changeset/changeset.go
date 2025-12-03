@@ -217,7 +217,7 @@ func replaceAttributes(att2 string, callback func(match string) string) (string,
 	return result, atts, nil
 }
 
-func followAttributes(att1 string, att2 string, pool *apool.APool) string {
+func followAttributes(att1 string, att2 string, pool *apool.APool) (*string, error) {
 	// The merge of two sets of attribute changes to the same text
 	// takes the lexically-earlier value if there are two values
 	// for the same key.  Otherwise, all key/value changes from
@@ -225,21 +225,23 @@ func followAttributes(att1 string, att2 string, pool *apool.APool) string {
 	// so a set of changes is produced that can be applied to att1
 	// to produce the merged set.
 	if att2 == "" && pool == nil {
-		return ""
+		return nil, nil
 	}
 
 	if att1 == "" {
-		return att2
+		return &att2, nil
 	}
 
 	var atts = make(map[string]string)
-	replaceAttributes(att2, func(a string) string {
+	if _, _, err := replaceAttributes(att2, func(a string) string {
 		parsedNum, _ := utils.ParseNum(a)
 		var attrib, _ = pool.GetAttrib(parsedNum)
 		atts[attrib.Key] = attrib.Value
 		return ""
-	})
-	replaceAttributes(att1, func(a string) string {
+	}); err != nil {
+		return nil, err
+	}
+	if _, _, err := replaceAttributes(att1, func(a string) string {
 		parsedNum, _ := utils.ParseNum(a)
 		var attrib, _ = pool.GetAttrib(parsedNum)
 		var res, ok = atts[attrib.Key]
@@ -248,7 +250,9 @@ func followAttributes(att1 string, att2 string, pool *apool.APool) string {
 			delete(atts, attrib.Key)
 		}
 		return ""
-	})
+	}); err != nil {
+		return nil, err
+	}
 
 	var buf = NewStringAssembler()
 	for key, value := range atts {
@@ -259,7 +263,8 @@ func followAttributes(att1 string, att2 string, pool *apool.APool) string {
 		}, nil)))
 	}
 
-	return buf.String()
+	buffStr := buf.String()
+	return &buffStr, nil
 }
 
 func Follow(c string, rebasedChangeset string, reverseInsertOrder bool, pool *apool.APool) (*string, error) {
@@ -395,7 +400,15 @@ func Follow(c string, rebasedChangeset string, reverseInsertOrder bool, pool *ap
 		} else {
 			// both keeps
 			opOut.OpCode = "="
-			opOut.Attribs = followAttributes(op1.Attribs, op2.Attribs, pool)
+			opOutAttrib, err := followAttributes(op1.Attribs, op2.Attribs, pool)
+			if err != nil {
+				return nil, err
+			}
+
+			if opOutAttrib != nil {
+				opOut.Attribs = *opOutAttrib
+			}
+
 			if op1.Chars <= op2.Chars {
 				opOut.Chars = op1.Chars
 				opOut.Lines = op1.Lines
