@@ -253,5 +253,9 @@ func testHandleDeletePad(t *testing.T, ds testutils.TestDataStore) {
 	}
 
 	ds.AdminMessageHandler.HandleMessage(padAdminMessage, &settingsToLoad, client)
-	assert.Len(t, ds.MockWebSocket.Data, 0)
+	assert.Len(t, ds.MockWebSocket.Data, 1)
+	var resp = make([]interface{}, 2)
+	assert.NoError(t, json.Unmarshal(ds.MockWebSocket.Data[0].Data, &resp))
+	assert.Equal(t, "results:deletePad", resp[0])
+	assert.Equal(t, "existingPad", resp[1])
 }
