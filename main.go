@@ -94,8 +94,10 @@ func main() {
 	})
 
 	hooks.ExpressPreSession(app, uiAssets)
-	ws.HubGlob = ws.NewHub()
-	go ws.HubGlob.Run()
+	globalHub := ws.NewHub()
+	go globalHub.Run()
+
+	sessionStore := ws.NewSessionStore()
 
 	if err != nil {
 		setupLogger.Fatal("Error connecting to database: " + err.Error())
@@ -104,16 +106,16 @@ func main() {
 
 	padManager := pad.NewManager(dataStore, &retrievedHooks)
 
-	padMessageHandler := ws.NewPadMessageHandler(dataStore, &retrievedHooks, padManager)
-	adminMessageHandler := ws.NewAdminMessageHandler(dataStore, &retrievedHooks, padManager, padMessageHandler, setupLogger)
+	padMessageHandler := ws.NewPadMessageHandler(dataStore, &retrievedHooks, padManager, &sessionStore, globalHub)
+	adminMessageHandler := ws.NewAdminMessageHandler(dataStore, &retrievedHooks, padManager, padMessageHandler, setupLogger, globalHub)
 	app.Get("/socket.io/*", func(c *fiber.Ctx) error {
 		return adaptor.HTTPHandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-			ws.ServeWs(ws.HubGlob, writer, request, cookieStore, c, &settings, setupLogger, padMessageHandler)
+			ws.ServeWs(writer, request, cookieStore, c, &settings, setupLogger, padMessageHandler)
 		})(c)
 	})
 	app.Get("/admin/ws", func(c *fiber.Ctx) error {
 		return adaptor.HTTPHandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-			ws.ServeAdminWs(ws.HubGlob, writer, request, c, &settings, setupLogger, adminMessageHandler)
+			ws.ServeAdminWs(writer, request, c, &settings, setupLogger, adminMessageHandler)
 		})(c)
 	})
 

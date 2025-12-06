@@ -34,31 +34,31 @@ var (
 
 // Client is a middleman between the websocket connection and the hub.
 type Client struct {
-	hub *Hub
+	Hub *Hub
 	// The websocket connection.
-	conn *websocket.Conn
+	Conn WebSocketConn
 	// Buffered channel of outbound messages.
 	Send         chan []byte
 	Room         string
 	SessionId    string
-	ctx          *fiber.Ctx
-	handler      *PadMessageHandler
+	Ctx          *fiber.Ctx
+	Handler      *PadMessageHandler
 	adminHandler *AdminMessageHandler
 }
 
 func (c *Client) readPumpAdmin(retrievedSettings *settings.Settings, logger *zap.SugaredLogger) {
 	defer func() {
-		c.hub.Unregister <- c
-		c.conn.Close()
+		c.Hub.Unregister <- c
+		c.Conn.Close()
 	}()
-	c.conn.SetReadLimit(retrievedSettings.SocketIo.MaxHttpBufferSize)
+	c.Conn.SetReadLimit(retrievedSettings.SocketIo.MaxHttpBufferSize)
 	for {
-		_, message, err := c.conn.ReadMessage()
+		_, message, err := c.Conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 				log.Printf("error: %v", err)
 			}
-			c.handler.HandleDisconnectOfPadClient(c, retrievedSettings, logger)
+			c.Handler.HandleDisconnectOfPadClient(c, retrievedSettings, logger)
 			break
 		}
 		message = bytes.TrimSpace(bytes.Replace(message, newline, space, -1))
@@ -73,27 +73,27 @@ func (c *Client) readPumpAdmin(retrievedSettings *settings.Settings, logger *zap
 	}
 }
 
-// readPump pumps messages from the websocket connection to the hub.
+// readPump pumps messages from the websocket connection to the Hub.
 //
 // The application runs readPump in a per-connection goroutine. The application
 // ensures that there is at most one reader on a connection by executing all
 // reads from this goroutine.
 func (c *Client) readPump(retrievedSettings *settings.Settings, logger *zap.SugaredLogger) {
 	defer func() {
-		c.hub.Unregister <- c
-		c.conn.Close()
+		c.Hub.Unregister <- c
+		c.Conn.Close()
 	}()
-	c.conn.SetReadLimit(retrievedSettings.SocketIo.MaxHttpBufferSize)
+	c.Conn.SetReadLimit(retrievedSettings.SocketIo.MaxHttpBufferSize)
 	for {
-		_, message, err := c.conn.ReadMessage()
+		_, message, err := c.Conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 				log.Printf("error: %v", err)
 			}
-			c.handler.HandleDisconnectOfPadClient(c, retrievedSettings, logger)
+			c.Handler.HandleDisconnectOfPadClient(c, retrievedSettings, logger)
 			break
 		}
-		if err := ratelimiter.CheckRateLimit(ratelimiter.IPAddress(c.ctx.IP()), retrievedSettings.CommitRateLimiting); err != nil {
+		if err := ratelimiter.CheckRateLimit(ratelimiter.IPAddress(c.Ctx.IP()), retrievedSettings.CommitRateLimiting); err != nil {
 			println("Rate limit exceeded:", err.Error())
 			continue
 		}
@@ -107,7 +107,7 @@ func (c *Client) readPump(retrievedSettings *settings.Settings, logger *zap.Suga
 				println("Error unmarshalling", err)
 			}
 
-			c.handler.handleMessage(clientReady, c, c.ctx, retrievedSettings, logger)
+			c.Handler.handleMessage(clientReady, c, c.Ctx, retrievedSettings, logger)
 		} else if strings.Contains(decodedMessage, "USER_CHANGES") {
 			var userchange ws.UserChange
 			err := json.Unmarshal(message, &userchange)
@@ -117,7 +117,7 @@ func (c *Client) readPump(retrievedSettings *settings.Settings, logger *zap.Suga
 				return
 			}
 
-			c.handler.handleMessage(userchange, c, c.ctx, retrievedSettings, logger)
+			c.Handler.handleMessage(userchange, c, c.Ctx, retrievedSettings, logger)
 		} else if strings.Contains(decodedMessage, "USERINFO_UPDATE") {
 			var userInfoChange UserInfoUpdateWrapper
 			errorUserInfoChange := json.Unmarshal(message, &userInfoChange)
@@ -127,7 +127,7 @@ func (c *Client) readPump(retrievedSettings *settings.Settings, logger *zap.Suga
 				return
 			}
 
-			c.handler.handleMessage(userInfoChange.Data, c, c.ctx, retrievedSettings, logger)
+			c.Handler.handleMessage(userInfoChange.Data, c, c.Ctx, retrievedSettings, logger)
 		} else if strings.Contains(decodedMessage, "GET_CHAT_MESSAGES") {
 			var getChatMessages ws.GetChatMessages
 			err := json.Unmarshal(message, &getChatMessages)
@@ -137,7 +137,7 @@ func (c *Client) readPump(retrievedSettings *settings.Settings, logger *zap.Suga
 				return
 			}
 
-			c.handler.handleMessage(getChatMessages, c, c.ctx, retrievedSettings, logger)
+			c.Handler.handleMessage(getChatMessages, c, c.Ctx, retrievedSettings, logger)
 
 		} else if strings.Contains(decodedMessage, "CHAT_MESSAGE") {
 			var chatMessage ws.ChatMessage
@@ -146,15 +146,15 @@ func (c *Client) readPump(retrievedSettings *settings.Settings, logger *zap.Suga
 			if err != nil {
 				logger.Error("Error unmarshalling", err)
 			}
-			c.handler.handleMessage(chatMessage, c, c.ctx, retrievedSettings, logger)
+			c.Handler.handleMessage(chatMessage, c, c.Ctx, retrievedSettings, logger)
 		}
 
-		c.hub.Broadcast <- message
+		c.Hub.Broadcast <- message
 	}
 }
 
 func (c *Client) Leave() {
-	HubGlob.Unregister <- c
+	c.Hub.Unregister <- c
 }
 
 func (c *Client) SendUserDupMessage() {
@@ -166,7 +166,7 @@ func (c *Client) SendPadDelete() {
 }
 
 // ServeWs serveWs handles websocket requests from the peer.
-func ServeWs(hub *Hub, w http.ResponseWriter, r *http.Request, sessionStore *session.Store,
+func ServeWs(w http.ResponseWriter, r *http.Request, sessionStore *session.Store,
 	fiber *fiber.Ctx, configSettings *settings.Settings,
 	logger *zap.SugaredLogger, handler *PadMessageHandler) {
 	store, err := sessionStore.Get(fiber)
@@ -180,8 +180,8 @@ func ServeWs(hub *Hub, w http.ResponseWriter, r *http.Request, sessionStore *ses
 		log.Println(err)
 		return
 	}
-	client := &Client{hub: hub, conn: conn, Send: make(chan []byte, 256), SessionId: store.ID(), ctx: fiber, handler: handler}
-	SessionStoreInstance.initSession(store.ID())
-	client.hub.Register <- client
+	client := &Client{Hub: handler.hub, Conn: conn, Send: make(chan []byte, 256), SessionId: store.ID(), Ctx: fiber, Handler: handler}
+	handler.SessionStore.initSession(store.ID())
+	client.Hub.Register <- client
 	client.readPump(configSettings, logger)
 }

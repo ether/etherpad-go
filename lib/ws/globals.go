@@ -2,10 +2,6 @@ package ws
 
 import "github.com/ether/etherpad-go/lib/models/ws"
 
-func init() {
-	SessionStoreInstance = NewSessionStore(nil)
-}
-
 type SessionStore struct {
 	sessions map[string]*ws.Session
 }
@@ -14,7 +10,7 @@ type SessionStore struct {
 // @param refresh *int Number of milliseconds to refresh the session
 //
 // /*
-func NewSessionStore(refresh *int) SessionStore {
+func NewSessionStore() SessionStore {
 	return SessionStore{
 		sessions: make(map[string]*ws.Session),
 	}
@@ -66,7 +62,3 @@ func (s *SessionStore) getSession(sessionId string) *ws.Session {
 func (s *SessionStore) resetSession(sessionId string) {
 	s.sessions[sessionId] = &ws.Session{}
 }
-
-var HubGlob *Hub
-
-var SessionStoreInstance SessionStore

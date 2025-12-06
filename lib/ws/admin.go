@@ -9,13 +9,13 @@ import (
 	"go.uber.org/zap"
 )
 
-func ServeAdminWs(hub *Hub, w http.ResponseWriter, r *http.Request, fiber *fiber.Ctx, configSettings *settings.Settings, logger *zap.SugaredLogger, handler AdminMessageHandler) {
+func ServeAdminWs(w http.ResponseWriter, r *http.Request, fiber *fiber.Ctx, configSettings *settings.Settings, logger *zap.SugaredLogger, handler AdminMessageHandler) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println(err)
 		return
 	}
-	client := &Client{hub: hub, conn: conn, Send: make(chan []byte, 256), ctx: fiber, adminHandler: &handler}
-	client.hub.Register <- client
+	client := &Client{Hub: handler.hub, Conn: conn, Send: make(chan []byte, 256), Ctx: fiber, adminHandler: &handler}
+	client.Hub.Register <- client
 	client.readPumpAdmin(configSettings, logger)
 }

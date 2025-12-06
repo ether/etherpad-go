@@ -18,19 +18,21 @@ import (
 
 type AdminMessageHandler struct {
 	store             db.DataStore
+	hub               *Hub
 	hook              *hooks.Hook
 	padManager        *pad.Manager
 	padMessageHandler *PadMessageHandler
 	Logger            *zap.SugaredLogger
 }
 
-func NewAdminMessageHandler(store db.DataStore, h *hooks.Hook, m *pad.Manager, padMessHandler *PadMessageHandler, logger *zap.SugaredLogger) AdminMessageHandler {
+func NewAdminMessageHandler(store db.DataStore, h *hooks.Hook, m *pad.Manager, padMessHandler *PadMessageHandler, logger *zap.SugaredLogger, hub *Hub) AdminMessageHandler {
 	return AdminMessageHandler{
 		store:             store,
 		hook:              h,
 		padManager:        m,
 		padMessageHandler: padMessHandler,
 		Logger:            logger,
+		hub:               hub,
 	}
 }
 
@@ -48,7 +50,7 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 				println("Error marshalling response:", err.Error())
 				return
 			}
-			c.conn.WriteMessage(websocket.TextMessage, responseBytes)
+			c.Conn.WriteMessage(websocket.TextMessage, responseBytes)
 		}
 	case "createPad":
 		{
@@ -75,7 +77,7 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 					return
 				}
 
-				if err = c.conn.WriteMessage(websocket.TextMessage, responseBytes); err != nil {
+				if err = c.Conn.WriteMessage(websocket.TextMessage, responseBytes); err != nil {
 					h.Logger.Errorf("Error writing response: %v", err)
 				}
 			} else {
@@ -97,7 +99,7 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 					println("Error marshalling response:", err.Error())
 					return
 				}
-				if err := c.conn.WriteMessage(websocket.TextMessage, responseBytes); err != nil {
+				if err := c.Conn.WriteMessage(websocket.TextMessage, responseBytes); err != nil {
 					h.Logger.Errorf("Error writing response: %v", err)
 				}
 			}
@@ -138,7 +140,7 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 				println("Error marshalling response:", err.Error())
 				return
 			}
-			c.conn.WriteMessage(websocket.TextMessage, responseBytes)
+			c.Conn.WriteMessage(websocket.TextMessage, responseBytes)
 		}
 	case "getInstalled":
 		{
@@ -162,7 +164,7 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 				println("Error marshalling response:", err.Error())
 				return
 			}
-			c.conn.WriteMessage(websocket.TextMessage, responseBytes)
+			c.Conn.WriteMessage(websocket.TextMessage, responseBytes)
 		}
 	case "deletePad":
 		{
@@ -188,7 +190,7 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 				println("Error marshalling response:", err.Error())
 				return
 			}
-			if err := c.conn.WriteMessage(websocket.TextMessage, responseBytes); err != nil {
+			if err := c.Conn.WriteMessage(websocket.TextMessage, responseBytes); err != nil {
 				h.Logger.Errorf("Error writing response: %v", err)
 			}
 		}
@@ -227,7 +229,7 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 			if err != nil {
 				println("Error marshalling response:", err.Error())
 			}
-			if err := c.conn.WriteMessage(websocket.TextMessage, responseBytes); err != nil {
+			if err := c.Conn.WriteMessage(websocket.TextMessage, responseBytes); err != nil {
 				h.Logger.Errorf("Error writing response: %v", err)
 			}
 		}
@@ -253,7 +255,7 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 				println("Error marshalling response:", err.Error())
 				return
 			}
-			c.conn.WriteMessage(websocket.TextMessage, responseBytes)
+			c.Conn.WriteMessage(websocket.TextMessage, responseBytes)
 		}
 	default:
 		// Unknown event

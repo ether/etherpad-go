@@ -83,9 +83,11 @@ type PadMessageHandler struct {
 	securityManager pad.SecurityManager
 	padChannels     ChannelOperator
 	factory         clientVars.Factory
+	SessionStore    *SessionStore
+	hub             *Hub
 }
 
-func NewPadMessageHandler(db db2.DataStore, hooks *hooks.Hook, padManager *pad.Manager) *PadMessageHandler {
+func NewPadMessageHandler(db db2.DataStore, hooks *hooks.Hook, padManager *pad.Manager, sessionStore *SessionStore, hub *Hub) *PadMessageHandler {
 	var padMessageHandler = PadMessageHandler{
 		padManager:      padManager,
 		readOnlyManager: pad.NewReadOnlyManager(db),
@@ -95,6 +97,8 @@ func NewPadMessageHandler(db db2.DataStore, hooks *hooks.Hook, padManager *pad.M
 			ReadOnlyManager: pad.NewReadOnlyManager(db),
 			AuthorManager:   author.NewManager(db),
 		},
+		SessionStore: sessionStore,
+		hub:          hub,
 	}
 	padMessageHandler.padChannels = NewChannelOperator(&padMessageHandler)
 	return &padMessageHandler
@@ -106,7 +110,7 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 	newAPool.NextNum = task.message.Data.Data.Apool.NextNum
 	newAPool.NumToAttribRaw = task.message.Data.Data.Apool.NumToAttrib
 	wireApool = *wireApool.FromJsonable(newAPool)
-	var session = SessionStoreInstance.getSession(task.socket.SessionId)
+	var session = p.SessionStore.getSession(task.socket.SessionId)
 	if session == nil {
 		println("Session not found for user changes")
 		return
@@ -234,7 +238,7 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 		},
 	}
 	var bytes, _ = json.Marshal(arr)
-	err = task.socket.conn.WriteMessage(websocket.TextMessage, bytes)
+	err = task.socket.Conn.WriteMessage(websocket.TextMessage, bytes)
 	if err != nil {
 		println("error writing message")
 		return
@@ -285,7 +289,7 @@ func (p *PadMessageHandler) ComposePadChangesets(retrievedPad *pad2.Pad, startNu
 }
 
 func (p *PadMessageHandler) handleMessage(message any, client *Client, ctx *fiber.Ctx, retrievedSettings *settings.Settings, logger *zap.SugaredLogger) {
-	var isSessionInfo = SessionStoreInstance.hasSession(client.SessionId)
+	var isSessionInfo = p.SessionStore.hasSession(client.SessionId)
 
 	if !isSessionInfo {
 		println("message from an unknown connection")
@@ -293,10 +297,10 @@ func (p *PadMessageHandler) handleMessage(message any, client *Client, ctx *fibe
 	}
 
 	castedMessage, ok := message.(ws.ClientReady)
-	var thisSession = SessionStoreInstance.getSession(client.SessionId)
+	var thisSession = p.SessionStore.getSession(client.SessionId)
 
 	if ok {
-		thisSession = SessionStoreInstance.addHandleClientInformation(client.SessionId, castedMessage.Data.PadID, castedMessage.Data.Token)
+		thisSession = p.SessionStore.addHandleClientInformation(client.SessionId, castedMessage.Data.PadID, castedMessage.Data.Token)
 		exists, err := p.padManager.DoesPadExist(thisSession.Auth.PadId)
 
 		if err != nil {
@@ -318,8 +322,8 @@ func (p *PadMessageHandler) handleMessage(message any, client *Client, ctx *fibe
 			println("Error retrieving read-only pad IDs", err.Error())
 			return
 		}
-		SessionStoreInstance.addPadReadOnlyIds(client.SessionId, padIds.PadId, padIds.ReadOnlyPadId, padIds.ReadOnly)
-		thisSession = SessionStoreInstance.getSession(client.SessionId)
+		p.SessionStore.addPadReadOnlyIds(client.SessionId, padIds.PadId, padIds.ReadOnlyPadId, padIds.ReadOnly)
+		thisSession = p.SessionStore.getSession(client.SessionId)
 	}
 
 	var auth = thisSession.Auth
@@ -351,7 +355,7 @@ func (p *PadMessageHandler) handleMessage(message any, client *Client, ctx *fibe
 		}
 		var messageToSend, _ = json.Marshal(arr)
 
-		client.conn.WriteMessage(websocket.TextMessage, messageToSend)
+		client.Conn.WriteMessage(websocket.TextMessage, messageToSend)
 		println("Error checking access", err)
 		return
 	}
@@ -363,14 +367,14 @@ func (p *PadMessageHandler) handleMessage(message any, client *Client, ctx *fibe
 			Disconnect: "rejected",
 		}
 		var encoded, _ = json.Marshal(arr)
-		client.conn.WriteMessage(websocket.TextMessage, encoded)
+		client.Conn.WriteMessage(websocket.TextMessage, encoded)
 		return
 	}
 
 	thisSession.Author = grantedAccess.AuthorId
 
 	var readonly = thisSession.ReadOnly
-	var thisSessionNewRetrieved = SessionStoreInstance.getSession(client.SessionId)
+	var thisSessionNewRetrieved = p.SessionStore.getSession(client.SessionId)
 	if thisSessionNewRetrieved == nil {
 		println("Client disconnected")
 		return
@@ -459,7 +463,7 @@ func (p *PadMessageHandler) handleMessage(message any, client *Client, ctx *fibe
 				}{Type: "CHAT_MESSAGES", Messages: convertedMessages},
 			}
 			var marshalled, _ = json.Marshal(arr)
-			client.conn.WriteMessage(websocket.TextMessage, marshalled)
+			client.Conn.WriteMessage(websocket.TextMessage, marshalled)
 		}
 	case UserInfoUpdate:
 		{
@@ -513,7 +517,7 @@ func (p *PadMessageHandler) SendChatMessageToPadClients(session *ws.Session, cha
 
 		var marshalledMessage, _ = json.Marshal(arr)
 
-		err := socket.conn.WriteMessage(websocket.TextMessage, marshalledMessage)
+		err := socket.Conn.WriteMessage(websocket.TextMessage, marshalledMessage)
 		if err != nil {
 			println("Error sending chat message to client", err)
 		}
@@ -521,7 +525,7 @@ func (p *PadMessageHandler) SendChatMessageToPadClients(session *ws.Session, cha
 }
 
 func (p *PadMessageHandler) HandlePadDelete(client *Client, padDeleteMessage PadDelete) {
-	var session = SessionStoreInstance.getSession(client.SessionId)
+	var session = p.SessionStore.getSession(client.SessionId)
 
 	if session == nil || session.Author == "" || session.PadId == "" {
 		println("Session not ready")
@@ -572,7 +576,9 @@ func (p *PadMessageHandler) DeletePad(padId string) error {
 	if err != nil {
 		return err
 	}
-	retrievedPadObj.Remove()
+	if err := retrievedPadObj.Remove(); err != nil {
+		return err
+	}
 	p.KickSessionsFromPad(retrievedPadObj.Id)
 	// remove the readonly entries
 	var readonlyId = p.readOnlyManager.GetReadOnlyId(retrievedPadObj.Id)
@@ -601,7 +607,7 @@ func (p *PadMessageHandler) HandleUserInfoUpdate(userInfo UserInfoUpdate, client
 	if userInfo.Data.UserInfo.Name == nil {
 		userInfo.Data.UserInfo.Name = nil
 	}
-	var session = SessionStoreInstance.getSession(client.SessionId)
+	var session = p.SessionStore.getSession(client.SessionId)
 
 	if session == nil || session.Author == "" || session.PadId == "" {
 		println("Session not ready")
@@ -647,7 +653,7 @@ func (p *PadMessageHandler) HandleUserInfoUpdate(userInfo UserInfoUpdate, client
 	var marshalled, _ = json.Marshal(arr)
 
 	for _, p := range padSockets {
-		p.conn.WriteMessage(websocket.TextMessage, marshalled)
+		p.Conn.WriteMessage(websocket.TextMessage, marshalled)
 	}
 
 }
@@ -698,16 +704,16 @@ func (p *PadMessageHandler) correctMarkersInPad(atext apool.AText, apool apool.A
 }
 
 func (p *PadMessageHandler) HandleDisconnectOfPadClient(client *Client, settings *settings.Settings, logger *zap.SugaredLogger) {
-	var thisSession = SessionStoreInstance.getSession(client.SessionId)
+	var thisSession = p.SessionStore.getSession(client.SessionId)
 	if thisSession == nil || thisSession.PadId == "" {
-		SessionStoreInstance.removeSession(client.SessionId)
+		p.SessionStore.removeSession(client.SessionId)
 		return
 	}
 
 	if settings.DisableIPLogging {
 		logger.Infof("[LEAVE] pad:%s socket:%s IP:ANONYMOUS ", thisSession.PadId, client.SessionId)
 	} else {
-		logger.Infof("[LEAVE] pad:%s socket:%s IP:%s ", thisSession.PadId, client.SessionId, client.ctx.IP())
+		logger.Infof("[LEAVE] pad:%s socket:%s IP:%s ", thisSession.PadId, client.SessionId, client.Ctx.IP())
 	}
 
 	var roomSockets = p.GetRoomSockets(thisSession.PadId)
@@ -741,13 +747,13 @@ func (p *PadMessageHandler) HandleDisconnectOfPadClient(client *Client, settings
 		arr[0] = "message"
 		arr[1] = userLeave
 		var marshalled, _ = json.Marshal(arr)
-		if err := otherSocket.conn.WriteMessage(websocket.TextMessage, marshalled); err != nil {
+		if err := otherSocket.Conn.WriteMessage(websocket.TextMessage, marshalled); err != nil {
 			println("Error broadcasting USER_LEAVE message")
 			return
 		}
 	}
 
-	SessionStoreInstance.removeSession(client.SessionId)
+	p.SessionStore.removeSession(client.SessionId)
 }
 
 func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, client *Client, thisSession *ws.Session, retrievedSettings *settings.Settings, logger *zap.SugaredLogger) {
@@ -783,7 +789,7 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 		loggerStr += " IP:ANONYMOUS "
 	} else {
 		loggerStr += " IP:%s "
-		argsForLogger = append(argsForLogger, client.ctx.IP())
+		argsForLogger = append(argsForLogger, client.Ctx.IP())
 	}
 
 	logger.Infof(loggerStr, argsForLogger...)
@@ -822,13 +828,13 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 		if otherSocket.SessionId == client.SessionId {
 			continue
 		}
-		var sinfo = SessionStoreInstance.getSession(otherSocket.SessionId)
+		var sinfo = p.SessionStore.getSession(otherSocket.SessionId)
 		if sinfo == nil {
 			continue
 		}
 
 		if sinfo.Author == thisSession.Author {
-			SessionStoreInstance.resetSession(otherSocket.SessionId)
+			p.SessionStore.resetSession(otherSocket.SessionId)
 			otherSocket.Leave()
 			var arr = make([]interface{}, 2)
 			arr[0] = "message"
@@ -836,7 +842,7 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 				Disconnect: "userdup",
 			}
 			var encoded, _ = json.Marshal(arr)
-			otherSocket.conn.WriteMessage(websocket.TextMessage, encoded)
+			otherSocket.Conn.WriteMessage(websocket.TextMessage, encoded)
 		}
 	}
 
@@ -862,7 +868,7 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 		// Join the pad and start receiving updates
 		thisSession.PadId = retrievedPad.Id
 		// Send the clientVars to the Client
-		client.conn.WriteMessage(websocket.TextMessage, encoded)
+		client.Conn.WriteMessage(websocket.TextMessage, encoded)
 		// Save the current revision in sessioninfos, should be the same as in clientVars
 		thisSession.Revision = retrievedPad.Head
 	}
@@ -896,7 +902,7 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 	var marshalled, _ = json.Marshal(arr)
 
 	for _, socket := range roomSockets {
-		if err := socket.conn.WriteMessage(websocket.TextMessage, marshalled); err != nil {
+		if err := socket.Conn.WriteMessage(websocket.TextMessage, marshalled); err != nil {
 			println("Error broadcasting USER_NEWINFO message")
 		}
 	}
@@ -906,7 +912,7 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 		if socket.SessionId == client.SessionId {
 			continue
 		}
-		var sinfo = SessionStoreInstance.getSession(socket.SessionId)
+		var sinfo = p.SessionStore.getSession(socket.SessionId)
 		if sinfo == nil {
 			continue
 		}
@@ -935,7 +941,7 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 		arr[1] = userNewInfoActual
 		var marshalled, _ = json.Marshal(arr)
 
-		if err := client.conn.WriteMessage(websocket.TextMessage, marshalled); err != nil {
+		if err := client.Conn.WriteMessage(websocket.TextMessage, marshalled); err != nil {
 			println("Error sending USER_NEWINFO message to new client")
 		}
 	}
@@ -951,7 +957,7 @@ func (p *PadMessageHandler) UpdatePadClients(pad *pad2.Pad) {
 	// NB: note below possibly now accommodated via the change to promises/async
 	var revCache = make(map[int]*db.PadSingleRevision)
 	for _, socket := range roomSockets {
-		var sessionInfo = SessionStoreInstance.getSession(socket.SessionId)
+		var sessionInfo = p.SessionStore.getSession(socket.SessionId)
 		if sessionInfo == nil {
 			continue
 		}
@@ -993,7 +999,7 @@ func (p *PadMessageHandler) UpdatePadClients(pad *pad2.Pad) {
 				return
 			}
 
-			err = socket.conn.WriteMessage(websocket.TextMessage, marshalledMessage)
+			err = socket.Conn.WriteMessage(websocket.TextMessage, marshalledMessage)
 			sessionInfo.Time = currentTime
 			sessionInfo.Revision = r
 		}
@@ -1002,8 +1008,8 @@ func (p *PadMessageHandler) UpdatePadClients(pad *pad2.Pad) {
 
 func (p *PadMessageHandler) GetRoomSockets(padID string) []Client {
 	var sockets = make([]Client, 0)
-	for k := range HubGlob.clients {
-		sessId := SessionStoreInstance.getSession(k.SessionId)
+	for k := range p.hub.clients {
+		sessId := p.SessionStore.getSession(k.SessionId)
 		if sessId != nil && sessId.PadId == padID {
 			sockets = append(sockets, *k)
 		}
@@ -1012,11 +1018,11 @@ func (p *PadMessageHandler) GetRoomSockets(padID string) []Client {
 }
 
 func (p *PadMessageHandler) KickSessionsFromPad(padID string) {
-	for k := range HubGlob.clients {
+	for k := range p.hub.clients {
 		if k == nil || k.SessionId == "" {
 			continue
 		}
-		retrievedSession := SessionStoreInstance.getSession(k.SessionId)
+		retrievedSession := p.SessionStore.getSession(k.SessionId)
 		if retrievedSession == nil {
 			continue
 		}

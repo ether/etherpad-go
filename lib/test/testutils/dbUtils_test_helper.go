@@ -14,14 +14,21 @@ import (
 	"github.com/ether/etherpad-go/lib/db"
 	hooks2 "github.com/ether/etherpad-go/lib/hooks"
 	"github.com/ether/etherpad-go/lib/pad"
+	"github.com/ether/etherpad-go/lib/ws"
+	"github.com/go-playground/validator/v10"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
+	"go.uber.org/zap"
 )
 
 type TestDataStore struct {
-	DS            db.DataStore
-	AuthorManager *author.Manager
-	PadManager    *pad.Manager
+	DS                  db.DataStore
+	AuthorManager       *author.Manager
+	PadManager          *pad.Manager
+	PadMessageHandler   *ws.PadMessageHandler
+	AdminMessageHandler *ws.AdminMessageHandler
+	MockWebSocket       *ws.MockWebSocketConn
+	Validator           *validator.Validate
 }
 
 type TestRunConfig struct {
@@ -219,11 +226,22 @@ func (test *TestDBHandler) TestRun(t *testing.T, testRun TestRunConfig, newDS fu
 		ds := newDS()
 		authManager := author.NewManager(ds)
 		hooks := hooks2.NewHook()
+		hub := ws.NewHub()
+		go hub.Run()
+		sess := ws.NewSessionStore()
 		padManager := pad.NewManager(ds, &hooks)
+		padMessageHandler := ws.NewPadMessageHandler(ds, &hooks, padManager, &sess, hub)
+		loggerPart := zap.NewNop().Sugar()
+		adminMessageHandler := ws.NewAdminMessageHandler(ds, &hooks, padManager, padMessageHandler, loggerPart, hub)
+		validatorEvaluator := validator.New(validator.WithRequiredStructEnabled())
 		testRun.Test(t, TestDataStore{
-			DS:            ds,
-			AuthorManager: authManager,
-			PadManager:    padManager,
+			DS:                  ds,
+			AuthorManager:       authManager,
+			PadManager:          padManager,
+			PadMessageHandler:   padMessageHandler,
+			AdminMessageHandler: &adminMessageHandler,
+			MockWebSocket:       ws.NewActualMockWebSocketconn(),
+			Validator:           validatorEvaluator,
 		})
 		t.Cleanup(func() {
 			if err := ds.Close(); err != nil {
