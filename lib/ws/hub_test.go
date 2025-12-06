@@ -24,13 +24,13 @@ func TestNewHub(t *testing.T) {
 func TestHub_RegisterClient(t *testing.T) {
 	hub := NewHub()
 	client := &Client{
-		hub:       hub,
-		conn:      NewMockWebSocketConn(),
+		Hub:       hub,
+		Conn:      NewMockWebSocketConn(),
 		Send:      make(chan []byte, 256),
 		Room:      "test-pad",
 		SessionId: "session123",
-		ctx:       nil,
-		handler:   nil,
+		Ctx:       nil,
+		Handler:   nil,
 	}
 
 	go hub.Run()
@@ -50,8 +50,8 @@ func TestHub_RegisterClient(t *testing.T) {
 func TestHub_UnregisterClient(t *testing.T) {
 	hub := NewHub()
 	client := &Client{
-		hub:       hub,
-		conn:      NewMockWebSocketConn(),
+		Hub:       hub,
+		Conn:      NewMockWebSocketConn(),
 		Send:      make(chan []byte, 256),
 		Room:      "test-pad",
 		SessionId: "session123",
@@ -83,16 +83,16 @@ func TestHub_BroadcastMessage(t *testing.T) {
 	hub := NewHub()
 
 	client1 := &Client{
-		hub:       hub,
-		conn:      NewMockWebSocketConn(),
+		Hub:       hub,
+		Conn:      NewMockWebSocketConn(),
 		Send:      make(chan []byte, 256),
 		Room:      "test-pad",
 		SessionId: "session1",
 	}
 
 	client2 := &Client{
-		hub:       hub,
-		conn:      NewMockWebSocketConn(),
+		Hub:       hub,
+		Conn:      NewMockWebSocketConn(),
 		Send:      make(chan []byte, 256),
 		Room:      "test-pad",
 		SessionId: "session2",
@@ -132,8 +132,8 @@ func TestHub_BroadcastToFullChannel(t *testing.T) {
 	hub := NewHub()
 
 	client := &Client{
-		hub:       hub,
-		conn:      NewMockWebSocketConn(),
+		Hub:       hub,
+		Conn:      NewMockWebSocketConn(),
 		Send:      make(chan []byte, 1),
 		Room:      "test-pad",
 		SessionId: "session1",
@@ -178,8 +178,8 @@ func TestHub_ConcurrentOperations(t *testing.T) {
 		go func(index int) {
 			defer wg.Done()
 			clients[index] = &Client{
-				hub:       hub,
-				conn:      NewMockWebSocketConn(),
+				Hub:       hub,
+				Conn:      NewMockWebSocketConn(),
 				Send:      make(chan []byte, 256),
 				Room:      "test-pad",
 				SessionId: "session" + string(rune('0'+index)),
@@ -230,16 +230,16 @@ func TestHub_MultipleRooms(t *testing.T) {
 	hub := NewHub()
 
 	client1 := &Client{
-		hub:       hub,
-		conn:      NewMockWebSocketConn(),
+		Hub:       hub,
+		Conn:      NewMockWebSocketConn(),
 		Send:      make(chan []byte, 256),
 		Room:      "pad1",
 		SessionId: "session1",
 	}
 
 	client2 := &Client{
-		hub:       hub,
-		conn:      NewMockWebSocketConn(),
+		Hub:       hub,
+		Conn:      NewMockWebSocketConn(),
 		Send:      make(chan []byte, 256),
 		Room:      "pad2",
 		SessionId: "session2",
@@ -282,12 +282,12 @@ func TestHub_ClientWithHandlers(t *testing.T) {
 	mockAdminHandler := &AdminMessageHandler{}
 
 	client := &Client{
-		hub:          hub,
-		conn:         NewMockWebSocketConn(),
+		Hub:          hub,
+		Conn:         NewMockWebSocketConn(),
 		Send:         make(chan []byte, 256),
 		Room:         "test-pad",
 		SessionId:    "session1",
-		handler:      mockPadHandler,
+		Handler:      mockPadHandler,
 		adminHandler: mockAdminHandler,
 	}
 
@@ -302,7 +302,7 @@ func TestHub_ClientWithHandlers(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 
 	assert.Contains(t, hub.clients, client)
-	assert.Equal(t, mockPadHandler, client.handler)
+	assert.Equal(t, mockPadHandler, client.Handler)
 	assert.Equal(t, mockAdminHandler, client.adminHandler)
 }
 
@@ -314,12 +314,12 @@ func TestHub_ClientWithFiberContext(t *testing.T) {
 	defer app.ReleaseCtx(ctx)
 
 	client := &Client{
-		hub:       hub,
-		conn:      NewMockWebSocketConn(),
+		Hub:       hub,
+		Conn:      NewMockWebSocketConn(),
 		Send:      make(chan []byte, 256),
 		Room:      "test-pad",
 		SessionId: "session1",
-		ctx:       ctx,
+		Ctx:       ctx,
 	}
 
 	go hub.Run()
@@ -333,5 +333,5 @@ func TestHub_ClientWithFiberContext(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 
 	assert.Contains(t, hub.clients, client)
-	assert.Equal(t, ctx, client.ctx)
+	assert.Equal(t, ctx, client.Ctx)
 }

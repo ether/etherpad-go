@@ -14,14 +14,19 @@ import (
 	"github.com/ether/etherpad-go/lib/db"
 	hooks2 "github.com/ether/etherpad-go/lib/hooks"
 	"github.com/ether/etherpad-go/lib/pad"
+	"github.com/ether/etherpad-go/lib/ws"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
+	"go.uber.org/zap"
 )
 
 type TestDataStore struct {
-	DS            db.DataStore
-	AuthorManager *author.Manager
-	PadManager    *pad.Manager
+	DS                  db.DataStore
+	AuthorManager       *author.Manager
+	PadManager          *pad.Manager
+	PadMessageHandler   *ws.PadMessageHandler
+	AdminMessageHandler *ws.AdminMessageHandler
+	MockWebSocket       *ws.MockWebSocketConn
 }
 
 type TestRunConfig struct {
@@ -220,10 +225,16 @@ func (test *TestDBHandler) TestRun(t *testing.T, testRun TestRunConfig, newDS fu
 		authManager := author.NewManager(ds)
 		hooks := hooks2.NewHook()
 		padManager := pad.NewManager(ds, &hooks)
+		padMessageHandler := ws.NewPadMessageHandler(ds, &hooks, padManager)
+		loggerPart := zap.NewNop().Sugar()
+		adminMessageHandler := ws.NewAdminMessageHandler(ds, &hooks, padManager, padMessageHandler, loggerPart)
 		testRun.Test(t, TestDataStore{
-			DS:            ds,
-			AuthorManager: authManager,
-			PadManager:    padManager,
+			DS:                  ds,
+			AuthorManager:       authManager,
+			PadManager:          padManager,
+			PadMessageHandler:   padMessageHandler,
+			AdminMessageHandler: &adminMessageHandler,
+			MockWebSocket:       ws.NewActualMockWebSocketconn(),
 		})
 		t.Cleanup(func() {
 			if err := ds.Close(); err != nil {

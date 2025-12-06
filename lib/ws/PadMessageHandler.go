@@ -234,7 +234,7 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 		},
 	}
 	var bytes, _ = json.Marshal(arr)
-	err = task.socket.conn.WriteMessage(websocket.TextMessage, bytes)
+	err = task.socket.Conn.WriteMessage(websocket.TextMessage, bytes)
 	if err != nil {
 		println("error writing message")
 		return
@@ -351,7 +351,7 @@ func (p *PadMessageHandler) handleMessage(message any, client *Client, ctx *fibe
 		}
 		var messageToSend, _ = json.Marshal(arr)
 
-		client.conn.WriteMessage(websocket.TextMessage, messageToSend)
+		client.Conn.WriteMessage(websocket.TextMessage, messageToSend)
 		println("Error checking access", err)
 		return
 	}
@@ -363,7 +363,7 @@ func (p *PadMessageHandler) handleMessage(message any, client *Client, ctx *fibe
 			Disconnect: "rejected",
 		}
 		var encoded, _ = json.Marshal(arr)
-		client.conn.WriteMessage(websocket.TextMessage, encoded)
+		client.Conn.WriteMessage(websocket.TextMessage, encoded)
 		return
 	}
 
@@ -459,7 +459,7 @@ func (p *PadMessageHandler) handleMessage(message any, client *Client, ctx *fibe
 				}{Type: "CHAT_MESSAGES", Messages: convertedMessages},
 			}
 			var marshalled, _ = json.Marshal(arr)
-			client.conn.WriteMessage(websocket.TextMessage, marshalled)
+			client.Conn.WriteMessage(websocket.TextMessage, marshalled)
 		}
 	case UserInfoUpdate:
 		{
@@ -513,7 +513,7 @@ func (p *PadMessageHandler) SendChatMessageToPadClients(session *ws.Session, cha
 
 		var marshalledMessage, _ = json.Marshal(arr)
 
-		err := socket.conn.WriteMessage(websocket.TextMessage, marshalledMessage)
+		err := socket.Conn.WriteMessage(websocket.TextMessage, marshalledMessage)
 		if err != nil {
 			println("Error sending chat message to client", err)
 		}
@@ -647,7 +647,7 @@ func (p *PadMessageHandler) HandleUserInfoUpdate(userInfo UserInfoUpdate, client
 	var marshalled, _ = json.Marshal(arr)
 
 	for _, p := range padSockets {
-		p.conn.WriteMessage(websocket.TextMessage, marshalled)
+		p.Conn.WriteMessage(websocket.TextMessage, marshalled)
 	}
 
 }
@@ -707,7 +707,7 @@ func (p *PadMessageHandler) HandleDisconnectOfPadClient(client *Client, settings
 	if settings.DisableIPLogging {
 		logger.Infof("[LEAVE] pad:%s socket:%s IP:ANONYMOUS ", thisSession.PadId, client.SessionId)
 	} else {
-		logger.Infof("[LEAVE] pad:%s socket:%s IP:%s ", thisSession.PadId, client.SessionId, client.ctx.IP())
+		logger.Infof("[LEAVE] pad:%s socket:%s IP:%s ", thisSession.PadId, client.SessionId, client.Ctx.IP())
 	}
 
 	var roomSockets = p.GetRoomSockets(thisSession.PadId)
@@ -741,7 +741,7 @@ func (p *PadMessageHandler) HandleDisconnectOfPadClient(client *Client, settings
 		arr[0] = "message"
 		arr[1] = userLeave
 		var marshalled, _ = json.Marshal(arr)
-		if err := otherSocket.conn.WriteMessage(websocket.TextMessage, marshalled); err != nil {
+		if err := otherSocket.Conn.WriteMessage(websocket.TextMessage, marshalled); err != nil {
 			println("Error broadcasting USER_LEAVE message")
 			return
 		}
@@ -783,7 +783,7 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 		loggerStr += " IP:ANONYMOUS "
 	} else {
 		loggerStr += " IP:%s "
-		argsForLogger = append(argsForLogger, client.ctx.IP())
+		argsForLogger = append(argsForLogger, client.Ctx.IP())
 	}
 
 	logger.Infof(loggerStr, argsForLogger...)
@@ -836,7 +836,7 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 				Disconnect: "userdup",
 			}
 			var encoded, _ = json.Marshal(arr)
-			otherSocket.conn.WriteMessage(websocket.TextMessage, encoded)
+			otherSocket.Conn.WriteMessage(websocket.TextMessage, encoded)
 		}
 	}
 
@@ -862,7 +862,7 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 		// Join the pad and start receiving updates
 		thisSession.PadId = retrievedPad.Id
 		// Send the clientVars to the Client
-		client.conn.WriteMessage(websocket.TextMessage, encoded)
+		client.Conn.WriteMessage(websocket.TextMessage, encoded)
 		// Save the current revision in sessioninfos, should be the same as in clientVars
 		thisSession.Revision = retrievedPad.Head
 	}
@@ -896,7 +896,7 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 	var marshalled, _ = json.Marshal(arr)
 
 	for _, socket := range roomSockets {
-		if err := socket.conn.WriteMessage(websocket.TextMessage, marshalled); err != nil {
+		if err := socket.Conn.WriteMessage(websocket.TextMessage, marshalled); err != nil {
 			println("Error broadcasting USER_NEWINFO message")
 		}
 	}
@@ -935,7 +935,7 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 		arr[1] = userNewInfoActual
 		var marshalled, _ = json.Marshal(arr)
 
-		if err := client.conn.WriteMessage(websocket.TextMessage, marshalled); err != nil {
+		if err := client.Conn.WriteMessage(websocket.TextMessage, marshalled); err != nil {
 			println("Error sending USER_NEWINFO message to new client")
 		}
 	}
@@ -993,7 +993,7 @@ func (p *PadMessageHandler) UpdatePadClients(pad *pad2.Pad) {
 				return
 			}
 
-			err = socket.conn.WriteMessage(websocket.TextMessage, marshalledMessage)
+			err = socket.Conn.WriteMessage(websocket.TextMessage, marshalledMessage)
 			sessionInfo.Time = currentTime
 			sessionInfo.Revision = r
 		}
