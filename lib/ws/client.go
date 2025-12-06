@@ -154,7 +154,7 @@ func (c *Client) readPump(retrievedSettings *settings.Settings, logger *zap.Suga
 }
 
 func (c *Client) Leave() {
-	HubGlob.Unregister <- c
+	c.Hub.Unregister <- c
 }
 
 func (c *Client) SendUserDupMessage() {
@@ -166,7 +166,7 @@ func (c *Client) SendPadDelete() {
 }
 
 // ServeWs serveWs handles websocket requests from the peer.
-func ServeWs(hub *Hub, w http.ResponseWriter, r *http.Request, sessionStore *session.Store,
+func ServeWs(w http.ResponseWriter, r *http.Request, sessionStore *session.Store,
 	fiber *fiber.Ctx, configSettings *settings.Settings,
 	logger *zap.SugaredLogger, handler *PadMessageHandler) {
 	store, err := sessionStore.Get(fiber)
@@ -180,8 +180,8 @@ func ServeWs(hub *Hub, w http.ResponseWriter, r *http.Request, sessionStore *ses
 		log.Println(err)
 		return
 	}
-	client := &Client{Hub: hub, Conn: conn, Send: make(chan []byte, 256), SessionId: store.ID(), Ctx: fiber, Handler: handler}
-	SessionStoreInstance.initSession(store.ID())
+	client := &Client{Hub: handler.hub, Conn: conn, Send: make(chan []byte, 256), SessionId: store.ID(), Ctx: fiber, Handler: handler}
+	handler.SessionStore.initSession(store.ID())
 	client.Hub.Register <- client
 	client.readPump(configSettings, logger)
 }

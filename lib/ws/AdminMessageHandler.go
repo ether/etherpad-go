@@ -18,19 +18,21 @@ import (
 
 type AdminMessageHandler struct {
 	store             db.DataStore
+	hub               *Hub
 	hook              *hooks.Hook
 	padManager        *pad.Manager
 	padMessageHandler *PadMessageHandler
 	Logger            *zap.SugaredLogger
 }
 
-func NewAdminMessageHandler(store db.DataStore, h *hooks.Hook, m *pad.Manager, padMessHandler *PadMessageHandler, logger *zap.SugaredLogger) AdminMessageHandler {
+func NewAdminMessageHandler(store db.DataStore, h *hooks.Hook, m *pad.Manager, padMessHandler *PadMessageHandler, logger *zap.SugaredLogger, hub *Hub) AdminMessageHandler {
 	return AdminMessageHandler{
 		store:             store,
 		hook:              h,
 		padManager:        m,
 		padMessageHandler: padMessHandler,
 		Logger:            logger,
+		hub:               hub,
 	}
 }
 

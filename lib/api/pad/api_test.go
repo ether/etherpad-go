@@ -9,10 +9,27 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-func TestGetOnText(t *testing.T) {
+func TestPadApi(t *testing.T) {
+	testDBHandler := testutils.NewTestDBHandler(t)
+
+	testDBHandler.AddTests(testutils.TestRunConfig{
+		Name: "Test Get On Text",
+		Test: testGetOnText,
+	},
+		testutils.TestRunConfig{
+			Name: "Test Get Of AttribPool On Non Existing Pad",
+			Test: testGetOfAttribPoolOnNonExistingPad,
+		},
+		testutils.TestRunConfig{
+			Name: "Test Get Of AttribPool On Existing Pad",
+			Test: testGetOfAttribPoolOnExistingPad,
+		},
+	)
+}
+
+func testGetOnText(t *testing.T, tsStore testutils.TestDataStore) {
 	app := fiber.New()
-	inMemoryTestUtils := testutils.InitMemoryUtils()
-	Init(app, inMemoryTestUtils.PadMessageHandler, inMemoryTestUtils.PadManager)
+	Init(app, tsStore.PadMessageHandler, tsStore.PadManager)
 	req := httptest.NewRequest("GET", "/pads/123/text", nil)
 
 	resp, _ := app.Test(req, 10)
@@ -22,11 +39,10 @@ func TestGetOnText(t *testing.T) {
 	}
 }
 
-func TestGetOfAttribPoolOnNonExistingPad(t *testing.T) {
+func testGetOfAttribPoolOnNonExistingPad(t *testing.T, tsStore testutils.TestDataStore) {
 	app := fiber.New()
-	inMemoryTestUtils := testutils.InitMemoryUtils()
 
-	Init(app, inMemoryTestUtils.PadMessageHandler, inMemoryTestUtils.PadManager)
+	Init(app, tsStore.PadMessageHandler, tsStore.PadManager)
 	req := httptest.NewRequest("GET", "/pads/123/attributePool", nil)
 
 	resp, _ := app.Test(req, 10)
@@ -36,16 +52,15 @@ func TestGetOfAttribPoolOnNonExistingPad(t *testing.T) {
 	}
 }
 
-func TestGetOfAttribPoolOnExistingPad(t *testing.T) {
+func testGetOfAttribPoolOnExistingPad(t *testing.T, tsStore testutils.TestDataStore) {
 	var padText = "hallo"
-	inMemoryTestUtils := testutils.InitMemoryUtils()
-	var _, err = inMemoryTestUtils.PadManager.GetPad("123", &padText, nil)
+	var _, err = tsStore.PadManager.GetPad("123", &padText, nil)
 	if err != nil {
 		t.Errorf("Error creating pad")
 	}
 
 	app := fiber.New()
-	Init(app, inMemoryTestUtils.PadMessageHandler, inMemoryTestUtils.PadManager)
+	Init(app, tsStore.PadMessageHandler, tsStore.PadManager)
 	req := httptest.NewRequest("GET", "/pads/123/attributePool", nil)
 
 	resp, _ := app.Test(req, 10)

@@ -34,6 +34,14 @@ func TestAdminMessageHandler_AllMethods(t *testing.T) {
 			Name: "Test get installed plugins",
 			Test: testGetInstalled,
 		},
+		testutils.TestRunConfig{
+			Name: "Handle delete pad that does not exist",
+			Test: testHandleDeletePadNotExisting,
+		},
+		testutils.TestRunConfig{
+			Name: "Handle delete pad",
+			Test: testHandleDeletePad,
+		},
 	)
 	testDb.StartTestDBHandler()
 }
@@ -195,4 +203,55 @@ func testGetInstalled(t *testing.T, ds testutils.TestDataStore) {
 	assert.Equal(t, "results:installed", resp[0])
 	adminErrorMessage := resp[1].(map[string]interface{})
 	assert.Len(t, adminErrorMessage["installed"], 1)
+}
+
+func testHandleDeletePadNotExisting(t *testing.T, ds testutils.TestDataStore) {
+	hub := ws.NewHub()
+	settingsToLoad := settings.Displayed
+	client := &ws.Client{
+		Hub:       hub,
+		Conn:      ds.MockWebSocket,
+		Send:      make(chan []byte, 256),
+		Room:      "test-pad",
+		SessionId: "session123",
+		Ctx:       nil,
+		Handler:   nil,
+	}
+	padDelete := "nonExistingPad"
+	data, err := json.Marshal(padDelete)
+	assert.NoError(t, err)
+	padAdminMessage := admin.EventMessage{
+		Event: "deletePad",
+		Data:  data,
+	}
+
+	ds.AdminMessageHandler.HandleMessage(padAdminMessage, &settingsToLoad, client)
+	assert.Len(t, ds.MockWebSocket.Data, 0)
+}
+
+func testHandleDeletePad(t *testing.T, ds testutils.TestDataStore) {
+	hub := ws.NewHub()
+	settingsToLoad := settings.Displayed
+	client := &ws.Client{
+		Hub:       hub,
+		Conn:      ds.MockWebSocket,
+		Send:      make(chan []byte, 256),
+		Room:      "test-pad",
+		SessionId: "session123",
+		Ctx:       nil,
+		Handler:   nil,
+	}
+	padDelete := "existingPad"
+	createdPad, err := ds.PadManager.GetPad(padDelete, nil, nil)
+	assert.NoError(t, err)
+	assert.NotNil(t, createdPad)
+	data, err := json.Marshal(padDelete)
+	assert.NoError(t, err)
+	padAdminMessage := admin.EventMessage{
+		Event: "deletePad",
+		Data:  data,
+	}
+
+	ds.AdminMessageHandler.HandleMessage(padAdminMessage, &settingsToLoad, client)
+	assert.Len(t, ds.MockWebSocket.Data, 0)
 }
