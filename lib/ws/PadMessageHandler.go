@@ -855,7 +855,7 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 		wirePool := attribsForWire.Pool.ToJsonable()
 		retrivedClientVars, err := p.factory.NewClientVars(*retrievedPad, thisSession, wirePool, historicalAuthorData, retrievedSettings)
 		if err != nil {
-			println("Error creating client vars", err)
+			println("Error creating client vars", err.Error())
 			return
 		}
 		var arr = make([]interface{}, 2)

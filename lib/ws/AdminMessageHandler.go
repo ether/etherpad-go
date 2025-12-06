@@ -8,6 +8,7 @@ import (
 	"github.com/ether/etherpad-go/lib/changeset"
 	"github.com/ether/etherpad-go/lib/db"
 	"github.com/ether/etherpad-go/lib/hooks"
+	db2 "github.com/ether/etherpad-go/lib/models/db"
 	"github.com/ether/etherpad-go/lib/models/revision"
 	"github.com/ether/etherpad-go/lib/models/ws/admin"
 	"github.com/ether/etherpad-go/lib/pad"
@@ -47,10 +48,11 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 			}
 			responseBytes, err := json.Marshal(resp)
 			if err != nil {
-				println("Error marshalling response:", err.Error())
 				return
 			}
-			c.Conn.WriteMessage(websocket.TextMessage, responseBytes)
+			if err := c.Conn.WriteMessage(websocket.TextMessage, responseBytes); err != nil {
+				h.Logger.Errorf("error writing response: %v", err)
+			}
 		}
 	case "createPad":
 		{
@@ -291,10 +293,14 @@ func (h AdminMessageHandler) DeleteRevisions(padId string, keepRevisions int) er
 	}
 
 	// Save revisions to keep (we need to resave because of changed changesets due to compression)
-	revisionsToKeep, err := h.store.GetRevisions(padId, cleanupUntilRevision, keepRevisions)
+	revisionsToKeep, err := retrievedPad.GetRevisions(0, retrievedPad.Head)
 	if err != nil {
 		println("Error getting revisions to keep:", err.Error())
 		return err
+	}
+	currentRevsToKeep := make(map[int]db2.PadSingleRevision)
+	for i := range *revisionsToKeep {
+		currentRevsToKeep[(*revisionsToKeep)[i].RevNum] = (*revisionsToKeep)[i]
 	}
 
 	if err := retrievedPad.RemoveAllSavedRevisions(); err != nil {
@@ -306,7 +312,7 @@ func (h AdminMessageHandler) DeleteRevisions(padId string, keepRevisions int) er
 	if err != nil {
 		return err
 	}
-	padContent.Head = cleanupUntilRevision
+	padContent.Head = keepRevisions
 	if len(padContent.SavedRevisions) > 0 {
 		newSavedRevisions := make([]revision.SavedRevision, 0)
 		for i := 0; i < len(padContent.SavedRevisions); i++ {
@@ -330,24 +336,29 @@ func (h AdminMessageHandler) DeleteRevisions(padId string, keepRevisions int) er
 	}
 	newAtext = *optNewAtext
 
-	createdRevision := utils.CreateRevision(compressedChangeset, (*revisionsToKeep)[cleanupUntilRevision].Timestamp, true, nil, newAtext, pool)
+	createdRevision := utils.CreateRevision(compressedChangeset, currentRevsToKeep[cleanupUntilRevision].Timestamp, true, currentRevsToKeep[cleanupUntilRevision].AuthorId, newAtext, pool)
 
 	if err := h.store.SaveRevision(padContent.Id, 0, createdRevision.Changeset, newAtext, pool, createdRevision.Meta.Author, createdRevision.Meta.Timestamp); err != nil {
 		println("Error saving compressed revision:", err.Error())
 		return err
 	}
-	for i := cleanupUntilRevision + 1; i <= cleanupUntilRevision+1+keepRevisions; i++ {
-		rev := i
+	for i := 0; i < keepRevisions; i++ {
+		rev := i + cleanupUntilRevision + 1
 		newRev := rev - cleanupUntilRevision
 
-		optNewAtext, err = changeset.ApplyToAText((*revisionsToKeep)[rev].Changeset, newAtext, pool)
+		currentRevisionDb, ok := currentRevsToKeep[rev]
+		if !ok {
+			println("Error: revision", rev, "not found in current revisions to keep")
+			return errors.New("revision not found in current revisions to keep")
+		}
+		optNewAtext, err = changeset.ApplyToAText(currentRevisionDb.Changeset, newAtext, pool)
 		if err != nil {
 			println("Error applying changeset to atext for revision", rev, ":", err.Error())
 			return err
 		}
 		newAtext = *optNewAtext
 
-		createdRevision = utils.CreateRevision((*revisionsToKeep)[rev].Changeset, (*revisionsToKeep)[rev].Timestamp, true, (*revisionsToKeep)[rev].AuthorId, newAtext, pool)
+		createdRevision = utils.CreateRevision(currentRevisionDb.Changeset, currentRevisionDb.Timestamp, true, currentRevisionDb.AuthorId, newAtext, pool)
 		if err := h.store.SaveRevision(padContent.Id, newRev, createdRevision.Changeset, newAtext, pool, createdRevision.Meta.Author, createdRevision.Meta.Timestamp); err != nil {
 			println("Error saving revision:", err.Error())
 			return err
@@ -355,5 +366,13 @@ func (h AdminMessageHandler) DeleteRevisions(padId string, keepRevisions int) er
 	}
 
 	h.padManager.UnloadPad(padId)
+	retrievedPad, err = h.padManager.GetPad(padId, nil, nil)
+	if err != nil {
+		return err
+	}
+	if err := retrievedPad.Check(); err != nil {
+		h.Logger.Errorf("Pad %s failed integrity check after revision deletion: %s", padId, err.Error())
+		return err
+	}
 	return nil
 }

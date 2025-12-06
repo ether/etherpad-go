@@ -86,6 +86,7 @@ func (d PostgresDB) GetRevisions(padId string, startRev int, endRev int) (*[]db.
 	}
 
 	if len(revisions) != (endRev - startRev + 1) {
+		println("Revision is", len(revisions), endRev, startRev+1)
 		return nil, errors.New(PadRevisionNotFoundError)
 	}
 

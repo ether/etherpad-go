@@ -5,6 +5,7 @@ import (
 	"math"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -101,7 +102,7 @@ func (p *Pad) Check() error {
 		}
 		revAuthor, err := p.GetRevisionAuthor(r)
 		if err != nil {
-			return errors.New("pad revision " + string(rune(r)) + " author retrieval failed: " + err.Error())
+			return errors.New("pad revision " + strconv.Itoa(r) + " author retrieval failed: " + err.Error())
 		}
 		revTimestamp, err := p.GetRevisionDate(r)
 		if err != nil {
@@ -149,7 +150,6 @@ func (p *Pad) Check() error {
 				}
 				consumed := text[0:op.Chars]
 				nlines := utils.CountLines(consumed, '\n')
-				println(nlines, op.Lines)
 				if nlines != op.Lines {
 					return errors.New("pad revision has changeset op with mismatched lines count")
 				}

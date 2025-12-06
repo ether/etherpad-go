@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/ether/etherpad-go/lib/db"
 	"github.com/ether/etherpad-go/lib/models/ws/admin"
 	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/ether/etherpad-go/lib/test/testutils"
@@ -41,6 +42,14 @@ func TestAdminMessageHandler_AllMethods(t *testing.T) {
 		testutils.TestRunConfig{
 			Name: "Handle delete pad",
 			Test: testHandleDeletePad,
+		},
+		testutils.TestRunConfig{
+			Name: "Handle create pad with loading a pad with exact pattern",
+			Test: testHandlePadLoadExactPattern,
+		},
+		testutils.TestRunConfig{
+			Name: "Handle create pad with loading a pad with fuzzy pattern",
+			Test: testHandlePadLoadFuzzyPattern,
 		},
 	)
 	testDb.StartTestDBHandler()
@@ -178,6 +187,90 @@ func testHandlePadLoad(t *testing.T, ds testutils.TestDataStore) {
 	assert.NoError(t, err)
 	assert.Len(t, adminErrorMessage["results"], 0)
 	assert.Equal(t, adminErrorMessage["total"], float64(0))
+}
+
+func testHandlePadLoadExactPattern(t *testing.T, ds testutils.TestDataStore) {
+	hub := ws.NewHub()
+	settingsToLoad := settings.Displayed
+	randomPad := db.CreateRandomPad()
+
+	assert.NoError(t, ds.DS.CreatePad("test", randomPad))
+	assert.NoError(t, ds.DS.SaveRevision("test", 1, "123", randomPad.AText, randomPad.Pool, nil, 123))
+
+	client := &ws.Client{
+		Hub:       hub,
+		Conn:      ds.MockWebSocket,
+		Send:      make(chan []byte, 256),
+		Room:      "test-pad",
+		SessionId: "session123",
+		Ctx:       nil,
+		Handler:   nil,
+	}
+	padCreateMessage := admin.PadLoadData{
+		Limit:     10,
+		Offset:    0,
+		Pattern:   "test",
+		SortBy:    "padName",
+		Ascending: true,
+	}
+	data, err := json.Marshal(padCreateMessage)
+	assert.NoError(t, err)
+	padAdminMessage := admin.EventMessage{
+		Event: "padLoad",
+		Data:  data,
+	}
+
+	ds.AdminMessageHandler.HandleMessage(padAdminMessage, &settingsToLoad, client)
+	assert.Len(t, ds.MockWebSocket.Data, 1)
+	var resp = make([]interface{}, 2)
+	assert.NoError(t, json.Unmarshal(ds.MockWebSocket.Data[0].Data, &resp))
+	assert.Equal(t, "results:padLoad", resp[0])
+	adminErrorMessage := resp[1].(map[string]interface{})
+	assert.NoError(t, err)
+	assert.Len(t, adminErrorMessage["results"], 1)
+	assert.Equal(t, adminErrorMessage["total"], float64(1))
+}
+
+func testHandlePadLoadFuzzyPattern(t *testing.T, ds testutils.TestDataStore) {
+	hub := ws.NewHub()
+	settingsToLoad := settings.Displayed
+	randomPad := db.CreateRandomPad()
+
+	assert.NoError(t, ds.DS.CreatePad("test123", randomPad))
+	assert.NoError(t, ds.DS.SaveRevision("test123", 1, "123", randomPad.AText, randomPad.Pool, nil, 123))
+
+	client := &ws.Client{
+		Hub:       hub,
+		Conn:      ds.MockWebSocket,
+		Send:      make(chan []byte, 256),
+		Room:      "test-pad",
+		SessionId: "session123",
+		Ctx:       nil,
+		Handler:   nil,
+	}
+	padCreateMessage := admin.PadLoadData{
+		Limit:     10,
+		Offset:    0,
+		Pattern:   "test",
+		SortBy:    "padName",
+		Ascending: true,
+	}
+	data, err := json.Marshal(padCreateMessage)
+	assert.NoError(t, err)
+	padAdminMessage := admin.EventMessage{
+		Event: "padLoad",
+		Data:  data,
+	}
+
+	ds.AdminMessageHandler.HandleMessage(padAdminMessage, &settingsToLoad, client)
+	assert.Len(t, ds.MockWebSocket.Data, 1)
+	var resp = make([]interface{}, 2)
+	assert.NoError(t, json.Unmarshal(ds.MockWebSocket.Data[0].Data, &resp))
+	assert.Equal(t, "results:padLoad", resp[0])
+	adminErrorMessage := resp[1].(map[string]interface{})
+	assert.NoError(t, err)
+	assert.Len(t, adminErrorMessage["results"], 1)
+	assert.Equal(t, adminErrorMessage["total"], float64(1))
 }
 
 func testGetInstalled(t *testing.T, ds testutils.TestDataStore) {

@@ -58,7 +58,6 @@ func (c *Client) readPumpAdmin(retrievedSettings *settings.Settings, logger *zap
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 				log.Printf("error: %v", err)
 			}
-			c.Handler.HandleDisconnectOfPadClient(c, retrievedSettings, logger)
 			break
 		}
 		message = bytes.TrimSpace(bytes.Replace(message, newline, space, -1))
@@ -66,7 +65,7 @@ func (c *Client) readPumpAdmin(retrievedSettings *settings.Settings, logger *zap
 
 		err = json.Unmarshal(message, &eventMessage)
 		if err != nil {
-			logger.Error("Error unmarshalling", err)
+			logger.Error("error unmarshalling", err)
 			return
 		}
 		c.adminHandler.HandleMessage(eventMessage, retrievedSettings, c)
