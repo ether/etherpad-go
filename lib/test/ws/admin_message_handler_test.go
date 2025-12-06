@@ -30,6 +30,10 @@ func TestAdminMessageHandler_AllMethods(t *testing.T) {
 			Name: "Handle create pad with loading a pad",
 			Test: testHandlePadLoad,
 		},
+		testutils.TestRunConfig{
+			Name: "Test get installed plugins",
+			Test: testGetInstalled,
+		},
 	)
 	testDb.StartTestDBHandler()
 }
@@ -166,4 +170,29 @@ func testHandlePadLoad(t *testing.T, ds testutils.TestDataStore) {
 	assert.NoError(t, err)
 	assert.Len(t, adminErrorMessage["results"], 0)
 	assert.Equal(t, adminErrorMessage["total"], float64(0))
+}
+
+func testGetInstalled(t *testing.T, ds testutils.TestDataStore) {
+	hub := ws.NewHub()
+	settingsToLoad := settings.Displayed
+	client := &ws.Client{
+		Hub:       hub,
+		Conn:      ds.MockWebSocket,
+		Send:      make(chan []byte, 256),
+		Room:      "test-pad",
+		SessionId: "session123",
+		Ctx:       nil,
+		Handler:   nil,
+	}
+	getInstalledRequest := admin.EventMessage{
+		Event: "getInstalled",
+		Data:  make(json.RawMessage, 0),
+	}
+	ds.AdminMessageHandler.HandleMessage(getInstalledRequest, &settingsToLoad, client)
+	assert.Len(t, ds.MockWebSocket.Data, 1)
+	var resp = make([]interface{}, 2)
+	assert.NoError(t, json.Unmarshal(ds.MockWebSocket.Data[0].Data, &resp))
+	assert.Equal(t, "results:installed", resp[0])
+	adminErrorMessage := resp[1].(map[string]interface{})
+	assert.Len(t, adminErrorMessage["installed"], 1)
 }
