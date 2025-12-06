@@ -23,7 +23,11 @@ func TestAdminMessageHandler_AllMethods(t *testing.T) {
 			Test: testHandleCreatePadWithExistingPad,
 		},
 		testutils.TestRunConfig{
-			Name: "Handle create pad with not existing pad",
+			Name: "Handle create pad with no existing pad",
+			Test: testHandleCreatePadWithNoExistingPad,
+		},
+		testutils.TestRunConfig{
+			Name: "Handle create pad with loading a pad",
 			Test: testHandlePadLoad,
 		},
 	)
