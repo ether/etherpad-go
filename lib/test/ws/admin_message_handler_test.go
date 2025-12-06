@@ -24,7 +24,7 @@ func TestAdminMessageHandler_AllMethods(t *testing.T) {
 		},
 		testutils.TestRunConfig{
 			Name: "Handle create pad with not existing pad",
-			Test: testHandleCreatePadWithNotExistingPad,
+			Test: testHandlePadLoad,
 		},
 	)
 	testDb.StartTestDBHandler()
@@ -95,7 +95,39 @@ func testHandleCreatePadWithExistingPad(t *testing.T, ds testutils.TestDataStore
 	assert.Equal(t, "Pad already exists", adminErrorMessage["error"])
 }
 
-func testHandleCreatePadWithNotExistingPad(t *testing.T, ds testutils.TestDataStore) {
+func testHandleCreatePadWithNoExistingPad(t *testing.T, ds testutils.TestDataStore) {
+	hub := ws.NewHub()
+	settingsToLoad := settings.Displayed
+	client := &ws.Client{
+		Hub:       hub,
+		Conn:      ds.MockWebSocket,
+		Send:      make(chan []byte, 256),
+		Room:      "test-pad",
+		SessionId: "session123",
+		Ctx:       nil,
+		Handler:   nil,
+	}
+	padCreateMessage := admin.PadCreateData{
+		PadName: "test",
+	}
+	data, err := json.Marshal(padCreateMessage)
+	assert.NoError(t, err)
+	padAdminMessage := admin.EventMessage{
+		Event: "createPad",
+		Data:  data,
+	}
+
+	ds.AdminMessageHandler.HandleMessage(padAdminMessage, &settingsToLoad, client)
+	assert.Len(t, ds.MockWebSocket.Data, 1)
+	var resp = make([]interface{}, 2)
+	assert.NoError(t, json.Unmarshal(ds.MockWebSocket.Data[0].Data, &resp))
+	assert.Equal(t, "results:createPad", resp[0])
+	adminErrorMessage := resp[1].(map[string]interface{})
+	assert.NoError(t, err)
+	assert.Equal(t, "Pad created test", adminErrorMessage["success"])
+}
+
+func testHandlePadLoad(t *testing.T, ds testutils.TestDataStore) {
 	hub := ws.NewHub()
 	settingsToLoad := settings.Displayed
 	client := &ws.Client{
