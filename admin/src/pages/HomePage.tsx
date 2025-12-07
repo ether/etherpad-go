@@ -7,7 +7,6 @@ import {SearchField} from "../components/SearchField.tsx";
 import {ArrowUpFromDot, Download, Trash} from "lucide-react";
 import {IconButton} from "../components/IconButton.tsx";
 import {determineSorting} from "../utils/sorting.ts";
-import settingSocket from "../utils/globals.ts";
 
 
 export const HomePage = () => {
@@ -15,6 +14,7 @@ export const HomePage = () => {
     const [loadedPlugins, setLoadedPlugins] = useState<boolean>(false)
   const installedPlugins = useStore(state=>state.installedPlugins)
   const setInstalledPlugins = useStore(state=>state.setInstalledPlugins)
+  const settingSocket = useStore(state=>state.settingSocket)
   const [searchParams, setSearchParams] = useState<SearchParams>({
     offset: 0,
     limit: 99999,

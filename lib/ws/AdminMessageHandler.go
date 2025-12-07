@@ -3,6 +3,7 @@ package ws
 import (
 	"encoding/json"
 	"errors"
+	"time"
 
 	"github.com/ether/etherpad-go/admin/src/utils"
 	"github.com/ether/etherpad-go/lib/changeset"
@@ -168,6 +169,37 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 			}
 			c.Conn.WriteMessage(websocket.TextMessage, responseBytes)
 		}
+	case "shout":
+		{
+			var adminMessage admin.ShoutMessageRequest
+			if err := json.Unmarshal(message.Data, &adminMessage); err != nil {
+				println("Error unmarshalling shout data:", err.Error())
+				return
+			}
+			padShoutData := admin.ShoutMessageResponse{
+				Type: "COLLABROOM",
+				Data: struct {
+					Type    string             `json:"type"`
+					Payload admin.ShoutMessage `json:"payload"`
+				}{Type: "result:shout", Payload: admin.ShoutMessage{
+					Timestamp: time.Now().UnixMilli(),
+					Message:   adminMessage,
+				}},
+			}
+			var resp = make([]interface{}, 2)
+			resp[0] = "result:shout"
+			resp[1] = padShoutData
+			responseBytes, err := json.Marshal(resp)
+			if err != nil {
+				println("Error marshalling response:", err.Error())
+				return
+			}
+
+			for key, _ := range h.hub.Clients {
+				key.Conn.WriteMessage(websocket.TextMessage, responseBytes)
+			}
+
+		}
 	case "deletePad":
 		{
 			var padDeleteData admin.PadDeleteData
@@ -252,6 +284,22 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 			resp[0] = "results:search"
 			resp[1] = pluginDef
 
+			responseBytes, err := json.Marshal(resp)
+			if err != nil {
+				println("Error marshalling response:", err.Error())
+				return
+			}
+			c.Conn.WriteMessage(websocket.TextMessage, responseBytes)
+		}
+	case "getStats":
+		{
+			totalUsers := len(h.padMessageHandler.SessionStore.sessions)
+			totalUserMessage := admin.Stats{
+				TotalUsers: totalUsers,
+			}
+			resp := make([]interface{}, 2)
+			resp[0] = "results:stats"
+			resp[1] = totalUserMessage
 			responseBytes, err := json.Marshal(resp)
 			if err != nil {
 				println("Error marshalling response:", err.Error())

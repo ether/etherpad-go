@@ -51,6 +51,10 @@ func TestAdminMessageHandler_AllMethods(t *testing.T) {
 			Name: "Handle create pad with loading a pad with fuzzy pattern",
 			Test: testHandlePadLoadFuzzyPattern,
 		},
+		testutils.TestRunConfig{
+			Name: "Handle shout message",
+			Test: testHandleShout,
+		},
 	)
 	testDb.StartTestDBHandler()
 }
@@ -118,6 +122,45 @@ func testHandleCreatePadWithExistingPad(t *testing.T, ds testutils.TestDataStore
 	adminErrorMessage := resp[1].(map[string]interface{})
 	assert.NoError(t, err)
 	assert.Equal(t, "Pad already exists", adminErrorMessage["error"])
+}
+
+func testHandleShout(t *testing.T, ds testutils.TestDataStore) {
+	hub := ws.NewHub()
+	settingsToLoad := settings.Displayed
+	client := &ws.Client{
+		Hub:       hub,
+		Conn:      ds.MockWebSocket,
+		Send:      make(chan []byte, 256),
+		Room:      "test-pad",
+		SessionId: "session123",
+		Ctx:       nil,
+		Handler:   nil,
+	}
+
+	ds.Hub.Clients[client] = true
+	shoutMessageRequest := admin.ShoutMessageRequest{
+		Message: "This is a shout message",
+		Sticky:  false,
+	}
+	data, err := json.Marshal(shoutMessageRequest)
+	assert.NoError(t, err)
+	padAdminMessage := admin.EventMessage{
+		Event: "shout",
+		Data:  data,
+	}
+
+	ds.AdminMessageHandler.HandleMessage(padAdminMessage, &settingsToLoad, client)
+	assert.Len(t, ds.MockWebSocket.Data, 1)
+	var resp = make([]interface{}, 2)
+	assert.NoError(t, json.Unmarshal(ds.MockWebSocket.Data[0].Data, &resp))
+	assert.Equal(t, "result:shout", resp[0])
+	var adminSuccessMessage admin.ShoutMessageResponse
+	respBytes, err := json.Marshal(resp[1])
+	assert.NoError(t, err)
+	assert.NoError(t, json.Unmarshal(respBytes, &adminSuccessMessage))
+
+	assert.Equal(t, "This is a shout message", adminSuccessMessage.Data.Payload.Message.Message)
+	assert.Equal(t, false, adminSuccessMessage.Data.Payload.Message.Sticky)
 }
 
 func testHandleCreatePadWithNoExistingPad(t *testing.T, ds testutils.TestDataStore) {
@@ -351,4 +394,8 @@ func testHandleDeletePad(t *testing.T, ds testutils.TestDataStore) {
 	assert.NoError(t, json.Unmarshal(ds.MockWebSocket.Data[0].Data, &resp))
 	assert.Equal(t, "results:deletePad", resp[0])
 	assert.Equal(t, "existingPad", resp[1])
+}
+
+func testHandleCleanupRevisions(t *testing.T, ds testutils.TestDataStore) {
+
 }

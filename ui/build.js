@@ -1,4 +1,5 @@
 import * as esbuild from 'esbuild';
+import * as fs from "node:fs";
 
 
 const relativePath = 'ep_etherpad-lite/static/js';
@@ -15,6 +16,18 @@ const alias = {
 
 const absWorkingDir = process.cwd()
 
+const loaders = {
+    '.woff': 'base64',
+    '.woff2': 'base64',
+    '.ttf': 'base64',
+    '.eot': 'base64',
+    '.svg': 'base64',
+    '.png': 'base64',
+    '.jpg': 'base64',
+    '.gif': 'base64',
+    '.otf': 'base64',
+}
+
 await esbuild.buildSync({
     entryPoints: ["./src/pad.js"],
     absWorkingDir: absWorkingDir,
@@ -24,7 +37,8 @@ await esbuild.buildSync({
     logLevel: 'info',
     metafile: true,
     target: 'es2020',
-    alias, // should be an object like { react: 'preact/compat' }
+    alias,
+    loader:loaders,
     sourcemap: 'inline',
 });
 
@@ -37,6 +51,37 @@ await esbuild.buildSync({
     logLevel: 'info',
     metafile: true,
     target: 'es2020',
-    alias, // should be an object like { react: 'preact/compat' }
+    alias,
+    loader:loaders,
     sourcemap: 'inline',
 });
+
+await esbuild.buildSync({
+    entryPoints: ['../assets/css/skin/colibris/pad.css'],
+    absWorkingDir: absWorkingDir,
+    bundle: true,
+    write: true,
+    minify: true,
+    outdir: '../assets/css/build/skin/colibris',
+    logLevel: 'info',
+    metafile: true,
+    target: 'es2020',
+    external: ['*.woff', '*.woff2', '*.ttf', '*.eot', '*.svg', '*.png', '*.jpg', '*.gif'],
+    sourcemap: 'inline',
+    loader:loaders,
+})
+
+await esbuild.buildSync({
+    entryPoints: ['../assets/css/static/pad.css'],
+    absWorkingDir: absWorkingDir,
+    bundle: true,
+    write: true,
+    minify: true,
+    outdir: '../assets/css/build/static',
+    logLevel: 'info',
+    external: ['*.woff', '*.woff2', '*.ttf', '*.eot', '*.svg', '*.png', '*.jpg', '*.gif', '/font/*', 'font/*'],
+    loader: loaders,
+    metafile: true,
+    target: 'es2020',
+    sourcemap: 'inline',
+})

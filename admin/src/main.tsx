@@ -1,5 +1,5 @@
-import "./utils/authUtils"
-import './utils/globals.ts'
+import {initAuth} from "./utils/authUtils.ts";
+import {initSettingsSocket} from './utils/globals.ts'
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.tsx'
@@ -14,6 +14,9 @@ import i18n from "./localization/i18n.ts";
 import {PadPage} from "./pages/PadPage.tsx";
 import {ToastDialog} from "./utils/Toast.tsx";
 import {ShoutPage} from "./pages/ShoutPage.tsx";
+
+const token = await initAuth()
+initSettingsSocket(token)
 
 const router = createBrowserRouter(createRoutesFromElements(
     <Route element={<App/>}>

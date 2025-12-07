@@ -2,26 +2,30 @@ import {useEffect, useState} from "react";
 import {SendHorizonal} from 'lucide-react'
 import * as Switch from '@radix-ui/react-switch';
 import {ShoutType} from "../components/ShoutType.ts";
-import settingSocket from "../utils/globals.ts";
+import {useStore} from "../store/store.ts";
 
 export const ShoutPage = ()=>{
     const [totalUsers, setTotalUsers] = useState(0);
     const [message, setMessage] = useState<string>("");
     const [sticky, setSticky] = useState<boolean>(false);
     const [shouts, setShouts] = useState<ShoutType[]>([]);
+    const settingSocket = useStore(state=>state.settingSocket);
 
 
     useEffect(() => {
-            settingSocket.on('shout', (shout) => {
+        if (!settingSocket) return;
+            settingSocket.on('result:shout', (shout: ShoutType) => {
+                console.log("Shout received", shout)
                 setShouts([...shouts, shout])
             })
         settingSocket.on('results:stats', (statData) => {
             setTotalUsers(statData.totalUsers);
           })
-    }, [shouts])
+    }, [shouts,settingSocket])
 
 
   useEffect(() => {
+        if (!settingSocket) return;
       settingSocket.emit('getStats');
   }, []);
 
@@ -36,7 +40,7 @@ export const ShoutPage = ()=>{
     return (
         <div>
             <h1>Communication</h1>
-            {totalUsers > 0 && <p>There  {totalUsers>1?"are":"is"} currently {totalUsers} user{totalUsers>1?"s":""} online</p>}
+            {<p>There  {totalUsers>1?"are":"is"} currently {totalUsers} user{totalUsers>1?"s":""} online</p>}
             <div style={{height: '80vh', display: 'flex', flexDirection: 'column'}}>
                 <div style={{flexGrow: 1, backgroundColor: 'white', overflowY: "auto"}}>
                     {

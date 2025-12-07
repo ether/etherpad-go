@@ -9,7 +9,6 @@ import {IconButton} from "../components/IconButton.tsx";
 import {ChevronLeft, ChevronRight, Eye, Trash2, FileStack, PlusIcon} from "lucide-react";
 import {SearchField} from "../components/SearchField.tsx";
 import {useForm} from "react-hook-form";
-import settingSocket from "../utils/globals.ts";
 
 type PadCreateProps = {
     padName: string
@@ -31,6 +30,7 @@ export const PadPage = ()=>{
     const [errorText, setErrorText] = useState<string|null>(null)
     const [padToDelete, setPadToDelete] = useState<string>('')
     const [createPadDialogOpen, setCreatePadDialogOpen] = useState<boolean>(false)
+    const settingSocket = useStore(state=>state.settingSocket)
     const {register, handleSubmit} = useForm<PadCreateProps>()
     const pages = useMemo(()=>{
         if(!pads){
@@ -49,6 +49,7 @@ export const PadPage = ()=>{
     }, 500, [searchTerm])
 
     useEffect(() => {
+        console.log(settingSocket)
         if(!settingSocket){
             return
         }
