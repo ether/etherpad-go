@@ -37,7 +37,7 @@ COPY . .
 COPY --from=admin /app/dist ./assets/js/admin
 COPY --from=frontend /assets/js/pad/assets/pad.js ./assets/js/pad/assets/pad.js
 COPY --from=frontend /assets/js/welcome/assets/welcome.js ./assets/js/welcome/assets/welcome.js
-
+COPY --from=frontend /assets/css/build ./assets/css/build
 
 RUN templ generate
 RUN go build -o app .
