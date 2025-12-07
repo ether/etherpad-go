@@ -18,6 +18,7 @@ RUN pnpm run build
 FROM node:latest as frontend
 WORKDIR /app
 
+COPY ./assets /assets
 COPY ./ui/package.json .
 COPY ./ui/package-lock.json .
 RUN npm install
