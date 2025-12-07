@@ -102,7 +102,64 @@ func getAdminBody(uiAssets embed.FS, retrievedSettings *settings.Settings) (*str
 	return &result, nil
 }
 
+var loaderConfig = map[string]api.Loader{".css": api.LoaderCSS, ".svg": api.LoaderDataURL, ".woff2": api.LoaderDataURL, ".woff": api.LoaderDataURL, ".ttf": api.LoaderDataURL, ".eot": api.LoaderDataURL, ".otf": api.LoaderDataURL}
+
+func buildColibrisCssInDev(retrievedSettings *settings.Settings) {
+	pathToBuild := path.Join(retrievedSettings.Root, "assets")
+	entryPoints := []string{"./css/skin/colibris/pad.css"}
+	outDir := path.Join(pathToBuild, "css", "build", "skin", "colibris")
+	for _, ep := range entryPoints {
+		result := api.Build(api.BuildOptions{
+			EntryPoints:   []string{ep},
+			AbsWorkingDir: pathToBuild,
+			Bundle:        true,
+			Write:         true,
+			Outdir:        outDir,
+			LogLevel:      api.LogLevelWarning,
+			Loader:        loaderConfig,
+		})
+		if len(result.Errors) > 0 {
+			panic("Error building css/static/pad.css")
+		}
+	}
+}
+
+func buildStaticPadCSSInDev(retrievedSettings *settings.Settings) {
+	pathToBuild := path.Join(retrievedSettings.Root, "assets")
+	entryPoints := []string{"./css/static/pad.css"}
+	outDir := path.Join(pathToBuild, "css", "build", "static")
+
+	for _, ep := range entryPoints {
+		result := api.Build(api.BuildOptions{
+			EntryPoints:   []string{ep},
+			AbsWorkingDir: pathToBuild,
+			Bundle:        true,
+			Write:         true,
+			Outdir:        outDir,
+			LogLevel:      api.LogLevelWarning,
+			AssetNames:    "fonts/[name]-[hash]",
+			PublicPath:    "/font",
+			Loader:        loaderConfig,
+		})
+		if len(result.Errors) > 0 {
+			panic("Error building css/static/pad.css")
+		}
+	}
+}
+
+func buildCssInDev(nodeEnv string, retrievedSettings *settings.Settings) {
+	if nodeEnv == "production" {
+		return
+	}
+
+	buildColibrisCssInDev(retrievedSettings)
+	buildStaticPadCSSInDev(retrievedSettings)
+}
+
 func Init(app *fiber.App, uiAssets embed.FS, retrievedSettings *settings.Settings, cookieStore *session.Store, setupLogger *zap.SugaredLogger) {
+	var nodeEnv = os.Getenv("NODE_ENV")
+	buildCssInDev(nodeEnv, retrievedSettings)
+
 	app.Use("/p/", func(c *fiber.Ctx) error {
 		c.Path()
 
@@ -128,6 +185,39 @@ func Init(app *fiber.App, uiAssets embed.FS, retrievedSettings *settings.Setting
 			return c.Type("html").SendString(*adminHtml)
 		})
 	}
+
+	app.Get("/css/static/pad.css", func(ctx *fiber.Ctx) error {
+		if nodeEnv != "production" {
+			fileContent, err := os.ReadFile("assets/css/build/static/pad.css")
+			if err != nil {
+				setupLogger.Errorf("Error setting up build page: %v. Did you forget to run the build script in ui directory?", err)
+			}
+			return ctx.Type("css").Send(fileContent)
+		} else {
+			fileContent, err := uiAssets.ReadFile("assets/css/build/static/pad.css")
+			if err != nil {
+				setupLogger.Errorf("Error setting up build page: %v. Did you forget to run the build script in ui directory?", err)
+			}
+			return ctx.Type("css").Send(fileContent)
+		}
+	})
+
+	app.Get("/css/skin/colibris/pad.css", func(ctx *fiber.Ctx) error {
+		if nodeEnv != "production" {
+			fileContent, err := os.ReadFile("assets/css/build/skin/colibris/pad.css")
+			if err != nil {
+				setupLogger.Errorf("Error setting up build page: %v. Did you forget to run the build script in ui directory?", err)
+			}
+			return ctx.Type("css").Send(fileContent)
+		} else {
+			fileContent, err := uiAssets.ReadFile("assets/css/build/skin/colibris/pad.css")
+			if err != nil {
+				setupLogger.Errorf("Error setting up build page: %v. Did you forget to run the build script in ui directory?", err)
+			}
+			return ctx.Type("css").Send(fileContent)
+		}
+	})
+
 	registerEmbeddedStatic(app, "/admin/assets/", "assets/js/admin/assets", uiAssets)
 	registerEmbeddedStatic(app, "/admin/static/", "assets/js/admin/static", uiAssets)
 	registerEmbeddedStatic(app, "/images/favicon.ico", "assets/images/favicon.ico", uiAssets)
@@ -157,8 +247,6 @@ func Init(app *fiber.App, uiAssets embed.FS, retrievedSettings *settings.Setting
 		component := welcome.Page(retrievedSettings, keyValues)
 		return adaptor.HTTPHandler(templ.Handler(component))(c)
 	})
-
-	var nodeEnv = os.Getenv("NODE_ENV")
 
 	if nodeEnv == "production" {
 		registerEmbeddedStatic(app, "/js/pad/assets/", "assets/js/pad/assets", uiAssets)

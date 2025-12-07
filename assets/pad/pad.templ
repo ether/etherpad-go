@@ -325,7 +325,7 @@ templ Greeting(pad padModel.Model, jsScript string, translations map[string]stri
     <title>{settings.Title}</title>
     <script type="module" src={jsScript}></script>
       <link href="/css/static/pad.css" rel="stylesheet"/>
-    <link  href="/css/skin/pad.css" rel="stylesheet"/>
+    <link  href={"/css/skin/"+ settings.SkinName + "/pad.css"} rel="stylesheet"/>
     <style title="dynamicsyntax"></style>
     <link rel="localizations" type="application/l10n+json" href="/locales.json"/>
   </head>

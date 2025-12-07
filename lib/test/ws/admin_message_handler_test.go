@@ -395,3 +395,7 @@ func testHandleDeletePad(t *testing.T, ds testutils.TestDataStore) {
 	assert.Equal(t, "results:deletePad", resp[0])
 	assert.Equal(t, "existingPad", resp[1])
 }
+
+func testHandleCleanupRevisions(t *testing.T, ds testutils.TestDataStore) {
+
+}

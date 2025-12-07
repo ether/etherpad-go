@@ -1,13 +1,13 @@
 /* Montserrat Font */
 @font-face {
   font-family: "Montserrat";
-  src: url("/font/Montserrat-Light.otf") format("opentype");
+  src: url("../../../font/Montserrat-Light.otf") format("opentype");
   font-weight: normal;
   font-style: normal;
 }
 @font-face {
     font-family: "Montserrat";
-    src: url("/font/Montserrat-Regular.otf") format("opentype");
+    src: url("../../../font/Montserrat-Regular.otf") format("opentype");
     font-weight: bold;
     font-style: normal;
 }
@@ -15,47 +15,47 @@
 
 @font-face {
   font-family: opendyslexic;
-  src: url("/font/opendyslexic.otf") format("opentype");
+  src: url("../../../font/opendyslexic.otf") format("opentype");
 }
 @font-face {
     font-family: "RobotoMono";
-    src: url("/font/RobotoMono-Regular.ttf") format("truetype");
+    src: url("../../../font/RobotoMono-Regular.ttf") format("truetype");
     font-weight: normal;
     font-style: normal;
 }
 @font-face {
     font-family: "RobotoMono";
-    src: url("/font/RobotoMono-Bold.ttf") format("truetype");
+    src: url("../../../font/RobotoMono-Bold.ttf") format("truetype");
     font-weight: bold;
     font-style: normal;
 }
 @font-face {
     font-family: "Quicksand";
-    src: url("/font/Quicksand-Regular.ttf") format("truetype");
+    src: url("../../../font/Quicksand-Regular.ttf") format("truetype");
     font-weight: 300;
     font-style: normal;
 }
 @font-face {
     font-family: "Quicksand";
-    src: url("/font/Quicksand-Medium.ttf") format("truetype");
+    src: url("../../../font/Quicksand-Medium.ttf") format("truetype");
     font-weight: normal;
     font-style: normal;
 }
 @font-face {
     font-family: "Quicksand";
-    src: url("/font/Quicksand-Bold.ttf") format("truetype");
+    src: url("../../../font/Quicksand-Bold.ttf") format("truetype");
     font-weight: bold;
     font-style: normal;
 }
 @font-face {
     font-family: "Roboto";
-    src: url("/font/Roboto-Regular.ttf") format("truetype");
+    src: url("../../../font/Roboto-Regular.ttf") format("truetype");
     font-weight: normal;
     font-style: normal;
 }
 @font-face {
     font-family: "Roboto";
-    src: url("/font/Roboto-Bold.ttf") format("truetype");
+    src: url("../../../font/Roboto-Bold.ttf") format("truetype");
     font-weight: bold;
     font-style: normal;
 }
@@ -66,14 +66,14 @@
   font-style: normal;
   font-weight: 400;
   src: local('Alegreya Medium'), local('Alegreya-Medium'),
-       url('/font/Aleygreya-Medium.woff2') format('woff2'), /* Chrome 26+, Opera 23+, Firefox 39+ */
-       url('/font/Aleygreya-Medium.woff') format('woff'); /* Chrome 6+, Firefox 3.6+, IE 9+, Safari 5.1+ */
+       url('../../../font/Aleygreya-Medium.woff2') format('woff2'), /* Chrome 26+, Opera 23+, Firefox 39+ */
+       url('../../../font/Aleygreya-Medium.woff') format('woff'); /* Chrome 6+, Firefox 3.6+, IE 9+, Safari 5.1+ */
 }
 @font-face {
   font-family: 'Alegreya';
   font-style: normal;
   font-weight: 700;
   src: local('Alegreya ExtraBold'), local('Alegreya-ExtraBold'),
-       url('/font/Aleygreya-ExtraBold.woff2') format('woff2'), /* Chrome 26+, Opera 23+, Firefox 39+ */
-       url('/font/Aleygreya-ExtraBold.woff') format('woff'); /* Chrome 6+, Firefox 3.6+, IE 9+, Safari 5.1+ */
+       url('../../../font/Aleygreya-ExtraBold.woff2') format('woff2'), /* Chrome 26+, Opera 23+, Firefox 39+ */
+       url('../../../font/Aleygreya-ExtraBold.woff') format('woff'); /* Chrome 6+, Firefox 3.6+, IE 9+, Safari 5.1+ */
 }

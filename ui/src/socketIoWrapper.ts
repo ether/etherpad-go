@@ -10,6 +10,10 @@ export class SocketIoWrapper {
     private socket: WebSocket | undefined
     private static readonly eventCallbacks: { [key: string]: Function[] } = {}
 
+    constructor() {
+        this.ensureSocket()
+    }
+
     private ensureSocket() {
         if (this.socket && this.socket.readyState !== WebSocket.CLOSED) return
         try {
@@ -20,7 +24,7 @@ export class SocketIoWrapper {
             throw e
         }
         this.socket.onopen = this.onConnect
-        this.socket.onclose = this.onClose
+        this.socket.onclose = this.handleClose
         this.socket.onerror  = this.onError
         this.socket.onmessage = this.onMessage
 
@@ -34,7 +38,6 @@ export class SocketIoWrapper {
     }
 
     private onConnect() {
-        console.log('onopen')
         const iID = window.setInterval(() => {
             console.log('check')
             if (SocketIoWrapper.eventCallbacks['connect'] && SocketIoWrapper.eventCallbacks['connect'].length == 1) {
@@ -47,26 +50,26 @@ export class SocketIoWrapper {
         }, 200)
     }
 
-    private onClose() {
-        console.log('onclose')
-        if (SocketIoWrapper.eventCallbacks['disconnect']) {
-            SocketIoWrapper.eventCallbacks['disconnect'].forEach(callback => {
-                callback()
+    private handleClose = (evt?: CloseEvent) => {
+        const disconnectCallbacks = SocketIoWrapper.eventCallbacks['disconnect']
+        if (disconnectCallbacks && disconnectCallbacks.length) {
+            disconnectCallbacks.forEach(cb => {
+                try { cb(evt) } catch (e) { console.error('disconnect callback error', e) }
             })
         }
-        setTimeout(() => {
+
+        // Reconnect über ensureSocket (verhindert parallele createSocket-Aufrufe)
+        setTimeout(async () => {
             console.log('Reconnecting...')
-            const socket = createSocket()
-            socket.onopen = this.onConnect
-            socket.onclose = this.onClose
-            socket.onerror = this.onError
-            socket.onmessage = this.onMessage
-            this.socket = socket
+            try {
+                await this.ensureSocket()
+            } catch (e) {
+                console.error('Reconnect failed', e)
+            }
         }, 1000)
     }
 
     private onError(evt: Event) {
-        console.log('onerror', evt)
         if (SocketIoWrapper.eventCallbacks['disconnect']) {
             SocketIoWrapper.eventCallbacks['disconnect'].forEach(callback => {
                 callback(evt)
