@@ -1,7 +1,5 @@
 import {ConfigModel} from "../models/configModel.ts";
 
-console.error(window.location.href)
-
 const getConfigFromHtmlFile = (): ConfigModel | undefined => {
     const config = document.getElementById('config')
 
@@ -49,7 +47,6 @@ async function generateCodeChallenge(verifier: string) {
 const state = generateState();
 
 const config = getConfigFromHtmlFile();
-console.error("Config is", config)
 
 
 const token = sessionStorage.getItem('token')
@@ -74,7 +71,7 @@ export function isExpired(token: string|null, leewaySeconds = 0): boolean {
     if (!token) return true;
     const payload = decodeJwt(token);
     if (!payload) return true;
-    const exp = typeof payload.exp === 'number' ? payload.exp : parseInt(String((payload as any).exp || '0'), 10);
+    const exp = typeof payload.exp === 'number' ? payload.exp : Number.parseInt(String((payload as any).exp || '0'), 10);
     if (!exp) return true;
     return Date.now() / 1000 > (exp + leewaySeconds);
 }
@@ -95,7 +92,7 @@ if (!isExpired(token, 60) && token) {
     let refreshToken = sessionStorage.getItem('refresh_token')
     if (!refreshToken) {
         sessionStorage.clear()
-        window.location.reload()
+        globalThis.location.reload()
         throw new Error('Refresh token not set')
     }
     setInterval(() => {
@@ -118,12 +115,17 @@ if (!isExpired(token, 60) && token) {
                         sessionStorage.setItem('token', refreshData.id_token)
                     }
                 })
+            } else {
+                console.error('Failed to refresh token', refreshResp.statusText)
+                sessionStorage.removeItem('refresh_token')
+                sessionStorage.removeItem('token')
+                globalThis.location.reload()
             }
         })
     }, 60_000)
 } else {
-    if (window.location.search.includes('code=')) {
-        console.log('Redirecting to', window.location.href, "with client" + config?.clientId)
+    if (globalThis.location.search.includes('code=')) {
+        console.log('Redirecting to', globalThis.location.href, "with client" + config?.clientId)
         try {
             const codeVerifier = sessionStorage.getItem('pkce_code_verifier') || '';
             const resp = await fetch(config?.authority + "/../token", {
@@ -133,7 +135,7 @@ if (!isExpired(token, 60) && token) {
                 },
                 body: new URLSearchParams({
                     grant_type: 'authorization_code',
-                    code: new URLSearchParams(window.location.search).get('code') || '',
+                    code: new URLSearchParams(globalThis.location.search).get('code') || '',
                     redirect_uri: config?.redirectUri ?? '',
                     client_id: config?.clientId ?? '',
                     code_verifier: codeVerifier
@@ -143,19 +145,20 @@ if (!isExpired(token, 60) && token) {
                 let tokenResponse = await resp.json()
                 if (tokenResponse.id_token) {
                     sessionStorage.setItem('token', tokenResponse.id_token)
-                    const params = new URLSearchParams(window.location.search);
+                    sessionStorage.setItem('refresh_token', tokenResponse.refresh_token)
+                    const params = new URLSearchParams(globalThis.location.search);
                     params.delete('code');
                     params.delete('state');
                     params.delete('iss');
                     params.delete('session_state');
                     const newSearch = params.toString();
-                    const newUrl = window.location.pathname + (newSearch ? '?' + newSearch : '');
+                    const newUrl = globalThis.location.pathname + (newSearch ? '?' + newSearch : '');
 
-                    window.history.replaceState({}, '', newUrl);
+                    globalThis.history.replaceState({}, '', newUrl);
                 }
                 setInterval(() => {
-                    console.log('Redirecting to', window.location.href, "with client" + config?.clientId);
-                    if (tokenResponse.refresh_token) {
+                    const refreshToken = sessionStorage.getItem('refresh_token')
+                    if (refreshToken) {
                         console.log(config)
                         fetch(config?.authority + "/../token", {
                             method: 'POST',
@@ -164,7 +167,7 @@ if (!isExpired(token, 60) && token) {
                             },
                             body: new URLSearchParams({
                                 grant_type: 'refresh_token',
-                                refresh_token: tokenResponse.refresh_token,
+                                refresh_token: refreshToken,
                                 client_id: config?.clientId ?? ''
                             })
                         }).then(async (refreshResp) => {
@@ -172,6 +175,7 @@ if (!isExpired(token, 60) && token) {
                                 refreshResp.json().then((refreshData) => {
                                     tokenResponse = refreshData;
                                     if (refreshData.id_token) {
+                                        console.log("Setting new tokens from refresh")
                                         sessionStorage.setItem('refresh_token', refreshData.refresh_token)
                                         sessionStorage.setItem('token', refreshData.id_token)
                                     }
@@ -181,24 +185,20 @@ if (!isExpired(token, 60) && token) {
                     }
                 }, 60_000)
             } else {
-                throw new Error('Error during OIDC login: ' + resp.statusText)
+                    sessionStorage.removeItem('refresh_token')
+                    sessionStorage.removeItem('token')
+                    globalThis.location.reload()
             }
         } catch (e) {
             console.error('OIDC login failed', e)
         }
-    } else if (!window.location.href.includes("?error")) {
+    } else if (!globalThis.location.href.includes("?error")) {
         const codeVerifier = generateCodeVerifier();
         sessionStorage.setItem('pkce_code_verifier', codeVerifier);
         const codeChallenge = await generateCodeChallenge(codeVerifier)
-        /*const scope = config?.scope.map(s => {
-            return "scope=" + encodeURIComponent(s)
-        }).join("&")*/
         const scope = "scope=" + encodeURIComponent((config?.scope ?? []).join(' '))
         console.log("Scopes are", scope)
         const requestUrl = `${config?.authority + "auth"}?client_id=${config?.clientId}&redirect_uri=${encodeURIComponent(config?.redirectUri ?? '')}&response_type=code&${scope}&code_challenge=${codeChallenge}&code_challenge_method=S256&state=${state}`
-        window.location.replace(requestUrl)
+        globalThis.location.replace(requestUrl)
     }
 }
-
-
-export {};

@@ -4,6 +4,7 @@ import (
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/models/db"
 	session2 "github.com/ether/etherpad-go/lib/models/session"
+	"github.com/ory/fosite"
 )
 
 type PadMethods interface {
@@ -57,6 +58,19 @@ type ChatMethods interface {
 	GetChatsOfPad(padId string, start int, end int) (*[]db.ChatMessageDBWithDisplayName, error)
 }
 
+type OIDCMethods interface {
+	SaveAccessToken(token string, data fosite.Requester) error
+	GetAccessTokenRequestID(requestID string) (*string, error)
+	SaveAccessTokenRequestID(requestID string, token string) error
+	GetAccessToken(signature string) (*fosite.Requester, error)
+	DeleteAccessToken(signature string) error
+	SaveRefreshToken(token string, data db.StoreRefreshToken) error
+	SaveRefreshTokenRequestID(requestID string, token string) error
+	GetRefreshToken(signature string) (*db.StoreRefreshToken, error)
+	DeleteRefreshToken(signature string) error
+	GetRefreshTokenRequestID(requestID string) (*string, error)
+}
+
 type DataStore interface {
 	PadMethods
 	AuthorMethods
@@ -64,5 +78,6 @@ type DataStore interface {
 	SessionMethods
 	GroupMethods
 	ChatMethods
+	OIDCMethods
 	Close() error
 }

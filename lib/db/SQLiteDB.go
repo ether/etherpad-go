@@ -10,6 +10,7 @@ import (
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/models/db"
 	session2 "github.com/ether/etherpad-go/lib/models/session"
+	"github.com/ory/fosite"
 	_ "modernc.org/sqlite"
 )
 
@@ -867,6 +868,211 @@ func (d SQLiteDB) GetPadMetaData(padId string, revNum int) (*db.PadMetaData, err
 	return nil, errors.New(PadRevisionNotFoundError)
 }
 
+func (d SQLiteDB) SaveAccessToken(token string, data fosite.Requester) error {
+	var resultedSQL, args, err = sq.
+		Insert("access_tokens").
+		Columns("token", "data").
+		Values(token, data).
+		ToSql()
+
+	if err != nil {
+		return err
+	}
+
+	_, err = d.sqlDB.Exec(resultedSQL, args...)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (d SQLiteDB) GetAccessTokenRequestID(requestID string) (*string, error) {
+	var sql, args, err = sq.Select("token").
+		From("access_token_request_ids").
+		Where(sq.Eq{"request_id": requestID}).
+		ToSql()
+
+	if err != nil {
+		return nil, err
+	}
+	query, err := d.sqlDB.Query(sql, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer query.Close()
+
+	for query.Next() {
+		var token string
+		query.Scan(&token)
+		return &token, nil
+	}
+	return nil, errors.New("access token not found")
+}
+
+func (d SQLiteDB) SaveAccessTokenRequestID(requestID string, token string) error {
+	var resultedSQL, args, err = sq.
+		Insert("access_token_request_ids").
+		Columns("request_id", "token").
+		Values(requestID, token).
+		ToSql()
+
+	if err != nil {
+		return err
+	}
+
+	_, err = d.sqlDB.Exec(resultedSQL, args...)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (d SQLiteDB) GetAccessToken(signature string) (*fosite.Requester, error) {
+	var sql, args, err = sq.Select("data").
+		From("accesstoken").
+		Where(sq.Eq{"token": signature}).
+		ToSql()
+
+	if err != nil {
+		return nil, err
+	}
+	query, err := d.sqlDB.Query(sql, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer query.Close()
+
+	for query.Next() {
+		var dataBytes []byte
+		query.Scan(&dataBytes)
+		var requester fosite.Requester
+		err := json.Unmarshal(dataBytes, &requester)
+		if err != nil {
+			return nil, err
+		}
+		return &requester, nil
+	}
+	return nil, errors.New("access token not found")
+}
+
+func (d SQLiteDB) DeleteAccessToken(signature string) error {
+	var resultedSQL, args, err = sq.
+		Delete("accesstoken").
+		Where(sq.Eq{"token": signature}).
+		ToSql()
+
+	if err != nil {
+		return err
+	}
+	_, err = d.sqlDB.Exec(resultedSQL, args...)
+	return err
+}
+
+func (d SQLiteDB) SaveRefreshToken(token string, data db.StoreRefreshToken) error {
+	var marshalled, err = json.Marshal(data)
+
+	if err != nil {
+		return err
+	}
+	var resultedSQL, args, err1 = sq.
+		Insert("refreshtoken").
+		Columns("token", "data").
+		Values(token, marshalled).
+		ToSql()
+
+	if err1 != nil {
+		return err1
+	}
+
+	_, err = d.sqlDB.Exec(resultedSQL, args...)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (d SQLiteDB) SaveRefreshTokenRequestID(requestID string, token string) error {
+	var resultedSQL, args, err = sq.
+		Insert("refreshtoken_request_ids").
+		Columns("request_id", "token").
+		Values(requestID, token).
+		ToSql()
+
+	if err != nil {
+		return err
+	}
+
+	_, err = d.sqlDB.Exec(resultedSQL, args...)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (d SQLiteDB) GetRefreshToken(signature string) (*db.StoreRefreshToken, error) {
+	var sql, args, err = sq.Select("data").
+		From("refreshtoken").
+		Where(sq.Eq{"token": signature}).
+		ToSql()
+
+	if err != nil {
+		return nil, err
+	}
+	query, err := d.sqlDB.Query(sql, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer query.Close()
+
+	for query.Next() {
+		var dataBytes []byte
+		query.Scan(&dataBytes)
+		var storeRefreshToken db.StoreRefreshToken
+		err := json.Unmarshal(dataBytes, &storeRefreshToken)
+		if err != nil {
+			return nil, err
+		}
+		return &storeRefreshToken, nil
+	}
+	return nil, errors.New("refresh token not found")
+}
+
+func (d SQLiteDB) DeleteRefreshToken(signature string) error {
+	var resultedSQL, args, err = sq.
+		Delete("refreshtoken").
+		Where(sq.Eq{"token": signature}).
+		ToSql()
+
+	if err != nil {
+		return err
+	}
+	_, err = d.sqlDB.Exec(resultedSQL, args...)
+	return err
+}
+
+func (d SQLiteDB) GetRefreshTokenRequestID(requestID string) (*string, error) {
+	var resultedSQL, args, err = sq.Select("token").
+		From("refresh_token_request_ids").
+		Where(sq.Eq{"request_id": requestID}).
+		ToSql()
+
+	if err != nil {
+		return nil, err
+	}
+	query, err := d.sqlDB.Query(resultedSQL, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer query.Close()
+
+	for query.Next() {
+		var token string
+		query.Scan(&token)
+		return &token, nil
+	}
+	return nil, errors.New("refresh token not found")
+}
+
 func (d SQLiteDB) Close() error {
 	return d.sqlDB.Close()
 }
@@ -947,6 +1153,30 @@ func NewSQLiteDB(path string) (*SQLiteDB, error) {
 	}
 
 	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS padChat(padId TEXT NOT NULL, padHead INTEGER,  chatText TEXT NOT NULL, authorId TEXT, timestamp BIGINT, PRIMARY KEY(padId, padHead), FOREIGN KEY(padId) REFERENCES pad(id) ON DELETE CASCADE)")
+
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS accesstoken(token TEXT PRIMARY KEY, data BYTEA)")
+
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS refreshtoken(token TEXT PRIMARY KEY, data BYTEA)")
+
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS accesstokentorequestid(requestID TEXT PRIMARY KEY, token TEXT)")
+
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS refreshtokentorequestid(requestID TEXT PRIMARY KEY, token TEXT)")
 
 	if err != nil {
 		return nil, err

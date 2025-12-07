@@ -12,6 +12,7 @@ import (
 	"github.com/ether/etherpad-go/lib/models/db"
 	session2 "github.com/ether/etherpad-go/lib/models/session"
 	_ "github.com/lib/pq"
+	"github.com/ory/fosite"
 )
 
 type PostgresDB struct {
@@ -938,10 +939,222 @@ func NewPostgresDB(options PostgresOptions) (*PostgresDB, error) {
 		return nil, err
 	}
 
+	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS accesstoken(token TEXT PRIMARY KEY, data BYTEA)")
+
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS refreshtoken(token TEXT PRIMARY KEY, data BYTEA)")
+
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS accesstokentorequestid(requestID TEXT PRIMARY KEY, token TEXT)")
+
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS refreshtokentorequestid(requestID TEXT PRIMARY KEY, token TEXT)")
+
+	if err != nil {
+		return nil, err
+	}
+
 	return &PostgresDB{
 		options: options,
 		sqlDB:   sqlDb,
 	}, nil
+}
+
+func (d PostgresDB) SaveAccessToken(token string, data fosite.Requester) error {
+	insertSQL, args, err := psql.
+		Insert("accesstoken").
+		Columns("token", "data").
+		Values(token, data).
+		ToSql()
+	if err != nil {
+		return err
+	}
+	_, err = d.sqlDB.Exec(insertSQL, args...)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (d PostgresDB) GetAccessTokenRequestID(requestID string) (*string, error) {
+	var query, args, err = psql.Select("token").
+		From("accesstokentorequestid").
+		Where(sq.Eq{"requestID": requestID}).
+		ToSql()
+	if err != nil {
+		return nil, err
+	}
+	result, err := d.sqlDB.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer result.Close()
+	for result.Next() {
+		var token string
+		result.Scan(&token)
+		return &token, nil
+	}
+	return nil, errors.New("access token request ID not found")
+}
+
+func (d PostgresDB) SaveAccessTokenRequestID(requestID string, token string) error {
+	insertSQL, args, err := psql.
+		Insert("accesstokentorequestid").
+		Columns("requestID", "token").
+		Values(requestID, token).
+		ToSql()
+	if err != nil {
+		return err
+	}
+	_, err = d.sqlDB.Exec(insertSQL, args...)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (d PostgresDB) GetAccessToken(signature string) (*fosite.Requester, error) {
+	var query, args, err = psql.Select("data").
+		From("accesstoken").
+		Where(sq.Eq{"token": signature}).
+		ToSql()
+	if err != nil {
+		return nil, err
+	}
+	result, err := d.sqlDB.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer result.Close()
+	for result.Next() {
+		var dataBytes []byte
+		result.Scan(&dataBytes)
+		var requester fosite.Requester
+		err = json.Unmarshal(dataBytes, &requester)
+		if err != nil {
+			return nil, err
+		}
+		return &requester, nil
+	}
+	return nil, errors.New("access token not found")
+}
+
+func (d PostgresDB) DeleteAccessToken(signature string) error {
+	deleteSQL, args, err := psql.
+		Delete("accesstoken").
+		Where(sq.Eq{"token": signature}).ToSql()
+	if err != nil {
+		return err
+	}
+	_, err = d.sqlDB.Exec(deleteSQL, args...)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (d PostgresDB) SaveRefreshToken(token string, data db.StoreRefreshToken) error {
+	insertSQL, args, err := psql.
+		Insert("refreshtoken").
+		Columns("token", "data").
+		Values(token, data).
+		ToSql()
+	if err != nil {
+		return err
+	}
+	_, err = d.sqlDB.Exec(insertSQL, args...)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (d PostgresDB) SaveRefreshTokenRequestID(requestID string, token string) error {
+	insertSQL, args, err := psql.
+		Insert("refreshtokentorequestid").
+		Columns("requestID", "token").
+		Values(requestID, token).
+		ToSql()
+	if err != nil {
+		return err
+	}
+	_, err = d.sqlDB.Exec(insertSQL, args...)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (d PostgresDB) GetRefreshToken(signature string) (*db.StoreRefreshToken, error) {
+	var query, args, err = psql.Select("data").
+		From("refreshtoken").
+		Where(sq.Eq{"token": signature}).ToSql()
+	if err != nil {
+		return nil, err
+	}
+	result, err :=
+		d.sqlDB.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer result.Close()
+	for result.Next() {
+		var dataBytes []byte
+		result.Scan(&dataBytes)
+		var storeRefreshToken db.StoreRefreshToken
+		err = json.Unmarshal(dataBytes, &storeRefreshToken)
+		if err != nil {
+			return nil, err
+		}
+		return &storeRefreshToken, nil
+	}
+	return nil, errors.New("refresh token not found")
+
+}
+
+func (d PostgresDB) DeleteRefreshToken(signature string) error {
+	deleteSQL, args, err := psql.
+		Delete("refreshtoken").
+		Where(sq.Eq{"token": signature}).
+		ToSql()
+	if err != nil {
+		return err
+	}
+	_, err = d.sqlDB.Exec(deleteSQL, args...)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (d PostgresDB) GetRefreshTokenRequestID(requestID string) (*string, error) {
+	var query, args, err = psql.Select("token").
+		From("refreshtokentorequestid").
+		Where(sq.Eq{"requestID": requestID}).
+		ToSql()
+	if err != nil {
+		return nil, err
+	}
+	result, err := d.sqlDB.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer result.Close()
+	for result.Next() {
+		var token string
+		result.Scan(&token)
+		return &token, nil
+	}
+	return nil, errors.New("refresh token request ID not found")
 }
 
 var _ DataStore = (*PostgresDB)(nil)

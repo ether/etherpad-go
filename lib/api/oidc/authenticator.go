@@ -5,6 +5,7 @@ import (
 	"crypto/rsa"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"log"
 	"math/big"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/ether/etherpad-go/assets/login"
 	"github.com/ether/etherpad-go/lib/api/constants"
+	"github.com/ether/etherpad-go/lib/db"
 	"github.com/ether/etherpad-go/lib/models/oidc"
 	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/ory/fosite"
@@ -24,14 +26,14 @@ import (
 )
 
 type Authenticator struct {
-	provider          fosite.OAuth2Provider
-	store             *MemoryStore
+	Provider          fosite.OAuth2Provider
+	store             *SessionStore
 	privateKey        *rsa.PrivateKey
 	retrievedSettings *settings.Settings
 }
 
-func NewAuthenticator(retrievedSettings *settings.Settings) *Authenticator {
-	store := NewMemoryStore()
+func NewAuthenticator(retrievedSettings *settings.Settings, ds db.DataStore) *Authenticator {
+	store := NewMemoryStore(ds)
 	for _, sso := range retrievedSettings.SSO.Clients {
 		isPublic := false
 
@@ -86,11 +88,55 @@ func NewAuthenticator(retrievedSettings *settings.Settings) *Authenticator {
 	var oauth2 = compose.ComposeAllEnabled(config, store, privateKey)
 
 	return &Authenticator{
-		provider:          oauth2,
+		Provider:          oauth2,
 		store:             store,
 		privateKey:        privateKey,
 		retrievedSettings: retrievedSettings,
 	}
+}
+
+func (a *Authenticator) ValidateAdminToken(tokenString string, adminClient *settings.SSOClient) (bool, error) {
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		return &a.privateKey.PublicKey, nil
+	})
+	if err != nil {
+		return false, fmt.Errorf("token validation failed: %w", err)
+	}
+
+	claims := token.Claims
+
+	if exp, ok := claims["exp"].(float64); ok {
+		if time.Unix(int64(exp), 0).Before(time.Now()) {
+			return false, fmt.Errorf("token expired")
+		}
+	}
+
+	if aud, ok := claims["aud"].([]interface{}); ok {
+		validAudience := false
+		for _, a := range aud {
+			if audStr, ok := a.(string); ok && audStr == adminClient.ClientId {
+				validAudience = true
+				break
+			}
+		}
+		if !validAudience {
+			return false, fmt.Errorf("invalid audience")
+		}
+	} else {
+		return false, fmt.Errorf("missing aud claim")
+	}
+
+	if iss, ok := claims["iss"].(string); !ok || iss != a.retrievedSettings.SSO.Issuer {
+		return false, fmt.Errorf("invalid issuer")
+	}
+
+	if ext, ok := claims["admin"]; ok {
+		if isAdmin, ok := ext.(bool); ok && isAdmin {
+			return true, nil
+		}
+	}
+
+	return false, fmt.Errorf("missing admin role")
 }
 
 func (a *Authenticator) JwksEndpoint(rw http.ResponseWriter, req *http.Request) {
@@ -126,13 +172,13 @@ func (a *Authenticator) JwksEndpoint(rw http.ResponseWriter, req *http.Request) 
 func (a *Authenticator) IntrospectionEndpoint(rw http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 	mySessionData := a.newSession(nil, "")
-	ir, err := a.provider.NewIntrospectionRequest(ctx, req, mySessionData)
+	ir, err := a.Provider.NewIntrospectionRequest(ctx, req, mySessionData)
 	if err != nil {
 		log.Printf("Error occurred in NewIntrospectionRequest: %+v", err)
-		a.provider.WriteIntrospectionError(ctx, rw, err)
+		a.Provider.WriteIntrospectionError(ctx, rw, err)
 		return
 	}
-	a.provider.WriteIntrospectionResponse(ctx, rw, ir)
+	a.Provider.WriteIntrospectionResponse(ctx, rw, ir)
 }
 
 func (a *Authenticator) TokenEndpoint(rw http.ResponseWriter, req *http.Request) {
@@ -141,10 +187,10 @@ func (a *Authenticator) TokenEndpoint(rw http.ResponseWriter, req *http.Request)
 
 	mySessionData := a.newSession(nil, clientId)
 
-	accessRequest, err := a.provider.NewAccessRequest(ctx, req, mySessionData)
+	accessRequest, err := a.Provider.NewAccessRequest(ctx, req, mySessionData)
 	if err != nil {
 		log.Printf("Error occurred in NewAccessRequest: %+v", err)
-		a.provider.WriteAccessError(ctx, rw, accessRequest, err)
+		a.Provider.WriteAccessError(ctx, rw, accessRequest, err)
 		return
 	}
 
@@ -154,14 +200,14 @@ func (a *Authenticator) TokenEndpoint(rw http.ResponseWriter, req *http.Request)
 		}
 	}
 
-	response, err := a.provider.NewAccessResponse(ctx, accessRequest)
+	response, err := a.Provider.NewAccessResponse(ctx, accessRequest)
 	if err != nil {
 		log.Printf("Error occurred in NewAccessResponse: %+v", err)
-		a.provider.WriteAccessError(ctx, rw, accessRequest, err)
+		a.Provider.WriteAccessError(ctx, rw, accessRequest, err)
 		return
 	}
 
-	a.provider.WriteAccessResponse(ctx, rw, accessRequest, response)
+	a.Provider.WriteAccessResponse(ctx, rw, accessRequest, response)
 }
 
 func (a *Authenticator) RevokeEndpoint(rw http.ResponseWriter, req *http.Request) {
@@ -169,10 +215,10 @@ func (a *Authenticator) RevokeEndpoint(rw http.ResponseWriter, req *http.Request
 	ctx := req.Context()
 
 	// This will accept the token revocation request and validate various parameters.
-	err := a.provider.NewRevocationRequest(ctx, req)
+	err := a.Provider.NewRevocationRequest(ctx, req)
 
 	// All done, send the response.
-	a.provider.WriteRevocationResponse(ctx, rw, err)
+	a.Provider.WriteRevocationResponse(ctx, rw, err)
 }
 
 func (a *Authenticator) OicWellKnown(rw http.ResponseWriter, req *http.Request, retrievedSettings *settings.Settings) {
@@ -222,10 +268,10 @@ func renderLoginPage(rw http.ResponseWriter, req *http.Request, clients []settin
 func (a *Authenticator) AuthEndpoint(rw http.ResponseWriter, req *http.Request, setupLogger *zap.SugaredLogger, retrievedSettings *settings.Settings) {
 	ctx := req.Context()
 
-	ar, err := a.provider.NewAuthorizeRequest(ctx, req)
+	ar, err := a.Provider.NewAuthorizeRequest(ctx, req)
 	if err != nil {
 		setupLogger.Error("Error occurred in NewAuthorizeRequest: ", err)
-		a.provider.WriteAuthorizeError(ctx, rw, ar, err)
+		a.Provider.WriteAuthorizeError(ctx, rw, ar, err)
 		return
 	}
 
@@ -253,13 +299,13 @@ func (a *Authenticator) AuthEndpoint(rw http.ResponseWriter, req *http.Request, 
 	}
 
 	mySessionData := a.newSession(&user, clientId)
-	response, err := a.provider.NewAuthorizeResponse(ctx, ar, mySessionData)
+	response, err := a.Provider.NewAuthorizeResponse(ctx, ar, mySessionData)
 	if err != nil {
 		log.Printf("Error occurred in NewAuthorizeResponse: %+v", err)
-		a.provider.WriteAuthorizeError(ctx, rw, ar, err)
+		a.Provider.WriteAuthorizeError(ctx, rw, ar, err)
 		return
 	}
-	a.provider.WriteAuthorizeResponse(ctx, rw, ar, response)
+	a.Provider.WriteAuthorizeResponse(ctx, rw, ar, response)
 }
 
 func (a *Authenticator) newSession(user *MemoryUserRelation, clientId string) *openid.DefaultSession {

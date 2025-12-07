@@ -32,7 +32,7 @@ func TestNewAuthenticator(t *testing.T) {
 	settingsAuth := testSettings()
 	auth := NewAuthenticator(settingsAuth)
 	require.NotNil(t, auth)
-	require.NotNil(t, auth.provider)
+	require.NotNil(t, auth.Provider)
 	require.NotNil(t, auth.store)
 	require.NotNil(t, auth.privateKey)
 	assert.Equal(t, settingsAuth, auth.retrievedSettings)

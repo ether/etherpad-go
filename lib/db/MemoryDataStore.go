@@ -10,6 +10,7 @@ import (
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/models/db"
 	session2 "github.com/ether/etherpad-go/lib/models/session"
+	"github.com/ory/fosite"
 )
 
 type MemoryDataStore struct {
@@ -21,6 +22,25 @@ type MemoryDataStore struct {
 	sessionStore map[string]session2.Session
 	tokenStore   map[string]string
 	groupStore   map[string]string
+
+	// oidc
+	accessTokens           map[string]fosite.Requester
+	accessTokenRequestIDs  map[string]string
+	refreshTokens          map[string]db.StoreRefreshToken
+	refreshTokenRequestIDs map[string]string
+}
+
+func (m *MemoryDataStore) GetAccessTokenRequestID(requestID string) (*string, error) {
+	token, ok := m.accessTokenRequestIDs[requestID]
+	if !ok {
+		return nil, errors.New("access token request ID not found")
+	}
+	return &token, nil
+}
+
+func (m *MemoryDataStore) SaveAccessTokenRequestID(requestID string, token string) error {
+	m.accessTokenRequestIDs[requestID] = token
+	return nil
 }
 
 func (m *MemoryDataStore) SaveGroup(groupId string) error {
@@ -408,6 +428,55 @@ func (m *MemoryDataStore) SaveAuthorColor(authorId string, authorColor string) e
 	retrievedAuthor.ColorId = authorColor
 	m.authorStore[authorId] = retrievedAuthor
 	return nil
+}
+
+func (m *MemoryDataStore) SaveAccessToken(token string, data fosite.Requester) error {
+	m.accessTokens[token] = data
+	return nil
+}
+
+func (m *MemoryDataStore) GetAccessToken(signature string) (*fosite.Requester, error) {
+	retrievedToken, ok := m.accessTokens[signature]
+	if !ok {
+		return nil, errors.New("access token not found")
+	}
+	return &retrievedToken, nil
+}
+
+func (m *MemoryDataStore) DeleteAccessToken(signature string) error {
+	delete(m.accessTokens, signature)
+	return nil
+}
+
+func (m *MemoryDataStore) SaveRefreshToken(token string, data db.StoreRefreshToken) error {
+	m.refreshTokens[token] = data
+	return nil
+}
+
+func (m *MemoryDataStore) SaveRefreshTokenRequestID(requestID string, token string) error {
+	m.refreshTokenRequestIDs[requestID] = token
+	return nil
+}
+
+func (m *MemoryDataStore) GetRefreshToken(signature string) (*db.StoreRefreshToken, error) {
+	retrievedToken, ok := m.refreshTokens[signature]
+	if !ok {
+		return nil, errors.New("refresh token not found")
+	}
+	return &retrievedToken, nil
+}
+
+func (m *MemoryDataStore) DeleteRefreshToken(signature string) error {
+	delete(m.refreshTokens, signature)
+	return nil
+}
+
+func (m *MemoryDataStore) GetRefreshTokenRequestID(requestID string) (*string, error) {
+	token, ok := m.refreshTokenRequestIDs[requestID]
+	if !ok {
+		return nil, errors.New("refresh token request ID not found")
+	}
+	return &token, nil
 }
 
 func (m *MemoryDataStore) Close() error {

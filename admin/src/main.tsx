@@ -16,7 +16,7 @@ import {ToastDialog} from "./utils/Toast.tsx";
 import {ShoutPage} from "./pages/ShoutPage.tsx";
 
 const router = createBrowserRouter(createRoutesFromElements(
-    <><Route element={<App/>}>
+    <Route element={<App/>}>
         <Route index element={<HomePage/>}/>
         <Route path="/plugins" element={<HomePage/>}/>
         <Route path="/settings" element={<SettingsPage/>}/>
@@ -24,7 +24,6 @@ const router = createBrowserRouter(createRoutesFromElements(
         <Route path="/pads" element={<PadPage/>}/>
         <Route path="/shout" element={<ShoutPage/>}/>
     </Route>
-    </>
 ), {
     basename: import.meta.env.BASE_URL
 })
