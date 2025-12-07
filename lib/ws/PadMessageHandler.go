@@ -163,7 +163,7 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 	var r = task.message.Data.Data.BaseRev
 
 	// The client's changeset might not be based on the latest revision,
-	// since other clients are sending changes at the same time.
+	// since other Clients are sending changes at the same time.
 	// Update the changeset so that it can be applied to the latest revision.
 	for r < retrievedPad.Head {
 		r++
@@ -879,7 +879,7 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 		return
 	}
 
-	// Create and broadcast USER_NEWINFO message to all clients in the pad
+	// Create and broadcast USER_NEWINFO message to all Clients in the pad
 	var userNewInfoDat = ws.UserNewInfoDat{
 		UserId:  thisSession.Author,
 		Name:    retrievedAuthor.Name,
@@ -952,7 +952,7 @@ func (p *PadMessageHandler) UpdatePadClients(pad *pad2.Pad) {
 	if len(roomSockets) == 0 {
 		return
 	}
-	// since all clients usually get the same set of changesets, store them in local cache
+	// since all Clients usually get the same set of changesets, store them in local cache
 	// to remove unnecessary roundtrip to the datalayer
 	// NB: note below possibly now accommodated via the change to promises/async
 	var revCache = make(map[int]*db.PadSingleRevision)
@@ -1008,7 +1008,7 @@ func (p *PadMessageHandler) UpdatePadClients(pad *pad2.Pad) {
 
 func (p *PadMessageHandler) GetRoomSockets(padID string) []Client {
 	var sockets = make([]Client, 0)
-	for k := range p.hub.clients {
+	for k := range p.hub.Clients {
 		sessId := p.SessionStore.getSession(k.SessionId)
 		if sessId != nil && sessId.PadId == padID {
 			sockets = append(sockets, *k)
@@ -1018,7 +1018,7 @@ func (p *PadMessageHandler) GetRoomSockets(padID string) []Client {
 }
 
 func (p *PadMessageHandler) KickSessionsFromPad(padID string) {
-	for k := range p.hub.clients {
+	for k := range p.hub.Clients {
 		if k == nil || k.SessionId == "" {
 			continue
 		}

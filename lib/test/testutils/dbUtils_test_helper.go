@@ -29,6 +29,7 @@ type TestDataStore struct {
 	AdminMessageHandler *ws.AdminMessageHandler
 	MockWebSocket       *ws.MockWebSocketConn
 	Validator           *validator.Validate
+	Hub                 *ws.Hub
 }
 
 type TestRunConfig struct {
@@ -242,6 +243,7 @@ func (test *TestDBHandler) TestRun(t *testing.T, testRun TestRunConfig, newDS fu
 			AdminMessageHandler: &adminMessageHandler,
 			MockWebSocket:       ws.NewActualMockWebSocketconn(),
 			Validator:           validatorEvaluator,
+			Hub:                 hub,
 		})
 		t.Cleanup(func() {
 			if err := ds.Close(); err != nil {

@@ -195,7 +195,7 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 				return
 			}
 
-			for key, _ := range h.hub.clients {
+			for key, _ := range h.hub.Clients {
 				key.Conn.WriteMessage(websocket.TextMessage, responseBytes)
 			}
 

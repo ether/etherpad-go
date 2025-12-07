@@ -1,18 +1,18 @@
 package ws
 
-// Hub maintains the set of active clients and broadcasts messages to the
-// clients.
+// Hub maintains the set of active Clients and broadcasts messages to the
+// Clients.
 type Hub struct {
-	// Registered clients.
-	clients map[*Client]bool
+	// Registered Clients.
+	Clients map[*Client]bool
 
-	// Inbound messages from the clients.
+	// Inbound messages from the Clients.
 	Broadcast chan []byte
 
-	// Register requests from the clients.
+	// Register requests from the Clients.
 	Register chan *Client
 
-	// Unregister requests from clients.
+	// Unregister requests from Clients.
 	Unregister chan *Client
 }
 
@@ -21,7 +21,7 @@ func NewHub() *Hub {
 		Broadcast:  make(chan []byte),
 		Register:   make(chan *Client),
 		Unregister: make(chan *Client),
-		clients:    make(map[*Client]bool),
+		Clients:    make(map[*Client]bool),
 	}
 }
 
@@ -29,17 +29,17 @@ func (h *Hub) Run() {
 	for {
 		select {
 		case client := <-h.Register:
-			h.clients[client] = true
+			h.Clients[client] = true
 		case client := <-h.Unregister:
 			if client == nil {
 				continue
 			}
-			if _, ok := h.clients[client]; ok {
-				delete(h.clients, client)
+			if _, ok := h.Clients[client]; ok {
+				delete(h.Clients, client)
 				close(client.Send)
 			}
 		case message := <-h.Broadcast:
-			for client := range h.clients {
+			for client := range h.Clients {
 				if client == nil {
 					continue
 				}
@@ -47,7 +47,7 @@ func (h *Hub) Run() {
 				case client.Send <- message:
 				default:
 					close(client.Send)
-					delete(h.clients, client)
+					delete(h.Clients, client)
 				}
 			}
 		}

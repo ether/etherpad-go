@@ -14,11 +14,11 @@ import (
 func TestNewHub(t *testing.T) {
 	hub := NewHub()
 	require.NotNil(t, hub)
-	assert.NotNil(t, hub.clients)
+	assert.NotNil(t, hub.Clients)
 	assert.NotNil(t, hub.Broadcast)
 	assert.NotNil(t, hub.Register)
 	assert.NotNil(t, hub.Unregister)
-	assert.Empty(t, hub.clients)
+	assert.Empty(t, hub.Clients)
 }
 
 func TestHub_RegisterClient(t *testing.T) {
@@ -44,7 +44,7 @@ func TestHub_RegisterClient(t *testing.T) {
 
 	time.Sleep(10 * time.Millisecond)
 
-	assert.Contains(t, hub.clients, client)
+	assert.Contains(t, hub.Clients, client)
 }
 
 func TestHub_UnregisterClient(t *testing.T) {
@@ -70,7 +70,7 @@ func TestHub_UnregisterClient(t *testing.T) {
 	hub.Unregister <- client
 	time.Sleep(10 * time.Millisecond)
 
-	assert.NotContains(t, hub.clients, client)
+	assert.NotContains(t, hub.Clients, client)
 
 	select {
 	case _, ok := <-client.Send:
@@ -154,7 +154,7 @@ func TestHub_BroadcastToFullChannel(t *testing.T) {
 	hub.Broadcast <- []byte("second message that causes overflow")
 	time.Sleep(50 * time.Millisecond)
 
-	assert.NotContains(t, hub.clients, client)
+	assert.NotContains(t, hub.Clients, client)
 }
 
 func TestHub_ConcurrentOperations(t *testing.T) {
@@ -301,7 +301,7 @@ func TestHub_ClientWithHandlers(t *testing.T) {
 	hub.Register <- client
 	time.Sleep(10 * time.Millisecond)
 
-	assert.Contains(t, hub.clients, client)
+	assert.Contains(t, hub.Clients, client)
 	assert.Equal(t, mockPadHandler, client.Handler)
 	assert.Equal(t, mockAdminHandler, client.adminHandler)
 }
@@ -332,6 +332,6 @@ func TestHub_ClientWithFiberContext(t *testing.T) {
 	hub.Register <- client
 	time.Sleep(10 * time.Millisecond)
 
-	assert.Contains(t, hub.clients, client)
+	assert.Contains(t, hub.Clients, client)
 	assert.Equal(t, ctx, client.Ctx)
 }
