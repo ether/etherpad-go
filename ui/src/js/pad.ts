@@ -263,7 +263,7 @@ const handshake = async () => {
     });
 
 
-    socket.on('shout', (obj) => {
+    socket.on('result:shout', (obj) => {
         if (obj.type === "COLLABROOM") {
             let date = new Date(obj.data.payload.timestamp);
             $.gritter.add({

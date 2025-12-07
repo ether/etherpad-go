@@ -14,7 +14,8 @@ export const ShoutPage = ()=>{
 
     useEffect(() => {
         if (!settingSocket) return;
-            settingSocket.on('shout', (shout) => {
+            settingSocket.on('result:shout', (shout: ShoutType) => {
+                console.log("Shout received", shout)
                 setShouts([...shouts, shout])
             })
         settingSocket.on('results:stats', (statData) => {
@@ -39,7 +40,7 @@ export const ShoutPage = ()=>{
     return (
         <div>
             <h1>Communication</h1>
-            {totalUsers > 0 && <p>There  {totalUsers>1?"are":"is"} currently {totalUsers} user{totalUsers>1?"s":""} online</p>}
+            {<p>There  {totalUsers>1?"are":"is"} currently {totalUsers} user{totalUsers>1?"s":""} online</p>}
             <div style={{height: '80vh', display: 'flex', flexDirection: 'column'}}>
                 <div style={{flexGrow: 1, backgroundColor: 'white', overflowY: "auto"}}>
                     {
