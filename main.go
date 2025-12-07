@@ -119,6 +119,20 @@ func main() {
 	ssoAdminClient := settings.SSO.GetAdminClient()
 
 	if ssoAdminClient != nil {
+		app.Get("/admin/validate", func(c *fiber.Ctx) error {
+			token := c.Query("token")
+			if token == "" {
+				setupLogger.Warn("No token provided for admin validation")
+				return c.Status(http.StatusUnauthorized).Send([]byte("No token provided"))
+			}
+			ok, err := authenticator.ValidateAdminToken(token, ssoAdminClient)
+			if err != nil || !ok {
+				setupLogger.Warn("Invalid token provided for admin validation: " + err.Error())
+				return c.Status(http.StatusUnauthorized).Send([]byte("No token provided"))
+			}
+			return c.SendStatus(http.StatusOK)
+		})
+
 		app.Get("/admin/ws", func(c *fiber.Ctx) error {
 			token := c.Query("token")
 			if token == "" {

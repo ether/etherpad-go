@@ -2,26 +2,29 @@ import {useEffect, useState} from "react";
 import {SendHorizonal} from 'lucide-react'
 import * as Switch from '@radix-ui/react-switch';
 import {ShoutType} from "../components/ShoutType.ts";
-import settingSocket from "../utils/globals.ts";
+import {useStore} from "../store/store.ts";
 
 export const ShoutPage = ()=>{
     const [totalUsers, setTotalUsers] = useState(0);
     const [message, setMessage] = useState<string>("");
     const [sticky, setSticky] = useState<boolean>(false);
     const [shouts, setShouts] = useState<ShoutType[]>([]);
+    const settingSocket = useStore(state=>state.settingSocket);
 
 
     useEffect(() => {
+        if (!settingSocket) return;
             settingSocket.on('shout', (shout) => {
                 setShouts([...shouts, shout])
             })
         settingSocket.on('results:stats', (statData) => {
             setTotalUsers(statData.totalUsers);
           })
-    }, [shouts])
+    }, [shouts,settingSocket])
 
 
   useEffect(() => {
+        if (!settingSocket) return;
       settingSocket.emit('getStats');
   }, []);
 

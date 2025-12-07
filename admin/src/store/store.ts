@@ -1,6 +1,7 @@
 import {create} from "zustand";
 import {PadSearchResult} from "../utils/PadSearch.ts";
 import {InstalledPlugin} from "../pages/Plugin.ts";
+import {SocketIoWrapper} from "../utils/socketIoWrapper.ts";
 
 type ToastState = {
     description?:string,
@@ -21,6 +22,7 @@ type StoreState = {
     setPads: (pads: PadSearchResult)=>void,
     installedPlugins: InstalledPlugin[],
     setInstalledPlugins: (plugins: InstalledPlugin[])=>void
+    settingSocket: SocketIoWrapper|undefined
 }
 
 
@@ -36,6 +38,7 @@ export const useStore = create<StoreState>()((set) => ({
         description:'',
         success: false
     },
+    settingSocket: undefined,
     pads: undefined,
     setPads: (pads)=>set({pads}),
     installedPlugins: [],

@@ -259,6 +259,22 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 			}
 			c.Conn.WriteMessage(websocket.TextMessage, responseBytes)
 		}
+	case "getStats":
+		{
+			totalUsers := len(h.padMessageHandler.SessionStore.sessions)
+			totalUserMessage := admin.Stats{
+				TotalUsers: totalUsers,
+			}
+			resp := make([]interface{}, 2)
+			resp[0] = "results:stats"
+			resp[1] = totalUserMessage
+			responseBytes, err := json.Marshal(resp)
+			if err != nil {
+				println("Error marshalling response:", err.Error())
+				return
+			}
+			c.Conn.WriteMessage(websocket.TextMessage, responseBytes)
+		}
 	default:
 		// Unknown event
 		println("Unknown admin event:", message.Event)
