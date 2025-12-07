@@ -5,6 +5,7 @@ import (
 	"crypto/rsa"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"log"
 	"math/big"
 	"net/http"
@@ -91,6 +92,50 @@ func NewAuthenticator(retrievedSettings *settings.Settings) *Authenticator {
 		privateKey:        privateKey,
 		retrievedSettings: retrievedSettings,
 	}
+}
+
+func (a *Authenticator) ValidateAdminToken(tokenString string, adminClient *settings.SSOClient) (bool, error) {
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		return &a.privateKey.PublicKey, nil
+	})
+	if err != nil {
+		return false, fmt.Errorf("token validation failed: %w", err)
+	}
+
+	claims := token.Claims
+
+	if exp, ok := claims["exp"].(float64); ok {
+		if time.Unix(int64(exp), 0).Before(time.Now()) {
+			return false, fmt.Errorf("token expired")
+		}
+	}
+
+	if aud, ok := claims["aud"].([]interface{}); ok {
+		validAudience := false
+		for _, a := range aud {
+			if audStr, ok := a.(string); ok && audStr == adminClient.ClientId {
+				validAudience = true
+				break
+			}
+		}
+		if !validAudience {
+			return false, fmt.Errorf("invalid audience")
+		}
+	} else {
+		return false, fmt.Errorf("missing aud claim")
+	}
+
+	if iss, ok := claims["iss"].(string); !ok || iss != a.retrievedSettings.SSO.Issuer {
+		return false, fmt.Errorf("invalid issuer")
+	}
+
+	if ext, ok := claims["admin"]; ok {
+		if isAdmin, ok := ext.(bool); ok && isAdmin {
+			return true, nil
+		}
+	}
+
+	return false, fmt.Errorf("missing admin role")
 }
 
 func (a *Authenticator) JwksEndpoint(rw http.ResponseWriter, req *http.Request) {

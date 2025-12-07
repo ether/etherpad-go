@@ -108,18 +108,33 @@ func main() {
 
 	padMessageHandler := ws.NewPadMessageHandler(dataStore, &retrievedHooks, padManager, &sessionStore, globalHub)
 	adminMessageHandler := ws.NewAdminMessageHandler(dataStore, &retrievedHooks, padManager, padMessageHandler, setupLogger, globalHub)
+	authenticator := api2.InitAPI(app, uiAssets, &settings, cookieStore, dataStore, padMessageHandler, padManager, validatorEvaluator, setupLogger)
+
 	app.Get("/socket.io/*", func(c *fiber.Ctx) error {
 		return adaptor.HTTPHandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 			ws.ServeWs(writer, request, cookieStore, c, &settings, setupLogger, padMessageHandler)
 		})(c)
 	})
-	app.Get("/admin/ws", func(c *fiber.Ctx) error {
-		return adaptor.HTTPHandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-			ws.ServeAdminWs(writer, request, c, &settings, setupLogger, adminMessageHandler)
-		})(c)
-	})
 
-	api2.InitAPI(app, uiAssets, &settings, cookieStore, dataStore, padMessageHandler, padManager, validatorEvaluator, setupLogger)
+	ssoAdminClient := settings.SSO.GetAdminClient()
+
+	if ssoAdminClient != nil {
+		app.Get("/admin/ws", func(c *fiber.Ctx) error {
+			token := c.Query("token")
+			if token == "" {
+				setupLogger.Warn("No token provided for websocket connection")
+				return c.Status(http.StatusUnauthorized).Send([]byte("No token provided"))
+			}
+			ok, err := authenticator.ValidateAdminToken(token, ssoAdminClient)
+			if err != nil || !ok {
+				setupLogger.Warn("Invalid token provided for websocket connection: " + err.Error())
+				return c.Status(http.StatusUnauthorized).Send([]byte("No token provided"))
+			}
+			return adaptor.HTTPHandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+				ws.ServeAdminWs(writer, request, c, &settings, setupLogger, adminMessageHandler)
+			})(c)
+		})
+	}
 
 	fiberString := fmt.Sprintf("%s:%s", settings.IP, settings.Port)
 	setupLogger.Info("Starting Web UI on " + fiberString)

@@ -102,6 +102,15 @@ type SSO struct {
 	Clients []SSOClient `json:"clients"`
 }
 
+func (s *SSO) GetAdminClient() *SSOClient {
+	for _, client := range s.Clients {
+		if client.Type == "admin" {
+			return &client
+		}
+	}
+	return nil
+}
+
 type Cleanup struct {
 	Enabled       bool `json:"enabled"`
 	KeepRevisions int  `json:"keepRevisions"`

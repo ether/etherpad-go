@@ -10,6 +10,7 @@ import (
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/models/db"
 	session2 "github.com/ether/etherpad-go/lib/models/session"
+	"github.com/ory/fosite"
 	_ "modernc.org/sqlite"
 )
 
@@ -865,6 +866,24 @@ func (d SQLiteDB) GetPadMetaData(padId string, revNum int) (*db.PadMetaData, err
 	}
 
 	return nil, errors.New(PadRevisionNotFoundError)
+}
+
+func (d SQLiteDB) SaveAccessToken(token string, data fosite.Requester) error {
+	var resultedSQL, args, err = sq.
+		Insert("access_tokens").
+		Columns("token", "data").
+		Values(token, data).
+		ToSql()
+
+	if err != nil {
+		return err
+	}
+
+	_, err = d.sqlDB.Exec(resultedSQL, args...)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (d SQLiteDB) Close() error {

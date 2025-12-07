@@ -61,7 +61,7 @@ func pkceS256(verifier string) string {
 	return base64.RawURLEncoding.EncodeToString(sum[:])
 }
 
-func Init(app *fiber.App, retrievedSettings *settings.Settings, setupLogger *zap.SugaredLogger) {
+func Init(app *fiber.App, retrievedSettings *settings.Settings, setupLogger *zap.SugaredLogger) *Authenticator {
 	authenticator := NewAuthenticator(retrievedSettings)
 	allowedUrls := make([]string, 0)
 	for _, sso := range retrievedSettings.SSO.Clients {
@@ -108,6 +108,7 @@ func Init(app *fiber.App, retrievedSettings *settings.Settings, setupLogger *zap
 	app.Get("/.well-known/jwks.json", adaptor.HTTPHandler(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		authenticator.JwksEndpoint(writer, request)
 	})))
+	return authenticator
 }
 
 type WellKnownResponse struct {

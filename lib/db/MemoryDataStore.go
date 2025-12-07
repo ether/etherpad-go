@@ -10,6 +10,7 @@ import (
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/models/db"
 	session2 "github.com/ether/etherpad-go/lib/models/session"
+	"github.com/ory/fosite"
 )
 
 type MemoryDataStore struct {
@@ -21,6 +22,25 @@ type MemoryDataStore struct {
 	sessionStore map[string]session2.Session
 	tokenStore   map[string]string
 	groupStore   map[string]string
+
+	// oidc
+	accessTokens           map[string]fosite.Requester
+	accessTokenRequestIDs  map[string]string
+	refreshTokens          map[string]db.StoreRefreshToken
+	refreshTokenRequestIDs map[string]string
+}
+
+func (m *MemoryDataStore) GetAccessTokenRequestID(requestID string) (*string, error) {
+	token, ok := m.accessTokenRequestIDs[requestID]
+	if !ok {
+		return nil, errors.New("access token request ID not found")
+	}
+	return &token, nil
+}
+
+func (m *MemoryDataStore) SaveAccessTokenRequestID(requestID string, token string) error {
+	m.accessTokenRequestIDs[requestID] = token
+	return nil
 }
 
 func (m *MemoryDataStore) SaveGroup(groupId string) error {
