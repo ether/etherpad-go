@@ -6,12 +6,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ether/etherpad-go/lib/db"
-	db2 "github.com/ether/etherpad-go/lib/models/db"
 	"github.com/go-jose/go-jose/v3"
 	"github.com/google/uuid"
 	"github.com/ory/fosite"
-	"github.com/ory/fosite/handler/oauth2"
 )
 
 type MemoryUserRelation struct {
@@ -35,14 +32,18 @@ type PublicKeyScopes struct {
 	Scopes []string
 }
 
-type SessionStore struct {
+type MemoryStore struct {
 	Clients         map[string]fosite.Client
 	AuthorizeCodes  map[string]StoreAuthorizeCode
 	IDSessions      map[string]fosite.Requester
+	AccessTokens    map[string]fosite.Requester
+	RefreshTokens   map[string]StoreRefreshToken
 	PKCES           map[string]fosite.Requester
 	Users           map[string]MemoryUserRelation
 	BlacklistedJTIs map[string]time.Time
 	// In-memory request ID to token signatures
+	AccessTokenRequestIDs  map[string]string
+	RefreshTokenRequestIDs map[string]string
 	// Public keys to check signature in auth grant jwt assertion.
 	IssuerPublicKeys map[string]IssuerPublicKeys
 	PARSessions      map[string]fosite.AuthorizeRequester
@@ -59,21 +60,22 @@ type SessionStore struct {
 	refreshTokenRequestIDsMutex sync.RWMutex
 	issuerPublicKeysMutex       sync.RWMutex
 	parSessionsMutex            sync.RWMutex
-
-	dbStore db.DataStore
 }
 
-func NewMemoryStore(dbStore db.DataStore) *SessionStore {
-	return &SessionStore{
-		Clients:          make(map[string]fosite.Client),
-		AuthorizeCodes:   make(map[string]StoreAuthorizeCode),
-		IDSessions:       make(map[string]fosite.Requester),
-		PKCES:            make(map[string]fosite.Requester),
-		Users:            make(map[string]MemoryUserRelation),
-		BlacklistedJTIs:  make(map[string]time.Time),
-		IssuerPublicKeys: make(map[string]IssuerPublicKeys),
-		PARSessions:      make(map[string]fosite.AuthorizeRequester),
-		dbStore:          dbStore,
+func NewMemoryStore() *MemoryStore {
+	return &MemoryStore{
+		Clients:                make(map[string]fosite.Client),
+		AuthorizeCodes:         make(map[string]StoreAuthorizeCode),
+		IDSessions:             make(map[string]fosite.Requester),
+		AccessTokens:           make(map[string]fosite.Requester),
+		RefreshTokens:          make(map[string]StoreRefreshToken),
+		PKCES:                  make(map[string]fosite.Requester),
+		Users:                  make(map[string]MemoryUserRelation),
+		AccessTokenRequestIDs:  make(map[string]string),
+		RefreshTokenRequestIDs: make(map[string]string),
+		BlacklistedJTIs:        make(map[string]time.Time),
+		IssuerPublicKeys:       make(map[string]IssuerPublicKeys),
+		PARSessions:            make(map[string]fosite.AuthorizeRequester),
 	}
 }
 
@@ -88,7 +90,7 @@ type StoreRefreshToken struct {
 	fosite.Requester
 }
 
-func (s *SessionStore) CreateOpenIDConnectSession(_ context.Context, authorizeCode string, requester fosite.Requester) error {
+func (s *MemoryStore) CreateOpenIDConnectSession(_ context.Context, authorizeCode string, requester fosite.Requester) error {
 	s.idSessionsMutex.Lock()
 	defer s.idSessionsMutex.Unlock()
 
@@ -96,7 +98,7 @@ func (s *SessionStore) CreateOpenIDConnectSession(_ context.Context, authorizeCo
 	return nil
 }
 
-func (s *SessionStore) GetOpenIDConnectSession(_ context.Context, authorizeCode string, requester fosite.Requester) (fosite.Requester, error) {
+func (s *MemoryStore) GetOpenIDConnectSession(_ context.Context, authorizeCode string, requester fosite.Requester) (fosite.Requester, error) {
 	s.idSessionsMutex.RLock()
 	defer s.idSessionsMutex.RUnlock()
 
@@ -107,7 +109,7 @@ func (s *SessionStore) GetOpenIDConnectSession(_ context.Context, authorizeCode 
 	return cl, nil
 }
 
-func (s *SessionStore) DeleteOpenIDConnectSession(_ context.Context, authorizeCode string) error {
+func (s *MemoryStore) DeleteOpenIDConnectSession(_ context.Context, authorizeCode string) error {
 	s.idSessionsMutex.Lock()
 	defer s.idSessionsMutex.Unlock()
 
@@ -115,7 +117,7 @@ func (s *SessionStore) DeleteOpenIDConnectSession(_ context.Context, authorizeCo
 	return nil
 }
 
-func (s *SessionStore) GetClient(_ context.Context, id string) (fosite.Client, error) {
+func (s *MemoryStore) GetClient(_ context.Context, id string) (fosite.Client, error) {
 	s.clientsMutex.RLock()
 	defer s.clientsMutex.RUnlock()
 
@@ -126,7 +128,7 @@ func (s *SessionStore) GetClient(_ context.Context, id string) (fosite.Client, e
 	return cl, nil
 }
 
-func (s *SessionStore) SetTokenLifespans(clientID string, lifespans *fosite.ClientLifespanConfig) error {
+func (s *MemoryStore) SetTokenLifespans(clientID string, lifespans *fosite.ClientLifespanConfig) error {
 	if client, ok := s.Clients[clientID]; ok {
 		if clc, ok := client.(*fosite.DefaultClientWithCustomTokenLifespans); ok {
 			clc.SetTokenLifespans(lifespans)
@@ -137,7 +139,7 @@ func (s *SessionStore) SetTokenLifespans(clientID string, lifespans *fosite.Clie
 	return fosite.ErrNotFound
 }
 
-func (s *SessionStore) ClientAssertionJWTValid(_ context.Context, jti string) error {
+func (s *MemoryStore) ClientAssertionJWTValid(_ context.Context, jti string) error {
 	s.blacklistedJTIsMutex.RLock()
 	defer s.blacklistedJTIsMutex.RUnlock()
 
@@ -148,7 +150,7 @@ func (s *SessionStore) ClientAssertionJWTValid(_ context.Context, jti string) er
 	return nil
 }
 
-func (s *SessionStore) SetClientAssertionJWT(_ context.Context, jti string, exp time.Time) error {
+func (s *MemoryStore) SetClientAssertionJWT(_ context.Context, jti string, exp time.Time) error {
 	s.blacklistedJTIsMutex.Lock()
 	defer s.blacklistedJTIsMutex.Unlock()
 
@@ -167,7 +169,7 @@ func (s *SessionStore) SetClientAssertionJWT(_ context.Context, jti string, exp 
 	return nil
 }
 
-func (s *SessionStore) CreateAuthorizeCodeSession(_ context.Context, code string, req fosite.Requester) error {
+func (s *MemoryStore) CreateAuthorizeCodeSession(_ context.Context, code string, req fosite.Requester) error {
 	s.authorizeCodesMutex.Lock()
 	defer s.authorizeCodesMutex.Unlock()
 
@@ -175,7 +177,7 @@ func (s *SessionStore) CreateAuthorizeCodeSession(_ context.Context, code string
 	return nil
 }
 
-func (s *SessionStore) GetAuthorizeCodeSession(_ context.Context, code string, _ fosite.Session) (fosite.Requester, error) {
+func (s *MemoryStore) GetAuthorizeCodeSession(_ context.Context, code string, _ fosite.Session) (fosite.Requester, error) {
 	s.authorizeCodesMutex.RLock()
 	defer s.authorizeCodesMutex.RUnlock()
 
@@ -190,7 +192,7 @@ func (s *SessionStore) GetAuthorizeCodeSession(_ context.Context, code string, _
 	return rel.Requester, nil
 }
 
-func (s *SessionStore) InvalidateAuthorizeCodeSession(ctx context.Context, code string) error {
+func (s *MemoryStore) InvalidateAuthorizeCodeSession(ctx context.Context, code string) error {
 	s.authorizeCodesMutex.Lock()
 	defer s.authorizeCodesMutex.Unlock()
 
@@ -203,7 +205,7 @@ func (s *SessionStore) InvalidateAuthorizeCodeSession(ctx context.Context, code 
 	return nil
 }
 
-func (s *SessionStore) CreatePKCERequestSession(_ context.Context, code string, req fosite.Requester) error {
+func (s *MemoryStore) CreatePKCERequestSession(_ context.Context, code string, req fosite.Requester) error {
 	s.pkcesMutex.Lock()
 	defer s.pkcesMutex.Unlock()
 
@@ -211,7 +213,7 @@ func (s *SessionStore) CreatePKCERequestSession(_ context.Context, code string, 
 	return nil
 }
 
-func (s *SessionStore) GetPKCERequestSession(_ context.Context, code string, _ fosite.Session) (fosite.Requester, error) {
+func (s *MemoryStore) GetPKCERequestSession(_ context.Context, code string, _ fosite.Session) (fosite.Requester, error) {
 	s.pkcesMutex.RLock()
 	defer s.pkcesMutex.RUnlock()
 
@@ -222,7 +224,7 @@ func (s *SessionStore) GetPKCERequestSession(_ context.Context, code string, _ f
 	return rel, nil
 }
 
-func (s *SessionStore) DeletePKCERequestSession(_ context.Context, code string) error {
+func (s *MemoryStore) DeletePKCERequestSession(_ context.Context, code string) error {
 	s.pkcesMutex.Lock()
 	defer s.pkcesMutex.Unlock()
 
@@ -230,7 +232,7 @@ func (s *SessionStore) DeletePKCERequestSession(_ context.Context, code string) 
 	return nil
 }
 
-func (s *SessionStore) CreateAccessTokenSession(_ context.Context, signature string, req fosite.Requester) error {
+func (s *MemoryStore) CreateAccessTokenSession(_ context.Context, signature string, req fosite.Requester) error {
 	// We first lock accessTokenRequestIDsMutex and then accessTokensMutex because this is the same order
 	// locking happens in RevokeAccessToken and using the same order prevents deadlocks.
 	s.accessTokenRequestIDsMutex.Lock()
@@ -238,38 +240,31 @@ func (s *SessionStore) CreateAccessTokenSession(_ context.Context, signature str
 	s.accessTokensMutex.Lock()
 	defer s.accessTokensMutex.Unlock()
 
-	if err := s.dbStore.SaveAccessToken(signature, req); err != nil {
-		return err
-	}
-
-	if err := s.dbStore.SaveAccessTokenRequestID(req.GetID(), signature); err != nil {
-		return err
-	}
+	s.AccessTokens[signature] = req
+	s.AccessTokenRequestIDs[req.GetID()] = signature
 	return nil
 }
 
-func (s *SessionStore) GetAccessTokenSession(_ context.Context, signature string, _ fosite.Session) (fosite.Requester, error) {
+func (s *MemoryStore) GetAccessTokenSession(_ context.Context, signature string, _ fosite.Session) (fosite.Requester, error) {
 	s.accessTokensMutex.RLock()
 	defer s.accessTokensMutex.RUnlock()
 
-	requester, err := s.dbStore.GetAccessToken(signature)
-	if err != nil {
+	rel, ok := s.AccessTokens[signature]
+	if !ok {
 		return nil, fosite.ErrNotFound
 	}
-	return *requester, nil
+	return rel, nil
 }
 
-func (s *SessionStore) DeleteAccessTokenSession(_ context.Context, signature string) error {
+func (s *MemoryStore) DeleteAccessTokenSession(_ context.Context, signature string) error {
 	s.accessTokensMutex.Lock()
 	defer s.accessTokensMutex.Unlock()
 
-	if err := s.dbStore.DeleteAccessToken(signature); err != nil {
-		return err
-	}
+	delete(s.AccessTokens, signature)
 	return nil
 }
 
-func (s *SessionStore) CreateRefreshTokenSession(_ context.Context, signature, accessTokenSignature string, req fosite.Requester) error {
+func (s *MemoryStore) CreateRefreshTokenSession(_ context.Context, signature, accessTokenSignature string, req fosite.Requester) error {
 	// We first lock refreshTokenRequestIDsMutex and then refreshTokensMutex because this is the same order
 	// locking happens in RevokeRefreshToken and using the same order prevents deadlocks.
 	s.refreshTokenRequestIDsMutex.Lock()
@@ -277,43 +272,34 @@ func (s *SessionStore) CreateRefreshTokenSession(_ context.Context, signature, a
 	s.refreshTokensMutex.Lock()
 	defer s.refreshTokensMutex.Unlock()
 
-	if err := s.dbStore.SaveRefreshToken(accessTokenSignature, db2.StoreRefreshToken{
-		Active:               true,
-		Requester:            req,
-		AccessTokenSignature: accessTokenSignature,
-	}); err != nil {
-		return err
-	}
-	if err := s.dbStore.SaveRefreshTokenRequestID(req.GetID(), signature); err != nil {
-		return err
-	}
+	s.RefreshTokens[signature] = StoreRefreshToken{active: true, Requester: req, accessTokenSignature: accessTokenSignature}
+	s.RefreshTokenRequestIDs[req.GetID()] = signature
 	return nil
 }
 
-func (s *SessionStore) GetRefreshTokenSession(_ context.Context, signature string, _ fosite.Session) (fosite.Requester, error) {
+func (s *MemoryStore) GetRefreshTokenSession(_ context.Context, signature string, _ fosite.Session) (fosite.Requester, error) {
 	s.refreshTokensMutex.RLock()
 	defer s.refreshTokensMutex.RUnlock()
-	refreshToken, err := s.dbStore.GetRefreshToken(signature)
-	if err != nil {
+
+	rel, ok := s.RefreshTokens[signature]
+	if !ok {
 		return nil, fosite.ErrNotFound
 	}
-	if !refreshToken.Active {
-		return refreshToken.Requester, fosite.ErrInactiveToken
+	if !rel.active {
+		return rel, fosite.ErrInactiveToken
 	}
-	return refreshToken.Requester, nil
+	return rel, nil
 }
 
-func (s *SessionStore) DeleteRefreshTokenSession(_ context.Context, signature string) error {
+func (s *MemoryStore) DeleteRefreshTokenSession(_ context.Context, signature string) error {
 	s.refreshTokensMutex.Lock()
 	defer s.refreshTokensMutex.Unlock()
 
-	if err := s.dbStore.DeleteRefreshToken(signature); err != nil {
-		return err
-	}
+	delete(s.RefreshTokens, signature)
 	return nil
 }
 
-func (s *SessionStore) Authenticate(_ context.Context, name string, secret string) (subject string, err error) {
+func (s *MemoryStore) Authenticate(_ context.Context, name string, secret string) (subject string, err error) {
 	s.usersMutex.RLock()
 	defer s.usersMutex.RUnlock()
 
@@ -327,43 +313,34 @@ func (s *SessionStore) Authenticate(_ context.Context, name string, secret strin
 	return uuid.New().String(), nil
 }
 
-func (s *SessionStore) RevokeRefreshToken(ctx context.Context, requestID string) error {
+func (s *MemoryStore) RevokeRefreshToken(ctx context.Context, requestID string) error {
 	s.refreshTokenRequestIDsMutex.Lock()
 	defer s.refreshTokenRequestIDsMutex.Unlock()
 
-	signature, err := s.dbStore.GetRefreshTokenRequestID(requestID)
-	if err != nil {
-		return fosite.ErrNotFound
-	}
-
-	refreshToken, err := s.dbStore.GetRefreshToken(*signature)
-	if err != nil {
-		return fosite.ErrNotFound
-	}
-
-	refreshToken.Active = false
-	if err := s.dbStore.SaveRefreshToken(*signature, *refreshToken); err != nil {
-		return err
+	if signature, exists := s.RefreshTokenRequestIDs[requestID]; exists {
+		rel, ok := s.RefreshTokens[signature]
+		if !ok {
+			return fosite.ErrNotFound
+		}
+		rel.active = false
+		s.RefreshTokens[signature] = rel
 	}
 	return nil
 }
 
-func (s *SessionStore) RevokeAccessToken(ctx context.Context, requestID string) error {
+func (s *MemoryStore) RevokeAccessToken(ctx context.Context, requestID string) error {
 	s.accessTokenRequestIDsMutex.RLock()
 	defer s.accessTokenRequestIDsMutex.RUnlock()
 
-	signature, err := s.dbStore.GetAccessTokenRequestID(requestID)
-	if err != nil {
-		return fosite.ErrNotFound
-	}
-
-	if err := s.DeleteAccessTokenSession(ctx, *signature); err != nil {
-		return err
+	if signature, exists := s.AccessTokenRequestIDs[requestID]; exists {
+		if err := s.DeleteAccessTokenSession(ctx, signature); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
-func (s *SessionStore) GetPublicKey(ctx context.Context, issuer string, subject string, keyId string) (*jose.JSONWebKey, error) {
+func (s *MemoryStore) GetPublicKey(ctx context.Context, issuer string, subject string, keyId string) (*jose.JSONWebKey, error) {
 	s.issuerPublicKeysMutex.RLock()
 	defer s.issuerPublicKeysMutex.RUnlock()
 
@@ -377,7 +354,7 @@ func (s *SessionStore) GetPublicKey(ctx context.Context, issuer string, subject 
 
 	return nil, fosite.ErrNotFound
 }
-func (s *SessionStore) GetPublicKeys(ctx context.Context, issuer string, subject string) (*jose.JSONWebKeySet, error) {
+func (s *MemoryStore) GetPublicKeys(ctx context.Context, issuer string, subject string) (*jose.JSONWebKeySet, error) {
 	s.issuerPublicKeysMutex.RLock()
 	defer s.issuerPublicKeysMutex.RUnlock()
 
@@ -399,7 +376,7 @@ func (s *SessionStore) GetPublicKeys(ctx context.Context, issuer string, subject
 	return nil, fosite.ErrNotFound
 }
 
-func (s *SessionStore) GetPublicKeyScopes(ctx context.Context, issuer string, subject string, keyId string) ([]string, error) {
+func (s *MemoryStore) GetPublicKeyScopes(ctx context.Context, issuer string, subject string, keyId string) ([]string, error) {
 	s.issuerPublicKeysMutex.RLock()
 	defer s.issuerPublicKeysMutex.RUnlock()
 
@@ -414,7 +391,7 @@ func (s *SessionStore) GetPublicKeyScopes(ctx context.Context, issuer string, su
 	return nil, fosite.ErrNotFound
 }
 
-func (s *SessionStore) IsJWTUsed(ctx context.Context, jti string) (bool, error) {
+func (s *MemoryStore) IsJWTUsed(ctx context.Context, jti string) (bool, error) {
 	err := s.ClientAssertionJWTValid(ctx, jti)
 	if err != nil {
 		return true, nil
@@ -423,12 +400,12 @@ func (s *SessionStore) IsJWTUsed(ctx context.Context, jti string) (bool, error) 
 	return false, nil
 }
 
-func (s *SessionStore) MarkJWTUsedForTime(ctx context.Context, jti string, exp time.Time) error {
+func (s *MemoryStore) MarkJWTUsedForTime(ctx context.Context, jti string, exp time.Time) error {
 	return s.SetClientAssertionJWT(ctx, jti, exp)
 }
 
 // CreatePARSession stores the pushed authorization request context. The requestURI is used to derive the key.
-func (s *SessionStore) CreatePARSession(ctx context.Context, requestURI string, request fosite.AuthorizeRequester) error {
+func (s *MemoryStore) CreatePARSession(ctx context.Context, requestURI string, request fosite.AuthorizeRequester) error {
 	s.parSessionsMutex.Lock()
 	defer s.parSessionsMutex.Unlock()
 
@@ -438,7 +415,7 @@ func (s *SessionStore) CreatePARSession(ctx context.Context, requestURI string, 
 
 // GetPARSession gets the push authorization request context. If the request is nil, a new request object
 // is created. Otherwise, the same object is updated.
-func (s *SessionStore) GetPARSession(ctx context.Context, requestURI string) (fosite.AuthorizeRequester, error) {
+func (s *MemoryStore) GetPARSession(ctx context.Context, requestURI string) (fosite.AuthorizeRequester, error) {
 	s.parSessionsMutex.RLock()
 	defer s.parSessionsMutex.RUnlock()
 
@@ -451,7 +428,7 @@ func (s *SessionStore) GetPARSession(ctx context.Context, requestURI string) (fo
 }
 
 // DeletePARSession deletes the context.
-func (s *SessionStore) DeletePARSession(ctx context.Context, requestURI string) (err error) {
+func (s *MemoryStore) DeletePARSession(ctx context.Context, requestURI string) (err error) {
 	s.parSessionsMutex.Lock()
 	defer s.parSessionsMutex.Unlock()
 
@@ -459,7 +436,7 @@ func (s *SessionStore) DeletePARSession(ctx context.Context, requestURI string) 
 	return nil
 }
 
-func (s *SessionStore) RotateRefreshToken(ctx context.Context, requestID string, refreshTokenSignature string) (err error) {
+func (s *MemoryStore) RotateRefreshToken(ctx context.Context, requestID string, refreshTokenSignature string) (err error) {
 	// Graceful token rotation can be implemented here but it's beyond the scope of this example. Check
 	// the Ory Hydra implementation for reference.
 	if err := s.RevokeRefreshToken(ctx, requestID); err != nil {
@@ -467,5 +444,3 @@ func (s *SessionStore) RotateRefreshToken(ctx context.Context, requestID string,
 	}
 	return s.RevokeAccessToken(ctx, requestID)
 }
-
-var _ oauth2.CoreStorage = &SessionStore{}

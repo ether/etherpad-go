@@ -8,7 +8,6 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/ether/etherpad-go/lib/db"
 	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/gofiber/adaptor/v2"
 	"github.com/gofiber/fiber/v2"
@@ -62,8 +61,8 @@ func pkceS256(verifier string) string {
 	return base64.RawURLEncoding.EncodeToString(sum[:])
 }
 
-func Init(app *fiber.App, retrievedSettings *settings.Settings, setupLogger *zap.SugaredLogger, store db.DataStore) *Authenticator {
-	authenticator := NewAuthenticator(retrievedSettings, store)
+func Init(app *fiber.App, retrievedSettings *settings.Settings, setupLogger *zap.SugaredLogger) *Authenticator {
+	authenticator := NewAuthenticator(retrievedSettings)
 	allowedUrls := make([]string, 0)
 	for _, sso := range retrievedSettings.SSO.Clients {
 		for _, redirectUri := range sso.RedirectUris {

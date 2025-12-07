@@ -25,5 +25,5 @@ func InitAPI(c *fiber.App, uiAssets embed.FS, retrievedSettings *settings.Settin
 	pad.Init(c, handler, manager)
 	groups.Init(c)
 	static.Init(c, uiAssets, retrievedSettings, cookieStore, setupLogger)
-	return oidc.Init(c, retrievedSettings, setupLogger, store)
+	return oidc.Init(c, retrievedSettings, setupLogger)
 }

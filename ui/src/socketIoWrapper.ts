@@ -7,10 +7,11 @@ export function createSocket(path = '/socket.io/'): WebSocket {
 
 
 export class SocketIoWrapper {
-    private socket: WebSocket
+    private socket: WebSocket | undefined
     private static readonly eventCallbacks: { [key: string]: Function[] } = {}
 
-    constructor() {
+    private ensureSocket() {
+        if (this.socket && this.socket.readyState !== WebSocket.CLOSED) return
         try {
             this.socket = createSocket()
         } catch (e) {
@@ -22,6 +23,7 @@ export class SocketIoWrapper {
         this.socket.onclose = this.onClose
         this.socket.onerror  = this.onError
         this.socket.onmessage = this.onMessage
+
     }
 
     private onMessage(evt: MessageEvent) {
@@ -102,7 +104,8 @@ export class SocketIoWrapper {
     }
 
     public emit(event: string, data: any) {
-        this.socket.send(JSON.stringify({event, data}))
+        this.ensureSocket()
+        this.socket?.send(JSON.stringify({event, data}))
     }
 
     public off() {
