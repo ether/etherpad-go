@@ -98,7 +98,6 @@ export class SocketIoWrapper {
     }
 
     public on(event: string, callback: Function) {
-        console.log(event)
         if (SocketIoWrapper.eventCallbacks[event]) {
             SocketIoWrapper.eventCallbacks[event].push(callback)
         } else {

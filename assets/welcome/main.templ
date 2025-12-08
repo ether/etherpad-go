@@ -13,7 +13,7 @@ templ Page(settings *settings.Settings, translations map[string]string) {
                     window.customStart=()=>{};
             </script>
 			<link rel="stylesheet" href="/css/welcome/main.css"/>
-			<link rel="stylesheet" href="/css/skin/index.css"/>
+			<link rel="stylesheet" href={"/css/skin/"+ settings.SkinName + "/index.css"}/>
 			<link rel="localizations" type="application/l10n+json" href="locales.json"/>
 			<title>{settings.Title}</title>
 		</head>
