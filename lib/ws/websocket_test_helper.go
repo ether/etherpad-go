@@ -1,6 +1,7 @@
 package ws
 
 import (
+	"io"
 	"net"
 	"sync"
 	"time"
@@ -16,6 +17,11 @@ type MockWebSocketConn struct {
 	closed bool
 	mu     sync.Mutex
 	Data   []WebSocketConnData
+}
+
+func (m *MockWebSocketConn) NextWriter(messageType int) (io.WriteCloser, error) {
+	println("NextWriter", messageType)
+	return nil, nil
 }
 
 func (m *MockWebSocketConn) SetReadLimit(size int64) {

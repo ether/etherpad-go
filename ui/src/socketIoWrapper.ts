@@ -4,8 +4,6 @@ export function createSocket(path = '/socket.io/'): WebSocket {
     return new WebSocket(url)
 }
 
-
-
 export class SocketIoWrapper {
     private socket: WebSocket | undefined
     private static readonly eventCallbacks: { [key: string]: Function[] } = {}
@@ -32,6 +30,8 @@ export class SocketIoWrapper {
 
     private onMessage(evt: MessageEvent) {
         const arr = JSON.parse(evt.data)
+        console.log(`Received message: ${evt.data}`)
+        if (!SocketIoWrapper.eventCallbacks[arr[0]]) return
         SocketIoWrapper.eventCallbacks[arr[0]].forEach(f=>{
             f(arr[1])
         })
@@ -63,6 +63,12 @@ export class SocketIoWrapper {
             console.log('Reconnecting...')
             try {
                 await this.ensureSocket()
+                const reconnectCallbacks = SocketIoWrapper.eventCallbacks['reconnect']
+                if (reconnectCallbacks && reconnectCallbacks.length) {
+                    reconnectCallbacks.forEach(cb => {
+                        try { cb() } catch (e) { console.error('reconnect callback error', e) }
+                    })
+                }
             } catch (e) {
                 console.error('Reconnect failed', e)
             }

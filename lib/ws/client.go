@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/ether/etherpad-go/lib/models/ws"
 	"github.com/ether/etherpad-go/lib/models/ws/admin"
@@ -72,6 +73,41 @@ func (c *Client) readPumpAdmin(retrievedSettings *settings.Settings, logger *zap
 	}
 }
 
+const (
+	writeWait = 10 * time.Second
+
+	pongWait   = 60 * time.Second
+	pingPeriod = (pongWait * 9) / 10
+)
+
+func (c *Client) writePump() {
+	ticker := time.NewTicker(pingPeriod)
+	defer func() {
+		ticker.Stop()
+		c.Conn.Close()
+	}()
+	for {
+		select {
+		case message, ok := <-c.Send:
+			c.Conn.SetWriteDeadline(time.Now().Add(writeWait))
+			if !ok {
+				// Hub hat den Channel geschlossen
+				c.Conn.WriteMessage(websocket.CloseMessage, []byte{})
+				return
+			}
+
+			if err := c.Conn.WriteMessage(websocket.TextMessage, message); err != nil {
+				return
+			}
+		case <-ticker.C:
+			c.Conn.SetWriteDeadline(time.Now().Add(writeWait))
+			if err := c.Conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+				return
+			}
+		}
+	}
+}
+
 // readPump pumps messages from the websocket connection to the Hub.
 //
 // The application runs readPump in a per-connection goroutine. The application
@@ -85,6 +121,11 @@ func (c *Client) readPump(retrievedSettings *settings.Settings, logger *zap.Suga
 	c.Conn.SetReadLimit(retrievedSettings.SocketIo.MaxHttpBufferSize)
 	for {
 		_, message, err := c.Conn.ReadMessage()
+		c.Conn.SetReadDeadline(time.Now().Add(pongWait))
+		c.Conn.SetPongHandler(func(string) error {
+			c.Conn.SetReadDeadline(time.Now().Add(pongWait))
+			return nil
+		})
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 				log.Printf("error: %v", err)
@@ -164,7 +205,7 @@ func (c *Client) SendPadDelete() {
 	c.Send <- []byte(`{"disconnect":"deleted"}`)
 }
 
-// ServeWs serveWs handles websocket requests from the peer.
+// ServeWs handles websocket requests from the peer.
 func ServeWs(w http.ResponseWriter, r *http.Request, sessionStore *session.Store,
 	fiber *fiber.Ctx, configSettings *settings.Settings,
 	logger *zap.SugaredLogger, handler *PadMessageHandler) {
@@ -182,5 +223,6 @@ func ServeWs(w http.ResponseWriter, r *http.Request, sessionStore *session.Store
 	client := &Client{Hub: handler.hub, Conn: conn, Send: make(chan []byte, 256), SessionId: store.ID(), Ctx: fiber, Handler: handler}
 	handler.SessionStore.initSession(store.ID())
 	client.Hub.Register <- client
+	go client.writePump()
 	client.readPump(configSettings, logger)
 }
