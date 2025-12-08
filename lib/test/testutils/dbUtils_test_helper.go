@@ -16,6 +16,7 @@ import (
 	"github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/ws"
 	"github.com/go-playground/validator/v10"
+	mysql2 "github.com/go-sql-driver/mysql"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 	"go.uber.org/zap"
@@ -39,6 +40,7 @@ type TestRunConfig struct {
 
 type TestDBHandler struct {
 	testPostgresContainer *TestContainerConfiguration
+	testMysqlContainer    *TestContainerConfiguration
 	t                     *testing.T
 	tests                 []TestRunConfig
 }
@@ -64,9 +66,15 @@ func NewTestDBHandler(t *testing.T) *TestDBHandler {
 	if err != nil {
 		t.Fatalf("Failed to prepare Postgres test container: %v", err)
 	}
+	mysqlConfig, err := PrepareMySQLDB()
+	if err != nil {
+		t.Fatalf("Failed to prepare MySQL test container: %v", err)
+	}
+
 	testDBHandler := TestDBHandler{
 		t:                     t,
 		testPostgresContainer: postgresConfig,
+		testMysqlContainer:    mysqlConfig,
 	}
 
 	return &testDBHandler
@@ -109,6 +117,71 @@ func PreparePostgresDB() (*TestContainerConfiguration, error) {
 
 	tcfg := TestContainerConfiguration{
 		Container: postgresContainer,
+		Host:      host,
+		Port:      p.Port(),
+		Username:  DbUser,
+		Password:  DbPass,
+		Database:  DbName,
+	}
+
+	return &tcfg, nil
+}
+
+func PrepareMySQLDB() (*TestContainerConfiguration, error) {
+	var env = map[string]string{
+		"MYSQL_PASSWORD":      DbPass,
+		"MYSQL_ROOT_PASSWORD": DbPass,
+		"MYSQL_USER":          DbUser,
+		"MYSQL_DATABASE":      DbName,
+	}
+	ctx := context.Background()
+	mysqlContainer, err := testcontainers.Run(
+		ctx, "mysql:lts",
+		testcontainers.WithExposedPorts("3306/tcp"),
+		testcontainers.WithEnv(env),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	p, err := mysqlContainer.MappedPort(ctx, "3306")
+	if err != nil {
+		return nil, err
+	}
+
+	host, err := mysqlContainer.Host(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Manuelle Wartelogik
+	mySQLConf := mysql2.NewConfig()
+	mySQLConf.User = DbUser
+	mySQLConf.Passwd = DbPass
+	mySQLConf.Net = "tcp"
+	mySQLConf.Addr = fmt.Sprintf("%s:%s", host, p.Port())
+	mySQLConf.DBName = DbName
+	mySQLConf.ParseTime = true
+	dsn := mySQLConf.FormatDSN()
+
+	deadline := time.Now().Add(2 * time.Minute)
+	for time.Now().Before(deadline) {
+		db, err := sql.Open("mysql", dsn)
+		if err == nil {
+			err = db.Ping()
+			if err == nil {
+				db.Close()
+				break
+			}
+			db.Close()
+		}
+		time.Sleep(1 * time.Second)
+	}
+
+	fmt.Printf("MySQL test container started at %s:%s\n", host, p.Port())
+
+	tcfg := TestContainerConfiguration{
+		Container: mysqlContainer,
 		Host:      host,
 		Port:      p.Port(),
 		Username:  DbUser,
@@ -164,6 +237,69 @@ func (test *TestDBHandler) cleanupPostgresTables() error {
 	return err
 }
 
+func (test *TestDBHandler) cleanupMySQLTables() error {
+	if test.testMysqlContainer == nil {
+		return nil
+	}
+	port, err := strconv.Atoi(test.testMysqlContainer.Port)
+	if err != nil {
+		return err
+	}
+
+	mySQLConf := mysql2.NewConfig()
+	mySQLConf.User = test.testMysqlContainer.Username
+	mySQLConf.Passwd = test.testMysqlContainer.Password
+	mySQLConf.Net = "tcp"
+	mySQLConf.Addr = fmt.Sprintf("%s:%d", test.testMysqlContainer.Host, port)
+	mySQLConf.DBName = test.testMysqlContainer.Database
+	mySQLConf.ParseTime = true
+	dsn := mySQLConf.FormatDSN()
+
+	conn, err := sql.Open("mysql", dsn)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	_, err = conn.Exec("SET FOREIGN_KEY_CHECKS = 0")
+	if err != nil {
+		return err
+	}
+
+	rows, err := conn.Query("SELECT table_name FROM information_schema.tables WHERE table_schema = ?", test.testMysqlContainer.Database)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	var tables []string
+	for rows.Next() {
+		var t string
+		if err := rows.Scan(&t); err != nil {
+			return err
+		}
+		if t == "schema_migrations" || t == "migrations" {
+			continue
+		}
+		tables = append(tables, t)
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	for _, table := range tables {
+		quoted := "`" + strings.ReplaceAll(table, "`", "``") + "`"
+		_, err = conn.Exec("TRUNCATE TABLE " + quoted)
+		if err != nil {
+			conn.Exec("SET FOREIGN_KEY_CHECKS = 1")
+			return fmt.Errorf("failed to truncate table %s: %w", table, err)
+		}
+	}
+
+	_, err = conn.Exec("SET FOREIGN_KEY_CHECKS = 1")
+	return err
+}
+
 func (test *TestDBHandler) AddTests(testConfs ...TestRunConfig) {
 	for _, testConf := range testConfs {
 		test.tests = append(test.tests, testConf)
@@ -186,6 +322,9 @@ func (test *TestDBHandler) StartTestDBHandler() {
 		},
 		"Postgres": func() db.DataStore {
 			return test.InitPostgres()
+		},
+		"MySQL": func() db.DataStore {
+			return test.InitMySQL()
 		},
 	}
 
@@ -222,6 +361,25 @@ func (test *TestDBHandler) InitPostgres() *db.PostgresDB {
 	return postresDB
 }
 
+func (test *TestDBHandler) InitMySQL() *db.MysqlDB {
+	port, err := strconv.Atoi(test.testMysqlContainer.Port)
+	if err != nil {
+		panic(err)
+	}
+	mysqlOpts := db.MySQLOptions{
+		Username: test.testMysqlContainer.Username,
+		Password: test.testMysqlContainer.Password,
+		Database: test.testMysqlContainer.Database,
+		Host:     test.testMysqlContainer.Host,
+		Port:     port,
+	}
+	mysqlDB, err := db.NewMySQLDB(mysqlOpts)
+	if err != nil {
+		panic(err)
+	}
+	return mysqlDB
+}
+
 func (test *TestDBHandler) TestRun(t *testing.T, testRun TestRunConfig, newDS func() db.DataStore) {
 	t.Run(testRun.Name, func(t *testing.T) {
 		ds := newDS()
@@ -254,6 +412,13 @@ func (test *TestDBHandler) TestRun(t *testing.T, testRun TestRunConfig, newDS fu
 					t.Fatalf("Postgres cleanup failed: %v", err)
 				}
 			}
+			if test.testMysqlContainer != nil {
+				if err := test.cleanupMySQLTables(); err != nil {
+					t.Fatalf("MYSQL cleanup failed: %v", err)
+				}
+
+			}
+
 			if err := ds.Close(); err != nil {
 				t.Fatalf("Failed to close DataStore: %v", err)
 			}

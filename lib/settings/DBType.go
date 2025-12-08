@@ -11,6 +11,7 @@ const (
 	SQLITE   IDBType = "sqlite"
 	MEMORY   IDBType = "memory"
 	POSTGRES IDBType = "postgres"
+	MYSQL    IDBType = "mysql"
 )
 
 func ParseDBType(s string) (IDBType, error) {
