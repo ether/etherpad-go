@@ -103,6 +103,20 @@ func GetDB(retrievedSettings settings.Settings, setupLogger *zap.SugaredLogger) 
 			Database: retrievedSettings.DBSettings.Database,
 			Port:     port,
 		})
+	} else if retrievedSettings.DBType == settings.MYSQL {
+		setupLogger.Infof("Using MySQL database at %s with database %s", retrievedSettings.DBSettings.Host, retrievedSettings.DBSettings.Database)
+
+		port, err := strconv.Atoi(retrievedSettings.DBSettings.Port)
+		if err != nil {
+			return nil, err
+		}
+		return db.NewMySQLDB(db.MySQLOptions{
+			Username: retrievedSettings.DBSettings.User,
+			Password: retrievedSettings.DBSettings.Password,
+			Host:     retrievedSettings.DBSettings.Host,
+			Database: retrievedSettings.DBSettings.Database,
+			Port:     port,
+		})
 	}
 	return nil, errors.New("unsupported database type")
 }

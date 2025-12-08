@@ -187,6 +187,9 @@ func (test *TestDBHandler) StartTestDBHandler() {
 		"Postgres": func() db.DataStore {
 			return test.InitPostgres()
 		},
+		"MySQL": func() db.DataStore {
+			return test.InitMySQL()
+		},
 	}
 
 	for dsName, newDS := range datastores {
@@ -220,6 +223,25 @@ func (test *TestDBHandler) InitPostgres() *db.PostgresDB {
 		panic(err)
 	}
 	return postresDB
+}
+
+func (test *TestDBHandler) InitMySQL() *db.MysqlDB {
+	port, err := strconv.Atoi(test.testPostgresContainer.Port)
+	if err != nil {
+		panic(err)
+	}
+	mysqlOpts := db.MySQLOptions{
+		Username: test.testPostgresContainer.Username,
+		Password: test.testPostgresContainer.Password,
+		Database: test.testPostgresContainer.Database,
+		Host:     test.testPostgresContainer.Host,
+		Port:     port,
+	}
+	mysqlDB, err := db.NewMySQLDB(mysqlOpts)
+	if err != nil {
+		panic(err)
+	}
+	return mysqlDB
 }
 
 func (test *TestDBHandler) TestRun(t *testing.T, testRun TestRunConfig, newDS func() db.DataStore) {
