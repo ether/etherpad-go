@@ -519,7 +519,7 @@ func (p *PadMessageHandler) SendChatMessageToPadClients(session *ws.Session, cha
 
 		err := socket.Conn.WriteMessage(websocket.TextMessage, marshalledMessage)
 		if err != nil {
-			println("Error sending chat message to client", err)
+			println("Error sending chat message to client", err.Error())
 		}
 	}
 }

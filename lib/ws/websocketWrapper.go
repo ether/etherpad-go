@@ -1,6 +1,7 @@
 package ws
 
 import (
+	"io"
 	"net"
 	"time"
 
@@ -17,6 +18,7 @@ type WebSocketConn interface {
 	WriteControl(messageType int, data []byte, deadline time.Time) error
 	RemoteAddr() net.Addr
 	SetReadLimit(size int64)
+	NextWriter(messageType int) (io.WriteCloser, error)
 }
 
 type WebSocketWrapper struct {
