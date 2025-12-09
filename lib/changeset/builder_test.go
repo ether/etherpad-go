@@ -22,7 +22,7 @@ func TestBuilder_Keep_WithStringAttribs(t *testing.T) {
 	pool := apool.NewAPool()
 	attribStr := "*0"
 
-	b = b.Keep(5, 1, KeepArgs{stringAttribs: &attribStr}, pool)
+	b = b.Keep(5, 1, KeepArgs{stringAttribs: &attribStr}, &pool)
 	result := b.ToString()
 
 	if result == "" {
@@ -36,7 +36,7 @@ func TestBuilder_Keep_WithApoolAttribs(t *testing.T) {
 	pool.PutAttrib(apool.Attribute{Key: "bold", Value: "true"}, nil)
 
 	attribs := []apool.Attribute{{Key: "bold", Value: "true"}}
-	b = b.Keep(5, 1, KeepArgs{apoolAttribs: &attribs}, pool)
+	b = b.Keep(5, 1, KeepArgs{apoolAttribs: &attribs}, &pool)
 	result := b.ToString()
 
 	if result == "" {
@@ -48,7 +48,7 @@ func TestBuilder_Keep_WithNilAttribs(t *testing.T) {
 	b := NewBuilder(10)
 	pool := apool.NewAPool()
 
-	b = b.Keep(5, 0, KeepArgs{}, pool)
+	b = b.Keep(5, 0, KeepArgs{}, &pool)
 	result := b.ToString()
 
 	if result == "" {
@@ -147,10 +147,10 @@ func TestBuilder_ChainedOperations(t *testing.T) {
 	b := NewBuilder(10)
 	pool := apool.NewAPool()
 
-	b = b.Keep(5, 0, KeepArgs{}, pool).
+	b = b.Keep(5, 0, KeepArgs{}, &pool).
 		Insert("test", KeepArgs{}, &pool).
 		Remove(3, 0).
-		Keep(2, 0, KeepArgs{}, pool)
+		Keep(2, 0, KeepArgs{}, &pool)
 
 	result := b.ToString()
 	if result == "" {
@@ -186,7 +186,7 @@ func TestBuilder_MixedOperations(t *testing.T) {
 	pool := apool.NewAPool()
 	attribStr := "*0"
 
-	b = b.Keep(5, 1, KeepArgs{stringAttribs: &attribStr}, pool).
+	b = b.Keep(5, 1, KeepArgs{stringAttribs: &attribStr}, &pool).
 		Insert("new\n", KeepArgs{}, &pool).
 		Remove(3, 0).
 		KeepText("kept", KeepArgs{}, &pool).
