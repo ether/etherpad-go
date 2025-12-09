@@ -127,8 +127,8 @@ templ Timeslider(jsScript string, translations map[string]string, settings *sett
         <link rel="stylesheet" href="/css/static/pad.css">
         <link rel="stylesheet" href="/css/static/iframe_editor.css">
         <link rel="stylesheet" href="/css/static/timeslider.css">
-        <link rel="stylesheet" href="/css/skin/pad.css">
-        <link rel="stylesheet" href="/css/skin/timeslider.css">
+        <link rel="stylesheet" href={"/css/skin/"+ settings.SkinName + "/pad.css"}>
+        <link rel="stylesheet" href={"/css/skin/" + settings.SkinName  + "/timeslider.css"}>
         <style type="text/css" title="dynamicsyntax"></style>
         <link rel="localizations" type="application/l10n+json" href="../../locales.json" />
       </head>

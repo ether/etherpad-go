@@ -231,7 +231,7 @@ func Init(app *fiber.App, uiAssets embed.FS, retrievedSettings *settings.Setting
 		return locales.HandleLocale(ctx, uiAssets)
 	})
 
-	app.Get("/p/*", func(ctx *fiber.Ctx) error {
+	app.Get("/p/:pad", func(ctx *fiber.Ctx) error {
 		return pad.HandlePadOpen(ctx, uiAssets, retrievedSettings)
 	})
 
@@ -263,8 +263,10 @@ func Init(app *fiber.App, uiAssets embed.FS, retrievedSettings *settings.Setting
 
 			if strings.Contains(c.Path(), "welcome") {
 				entrypoint = "./src/welcome.js"
-			} else {
+			} else if strings.Contains(c.Path(), "pad") {
 				entrypoint = "./src/pad.js"
+			} else if strings.Contains(c.Path(), "timeslider") {
+				entrypoint = "./src/timeslider.js"
 			}
 
 			relativePath := "./src/js"

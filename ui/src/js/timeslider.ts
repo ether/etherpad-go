@@ -45,7 +45,7 @@ const init = () => {
     padId = decodeURIComponent(urlParts[urlParts.length - 2]);
 
     // set the title
-    document.title = `${padId.replace(/_+/g, ' ')} | ${document.title}`;
+    document.title = `${padId.replace(/_+/g, ' ')} | ${document.title.replace('{{appTitle}}', '')}`;
 
     // ensure we have a token
     token = Cookies.get('token');
