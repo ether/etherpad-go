@@ -18,6 +18,7 @@ import (
 	"github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/plugins"
 	"github.com/ether/etherpad-go/lib/settings"
+	"github.com/ether/etherpad-go/lib/timeslider"
 	"github.com/ether/etherpad-go/lib/utils"
 	"github.com/evanw/esbuild/pkg/api"
 	"github.com/gofiber/adaptor/v2"
@@ -232,6 +233,10 @@ func Init(app *fiber.App, uiAssets embed.FS, retrievedSettings *settings.Setting
 
 	app.Get("/p/*", func(ctx *fiber.Ctx) error {
 		return pad.HandlePadOpen(ctx, uiAssets, retrievedSettings)
+	})
+
+	app.Get("/p/:pad/timeslider", func(c *fiber.Ctx) error {
+		return timeslider.HandleTimesliderOpen(c, uiAssets, retrievedSettings)
 	})
 
 	app.Get("/favicon.ico", func(c *fiber.Ctx) error {

@@ -33,13 +33,13 @@ type KeepArgs struct {
  *     attribute key, value pairs.
  * @returns {Builder} this
  */
-func (b Builder) Keep(N int, L int, attribs KeepArgs, pool apool.APool) Builder {
+func (b Builder) Keep(N int, L int, attribs KeepArgs, pool *apool.APool) Builder {
 	b.o.OpCode = "="
 
 	if attribs.stringAttribs != nil {
 		b.o.Attribs = *attribs.stringAttribs
 	} else {
-		attributeMap := NewAttributeMap(&pool)
+		attributeMap := NewAttributeMap(pool)
 		if attribs.apoolAttribs == nil {
 			attribs.apoolAttribs = &[]apool.Attribute{}
 		}
