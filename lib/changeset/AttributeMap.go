@@ -26,6 +26,10 @@ func FromString(s string, pool *apool.APool) AttributeMap {
 	return mapInAttr
 }
 
+func (a *AttributeMap) Iter() map[string]string {
+	return a.attrs
+}
+
 /**
  * @param {Iterable<Attribute>} entries - [key, value] pairs to insert into this map.
  * @param {boolean} [emptyValueIsDelete] - If true and an entry's value is the empty string, the

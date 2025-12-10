@@ -6,6 +6,7 @@ import (
 	"math"
 	"regexp"
 	"slices"
+	"strconv"
 	"time"
 	"unicode/utf8"
 
@@ -386,6 +387,10 @@ func (p *PadMessageHandler) handleMessage(message any, client *Client, ctx *fibe
 			p.HandleClientReadyMessage(expectedType, client, thisSessionNewRetrieved, retrievedSettings, logger)
 			return
 		}
+	case ws.ChangesetReq:
+		{
+			p.handleChangesetRequest(client, expectedType)
+		}
 	case ws.ChatMessage:
 		{
 			chatMessage := ws.FromObject(expectedType.Data.Data.Message)
@@ -476,6 +481,44 @@ func (p *PadMessageHandler) handleMessage(message any, client *Client, ctx *fibe
 	default:
 		println("Unknown message type received")
 	}
+}
+
+func (p *PadMessageHandler) handleChangesetRequest(socket *Client, message ws.ChangesetReq) {
+	if (message.Data.Data.Granularity <= 0) || (message.Data.Data.Start < 0) {
+		println("Invalid changeset request parameters")
+		return
+	}
+	start, err := utils.CheckValidRev(strconv.Itoa(message.Data.Data.Start))
+	if err != nil {
+		println("Error checking valid rev for changeset request", err)
+		return
+	}
+	if message.Data.Data.RequestID == "" {
+		println("Invalid request ID for changeset request")
+		return
+	}
+
+	startRev := *start
+
+	end := startRev + (message.Data.Data.Granularity * 100)
+	session := p.SessionStore.getSession(socket.SessionId)
+	if session == nil {
+		println("Session not found for changeset request")
+		return
+	}
+
+	retrievedPad, err := p.padManager.GetPad(session.PadId, nil, &session.Author)
+	if err != nil {
+		println("Error retrieving pad for changeset request", err)
+		return
+	}
+	headRev := retrievedPad.Head
+	if startRev > headRev {
+		startRev = headRev
+	}
+
+	println(end)
+
 }
 
 func (p *PadMessageHandler) SendChatMessageToPadClients(session *ws.Session, chatMessage ws.ChatMessageData) {

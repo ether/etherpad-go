@@ -57,6 +57,20 @@ await esbuild.buildSync({
 });
 
 await esbuild.buildSync({
+    entryPoints: ["./src/timeslider.js"],
+    absWorkingDir: absWorkingDir,
+    bundle: true,
+    write: true,
+    outdir: '../assets/js/timeslider/assets',
+    logLevel: 'info',
+    metafile: true,
+    target: 'es2020',
+    alias,
+    loader: loaders,
+    sourcemap: 'inline',
+});
+
+await esbuild.buildSync({
     entryPoints: ['../assets/css/skin/colibris/pad.css'],
     absWorkingDir: absWorkingDir,
     bundle: true,

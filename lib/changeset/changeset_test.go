@@ -14,6 +14,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestSplitTextLines(t *testing.T) {
+	var testString = "a\nb\nc\n"
+	var splitLines = SplitTextLines(testString)
+	if len(splitLines) != 3 {
+		t.Error("Expected 3, got ", len(splitLines))
+	}
+}
+
 func TestMakeSplice(t *testing.T) {
 	var testString = "a\nb\nc\n"
 	var splicedText, _ = MakeSplice(testString, 5, 0, "def", nil, nil)
