@@ -219,6 +219,7 @@ func Init(app *fiber.App, uiAssets embed.FS, retrievedSettings *settings.Setting
 		}
 	})
 
+	registerEmbeddedStatic(app, "/images/", "assets/images", uiAssets)
 	registerEmbeddedStatic(app, "/admin/assets/", "assets/js/admin/assets", uiAssets)
 	registerEmbeddedStatic(app, "/admin/static/", "assets/js/admin/static", uiAssets)
 	registerEmbeddedStatic(app, "/images/favicon.ico", "assets/images/favicon.ico", uiAssets)
@@ -257,6 +258,7 @@ func Init(app *fiber.App, uiAssets embed.FS, retrievedSettings *settings.Setting
 		registerEmbeddedStatic(app, "/js/pad/assets/", "assets/js/pad/assets", uiAssets)
 		registerEmbeddedStatic(app, "/js/welcome/assets/", "assets/js/welcome/assets", uiAssets)
 		registerEmbeddedStatic(app, "/admin/assets", "assets/js/admin/assets", uiAssets)
+		registerEmbeddedStatic(app, "/js/timeslider/assets/", "assets/js/timeslider/assets", uiAssets)
 	} else {
 		app.Get("/js/*", func(c *fiber.Ctx) error {
 			var entrypoint string
