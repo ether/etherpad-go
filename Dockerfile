@@ -3,7 +3,7 @@ FROM alpine AS cache
 RUN apk add -U --no-cache ca-certificates
 
 
-FROM node:latest as admin
+FROM node:alpine AS admin
 
 WORKDIR /app
 COPY ./admin/package.json .
@@ -15,7 +15,7 @@ RUN pnpm run build
 
 
 
-FROM node:latest as frontend
+FROM node:alpine AS frontend
 WORKDIR /app
 
 RUN npm install -g pnpm
@@ -27,13 +27,13 @@ RUN cd ./admin \
     && cd ../
 
 COPY ./assets /assets
-COPY ./ui/package.json .
-COPY ./ui/pnpm-lock.yaml .
-RUN pnpm install
-COPY ./ui .
-RUN node ./build.js
+COPY ./ui/package.json ./ui/
+COPY ./ui/pnpm-lock.yaml ./ui/
+RUN cd ./ui/ && pnpm install
+COPY ./ui ./ui
+RUN cd ./ui node ./build.js
 
-FROM golang:alpine as backend
+FROM golang:alpine AS backend
 WORKDIR /app
 
 RUN go install github.com/a-h/templ/cmd/templ@latest
@@ -51,7 +51,7 @@ RUN templ generate
 RUN go build -o app .
 
 
-FROM scratch as runtime
+FROM scratch AS runtime
 EXPOSE 3000
 
 ENV NODE_ENV=production
