@@ -1,5 +1,6 @@
 import * as esbuild from 'esbuild';
 import * as fs from "node:fs";
+import {exec, execSync} from "node:child_process";
 
 
 const relativePath = 'ep_etherpad-lite/static/js';
@@ -83,6 +84,10 @@ await esbuild.buildSync({
     external: ['*.woff', '*.woff2', '*.ttf', '*.eot', '*.svg', '*.png', '*.jpg', '*.gif'],
     sourcemap: 'inline',
     loader:loaders,
+})
+
+execSync("pnpm run build-admin", {
+    cwd: '../admin'
 })
 
 await esbuild.buildSync({

@@ -18,10 +18,18 @@ RUN pnpm run build
 FROM node:latest as frontend
 WORKDIR /app
 
+RUN npm install -g pnpm
+
+COPY ./admin ./admin
+
+RUN cd ./admin \
+    && pnpm install \
+    && cd ../
+
 COPY ./assets /assets
 COPY ./ui/package.json .
-COPY ./ui/package-lock.json .
-RUN npm install
+COPY ./ui/pnpm-lock.yaml .
+RUN pnpm install
 COPY ./ui .
 RUN node ./build.js
 
