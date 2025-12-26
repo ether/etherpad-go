@@ -485,9 +485,12 @@ func Follow(c string, rebasedChangeset string, reverseInsertOrder bool, pool *ap
 	return &packedFollow, nil
 }
 
-func OldLen(cs string) int {
-	var unpacked, _ = Unpack(cs)
-	return unpacked.OldLen
+func OldLen(cs string) (*int, error) {
+	var unpacked, err = Unpack(cs)
+	if err != nil {
+		return nil, err
+	}
+	return &unpacked.OldLen, nil
 }
 
 func CheckRep(cs string) (*string, error) {
@@ -567,6 +570,62 @@ func CheckRep(cs string) (*string, error) {
 		return nil, errors.New("invalid changeset: not in canonical form")
 	}
 	return &cs, nil
+}
+
+func MutateTextLines(cs string, lines *[]string) error {
+	unpacked, err := Unpack(cs)
+	if err != nil {
+		return err
+	}
+	bankIter := NewStringIterator(unpacked.CharBank)
+	mut := NewTextLinesMutator(lines)
+	csOps, err := DeserializeOps(unpacked.Ops)
+	if err != nil {
+		return err
+	}
+	for _, csOp := range *csOps {
+		switch csOp.OpCode {
+		case "+":
+			{
+				takenChars, err := bankIter.Take(csOp.Chars)
+				if err != nil {
+					return err
+				}
+				if err := mut.Insert(*takenChars, csOp.Lines); err != nil {
+					return err
+				}
+			}
+		case "-":
+			{
+				mut.Remove(csOp.Chars, csOp.Lines)
+			}
+		case "=":
+			{
+				mut.Skip(csOp.Chars, csOp.Lines, len(csOp.Attribs) > 0)
+			}
+		}
+	}
+	mut.Close()
+	return nil
+}
+
+func MutateAttributionLines(cs string, lines []string, pool *apool.APool) error {
+	return nil
+	unpacked, err := Unpack(cs)
+	if err != nil {
+		return err
+	}
+	csOps, err := DeserializeOps(unpacked.Ops)
+	if err != nil {
+		return err
+	}
+	//csOpsNext := (*csOps)[0]
+	slicedOps := (*csOps)[1:]
+	csOps = &slicedOps
+	//csBank := unpacked.CharBank
+	//csBankIndex := 0
+	// TODO
+	return nil
 }
 
 func Inverse(cs string, lines []string, alines []string, pool *apool.APool) (*string, error) {

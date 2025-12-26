@@ -8,9 +8,9 @@ type ChangesetReq struct {
 		PadId     string `json:"padId"`
 		Token     string `json:"token"`
 		Data      struct {
-			Start       int    `json:"start"`
-			Granularity int    `json:"granularity"`
-			RequestID   string `json:"requestID"`
+			Start       int `json:"start"`
+			Granularity int `json:"granularity"`
+			RequestID   int `json:"requestID"`
 		} `json:"data"`
 	} `json:"data"`
 }
