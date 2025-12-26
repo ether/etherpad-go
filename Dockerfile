@@ -31,7 +31,7 @@ COPY ./ui/package.json ./ui/
 COPY ./ui/pnpm-lock.yaml ./ui/
 RUN cd ./ui/ && pnpm install
 COPY ./ui ./ui
-RUN cd ./ui node ./build.js
+RUN cd ./ui && node ./build.js
 
 FROM golang:alpine AS backend
 WORKDIR /app
