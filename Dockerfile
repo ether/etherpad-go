@@ -20,18 +20,20 @@ WORKDIR /app
 
 RUN npm install -g pnpm
 
-COPY ./admin ./admin
+COPY ./admin /app/admin
+WORKDIR /app/admin
+RUN pnpm install
 
-RUN cd ./admin \
-    && pnpm install \
-    && cd ../
+WORKDIR /app
 
-COPY ./assets /assets
-COPY ./ui/package.json ./ui/
-COPY ./ui/pnpm-lock.yaml ./ui/
-RUN cd ./ui/ && pnpm install
-COPY ./ui ./ui
-RUN cd ./ui && node ./build.js
+COPY ./assets /app/assets
+COPY ./ui/package.json /app/ui/
+COPY ./ui/pnpm-lock.yaml /app/ui/
+WORKDIR /app/ui
+RUN pnpm install
+COPY ./ui /app/ui
+WORKDIR /app/ui
+RUN node ./build.js
 
 FROM golang:alpine AS backend
 WORKDIR /app
@@ -43,9 +45,9 @@ RUN go mod download
 COPY . .
 
 COPY --from=admin /app/dist ./assets/js/admin
-COPY --from=frontend /assets/js/pad/assets/pad.js ./assets/js/pad/assets/pad.js
-COPY --from=frontend /assets/js/welcome/assets/welcome.js ./assets/js/welcome/assets/welcome.js
-COPY --from=frontend /assets/css/build ./assets/css/build
+COPY --from=frontend /app/assets/js/pad/assets/pad.js ./assets/js/pad/assets/pad.js
+COPY --from=frontend /app/assets/js/welcome/assets/welcome.js ./assets/js/welcome/assets/welcome.js
+COPY --from=frontend /app/assets/css/build ./assets/css/build
 
 RUN templ generate
 RUN go build -o app .
