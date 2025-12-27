@@ -524,8 +524,29 @@ func (p *PadMessageHandler) handleChangesetRequest(socket *Client, message ws.Ch
 		startRev = headRev
 	}
 
-	println(end)
+	data, err := p.getChangesetInfo(*retrievedPad, startRev, end, message.Data.Data.Granularity)
+	if err != nil {
+		println("Error getting changeset info for changeset request", err)
+		return
+	}
 
+	var arr = make([]interface{}, 2)
+	arr[0] = "message"
+	data.RequestId = message.Data.Data.RequestID
+
+	messageToSend := ChangesetResponse{
+		Type: "CHANGESET_REQ",
+		Data: *data,
+	}
+
+	arr[1] = messageToSend
+	encoded, err := json.Marshal(arr)
+	if err != nil {
+		println("Error marshalling changeset response", err)
+		return
+	}
+
+	socket.Conn.WriteMessage(websocket.TextMessage, encoded)
 }
 
 func (p *PadMessageHandler) composePadChangesets(retrievedPad *pad2.Pad, start int, end int) (string, error) {
@@ -581,20 +602,20 @@ func getPadLines(retrievedPad *pad2.Pad, revNum int) (*LineChange, error) {
 	}, nil
 }
 
-func (p *PadMessageHandler) getChangesetInfo(retrievedPad pad2.Pad, startNum int, end int, granularity int) {
+func (p *PadMessageHandler) getChangesetInfo(retrievedPad pad2.Pad, startNum int, endNum int, granularity int) (*ChangesetInfo, error) {
 	headRevision := retrievedPad.Head
 
-	if end > headRevision+1 {
-		end = headRevision + 1
+	if endNum > headRevision+1 {
+		endNum = headRevision + 1
 	}
 
-	endFloat := math.Floor(float64(end/granularity)) * float64(granularity)
+	endFloat := math.Floor(float64(endNum/granularity)) * float64(granularity)
 	if endFloat >= math.MaxInt64 || endFloat <= math.MinInt64 {
 		fmt.Println("f64 is out of int64 range.")
-		return
+		return nil, errors.New("endNum value out of range")
 	}
 
-	end = int(endFloat)
+	endNum = int(endFloat)
 
 	type CompositeChangesetInfo struct {
 		Start int
@@ -604,7 +625,7 @@ func (p *PadMessageHandler) getChangesetInfo(retrievedPad pad2.Pad, startNum int
 	compositesChangesetNeeded := make([]CompositeChangesetInfo, 0)
 	revTimesNeeded := make([]int64, 0)
 
-	for start := startNum; start < end; start += granularity {
+	for start := startNum; start < endNum; start += granularity {
 		endVar := start + granularity
 
 		compositesChangesetNeeded = append(compositesChangesetNeeded, CompositeChangesetInfo{
@@ -623,7 +644,6 @@ func (p *PadMessageHandler) getChangesetInfo(retrievedPad pad2.Pad, startNum int
 		revTimesNeeded = append(revTimesNeeded, int64(endVar-1))
 	}
 
-	// TODO
 	composedChangesets := make(map[string]string)
 
 	revisionDate := make([]int64, 0)
@@ -631,14 +651,14 @@ func (p *PadMessageHandler) getChangesetInfo(retrievedPad pad2.Pad, startNum int
 	lines, err := getPadLines(&retrievedPad, startNum)
 	if err != nil {
 		println("Error getting pad lines", err)
-		return
+		return nil, err
 	}
 
 	for _, composeNeeded := range compositesChangesetNeeded {
 		changesetComposed, err := p.composePadChangesets(&retrievedPad, composeNeeded.Start, composeNeeded.End)
 		if err != nil {
 			println("Error composing pad changesets", err)
-			return
+			return nil, err
 		}
 		composedChangesets[fmt.Sprintf("%d/%d", composeNeeded.Start, composeNeeded.End)] = changesetComposed
 	}
@@ -653,20 +673,53 @@ func (p *PadMessageHandler) getChangesetInfo(retrievedPad pad2.Pad, startNum int
 	backwardChangesets := make([]string, 0)
 	createdApool := apool.NewAPool()
 
-	for compositeStart := startNum; compositeStart < end; compositeStart += granularity {
+	for compositeStart := startNum; compositeStart < endNum; compositeStart += granularity {
 		compositeEnd := compositeStart + granularity
-		if compositeEnd > end || compositeEnd > headRevision+1 {
+		if compositeEnd > endNum || compositeEnd > headRevision+1 {
 			break
 		}
 		forwards := composedChangesets[fmt.Sprintf("%d/%d", compositeStart, compositeEnd)]
 		backwards, err := changeset.Inverse(forwards, lines.TextLines, lines.Alines, &retrievedPad.Pool)
 		if err != nil {
 			println("Error getting inverse changeset", err)
-			return
+			return nil, err
 		}
-		changeset.Mutate
+		if err := changeset.MutateAttributionLines(forwards, lines.Alines, &retrievedPad.Pool); err != nil {
+			println("Error mutating attribution lines", err)
+			return nil, err
+		}
+		if err := changeset.MutateTextLines(forwards, &lines.TextLines); err != nil {
+			println("Error mutating text lines", err)
+			return nil, err
+		}
 
+		forwards2 := changeset.MoveOpsToNewPool(forwards, &retrievedPad.Pool, &createdApool)
+		backwards2 := changeset.MoveOpsToNewPool(*backwards, &retrievedPad.Pool, &createdApool)
+
+		var t1 int64
+		var t2 int64
+		if compositeStart == 0 {
+			t1 = revisionDate[0]
+		} else {
+			t1 = revisionDate[compositeStart-1]
+		}
+
+		t2 = revisionDate[compositeEnd-1]
+
+		timeDeltas = append(timeDeltas, t2-t1)
+		forwardChangesets = append(forwardChangesets, forwards2)
+		backwardChangesets = append(backwardChangesets, backwards2)
 	}
+
+	return &ChangesetInfo{
+		ForwardChangesets:  forwardChangesets,
+		BackwardChangesets: backwardChangesets,
+		APool:              createdApool.ToJsonable(),
+		ActualEndNum:       endNum,
+		TimeDeltas:         timeDeltas,
+		Start:              startNum,
+		Granularity:        granularity,
+	}, nil
 }
 
 func (p *PadMessageHandler) SendChatMessageToPadClients(session *ws.Session, chatMessage ws.ChatMessageData) {

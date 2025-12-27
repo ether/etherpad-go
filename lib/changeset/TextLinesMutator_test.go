@@ -131,7 +131,9 @@ func runMutationTest(t *testing.T, testId int, origLines []string, muts [][]inte
 
 		lines = copyLines(origLines)
 
-		MutateTextLines(cs, &lines)
+		if err := MutateTextLines(cs, &lines); err != nil {
+			t.Errorf("MutateTextLines returned error: %v", err)
+		}
 		if !reflect.DeepEqual(lines, correct) {
 			t.Errorf("mutateTextLines result mismatch:\nexpected: %v\nactual:   %v", correct, lines)
 		}
