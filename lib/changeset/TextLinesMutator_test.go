@@ -148,6 +148,129 @@ func runMutationTest(t *testing.T, testId int, origLines []string, muts [][]inte
 	})
 }
 
+func TestMutations(t *testing.T) {
+	orig := []string{"apple\n", "banana\n", "cabbage\n", "duffle\n", "eggplant\n"}
+
+	muts := [][]interface{}{
+		{"remove", 1, 0, "a"},
+		{"insert", "tu", 0},
+		{"remove", 1, 0, "p"},
+		{"skip", 4, 1, false},
+		{"skip", 7, 1, false},
+		{"insert", "cream\npie\n", 2},
+		{"skip", 2, 0, false},
+		{"insert", "bot", 0},
+		{"insert", "\n", 1},
+		{"insert", "bu", 0},
+		{"skip", 3, 0, false},
+		{"remove", 3, 1, "ge\n"},
+		{"remove", 6, 0, "duffle"},
+	}
+
+	correct := []string{
+		"tuple\n",
+		"banana\n",
+		"cream\n",
+		"pie\n",
+		"cabot\n",
+		"bubba\n",
+		"eggplant\n",
+	}
+
+	runMutationTest(t, 1, orig, muts, correct)
+}
+
+func TestMutations2(t *testing.T) {
+	orig := []string{"apple\n", "banana\n", "cabbage\n", "duffle\n", "eggplant\n"}
+	muts := [][]interface{}{
+		{"remove", 1, 0, "a"},
+		{"remove", 1, 0, "p"},
+		{"insert", "tu", 0},
+		{"skip", 11, 2, false},
+		{"insert", "cream\npie\n", 2},
+		{"skip", 2, 0, false},
+		{"insert", "bot", 0},
+		{"insert", "\n", 1},
+		{"insert", "bu", 0},
+		{"skip", 3, 0, false},
+		{"remove", 3, 1, "ge\n"},
+		{"remove", 6, 0, "duffle"},
+	}
+	correct := []string{
+		"tuple\n",
+		"banana\n",
+		"cream\n",
+		"pie\n",
+		"cabot\n",
+		"bubba\n",
+		"eggplant\n",
+	}
+	runMutationTest(t, 2, orig, muts, correct)
+}
+
+func TestMutations3(t *testing.T) {
+	orig := []string{"apple\n", "banana\n", "cabbage\n", "duffle\n", "eggplant\n"}
+	muts := [][]interface{}{
+		{"remove", 6, 1, "apple\n"},
+		{"skip", 15, 2, false},
+		{"skip", 6, 0, false},
+		{"remove", 1, 1, "\n"},
+		{"remove", 8, 0, "eggplant"},
+		{"skip", 1, 1, false},
+	}
+	correct := []string{"banana\n", "cabbage\n", "duffle\n"}
+	runMutationTest(t, 3, orig, muts, correct)
+}
+
+func TestMutations4(t *testing.T) {
+	orig := []string{"15\n"}
+	muts := [][]interface{}{
+		{"skip", 1, 0, false},
+		{"insert", "\n2\n3\n4\n", 4},
+		{"skip", 2, 1, false},
+	}
+	correct := []string{"1\n", "2\n", "3\n", "4\n", "5\n"}
+	runMutationTest(t, 4, orig, muts, correct)
+}
+
+func TestMutations5(t *testing.T) {
+	orig := []string{"1\n", "2\n", "3\n", "4\n", "5\n"}
+	muts := [][]interface{}{
+		{"skip", 1, 0, false},
+		{"remove", 7, 4, "\n2\n3\n4\n"},
+		{"skip", 2, 1, false},
+	}
+	correct := []string{"15\n"}
+	runMutationTest(t, 5, orig, muts, correct)
+}
+
+func TestMutations6(t *testing.T) {
+	orig := []string{"123\n", "abc\n", "def\n", "ghi\n", "xyz\n"}
+	muts := [][]interface{}{
+		{"insert", "0", 0},
+		{"skip", 4, 1, false},
+		{"skip", 4, 1, false},
+		{"remove", 8, 2, "def\nghi\n"},
+		{"skip", 4, 1, false},
+	}
+	correct := []string{"0123\n", "abc\n", "xyz\n"}
+	runMutationTest(t, 6, orig, muts, correct)
+}
+
+func TestMutations7(t *testing.T) {
+	orig := []string{"apple\n", "banana\n", "cabbage\n", "duffle\n", "eggplant\n"}
+	muts := [][]interface{}{
+		{"remove", 6, 1, "apple\n"},
+		{"skip", 15, 2, true},
+		{"skip", 6, 0, true},
+		{"remove", 1, 1, "\n"},
+		{"remove", 8, 0, "eggplant"},
+		{"skip", 1, 1, true},
+	}
+	correct := []string{"banana\n", "cabbage\n", "duffle\n"}
+	runMutationTest(t, 7, orig, muts, correct)
+}
+
 func TestMutatorHasMore(t *testing.T) {
 	lines := []string{"1\n", "2\n", "3\n", "4\n"}
 	var mu *TextLinesMutator

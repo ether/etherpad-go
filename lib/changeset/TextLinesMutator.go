@@ -72,7 +72,6 @@ func (m *TextLinesMutator) enterSplice() {
 	m.inSplice = true
 }
 
-// leaveSplice changes the lines array according to the values in curSplice and resets curSplice.
 func (m *TextLinesMutator) leaveSplice() {
 	startIdx := m.curSplice[0].(int)
 	deleteCount := m.curSplice[1].(int)
@@ -95,7 +94,8 @@ func (m *TextLinesMutator) leaveSplice() {
 	result = append(result, newLines...)
 	result = append(result, (*m.lines)[endIdx:]...)
 
-	m.lines = &result
+	*m.lines = result
+
 	m.curSplice = []interface{}{0, 0}
 	m.inSplice = false
 }
