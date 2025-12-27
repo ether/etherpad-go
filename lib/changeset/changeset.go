@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"reflect"
 	"regexp"
 	"slices"
 	"strings"
@@ -58,23 +57,26 @@ func OpsFromAText(atext apool.AText) *[]Op {
 	return &opsToReturn
 }
 
-func OpsFromText(opcode string, text string, attribs interface{}, pool *apool.APool) []Op {
+func OpsFromText(opcode string, text string, attribs *KeepArgs, pool *apool.APool) []Op {
 	var opsToReturn = make([]Op, 0)
 	var op = NewOp(&opcode)
 
-	if attribs == nil || reflect.ValueOf(attribs).Kind() == reflect.Ptr {
-		attribs = []apool.Attribute{}
+	if attribs == nil {
+		var apools = make([]apool.Attribute, 0)
+		defaultVariables := KeepArgs{
+			apoolAttribs: &apools,
+		}
+		attribs = &defaultVariables
 	}
 
-	switch v := attribs.(type) {
-	case string:
-		op.Attribs = attribs.(string)
-	case []apool.Attribute:
+	if attribs.stringAttribs != nil {
+		op.Attribs = *attribs.stringAttribs
+	} else if attribs.apoolAttribs != nil {
 		var emptyValueIsDelete = opcode == "+"
 		var attribMap = NewAttributeMap(pool)
-		op.Attribs = attribMap.Update(attribs.([]apool.Attribute), &emptyValueIsDelete).String()
-	default:
-		fmt.Printf("Unknown argument type: %T\n", v)
+		op.Attribs = attribMap.Update(*attribs.apoolAttribs, &emptyValueIsDelete).String()
+	} else {
+		println("This should never happen")
 	}
 	var lastNewLinePos = utils.RuneLastIndex(text, "\n")
 	if lastNewLinePos < 0 {
@@ -127,9 +129,16 @@ func MakeSplice(orig string, start int, ndel int, ins string, attribs *string, p
 	var assem = NewSmartOpAssembler()
 	var opsGenerated = make([]Op, 0)
 
-	var equalOps = OpsFromText("=", utils.RuneSlice(orig, 0, start), "", nil)
-	var deletedOps = OpsFromText("-", deleted, "", nil)
-	var insertedOps = OpsFromText("+", ins, attribs, pool)
+	var emptyStringAttribs = ""
+	keepArgsToUse := KeepArgs{
+		stringAttribs: &emptyStringAttribs,
+	}
+
+	var equalOps = OpsFromText("=", utils.RuneSlice(orig, 0, start), &keepArgsToUse, nil)
+	var deletedOps = OpsFromText("-", deleted, &keepArgsToUse, nil)
+	var insertedOps = OpsFromText("+", ins, &KeepArgs{
+		stringAttribs: attribs,
+	}, pool)
 
 	opsGenerated = append(opsGenerated, equalOps...)
 	opsGenerated = append(opsGenerated, deletedOps...)

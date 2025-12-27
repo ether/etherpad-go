@@ -938,7 +938,7 @@ func (p *PadMessageHandler) correctMarkersInPad(atext apool.AText, apool apool.A
 	var builder = changeset.NewBuilder(utf8.RuneCountInString(text))
 
 	for _, i := range badMarkers {
-		builder.KeepText(text[offset:i], changeset.KeepArgs{}, nil)
+		builder.KeepText(text[offset:i], nil, nil)
 		builder.Remove(1, 0)
 		offset = i + 1
 	}

@@ -67,7 +67,7 @@ func (b Builder) Keep(N int, L int, attribs KeepArgs, pool *apool.APool) Builder
  *     attribute key, value pairs.
  * @returns {Builder} this
  */
-func (b Builder) KeepText(text string, attribs KeepArgs, pool *apool.APool) Builder {
+func (b Builder) KeepText(text string, attribs *KeepArgs, pool *apool.APool) Builder {
 	for _, op := range OpsFromText("=", text, attribs, pool) {
 		b.assem.Append(op)
 	}
@@ -83,7 +83,7 @@ func (b Builder) KeepText(text string, attribs KeepArgs, pool *apool.APool) Buil
  * @returns {Builder} this
  */
 func (b Builder) Insert(text string, attribs KeepArgs, pool *apool.APool) Builder {
-	for _, op := range OpsFromText("+", text, attribs, pool) {
+	for _, op := range OpsFromText("+", text, &attribs, pool) {
 		b.assem.Append(op)
 	}
 	b.charBank.Append(text)
