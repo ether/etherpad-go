@@ -71,3 +71,19 @@ type PadDelete struct {
 type PadDeleteMessage struct {
 	Disconnect string `json:"disconnect"`
 }
+
+type ChangesetResponse struct {
+	Type string        `json:"type"`
+	Data ChangesetInfo `json:"data"`
+}
+
+type ChangesetInfo struct {
+	ForwardsChangesets  []string    `json:"forwardsChangesets"`
+	BackwardsChangesets []string    `json:"backwardsChangesets"`
+	ActualEndNum        int         `json:"actualEndNum"`
+	TimeDeltas          []int64     `json:"timeDeltas"`
+	Start               int         `json:"start"`
+	Granularity         int         `json:"granularity"`
+	APool               apool.APool `json:"apool"`
+	RequestId           int         `json:"requestID"`
+}

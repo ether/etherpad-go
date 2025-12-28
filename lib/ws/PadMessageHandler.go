@@ -3,6 +3,7 @@ package ws
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math"
 	"regexp"
 	"slices"
@@ -196,8 +197,14 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 	}
 
 	prevText := retrievedPad.Text()
+	oldLen, err := changeset.OldLen(rebasedChangeset)
 
-	if changeset.OldLen(rebasedChangeset) != utf8.RuneCountInString(prevText) {
+	if err != nil {
+		println("Error retrieving old len from changeset", err)
+		return
+	}
+
+	if *oldLen != utf8.RuneCountInString(prevText) {
 		panic("Can't apply changeset to pad text")
 	}
 
@@ -493,7 +500,7 @@ func (p *PadMessageHandler) handleChangesetRequest(socket *Client, message ws.Ch
 		println("Error checking valid rev for changeset request", err)
 		return
 	}
-	if message.Data.Data.RequestID == "" {
+	if message.Data.Data.RequestID == -1 {
 		println("Invalid request ID for changeset request")
 		return
 	}
@@ -517,8 +524,204 @@ func (p *PadMessageHandler) handleChangesetRequest(socket *Client, message ws.Ch
 		startRev = headRev
 	}
 
-	println(end)
+	data, err := p.getChangesetInfo(*retrievedPad, startRev, end, message.Data.Data.Granularity)
+	if err != nil {
+		println("Error getting changeset info for changeset request", err)
+		return
+	}
 
+	var arr = make([]interface{}, 2)
+	arr[0] = "message"
+	data.RequestId = message.Data.Data.RequestID
+
+	messageToSend := ChangesetResponse{
+		Type: "CHANGESET_REQ",
+		Data: *data,
+	}
+
+	arr[1] = messageToSend
+	encoded, err := json.Marshal(arr)
+	if err != nil {
+		println("Error marshalling changeset response", err)
+		return
+	}
+
+	socket.Conn.WriteMessage(websocket.TextMessage, encoded)
+}
+
+func (p *PadMessageHandler) composePadChangesets(retrievedPad *pad2.Pad, start int, end int) (string, error) {
+	// fetch all changesets we need
+	var headNum = retrievedPad.Head
+	endNum := math.Min(float64(end), float64(headNum+1))
+	startNum := math.Max(float64(start), 0)
+
+	var changesets = make([]string, 0)
+	for i := int(startNum); i < int(endNum); i++ {
+		nthChangeset, err := retrievedPad.GetRevisionChangeset(i)
+		if err != nil {
+			return "", fmt.Errorf("error retrieving changeset for revision %d: %v", i, err)
+		}
+		changesets = append(changesets, *nthChangeset)
+	}
+
+	startChangeset := changesets[0]
+	for i := 1; i < len(changesets); i++ {
+		startChangesetVar, err := changeset.Compose(startChangeset, changesets[i], &retrievedPad.Pool)
+		if err != nil {
+			return "", fmt.Errorf("error composing changesets: %v", err)
+		}
+		startChangeset = *startChangesetVar
+	}
+	return startChangeset, nil
+}
+
+type LineChange struct {
+	Alines    []string
+	TextLines []string
+}
+
+func getPadLines(retrievedPad *pad2.Pad, revNum int) (*LineChange, error) {
+	var atext *apool.AText
+
+	if revNum >= 0 {
+		atext = retrievedPad.GetInternalRevisionAText(revNum)
+	} else {
+		replacementAText := changeset.MakeAText("\n", nil)
+		atext = &replacementAText
+	}
+
+	if atext == nil {
+		return nil, fmt.Errorf("could not retrieve atext for revision %d", revNum)
+	}
+
+	alines, err := changeset.SplitAttributionLines(atext.Attribs, atext.Text)
+	if err != nil {
+		return nil, fmt.Errorf("error splitting attribution lines: %v", err)
+	}
+
+	return &LineChange{
+		TextLines: changeset.SplitTextLines(atext.Text),
+		Alines:    alines,
+	}, nil
+}
+
+func (p *PadMessageHandler) getChangesetInfo(retrievedPad pad2.Pad, startNum int, endNum int, granularity int) (*ChangesetInfo, error) {
+	headRevision := retrievedPad.Head
+
+	if endNum > headRevision+1 {
+		endNum = headRevision + 1
+	}
+	endFloat := math.Floor(float64(endNum)/float64(granularity)) * float64(granularity)
+	if endFloat >= math.MaxInt64 || endFloat <= math.MinInt64 {
+		fmt.Println("f64 is out of int64 range.")
+		return nil, errors.New("endNum value out of range")
+	}
+
+	endNum = int(endFloat)
+
+	type CompositeChangesetInfo struct {
+		Start int
+		End   int
+	}
+
+	compositesChangesetNeeded := make([]CompositeChangesetInfo, 0)
+	revTimesNeeded := make([]int64, 0)
+
+	for start := startNum; start < endNum; start += granularity {
+		endVar := start + granularity
+
+		compositesChangesetNeeded = append(compositesChangesetNeeded, CompositeChangesetInfo{
+			Start: start,
+			End:   endVar,
+		})
+
+		// t1
+		if start == 0 {
+			revTimesNeeded = append(revTimesNeeded, 0)
+		} else {
+			revTimesNeeded = append(revTimesNeeded, int64(start-1))
+		}
+
+		// t2
+		revTimesNeeded = append(revTimesNeeded, int64(endVar-1))
+	}
+
+	composedChangesets := make(map[string]string)
+
+	revisionDate := make(map[int64]int64)
+
+	lines, err := getPadLines(&retrievedPad, startNum-1)
+	if err != nil {
+		println("Error getting pad lines", err)
+		return nil, err
+	}
+
+	for _, composeNeeded := range compositesChangesetNeeded {
+		changesetComposed, err := p.composePadChangesets(&retrievedPad, composeNeeded.Start, composeNeeded.End)
+		if err != nil {
+			println("Error composing pad changesets", err)
+			return nil, err
+		}
+		composedChangesets[fmt.Sprintf("%d/%d", composeNeeded.Start, composeNeeded.End)] = changesetComposed
+	}
+
+	for _, revTimeNeeded := range revTimesNeeded {
+		revTime, _ := retrievedPad.GetRevisionDate(int(revTimeNeeded))
+		revisionDate[revTimeNeeded] = *revTime
+	}
+
+	timeDeltas := make([]int64, 0)
+	forwardChangesets := make([]string, 0)
+	backwardChangesets := make([]string, 0)
+	createdApool := apool.NewAPool()
+
+	for compositeStart := startNum; compositeStart < endNum; compositeStart += granularity {
+		compositeEnd := compositeStart + granularity
+		if compositeEnd > endNum || compositeEnd > headRevision+1 {
+			break
+		}
+		forwards := composedChangesets[fmt.Sprintf("%d/%d", compositeStart, compositeEnd)]
+		backwards, err := changeset.Inverse(forwards, lines.TextLines, lines.Alines, &retrievedPad.Pool)
+		if err != nil {
+			println("Error getting inverse changeset", err)
+			return nil, err
+		}
+		if err := changeset.MutateAttributionLines(forwards, &lines.Alines, &retrievedPad.Pool); err != nil {
+			println("Error mutating attribution lines", err)
+			return nil, err
+		}
+		if err := changeset.MutateTextLines(forwards, &lines.TextLines); err != nil {
+			println("Error mutating text lines", err)
+			return nil, err
+		}
+
+		forwards2 := changeset.MoveOpsToNewPool(forwards, &retrievedPad.Pool, &createdApool)
+		backwards2 := changeset.MoveOpsToNewPool(*backwards, &retrievedPad.Pool, &createdApool)
+
+		var t1 int64
+		var t2 int64
+		if compositeStart == 0 {
+			t1 = revisionDate[0]
+		} else {
+			t1 = revisionDate[int64(compositeStart-1)]
+		}
+
+		t2 = revisionDate[int64(compositeEnd-1)]
+
+		timeDeltas = append(timeDeltas, t2-t1)
+		forwardChangesets = append(forwardChangesets, forwards2)
+		backwardChangesets = append(backwardChangesets, backwards2)
+	}
+
+	return &ChangesetInfo{
+		ForwardsChangesets:  forwardChangesets,
+		BackwardsChangesets: backwardChangesets,
+		APool:               createdApool.ToJsonable(),
+		ActualEndNum:        endNum,
+		TimeDeltas:          timeDeltas,
+		Start:               startNum,
+		Granularity:         granularity,
+	}, nil
 }
 
 func (p *PadMessageHandler) SendChatMessageToPadClients(session *ws.Session, chatMessage ws.ChatMessageData) {
@@ -737,7 +940,7 @@ func (p *PadMessageHandler) correctMarkersInPad(atext apool.AText, apool apool.A
 	var builder = changeset.NewBuilder(utf8.RuneCountInString(text))
 
 	for _, i := range badMarkers {
-		builder.KeepText(text[offset:i], changeset.KeepArgs{}, nil)
+		builder.KeepText(text[offset:i], nil, nil)
 		builder.Remove(1, 0)
 		offset = i + 1
 	}

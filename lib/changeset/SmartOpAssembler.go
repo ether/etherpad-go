@@ -1,9 +1,9 @@
 package changeset
 
 type SmartOpAssembler struct {
-	minusAssem   MergingOpAssembler
-	plusAssem    MergingOpAssembler
-	keepAssem    MergingOpAssembler
+	minusAssem   *MergingOpAssembler
+	plusAssem    *MergingOpAssembler
+	keepAssem    *MergingOpAssembler
 	assem        StringAssembler
 	lastOpcode   string
 	lengthChange int

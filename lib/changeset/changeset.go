@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"reflect"
 	"regexp"
 	"slices"
 	"strings"
@@ -58,23 +57,26 @@ func OpsFromAText(atext apool.AText) *[]Op {
 	return &opsToReturn
 }
 
-func OpsFromText(opcode string, text string, attribs interface{}, pool *apool.APool) []Op {
+func OpsFromText(opcode string, text string, attribs *KeepArgs, pool *apool.APool) []Op {
 	var opsToReturn = make([]Op, 0)
 	var op = NewOp(&opcode)
 
-	if attribs == nil || reflect.ValueOf(attribs).Kind() == reflect.Ptr {
-		attribs = []apool.Attribute{}
+	if attribs == nil {
+		var apools = make([]apool.Attribute, 0)
+		defaultVariables := KeepArgs{
+			apoolAttribs: &apools,
+		}
+		attribs = &defaultVariables
 	}
 
-	switch v := attribs.(type) {
-	case string:
-		op.Attribs = attribs.(string)
-	case []apool.Attribute:
+	if attribs.stringAttribs != nil {
+		op.Attribs = *attribs.stringAttribs
+	} else if attribs.apoolAttribs != nil {
 		var emptyValueIsDelete = opcode == "+"
 		var attribMap = NewAttributeMap(pool)
-		op.Attribs = attribMap.Update(attribs.([]apool.Attribute), &emptyValueIsDelete).String()
-	default:
-		fmt.Printf("Unknown argument type: %T\n", v)
+		op.Attribs = attribMap.Update(*attribs.apoolAttribs, &emptyValueIsDelete).String()
+	} else {
+		println("This should never happen")
 	}
 	var lastNewLinePos = utils.RuneLastIndex(text, "\n")
 	if lastNewLinePos < 0 {
@@ -127,9 +129,16 @@ func MakeSplice(orig string, start int, ndel int, ins string, attribs *string, p
 	var assem = NewSmartOpAssembler()
 	var opsGenerated = make([]Op, 0)
 
-	var equalOps = OpsFromText("=", utils.RuneSlice(orig, 0, start), "", nil)
-	var deletedOps = OpsFromText("-", deleted, "", nil)
-	var insertedOps = OpsFromText("+", ins, attribs, pool)
+	var emptyStringAttribs = ""
+	keepArgsToUse := KeepArgs{
+		stringAttribs: &emptyStringAttribs,
+	}
+
+	var equalOps = OpsFromText("=", utils.RuneSlice(orig, 0, start), &keepArgsToUse, nil)
+	var deletedOps = OpsFromText("-", deleted, &keepArgsToUse, nil)
+	var insertedOps = OpsFromText("+", ins, &KeepArgs{
+		stringAttribs: attribs,
+	}, pool)
 
 	opsGenerated = append(opsGenerated, equalOps...)
 	opsGenerated = append(opsGenerated, deletedOps...)
@@ -485,9 +494,12 @@ func Follow(c string, rebasedChangeset string, reverseInsertOrder bool, pool *ap
 	return &packedFollow, nil
 }
 
-func OldLen(cs string) int {
-	var unpacked, _ = Unpack(cs)
-	return unpacked.OldLen
+func OldLen(cs string) (*int, error) {
+	var unpacked, err = Unpack(cs)
+	if err != nil {
+		return nil, err
+	}
+	return &unpacked.OldLen, nil
 }
 
 func CheckRep(cs string) (*string, error) {
@@ -569,7 +581,175 @@ func CheckRep(cs string) (*string, error) {
 	return &cs, nil
 }
 
+func MutateTextLines(cs string, lines *[]string) error {
+	unpacked, err := Unpack(cs)
+	if err != nil {
+		return err
+	}
+	bankIter := NewStringIterator(unpacked.CharBank)
+	mut := NewTextLinesMutator(lines)
+	csOps, err := DeserializeOps(unpacked.Ops)
+	if err != nil {
+		return err
+	}
+	for _, csOp := range *csOps {
+		switch csOp.OpCode {
+		case "+":
+			{
+				takenChars, err := bankIter.Take(csOp.Chars)
+				if err != nil {
+					return err
+				}
+				if err := mut.Insert(*takenChars, csOp.Lines); err != nil {
+					return err
+				}
+			}
+		case "-":
+			{
+				mut.Remove(csOp.Chars, csOp.Lines)
+			}
+		case "=":
+			{
+				mut.Skip(csOp.Chars, csOp.Lines, len(csOp.Attribs) > 0)
+			}
+		}
+	}
+	mut.Close()
+	return nil
+}
+
+func MutateAttributionLines(cs string, lines *[]string, pool *apool.APool) error {
+	unpacked, err := Unpack(cs)
+	if err != nil {
+		return err
+	}
+	csOps, err := DeserializeOps(unpacked.Ops)
+	if err != nil {
+		return err
+	}
+	csOpsIdx := 0
+	csBank := unpacked.CharBank
+	csBankIndex := 0
+	// treat the attribution lines as text lines, mutating a line at a time
+	mut := NewTextLinesMutator(lines)
+
+	// The Ops in the current line from `lines`.
+	var lineOps *[]Op = nil
+	var lineOpsIdx = 0
+
+	lineOpsHasNext := func() bool {
+		return lineOps != nil && lineOpsIdx < len(*lineOps)
+	}
+
+	// Returns false if we are on the last attribute line in `lines` and there is no additional op in
+	// that line.
+	isNextMutOp := func() bool {
+		return lineOpsHasNext() || mut.HasMore()
+	}
+
+	// Returns the next Op from `lineOps`. If there are no more Ops, `lineOps` is reset to
+	// iterate over the next line, which is consumed from `mut`. If there are no more lines,
+	// returns a null Op.
+	nextMutOp := func() Op {
+		if !lineOpsHasNext() && mut.HasMore() {
+			// There are more attribute lines in `lines` to do AND either we just started so `lineOps` is
+			// still null or there are no more ops in current `lineOps`.
+			line := mut.RemoveLines(1)
+			lineOps, _ = DeserializeOps(line)
+			lineOpsIdx = 0
+		}
+		if !lineOpsHasNext() {
+			return NewOp(nil) // No more ops and no more lines.
+		}
+		op := (*lineOps)[lineOpsIdx]
+		lineOpsIdx++
+		return op
+	}
+
+	var lineAssem *MergingOpAssembler = nil
+
+	// Appends an op to `lineAssem`. In case `lineAssem` includes one single newline, adds it to the
+	// `lines` mutator.
+	outputMutOp := func(op Op) error {
+		if lineAssem == nil {
+			mergeAssem := NewMergingOpAssembler()
+			lineAssem = mergeAssem
+		}
+		lineAssem.Append(op)
+		if op.Lines <= 0 {
+			return nil
+		}
+		if op.Lines != 1 {
+			return fmt.Errorf("can't have op.lines of %d in attribution lines", op.Lines)
+		}
+		// ship it to the mut
+		if err := mut.Insert(lineAssem.String(), 1); err != nil {
+			return err
+		}
+		lineAssem = nil
+		return nil
+	}
+
+	csOp := NewOp(nil)
+	attOp := NewOp(nil)
+
+	for csOp.OpCode != "" || csOpsIdx < len(*csOps) || attOp.OpCode != "" || isNextMutOp() {
+		if csOp.OpCode == "" && csOpsIdx < len(*csOps) {
+			// csOp done, but more ops in cs.
+			csOp = (*csOps)[csOpsIdx]
+			csOpsIdx++
+		}
+		if csOp.OpCode == "" && attOp.OpCode == "" && lineAssem == nil && !lineOpsHasNext() {
+			break // done
+		} else if csOp.OpCode == "=" && csOp.Lines > 0 && csOp.Attribs == "" && attOp.OpCode == "" &&
+			lineAssem == nil && !lineOpsHasNext() {
+			// Skip multiple lines without attributes; this is what makes small changes not order of the
+			// document size.
+			mut.SkipLines(csOp.Lines, false)
+			csOp.OpCode = ""
+		} else if csOp.OpCode == "+" {
+			opOut := NewOp(nil)
+			copyOp(csOp, &opOut)
+			if csOp.Lines > 1 {
+				// Copy the first line from `csOp` to `opOut`.
+				firstLineLen := utils.RuneIndex(utils.RuneSlice(csBank, csBankIndex, utf8.RuneCountInString(csBank)), "\n") + 1
+				csOp.Chars -= firstLineLen
+				csOp.Lines--
+				opOut.Lines = 1
+				opOut.Chars = firstLineLen
+			} else {
+				// Either one or no newlines in '+' `csOp`, copy to `opOut` and reset `csOp`.
+				csOp.OpCode = ""
+			}
+			if err := outputMutOp(opOut); err != nil {
+				return err
+			}
+			csBankIndex += opOut.Chars
+		} else {
+			if attOp.OpCode == "" && isNextMutOp() {
+				attOp = nextMutOp()
+			}
+			opOut, err := SlicerZipperFunc(&attOp, &csOp, pool)
+			if err != nil {
+				return err
+			}
+			if opOut.OpCode != "" {
+				if err := outputMutOp(*opOut); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	if lineAssem != nil {
+		return fmt.Errorf("line assembler not finished: %s", cs)
+	}
+	mut.Close()
+	return nil
+}
+
 func Inverse(cs string, lines []string, alines []string, pool *apool.APool) (*string, error) {
+
 	linesGet := func(idx int) string {
 		if len(lines) == 0 {
 			return ""
@@ -584,7 +764,7 @@ func Inverse(cs string, lines []string, alines []string, pool *apool.APool) (*st
 	curLine := 0
 	curChar := 0
 	var curLineOps *[]Op
-	curLineOpsLine := 0
+	curLineOpsLine := -1
 	curLineOpsNext := 0
 	var plus = "+"
 	curLineNextOp := NewOp(&plus)
@@ -605,7 +785,6 @@ func Inverse(cs string, lines []string, alines []string, pool *apool.APool) (*st
 			curLineOpsNext = 0
 			curLineOpsLine = curLine
 			indexIntoLine := 0
-
 			for curLineOpsNext < len(*curLineOps) {
 				curLineNextOp = (*curLineOps)[curLineOpsNext]
 				curLineOpsNext++
@@ -638,8 +817,7 @@ func Inverse(cs string, lines []string, alines []string, pool *apool.APool) (*st
 				}
 			}
 			charsToUse := int(math.Min(float64(numChars), float64(curLineNextOp.Chars)))
-			endsLine := charsToUse == curLineNextOp.Chars && curLineNextOp.Lines > 0
-			callback(charsToUse, curLineNextOp.Attribs, endsLine)
+			callback(charsToUse, curLineNextOp.Attribs, charsToUse == curLineNextOp.Chars && curLineNextOp.Lines > 0)
 			numChars -= charsToUse
 			curLineNextOp.Chars -= charsToUse
 			curChar += charsToUse

@@ -61,7 +61,7 @@ func TestBuilder_KeepText(t *testing.T) {
 	pool := apool.NewAPool()
 	text := "hello\nworld"
 
-	b = b.KeepText(text, KeepArgs{}, &pool)
+	b = b.KeepText(text, &KeepArgs{}, &pool)
 	result := b.ToString()
 
 	if result == "" {
@@ -75,7 +75,7 @@ func TestBuilder_KeepText_WithAttribs(t *testing.T) {
 	pool.PutAttrib(apool.Attribute{Key: "italic", Value: "true"}, nil)
 
 	attribs := []apool.Attribute{{Key: "italic", Value: "true"}}
-	b = b.KeepText("test", KeepArgs{apoolAttribs: &attribs}, &pool)
+	b = b.KeepText("test", &KeepArgs{apoolAttribs: &attribs}, &pool)
 	result := b.ToString()
 
 	if result == "" {
@@ -189,7 +189,7 @@ func TestBuilder_MixedOperations(t *testing.T) {
 	b = b.Keep(5, 1, KeepArgs{stringAttribs: &attribStr}, &pool).
 		Insert("new\n", KeepArgs{}, &pool).
 		Remove(3, 0).
-		KeepText("kept", KeepArgs{}, &pool).
+		KeepText("kept", &KeepArgs{}, &pool).
 		Remove(2, 1)
 
 	result := b.ToString()
