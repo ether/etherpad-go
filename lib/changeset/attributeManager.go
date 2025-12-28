@@ -32,7 +32,7 @@ var LineAttributes = []string{lineMarkerAttribute, "list"}
 type AttributeManager struct {
 }
 
-func HasAttrib(attribs AttributeMap) bool {
+func HasAttrib(attribs *AttributeMap) bool {
 	for _, a := range LineAttributes {
 		if exists := attribs.Has(a); exists {
 			return true

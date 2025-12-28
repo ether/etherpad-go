@@ -635,7 +635,7 @@ func MutateAttributionLines(cs string, lines *[]string, pool *apool.APool) error
 
 	// The Ops in the current line from `lines`.
 	var lineOps *[]Op = nil
-	var lineOpsIdx int = 0
+	var lineOpsIdx = 0
 
 	lineOpsHasNext := func() bool {
 		return lineOps != nil && lineOpsIdx < len(*lineOps)
@@ -673,7 +673,7 @@ func MutateAttributionLines(cs string, lines *[]string, pool *apool.APool) error
 	outputMutOp := func(op Op) error {
 		if lineAssem == nil {
 			mergeAssem := NewMergingOpAssembler()
-			lineAssem = &mergeAssem
+			lineAssem = mergeAssem
 		}
 		lineAssem.Append(op)
 		if op.Lines <= 0 {

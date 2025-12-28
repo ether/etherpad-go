@@ -6,8 +6,8 @@ type MergingOpAssembler struct {
 	bufOpAdditionalCharsAfterNewline int
 }
 
-func NewMergingOpAssembler() MergingOpAssembler {
-	return MergingOpAssembler{
+func NewMergingOpAssembler() *MergingOpAssembler {
+	return &MergingOpAssembler{
 		assem: NewOpAssembler(),
 		bufOp: NewOp(nil),
 	}

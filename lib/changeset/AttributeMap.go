@@ -12,14 +12,14 @@ type AttributeMap struct {
 	attrs map[string]string
 }
 
-func NewAttributeMap(pool *apool.APool) AttributeMap {
-	return AttributeMap{
+func NewAttributeMap(pool *apool.APool) *AttributeMap {
+	return &AttributeMap{
 		pool:  pool,
 		attrs: make(map[string]string),
 	}
 }
 
-func FromString(s string, pool *apool.APool) AttributeMap {
+func FromString(s string, pool *apool.APool) *AttributeMap {
 	var mapInAttr = NewAttributeMap(pool)
 	mapInAttr.UpdateFromString(s, nil)
 
@@ -49,7 +49,7 @@ func (a *AttributeMap) Update(entries []apool.Attribute, emptyValueISDelete *boo
 		if entry.Value == "" && *emptyValueISDelete {
 			delete(a.attrs, entry.Key)
 		} else {
-			a.attrs[entry.Key] = entry.Value
+			a.Set(entry.Key, entry.Value)
 		}
 	}
 	return a

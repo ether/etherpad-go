@@ -3,6 +3,7 @@ package changeset
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -718,9 +719,91 @@ func TestRegexMatcher3(t *testing.T) {
 	}
 }
 
+func TestInverseRandom(t *testing.T) {
+	testInverseRandom := func(randomSeed int) {
+		t.Run(fmt.Sprintf("testInverseRandom#%d", randomSeed), func(t *testing.T) {
+			p := createPool([]string{"apple,", "apple,true", "banana,", "banana,true"})
+
+			startText := general.RandomMultiline(10, 20) + "\n"
+			t.Logf("Start text is %v", startText)
+			alines, err := SplitAttributionLines(MakeAttribution(startText), startText)
+			t.Logf("Alines are %v", alines)
+			require.NoError(t, err)
+
+			trimmed := startText[:len(startText)-1]
+			splitLines := strings.Split(trimmed, "\n")
+			lines := make([]string, len(splitLines))
+			for i, s := range splitLines {
+				lines[i] = s + "\n"
+			}
+
+			stylifier, _ := RandomTestChangeset(startText, true)
+
+			err = MutateAttributionLines(stylifier, &alines, &p)
+			require.NoError(t, err)
+			err = MutateTextLines(stylifier, &lines)
+			require.NoError(t, err)
+
+			changeset, _ := RandomTestChangeset(strings.Join(lines, ""), true)
+
+			// WICHTIG: Kopieren VOR der Mutation für Inverse
+			linesForInverse := slices.Clone(lines)
+			alinesForInverse := slices.Clone(alines)
+
+			origLines := slices.Clone(lines)
+			origALines := slices.Clone(alines)
+
+			// Inverse mit den ORIGINALEN (vor Mutation) berechnen
+			inverseChangeset, err := Inverse(changeset, linesForInverse, alinesForInverse, &p)
+			require.NoError(t, err)
+
+			// Changeset anwenden
+			err = MutateTextLines(changeset, &lines)
+			require.NoError(t, err)
+			err = MutateAttributionLines(changeset, &alines, &p)
+			require.NoError(t, err)
+
+			// Inverse anwenden
+			err = MutateTextLines(*inverseChangeset, &lines)
+			require.NoError(t, err)
+			err = MutateAttributionLines(*inverseChangeset, &alines, &p)
+			require.NoError(t, err)
+
+			assert.Equal(t, origLines, lines)
+			assert.Equal(t, origALines, alines)
+		})
+	}
+
+	for i := 0; i < 30; i++ {
+		testInverseRandom(i)
+	}
+}
+
+func TestInverse(t *testing.T) {
+	testInverse := func(testId int, cs string, lines []string, alines []string, poolAttribs []string, correctOutput string) {
+		t.Run(fmt.Sprintf("testInverse#%d", testId), func(t *testing.T) {
+			pool := createPool(poolAttribs)
+			checkedCs, err := CheckRep(cs)
+			require.NoError(t, err)
+
+			result, err := Inverse(*checkedCs, lines, alines, &pool)
+			require.NoError(t, err)
+			assert.Equal(t, correctOutput, *result)
+		})
+	}
+
+	// take "FFFFTTTTT" and apply "-FT--FFTT", the inverse of which is "--F--TT--"
+	testInverse(1, "Z:9>0=1*0=1*1=1=2*0=2*1|1=2$", nil,
+		[]string{"+4*1+5"}, []string{"bold,", "bold,true"}, "Z:9>0=2*0=1=2*1=2$")
+}
+
 func TestSerializeChangeset(t *testing.T) {
 	input := "+1*1+1|1+5"
-	var ops, _ = DeserializeOps(input)
+	var ops, err = DeserializeOps(input)
+	if err != nil {
+		t.Error("Error in DeserializeOps", err)
+		return
+	}
 	var deserializedOps = *ops
 	if deserializedOps[0].OpCode != "+" &&
 		deserializedOps[0].Chars != 1 &&
@@ -767,5 +850,4 @@ func SimpleComposeAttributes(t *testing.T) {
 	}
 
 	Compose(*cs1, *cs2, &pool)
-
 }
