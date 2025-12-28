@@ -684,7 +684,7 @@ func (p *PadMessageHandler) getChangesetInfo(retrievedPad pad2.Pad, startNum int
 			println("Error getting inverse changeset", err)
 			return nil, err
 		}
-		if err := changeset.MutateAttributionLines(forwards, lines.Alines, &retrievedPad.Pool); err != nil {
+		if err := changeset.MutateAttributionLines(forwards, &lines.Alines, &retrievedPad.Pool); err != nil {
 			println("Error mutating attribution lines", err)
 			return nil, err
 		}

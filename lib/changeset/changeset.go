@@ -618,8 +618,7 @@ func MutateTextLines(cs string, lines *[]string) error {
 	return nil
 }
 
-func MutateAttributionLines(cs string, lines []string, pool *apool.APool) error {
-	return nil
+func MutateAttributionLines(cs string, lines *[]string, pool *apool.APool) error {
 	unpacked, err := Unpack(cs)
 	if err != nil {
 		return err
@@ -628,12 +627,124 @@ func MutateAttributionLines(cs string, lines []string, pool *apool.APool) error 
 	if err != nil {
 		return err
 	}
-	//csOpsNext := (*csOps)[0]
-	slicedOps := (*csOps)[1:]
-	csOps = &slicedOps
-	//csBank := unpacked.CharBank
-	//csBankIndex := 0
-	// TODO
+	csOpsIdx := 0
+	csBank := unpacked.CharBank
+	csBankIndex := 0
+	// treat the attribution lines as text lines, mutating a line at a time
+	mut := NewTextLinesMutator(lines)
+
+	// The Ops in the current line from `lines`.
+	var lineOps *[]Op = nil
+	var lineOpsIdx int = 0
+
+	lineOpsHasNext := func() bool {
+		return lineOps != nil && lineOpsIdx < len(*lineOps)
+	}
+
+	// Returns false if we are on the last attribute line in `lines` and there is no additional op in
+	// that line.
+	isNextMutOp := func() bool {
+		return lineOpsHasNext() || mut.HasMore()
+	}
+
+	// Returns the next Op from `lineOps`. If there are no more Ops, `lineOps` is reset to
+	// iterate over the next line, which is consumed from `mut`. If there are no more lines,
+	// returns a null Op.
+	nextMutOp := func() Op {
+		if !lineOpsHasNext() && mut.HasMore() {
+			// There are more attribute lines in `lines` to do AND either we just started so `lineOps` is
+			// still null or there are no more ops in current `lineOps`.
+			line := mut.RemoveLines(1)
+			lineOps, _ = DeserializeOps(line)
+			lineOpsIdx = 0
+		}
+		if !lineOpsHasNext() {
+			return NewOp(nil) // No more ops and no more lines.
+		}
+		op := (*lineOps)[lineOpsIdx]
+		lineOpsIdx++
+		return op
+	}
+
+	var lineAssem *MergingOpAssembler = nil
+
+	// Appends an op to `lineAssem`. In case `lineAssem` includes one single newline, adds it to the
+	// `lines` mutator.
+	outputMutOp := func(op Op) error {
+		if lineAssem == nil {
+			mergeAssem := NewMergingOpAssembler()
+			lineAssem = &mergeAssem
+		}
+		lineAssem.Append(op)
+		if op.Lines <= 0 {
+			return nil
+		}
+		if op.Lines != 1 {
+			return fmt.Errorf("can't have op.lines of %d in attribution lines", op.Lines)
+		}
+		// ship it to the mut
+		if err := mut.Insert(lineAssem.String(), 1); err != nil {
+			return err
+		}
+		lineAssem = nil
+		return nil
+	}
+
+	csOp := NewOp(nil)
+	attOp := NewOp(nil)
+
+	for csOp.OpCode != "" || csOpsIdx < len(*csOps) || attOp.OpCode != "" || isNextMutOp() {
+		if csOp.OpCode == "" && csOpsIdx < len(*csOps) {
+			// csOp done, but more ops in cs.
+			csOp = (*csOps)[csOpsIdx]
+			csOpsIdx++
+		}
+		if csOp.OpCode == "" && attOp.OpCode == "" && lineAssem == nil && !lineOpsHasNext() {
+			break // done
+		} else if csOp.OpCode == "=" && csOp.Lines > 0 && csOp.Attribs == "" && attOp.OpCode == "" &&
+			lineAssem == nil && !lineOpsHasNext() {
+			// Skip multiple lines without attributes; this is what makes small changes not order of the
+			// document size.
+			mut.SkipLines(csOp.Lines, false)
+			csOp.OpCode = ""
+		} else if csOp.OpCode == "+" {
+			opOut := NewOp(nil)
+			copyOp(csOp, &opOut)
+			if csOp.Lines > 1 {
+				// Copy the first line from `csOp` to `opOut`.
+				firstLineLen := utils.RuneIndex(utils.RuneSlice(csBank, csBankIndex, utf8.RuneCountInString(csBank)), "\n") + 1
+				csOp.Chars -= firstLineLen
+				csOp.Lines--
+				opOut.Lines = 1
+				opOut.Chars = firstLineLen
+			} else {
+				// Either one or no newlines in '+' `csOp`, copy to `opOut` and reset `csOp`.
+				csOp.OpCode = ""
+			}
+			if err := outputMutOp(opOut); err != nil {
+				return err
+			}
+			csBankIndex += opOut.Chars
+		} else {
+			if attOp.OpCode == "" && isNextMutOp() {
+				attOp = nextMutOp()
+			}
+			opOut, err := SlicerZipperFunc(&attOp, &csOp, pool)
+			if err != nil {
+				return err
+			}
+			if opOut.OpCode != "" {
+				if err := outputMutOp(*opOut); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	if lineAssem != nil {
+		return fmt.Errorf("line assembler not finished: %s", cs)
+	}
+	mut.Close()
 	return nil
 }
 
