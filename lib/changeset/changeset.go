@@ -785,7 +785,6 @@ func Inverse(cs string, lines []string, alines []string, pool *apool.APool) (*st
 			curLineOpsNext = 0
 			curLineOpsLine = curLine
 			indexIntoLine := 0
-
 			for curLineOpsNext < len(*curLineOps) {
 				curLineNextOp = (*curLineOps)[curLineOpsNext]
 				curLineOpsNext++
@@ -818,8 +817,7 @@ func Inverse(cs string, lines []string, alines []string, pool *apool.APool) (*st
 				}
 			}
 			charsToUse := int(math.Min(float64(numChars), float64(curLineNextOp.Chars)))
-			endsLine := charsToUse == curLineNextOp.Chars && curLineNextOp.Lines > 0
-			callback(charsToUse, curLineNextOp.Attribs, endsLine)
+			callback(charsToUse, curLineNextOp.Attribs, charsToUse == curLineNextOp.Chars && curLineNextOp.Lines > 0)
 			numChars -= charsToUse
 			curLineNextOp.Chars -= charsToUse
 			curChar += charsToUse
