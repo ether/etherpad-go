@@ -566,7 +566,10 @@ func (p *PadMessageHandler) composePadChangesets(retrievedPad *pad2.Pad, start i
 
 	startChangeset := changesets[0]
 	for i := 1; i < len(changesets); i++ {
-		startChangesetVar, _ := changeset.Compose(startChangeset, changesets[i], &retrievedPad.Pool)
+		startChangesetVar, err := changeset.Compose(startChangeset, changesets[i], &retrievedPad.Pool)
+		if err != nil {
+			return "", fmt.Errorf("error composing changesets: %v", err)
+		}
 		startChangeset = *startChangesetVar
 	}
 	return startChangeset, nil
@@ -608,8 +611,7 @@ func (p *PadMessageHandler) getChangesetInfo(retrievedPad pad2.Pad, startNum int
 	if endNum > headRevision+1 {
 		endNum = headRevision + 1
 	}
-
-	endFloat := math.Floor(float64(endNum/granularity)) * float64(granularity)
+	endFloat := math.Floor(float64(endNum)/float64(granularity)) * float64(granularity)
 	if endFloat >= math.MaxInt64 || endFloat <= math.MinInt64 {
 		fmt.Println("f64 is out of int64 range.")
 		return nil, errors.New("endNum value out of range")
@@ -646,9 +648,9 @@ func (p *PadMessageHandler) getChangesetInfo(retrievedPad pad2.Pad, startNum int
 
 	composedChangesets := make(map[string]string)
 
-	revisionDate := make([]int64, 0)
+	revisionDate := make(map[int64]int64)
 
-	lines, err := getPadLines(&retrievedPad, startNum)
+	lines, err := getPadLines(&retrievedPad, startNum-1)
 	if err != nil {
 		println("Error getting pad lines", err)
 		return nil, err
@@ -665,7 +667,7 @@ func (p *PadMessageHandler) getChangesetInfo(retrievedPad pad2.Pad, startNum int
 
 	for _, revTimeNeeded := range revTimesNeeded {
 		revTime, _ := retrievedPad.GetRevisionDate(int(revTimeNeeded))
-		revisionDate = append(revisionDate, *revTime)
+		revisionDate[revTimeNeeded] = *revTime
 	}
 
 	timeDeltas := make([]int64, 0)
@@ -701,10 +703,10 @@ func (p *PadMessageHandler) getChangesetInfo(retrievedPad pad2.Pad, startNum int
 		if compositeStart == 0 {
 			t1 = revisionDate[0]
 		} else {
-			t1 = revisionDate[compositeStart-1]
+			t1 = revisionDate[int64(compositeStart-1)]
 		}
 
-		t2 = revisionDate[compositeEnd-1]
+		t2 = revisionDate[int64(compositeEnd-1)]
 
 		timeDeltas = append(timeDeltas, t2-t1)
 		forwardChangesets = append(forwardChangesets, forwards2)
@@ -712,13 +714,13 @@ func (p *PadMessageHandler) getChangesetInfo(retrievedPad pad2.Pad, startNum int
 	}
 
 	return &ChangesetInfo{
-		ForwardChangesets:  forwardChangesets,
-		BackwardChangesets: backwardChangesets,
-		APool:              createdApool.ToJsonable(),
-		ActualEndNum:       endNum,
-		TimeDeltas:         timeDeltas,
-		Start:              startNum,
-		Granularity:        granularity,
+		ForwardsChangesets:  forwardChangesets,
+		BackwardsChangesets: backwardChangesets,
+		APool:               createdApool.ToJsonable(),
+		ActualEndNum:        endNum,
+		TimeDeltas:          timeDeltas,
+		Start:               startNum,
+		Granularity:         granularity,
 	}, nil
 }
 

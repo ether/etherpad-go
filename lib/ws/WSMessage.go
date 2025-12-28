@@ -78,12 +78,12 @@ type ChangesetResponse struct {
 }
 
 type ChangesetInfo struct {
-	ForwardChangesets  []string    `json:"forwardChangesets"`
-	BackwardChangesets []string    `json:"backwardChangesets"`
-	ActualEndNum       int         `json:"actualEndNum"`
-	TimeDeltas         []int64     `json:"timeDeltas"`
-	Start              int         `json:"start"`
-	Granularity        int         `json:"granularity"`
-	APool              apool.APool `json:"apool"`
-	RequestId          int         `json:"requestID"`
+	ForwardsChangesets  []string    `json:"forwardsChangesets"`
+	BackwardsChangesets []string    `json:"backwardsChangesets"`
+	ActualEndNum        int         `json:"actualEndNum"`
+	TimeDeltas          []int64     `json:"timeDeltas"`
+	Start               int         `json:"start"`
+	Granularity         int         `json:"granularity"`
+	APool               apool.APool `json:"apool"`
+	RequestId           int         `json:"requestID"`
 }

@@ -9,8 +9,8 @@ type Builder struct {
 	charBank StringAssembler
 }
 
-func NewBuilder(oldLen int) Builder {
-	return Builder{
+func NewBuilder(oldLen int) *Builder {
+	return &Builder{
 		oldLen:   oldLen,
 		assem:    *NewSmartOpAssembler(),
 		o:        NewOp(nil),
@@ -33,7 +33,7 @@ type KeepArgs struct {
  *     attribute key, value pairs.
  * @returns {Builder} this
  */
-func (b Builder) Keep(N int, L int, attribs KeepArgs, pool *apool.APool) Builder {
+func (b *Builder) Keep(N int, L int, attribs KeepArgs, pool *apool.APool) *Builder {
 	b.o.OpCode = "="
 
 	if attribs.stringAttribs != nil {
@@ -67,7 +67,7 @@ func (b Builder) Keep(N int, L int, attribs KeepArgs, pool *apool.APool) Builder
  *     attribute key, value pairs.
  * @returns {Builder} this
  */
-func (b Builder) KeepText(text string, attribs *KeepArgs, pool *apool.APool) Builder {
+func (b *Builder) KeepText(text string, attribs *KeepArgs, pool *apool.APool) *Builder {
 	for _, op := range OpsFromText("=", text, attribs, pool) {
 		b.assem.Append(op)
 	}
@@ -82,7 +82,7 @@ func (b Builder) KeepText(text string, attribs *KeepArgs, pool *apool.APool) Bui
  *     attribute key, value pairs.
  * @returns {Builder} this
  */
-func (b Builder) Insert(text string, attribs KeepArgs, pool *apool.APool) Builder {
+func (b *Builder) Insert(text string, attribs KeepArgs, pool *apool.APool) *Builder {
 	for _, op := range OpsFromText("+", text, &attribs, pool) {
 		b.assem.Append(op)
 	}
@@ -91,7 +91,7 @@ func (b Builder) Insert(text string, attribs KeepArgs, pool *apool.APool) Builde
 	return b
 }
 
-func (b Builder) Remove(N, L int) Builder {
+func (b *Builder) Remove(N, L int) *Builder {
 	b.o.OpCode = "-"
 	b.o.Attribs = ""
 	b.o.Chars = N
@@ -104,7 +104,7 @@ func (b Builder) Remove(N, L int) Builder {
 	return b
 }
 
-func (b Builder) ToString() string {
+func (b *Builder) ToString() string {
 	b.assem.EndDocument()
 	var newLen = b.oldLen + b.assem.LengthChange()
 	return Pack(b.oldLen, newLen, b.assem.String(), b.charBank.String())

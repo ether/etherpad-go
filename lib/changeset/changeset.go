@@ -749,6 +749,7 @@ func MutateAttributionLines(cs string, lines *[]string, pool *apool.APool) error
 }
 
 func Inverse(cs string, lines []string, alines []string, pool *apool.APool) (*string, error) {
+
 	linesGet := func(idx int) string {
 		if len(lines) == 0 {
 			return ""
@@ -763,7 +764,7 @@ func Inverse(cs string, lines []string, alines []string, pool *apool.APool) (*st
 	curLine := 0
 	curChar := 0
 	var curLineOps *[]Op
-	curLineOpsLine := 0
+	curLineOpsLine := -1
 	curLineOpsNext := 0
 	var plus = "+"
 	curLineNextOp := NewOp(&plus)
