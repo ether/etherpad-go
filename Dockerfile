@@ -45,6 +45,7 @@ RUN go mod download
 COPY . .
 
 COPY --from=admin /app/dist ./assets/js/admin
+COPY --from=frontend /app/assets/js/timeslider/assets/timeslider.js ./assets/js/timeslider/assets/timeslider.js
 COPY --from=frontend /app/assets/js/pad/assets/pad.js ./assets/js/pad/assets/pad.js
 COPY --from=frontend /app/assets/js/welcome/assets/welcome.js ./assets/js/welcome/assets/welcome.js
 COPY --from=frontend /app/assets/css/build ./assets/css/build
