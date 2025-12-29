@@ -914,7 +914,7 @@ func NewMySQLDB(options MySQLOptions) (*MysqlDB, error) {
 		return nil, err
 	}
 
-	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS padRev(id VARCHAR(255), rev INTEGER, changeset TEXT, atextText TEXT, atextAttribs TEXT, authorId VARCHAR(255), timestamp BIGINT, PRIMARY KEY (id, rev), FOREIGN KEY(id) REFERENCES pad(id) ON DELETE CASCADE)")
+	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS padRev(id VARCHAR(255), rev INTEGER, changeset TEXT, atextText TEXT, atextAttribs TEXT, authorId VARCHAR(255), timestamp BIGINT, pool TEXT NOT NULL, PRIMARY KEY (id, rev), FOREIGN KEY(id) REFERENCES pad(id) ON DELETE CASCADE)")
 	if err != nil {
 		return nil, err
 	}

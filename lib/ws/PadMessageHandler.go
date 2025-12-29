@@ -82,7 +82,7 @@ type PadMessageHandler struct {
 	padManager      *pad.Manager
 	readOnlyManager *pad.ReadOnlyManager
 	authorManager   *author.Manager
-	securityManager pad.SecurityManager
+	securityManager *pad.SecurityManager
 	padChannels     ChannelOperator
 	factory         clientVars.Factory
 	SessionStore    *SessionStore

@@ -328,7 +328,7 @@ func testSaveAndGetRevisionAndMetaData(t *testing.T, ds testutils.TestDataStore)
 	if rev.Changeset != "changeset0" || rev.Timestamp != 12345 {
 		t.Fatalf("revision data mismatch: %#v", rev)
 	}
-	if !reflect.DeepEqual(rev.AText, text) {
+	if !reflect.DeepEqual(rev.AText, text.ToDBAText()) {
 		t.Fatalf("AText mismatch")
 	}
 

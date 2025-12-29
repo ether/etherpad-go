@@ -41,43 +41,42 @@ func TestAuthor(t *testing.T) {
 }
 
 func testCreateAuthorNoName(t *testing.T, tsStore testutils.TestDataStore) {
-	app := fiber.New()
-	author.Init(app, tsStore.DS, tsStore.Validator)
+	initStore := tsStore.ToInitStore()
+	author.Init(initStore)
 	var dto = author.CreateDto{}
 	marshall, _ := json.Marshal(dto)
 	req := httptest.NewRequest("POST", "/author", bytes.NewBuffer(marshall))
 
-	resp, _ := app.Test(req, 10)
+	resp, _ := initStore.C.Test(req, 10)
 	if resp.StatusCode != 400 {
 		t.Errorf("should deny creation of author without required fields, got %d", resp.StatusCode)
 	}
 }
 
 func testCreateAuthorNoBody(t *testing.T, tsStore testutils.TestDataStore) {
-	app := fiber.New()
-	author.Init(app, tsStore.DS, tsStore.Validator)
+	author.Init(tsStore.ToInitStore())
 	req := httptest.NewRequest("POST", "/author", nil)
 
-	resp, _ := app.Test(req, 10)
+	resp, _ := tsStore.App.Test(req, 10)
 	if resp.StatusCode != 400 {
 		t.Errorf("should deny creation of author with nil body, got %d", resp.StatusCode)
 	}
 }
 
 func testGetNotExistingAuthor(t *testing.T, tsStore testutils.TestDataStore) {
-	app := fiber.New()
-	author.Init(app, tsStore.DS, tsStore.Validator)
+	initStore := tsStore.ToInitStore()
+	author.Init(initStore)
 	req := httptest.NewRequest("GET", "/author/unknownAuthorId", nil)
 
-	resp, _ := app.Test(req, 10)
+	resp, _ := initStore.C.Test(req, 10)
 	if resp.StatusCode != 404 {
 		t.Errorf("should return 404 for not existing author, got %d", resp.StatusCode)
 	}
 }
 
 func testGetExistingAuthor(t *testing.T, tsStore testutils.TestDataStore) {
-	app := fiber.New()
-	author.Init(app, tsStore.DS, tsStore.Validator)
+	initStore := tsStore.ToInitStore()
+	author.Init(initStore)
 
 	// create author first
 	var dto = author.CreateDto{
@@ -85,7 +84,7 @@ func testGetExistingAuthor(t *testing.T, tsStore testutils.TestDataStore) {
 	}
 	marshall, _ := json.Marshal(dto)
 	req := httptest.NewRequest("POST", "/author", bytes.NewBuffer(marshall))
-	resp, err := app.Test(req, 10)
+	resp, err := initStore.C.Test(req, 100)
 	if err != nil {
 		t.Errorf("error creating author: %v", err)
 	}
@@ -99,7 +98,10 @@ func testGetExistingAuthor(t *testing.T, tsStore testutils.TestDataStore) {
 
 	req = httptest.NewRequest("GET", "/author/"+createdAuthor.AuthorId, nil)
 
-	resp, _ = app.Test(req, 10)
+	resp, err = initStore.C.Test(req, 100)
+	if err != nil {
+		t.Errorf("error getting author: %v", err)
+	}
 	if resp.StatusCode != 200 {
 		t.Errorf("should return the created author, got %d", resp.StatusCode)
 	}
@@ -109,7 +111,7 @@ func testGetAuthorPadIDS(t *testing.T, tsStore testutils.TestDataStore) {
 	t.Skip()
 	// Skip because we cannot yet map pads to authors
 	app := fiber.New()
-	author.Init(app, tsStore.DS, tsStore.Validator)
+	author.Init(tsStore.ToInitStore())
 	dbAuthorToSave := testutils.GenerateDBAuthor()
 	assert.NoError(t, tsStore.DS.SaveAuthor(dbAuthorToSave))
 	req := httptest.NewRequest("GET", "/author/"+dbAuthorToSave.ID+"/pads", nil)

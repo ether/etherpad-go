@@ -3,6 +3,7 @@ package lib
 import (
 	"embed"
 
+	"github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/db"
 	"github.com/ether/etherpad-go/lib/hooks"
 	pad2 "github.com/ether/etherpad-go/lib/pad"
@@ -27,4 +28,5 @@ type InitStore struct {
 	Hooks             *hooks.Hook
 	ReadOnlyManager   *pad2.ReadOnlyManager
 	SecurityManager   *pad2.SecurityManager
+	AuthorManager     *author.Manager
 }

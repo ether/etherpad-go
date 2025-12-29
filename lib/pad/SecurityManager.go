@@ -20,8 +20,8 @@ type SecurityManager struct {
 	SessionManager  *SessionManager
 }
 
-func NewSecurityManager(db db.DataStore, hooks *hooks.Hook, padManager *Manager) SecurityManager {
-	return SecurityManager{
+func NewSecurityManager(db db.DataStore, hooks *hooks.Hook, padManager *Manager) *SecurityManager {
+	return &SecurityManager{
 		ReadOnlyManager: NewReadOnlyManager(db),
 		PadManager:      padManager,
 		AuthorManager:   author.NewManager(db),

@@ -117,7 +117,7 @@ func main() {
 		Hooks:             &retrievedHooks,
 		RetrievedSettings: &settings,
 		Logger:            setupLogger,
-		SecurityManager:   &securityManager,
+		SecurityManager:   securityManager,
 		UiAssets:          uiAssets,
 		CookieStore:       cookieStore,
 		Handler:           padMessageHandler,
