@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	sq "github.com/Masterminds/squirrel"
-	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/models/db"
 	session2 "github.com/ether/etherpad-go/lib/models/session"
 	_ "github.com/lib/pq"
@@ -81,7 +80,14 @@ func (d PostgresDB) GetRevisions(padId string, startRev int, endRev int) (*[]db.
 	var revisions []db.PadSingleRevision
 	for query.Next() {
 		var revisionDB db.PadSingleRevision
-		query.Scan(&revisionDB.PadId, &revisionDB.RevNum, &revisionDB.Changeset, &revisionDB.AText.Text, &revisionDB.AText.Attribs, &revisionDB.AuthorId, &revisionDB.Timestamp)
+		var serializedPool string
+
+		if err := query.Scan(&revisionDB.PadId, &revisionDB.RevNum, &revisionDB.Changeset, &revisionDB.AText.Text, &revisionDB.AText.Attribs, &revisionDB.AuthorId, &revisionDB.Timestamp, &serializedPool); err != nil {
+			return nil, fmt.Errorf("error scanning revision: %v", err)
+		}
+		if err := json.Unmarshal([]byte(serializedPool), &revisionDB.Pool); err != nil {
+			return nil, fmt.Errorf("error deserializing pool: %v", err)
+		}
 		revisions = append(revisions, revisionDB)
 	}
 
@@ -415,7 +421,16 @@ func (d PostgresDB) GetRevision(padId string, rev int) (*db.PadSingleRevision, e
 
 	for query.Next() {
 		var revisionDB db.PadSingleRevision
-		query.Scan(&revisionDB.PadId, &revisionDB.RevNum, &revisionDB.Changeset, &revisionDB.AText.Text, &revisionDB.AText.Attribs, &revisionDB.AuthorId, &revisionDB.Timestamp)
+		var serializedPool string
+		if err := query.Scan(&revisionDB.PadId, &revisionDB.RevNum, &revisionDB.Changeset, &revisionDB.AText.Text,
+			&revisionDB.AText.Attribs, &revisionDB.AuthorId, &revisionDB.Timestamp, &serializedPool); err != nil {
+			return nil, fmt.Errorf("error scanning revision: %v", err)
+		}
+
+		if err := json.Unmarshal([]byte(serializedPool), &revisionDB.Pool); err != nil {
+			return nil, fmt.Errorf("error deserializing pool: %v", err)
+		}
+
 		return &revisionDB, nil
 	}
 
@@ -540,7 +555,7 @@ func (d PostgresDB) GetPadIds() (*[]string, error) {
 	return &padIds, nil
 }
 
-func (d PostgresDB) SaveRevision(padId string, rev int, changeset string, text apool.AText, pool apool.APool, authorId *string, timestamp int64) error {
+func (d PostgresDB) SaveRevision(padId string, rev int, changeset string, text db.AText, pool db.RevPool, authorId *string, timestamp int64) error {
 	exists, err := d.DoesPadExist(padId)
 	if err != nil {
 		return err
@@ -550,9 +565,14 @@ func (d PostgresDB) SaveRevision(padId string, rev int, changeset string, text a
 		return errors.New(PadDoesNotExistError)
 	}
 
+	serializedPool, err := json.Marshal(pool)
+	if err != nil {
+		return fmt.Errorf("error serializing pool: %v", err)
+	}
+
 	toSql, i, err := psql.Insert("padRev").
-		Columns("id", "rev", "changeset", "atextText", "atextAttribs", "authorId", "timestamp").
-		Values(padId, rev, changeset, text.Text, text.Attribs, authorId, timestamp).
+		Columns("id", "rev", "changeset", "atextText", "atextAttribs", "authorId", "timestamp", "pool").
+		Values(padId, rev, changeset, text.Text, text.Attribs, authorId, timestamp, string(serializedPool)).
 		ToSql()
 
 	if err != nil {
@@ -893,7 +913,7 @@ func NewPostgresDB(options PostgresOptions) (*PostgresDB, error) {
 	if err != nil {
 		return nil, err
 	}
-	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS padRev(id TEXT, rev INTEGER, changeset TEXT, atextText TEXT, atextAttribs TEXT, authorId TEXT, timestamp BIGINT, PRIMARY KEY (id, rev), FOREIGN KEY(id) REFERENCES pad(id) ON DELETE CASCADE)")
+	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS padRev(id TEXT, rev INTEGER, changeset TEXT, atextText TEXT, atextAttribs TEXT, authorId TEXT, timestamp BIGINT, pool TEXT, PRIMARY KEY (id, rev), FOREIGN KEY(id) REFERENCES pad(id) ON DELETE CASCADE)")
 	if err != nil {
 		return nil, err
 	}

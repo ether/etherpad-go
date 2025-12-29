@@ -8,11 +8,9 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/ether/etherpad-go/lib/settings"
+	"github.com/ether/etherpad-go/lib"
 	"github.com/gofiber/adaptor/v2"
-	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
-	"go.uber.org/zap"
 )
 
 func GenerateAuthCodeURL(issuer, clientID, redirectURI string, scopes []string) (string, string, string, error) {
@@ -61,20 +59,20 @@ func pkceS256(verifier string) string {
 	return base64.RawURLEncoding.EncodeToString(sum[:])
 }
 
-func Init(app *fiber.App, retrievedSettings *settings.Settings, setupLogger *zap.SugaredLogger) *Authenticator {
-	authenticator := NewAuthenticator(retrievedSettings)
+func Init(store *lib.InitStore) *Authenticator {
+	authenticator := NewAuthenticator(store.RetrievedSettings)
 	allowedUrls := make([]string, 0)
-	for _, sso := range retrievedSettings.SSO.Clients {
+	for _, sso := range store.RetrievedSettings.SSO.Clients {
 		for _, redirectUri := range sso.RedirectUris {
 			u, err := url.Parse(redirectUri)
 			if err != nil {
-				setupLogger.Errorf("Invalid redirect URI in SSO client %s: %s", sso.ClientId, redirectUri)
+				store.Logger.Errorf("Invalid redirect URI in SSO client %s: %s", sso.ClientId, redirectUri)
 				continue
 			}
 			allowedUrls = append(allowedUrls, u.Scheme+"://"+u.Host)
 		}
 	}
-	app.Use(cors.New(cors.Config{
+	store.C.Use(cors.New(cors.Config{
 		AllowOriginsFunc: func(origin string) bool {
 			for _, allowed := range allowedUrls {
 				if origin == allowed {
@@ -85,27 +83,27 @@ func Init(app *fiber.App, retrievedSettings *settings.Settings, setupLogger *zap
 		},
 	}))
 
-	app.Post("/oauth2/introspect", adaptor.HTTPHandler(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+	store.C.Post("/oauth2/introspect", adaptor.HTTPHandler(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		authenticator.IntrospectionEndpoint(writer, request)
 	})))
-	app.Post("/oauth2/revoke", adaptor.HTTPHandler(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+	store.C.Post("/oauth2/revoke", adaptor.HTTPHandler(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		authenticator.RevokeEndpoint(writer, request)
 	})))
-	app.Post("/oauth2/token", adaptor.HTTPHandler(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+	store.C.Post("/oauth2/token", adaptor.HTTPHandler(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		authenticator.TokenEndpoint(writer, request)
 	})))
 
-	app.Get("/oauth2/auth", adaptor.HTTPHandler(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		authenticator.AuthEndpoint(writer, request, setupLogger, retrievedSettings)
+	store.C.Get("/oauth2/auth", adaptor.HTTPHandler(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		authenticator.AuthEndpoint(writer, request, store.Logger, store.RetrievedSettings)
 	})))
-	app.Post("/oauth2/auth", adaptor.HTTPHandler(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		authenticator.AuthEndpoint(writer, request, setupLogger, retrievedSettings)
+	store.C.Post("/oauth2/auth", adaptor.HTTPHandler(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		authenticator.AuthEndpoint(writer, request, store.Logger, store.RetrievedSettings)
 	})))
 
-	app.Get("/.well-known/openid-configuration", adaptor.HTTPHandler(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		authenticator.OicWellKnown(writer, request, retrievedSettings)
+	store.C.Get("/.well-known/openid-configuration", adaptor.HTTPHandler(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		authenticator.OicWellKnown(writer, request, store.RetrievedSettings)
 	})))
-	app.Get("/.well-known/jwks.json", adaptor.HTTPHandler(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+	store.C.Get("/.well-known/jwks.json", adaptor.HTTPHandler(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		authenticator.JwksEndpoint(writer, request)
 	})))
 	return authenticator

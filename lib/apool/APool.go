@@ -2,6 +2,9 @@ package apool
 
 import (
 	"errors"
+	"strconv"
+
+	"github.com/ether/etherpad-go/lib/models/db"
 )
 
 type APool struct {
@@ -20,6 +23,40 @@ func NewAPool() APool {
 }
 
 type EachAttribFunc func(attrib Attribute)
+
+func (a *APool) ToRevDB() db.RevPool {
+
+	attribNums := make(map[string]int)
+	numToAttrib := make(map[string][]string)
+	for attrib, num := range a.AttribToNum {
+		attribNums[attrib.String()] = num
+	}
+
+	for num, attrib := range a.NumToAttrib {
+		numToAttrib[strconv.Itoa(num)] = attrib.ToStringSlice()
+	}
+
+	var dbPool = db.RevPool{
+		NextNum:     a.NextNum,
+		AttribToNum: attribNums,
+		NumToAttrib: numToAttrib,
+	}
+	return dbPool
+}
+
+func (a *APool) ToPadDB() db.PadPool {
+
+	numToAttrib := make(map[string][]string)
+	for num, attrib := range a.NumToAttrib {
+		numToAttrib[strconv.Itoa(num)] = attrib.ToStringSlice()
+	}
+
+	var dbPool = db.PadPool{
+		NextNum:     a.NextNum,
+		NumToAttrib: numToAttrib,
+	}
+	return dbPool
+}
 
 func (a *APool) Check() error {
 	if a.NextNum < 0 {
@@ -86,6 +123,19 @@ func (a *APool) FromJsonable(obj APool) *APool {
 	return a
 }
 
+func (a *APool) FromDB(obj db.PadPool) *APool {
+	a.AttribToNum = make(map[Attribute]int)
+	a.NextNum = obj.NextNum
+	a.NumToAttribRaw = obj.ToIntPool()
+	for num, attrib := range a.NumToAttribRaw {
+		var entry = FromJsonAble(attrib)
+		a.NumToAttrib[num] = entry
+		a.AttribToNum[entry] = num
+	}
+
+	return a
+}
+
 /**
  * @returns {Jsonable} An object that can be passed to `fromJsonable` to reconstruct this
  *     attribute pool. The returned object can be converted to JSON. WARNING: The returned object
@@ -102,6 +152,24 @@ func (a *APool) ToJsonable() APool {
 	}
 	a.NumToAttribRaw = jsonAbleMap
 	return *a
+}
+
+func (a *APool) toDBRev() db.RevPool {
+	numToAttrib := make(map[string][]string)
+	for num, attrib := range a.NumToAttrib {
+		numToAttrib[strconv.Itoa(num)] = attrib.ToStringSlice()
+	}
+
+	attribToNum := make(map[string]int)
+	for attrib, num := range a.AttribToNum {
+		attribToNum[attrib.String()] = num
+	}
+
+	return db.RevPool{
+		NumToAttrib: numToAttrib,
+		NextNum:     a.NextNum,
+		AttribToNum: attribToNum,
+	}
 }
 
 func (a *APool) clone() APool {

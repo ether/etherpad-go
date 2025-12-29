@@ -18,7 +18,7 @@ import (
 )
 
 func UserCanModify(padId *string, req *webaccess.SocketClientRequest, readOnlyManager ReadOnlyManager) bool {
-	if readOnlyManager.isReadOnlyID(padId) {
+	if readOnlyManager.IsReadOnlyID(padId) {
 		return false
 	}
 
@@ -91,9 +91,9 @@ func CheckAccess(ctx *fiber.Ctx, logger *zap.SugaredLogger, retrievedSettings *s
 				return false
 			}
 
-			if readOnlyManager.isReadOnlyID(&padId) {
+			if readOnlyManager.IsReadOnlyID(&padId) {
 				// pad is read-only, first get the real pad ID
-				var realPadId, err = readOnlyManager.getPadId(padId)
+				var realPadId, err = readOnlyManager.GetPadId(padId)
 				if err != nil {
 					println("Error getting real pad ID:", err.Error())
 					return false

@@ -254,7 +254,9 @@ func (p *Pad) getKeyRevisionAText(revNum int) (*apool.AText, error) {
 		return nil, err
 	}
 
-	return &rev.AText, err
+	atext := apool.FromDBAText(rev.AText)
+
+	return &atext, err
 }
 
 func (p *Pad) Remove() error {
@@ -433,8 +435,8 @@ func (p *Pad) Save() error {
 	return p.db.CreatePad(p.Id, db2.PadDB{
 		SavedRevisions: make(map[int]db2.PadRevision),
 		RevNum:         p.Head,
-		Pool:           p.Pool.ToJsonable(),
-		AText:          p.AText,
+		Pool:           p.Pool.ToPadDB(),
+		AText:          p.AText.ToDBAText(),
 	})
 }
 
@@ -509,7 +511,7 @@ func (p *Pad) AppendRevision(cs string, authorId *string) int {
 	poolToUse = p.Pool
 	atextToUse = p.AText
 
-	err = p.db.SaveRevision(p.Id, newRev, cs, atextToUse, poolToUse, authorId, time.Now().UnixNano()/int64(time.Millisecond))
+	err = p.db.SaveRevision(p.Id, newRev, cs, atextToUse.ToDBAText(), poolToUse.ToRevDB(), authorId, time.Now().UnixNano()/int64(time.Millisecond))
 
 	if err != nil {
 		println("Error saving revision", err.Error())

@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/models/db"
 	session2 "github.com/ether/etherpad-go/lib/models/session"
 	"github.com/ory/fosite"
@@ -329,7 +328,7 @@ func (m *MemoryDataStore) CreatePad(padID string, padDB db.PadDB) error {
 }
 
 func (m *MemoryDataStore) SaveRevision(padId string, rev int, changeset string,
-	text apool.AText, pool apool.APool, authorId *string, timestamp int64) error {
+	text db.AText, pool db.RevPool, authorId *string, timestamp int64) error {
 	var retrievedPad, ok = m.padStore[padId]
 	if !ok {
 		return errors.New(PadDoesNotExistError)
@@ -338,7 +337,7 @@ func (m *MemoryDataStore) SaveRevision(padId string, rev int, changeset string,
 
 	retrievedPad.SavedRevisions[rev] = db.PadRevision{
 		Content: changeset,
-		PadDBMeta: db.PadDBMeta{
+		PadDBMeta: db.PadRevDBMeta{
 			Pool:      &pool,
 			AText:     &text,
 			Author:    authorId,

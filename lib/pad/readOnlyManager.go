@@ -23,7 +23,7 @@ func NewReadOnlyManager(db db.DataStore) *ReadOnlyManager {
 	}
 }
 
-func (r *ReadOnlyManager) isReadOnlyID(id *string) bool {
+func (r *ReadOnlyManager) IsReadOnlyID(id *string) bool {
 	return strings.HasPrefix(*id, "r.")
 }
 
@@ -49,12 +49,12 @@ func (r *ReadOnlyManager) RemoveReadOnlyPad(readonlyId, padId string) error {
 	return err
 }
 
-func (r *ReadOnlyManager) getPadId(readonlyId string) (*string, error) {
+func (r *ReadOnlyManager) GetPadId(readonlyId string) (*string, error) {
 	return r.Store.GetReadOnly2Pad(readonlyId)
 }
 
 func (r *ReadOnlyManager) GetIds(id *string) (*IdRequest, error) {
-	readonly := r.isReadOnlyID(id)
+	readonly := r.IsReadOnlyID(id)
 	var readOnlyPadId string
 	if readonly {
 		readOnlyPadId = *id
@@ -65,7 +65,7 @@ func (r *ReadOnlyManager) GetIds(id *string) (*IdRequest, error) {
 	var padId string
 
 	if readonly {
-		padIdPtr, err := r.getPadId(readOnlyPadId)
+		padIdPtr, err := r.GetPadId(readOnlyPadId)
 		if err != nil {
 			return nil, err
 		}

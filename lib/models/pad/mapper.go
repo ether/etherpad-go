@@ -11,8 +11,8 @@ func mapDBPadToModel(dbPad *db.PadDB, padToAssignTo *Pad) {
 	padToAssignTo.PublicStatus = dbPad.PublicStatus
 
 	var newPool = apool.NewAPool()
-	newPool.FromJsonable(dbPad.Pool)
+	newPool.FromDB(dbPad.Pool)
 
 	padToAssignTo.Pool = newPool
-	padToAssignTo.AText = dbPad.AText
+	padToAssignTo.AText = apool.FromDBAText(dbPad.AText)
 }

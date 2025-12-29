@@ -9,6 +9,7 @@ import (
 	"time"
 
 	_ "github.com/ether/etherpad-go/docs"
+	"github.com/ether/etherpad-go/lib"
 	api2 "github.com/ether/etherpad-go/lib/api"
 	"github.com/ether/etherpad-go/lib/hooks"
 	"github.com/ether/etherpad-go/lib/pad"
@@ -108,8 +109,21 @@ func main() {
 
 	padMessageHandler := ws.NewPadMessageHandler(dataStore, &retrievedHooks, padManager, &sessionStore, globalHub)
 	adminMessageHandler := ws.NewAdminMessageHandler(dataStore, &retrievedHooks, padManager, padMessageHandler, setupLogger, globalHub)
-	authenticator := api2.InitAPI(app, uiAssets, &settings, cookieStore, dataStore, padMessageHandler, padManager, validatorEvaluator, setupLogger)
-
+	securityManager := pad.NewSecurityManager(dataStore, &retrievedHooks, padManager)
+	authenticator := api2.InitAPI(&lib.InitStore{
+		C:                 app,
+		Validator:         validatorEvaluator,
+		PadManager:        padManager,
+		Hooks:             &retrievedHooks,
+		RetrievedSettings: &settings,
+		Logger:            setupLogger,
+		SecurityManager:   &securityManager,
+		UiAssets:          uiAssets,
+		CookieStore:       cookieStore,
+		Handler:           padMessageHandler,
+		Store:             dataStore,
+		ReadOnlyManager:   readOnlyManager,
+	})
 	app.Get("/socket.io/*", func(c *fiber.Ctx) error {
 		return adaptor.HTTPHandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 			ws.ServeWs(writer, request, cookieStore, c, &settings, setupLogger, padMessageHandler)

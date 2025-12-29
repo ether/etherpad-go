@@ -1,0 +1,164 @@
+package io
+
+import (
+	"fmt"
+	"strconv"
+
+	"github.com/ether/etherpad-go/lib/author"
+	"github.com/ether/etherpad-go/lib/db"
+	"github.com/ether/etherpad-go/lib/hooks"
+	"github.com/ether/etherpad-go/lib/pad"
+	"github.com/ether/etherpad-go/lib/utils"
+	"github.com/gofiber/fiber/v2"
+)
+
+type ExportEtherpad struct {
+	hooks         *hooks.Hook
+	PadManager    *pad.Manager
+	AuthorManager *author.Manager
+}
+
+func NewExportEtherpad(hooks *hooks.Hook, padManager *pad.Manager, db db.DataStore) *ExportEtherpad {
+	return &ExportEtherpad{
+		hooks:         hooks,
+		PadManager:    padManager,
+		AuthorManager: author.NewManager(db),
+	}
+}
+
+func (e *ExportEtherpad) GetPadRaw(padId string, readOnlyId *string) (*EtherpadExport, error) {
+	var dstPfx string
+	if readOnlyId != nil {
+		dstPfx = "pad:" + *readOnlyId + ":"
+	} else {
+		dstPfx = "pad:" + padId + ":"
+	}
+	var customPrefixes []string
+
+	e.hooks.ExecuteHooks("exportEtherpadAdditionalContent", &customPrefixes)
+	retrievedPad, err := e.PadManager.GetPad(padId, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	chatMessages, err := retrievedPad.GetChatMessages(0, retrievedPad.ChatHead)
+	if err != nil {
+		return nil, err
+	}
+
+	export := &EtherpadExport{
+		Pad:       make(map[string]PadData),
+		Authors:   make(map[string]GlobalAuthor),
+		Revisions: make(map[string]Revision),
+	}
+	var numToAttrib = make(map[string][]string)
+	for i, v := range retrievedPad.Pool.NumToAttrib {
+		numToAttrib[strconv.Itoa(i)] = []string{
+			v.Key,
+			v.Value,
+		}
+	}
+
+	export.Pad[dstPfx] = PadData{
+		AText:          AText{Text: retrievedPad.AText.Text, Attribs: retrievedPad.AText.Attribs},
+		Pool:           Pool{NumToAttrib: numToAttrib, NextNum: retrievedPad.Pool.NextNum},
+		Head:           retrievedPad.Head,
+		ChatHead:       retrievedPad.ChatHead,
+		PublicStatus:   retrievedPad.PublicStatus,
+		SavedRevisions: make([]any, 0),
+	}
+
+	authors := make(map[string]*author.Author)
+
+	for _, authorId := range retrievedPad.GetAllAuthors() {
+		retrievedAuthor, err := e.AuthorManager.GetAuthor(authorId)
+		if err != nil {
+			return nil, err
+		}
+		authors[authorId] = retrievedAuthor
+		export.Authors["globalAuthor:"+authorId] = GlobalAuthor{
+			ColorId:   retrievedAuthor.ColorId,
+			Name:      retrievedAuthor.Name,
+			PadIDs:    retrievedAuthor.PadIDs,
+			Timestamp: retrievedAuthor.Timestamp,
+		}
+	}
+
+	for _, chatMessage := range *chatMessages {
+		authorOfChat := authors[*chatMessage.ChatMessageDB.AuthorId]
+		export.Chats[fmt.Sprintf("%schat:%d", dstPfx, chatMessage.Head)] = ChatMessage{
+			Text:     chatMessage.ChatMessageDB.Message,
+			Time:     chatMessage.Time,
+			UserId:   chatMessage.ChatMessageDB.AuthorId,
+			UserName: authorOfChat.Name,
+		}
+	}
+
+	revisions, err := retrievedPad.GetRevisions(0, retrievedPad.Head)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, rev := range *revisions {
+		key := fmt.Sprintf("%srevs:%d", dstPfx, rev.RevNum)
+		attribToNum := make(map[string]interface{})
+		attribToNum[strconv.Itoa(rev.RevNum)] = []any{"author," + *rev.AuthorId, 0}
+		export.Revisions[key] = Revision{
+			Changeset: rev.Changeset,
+			Meta: RevisionMeta{
+				Pool: &PoolWithAttribToNum{
+					NextNum:     rev.RevNum + 1,
+					AttribToNum: attribToNum,
+					NumToAttrib: map[string][]string{
+						"0": {"author", *rev.AuthorId},
+					},
+				},
+				Author:    rev.AuthorId,
+				Timestamp: &rev.Timestamp,
+				AText: &AText{
+					Text:    rev.AText.Text,
+					Attribs: rev.AText.Attribs,
+				},
+			},
+		}
+	}
+	return export, nil
+
+}
+
+func (e *ExportEtherpad) DoExport(ctx *fiber.Ctx, id string, readOnlyId *string, fileExportType string) error {
+	fileName := id
+	if readOnlyId != nil {
+		fileName = *readOnlyId
+	}
+	ctx.Attachment(fileName + "." + fileExportType)
+	optRev := ctx.Params("rev")
+	var optRevNum *int = nil
+	if optRev != "" {
+		actualRev, err := utils.CheckValidRev(optRev)
+		if err != nil {
+			return ctx.Status(400).SendString(err.Error())
+		}
+		optRevNum = actualRev
+
+	}
+
+	if fileExportType == "etherpad" {
+		exportedPad, err := e.GetPadRaw(id, readOnlyId)
+		if err != nil {
+			return ctx.Status(500).SendString(err.Error())
+		}
+		marshalledPad, err := exportedPad.MarshalJSON()
+		if err != nil {
+			return ctx.Status(500).SendString(err.Error())
+		}
+		return ctx.Send(marshalledPad)
+	} else if fileExportType == "txt" {
+		println(optRevNum)
+		// TODO: implement txt export
+		return ctx.Status(501).SendString("Not Implemented yet")
+	}
+
+	ctx.SendString("Not Implemented")
+
+	return nil
+}

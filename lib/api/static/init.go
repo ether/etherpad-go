@@ -14,6 +14,7 @@ import (
 
 	"github.com/a-h/templ"
 	"github.com/ether/etherpad-go/assets/welcome"
+	"github.com/ether/etherpad-go/lib"
 	"github.com/ether/etherpad-go/lib/locales"
 	"github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/plugins"
@@ -23,8 +24,6 @@ import (
 	"github.com/evanw/esbuild/pkg/api"
 	"github.com/gofiber/adaptor/v2"
 	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/session"
-	"go.uber.org/zap"
 	"golang.org/x/net/html"
 )
 
@@ -157,14 +156,14 @@ func buildCssInDev(nodeEnv string, retrievedSettings *settings.Settings) {
 	buildStaticPadCSSInDev(retrievedSettings)
 }
 
-func Init(app *fiber.App, uiAssets embed.FS, retrievedSettings *settings.Settings, cookieStore *session.Store, setupLogger *zap.SugaredLogger) {
+func Init(store *lib.InitStore) {
 	var nodeEnv = os.Getenv("NODE_ENV")
-	buildCssInDev(nodeEnv, retrievedSettings)
+	buildCssInDev(nodeEnv, store.RetrievedSettings)
 
-	app.Use("/p/", func(c *fiber.Ctx) error {
+	store.C.Use("/p/", func(c *fiber.Ctx) error {
 		c.Path()
 
-		var _, err = cookieStore.Get(c)
+		var _, err = store.CookieStore.Get(c)
 		if err != nil {
 			println("Error with session")
 		}
@@ -172,95 +171,95 @@ func Init(app *fiber.App, uiAssets embed.FS, retrievedSettings *settings.Setting
 		return c.Next()
 	})
 
-	app.Get("/pluginfw/plugin-definitions.json", plugins.ReturnPluginResponse)
+	store.C.Get("/pluginfw/plugin-definitions.json", plugins.ReturnPluginResponse)
 
-	adminHtml, err := getAdminBody(uiAssets, retrievedSettings)
+	adminHtml, err := getAdminBody(store.UiAssets, store.RetrievedSettings)
 
 	if err != nil {
-		setupLogger.Errorf("Error setting up admin page: %v", err)
+		store.Logger.Errorf("Error setting up admin page: %v", err)
 	} else {
-		app.Get("/admin/index.html", func(c *fiber.Ctx) error {
+		store.C.Get("/admin/index.html", func(c *fiber.Ctx) error {
 			return c.Type("html").SendString(*adminHtml)
 		})
-		app.Get("/admin/", func(c *fiber.Ctx) error {
+		store.C.Get("/admin/", func(c *fiber.Ctx) error {
 			return c.Type("html").SendString(*adminHtml)
 		})
 	}
 
-	app.Get("/css/static/pad.css", func(ctx *fiber.Ctx) error {
+	store.C.Get("/css/static/pad.css", func(ctx *fiber.Ctx) error {
 		if nodeEnv != "production" {
 			fileContent, err := os.ReadFile("assets/css/build/static/pad.css")
 			if err != nil {
-				setupLogger.Errorf("Error setting up build page: %v. Did you forget to run the build script in ui directory?", err)
+				store.Logger.Errorf("Error setting up build page: %v. Did you forget to run the build script in ui directory?", err)
 			}
 			return ctx.Type("css").Send(fileContent)
 		} else {
-			fileContent, err := uiAssets.ReadFile("assets/css/build/static/pad.css")
+			fileContent, err := store.UiAssets.ReadFile("assets/css/build/static/pad.css")
 			if err != nil {
-				setupLogger.Errorf("Error setting up build page: %v. Did you forget to run the build script in ui directory?", err)
+				store.Logger.Errorf("Error setting up build page: %v. Did you forget to run the build script in ui directory?", err)
 			}
 			return ctx.Type("css").Send(fileContent)
 		}
 	})
 
-	app.Get("/css/skin/colibris/pad.css", func(ctx *fiber.Ctx) error {
+	store.C.Get("/css/skin/colibris/pad.css", func(ctx *fiber.Ctx) error {
 		if nodeEnv != "production" {
 			fileContent, err := os.ReadFile("assets/css/build/skin/colibris/pad.css")
 			if err != nil {
-				setupLogger.Errorf("Error setting up build page: %v. Did you forget to run the build script in ui directory?", err)
+				store.Logger.Errorf("Error setting up build page: %v. Did you forget to run the build script in ui directory?", err)
 			}
 			return ctx.Type("css").Send(fileContent)
 		} else {
-			fileContent, err := uiAssets.ReadFile("assets/css/build/skin/colibris/pad.css")
+			fileContent, err := store.UiAssets.ReadFile("assets/css/build/skin/colibris/pad.css")
 			if err != nil {
-				setupLogger.Errorf("Error setting up build page: %v. Did you forget to run the build script in ui directory?", err)
+				store.Logger.Errorf("Error setting up build page: %v. Did you forget to run the build script in ui directory?", err)
 			}
 			return ctx.Type("css").Send(fileContent)
 		}
 	})
 
-	registerEmbeddedStatic(app, "/images/", "assets/images", uiAssets)
-	registerEmbeddedStatic(app, "/admin/assets/", "assets/js/admin/assets", uiAssets)
-	registerEmbeddedStatic(app, "/admin/static/", "assets/js/admin/static", uiAssets)
-	registerEmbeddedStatic(app, "/images/favicon.ico", "assets/images/favicon.ico", uiAssets)
-	registerEmbeddedStatic(app, "/css/", "assets/css", uiAssets)
-	registerEmbeddedStatic(app, "/static/css/", "assets/css/static", uiAssets)
-	registerEmbeddedStatic(app, "/static/skins/colibris/", "assets/css/skin", uiAssets)
-	registerEmbeddedStatic(app, "/html/", "assets/html", uiAssets)
-	registerEmbeddedStatic(app, "/font/", "assets/font", uiAssets)
-	app.Get("/admin/locales/:locale", func(ctx *fiber.Ctx) error {
-		return locales.HandleLocale(ctx, uiAssets)
+	registerEmbeddedStatic(store.C, "/images/", "assets/images", store.UiAssets)
+	registerEmbeddedStatic(store.C, "/admin/assets/", "assets/js/admin/assets", store.UiAssets)
+	registerEmbeddedStatic(store.C, "/admin/static/", "assets/js/admin/static", store.UiAssets)
+	registerEmbeddedStatic(store.C, "/images/favicon.ico", "assets/images/favicon.ico", store.UiAssets)
+	registerEmbeddedStatic(store.C, "/css/", "assets/css", store.UiAssets)
+	registerEmbeddedStatic(store.C, "/static/css/", "assets/css/static", store.UiAssets)
+	registerEmbeddedStatic(store.C, "/static/skins/colibris/", "assets/css/skin", store.UiAssets)
+	registerEmbeddedStatic(store.C, "/html/", "assets/html", store.UiAssets)
+	registerEmbeddedStatic(store.C, "/font/", "assets/font", store.UiAssets)
+	store.C.Get("/admin/locales/:locale", func(ctx *fiber.Ctx) error {
+		return locales.HandleLocale(ctx, store.UiAssets)
 	})
 
-	app.Get("/p/:pad", func(ctx *fiber.Ctx) error {
-		return pad.HandlePadOpen(ctx, uiAssets, retrievedSettings)
+	store.C.Get("/p/:pad", func(ctx *fiber.Ctx) error {
+		return pad.HandlePadOpen(ctx, store.UiAssets, store.RetrievedSettings)
 	})
 
-	app.Get("/p/:pad/timeslider", func(c *fiber.Ctx) error {
-		return timeslider.HandleTimesliderOpen(c, uiAssets, retrievedSettings)
+	store.C.Get("/p/:pad/timeslider", func(c *fiber.Ctx) error {
+		return timeslider.HandleTimesliderOpen(c, store.UiAssets, store.RetrievedSettings)
 	})
 
-	app.Get("/favicon.ico", func(c *fiber.Ctx) error {
+	store.C.Get("/favicon.ico", func(c *fiber.Ctx) error {
 		return c.Redirect("/images/favicon.ico", fiber.StatusMovedPermanently)
 	})
 
-	app.Get("/", func(c *fiber.Ctx) error {
+	store.C.Get("/", func(c *fiber.Ctx) error {
 		var language = c.Cookies("language", "en")
-		var keyValues, err = utils.LoadTranslations(language, uiAssets)
+		var keyValues, err = utils.LoadTranslations(language, store.UiAssets)
 		if err != nil {
 			return err
 		}
-		component := welcome.Page(retrievedSettings, keyValues)
+		component := welcome.Page(store.RetrievedSettings, keyValues)
 		return adaptor.HTTPHandler(templ.Handler(component))(c)
 	})
 
 	if nodeEnv == "production" {
-		registerEmbeddedStatic(app, "/js/pad/assets/", "assets/js/pad/assets", uiAssets)
-		registerEmbeddedStatic(app, "/js/welcome/assets/", "assets/js/welcome/assets", uiAssets)
-		registerEmbeddedStatic(app, "/admin/assets", "assets/js/admin/assets", uiAssets)
-		registerEmbeddedStatic(app, "/js/timeslider/assets/", "assets/js/timeslider/assets", uiAssets)
+		registerEmbeddedStatic(store.C, "/js/pad/assets/", "assets/js/pad/assets", store.UiAssets)
+		registerEmbeddedStatic(store.C, "/js/welcome/assets/", "assets/js/welcome/assets", store.UiAssets)
+		registerEmbeddedStatic(store.C, "/admin/assets", "assets/js/admin/assets", store.UiAssets)
+		registerEmbeddedStatic(store.C, "/js/timeslider/assets/", "assets/js/timeslider/assets", store.UiAssets)
 	} else {
-		app.Get("/js/*", func(c *fiber.Ctx) error {
+		store.C.Get("/js/*", func(c *fiber.Ctx) error {
 			var entrypoint string
 
 			if strings.Contains(c.Path(), "welcome") {
@@ -279,7 +278,7 @@ func Init(app *fiber.App, uiAssets embed.FS, retrievedSettings *settings.Setting
 			alias["ep_etherpad-lite/static/js/rjquery"] = relativePath + "/rjquery"
 			alias["ep_etherpad-lite/static/js/nice-select"] = "ep_etherpad-lite/static/js/vendors/nice-select"
 
-			var pathToBuild = path.Join(retrievedSettings.Root, "ui")
+			var pathToBuild = path.Join(store.RetrievedSettings.Root, "ui")
 
 			result := api.Build(api.BuildOptions{
 				EntryPoints:   []string{entrypoint},
@@ -304,7 +303,7 @@ func Init(app *fiber.App, uiAssets embed.FS, retrievedSettings *settings.Setting
 		})
 	}
 
-	registerEmbeddedStatic(app, "/images", "assets/images", uiAssets)
-	registerEmbeddedStatic(app, "/static/", "assets/html", uiAssets)
-	registerEmbeddedStatic(app, "/pluginfw", "assets/plugin", uiAssets)
+	registerEmbeddedStatic(store.C, "/images", "assets/images", store.UiAssets)
+	registerEmbeddedStatic(store.C, "/static/", "assets/html", store.UiAssets)
+	registerEmbeddedStatic(store.C, "/pluginfw", "assets/plugin", store.UiAssets)
 }

@@ -213,7 +213,7 @@ func testGetRevisionsOnNonexistentPad(t *testing.T, ds testutils.TestDataStore) 
 }
 
 func testSaveRevisionsOnNonexistentPad(t *testing.T, ds testutils.TestDataStore) {
-	err := ds.DS.SaveRevision("nonexistentPad", 0, "test", apool.AText{}, apool.APool{}, nil, 1234)
+	err := ds.DS.SaveRevision("nonexistentPad", 0, "test", modeldb.AText{}, modeldb.RevPool{}, nil, 1234)
 	if err == nil || err.Error() != "pad not found" {
 		t.Fatalf("should return error for nonexistent pad")
 	}
@@ -293,7 +293,15 @@ func testGetRevisionOnNonExistingRevision(t *testing.T, ds testutils.TestDataSto
 
 func testSaveAndGetRevisionAndMetaData(t *testing.T, ds testutils.TestDataStore) {
 	text := apool.AText{}
-	pool := apool.APool{}
+	numToAttribPool := make(map[int]apool.Attribute)
+	numToAttribPool[0] = apool.Attribute{Key: "bold", Value: "true"}
+	attribToNum := make(map[apool.Attribute]int)
+
+	pool := apool.APool{
+		NextNum:     1,
+		NumToAttrib: numToAttribPool,
+		AttribToNum: attribToNum,
+	}
 	randomAuthor := author2.NewRandomAuthor()
 
 	err := ds.DS.SaveAuthor(*author2.ToDBAuthor(randomAuthor))
@@ -309,7 +317,7 @@ func testSaveAndGetRevisionAndMetaData(t *testing.T, ds testutils.TestDataStore)
 		t.Fatalf("CreatePad failed: %v", err)
 	}
 
-	if err := ds.DS.SaveRevision("pad1", 0, "changeset0", text, pool, &randomAuthor.Id, 12345); err != nil {
+	if err := ds.DS.SaveRevision("pad1", 0, "changeset0", text.ToDBAText(), pool.ToRevDB(), &randomAuthor.Id, 12345); err != nil {
 		t.Fatalf("SaveRevision failed: %v", err)
 	}
 
@@ -419,14 +427,16 @@ func testQueryPadSortingAndPattern(t *testing.T, ds testutils.TestDataStore) {
 			t.Fatalf("CreateAuthor failed: %v", err)
 		}
 
+		dbAtext := text.ToDBAText()
+		dbPool := pool.ToRevDB()
 		p := modeldb.PadDB{
 			RevNum:         rev,
-			SavedRevisions: map[int]modeldb.PadRevision{rev: {Content: "c", PadDBMeta: modeldb.PadDBMeta{AText: &text, Pool: &pool, Author: &savedAuthor.Id, Timestamp: ts}}},
+			SavedRevisions: map[int]modeldb.PadRevision{rev: {Content: "c", PadDBMeta: modeldb.PadRevDBMeta{AText: &dbAtext, Pool: &dbPool, Author: &savedAuthor.Id, Timestamp: ts}}},
 		}
 		if err := ds.DS.CreatePad(name, p); err != nil {
 			t.Fatalf("CreatePad failed: %v", err)
 		}
-		if err := ds.DS.SaveRevision(name, rev, "changeset", text, pool, &savedAuthor.Id, ts); err != nil {
+		if err := ds.DS.SaveRevision(name, rev, "changeset", text.ToDBAText(), pool.ToRevDB(), &savedAuthor.Id, ts); err != nil {
 			t.Fatalf("SaveRevision failed: %v", err)
 		}
 	}
@@ -686,9 +696,11 @@ func testReadonlyMappingsAndRemoveRevisions(t *testing.T, ds testutils.TestDataS
 	text := apool.AText{}
 	pool := apool.APool{}
 	author := "a"
+	padDbPool := pool.ToRevDB()
+	atext := text.ToDBAText()
 	pad := modeldb.PadDB{
 		RevNum:         2,
-		SavedRevisions: map[int]modeldb.PadRevision{0: {Content: "c", PadDBMeta: modeldb.PadDBMeta{AText: &text, Pool: &pool, Author: &author, Timestamp: 1}}},
+		SavedRevisions: map[int]modeldb.PadRevision{0: {Content: "c", PadDBMeta: modeldb.PadRevDBMeta{AText: &atext, Pool: &padDbPool, Author: &author, Timestamp: 1}}},
 	}
 	err = ds.DS.CreatePad("padRem", pad)
 	if err != nil {

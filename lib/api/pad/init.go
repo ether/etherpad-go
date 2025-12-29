@@ -3,12 +3,12 @@ package pad
 import (
 	"errors"
 
+	"github.com/ether/etherpad-go/lib"
 	errors2 "github.com/ether/etherpad-go/lib/api/errors"
 	utils2 "github.com/ether/etherpad-go/lib/api/utils"
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/utils"
-	"github.com/ether/etherpad-go/lib/ws"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -46,9 +46,9 @@ type AttributePoolResponse struct {
 	Pool apool.APool `json:"pool"`
 }
 
-func Init(c *fiber.App, handler *ws.PadMessageHandler, manager *pad.Manager) {
-	c.Get("/pads/:padId/text", func(c *fiber.Ctx) error {
-		foundPad, err := utils2.GetPadSafe(c.Params("padID", ""), true, nil, nil, manager)
+func Init(initStore *lib.InitStore) {
+	initStore.C.Get("/pads/:padId/text", func(c *fiber.Ctx) error {
+		foundPad, err := utils2.GetPadSafe(c.Params("padID", ""), true, nil, nil, initStore.PadManager)
 		if err != nil {
 			return c.Status(404).JSON(errors2.PadNotFoundError)
 		}
@@ -83,9 +83,9 @@ func Init(c *fiber.App, handler *ws.PadMessageHandler, manager *pad.Manager) {
 		})
 	})
 
-	c.Get("/pads/:padId/attributePool", func(ctx *fiber.Ctx) error {
+	initStore.C.Get("/pads/:padId/attributePool", func(ctx *fiber.Ctx) error {
 		var padIdToFind = ctx.Params("padId")
-		var padFound, err = utils2.GetPadSafe(padIdToFind, true, nil, nil, manager)
+		var padFound, err = utils2.GetPadSafe(padIdToFind, true, nil, nil, initStore.PadManager)
 		if err != nil {
 			return ctx.Status(404).JSON(errors2.PadNotFoundError)
 		}
@@ -94,7 +94,7 @@ func Init(c *fiber.App, handler *ws.PadMessageHandler, manager *pad.Manager) {
 			Pool: padFound.Pool,
 		})
 	})
-	c.Get("/pads/:padId/:rev/revisionChangeset", func(ctx *fiber.Ctx) error {
+	initStore.C.Get("/pads/:padId/:rev/revisionChangeset", func(ctx *fiber.Ctx) error {
 		var padId = ctx.Params("padId")
 		var rev = ctx.Params("rev")
 
@@ -103,7 +103,7 @@ func Init(c *fiber.App, handler *ws.PadMessageHandler, manager *pad.Manager) {
 			return ctx.Status(400).JSON(errors2.InvalidRevisionError)
 		}
 
-		var pad, errorForPad2 = utils2.GetPadSafe(padId, true, nil, nil, manager)
+		var pad, errorForPad2 = utils2.GetPadSafe(padId, true, nil, nil, initStore.PadManager)
 		if errorForPad2 != nil {
 			return ctx.Status(404).JSON(errors2.PadNotFoundError)
 		}
@@ -121,7 +121,7 @@ func Init(c *fiber.App, handler *ws.PadMessageHandler, manager *pad.Manager) {
 		return ctx.JSON(revision.Changeset)
 	})
 
-	c.Post("/pads/:padId/text", func(ctx *fiber.Ctx) error {
+	initStore.C.Post("/pads/:padId/text", func(ctx *fiber.Ctx) error {
 		type Request struct {
 			Text     string `json:"text"`
 			AuthorId string `json:"authorId"`
@@ -135,7 +135,7 @@ func Init(c *fiber.App, handler *ws.PadMessageHandler, manager *pad.Manager) {
 			return ctx.Status(400).JSON(errors2.InvalidRequestError)
 		}
 
-		var retrievedPad, errPadSafe = utils2.GetPadSafe(padId, true, nil, nil, manager)
+		var retrievedPad, errPadSafe = utils2.GetPadSafe(padId, true, nil, nil, initStore.PadManager)
 		if errPadSafe != nil {
 			return ctx.Status(404).JSON(errors2.PadNotFoundError)
 		}
@@ -143,7 +143,7 @@ func Init(c *fiber.App, handler *ws.PadMessageHandler, manager *pad.Manager) {
 		if err != nil {
 			return ctx.Status(500).JSON(errors2.InternalServerError)
 		}
-		handler.UpdatePadClients(retrievedPad)
+		initStore.Handler.UpdatePadClients(retrievedPad)
 		return ctx.SendStatus(200)
 	})
 }

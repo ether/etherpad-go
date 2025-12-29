@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	sq "github.com/Masterminds/squirrel"
-	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/models/db"
 	session2 "github.com/ether/etherpad-go/lib/models/session"
 	mysql2 "github.com/go-sql-driver/mysql"
@@ -81,8 +80,12 @@ func (d MysqlDB) GetRevisions(padId string, startRev int, endRev int) (*[]db.Pad
 
 	var revisions []db.PadSingleRevision
 	for query.Next() {
+		var serializedPool string
 		var revisionDB db.PadSingleRevision
-		query.Scan(&revisionDB.PadId, &revisionDB.RevNum, &revisionDB.Changeset, &revisionDB.AText.Text, &revisionDB.AText.Attribs, &revisionDB.AuthorId, &revisionDB.Timestamp)
+		query.Scan(&revisionDB.PadId, &revisionDB.RevNum, &revisionDB.Changeset, &revisionDB.AText.Text, &revisionDB.AText.Attribs, &revisionDB.AuthorId, &revisionDB.Timestamp, &serializedPool)
+		if err := json.Unmarshal([]byte(serializedPool), &revisionDB.Pool); err != nil {
+			return nil, fmt.Errorf("error deserializing pool: %v", err)
+		}
 		revisions = append(revisions, revisionDB)
 	}
 
@@ -416,7 +419,11 @@ func (d MysqlDB) GetRevision(padId string, rev int) (*db.PadSingleRevision, erro
 
 	for query.Next() {
 		var revisionDB db.PadSingleRevision
-		query.Scan(&revisionDB.PadId, &revisionDB.RevNum, &revisionDB.Changeset, &revisionDB.AText.Text, &revisionDB.AText.Attribs, &revisionDB.AuthorId, &revisionDB.Timestamp)
+		var serializedPool string
+		query.Scan(&revisionDB.PadId, &revisionDB.RevNum, &revisionDB.Changeset, &revisionDB.AText.Text, &revisionDB.AText.Attribs, &revisionDB.AuthorId, &revisionDB.Timestamp, &serializedPool)
+		if err := json.Unmarshal([]byte(serializedPool), &revisionDB.Pool); err != nil {
+			return nil, fmt.Errorf("error deserializing pool: %v", err)
+		}
 		return &revisionDB, nil
 	}
 
@@ -541,7 +548,7 @@ func (d MysqlDB) GetPadIds() (*[]string, error) {
 	return &padIds, nil
 }
 
-func (d MysqlDB) SaveRevision(padId string, rev int, changeset string, text apool.AText, pool apool.APool, authorId *string, timestamp int64) error {
+func (d MysqlDB) SaveRevision(padId string, rev int, changeset string, text db.AText, pool db.RevPool, authorId *string, timestamp int64) error {
 	exists, err := d.DoesPadExist(padId)
 	if err != nil {
 		return err
@@ -551,9 +558,14 @@ func (d MysqlDB) SaveRevision(padId string, rev int, changeset string, text apoo
 		return errors.New(PadDoesNotExistError)
 	}
 
+	marshalled, err := json.Marshal(pool)
+	if err != nil {
+		return fmt.Errorf("failed to marshal pool: %v", err)
+	}
+
 	toSql, i, err := mysql.Insert("padRev").
-		Columns("id", "rev", "changeset", "atextText", "atextAttribs", "authorId", "timestamp").
-		Values(padId, rev, changeset, text.Text, text.Attribs, authorId, timestamp).
+		Columns("id", "rev", "changeset", "atextText", "atextAttribs", "authorId", "timestamp", "pool").
+		Values(padId, rev, changeset, text.Text, text.Attribs, authorId, timestamp, string(marshalled)).
 		ToSql()
 
 	if err != nil {

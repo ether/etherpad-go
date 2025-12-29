@@ -75,8 +75,6 @@ func OpsFromText(opcode string, text string, attribs *KeepArgs, pool *apool.APoo
 		var emptyValueIsDelete = opcode == "+"
 		var attribMap = NewAttributeMap(pool)
 		op.Attribs = attribMap.Update(*attribs.apoolAttribs, &emptyValueIsDelete).String()
-	} else {
-		println("This should never happen")
 	}
 	var lastNewLinePos = utils.RuneLastIndex(text, "\n")
 	if lastNewLinePos < 0 {

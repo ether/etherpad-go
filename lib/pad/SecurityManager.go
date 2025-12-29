@@ -10,6 +10,7 @@ import (
 	"github.com/ether/etherpad-go/lib/models/webaccess"
 	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/ether/etherpad-go/lib/utils"
+	"github.com/gofiber/fiber/v2"
 )
 
 type SecurityManager struct {
@@ -38,9 +39,9 @@ func (s *SecurityManager) CheckAccess(padId *string, sessionCookie *string, toke
 		return nil, errors.New("padId is nil")
 	}
 	var canCreate = !settings.Displayed.EditOnly
-	if s.ReadOnlyManager.isReadOnlyID(padId) {
+	if s.ReadOnlyManager.IsReadOnlyID(padId) {
 		canCreate = false
-		foundPadId, err := s.ReadOnlyManager.getPadId(*padId)
+		foundPadId, err := s.ReadOnlyManager.GetPadId(*padId)
 
 		if err == nil {
 			return nil, errors.New("padId not found")
@@ -137,4 +138,14 @@ func (s *SecurityManager) CheckAccess(padId *string, sessionCookie *string, toke
 	}
 
 	return &grantedAccess, nil
+}
+
+func (s *SecurityManager) HasPadAccess(ctx *fiber.Ctx) bool {
+	tokenCookie := ctx.Cookies("token")
+	padId := ctx.Params("pad")
+	accessStatus, err := s.CheckAccess(&padId, nil, &tokenCookie, nil)
+	if err != nil {
+		return false
+	}
+	return accessStatus != nil && accessStatus.AccessStatus == "grant"
 }

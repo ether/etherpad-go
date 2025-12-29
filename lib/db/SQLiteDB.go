@@ -4,10 +4,10 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 
 	sq "github.com/Masterminds/squirrel"
-	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/models/db"
 	session2 "github.com/ether/etherpad-go/lib/models/session"
 	"github.com/ory/fosite"
@@ -85,7 +85,8 @@ func (d SQLiteDB) GetRevisions(padId string, startRev int, endRev int) (*[]db.Pa
 	var revisions []db.PadSingleRevision
 	for query.Next() {
 		var revisionDB db.PadSingleRevision
-		query.Scan(&revisionDB.PadId, &revisionDB.RevNum, &revisionDB.Changeset, &revisionDB.AText.Text, &revisionDB.AText.Attribs, &revisionDB.AuthorId, &revisionDB.Timestamp)
+		var serializedPool string
+		query.Scan(&revisionDB.PadId, &revisionDB.RevNum, &revisionDB.Changeset, &revisionDB.AText.Text, &revisionDB.AText.Attribs, &revisionDB.AuthorId, &revisionDB.Timestamp, &serializedPool)
 		revisions = append(revisions, revisionDB)
 	}
 
@@ -422,7 +423,11 @@ func (d SQLiteDB) GetRevision(padId string, rev int) (*db.PadSingleRevision, err
 
 	for query.Next() {
 		var revisionDB db.PadSingleRevision
-		query.Scan(&revisionDB.PadId, &revisionDB.RevNum, &revisionDB.Changeset, &revisionDB.AText.Text, &revisionDB.AText.Attribs, &revisionDB.AuthorId, &revisionDB.Timestamp)
+		var serializedPool string
+		query.Scan(&revisionDB.PadId, &revisionDB.RevNum, &revisionDB.Changeset, &revisionDB.AText.Text, &revisionDB.AText.Attribs, &revisionDB.AuthorId, &revisionDB.Timestamp, &serializedPool)
+		if err := json.Unmarshal([]byte(serializedPool), &revisionDB.Pool); err != nil {
+			return nil, fmt.Errorf("error deserializing pool: %v", err)
+		}
 		return &revisionDB, nil
 	}
 
@@ -547,7 +552,7 @@ func (d SQLiteDB) GetPadIds() (*[]string, error) {
 	return &padIds, nil
 }
 
-func (d SQLiteDB) SaveRevision(padId string, rev int, changeset string, text apool.AText, pool apool.APool, authorId *string, timestamp int64) error {
+func (d SQLiteDB) SaveRevision(padId string, rev int, changeset string, text db.AText, pool db.RevPool, authorId *string, timestamp int64) error {
 	exists, err := d.DoesPadExist(padId)
 	if err != nil {
 		return err
@@ -557,9 +562,14 @@ func (d SQLiteDB) SaveRevision(padId string, rev int, changeset string, text apo
 		return errors.New(PadDoesNotExistError)
 	}
 
+	serializedPool, err := json.Marshal(pool)
+	if err != nil {
+		return fmt.Errorf("error serializing pool: %v", err)
+	}
+
 	toSql, i, err := sq.Insert("padRev").
-		Columns("id", "rev", "changeset", "atextText", "atextAttribs", "authorId", "timestamp").
-		Values(padId, rev, changeset, text.Text, text.Attribs, authorId, timestamp).
+		Columns("id", "rev", "changeset", "atextText", "atextAttribs", "authorId", "timestamp", "pool").
+		Values(padId, rev, changeset, text.Text, text.Attribs, authorId, timestamp, serializedPool).
 		ToSql()
 
 	if err != nil {
