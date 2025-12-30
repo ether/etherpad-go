@@ -408,7 +408,7 @@ func (h AdminMessageHandler) DeleteRevisions(padId string, keepRevisions int) er
 
 		createdRevision = utils.CreateRevision(currentRevisionDb.Changeset, currentRevisionDb.Timestamp, true, currentRevisionDb.AuthorId, newAtext, pool)
 		if err := h.store.SaveRevision(padContent.Id, newRev, createdRevision.Changeset, newAtext.ToDBAText(), pool.ToRevDB(), createdRevision.Meta.Author, createdRevision.Meta.Timestamp); err != nil {
-			println("Error saving revision:", err.Error())
+			println("Error saving revision after deleting:", err.Error())
 			return err
 		}
 	}

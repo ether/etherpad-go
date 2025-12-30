@@ -208,26 +208,38 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 		panic("Can't apply changeset to pad text")
 	}
 
-	var newRev = retrievedPad.AppendRevision(rebasedChangeset, &session.Author)
+	newRev, err := retrievedPad.AppendRevision(rebasedChangeset, &session.Author)
+	if err != nil {
+		println("Error appending revision", err)
+		return
+	}
 	// The head revision will either stay the same or increase by 1 depending on whether the
 	// changeset has a net effect.
 	var rangeForRevs = make([]int, 2)
 	rangeForRevs[0] = r
 	rangeForRevs[1] = r + 1
 
-	if !slices.Contains(rangeForRevs, newRev) {
+	if !slices.Contains(rangeForRevs, *newRev) {
 		panic("Revision number is not within range")
 	}
 
 	var correctionChangeset = p.correctMarkersInPad(retrievedPad.AText, retrievedPad.Pool)
 	if correctionChangeset != nil {
-		retrievedPad.AppendRevision(*correctionChangeset, &session.Author)
+		_, err := retrievedPad.AppendRevision(*correctionChangeset, &session.Author)
+		if err != nil {
+			println("Error appending correction changeset", err)
+			return
+		}
 	}
 
 	// Make sure the pad always ends with an empty line.
 	if utils.RuneLastIndex(retrievedPad.Text(), "\n") != utf8.RuneCountInString(retrievedPad.Text())-1 {
 		var nlChangeset, _ = changeset.MakeSplice(retrievedPad.Text(), utf8.RuneCountInString(retrievedPad.Text())-1, 0, "\n", nil, nil)
-		retrievedPad.AppendRevision(nlChangeset, &session.Author)
+		_, err := retrievedPad.AppendRevision(nlChangeset, &session.Author)
+		if err != nil {
+			println("Error appending newline changeset", err)
+			return
+		}
 	}
 
 	if session.Revision != r {
@@ -242,7 +254,7 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 		Type: "COLLABROOM",
 		Data: AcceptCommitData{
 			Type:   "ACCEPT_COMMIT",
-			NewRev: newRev,
+			NewRev: *newRev,
 		},
 	}
 	var bytes, _ = json.Marshal(arr)
@@ -252,17 +264,17 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 		return
 	}
 
-	session.Revision = newRev
+	session.Revision = *newRev
 
-	if newRev != r {
-		optTime, err := retrievedPad.GetRevisionDate(newRev)
+	if *newRev != r {
+		optTime, err := retrievedPad.GetRevisionDate(*newRev)
 		if err != nil {
 			println("Error retrieving revision date", err)
 			return
 		}
 		session.Time = *optTime
 	}
-	retrievedPad.Head = newRev
+	retrievedPad.Head = *newRev
 	p.UpdatePadClients(retrievedPad)
 }
 

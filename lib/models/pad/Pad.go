@@ -339,10 +339,6 @@ func CleanText(context string) *string {
 
 func (p *Pad) Init(text *string, author *string, authorManager *author.Manager) error {
 	p.authorManager = authorManager
-	if author == nil {
-		author = new(string)
-		*author = ""
-	}
 
 	var pad, err = p.db.GetPad(p.Id)
 
@@ -372,7 +368,10 @@ func (p *Pad) Init(text *string, author *string, authorManager *author.Manager) 
 		}
 
 		var firstChangeset, _ = changeset.MakeSplice("\n", 0, 0, *text, nil, nil)
-		p.AppendRevision(firstChangeset, author)
+		_, err := p.AppendRevision(firstChangeset, author)
+		if err != nil {
+			return err
+		}
 	}
 
 	p.hook.ExecuteHooks(hooks.PadLoadString, Load{
@@ -419,7 +418,10 @@ func (p *Pad) SpliceText(start int, ndel int, ins string, authorId *string) erro
 	if err != nil {
 		return err
 	}
-	p.AppendRevision(changesetFromSplice, authorId)
+	_, err = p.AppendRevision(changesetFromSplice, authorId)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -473,20 +475,16 @@ func (p *Pad) getPublicStatus() bool {
 	return p.PublicStatus
 }
 
-func (p *Pad) AppendRevision(cs string, authorId *string) int {
-	if authorId == nil {
-		authorId = new(string)
-		*authorId = ""
-	}
+func (p *Pad) AppendRevision(cs string, authorId *string) (*int, error) {
 	var newAText, err = changeset.ApplyToAText(cs, p.AText, p.Pool)
 
 	if err != nil {
 		println("Error applying changeset to atext:", err.Error())
-		return p.Head
+		return &p.Head, errors.New("Error applying changeset to atext " + err.Error())
 	}
 
 	if newAText.Text == p.AText.Text && newAText.Attribs == p.AText.Attribs && p.Head != -1 {
-		return p.Head
+		return &p.Head, nil
 	}
 
 	apool.CopyAText(*newAText, &p.AText)
@@ -514,7 +512,7 @@ func (p *Pad) AppendRevision(cs string, authorId *string) int {
 	err = p.db.SaveRevision(p.Id, newRev, cs, atextToUse.ToDBAText(), poolToUse.ToRevDB(), authorId, time.Now().UnixNano()/int64(time.Millisecond))
 
 	if err != nil {
-		println("Error saving revision", err.Error())
+		return nil, errors.New("Error saving revision during append " + err.Error())
 	}
 
 	if authorId != nil {
@@ -524,7 +522,7 @@ func (p *Pad) AppendRevision(cs string, authorId *string) int {
 		}
 	}
 
-	return p.Head
+	return &p.Head, nil
 }
 
 func (p *Pad) GetAllAuthors() []string {
