@@ -70,6 +70,7 @@ func (m *MemoryDataStore) GetRevisions(padId string, startRev int, endRev int) (
 		var padSingleRevision = db.PadSingleRevision{
 			PadId:     padId,
 			RevNum:    rev,
+			Pool:      revisionFromPad.PadDBMeta.Pool,
 			Changeset: revisionFromPad.Content,
 			AText:     *revisionFromPad.PadDBMeta.AText,
 			AuthorId:  revisionFromPad.PadDBMeta.Author,
@@ -269,6 +270,7 @@ func (m *MemoryDataStore) GetRevision(padId string, rev int) (*db.PadSingleRevis
 	var padSingleRevision = db.PadSingleRevision{
 		PadId:     padId,
 		RevNum:    rev,
+		Pool:      revisionFromPad.PadDBMeta.Pool,
 		Changeset: revisionFromPad.Content,
 		AText:     *revisionFromPad.PadDBMeta.AText,
 		AuthorId:  revisionFromPad.PadDBMeta.Author,
