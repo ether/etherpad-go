@@ -25,13 +25,14 @@ func (p *PadPool) ToIntPool() map[int][]string {
 }
 
 type PadDB struct {
-	RevNum         int                 `json:"head"`
-	SavedRevisions map[int]PadRevision `json:"savedRevisions"`
-	ReadOnlyId     string              `json:"readOnlyId"`
-	Pool           PadPool             `json:"pool"`
-	ChatHead       int                 `json:"chatHead"`
-	PublicStatus   bool                `json:"publicStatus"`
-	AText          AText               `json:"atext"`
+	RevNum         int                       `json:"head"`
+	SavedRevisions map[int]PadRevision       `json:"savedRevisions"`
+	Revisions      map[int]PadSingleRevision `json:"revisions"`
+	ReadOnlyId     string                    `json:"readOnlyId"`
+	Pool           PadPool                   `json:"pool"`
+	ChatHead       int                       `json:"chatHead"`
+	PublicStatus   bool                      `json:"publicStatus"`
+	AText          AText                     `json:"atext"`
 }
 
 type PadRevision struct {

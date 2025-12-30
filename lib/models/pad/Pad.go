@@ -436,6 +436,7 @@ func (p *Pad) GetRevisions(start int, end int) (*[]db2.PadSingleRevision, error)
 func (p *Pad) Save() error {
 	return p.db.CreatePad(p.Id, db2.PadDB{
 		SavedRevisions: make(map[int]db2.PadRevision),
+		Revisions:      map[int]db2.PadSingleRevision{},
 		RevNum:         p.Head,
 		Pool:           p.Pool.ToPadDB(),
 		AText:          p.AText.ToDBAText(),
