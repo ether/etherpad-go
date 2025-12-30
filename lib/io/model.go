@@ -13,9 +13,9 @@ type Pool struct {
 }
 
 type PoolWithAttribToNum struct {
-	NumToAttrib map[string][]string    `json:"numToAttrib"`
-	AttribToNum map[string]interface{} `json:"attribToNum"`
-	NextNum     int                    `json:"nextNum"`
+	NumToAttrib map[string][]string `json:"numToAttrib"`
+	AttribToNum map[string]int      `json:"attribToNum"`
+	NextNum     int                 `json:"nextNum"`
 }
 
 type PadData struct {
@@ -28,10 +28,10 @@ type PadData struct {
 }
 
 type GlobalAuthor struct {
-	ColorId   string              `json:"colorId"`
-	Timestamp int64               `json:"timestamp"`
-	PadIDs    map[string]struct{} `json:"padIDs"`
-	Name      *string             `json:"name"`
+	ColorId   string  `json:"colorId"`
+	Timestamp int64   `json:"timestamp"`
+	PadIDs    string  `json:"padIDs"`
+	Name      *string `json:"name"`
 }
 
 type RevisionMeta struct {

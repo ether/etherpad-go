@@ -16,6 +16,7 @@ type ExportEtherpad struct {
 	hooks         *hooks.Hook
 	PadManager    *pad.Manager
 	AuthorManager *author.Manager
+	exportTxt     *ExportTxt
 }
 
 func NewExportEtherpad(hooks *hooks.Hook, padManager *pad.Manager, db db.DataStore) *ExportEtherpad {
@@ -23,15 +24,21 @@ func NewExportEtherpad(hooks *hooks.Hook, padManager *pad.Manager, db db.DataSto
 		hooks:         hooks,
 		PadManager:    padManager,
 		AuthorManager: author.NewManager(db),
+		exportTxt: &ExportTxt{
+			PadManager: padManager,
+		},
 	}
 }
 
 func (e *ExportEtherpad) GetPadRaw(padId string, readOnlyId *string) (*EtherpadExport, error) {
 	var dstPfx string
+	var padIdToUse string
 	if readOnlyId != nil {
 		dstPfx = "pad:" + *readOnlyId + ":"
+		padIdToUse = *readOnlyId
 	} else {
 		dstPfx = "pad:" + padId + ":"
+		padIdToUse = padId
 	}
 	var customPrefixes []string
 
@@ -49,6 +56,7 @@ func (e *ExportEtherpad) GetPadRaw(padId string, readOnlyId *string) (*EtherpadE
 		Pad:       make(map[string]PadData),
 		Authors:   make(map[string]GlobalAuthor),
 		Revisions: make(map[string]Revision),
+		Chats:     make(map[string]ChatMessage),
 	}
 	var numToAttrib = make(map[string][]string)
 	for i, v := range retrievedPad.Pool.NumToAttrib {
@@ -78,7 +86,7 @@ func (e *ExportEtherpad) GetPadRaw(padId string, readOnlyId *string) (*EtherpadE
 		export.Authors["globalAuthor:"+authorId] = GlobalAuthor{
 			ColorId:   retrievedAuthor.ColorId,
 			Name:      retrievedAuthor.Name,
-			PadIDs:    retrievedAuthor.PadIDs,
+			PadIDs:    padIdToUse,
 			Timestamp: retrievedAuthor.Timestamp,
 		}
 	}
@@ -106,11 +114,9 @@ func (e *ExportEtherpad) GetPadRaw(padId string, readOnlyId *string) (*EtherpadE
 			Changeset: rev.Changeset,
 			Meta: RevisionMeta{
 				Pool: &PoolWithAttribToNum{
-					NextNum:     rev.RevNum + 1,
-					AttribToNum: attribToNum,
-					NumToAttrib: map[string][]string{
-						"0": {"author", *rev.AuthorId},
-					},
+					NextNum:     rev.Pool.NextNum,
+					AttribToNum: rev.Pool.AttribToNum,
+					NumToAttrib: rev.Pool.NumToAttrib,
 				},
 				Author:    rev.AuthorId,
 				Timestamp: &rev.Timestamp,
@@ -122,7 +128,6 @@ func (e *ExportEtherpad) GetPadRaw(padId string, readOnlyId *string) (*EtherpadE
 		}
 	}
 	return export, nil
-
 }
 
 func (e *ExportEtherpad) DoExport(ctx *fiber.Ctx, id string, readOnlyId *string, fileExportType string) error {
@@ -153,9 +158,11 @@ func (e *ExportEtherpad) DoExport(ctx *fiber.Ctx, id string, readOnlyId *string,
 		}
 		return ctx.Send(marshalledPad)
 	} else if fileExportType == "txt" {
-		println(optRevNum)
-		// TODO: implement txt export
-		return ctx.Status(501).SendString("Not Implemented yet")
+		textString, err := e.exportTxt.GetPadTxtDocument(id, optRevNum)
+		if err != nil {
+			return ctx.Status(500).SendString(err.Error())
+		}
+		return ctx.SendString(*textString)
 	}
 
 	ctx.SendString("Not Implemented")
