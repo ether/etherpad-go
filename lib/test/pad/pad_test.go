@@ -36,6 +36,10 @@ func TestPad(t *testing.T) {
 			Test: testGetRevisionChangesetsOnNonExistingPad,
 		},
 		testutils.TestRunConfig{
+			Name: "Get Internal Revision AText",
+			Test: testGetInternalRevisionAText,
+		},
+		testutils.TestRunConfig{
 			Name: "Get Revision Changesets on Existing Pad non-Existing Revision",
 			Test: testGetRevisionChangesetsOnExistingPadNonExistingRevision,
 		},
@@ -116,6 +120,19 @@ func testGetRevisionChangesetsOnNonExistingPad(t *testing.T, ts testutils.TestDa
 	_, err := padToTest.GetRevisionChangeset(100)
 	if err == nil {
 		t.Fatal("should error with non existing pad:", err)
+	}
+}
+
+func testGetInternalRevisionAText(t *testing.T, ts testutils.TestDataStore) {
+	padToTest := pad.CreateNewPad(ts.DS)
+	gotPad, err := ts.PadManager.GetPad(padToTest.Id, nil, nil)
+	if err != nil {
+		t.Fatal("failed to get pad:", err)
+	}
+
+	apool := gotPad.GetInternalRevisionAText(0)
+	if apool == nil {
+		t.Fatal("expected a valid AText, got nil")
 	}
 }
 
