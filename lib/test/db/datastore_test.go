@@ -347,6 +347,11 @@ func testSaveAndGetRevisionAndMetaData(t *testing.T, ds testutils.TestDataStore)
 	if meta.Timestamp != 12345 {
 		t.Fatalf("GetPadMetaData Timestamp mismatch")
 	}
+
+	if len(meta.PadPool.NumToAttrib) != 1 || meta.PadPool.NextNum != 1 {
+		t.Fatalf("GetPadMetaData PadPool mismatch")
+	}
+
 	if meta.AuthorId == nil || *meta.AuthorId != randomAuthor.Id {
 		t.Fatalf("GetPadMetaData AuthorId mismatch")
 	}

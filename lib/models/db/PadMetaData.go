@@ -8,4 +8,5 @@ type PadMetaData struct {
 	AtextAttribs string
 	AuthorId     *string
 	Timestamp    int64
+	PadPool      PadPool
 }

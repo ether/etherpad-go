@@ -868,10 +868,16 @@ func (d SQLiteDB) GetPadMetaData(padId string, revNum int) (*db.PadMetaData, err
 
 	for query.Next() {
 		var padMetaData db.PadMetaData
-		err := query.Scan(&padMetaData.Id, &padMetaData.RevNum, &padMetaData.ChangeSet, &padMetaData.Atext.Text, &padMetaData.AtextAttribs, &padMetaData.AuthorId, &padMetaData.Timestamp)
+		var serializedPool string
+		err := query.Scan(&padMetaData.Id, &padMetaData.RevNum, &padMetaData.ChangeSet, &padMetaData.Atext.Text, &padMetaData.AtextAttribs, &padMetaData.AuthorId, &padMetaData.Timestamp, &serializedPool)
 		if err != nil {
 			return nil, err
 		}
+
+		if err := json.Unmarshal([]byte(serializedPool), &padMetaData.PadPool); err != nil {
+			return nil, err
+		}
+
 		return &padMetaData, nil
 	}
 
