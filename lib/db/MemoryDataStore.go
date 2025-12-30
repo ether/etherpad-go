@@ -295,6 +295,10 @@ func (m *MemoryDataStore) GetPadMetaData(padId string, revNum int) (*db.PadMetaD
 	return &db.PadMetaData{
 		AuthorId:  rev.PadDBMeta.Author,
 		Timestamp: rev.PadDBMeta.Timestamp,
+		PadPool: db.PadPool{
+			NextNum:     retrievedPad.Pool.NextNum,
+			NumToAttrib: retrievedPad.Pool.NumToAttrib,
+		},
 	}, nil
 }
 
