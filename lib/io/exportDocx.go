@@ -4,6 +4,8 @@ import (
 	"archive/zip"
 	"bytes"
 	"fmt"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/ether/etherpad-go/lib/apool"
@@ -304,24 +306,29 @@ func (e *ExportDocx) parseLineSegments(text string, aline string, padPool *apool
 // parseListType extracts the list type and level from a list attribute value
 // e.g., "bullet1" -> ("bullet", 1), "number2" -> ("number", 2)
 func parseListType(listAttr string) (string, int) {
-	if strings.HasPrefix(listAttr, "bullet") {
-		level := 1
-		if len(listAttr) > 6 {
-			if l, err := fmt.Sscanf(listAttr[6:], "%d", &level); err != nil || l != 1 {
-				level = 1
-			}
-		}
-		return "bullet", level
-	} else if strings.HasPrefix(listAttr, "number") {
-		level := 1
-		if len(listAttr) > 6 {
-			if l, err := fmt.Sscanf(listAttr[6:], "%d", &level); err != nil || l != 1 {
-				level = 1
-			}
-		}
-		return "number", level
+	// Use regex to match any list type like bullet1, number1, indent1, etc.
+	re := regexp.MustCompile(`^([a-z]+)([0-9]+)`)
+	m := re.FindStringSubmatch(listAttr)
+	if m == nil {
+		return "", 0
 	}
-	return "", 0
+
+	level, _ := strconv.Atoi(m[2])
+	tag := m[1]
+
+	// Map Etherpad list types to DOCX list types
+	switch tag {
+	case "bullet":
+		return "bullet", level
+	case "number":
+		return "number", level
+	case "indent":
+		// indent is treated as bullet list without bullet char
+		return "bullet", level
+	default:
+		// Unknown list type, treat as bullet
+		return "bullet", level
+	}
 }
 
 // DOCX XML Templates

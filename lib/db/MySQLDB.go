@@ -908,6 +908,10 @@ func NewMySQLDB(options MySQLOptions) (*MysqlDB, error) {
 		return nil, err
 	}
 
+	// Set connection pool limits to avoid "too many connections" error
+	sqlDb.SetMaxOpenConns(25)
+	sqlDb.SetMaxIdleConns(5)
+
 	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS pad (id VARCHAR(255) PRIMARY KEY, data TEXT)")
 	if err != nil {
 		return nil, err

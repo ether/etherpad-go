@@ -246,6 +246,7 @@ export class SocketIoWrapper {
             console.warn('Cannot emit, socket not connected. Current state:', this.connectionState.status)
             return
         }
+        // Send as object {event, data} to match the format expected by the backend
         this._socket.send(JSON.stringify({ event, data }))
     }
 

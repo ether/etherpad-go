@@ -181,11 +181,22 @@ const getCollabClient = (ace2editor, serverVars, initialUserInfo, options, _pad)
   }();
 
   const handleMessageFromServer = (evt) => {
-    if (!getSocket()) return;
-    if (!evt.data) return;
+    console.log('handleMessageFromServer called with:', evt);
+    if (!getSocket()) {
+      console.log('handleMessageFromServer: no socket, returning');
+      return;
+    }
+    if (!evt.data) {
+      console.log('handleMessageFromServer: no evt.data, returning. evt:', evt);
+      return;
+    }
     const wrapper = evt;
-    if (wrapper.type !== 'COLLABROOM' && wrapper.type !== 'CUSTOM') return;
+    if (wrapper.type !== 'COLLABROOM' && wrapper.type !== 'CUSTOM') {
+      console.log('handleMessageFromServer: wrong type, returning. wrapper.type:', wrapper.type);
+      return;
+    }
     const msg = wrapper.data;
+    console.log('handleMessageFromServer processing msg:', msg);
 
     if (msg.type === 'NEW_CHANGES') {
       serverMessageTaskQueue.enqueue(async () => {
@@ -209,13 +220,18 @@ const getCollabClient = (ace2editor, serverVars, initialUserInfo, options, _pad)
     } else if (msg.type === 'ACCEPT_COMMIT') {
       serverMessageTaskQueue.enqueue(() => {
         const {newRev} = msg;
+        console.log(`ACCEPT_COMMIT: current rev=${rev}, newRev=${newRev}, expected=${rev} or ${rev + 1}`);
         // newRev will equal rev if the changeset has no net effect (identity changeset, removing
         // and re-adding the same characters with the same attributes, or retransmission of an
         // already applied changeset).
-        if (![rev, rev + 1].includes(newRev)) {
-          window.console.warn(`bad message revision on ACCEPT_COMMIT: ${newRev} not ${rev + 1}`);
+        // Also accept if newRev > rev (server may have processed other changes)
+        if (newRev < rev) {
+          window.console.warn(`bad message revision on ACCEPT_COMMIT: ${newRev} less than current ${rev}`);
           // setChannelState("DISCONNECTED", "badmessage_acceptcommit");
           return;
+        }
+        if (newRev > rev + 1) {
+          window.console.warn(`ACCEPT_COMMIT: revision jump from ${rev} to ${newRev}, accepting anyway`);
         }
         rev = newRev;
         acceptCommit();

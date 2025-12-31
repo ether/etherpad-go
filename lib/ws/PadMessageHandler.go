@@ -166,6 +166,9 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 	rebasedChangeset := changeset.MoveOpsToNewPool(task.message.Data.Data.Changeset, &wireApool, &retrievedPad.Pool)
 
 	var r = task.message.Data.Data.BaseRev
+	headRev := retrievedPad.Head
+
+	p.Logger.Debugf("Processing USER_CHANGES: baseRev=%d, headRev=%d, changeset=%s", r, headRev, task.message.Data.Data.Changeset)
 
 	// The client's changeset might not be based on the latest revision,
 	// since other Clients are sending changes at the same time.
@@ -174,7 +177,7 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 		r++
 		var revisionPad, err = retrievedPad.GetRevision(r)
 		if err != nil {
-			println("Error retrieving revision", err)
+			p.Logger.Warnf("Error retrieving revision %d: %v", r, err)
 			return
 		}
 
@@ -182,7 +185,7 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 			// Assume this is a retransmission of an already applied changeset.
 			unpackedChangeset, err = changeset.Unpack(task.message.Data.Data.Changeset)
 			if err != nil {
-				println("Error retrieving changeset", err)
+				p.Logger.Warnf("Error unpacking changeset: %v", err)
 				return
 			}
 			rebasedChangeset = changeset.Identity(unpackedChangeset.OldLen)
@@ -193,22 +196,27 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 		// and can be applied after "c".
 		optRebasedChangeset, err := changeset.Follow(revisionPad.Changeset, rebasedChangeset, false, &retrievedPad.Pool)
 		if err != nil {
-			println("Error rebasing changeset", err)
+			p.Logger.Warnf("Error rebasing changeset at rev %d: %v", r, err)
 			return
 		}
 		rebasedChangeset = *optRebasedChangeset
 	}
 
+	p.Logger.Debugf("After rebasing: rebasedChangeset=%s", rebasedChangeset)
+
 	prevText := retrievedPad.Text()
 	oldLen, err := changeset.OldLen(rebasedChangeset)
 
 	if err != nil {
-		println("Error retrieving old len from changeset", err)
+		p.Logger.Warnf("Error retrieving old len from changeset: %v", err)
 		return
 	}
 
 	if *oldLen != utf8.RuneCountInString(prevText) {
-		panic("Can't apply changeset to pad text")
+		p.Logger.Warnf("Can't apply changeset to pad text: oldLen=%d, prevTextLen=%d, baseRev=%d, headRev=%d",
+			*oldLen, utf8.RuneCountInString(prevText), r, retrievedPad.Head)
+		// Don't panic - just return and let the client retry or reconnect
+		return
 	}
 
 	newRev, err := retrievedPad.AppendRevision(rebasedChangeset, &session.Author)
@@ -226,30 +234,7 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 		p.Logger.Warnf("Head revision after appending changeset is unexpected. Expected: %v, Got: %d", rangeForRevs, *newRev)
 		return
 	}
-
-	var correctionChangeset = p.correctMarkersInPad(retrievedPad.AText, retrievedPad.Pool)
-	if correctionChangeset != nil {
-		_, err := retrievedPad.AppendRevision(*correctionChangeset, &session.Author)
-		if err != nil {
-			p.Logger.Warnf("Error appending correction changeset: %v", err)
-			return
-		}
-	}
-
-	// Make sure the pad always ends with an empty line.
-	if utils.RuneLastIndex(retrievedPad.Text(), "\n") != utf8.RuneCountInString(retrievedPad.Text())-1 {
-		var nlChangeset, _ = changeset.MakeSplice(retrievedPad.Text(), utf8.RuneCountInString(retrievedPad.Text())-1, 0, "\n", nil, nil)
-		_, err := retrievedPad.AppendRevision(nlChangeset, &session.Author)
-		if err != nil {
-			p.Logger.Warnf("Error appending correction changeset: %v", err)
-			return
-		}
-	}
-
-	if session.Revision != r {
-		p.Logger.Warnf("Client revision does not match server revision after applying changeset. Client revision: %d, Server revision: %d", session.Revision, r)
-		return
-	}
+	finalRev := retrievedPad.Head
 
 	// The client assumes that ACCEPT_COMMIT and NEW_CHANGES messages arrive in order. Make sure we
 	// have already sent any previous ACCEPT_COMMIT and NEW_CHANGES messages.
@@ -259,7 +244,7 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 		Type: "COLLABROOM",
 		Data: AcceptCommitData{
 			Type:   "ACCEPT_COMMIT",
-			NewRev: *newRev,
+			NewRev: finalRev,
 		},
 	}
 	var bytes, _ = json.Marshal(arr)
@@ -269,17 +254,17 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 		return
 	}
 
-	session.Revision = *newRev
+	session.Revision = finalRev
 
-	if *newRev != r {
-		optTime, err := retrievedPad.GetRevisionDate(*newRev)
+	if finalRev != r {
+		optTime, err := retrievedPad.GetRevisionDate(finalRev)
 		if err != nil {
 			p.Logger.Warnf("Error retrieving revision date: %v", err)
 			return
 		}
 		session.Time = *optTime
 	}
-	retrievedPad.Head = *newRev
+	retrievedPad.Head = finalRev
 	p.UpdatePadClients(retrievedPad)
 }
 

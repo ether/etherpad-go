@@ -4,6 +4,8 @@ import (
 	"archive/zip"
 	"bytes"
 	"fmt"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/ether/etherpad-go/lib/apool"
@@ -101,14 +103,6 @@ func (e *ExportOdt) generateOdt(paragraphs []odtParagraph) ([]byte, error) {
 		}
 	}
 
-	// Add required ODT files
-	files := map[string]string{
-		"mimetype":              odtMimetype,
-		"META-INF/manifest.xml": odtManifest,
-		"styles.xml":            odtStylesXML,
-		"content.xml":           e.generateContentXML(paragraphs, authorColorSet),
-	}
-
 	// mimetype must be first and uncompressed
 	mimetypeWriter, err := zipWriter.CreateHeader(&zip.FileHeader{
 		Name:   "mimetype",
@@ -123,10 +117,13 @@ func (e *ExportOdt) generateOdt(paragraphs []odtParagraph) ([]byte, error) {
 	}
 
 	// Add other files
+	files := map[string]string{
+		"META-INF/manifest.xml": odtManifest,
+		"styles.xml":            odtStylesXML,
+		"content.xml":           e.generateContentXML(paragraphs, authorColorSet),
+	}
+
 	for name, content := range files {
-		if name == "mimetype" {
-			continue // Already added
-		}
 		writer, err := zipWriter.Create(name)
 		if err != nil {
 			return nil, err
@@ -152,7 +149,7 @@ func (e *ExportOdt) generateContentXML(paragraphs []odtParagraph, authorColors m
 	colorIndex := 0
 	colorStyleMap := make(map[string]string)
 	for color := range authorColors {
-		styleName := fmt.Sprintf("AuthorColor%d", colorIndex)
+		styleName := fmt.Sprintf("T%d", colorIndex)
 		colorStyleMap[color] = styleName
 		hexColor := strings.TrimPrefix(color, "#")
 		automaticStyles.WriteString(fmt.Sprintf(
@@ -161,11 +158,32 @@ func (e *ExportOdt) generateContentXML(paragraphs []odtParagraph, authorColors m
 		colorIndex++
 	}
 
-	// Generate styles for formatting combinations
-	automaticStyles.WriteString(`<style:style style:name="Bold" style:family="text"><style:text-properties fo:font-weight="bold"/></style:style>`)
-	automaticStyles.WriteString(`<style:style style:name="Italic" style:family="text"><style:text-properties fo:font-style="italic"/></style:style>`)
-	automaticStyles.WriteString(`<style:style style:name="Underline" style:family="text"><style:text-properties style:text-underline-style="solid" style:text-underline-width="auto"/></style:style>`)
-	automaticStyles.WriteString(`<style:style style:name="Strikethrough" style:family="text"><style:text-properties style:text-line-through-style="solid"/></style:style>`)
+	// Generate styles for formatting
+	automaticStyles.WriteString(`<style:style style:name="TBold" style:family="text"><style:text-properties fo:font-weight="bold" style:font-weight-asian="bold" style:font-weight-complex="bold"/></style:style>`)
+	automaticStyles.WriteString(`<style:style style:name="TItalic" style:family="text"><style:text-properties fo:font-style="italic" style:font-style-asian="italic" style:font-style-complex="italic"/></style:style>`)
+	automaticStyles.WriteString(`<style:style style:name="TUnderline" style:family="text"><style:text-properties style:text-underline-style="solid" style:text-underline-width="auto" style:text-underline-color="font-color"/></style:style>`)
+	automaticStyles.WriteString(`<style:style style:name="TStrike" style:family="text"><style:text-properties style:text-line-through-style="solid" style:text-line-through-type="single"/></style:style>`)
+
+	// Generate combined styles for multiple formatting
+	automaticStyles.WriteString(`<style:style style:name="TBoldItalic" style:family="text"><style:text-properties fo:font-weight="bold" fo:font-style="italic" style:font-weight-asian="bold" style:font-style-asian="italic" style:font-weight-complex="bold" style:font-style-complex="italic"/></style:style>`)
+
+	// Bullet list style
+	automaticStyles.WriteString(`<text:list-style style:name="L1">`)
+	automaticStyles.WriteString(`<text:list-level-style-bullet text:level="1" text:style-name="Bullet_20_Symbols" text:bullet-char="•">`)
+	automaticStyles.WriteString(`<style:list-level-properties text:list-level-position-and-space-mode="label-alignment">`)
+	automaticStyles.WriteString(`<style:list-level-label-alignment text:label-followed-by="listtab" text:list-tab-stop-position="1.27cm" fo:text-indent="-0.635cm" fo:margin-left="1.27cm"/>`)
+	automaticStyles.WriteString(`</style:list-level-properties>`)
+	automaticStyles.WriteString(`</text:list-level-style-bullet>`)
+	automaticStyles.WriteString(`</text:list-style>`)
+
+	// Number list style
+	automaticStyles.WriteString(`<text:list-style style:name="L2">`)
+	automaticStyles.WriteString(`<text:list-level-style-number text:level="1" text:style-name="Numbering_20_Symbols" style:num-suffix="." style:num-format="1">`)
+	automaticStyles.WriteString(`<style:list-level-properties text:list-level-position-and-space-mode="label-alignment">`)
+	automaticStyles.WriteString(`<style:list-level-label-alignment text:label-followed-by="listtab" text:list-tab-stop-position="1.27cm" fo:text-indent="-0.635cm" fo:margin-left="1.27cm"/>`)
+	automaticStyles.WriteString(`</style:list-level-properties>`)
+	automaticStyles.WriteString(`</text:list-level-style-number>`)
+	automaticStyles.WriteString(`</text:list-style>`)
 
 	// Track list state
 	inBulletList := false
@@ -179,22 +197,23 @@ func (e *ExportOdt) generateContentXML(paragraphs []odtParagraph, authorColors m
 				inNumberList = false
 			}
 			if !inBulletList {
-				bodyContent.WriteString(`<text:list text:style-name="BulletList">`)
+				bodyContent.WriteString(`<text:list text:style-name="L1">`)
 				inBulletList = true
 			}
-			bodyContent.WriteString("<text:list-item><text:p>")
+			bodyContent.WriteString("<text:list-item>")
+			bodyContent.WriteString("<text:p text:style-name=\"Standard\">")
 		} else if para.listType == "number" {
 			if inBulletList {
 				bodyContent.WriteString("</text:list>")
 				inBulletList = false
 			}
 			if !inNumberList {
-				bodyContent.WriteString(`<text:list text:style-name="NumberList">`)
+				bodyContent.WriteString(`<text:list text:style-name="L2">`)
 				inNumberList = true
 			}
-			bodyContent.WriteString("<text:list-item><text:p>")
+			bodyContent.WriteString("<text:list-item>")
+			bodyContent.WriteString("<text:p text:style-name=\"Standard\">")
 		} else {
-			// Close any open lists
 			if inBulletList {
 				bodyContent.WriteString("</text:list>")
 				inBulletList = false
@@ -203,66 +222,29 @@ func (e *ExportOdt) generateContentXML(paragraphs []odtParagraph, authorColors m
 				bodyContent.WriteString("</text:list>")
 				inNumberList = false
 			}
-			bodyContent.WriteString("<text:p>")
+			bodyContent.WriteString("<text:p text:style-name=\"Standard\">")
 		}
 
+		// Write segments
 		for _, seg := range para.segments {
-			// Determine style name based on formatting
-			var styles []string
-			if seg.bold {
-				styles = append(styles, "Bold")
-			}
-			if seg.italic {
-				styles = append(styles, "Italic")
-			}
-			if seg.underline {
-				styles = append(styles, "Underline")
-			}
-			if seg.strikethrough {
-				styles = append(styles, "Strikethrough")
-			}
-
-			// Build text:span with appropriate styling
-			if len(styles) > 0 || seg.authorColor != "" {
-				bodyContent.WriteString("<text:span")
-
-				// For simplicity, we'll inline the styles
-				bodyContent.WriteString(" text:style-name=\"")
-				if seg.authorColor != "" {
-					bodyContent.WriteString(colorStyleMap[seg.authorColor])
-				} else if len(styles) > 0 {
-					bodyContent.WriteString(styles[0])
-				}
-				bodyContent.WriteString("\">")
-
-				// If we have author color and formatting, nest spans
-				if seg.authorColor != "" && len(styles) > 0 {
-					for _, style := range styles {
-						bodyContent.WriteString(fmt.Sprintf(`<text:span text:style-name="%s">`, style))
-					}
-				}
-
+			styleName := e.getStyleName(seg, colorStyleMap)
+			if styleName != "" {
+				bodyContent.WriteString(fmt.Sprintf(`<text:span text:style-name="%s">`, styleName))
 				bodyContent.WriteString(escapeXMLOdt(seg.text))
-
-				if seg.authorColor != "" && len(styles) > 0 {
-					for range styles {
-						bodyContent.WriteString("</text:span>")
-					}
-				}
 				bodyContent.WriteString("</text:span>")
 			} else {
 				bodyContent.WriteString(escapeXMLOdt(seg.text))
 			}
 		}
 
+		// Close paragraph
+		bodyContent.WriteString("</text:p>")
 		if para.listType != "" {
-			bodyContent.WriteString("</text:p></text:list-item>")
-		} else {
-			bodyContent.WriteString("</text:p>")
+			bodyContent.WriteString("</text:list-item>")
 		}
 	}
 
-	// Close any remaining open lists
+	// Close any remaining lists
 	if inBulletList {
 		bodyContent.WriteString("</text:list>")
 	}
@@ -271,6 +253,29 @@ func (e *ExportOdt) generateContentXML(paragraphs []odtParagraph, authorColors m
 	}
 
 	return fmt.Sprintf(odtContentXMLTemplate, automaticStyles.String(), bodyContent.String())
+}
+
+func (e *ExportOdt) getStyleName(seg odtTextSegment, colorStyleMap map[string]string) string {
+	// Priority: author color, then formatting
+	if seg.authorColor != "" {
+		return colorStyleMap[seg.authorColor]
+	}
+	if seg.bold && seg.italic {
+		return "TBoldItalic"
+	}
+	if seg.bold {
+		return "TBold"
+	}
+	if seg.italic {
+		return "TItalic"
+	}
+	if seg.underline {
+		return "TUnderline"
+	}
+	if seg.strikethrough {
+		return "TStrike"
+	}
+	return ""
 }
 
 func escapeXMLOdt(s string) string {
@@ -401,24 +406,25 @@ func (e *ExportOdt) parseLineSegments(text string, aline string, padPool *apool.
 }
 
 func parseListTypeOdt(listAttr string) (string, int) {
-	if strings.HasPrefix(listAttr, "bullet") {
-		level := 1
-		if len(listAttr) > 6 {
-			if l, err := fmt.Sscanf(listAttr[6:], "%d", &level); err != nil || l != 1 {
-				level = 1
-			}
-		}
-		return "bullet", level
-	} else if strings.HasPrefix(listAttr, "number") {
-		level := 1
-		if len(listAttr) > 6 {
-			if l, err := fmt.Sscanf(listAttr[6:], "%d", &level); err != nil || l != 1 {
-				level = 1
-			}
-		}
-		return "number", level
+	re := regexp.MustCompile(`^([a-z]+)([0-9]+)`)
+	m := re.FindStringSubmatch(listAttr)
+	if m == nil {
+		return "", 0
 	}
-	return "", 0
+
+	level, _ := strconv.Atoi(m[2])
+	tag := m[1]
+
+	switch tag {
+	case "bullet":
+		return "bullet", level
+	case "number":
+		return "number", level
+	case "indent":
+		return "bullet", level
+	default:
+		return "bullet", level
+	}
 }
 
 // ODT file constants
@@ -435,26 +441,16 @@ const odtStylesXML = `<?xml version="1.0" encoding="UTF-8"?>
 <office:document-styles xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
   xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
   xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
-  xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0">
+  xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0"
+  office:version="1.2">
   <office:styles>
-    <style:style style:name="Standard" style:family="paragraph">
-      <style:paragraph-properties fo:margin-top="0cm" fo:margin-bottom="0.212cm"/>
-      <style:text-properties fo:font-size="12pt" style:font-name="Arial"/>
-    </style:style>
-    <text:list-style style:name="BulletList">
-      <text:list-level-style-bullet text:level="1" text:bullet-char="•">
-        <style:list-level-properties text:list-level-position-and-space-mode="label-alignment">
-          <style:list-level-label-alignment text:label-followed-by="listtab" fo:text-indent="-0.635cm" fo:margin-left="1.27cm"/>
-        </style:list-level-properties>
-      </text:list-level-style-bullet>
-    </text:list-style>
-    <text:list-style style:name="NumberList">
-      <text:list-level-style-number text:level="1" style:num-suffix="." style:num-format="1">
-        <style:list-level-properties text:list-level-position-and-space-mode="label-alignment">
-          <style:list-level-label-alignment text:label-followed-by="listtab" fo:text-indent="-0.635cm" fo:margin-left="1.27cm"/>
-        </style:list-level-properties>
-      </text:list-level-style-number>
-    </text:list-style>
+    <style:default-style style:family="paragraph">
+      <style:paragraph-properties fo:margin-top="0cm" fo:margin-bottom="0cm"/>
+      <style:text-properties fo:font-size="12pt" fo:font-family="Arial"/>
+    </style:default-style>
+    <style:style style:name="Standard" style:family="paragraph"/>
+    <style:style style:name="Bullet_20_Symbols" style:display-name="Bullet Symbols" style:family="text"/>
+    <style:style style:name="Numbering_20_Symbols" style:display-name="Numbering Symbols" style:family="text"/>
   </office:styles>
 </office:document-styles>`
 
@@ -465,11 +461,11 @@ const odtContentXMLTemplate = `<?xml version="1.0" encoding="UTF-8"?>
   xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0"
   office:version="1.2">
   <office:automatic-styles>
-    %s
+%s
   </office:automatic-styles>
   <office:body>
     <office:text>
-      %s
+%s
     </office:text>
   </office:body>
 </office:document-content>`
