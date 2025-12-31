@@ -23,7 +23,10 @@ type Changeset struct {
 
 func OpsFromAText(atext apool.AText) *[]Op {
 	var lastOp *Op = nil
-	var attribs, _ = DeserializeOps(atext.Attribs)
+	var attribs, err = DeserializeOps(atext.Attribs)
+	if err != nil {
+		return nil
+	}
 	var opsToReturn = make([]Op, 0)
 
 	for _, op := range *attribs {
@@ -36,7 +39,6 @@ func OpsFromAText(atext apool.AText) *[]Op {
 	if lastOp == nil {
 		return nil
 	}
-	// exclude final newline
 
 	if lastOp.Lines <= 1 {
 		lastOp.Lines = 0
@@ -153,7 +155,7 @@ func Identity(n int) string {
 }
 
 func Unpack(cs string) (*Changeset, error) {
-	var headerRegex, _ = regexp.Compile("Z:([0-9a-z]+)([><])([0-9a-z]+)|")
+	var headerRegex = regexp.MustCompile("Z:([0-9a-z]+)([><])([0-9a-z]+)|")
 	var foundHeaders = headerRegex.FindStringSubmatch(cs)
 
 	if len(foundHeaders) == 0 {

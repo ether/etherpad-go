@@ -107,7 +107,7 @@ func main() {
 
 	padManager := pad.NewManager(dataStore, &retrievedHooks)
 
-	padMessageHandler := ws.NewPadMessageHandler(dataStore, &retrievedHooks, padManager, &sessionStore, globalHub)
+	padMessageHandler := ws.NewPadMessageHandler(dataStore, &retrievedHooks, padManager, &sessionStore, globalHub, setupLogger)
 	adminMessageHandler := ws.NewAdminMessageHandler(dataStore, &retrievedHooks, padManager, padMessageHandler, setupLogger, globalHub)
 	securityManager := pad.NewSecurityManager(dataStore, &retrievedHooks, padManager)
 	authenticator := api2.InitAPI(&lib.InitStore{
