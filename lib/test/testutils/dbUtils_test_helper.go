@@ -410,8 +410,8 @@ func (test *TestDBHandler) TestRun(t *testing.T, testRun TestRunConfig, newDS fu
 		go hub.Run()
 		sess := ws.NewSessionStore()
 		padManager := pad.NewManager(ds, &hooks)
-		padMessageHandler := ws.NewPadMessageHandler(ds, &hooks, padManager, &sess, hub)
 		loggerPart := zap.NewNop().Sugar()
+		padMessageHandler := ws.NewPadMessageHandler(ds, &hooks, padManager, &sess, hub, loggerPart)
 		adminMessageHandler := ws.NewAdminMessageHandler(ds, &hooks, padManager, padMessageHandler, loggerPart, hub)
 		validatorEvaluator := validator.New(validator.WithRequiredStructEnabled())
 		testRun.Test(t, TestDataStore{
