@@ -19,7 +19,7 @@ type Factory struct {
 	AuthorManager   *author2.Manager
 }
 
-func (f *Factory) NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apool2.APool, historicalAuthorData map[string]author2.Author, retrievedSettings *settings.Settings) (*clientVars.ClientVars, error) {
+func (f *Factory) NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apool2.APool, translatedAttribs string, historicalAuthorData map[string]author2.Author, retrievedSettings *settings.Settings) (*clientVars.ClientVars, error) {
 	var historyData = make(map[string]clientVars.CollabAuthor)
 
 	for _, authorData := range historicalAuthorData {
@@ -143,7 +143,7 @@ func (f *Factory) NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apoo
 		CollabClientVars: clientVars.CollabClientVars{
 			InitialAttributedText: clientVars.InitialAttributedText{
 				Text:    pad.AText.Text,
-				Attribs: pad.AText.Attribs,
+				Attribs: translatedAttribs,
 			},
 			PadId:                pad.Id,
 			ClientIP:             "127.0.0.1",

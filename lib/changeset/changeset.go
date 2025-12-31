@@ -1422,12 +1422,13 @@ func MoveOpsToNewPool(cs string, oldPool *apool.APool, newPool *apool.APool) str
 
 		oldNum, err := utils.ParseNum(a)
 		if err != nil {
-			// ungültige Nummer -> entfernen wie im JS-Beispiel
+			println("Error parsing attribute number during pool move:", match, err)
 			return ""
 		}
 
 		pair, _ := oldPool.GetAttrib(oldNum)
 		if pair == nil {
+			println("Removing unknown attribute from changeset during pool move:", match)
 			// Attribut eventuell nicht im alten Pool -> wie JS: entfernen
 			return ""
 		}
@@ -1476,7 +1477,10 @@ func SplitAttributionLines(attrOps string, text string) ([]string, error) {
 		pos += op.Chars
 	}
 
-	var deserializedOps, _ = DeserializeOps(attrOps)
+	var deserializedOps, err = DeserializeOps(attrOps)
+	if err != nil {
+		return nil, err
+	}
 
 	for _, op := range *deserializedOps {
 		var numChars = op.Chars

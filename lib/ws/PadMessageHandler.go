@@ -1117,7 +1117,7 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 		var attribsForWire = changeset.PrepareForWire(atext.Attribs, retrievedPad.Pool)
 		atext.Attribs = attribsForWire.Translated
 		wirePool := attribsForWire.Pool.ToJsonable()
-		retrivedClientVars, err := p.factory.NewClientVars(*retrievedPad, thisSession, wirePool, historicalAuthorData, retrievedSettings)
+		retrivedClientVars, err := p.factory.NewClientVars(*retrievedPad, thisSession, wirePool, atext.Attribs, historicalAuthorData, retrievedSettings)
 		if err != nil {
 			println("Error creating client vars", err.Error())
 			return
