@@ -17,9 +17,8 @@ func GetExport(ctx *fiber.Ctx, exportHandler *io.ExportEtherpad, settings *setti
 	typesToExport := []string{
 		"pdf", "doc", "docx", "txt", "html", "odt", "etherpad",
 	}
-	externalTypes := []string{
-		"odt",
-	}
+	// All formats are now supported internally, no external tools needed
+	externalTypes := []string{}
 
 	if !slices.Contains(typesToExport, exportType) {
 		return ctx.Status(400).SendString("Invalid export type")

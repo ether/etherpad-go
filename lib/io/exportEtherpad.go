@@ -21,6 +21,7 @@ type ExportEtherpad struct {
 	exportTxt     *ExportTxt
 	exportPDF     *ExportPDF
 	exportDocx    *ExportDocx
+	exportOdt     *ExportOdt
 	logger        *zap.SugaredLogger
 }
 
@@ -43,6 +44,7 @@ func NewExportEtherpad(hooks *hooks.Hook, padManager *pad.Manager, db db.DataSto
 			authorManager: authorMgr,
 		},
 		exportDocx: NewExportDocx(padManager, authorMgr),
+		exportOdt:  NewExportOdt(padManager, authorMgr),
 		logger:     logger,
 	}
 }
@@ -208,6 +210,14 @@ func (e *ExportEtherpad) DoExport(ctx *fiber.Ctx, id string, readOnlyId *string,
 			return ctx.Status(500).SendString(err.Error())
 		}
 		return ctx.Send(docxBytes)
+	case "odt":
+		ctx.Set("Content-Type", "application/vnd.oasis.opendocument.text")
+		odtBytes, err := e.exportOdt.GetPadOdtDocument(id, optRevNum)
+		if err != nil {
+			e.logger.Warnf("Failed to get odt document for id: %s with cause %s", id, err.Error())
+			return ctx.Status(500).SendString(err.Error())
+		}
+		return ctx.Send(odtBytes)
 	default:
 		return ctx.Status(400).SendString("Not Implemented")
 	}

@@ -100,6 +100,26 @@ func TestExportHandler(t *testing.T) {
 			Test: testExportMixedFormattingPadAsDocx,
 		},
 		testutils.TestRunConfig{
+			Name: "Export Plain Text Pad as ODT",
+			Test: testExportPlainTextPadAsOdt,
+		},
+		testutils.TestRunConfig{
+			Name: "Export Bold Text Pad as ODT",
+			Test: testExportBoldTextPadAsOdt,
+		},
+		testutils.TestRunConfig{
+			Name: "Export Italic Text Pad as ODT",
+			Test: testExportItalicTextPadAsOdt,
+		},
+		testutils.TestRunConfig{
+			Name: "Export Indented Text Pad as ODT",
+			Test: testExportIndentedTextPadAsOdt,
+		},
+		testutils.TestRunConfig{
+			Name: "Export Mixed Formatting Pad as ODT",
+			Test: testExportMixedFormattingPadAsOdt,
+		},
+		testutils.TestRunConfig{
 			Name: "Export Non Existing Pad Returns 404",
 			Test: testExportNonExistingPadReturns404,
 		},
@@ -694,4 +714,127 @@ func testExportMixedFormattingPadAsDocx(t *testing.T, tsStore testutils.TestData
 
 	assert.True(t, len(body) > 4, "DOCX body should not be empty")
 	assert.Equal(t, "PK", string(body[:2]), "DOCX should start with PK (ZIP header)")
+}
+
+// ODT Export Tests
+func testExportPlainTextPadAsOdt(t *testing.T, tsStore testutils.TestDataStore) {
+	app := setupExportApp(tsStore)
+	padId := "plainTextPadOdt"
+	testText := "Hello World ODT"
+
+	token := createPadWithPlainText(t, tsStore, padId, testText)
+
+	req := httptest.NewRequest("GET", "/p/"+padId+"/export/odt", nil)
+	req.AddCookie(&http.Cookie{Name: "token", Value: token})
+	resp, err := app.Test(req, 5000)
+	assert.NoError(t, err)
+
+	body, err := io.ReadAll(resp.Body)
+	assert.NoError(t, err)
+
+	if resp.StatusCode != 200 {
+		t.Logf("ODT Export failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	assert.Equal(t, 200, resp.StatusCode)
+
+	// Check Content-Type header
+	contentType := resp.Header.Get("Content-Type")
+	assert.Equal(t, "application/vnd.oasis.opendocument.text", contentType)
+
+	// ODT files are ZIP files, they start with PK (0x50 0x4B)
+	assert.True(t, len(body) > 4, "ODT body should not be empty")
+	assert.Equal(t, "PK", string(body[:2]), "ODT should start with PK (ZIP header)")
+}
+
+func testExportBoldTextPadAsOdt(t *testing.T, tsStore testutils.TestDataStore) {
+	app := setupExportApp(tsStore)
+	padId := "boldTextPadOdt"
+	testText := "Bold Text ODT"
+
+	token := createPadWithBoldText(t, tsStore, padId, testText)
+
+	req := httptest.NewRequest("GET", "/p/"+padId+"/export/odt", nil)
+	req.AddCookie(&http.Cookie{Name: "token", Value: token})
+	resp, err := app.Test(req, 5000)
+	assert.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	contentType := resp.Header.Get("Content-Type")
+	assert.Equal(t, "application/vnd.oasis.opendocument.text", contentType)
+
+	body, err := io.ReadAll(resp.Body)
+	assert.NoError(t, err)
+
+	assert.True(t, len(body) > 4, "ODT body should not be empty")
+	assert.Equal(t, "PK", string(body[:2]), "ODT should start with PK (ZIP header)")
+}
+
+func testExportItalicTextPadAsOdt(t *testing.T, tsStore testutils.TestDataStore) {
+	app := setupExportApp(tsStore)
+	padId := "italicTextPadOdt"
+	testText := "Italic Text ODT"
+
+	token := createPadWithItalicText(t, tsStore, padId, testText)
+
+	req := httptest.NewRequest("GET", "/p/"+padId+"/export/odt", nil)
+	req.AddCookie(&http.Cookie{Name: "token", Value: token})
+	resp, err := app.Test(req, 5000)
+	assert.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	contentType := resp.Header.Get("Content-Type")
+	assert.Equal(t, "application/vnd.oasis.opendocument.text", contentType)
+
+	body, err := io.ReadAll(resp.Body)
+	assert.NoError(t, err)
+
+	assert.True(t, len(body) > 4, "ODT body should not be empty")
+	assert.Equal(t, "PK", string(body[:2]), "ODT should start with PK (ZIP header)")
+}
+
+func testExportIndentedTextPadAsOdt(t *testing.T, tsStore testutils.TestDataStore) {
+	app := setupExportApp(tsStore)
+	padId := "indentedTextPadOdt"
+	testText := "Indented Text ODT"
+
+	token := createPadWithIndentation(t, tsStore, padId, testText)
+
+	req := httptest.NewRequest("GET", "/p/"+padId+"/export/odt", nil)
+	req.AddCookie(&http.Cookie{Name: "token", Value: token})
+	resp, err := app.Test(req, 5000)
+	assert.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	contentType := resp.Header.Get("Content-Type")
+	assert.Equal(t, "application/vnd.oasis.opendocument.text", contentType)
+
+	body, err := io.ReadAll(resp.Body)
+	assert.NoError(t, err)
+
+	assert.True(t, len(body) > 4, "ODT body should not be empty")
+	assert.Equal(t, "PK", string(body[:2]), "ODT should start with PK (ZIP header)")
+}
+
+func testExportMixedFormattingPadAsOdt(t *testing.T, tsStore testutils.TestDataStore) {
+	app := setupExportApp(tsStore)
+	padId := "mixedFormattingPadOdt"
+	testText := "Mixed Formatting Text ODT"
+
+	token := createPadWithMixedFormatting(t, tsStore, padId, testText)
+
+	req := httptest.NewRequest("GET", "/p/"+padId+"/export/odt", nil)
+	req.AddCookie(&http.Cookie{Name: "token", Value: token})
+	resp, err := app.Test(req, 5000)
+	assert.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	contentType := resp.Header.Get("Content-Type")
+	assert.Equal(t, "application/vnd.oasis.opendocument.text", contentType)
+
+	body, err := io.ReadAll(resp.Body)
+	assert.NoError(t, err)
+
+	assert.True(t, len(body) > 4, "ODT body should not be empty")
+	assert.Equal(t, "PK", string(body[:2]), "ODT should start with PK (ZIP header)")
 }
