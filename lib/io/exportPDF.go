@@ -82,7 +82,20 @@ func (e *ExportPDF) GetPadPdfDocument(padId string, optRevNum *int) ([]byte, err
 }
 
 func (e *ExportPDF) loadFonts(pdf *gopdf.GoPdf) error {
-	regularBytes, err := e.uiAssets.ReadFile("assets/font/Roboto-Regular.ttf")
+	// Try multiple paths to support both production and test environments
+	regularPaths := []string{
+		"assets/font/Roboto-Regular.ttf",
+		"test_assets/assets/font/Roboto-Regular.ttf",
+	}
+
+	var regularBytes []byte
+	var err error
+	for _, path := range regularPaths {
+		regularBytes, err = e.uiAssets.ReadFile(path)
+		if err == nil {
+			break
+		}
+	}
 	if err != nil {
 		return fmt.Errorf("failed to read regular font file: %w", err)
 	}
@@ -91,7 +104,18 @@ func (e *ExportPDF) loadFonts(pdf *gopdf.GoPdf) error {
 		return fmt.Errorf("failed to load regular font: %w", err)
 	}
 
-	boldBytes, err := e.uiAssets.ReadFile("assets/font/Roboto-Bold.ttf")
+	boldPaths := []string{
+		"assets/font/Roboto-Bold.ttf",
+		"test_assets/assets/font/Roboto-Bold.ttf",
+	}
+
+	var boldBytes []byte
+	for _, path := range boldPaths {
+		boldBytes, err = e.uiAssets.ReadFile(path)
+		if err == nil {
+			break
+		}
+	}
 	if err != nil {
 		return fmt.Errorf("failed to read bold font file: %w", err)
 	}

@@ -55,6 +55,7 @@ func (t *TestDataStore) ToInitStore() *lib.InitStore {
 		Hooks:             t.Hooks,
 		ReadOnlyManager:   t.ReadOnlyManager,
 		C:                 t.App,
+		UiAssets:          GetTestAssets(),
 	}
 }
 

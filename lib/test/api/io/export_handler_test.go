@@ -28,12 +28,20 @@ func TestExportHandler(t *testing.T) {
 			Test: testExportPlainTextPadAsTxt,
 		},
 		testutils.TestRunConfig{
+			Name: "Export Plain Text Pad as PDF",
+			Test: testExportPlainTextPadAsPdf,
+		},
+		testutils.TestRunConfig{
 			Name: "Export Bold Text Pad as Etherpad",
 			Test: testExportBoldTextPadAsEtherpad,
 		},
 		testutils.TestRunConfig{
 			Name: "Export Bold Text Pad as TXT",
 			Test: testExportBoldTextPadAsTxt,
+		},
+		testutils.TestRunConfig{
+			Name: "Export Bold Text Pad as PDF",
+			Test: testExportBoldTextPadAsPdf,
 		},
 		testutils.TestRunConfig{
 			Name: "Export Italic Text Pad as Etherpad",
@@ -44,6 +52,10 @@ func TestExportHandler(t *testing.T) {
 			Test: testExportItalicTextPadAsTxt,
 		},
 		testutils.TestRunConfig{
+			Name: "Export Italic Text Pad as PDF",
+			Test: testExportItalicTextPadAsPdf,
+		},
+		testutils.TestRunConfig{
 			Name: "Export Indented Text Pad as Etherpad",
 			Test: testExportIndentedTextPadAsEtherpad,
 		},
@@ -52,12 +64,20 @@ func TestExportHandler(t *testing.T) {
 			Test: testExportIndentedTextPadAsTxt,
 		},
 		testutils.TestRunConfig{
+			Name: "Export Indented Text Pad as PDF",
+			Test: testExportIndentedTextPadAsPdf,
+		},
+		testutils.TestRunConfig{
 			Name: "Export Mixed Formatting Pad as Etherpad",
 			Test: testExportMixedFormattingPadAsEtherpad,
 		},
 		testutils.TestRunConfig{
 			Name: "Export Mixed Formatting Pad as TXT",
 			Test: testExportMixedFormattingPadAsTxt,
+		},
+		testutils.TestRunConfig{
+			Name: "Export Mixed Formatting Pad as PDF",
+			Test: testExportMixedFormattingPadAsPdf,
 		},
 		testutils.TestRunConfig{
 			Name: "Export Non Existing Pad Returns 404",
@@ -408,4 +428,127 @@ func testExportInvalidTypeReturns400(t *testing.T, tsStore testutils.TestDataSto
 	resp, err := app.Test(req, 5000)
 	assert.NoError(t, err)
 	assert.Equal(t, 400, resp.StatusCode)
+}
+
+// PDF Export Tests
+func testExportPlainTextPadAsPdf(t *testing.T, tsStore testutils.TestDataStore) {
+	app := setupExportApp(tsStore)
+	padId := "plainTextPadPdf"
+	testText := "Hello World PDF"
+
+	token := createPadWithPlainText(t, tsStore, padId, testText)
+
+	req := httptest.NewRequest("GET", "/p/"+padId+"/export/pdf", nil)
+	req.AddCookie(&http.Cookie{Name: "token", Value: token})
+	resp, err := app.Test(req, 5000)
+	assert.NoError(t, err)
+
+	body, err := io.ReadAll(resp.Body)
+	assert.NoError(t, err)
+
+	if resp.StatusCode != 200 {
+		t.Logf("PDF Export failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	assert.Equal(t, 200, resp.StatusCode)
+
+	// Check Content-Type header
+	contentType := resp.Header.Get("Content-Type")
+	assert.Equal(t, "application/pdf", contentType)
+
+	// PDF files start with %PDF
+	assert.True(t, len(body) > 4, "PDF body should not be empty")
+	assert.Equal(t, "%PDF", string(body[:4]), "PDF should start with %PDF header")
+}
+
+func testExportBoldTextPadAsPdf(t *testing.T, tsStore testutils.TestDataStore) {
+	app := setupExportApp(tsStore)
+	padId := "boldTextPadPdf"
+	testText := "Bold Text PDF"
+
+	token := createPadWithBoldText(t, tsStore, padId, testText)
+
+	req := httptest.NewRequest("GET", "/p/"+padId+"/export/pdf", nil)
+	req.AddCookie(&http.Cookie{Name: "token", Value: token})
+	resp, err := app.Test(req, 5000)
+	assert.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	contentType := resp.Header.Get("Content-Type")
+	assert.Equal(t, "application/pdf", contentType)
+
+	body, err := io.ReadAll(resp.Body)
+	assert.NoError(t, err)
+
+	assert.True(t, len(body) > 4, "PDF body should not be empty")
+	assert.Equal(t, "%PDF", string(body[:4]), "PDF should start with %PDF header")
+}
+
+func testExportItalicTextPadAsPdf(t *testing.T, tsStore testutils.TestDataStore) {
+	app := setupExportApp(tsStore)
+	padId := "italicTextPadPdf"
+	testText := "Italic Text PDF"
+
+	token := createPadWithItalicText(t, tsStore, padId, testText)
+
+	req := httptest.NewRequest("GET", "/p/"+padId+"/export/pdf", nil)
+	req.AddCookie(&http.Cookie{Name: "token", Value: token})
+	resp, err := app.Test(req, 5000)
+	assert.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	contentType := resp.Header.Get("Content-Type")
+	assert.Equal(t, "application/pdf", contentType)
+
+	body, err := io.ReadAll(resp.Body)
+	assert.NoError(t, err)
+
+	assert.True(t, len(body) > 4, "PDF body should not be empty")
+	assert.Equal(t, "%PDF", string(body[:4]), "PDF should start with %PDF header")
+}
+
+func testExportIndentedTextPadAsPdf(t *testing.T, tsStore testutils.TestDataStore) {
+	app := setupExportApp(tsStore)
+	padId := "indentedTextPadPdf"
+	testText := "Indented Text PDF"
+
+	token := createPadWithIndentation(t, tsStore, padId, testText)
+
+	req := httptest.NewRequest("GET", "/p/"+padId+"/export/pdf", nil)
+	req.AddCookie(&http.Cookie{Name: "token", Value: token})
+	resp, err := app.Test(req, 5000)
+	assert.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	contentType := resp.Header.Get("Content-Type")
+	assert.Equal(t, "application/pdf", contentType)
+
+	body, err := io.ReadAll(resp.Body)
+	assert.NoError(t, err)
+
+	assert.True(t, len(body) > 4, "PDF body should not be empty")
+	assert.Equal(t, "%PDF", string(body[:4]), "PDF should start with %PDF header")
+}
+
+func testExportMixedFormattingPadAsPdf(t *testing.T, tsStore testutils.TestDataStore) {
+	app := setupExportApp(tsStore)
+	padId := "mixedFormattingPadPdf"
+	testText := "Mixed Formatting Text PDF"
+
+	token := createPadWithMixedFormatting(t, tsStore, padId, testText)
+
+	req := httptest.NewRequest("GET", "/p/"+padId+"/export/pdf", nil)
+	req.AddCookie(&http.Cookie{Name: "token", Value: token})
+	resp, err := app.Test(req, 5000)
+	assert.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	contentType := resp.Header.Get("Content-Type")
+	assert.Equal(t, "application/pdf", contentType)
+
+	body, err := io.ReadAll(resp.Body)
+	assert.NoError(t, err)
+
+	assert.True(t, len(body) > 4, "PDF body should not be empty")
+	assert.Equal(t, "%PDF", string(body[:4]), "PDF should start with %PDF header")
 }
