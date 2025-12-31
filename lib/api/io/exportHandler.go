@@ -18,14 +18,14 @@ func GetExport(ctx *fiber.Ctx, exportHandler *io.ExportEtherpad, settings *setti
 		"pdf", "doc", "txt", "html", "odt", "etherpad",
 	}
 	externalTypes := []string{
-		"odt", "doc", "pdf",
+		"odt", "doc",
 	}
 
 	if !slices.Contains(typesToExport, exportType) {
 		return ctx.Status(400).SendString("Invalid export type")
 	}
 
-	if settings.ExportAvailable() == "no" && slices.Contains(externalTypes, exportType) {
+	if settings.ExportToExternalToolsAvailable() == "no" && slices.Contains(externalTypes, exportType) {
 		logger.Warnf("Export to %s requested but exporting is disabled in settings", exportType)
 		return ctx.Status(503).SendString("Exporting to " + exportType + " is not available")
 	}

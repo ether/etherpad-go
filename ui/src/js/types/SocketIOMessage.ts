@@ -86,7 +86,7 @@ export type ClientVarPayload = {
   randomVersionString: string,
   skinName: string
   skinVariants: string,
-  exportAvailable: string
+  availableExports: string[]
   savedRevisions: PadRevision[],
   initialRevisionList: number[],
   padShortcutEnabled: MapArrayType<boolean>,

@@ -173,7 +173,7 @@ func (f *Factory) NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apoo
 		UserId:                             sessionInfo.Author,
 		AbiwordAvailable:                   abiwordAvailable,
 		SOfficeAvailable:                   sofficeAvailable,
-		ExportAvailable:                    retrievedSettings.ExportAvailable(),
+		AvailableExports:                   retrievedSettings.AvailableExports,
 		IndentationOnNewLine:               retrievedSettings.IndentationOnNewLine,
 		ScrollWhenFocusLineIsOutOfViewport: retrievedSettings.ScrollWhenFocusLineIsOutOfViewport,
 		Plugins:                            rootPlugin,

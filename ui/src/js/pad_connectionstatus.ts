@@ -30,10 +30,23 @@ const padconnectionstatus = (() => {
     what: 'connecting',
   };
 
+  let socketReference = null;
+
   const self = {
-    init: () => {
+    init: (socket) => {
+      // Store socket reference for force reconnect
+      socketReference = socket;
+
       $('button#forcereconnect').on('click', () => {
-        window.location.reload();
+        if (socketReference && typeof socketReference.forceReconnect === 'function') {
+          // Use socket's forceReconnect method
+          socketReference.forceReconnect();
+          // Update status to reconnecting
+          self.reconnecting();
+        } else {
+          // Fallback to page reload if socket not available
+          window.location.reload();
+        }
       });
     },
     connected: () => {
@@ -71,6 +84,7 @@ const padconnectionstatus = (() => {
         'looping',
         'rateLimited',
         'rejected',
+        'reconnect_timeout',
         'slowcommit',
         'unauth',
         'userdup',
