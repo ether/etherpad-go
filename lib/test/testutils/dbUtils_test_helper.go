@@ -15,6 +15,7 @@ import (
 	"github.com/ether/etherpad-go/lib/db"
 	hooks2 "github.com/ether/etherpad-go/lib/hooks"
 	"github.com/ether/etherpad-go/lib/pad"
+	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/ether/etherpad-go/lib/ws"
 	"github.com/go-playground/validator/v10"
 	mysql2 "github.com/go-sql-driver/mysql"
@@ -41,16 +42,19 @@ type TestDataStore struct {
 }
 
 func (t *TestDataStore) ToInitStore() *lib.InitStore {
+	settings.Displayed.LoadTest = true
 	return &lib.InitStore{
-		Store:           t.DS,
-		AuthorManager:   t.AuthorManager,
-		PadManager:      t.PadManager,
-		Handler:         t.PadMessageHandler,
-		Validator:       t.Validator,
-		Logger:          t.Logger,
-		Hooks:           t.Hooks,
-		ReadOnlyManager: t.ReadOnlyManager,
-		C:               t.App,
+		SecurityManager:   t.SecurityManager,
+		RetrievedSettings: &settings.Displayed,
+		Store:             t.DS,
+		AuthorManager:     t.AuthorManager,
+		PadManager:        t.PadManager,
+		Handler:           t.PadMessageHandler,
+		Validator:         t.Validator,
+		Logger:            t.Logger,
+		Hooks:             t.Hooks,
+		ReadOnlyManager:   t.ReadOnlyManager,
+		C:                 t.App,
 	}
 }
 
@@ -175,7 +179,6 @@ func PrepareMySQLDB() (*TestContainerConfiguration, error) {
 		return nil, err
 	}
 
-	// Manuelle Wartelogik
 	mySQLConf := mysql2.NewConfig()
 	mySQLConf.User = DbUser
 	mySQLConf.Passwd = DbPass

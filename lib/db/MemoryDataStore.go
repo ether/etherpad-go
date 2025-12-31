@@ -329,6 +329,15 @@ func (m *MemoryDataStore) DoesPadExist(padID string) (*bool, error) {
 }
 
 func (m *MemoryDataStore) CreatePad(padID string, padDB db.PadDB) error {
+	// Preserve existing revisions if the pad already exists
+	if existingPad, ok := m.padStore[padID]; ok {
+		if padDB.Revisions == nil || len(padDB.Revisions) == 0 {
+			padDB.Revisions = existingPad.Revisions
+		}
+		if padDB.SavedRevisions == nil || len(padDB.SavedRevisions) == 0 {
+			padDB.SavedRevisions = existingPad.SavedRevisions
+		}
+	}
 	m.padStore[padID] = padDB
 	return nil
 }
@@ -341,6 +350,11 @@ func (m *MemoryDataStore) SaveRevision(padId string, rev int, changeset string,
 	}
 	retrievedPad.RevNum = rev
 
+	// Initialize the Revisions map if it's nil
+	if retrievedPad.Revisions == nil {
+		retrievedPad.Revisions = make(map[int]db.PadSingleRevision)
+	}
+
 	retrievedPad.Revisions[rev] = db.PadSingleRevision{
 		PadId:     padId,
 		RevNum:    rev,
@@ -350,6 +364,7 @@ func (m *MemoryDataStore) SaveRevision(padId string, rev int, changeset string,
 		Timestamp: timestamp,
 		Pool:      &pool,
 	}
+	m.padStore[padId] = retrievedPad
 	return nil
 }
 

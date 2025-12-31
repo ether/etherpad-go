@@ -50,7 +50,10 @@ func (s *SecurityManager) CheckAccess(padId *string, sessionCookie *string, toke
 	}
 
 	if settings.Displayed.LoadTest {
-		return nil, nil
+		return &GrantedAccess{
+			AccessStatus: "grant",
+			AuthorId:     "loadtest",
+		}, nil
 	} else if settings.Displayed.RequireAuthentication {
 		if userSettings == nil {
 			return nil, errors.New("userSettings is nil")

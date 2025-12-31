@@ -1,0 +1,411 @@
+package io
+
+import (
+	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	apiio "github.com/ether/etherpad-go/lib/api/io"
+	"github.com/ether/etherpad-go/lib/apool"
+	"github.com/ether/etherpad-go/lib/test/testutils"
+	"github.com/gofiber/fiber/v2"
+	"github.com/stretchr/testify/assert"
+)
+
+func TestExportHandler(t *testing.T) {
+	testDb := testutils.NewTestDBHandler(t)
+
+	testDb.AddTests(
+		testutils.TestRunConfig{
+			Name: "Export Plain Text Pad as Etherpad",
+			Test: testExportPlainTextPadAsEtherpad,
+		},
+		testutils.TestRunConfig{
+			Name: "Export Plain Text Pad as TXT",
+			Test: testExportPlainTextPadAsTxt,
+		},
+		testutils.TestRunConfig{
+			Name: "Export Bold Text Pad as Etherpad",
+			Test: testExportBoldTextPadAsEtherpad,
+		},
+		testutils.TestRunConfig{
+			Name: "Export Bold Text Pad as TXT",
+			Test: testExportBoldTextPadAsTxt,
+		},
+		testutils.TestRunConfig{
+			Name: "Export Italic Text Pad as Etherpad",
+			Test: testExportItalicTextPadAsEtherpad,
+		},
+		testutils.TestRunConfig{
+			Name: "Export Italic Text Pad as TXT",
+			Test: testExportItalicTextPadAsTxt,
+		},
+		testutils.TestRunConfig{
+			Name: "Export Indented Text Pad as Etherpad",
+			Test: testExportIndentedTextPadAsEtherpad,
+		},
+		testutils.TestRunConfig{
+			Name: "Export Indented Text Pad as TXT",
+			Test: testExportIndentedTextPadAsTxt,
+		},
+		testutils.TestRunConfig{
+			Name: "Export Mixed Formatting Pad as Etherpad",
+			Test: testExportMixedFormattingPadAsEtherpad,
+		},
+		testutils.TestRunConfig{
+			Name: "Export Mixed Formatting Pad as TXT",
+			Test: testExportMixedFormattingPadAsTxt,
+		},
+		testutils.TestRunConfig{
+			Name: "Export Non Existing Pad Returns 404",
+			Test: testExportNonExistingPadReturns404,
+		},
+		testutils.TestRunConfig{
+			Name: "Export Invalid Type Returns 400",
+			Test: testExportInvalidTypeReturns400,
+		},
+	)
+	defer testDb.StartTestDBHandler()
+}
+
+func setupExportApp(tsStore testutils.TestDataStore) *fiber.App {
+	tsInstance := tsStore.ToInitStore()
+	apiio.Init(tsInstance)
+
+	return tsInstance.C
+}
+
+// createTestAuthorWithToken creates an author and sets up a token for authentication
+func createTestAuthorWithToken(t *testing.T, tsStore testutils.TestDataStore) string {
+	token := "testToken123"
+	author, err := tsStore.AuthorManager.CreateAuthor(nil)
+	assert.NoError(t, err)
+
+	err = tsStore.DS.SetAuthorByToken(token, author.Id)
+	assert.NoError(t, err)
+
+	return token
+}
+
+func createPadWithPlainText(t *testing.T, tsStore testutils.TestDataStore, padId string, text string) string {
+	token := createTestAuthorWithToken(t, tsStore)
+
+	author, err := tsStore.AuthorManager.GetAuthorId(token)
+	assert.NoError(t, err)
+
+	pad, err := tsStore.PadManager.GetPad(padId, nil, nil)
+	assert.NoError(t, err)
+
+	err = pad.SetText(text, &author.Id)
+	assert.NoError(t, err)
+
+	return token
+}
+
+func createPadWithBoldText(t *testing.T, tsStore testutils.TestDataStore, padId string, text string) string {
+	token := createTestAuthorWithToken(t, tsStore)
+
+	author, err := tsStore.AuthorManager.GetAuthorId(token)
+	assert.NoError(t, err)
+
+	pad, err := tsStore.PadManager.GetPad(padId, nil, nil)
+	assert.NoError(t, err)
+
+	trueVal := true
+	pad.Pool.PutAttrib(apool.Attribute{Key: "bold", Value: "true"}, &trueVal)
+
+	err = pad.SetText(text, &author.Id)
+	assert.NoError(t, err)
+
+	return token
+}
+
+func createPadWithItalicText(t *testing.T, tsStore testutils.TestDataStore, padId string, text string) string {
+	token := createTestAuthorWithToken(t, tsStore)
+
+	author, err := tsStore.AuthorManager.GetAuthorId(token)
+	assert.NoError(t, err)
+
+	pad, err := tsStore.PadManager.GetPad(padId, nil, nil)
+	assert.NoError(t, err)
+
+	trueVal := true
+	pad.Pool.PutAttrib(apool.Attribute{Key: "italic", Value: "true"}, &trueVal)
+
+	err = pad.SetText(text, &author.Id)
+	assert.NoError(t, err)
+
+	return token
+}
+
+func createPadWithIndentation(t *testing.T, tsStore testutils.TestDataStore, padId string, text string) string {
+	token := createTestAuthorWithToken(t, tsStore)
+
+	author, err := tsStore.AuthorManager.GetAuthorId(token)
+	assert.NoError(t, err)
+
+	pad, err := tsStore.PadManager.GetPad(padId, nil, nil)
+	assert.NoError(t, err)
+
+	trueVal := true
+	pad.Pool.PutAttrib(apool.Attribute{Key: "list", Value: "indent1"}, &trueVal)
+
+	err = pad.SetText(text, &author.Id)
+	assert.NoError(t, err)
+
+	return token
+}
+
+func createPadWithMixedFormatting(t *testing.T, tsStore testutils.TestDataStore, padId string, text string) string {
+	token := createTestAuthorWithToken(t, tsStore)
+
+	author, err := tsStore.AuthorManager.GetAuthorId(token)
+	assert.NoError(t, err)
+
+	pad, err := tsStore.PadManager.GetPad(padId, nil, nil)
+	assert.NoError(t, err)
+
+	trueVal := true
+	pad.Pool.PutAttrib(apool.Attribute{Key: "bold", Value: "true"}, &trueVal)
+	pad.Pool.PutAttrib(apool.Attribute{Key: "italic", Value: "true"}, &trueVal)
+	pad.Pool.PutAttrib(apool.Attribute{Key: "list", Value: "indent1"}, &trueVal)
+
+	err = pad.SetText(text, &author.Id)
+	assert.NoError(t, err)
+
+	return token
+}
+
+// Plain Text Tests
+func testExportPlainTextPadAsEtherpad(t *testing.T, tsStore testutils.TestDataStore) {
+	app := setupExportApp(tsStore)
+	padId := "plainTextPad"
+	testText := "Hello World"
+
+	token := createPadWithPlainText(t, tsStore, padId, testText)
+
+	req := httptest.NewRequest("GET", "/p/"+padId+"/export/etherpad", nil)
+	req.AddCookie(&http.Cookie{Name: "token", Value: token})
+	resp, err := app.Test(req, 5000)
+	assert.NoError(t, err)
+
+	body, err := io.ReadAll(resp.Body)
+	assert.NoError(t, err)
+	t.Logf("Response body: %s", string(body))
+
+	if resp.StatusCode != 200 {
+		t.Errorf("Expected 200, got %d. Body: %s", resp.StatusCode, string(body))
+	}
+
+	var export map[string]interface{}
+	err = json.Unmarshal(body, &export)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, export)
+}
+
+func testExportPlainTextPadAsTxt(t *testing.T, tsStore testutils.TestDataStore) {
+	app := setupExportApp(tsStore)
+	padId := "plainTextPadTxt"
+	testText := "Hello World"
+
+	token := createPadWithPlainText(t, tsStore, padId, testText)
+
+	req := httptest.NewRequest("GET", "/p/"+padId+"/export/txt", nil)
+	req.AddCookie(&http.Cookie{Name: "token", Value: token})
+	resp, err := app.Test(req, 5000)
+	assert.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	body, err := io.ReadAll(resp.Body)
+	assert.NoError(t, err)
+
+	assert.True(t, strings.Contains(string(body), testText))
+}
+
+// Bold Text Tests
+func testExportBoldTextPadAsEtherpad(t *testing.T, tsStore testutils.TestDataStore) {
+	app := setupExportApp(tsStore)
+	padId := "boldTextPad"
+	testText := "Bold Text"
+
+	createPadWithBoldText(t, tsStore, padId, testText)
+
+	req := httptest.NewRequest("GET", "/p/"+padId+"/export/etherpad", nil)
+	resp, err := app.Test(req, 5000)
+	assert.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	body, err := io.ReadAll(resp.Body)
+	assert.NoError(t, err)
+
+	var export map[string]interface{}
+	err = json.Unmarshal(body, &export)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, export)
+}
+
+func testExportBoldTextPadAsTxt(t *testing.T, tsStore testutils.TestDataStore) {
+	app := setupExportApp(tsStore)
+	padId := "boldTextPadTxt"
+	testText := "Bold Text"
+
+	createPadWithBoldText(t, tsStore, padId, testText)
+
+	req := httptest.NewRequest("GET", "/p/"+padId+"/export/txt", nil)
+	resp, err := app.Test(req, 5000)
+	assert.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	body, err := io.ReadAll(resp.Body)
+	assert.NoError(t, err)
+
+	assert.True(t, strings.Contains(string(body), testText))
+}
+
+// Italic Text Tests
+func testExportItalicTextPadAsEtherpad(t *testing.T, tsStore testutils.TestDataStore) {
+	app := setupExportApp(tsStore)
+	padId := "italicTextPad"
+	testText := "Italic Text"
+
+	createPadWithItalicText(t, tsStore, padId, testText)
+
+	req := httptest.NewRequest("GET", "/p/"+padId+"/export/etherpad", nil)
+	resp, err := app.Test(req, 5000)
+	assert.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	body, err := io.ReadAll(resp.Body)
+	assert.NoError(t, err)
+
+	var export map[string]interface{}
+	err = json.Unmarshal(body, &export)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, export)
+}
+
+func testExportItalicTextPadAsTxt(t *testing.T, tsStore testutils.TestDataStore) {
+	app := setupExportApp(tsStore)
+	padId := "italicTextPadTxt"
+	testText := "Italic Text"
+
+	createPadWithItalicText(t, tsStore, padId, testText)
+
+	req := httptest.NewRequest("GET", "/p/"+padId+"/export/txt", nil)
+	resp, err := app.Test(req, 5000)
+	assert.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	body, err := io.ReadAll(resp.Body)
+	assert.NoError(t, err)
+
+	assert.True(t, strings.Contains(string(body), testText))
+}
+
+// Indented Text Tests
+func testExportIndentedTextPadAsEtherpad(t *testing.T, tsStore testutils.TestDataStore) {
+	app := setupExportApp(tsStore)
+	padId := "indentedTextPad"
+	testText := "Indented Text"
+
+	createPadWithIndentation(t, tsStore, padId, testText)
+
+	req := httptest.NewRequest("GET", "/p/"+padId+"/export/etherpad", nil)
+	resp, err := app.Test(req, 5000)
+	assert.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	body, err := io.ReadAll(resp.Body)
+	assert.NoError(t, err)
+
+	var export map[string]interface{}
+	err = json.Unmarshal(body, &export)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, export)
+}
+
+func testExportIndentedTextPadAsTxt(t *testing.T, tsStore testutils.TestDataStore) {
+	app := setupExportApp(tsStore)
+	padId := "indentedTextPadTxt"
+	testText := "Indented Text"
+
+	createPadWithIndentation(t, tsStore, padId, testText)
+
+	req := httptest.NewRequest("GET", "/p/"+padId+"/export/txt", nil)
+	resp, err := app.Test(req, 5000)
+	assert.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	body, err := io.ReadAll(resp.Body)
+	assert.NoError(t, err)
+
+	assert.True(t, strings.Contains(string(body), testText))
+}
+
+// Mixed Formatting Tests
+func testExportMixedFormattingPadAsEtherpad(t *testing.T, tsStore testutils.TestDataStore) {
+	app := setupExportApp(tsStore)
+	padId := "mixedFormattingPad"
+	testText := "Mixed Formatting Text"
+
+	createPadWithMixedFormatting(t, tsStore, padId, testText)
+
+	req := httptest.NewRequest("GET", "/p/"+padId+"/export/etherpad", nil)
+	resp, err := app.Test(req, 5000)
+	assert.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	body, err := io.ReadAll(resp.Body)
+	assert.NoError(t, err)
+
+	var export map[string]interface{}
+	err = json.Unmarshal(body, &export)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, export)
+}
+
+func testExportMixedFormattingPadAsTxt(t *testing.T, tsStore testutils.TestDataStore) {
+	app := setupExportApp(tsStore)
+	padId := "mixedFormattingPadTxt"
+	testText := "Mixed Formatting Text"
+
+	createPadWithMixedFormatting(t, tsStore, padId, testText)
+
+	req := httptest.NewRequest("GET", "/p/"+padId+"/export/txt", nil)
+	resp, err := app.Test(req, 5000)
+	assert.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	body, err := io.ReadAll(resp.Body)
+	assert.NoError(t, err)
+
+	assert.True(t, strings.Contains(string(body), testText))
+}
+
+// Error Cases
+func testExportNonExistingPadReturns404(t *testing.T, tsStore testutils.TestDataStore) {
+	app := setupExportApp(tsStore)
+
+	req := httptest.NewRequest("GET", "/p/nonExistingPadId/export/etherpad", nil)
+	resp, err := app.Test(req, 5000)
+	assert.NoError(t, err)
+
+	// Should return 401 (Unauthorized) or 404 depending on SecurityManager behavior
+	assert.True(t, resp.StatusCode == 401 || resp.StatusCode == 404)
+}
+
+func testExportInvalidTypeReturns400(t *testing.T, tsStore testutils.TestDataStore) {
+	app := setupExportApp(tsStore)
+	padId := "invalidTypePad"
+	testText := "Some Text"
+
+	createPadWithPlainText(t, tsStore, padId, testText)
+
+	req := httptest.NewRequest("GET", "/p/"+padId+"/export/invalidType", nil)
+	resp, err := app.Test(req, 5000)
+	assert.NoError(t, err)
+	assert.Equal(t, 400, resp.StatusCode)
+}

@@ -111,8 +111,6 @@ func (e *ExportEtherpad) GetPadRaw(padId string, readOnlyId *string) (*EtherpadE
 
 	for _, rev := range *revisions {
 		key := fmt.Sprintf("%srevs:%d", dstPfx, rev.RevNum)
-		attribToNum := make(map[string]interface{})
-		attribToNum[strconv.Itoa(rev.RevNum)] = []any{"author," + *rev.AuthorId, 0}
 		export.Revisions[key] = Revision{
 			Changeset: rev.Changeset,
 			Meta: RevisionMeta{
