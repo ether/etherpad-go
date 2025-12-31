@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"embed"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/ether/etherpad-go/lib/apool"
+	"github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/changeset"
 	"github.com/ether/etherpad-go/lib/models/pad"
 	padLib "github.com/ether/etherpad-go/lib/pad"
@@ -14,9 +16,10 @@ import (
 )
 
 type ExportPDF struct {
-	exportTxt  *ExportTxt
-	uiAssets   embed.FS
-	padManager *padLib.Manager
+	exportTxt     *ExportTxt
+	uiAssets      embed.FS
+	padManager    *padLib.Manager
+	authorManager *author.Manager
 }
 
 const (
@@ -36,6 +39,7 @@ type textSegment struct {
 	italic        bool
 	underline     bool
 	strikethrough bool
+	authorColor   string
 }
 
 func (e *ExportPDF) GetPadPdfDocument(padId string, optRevNum *int) ([]byte, error) {
@@ -107,6 +111,9 @@ func (e *ExportPDF) renderFormattedText(pdf *gopdf.GoPdf, retrievedPad *pad.Pad,
 		return err
 	}
 
+	// Build author color cache
+	authorColors := e.buildAuthorColorCache(&padPool)
+
 	pdf.SetX(marginLeft)
 	pdf.SetY(marginTop)
 
@@ -116,7 +123,7 @@ func (e *ExportPDF) renderFormattedText(pdf *gopdf.GoPdf, retrievedPad *pad.Pad,
 			aline = attribLines[i]
 		}
 
-		segments, listPrefix, err := e.parseLineSegments(lineText, aline, &padPool)
+		segments, listPrefix, err := e.parseLineSegments(lineText, aline, &padPool, authorColors)
 		if err != nil {
 			return err
 		}
@@ -147,7 +154,25 @@ func (e *ExportPDF) renderFormattedText(pdf *gopdf.GoPdf, retrievedPad *pad.Pad,
 	return nil
 }
 
-func (e *ExportPDF) parseLineSegments(text string, aline string, padPool *apool.APool) ([]textSegment, string, error) {
+func (e *ExportPDF) buildAuthorColorCache(padPool *apool.APool) map[string]string {
+	authorColors := make(map[string]string)
+
+	for _, attr := range padPool.NumToAttrib {
+		if attr.Key == "author" && attr.Value != "" {
+			authorId := attr.Value
+			if _, exists := authorColors[authorId]; !exists {
+				// Try to get author color from database
+				if authorData, err := e.authorManager.GetAuthor(authorId); err == nil {
+					authorColors[authorId] = authorData.ColorId
+				}
+			}
+		}
+	}
+
+	return authorColors
+}
+
+func (e *ExportPDF) parseLineSegments(text string, aline string, padPool *apool.APool, authorColors map[string]string) ([]textSegment, string, error) {
 	var segments []textSegment
 	listPrefix := ""
 
@@ -204,7 +229,7 @@ func (e *ExportPDF) parseLineSegments(text string, aline string, padPool *apool.
 
 		chars := op.Chars
 		if op.Lines > 0 {
-			chars-- // Don't include linebreak
+			chars--
 		}
 		if chars <= 0 {
 			continue
@@ -233,6 +258,12 @@ func (e *ExportPDF) parseLineSegments(text string, aline string, padPool *apool.
 			seg.strikethrough = true
 		}
 
+		if authorId := attribs.Get("author"); authorId != nil && *authorId != "" {
+			if color, exists := authorColors[*authorId]; exists {
+				seg.authorColor = color
+			}
+		}
+
 		segments = append(segments, seg)
 		pos = endPos
 	}
@@ -242,6 +273,29 @@ func (e *ExportPDF) parseLineSegments(text string, aline string, padPool *apool.
 	}
 
 	return segments, listPrefix, nil
+}
+
+// parseHexColor converts a hex color string to RGB values
+func parseHexColor(hex string) (r, g, b uint8, err error) {
+	hex = strings.TrimPrefix(hex, "#")
+	if len(hex) != 6 {
+		return 0, 0, 0, fmt.Errorf("invalid hex color: %s", hex)
+	}
+
+	rVal, err := strconv.ParseUint(hex[0:2], 16, 8)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	gVal, err := strconv.ParseUint(hex[2:4], 16, 8)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	bVal, err := strconv.ParseUint(hex[4:6], 16, 8)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+
+	return uint8(rVal), uint8(gVal), uint8(bVal), nil
 }
 
 func (e *ExportPDF) renderSegment(pdf *gopdf.GoPdf, seg textSegment) error {
@@ -257,10 +311,21 @@ func (e *ExportPDF) renderSegment(pdf *gopdf.GoPdf, seg textSegment) error {
 	startX := pdf.GetX()
 	startY := pdf.GetY()
 
-	pdf.Cell(nil, seg.text)
-
 	textWidth, _ := pdf.MeasureTextWidth(seg.text)
 	endX := startX + textWidth
+
+	if seg.authorColor != "" {
+		r, g, b, err := parseHexColor(seg.authorColor)
+		if err == nil {
+			pdf.SetFillColor(r, g, b)
+			pdf.Rectangle(startX, startY, endX, startY+lineHeight-4, "F", 0, 0)
+		}
+	}
+
+	pdf.SetTextColor(0, 0, 0)
+	pdf.SetStrokeColor(0, 0, 0)
+
+	pdf.Cell(nil, seg.text)
 
 	if seg.underline {
 		pdf.Line(startX, startY+fontSize-1, endX, startY+fontSize-1)

@@ -28,15 +28,18 @@ func NewExportEtherpad(hooks *hooks.Hook, padManager *pad.Manager, db db.DataSto
 		PadManager: padManager,
 	}
 
+	authorMgr := author.NewManager(db)
+
 	return &ExportEtherpad{
 		hooks:         hooks,
 		PadManager:    padManager,
-		AuthorManager: author.NewManager(db),
+		AuthorManager: authorMgr,
 		exportTxt:     &exportTxt,
 		exportPDF: &ExportPDF{
-			uiAssets:   uiAssets,
-			exportTxt:  &exportTxt,
-			padManager: padManager,
+			uiAssets:      uiAssets,
+			exportTxt:     &exportTxt,
+			padManager:    padManager,
+			authorManager: authorMgr,
 		},
 		logger: logger,
 	}
