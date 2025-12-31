@@ -13,10 +13,10 @@ export interface ConnectionState {
 }
 
 export class SocketIoWrapper {
-    private socket: WebSocket | undefined
+    private _socket: WebSocket | undefined
     private static eventCallbacks: { [key: string]: Function[] } = {}
 
-    private connectionState: ConnectionState = {
+    private readonly connectionState: ConnectionState = {
         status: 'disconnected',
         reconnectAttempts: 0
     }
@@ -28,6 +28,11 @@ export class SocketIoWrapper {
     private isManualDisconnect = false
     private hasConnectedOnce = false
 
+    // Public socket property for compatibility with socket.io API
+    public get socket(): WebSocket | undefined {
+        return this._socket
+    }
+
     constructor() {
         this.ensureSocket()
     }
@@ -38,7 +43,6 @@ export class SocketIoWrapper {
         if (error) {
             this.connectionState.lastError = error
         }
-
         console.log(`Connection status changed: ${prevStatus} -> ${status}`)
     }
 
@@ -47,24 +51,24 @@ export class SocketIoWrapper {
     }
 
     private ensureSocket() {
-        if (this.socket && this.socket.readyState === WebSocket.OPEN) return
-        if (this.socket && this.socket.readyState === WebSocket.CONNECTING) return
+        if (this._socket && this._socket.readyState === WebSocket.OPEN) return
+        if (this._socket && this._socket.readyState === WebSocket.CONNECTING) return
 
         // Clean up old socket if exists
-        if (this.socket) {
-            this.socket.onopen = null
-            this.socket.onclose = null
-            this.socket.onerror = null
-            this.socket.onmessage = null
-            if (this.socket.readyState !== WebSocket.CLOSED) {
-                this.socket.close()
+        if (this._socket) {
+            this._socket.onopen = null
+            this._socket.onclose = null
+            this._socket.onerror = null
+            this._socket.onmessage = null
+            if (this._socket.readyState !== WebSocket.CLOSED) {
+                this._socket.close()
             }
         }
 
         this.setConnectionState('connecting')
 
         try {
-            this.socket = createSocket()
+            this._socket = createSocket()
         } catch (e) {
             console.error('WebSocket creation failed:', e)
             this.setConnectionState('failed', String(e))
@@ -72,10 +76,10 @@ export class SocketIoWrapper {
             return
         }
 
-        this.socket.onopen = this.onConnect.bind(this)
-        this.socket.onclose = this.handleClose.bind(this)
-        this.socket.onerror = this.onError.bind(this)
-        this.socket.onmessage = this.onMessage.bind(this)
+        this._socket.onopen = this.onConnect.bind(this)
+        this._socket.onclose = this.handleClose.bind(this)
+        this._socket.onerror = this.onError.bind(this)
+        this._socket.onmessage = this.onMessage.bind(this)
     }
 
     private onMessage(evt: MessageEvent) {
@@ -203,8 +207,8 @@ export class SocketIoWrapper {
             this.reconnectTimeout = null
         }
 
-        if (this.socket) {
-            this.socket.close()
+        if (this._socket) {
+            this._socket.close()
         }
 
         this.setConnectionState('disconnected')
@@ -238,11 +242,11 @@ export class SocketIoWrapper {
     }
 
     public emit(event: string, data: any) {
-        if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
+        if (!this._socket || this._socket.readyState !== WebSocket.OPEN) {
             console.warn('Cannot emit, socket not connected. Current state:', this.connectionState.status)
             return
         }
-        this.socket.send(JSON.stringify({ event, data }))
+        this._socket.send(JSON.stringify({ event, data }))
     }
 
     public off(event?: string, callback?: Function) {
@@ -269,6 +273,6 @@ export class SocketIoWrapper {
     }
 
     public isConnected(): boolean {
-        return this.socket?.readyState === WebSocket.OPEN
+        return this._socket?.readyState === WebSocket.OPEN
     }
 }
