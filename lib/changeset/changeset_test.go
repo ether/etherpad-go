@@ -720,7 +720,6 @@ func TestRegexMatcher3(t *testing.T) {
 }
 
 func TestInverseRandom(t *testing.T) {
-	t.Skip()
 	testInverseRandom := func(randomSeed int) {
 		t.Run(fmt.Sprintf("testInverseRandom#%d", randomSeed), func(t *testing.T) {
 			p := createPool([]string{"apple,", "apple,true", "banana,", "banana,true"})

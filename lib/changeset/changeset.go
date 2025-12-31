@@ -801,7 +801,7 @@ func Inverse(cs string, lines []string, alines []string, pool *apool.APool) (*st
 				curLine++
 				curChar = 0
 				curLineOpsLine = curLine
-				curLineNextOp.Chars = 0
+				curLineNextOp = NewOp(nil)
 				curLineOps, err = DeserializeOps(alinesGet(curLine))
 				if err != nil {
 					panic(err)
@@ -833,6 +833,8 @@ func Inverse(cs string, lines []string, alines []string, pool *apool.APool) (*st
 		if l > 0 {
 			curLine += l
 			curChar = 0
+			curLineOps = nil
+			curLineNextOp = NewOp(nil)
 		} else if curLineOps != nil && curLineOpsLine == curLine {
 			consumeAttribRuns(n, func(int, string, bool) {})
 		} else {
