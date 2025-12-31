@@ -111,14 +111,26 @@ func (e *ExportEtherpad) GetPadRaw(padId string, readOnlyId *string) (*EtherpadE
 
 	for _, rev := range *revisions {
 		key := fmt.Sprintf("%srevs:%d", dstPfx, rev.RevNum)
+
+		var poolData *PoolWithAttribToNum
+		if rev.Pool != nil {
+			poolData = &PoolWithAttribToNum{
+				NextNum:     rev.Pool.NextNum,
+				AttribToNum: rev.Pool.AttribToNum,
+				NumToAttrib: rev.Pool.NumToAttrib,
+			}
+		} else {
+			poolData = &PoolWithAttribToNum{
+				NextNum:     0,
+				AttribToNum: make(map[string]int),
+				NumToAttrib: make(map[string][]string),
+			}
+		}
+
 		export.Revisions[key] = Revision{
 			Changeset: rev.Changeset,
 			Meta: RevisionMeta{
-				Pool: &PoolWithAttribToNum{
-					NextNum:     rev.Pool.NextNum,
-					AttribToNum: rev.Pool.AttribToNum,
-					NumToAttrib: rev.Pool.NumToAttrib,
-				},
+				Pool:      poolData,
 				Author:    rev.AuthorId,
 				Timestamp: &rev.Timestamp,
 				AText: &AText{
