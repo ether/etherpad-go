@@ -3,8 +3,9 @@
 }
 .exportlink {
   margin-bottom: 10px;
-  display: block;
+  display: none;
 }
+
 .exporttype:before {
   margin-right: 10px !important;
 }

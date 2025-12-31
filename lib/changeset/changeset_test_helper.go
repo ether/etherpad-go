@@ -3,6 +3,8 @@ package changeset
 import (
 	"math/rand"
 	"regexp"
+	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/ether/etherpad-go/lib/test/testutils/general"
@@ -163,19 +165,29 @@ func minFunc(a, b int) int {
 }
 
 // randomTwoPropAttribs generates random attributes for testing.
+// Uses numeric pool references (0-3) which correspond to the test pool attributes.
 func randomTwoPropAttribs(opcode string) string {
 	if opcode == "-" {
 		return ""
 	}
 
-	props := []string{"bold", "italic", "underline"}
-	numProps := rand.Intn(3)
+	// Use numeric pool indices (0-3 are typical test pool entries)
+	// Create a shuffled list of available indices to avoid duplicates
+	indices := []int{0, 1, 2, 3}
+	rand.Shuffle(len(indices), func(i, j int) {
+		indices[i], indices[j] = indices[j], indices[i]
+	})
+
+	numProps := rand.Intn(3) // 0, 1, or 2 attributes
+
+	// Select and sort the attributes to ensure canonical order
+	selectedIndices := indices[:numProps]
+	sort.Ints(selectedIndices)
 
 	var attribs strings.Builder
-	for i := 0; i < numProps; i++ {
-		prop := props[rand.Intn(len(props))]
+	for _, idx := range selectedIndices {
 		attribs.WriteString("*")
-		attribs.WriteString(prop)
+		attribs.WriteString(strconv.Itoa(idx))
 	}
 
 	return attribs.String()

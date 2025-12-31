@@ -7,21 +7,22 @@ import (
 	"path"
 	"strings"
 
+	"github.com/ether/etherpad-go/lib"
 	"github.com/gofiber/fiber/v2"
 )
 
 var Locales map[string]interface{}
 
-func Init(uiAssets embed.FS) {
+func Init(initStore *lib.InitStore) {
 	Locales = make(map[string]interface{})
-	files, _ := fs.ReadDir(uiAssets, "assets/locales")
+	files, _ := fs.ReadDir(initStore.UiAssets, "assets/locales")
 	for _, file := range files {
 		if file.IsDir() {
 			continue
 		}
 		fileName := file.Name()
 		Locales[strings.Replace(fileName, ".json", "", -1)] = `locales/` + fileName
-		content, _ := fs.ReadFile(uiAssets, "./assets/locales/en.json")
+		content, _ := fs.ReadFile(initStore.UiAssets, "./assets/locales/en.json")
 
 		var enMap = make(map[string]string)
 		json.Unmarshal(content, &enMap)

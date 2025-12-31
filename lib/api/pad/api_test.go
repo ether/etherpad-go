@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/ether/etherpad-go/lib/test/testutils"
-	"github.com/gofiber/fiber/v2"
 )
 
 func TestPadApi(t *testing.T) {
@@ -28,11 +27,11 @@ func TestPadApi(t *testing.T) {
 }
 
 func testGetOnText(t *testing.T, tsStore testutils.TestDataStore) {
-	app := fiber.New()
-	Init(app, tsStore.PadMessageHandler, tsStore.PadManager)
+	testStore := tsStore.ToInitStore()
+	Init(testStore)
 	req := httptest.NewRequest("GET", "/pads/123/text", nil)
 
-	resp, _ := app.Test(req, 10)
+	resp, _ := testStore.C.Test(req, 10)
 
 	if resp.StatusCode != 404 {
 		t.Errorf("Expected status code 404, got %v", resp.StatusCode)
@@ -40,12 +39,12 @@ func testGetOnText(t *testing.T, tsStore testutils.TestDataStore) {
 }
 
 func testGetOfAttribPoolOnNonExistingPad(t *testing.T, tsStore testutils.TestDataStore) {
-	app := fiber.New()
+	testStore := tsStore.ToInitStore()
 
-	Init(app, tsStore.PadMessageHandler, tsStore.PadManager)
+	Init(testStore)
 	req := httptest.NewRequest("GET", "/pads/123/attributePool", nil)
 
-	resp, _ := app.Test(req, 10)
+	resp, _ := testStore.C.Test(req, 10)
 
 	if resp.StatusCode != 404 {
 		t.Errorf("Expected status code 404, got %v", resp.StatusCode)
@@ -54,16 +53,16 @@ func testGetOfAttribPoolOnNonExistingPad(t *testing.T, tsStore testutils.TestDat
 
 func testGetOfAttribPoolOnExistingPad(t *testing.T, tsStore testutils.TestDataStore) {
 	var padText = "hallo"
+	testStore := tsStore.ToInitStore()
 	var _, err = tsStore.PadManager.GetPad("123", &padText, nil)
 	if err != nil {
 		t.Errorf("Error creating pad")
 	}
 
-	app := fiber.New()
-	Init(app, tsStore.PadMessageHandler, tsStore.PadManager)
+	Init(testStore)
 	req := httptest.NewRequest("GET", "/pads/123/attributePool", nil)
 
-	resp, _ := app.Test(req, 10)
+	resp, _ := testStore.C.Test(req, 10)
 
 	var poolResponse AttributePoolResponse
 	err = json.NewDecoder(resp.Body).Decode(&poolResponse)

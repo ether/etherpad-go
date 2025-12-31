@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/models/db"
 	session2 "github.com/ether/etherpad-go/lib/models/session"
 	"github.com/ory/fosite"
@@ -62,7 +61,7 @@ func (m *MemoryDataStore) GetRevisions(padId string, startRev int, endRev int) (
 
 	var revisions []db.PadSingleRevision
 	for rev := startRev; rev <= endRev; rev++ {
-		var revisionFromPad, okRev = pad.SavedRevisions[rev]
+		var revisionFromPad, okRev = pad.Revisions[rev]
 
 		if !okRev {
 			return nil, errors.New(PadRevisionNotFoundError)
@@ -71,10 +70,11 @@ func (m *MemoryDataStore) GetRevisions(padId string, startRev int, endRev int) (
 		var padSingleRevision = db.PadSingleRevision{
 			PadId:     padId,
 			RevNum:    rev,
-			Changeset: revisionFromPad.Content,
-			AText:     *revisionFromPad.PadDBMeta.AText,
-			AuthorId:  revisionFromPad.PadDBMeta.Author,
-			Timestamp: revisionFromPad.PadDBMeta.Timestamp,
+			Pool:      revisionFromPad.Pool,
+			Changeset: revisionFromPad.Changeset,
+			AText:     revisionFromPad.AText,
+			AuthorId:  revisionFromPad.AuthorId,
+			Timestamp: revisionFromPad.Timestamp,
 		}
 
 		revisions = append(revisions, padSingleRevision)
@@ -115,7 +115,7 @@ func (m *MemoryDataStore) QueryPad(offset int, limit int, sortBy string, ascendi
 		padSearch = append(padSearch, db.PadDBSearch{
 			Padname:        padKey,
 			RevisionNumber: m.padStore[padKey].RevNum,
-			LastEdited:     retrievedPad.SavedRevisions[retrievedPad.RevNum].PadDBMeta.Timestamp,
+			LastEdited:     retrievedPad.Revisions[retrievedPad.RevNum].Timestamp,
 		})
 	}
 
@@ -189,7 +189,7 @@ func (m *MemoryDataStore) RemoveRevisionsOfPad(padId string) error {
 		return errors.New(PadDoesNotExistError)
 	}
 
-	pad.SavedRevisions = make(map[int]db.PadRevision)
+	pad.Revisions = make(map[int]db.PadSingleRevision)
 	pad.RevNum = -1
 	m.padStore[padId] = pad
 	return nil
@@ -261,7 +261,7 @@ func (m *MemoryDataStore) GetRevision(padId string, rev int) (*db.PadSingleRevis
 		return nil, errors.New(PadDoesNotExistError)
 	}
 
-	var revisionFromPad, okRev = pad.SavedRevisions[rev]
+	var revisionFromPad, okRev = pad.Revisions[rev]
 
 	if !okRev {
 		return nil, errors.New(PadRevisionNotFoundError)
@@ -270,10 +270,11 @@ func (m *MemoryDataStore) GetRevision(padId string, rev int) (*db.PadSingleRevis
 	var padSingleRevision = db.PadSingleRevision{
 		PadId:     padId,
 		RevNum:    rev,
-		Changeset: revisionFromPad.Content,
-		AText:     *revisionFromPad.PadDBMeta.AText,
-		AuthorId:  revisionFromPad.PadDBMeta.Author,
-		Timestamp: revisionFromPad.PadDBMeta.Timestamp,
+		Pool:      revisionFromPad.Pool,
+		Changeset: revisionFromPad.Changeset,
+		AText:     revisionFromPad.AText,
+		AuthorId:  revisionFromPad.AuthorId,
+		Timestamp: revisionFromPad.Timestamp,
 	}
 
 	return &padSingleRevision, nil
@@ -285,15 +286,19 @@ func (m *MemoryDataStore) GetPadMetaData(padId string, revNum int) (*db.PadMetaD
 	if !ok {
 		return nil, errors.New(PadDoesNotExistError)
 	}
-	var rev, found = retrievedPad.SavedRevisions[revNum]
+	var rev, found = retrievedPad.Revisions[revNum]
 
 	if !found {
 		return nil, errors.New(PadRevisionNotFoundError)
 	}
 
 	return &db.PadMetaData{
-		AuthorId:  rev.PadDBMeta.Author,
-		Timestamp: rev.PadDBMeta.Timestamp,
+		AuthorId:  rev.AuthorId,
+		Timestamp: rev.Timestamp,
+		PadPool: db.PadPool{
+			NextNum:     rev.Pool.NextNum,
+			NumToAttrib: rev.Pool.NumToAttrib,
+		},
 	}, nil
 }
 
@@ -324,27 +329,42 @@ func (m *MemoryDataStore) DoesPadExist(padID string) (*bool, error) {
 }
 
 func (m *MemoryDataStore) CreatePad(padID string, padDB db.PadDB) error {
+	// Preserve existing revisions if the pad already exists
+	if existingPad, ok := m.padStore[padID]; ok {
+		if padDB.Revisions == nil || len(padDB.Revisions) == 0 {
+			padDB.Revisions = existingPad.Revisions
+		}
+		if padDB.SavedRevisions == nil || len(padDB.SavedRevisions) == 0 {
+			padDB.SavedRevisions = existingPad.SavedRevisions
+		}
+	}
 	m.padStore[padID] = padDB
 	return nil
 }
 
 func (m *MemoryDataStore) SaveRevision(padId string, rev int, changeset string,
-	text apool.AText, pool apool.APool, authorId *string, timestamp int64) error {
+	text db.AText, pool db.RevPool, authorId *string, timestamp int64) error {
 	var retrievedPad, ok = m.padStore[padId]
 	if !ok {
 		return errors.New(PadDoesNotExistError)
 	}
 	retrievedPad.RevNum = rev
 
-	retrievedPad.SavedRevisions[rev] = db.PadRevision{
-		Content: changeset,
-		PadDBMeta: db.PadDBMeta{
-			Pool:      &pool,
-			AText:     &text,
-			Author:    authorId,
-			Timestamp: timestamp,
-		},
+	// Initialize the Revisions map if it's nil
+	if retrievedPad.Revisions == nil {
+		retrievedPad.Revisions = make(map[int]db.PadSingleRevision)
 	}
+
+	retrievedPad.Revisions[rev] = db.PadSingleRevision{
+		PadId:     padId,
+		RevNum:    rev,
+		Changeset: changeset,
+		AText:     text,
+		AuthorId:  authorId,
+		Timestamp: timestamp,
+		Pool:      &pool,
+	}
+	m.padStore[padId] = retrievedPad
 	return nil
 }
 

@@ -190,6 +190,7 @@ type Settings struct {
 	RandomVersionString                string                                         `json:"randomVersionString"`
 	DevMode                            bool                                           `json:"devMode"`
 	GitVersion                         string                                         `json:"-"`
+	AvailableExports                   []string                                       `json:"availableExports"`
 }
 
 func (s *Settings) GetPublicSettings() PublicSettings {
@@ -224,14 +225,12 @@ func (s *Settings) sofficeAvailable() string {
 	return "no"
 }
 
-func (s *Settings) ExportAvailable() string {
+func (s *Settings) ExportToExternalToolsAvailable() string {
 	var abiword = s.abiwordAvailable()
 	var soffice = s.sofficeAvailable()
 
 	if abiword == "no" && soffice == "no" {
 		return "no"
-	} else if (abiword == "withoutPDF" && soffice == "no") || (soffice == "withoutPDF" && abiword == "no") {
-		return "withoutPDF"
 	}
 	return "yes"
 }

@@ -66,7 +66,7 @@ func (m *Manager) mapAuthorWithDBKey(token string) (*Author, error) {
  * @param {String} authorMapper The mapper
  * @param {String} name The name of the author (optional)
  */
-/*func (m *Manager) CreateAuthorIfNotExistsFor(authorMapper string, name *string) Author {
+/*func (m *PadManager) CreateAuthorIfNotExistsFor(authorMapper string, name *string) Author {
 	var author = m.mapAuthorWithDBKey("mapper2author", authorMapper)
 
 	if name != nil {

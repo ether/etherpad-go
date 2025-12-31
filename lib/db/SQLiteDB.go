@@ -4,10 +4,10 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 
 	sq "github.com/Masterminds/squirrel"
-	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/models/db"
 	session2 "github.com/ether/etherpad-go/lib/models/session"
 	"github.com/ory/fosite"
@@ -85,7 +85,8 @@ func (d SQLiteDB) GetRevisions(padId string, startRev int, endRev int) (*[]db.Pa
 	var revisions []db.PadSingleRevision
 	for query.Next() {
 		var revisionDB db.PadSingleRevision
-		query.Scan(&revisionDB.PadId, &revisionDB.RevNum, &revisionDB.Changeset, &revisionDB.AText.Text, &revisionDB.AText.Attribs, &revisionDB.AuthorId, &revisionDB.Timestamp)
+		var serializedPool string
+		query.Scan(&revisionDB.PadId, &revisionDB.RevNum, &revisionDB.Changeset, &revisionDB.AText.Text, &revisionDB.AText.Attribs, &revisionDB.AuthorId, &revisionDB.Timestamp, &serializedPool)
 		revisions = append(revisions, revisionDB)
 	}
 
@@ -422,7 +423,11 @@ func (d SQLiteDB) GetRevision(padId string, rev int) (*db.PadSingleRevision, err
 
 	for query.Next() {
 		var revisionDB db.PadSingleRevision
-		query.Scan(&revisionDB.PadId, &revisionDB.RevNum, &revisionDB.Changeset, &revisionDB.AText.Text, &revisionDB.AText.Attribs, &revisionDB.AuthorId, &revisionDB.Timestamp)
+		var serializedPool string
+		query.Scan(&revisionDB.PadId, &revisionDB.RevNum, &revisionDB.Changeset, &revisionDB.AText.Text, &revisionDB.AText.Attribs, &revisionDB.AuthorId, &revisionDB.Timestamp, &serializedPool)
+		if err := json.Unmarshal([]byte(serializedPool), &revisionDB.Pool); err != nil {
+			return nil, fmt.Errorf("error deserializing pool: %v", err)
+		}
 		return &revisionDB, nil
 	}
 
@@ -547,7 +552,7 @@ func (d SQLiteDB) GetPadIds() (*[]string, error) {
 	return &padIds, nil
 }
 
-func (d SQLiteDB) SaveRevision(padId string, rev int, changeset string, text apool.AText, pool apool.APool, authorId *string, timestamp int64) error {
+func (d SQLiteDB) SaveRevision(padId string, rev int, changeset string, text db.AText, pool db.RevPool, authorId *string, timestamp int64) error {
 	exists, err := d.DoesPadExist(padId)
 	if err != nil {
 		return err
@@ -557,9 +562,14 @@ func (d SQLiteDB) SaveRevision(padId string, rev int, changeset string, text apo
 		return errors.New(PadDoesNotExistError)
 	}
 
+	serializedPool, err := json.Marshal(pool)
+	if err != nil {
+		return fmt.Errorf("error serializing pool: %v", err)
+	}
+
 	toSql, i, err := sq.Insert("padRev").
-		Columns("id", "rev", "changeset", "atextText", "atextAttribs", "authorId", "timestamp").
-		Values(padId, rev, changeset, text.Text, text.Attribs, authorId, timestamp).
+		Columns("id", "rev", "changeset", "atextText", "atextAttribs", "authorId", "timestamp", "pool").
+		Values(padId, rev, changeset, text.Text, text.Attribs, authorId, timestamp, serializedPool).
 		ToSql()
 
 	if err != nil {
@@ -858,10 +868,16 @@ func (d SQLiteDB) GetPadMetaData(padId string, revNum int) (*db.PadMetaData, err
 
 	for query.Next() {
 		var padMetaData db.PadMetaData
-		err := query.Scan(&padMetaData.Id, &padMetaData.RevNum, &padMetaData.ChangeSet, &padMetaData.Atext.Text, &padMetaData.AtextAttribs, &padMetaData.AuthorId, &padMetaData.Timestamp)
+		var serializedPool string
+		err := query.Scan(&padMetaData.Id, &padMetaData.RevNum, &padMetaData.ChangeSet, &padMetaData.Atext.Text, &padMetaData.AtextAttribs, &padMetaData.AuthorId, &padMetaData.Timestamp, &serializedPool)
 		if err != nil {
 			return nil, err
 		}
+
+		if err := json.Unmarshal([]byte(serializedPool), &padMetaData.PadPool); err != nil {
+			return nil, err
+		}
+
 		return &padMetaData, nil
 	}
 
@@ -928,7 +944,7 @@ func NewSQLiteDB(path string) (*SQLiteDB, error) {
 		return nil, err
 	}
 
-	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS padRev(id TEXT, rev INTEGER, changeset TEXT, atextText TEXT, atextAttribs TEXT, authorId TEXT, timestamp INTEGER, PRIMARY KEY (id, rev), FOREIGN KEY(id) REFERENCES pad(id) ON DELETE CASCADE, FOREIGN KEY(authorId) REFERENCES globalAuthor(id) ON DELETE SET NULL)")
+	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS padRev(id TEXT, rev INTEGER, changeset TEXT, atextText TEXT, atextAttribs TEXT, authorId TEXT, timestamp INTEGER, pool TEXT,  PRIMARY KEY (id, rev), FOREIGN KEY(id) REFERENCES pad(id) ON DELETE CASCADE, FOREIGN KEY(authorId) REFERENCES globalAuthor(id) ON DELETE SET NULL)")
 	if err != nil {
 		return nil, err
 	}

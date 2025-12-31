@@ -138,15 +138,15 @@ func TestDefaultsToSettingsPadText(t *testing.T) {
 }
 
 func TestPassesEmptyAuthorIdIfNotProvided(t *testing.T) {
-	var authorId string
+	var authorId *string
 	var hook = hooks.NewHook()
 	hook.EnqueueHook(hooks.PadDefaultContentString, func(hookName string, ctx any) {
-		authorId = *ctx.(*pad.DefaultContent).AuthorId
+		authorId = ctx.(*pad.DefaultContent).AuthorId
 	})
 	padManager := NewManager(db.NewMemoryDataStore(), &hook)
 
 	padManager.GetPad("test", nil, nil)
-	if authorId != "" {
+	if authorId != nil {
 		t.Error("Author id should be empty")
 	}
 }

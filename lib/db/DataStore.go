@@ -1,7 +1,6 @@
 package db
 
 import (
-	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/models/db"
 	session2 "github.com/ether/etherpad-go/lib/models/session"
 )
@@ -11,7 +10,7 @@ type PadMethods interface {
 	RemovePad(padID string) error
 	CreatePad(padID string, padDB db.PadDB) error
 	GetPadIds() (*[]string, error)
-	SaveRevision(padId string, rev int, changeset string, text apool.AText, pool apool.APool, authorId *string, timestamp int64) error
+	SaveRevision(padId string, rev int, changeset string, text db.AText, pool db.RevPool, authorId *string, timestamp int64) error
 	GetRevision(padId string, rev int) (*db.PadSingleRevision, error)
 	RemoveRevisionsOfPad(padId string) error
 	GetRevisions(padId string, startRev int, endRev int) (*[]db.PadSingleRevision, error)

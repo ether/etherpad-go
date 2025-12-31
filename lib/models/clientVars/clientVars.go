@@ -93,7 +93,7 @@ type ClientVars struct {
 	UserId                             string                             `json:"userId"`
 	AbiwordAvailable                   string                             `json:"abiwordAvailable"`
 	SOfficeAvailable                   string                             `json:"sofficeAvailable"`
-	ExportAvailable                    string                             `json:"exportAvailable"`
+	AvailableExports                   []string                           `json:"availableExports"`
 	Plugins                            RootPlugin                         `json:"plugins"`
 	Parts                              map[string]interface{}             `json:"parts"`
 	IndentationOnNewLine               bool                               `json:"indentationOnNewLine"`

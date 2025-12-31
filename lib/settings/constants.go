@@ -15,6 +15,7 @@ const (
 	CleanupKeepRevisions                = "cleanup.keepRevisions"
 	AuthenticationMethod                = "authenticationMethod"
 	EnableDarkMode                      = "enableDarkMode"
+	AvailableExports                    = "availableExports"
 	UpdateServer                        = "updateServer"
 	DBType                              = "dbType"
 	DBSettingsHost                      = "dbSettings.host"

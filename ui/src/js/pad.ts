@@ -505,7 +505,7 @@ const pad = {
         padsavedrevs.init(this);
         padeditor.init(pad.padOptions.view || {}, this).then(postAceInit);
         paduserlist.init(pad.myUserInfo, this);
-        padconnectionstatus.init();
+        padconnectionstatus.init(socket);
         padmodals.init(this);
 
         pad.collabClient = getCollabClient(

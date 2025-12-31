@@ -10,13 +10,16 @@ import (
 	"time"
 
 	"github.com/docker/go-connections/nat"
+	"github.com/ether/etherpad-go/lib"
 	"github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/db"
 	hooks2 "github.com/ether/etherpad-go/lib/hooks"
 	"github.com/ether/etherpad-go/lib/pad"
+	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/ether/etherpad-go/lib/ws"
 	"github.com/go-playground/validator/v10"
 	mysql2 "github.com/go-sql-driver/mysql"
+	"github.com/gofiber/fiber/v2"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 	"go.uber.org/zap"
@@ -24,6 +27,10 @@ import (
 
 type TestDataStore struct {
 	DS                  db.DataStore
+	Logger              *zap.SugaredLogger
+	Hooks               *hooks2.Hook
+	ReadOnlyManager     *pad.ReadOnlyManager
+	SecurityManager     *pad.SecurityManager
 	AuthorManager       *author.Manager
 	PadManager          *pad.Manager
 	PadMessageHandler   *ws.PadMessageHandler
@@ -31,6 +38,25 @@ type TestDataStore struct {
 	MockWebSocket       *ws.MockWebSocketConn
 	Validator           *validator.Validate
 	Hub                 *ws.Hub
+	App                 *fiber.App
+}
+
+func (t *TestDataStore) ToInitStore() *lib.InitStore {
+	settings.Displayed.LoadTest = true
+	return &lib.InitStore{
+		SecurityManager:   t.SecurityManager,
+		RetrievedSettings: &settings.Displayed,
+		Store:             t.DS,
+		AuthorManager:     t.AuthorManager,
+		PadManager:        t.PadManager,
+		Handler:           t.PadMessageHandler,
+		Validator:         t.Validator,
+		Logger:            t.Logger,
+		Hooks:             t.Hooks,
+		ReadOnlyManager:   t.ReadOnlyManager,
+		C:                 t.App,
+		UiAssets:          GetTestAssets(),
+	}
 }
 
 type TestRunConfig struct {
@@ -154,7 +180,6 @@ func PrepareMySQLDB() (*TestContainerConfiguration, error) {
 		return nil, err
 	}
 
-	// Manuelle Wartelogik
 	mySQLConf := mysql2.NewConfig()
 	mySQLConf.User = DbUser
 	mySQLConf.Passwd = DbPass
@@ -389,8 +414,8 @@ func (test *TestDBHandler) TestRun(t *testing.T, testRun TestRunConfig, newDS fu
 		go hub.Run()
 		sess := ws.NewSessionStore()
 		padManager := pad.NewManager(ds, &hooks)
-		padMessageHandler := ws.NewPadMessageHandler(ds, &hooks, padManager, &sess, hub)
 		loggerPart := zap.NewNop().Sugar()
+		padMessageHandler := ws.NewPadMessageHandler(ds, &hooks, padManager, &sess, hub, loggerPart)
 		adminMessageHandler := ws.NewAdminMessageHandler(ds, &hooks, padManager, padMessageHandler, loggerPart, hub)
 		validatorEvaluator := validator.New(validator.WithRequiredStructEnabled())
 		testRun.Test(t, TestDataStore{
@@ -402,6 +427,11 @@ func (test *TestDBHandler) TestRun(t *testing.T, testRun TestRunConfig, newDS fu
 			MockWebSocket:       ws.NewActualMockWebSocketconn(),
 			Validator:           validatorEvaluator,
 			Hub:                 hub,
+			ReadOnlyManager:     pad.NewReadOnlyManager(ds),
+			Hooks:               &hooks,
+			App:                 fiber.New(),
+			Logger:              loggerPart,
+			SecurityManager:     pad.NewSecurityManager(ds, &hooks, padManager),
 		})
 		t.Cleanup(func() {
 			if err := ds.Close(); err != nil {

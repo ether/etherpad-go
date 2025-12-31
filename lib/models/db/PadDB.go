@@ -1,36 +1,65 @@
 package db
 
-import (
-	"github.com/ether/etherpad-go/lib/apool"
-)
+import "strconv"
+
+type AText struct {
+	Text    string `json:"text"`
+	Attribs string `json:"attribs"`
+}
+
+type PadPool struct {
+	NumToAttrib map[string][]string `json:"numToAttrib"`
+	NextNum     int                 `json:"nextNum"`
+}
+
+func (p *PadPool) ToIntPool() map[int][]string {
+	intPool := make(map[int][]string)
+	for k, v := range p.NumToAttrib {
+		convertedInteger, err := strconv.Atoi(k)
+		if err != nil {
+			continue
+		}
+		intPool[convertedInteger] = v
+	}
+	return intPool
+}
 
 type PadDB struct {
-	RevNum         int                 `json:"head"`
-	SavedRevisions map[int]PadRevision `json:"savedRevisions"`
-	ReadOnlyId     string              `json:"readOnlyId"`
-	Pool           apool.APool         `json:"pool"`
-	ChatHead       int                 `json:"chatHead"`
-	PublicStatus   bool                `json:"publicStatus"`
-	AText          apool.AText         `json:"atext"`
+	RevNum         int                       `json:"head"`
+	SavedRevisions map[int]PadRevision       `json:"savedRevisions"`
+	Revisions      map[int]PadSingleRevision `json:"revisions"`
+	ReadOnlyId     string                    `json:"readOnlyId"`
+	Pool           PadPool                   `json:"pool"`
+	ChatHead       int                       `json:"chatHead"`
+	PublicStatus   bool                      `json:"publicStatus"`
+	AText          AText                     `json:"atext"`
 }
 
 type PadRevision struct {
 	Content   string
-	PadDBMeta PadDBMeta
+	PadDBMeta PadRevDBMeta
 }
 
 type PadSingleRevision struct {
 	PadId     string
 	RevNum    int
 	Changeset string
-	AText     apool.AText
+	AText     AText
 	AuthorId  *string
 	Timestamp int64
+	Pool      *RevPool
 }
 
-type PadDBMeta struct {
+type PadSavedDBMeta struct {
 	Author    *string
 	Timestamp int64
-	Pool      *apool.APool
-	AText     *apool.AText
+	Pool      *RevPool
+	AText     *AText
+}
+
+type PadRevDBMeta struct {
+	Author    *string
+	Timestamp int64
+	Pool      *RevPool
+	AText     *AText
 }

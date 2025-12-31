@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/ether/etherpad-go/lib/db"
+	db2 "github.com/ether/etherpad-go/lib/models/db"
 	"github.com/ether/etherpad-go/lib/models/ws/admin"
 	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/ether/etherpad-go/lib/test/testutils"
@@ -238,7 +239,7 @@ func testHandlePadLoadExactPattern(t *testing.T, ds testutils.TestDataStore) {
 	randomPad := db.CreateRandomPad()
 
 	assert.NoError(t, ds.DS.CreatePad("test", randomPad))
-	assert.NoError(t, ds.DS.SaveRevision("test", 1, "123", randomPad.AText, randomPad.Pool, nil, 123))
+	assert.NoError(t, ds.DS.SaveRevision("test", 1, "123", randomPad.AText, db2.RevPool{}, nil, 123))
 
 	client := &ws.Client{
 		Hub:       hub,
@@ -280,7 +281,7 @@ func testHandlePadLoadFuzzyPattern(t *testing.T, ds testutils.TestDataStore) {
 	randomPad := db.CreateRandomPad()
 
 	assert.NoError(t, ds.DS.CreatePad("test123", randomPad))
-	assert.NoError(t, ds.DS.SaveRevision("test123", 1, "123", randomPad.AText, randomPad.Pool, nil, 123))
+	assert.NoError(t, ds.DS.SaveRevision("test123", 1, "123", randomPad.AText, db2.RevPool{}, nil, 123))
 
 	client := &ws.Client{
 		Hub:       hub,

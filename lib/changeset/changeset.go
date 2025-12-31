@@ -23,7 +23,10 @@ type Changeset struct {
 
 func OpsFromAText(atext apool.AText) *[]Op {
 	var lastOp *Op = nil
-	var attribs, _ = DeserializeOps(atext.Attribs)
+	var attribs, err = DeserializeOps(atext.Attribs)
+	if err != nil {
+		return nil
+	}
 	var opsToReturn = make([]Op, 0)
 
 	for _, op := range *attribs {
@@ -36,7 +39,6 @@ func OpsFromAText(atext apool.AText) *[]Op {
 	if lastOp == nil {
 		return nil
 	}
-	// exclude final newline
 
 	if lastOp.Lines <= 1 {
 		lastOp.Lines = 0
@@ -75,8 +77,6 @@ func OpsFromText(opcode string, text string, attribs *KeepArgs, pool *apool.APoo
 		var emptyValueIsDelete = opcode == "+"
 		var attribMap = NewAttributeMap(pool)
 		op.Attribs = attribMap.Update(*attribs.apoolAttribs, &emptyValueIsDelete).String()
-	} else {
-		println("This should never happen")
 	}
 	var lastNewLinePos = utils.RuneLastIndex(text, "\n")
 	if lastNewLinePos < 0 {
@@ -155,7 +155,7 @@ func Identity(n int) string {
 }
 
 func Unpack(cs string) (*Changeset, error) {
-	var headerRegex, _ = regexp.Compile("Z:([0-9a-z]+)([><])([0-9a-z]+)|")
+	var headerRegex = regexp.MustCompile("Z:([0-9a-z]+)([><])([0-9a-z]+)|")
 	var foundHeaders = headerRegex.FindStringSubmatch(cs)
 
 	if len(foundHeaders) == 0 {
@@ -801,7 +801,7 @@ func Inverse(cs string, lines []string, alines []string, pool *apool.APool) (*st
 				curLine++
 				curChar = 0
 				curLineOpsLine = curLine
-				curLineNextOp.Chars = 0
+				curLineNextOp = NewOp(nil)
 				curLineOps, err = DeserializeOps(alinesGet(curLine))
 				if err != nil {
 					panic(err)
@@ -833,6 +833,8 @@ func Inverse(cs string, lines []string, alines []string, pool *apool.APool) (*st
 		if l > 0 {
 			curLine += l
 			curChar = 0
+			curLineOps = nil
+			curLineNextOp = NewOp(nil)
 		} else if curLineOps != nil && curLineOpsLine == curLine {
 			consumeAttribRuns(n, func(int, string, bool) {})
 		} else {
@@ -1422,12 +1424,13 @@ func MoveOpsToNewPool(cs string, oldPool *apool.APool, newPool *apool.APool) str
 
 		oldNum, err := utils.ParseNum(a)
 		if err != nil {
-			// ungültige Nummer -> entfernen wie im JS-Beispiel
+			println("Error parsing attribute number during pool move:", match, err)
 			return ""
 		}
 
 		pair, _ := oldPool.GetAttrib(oldNum)
 		if pair == nil {
+			println("Removing unknown attribute from changeset during pool move:", match)
 			// Attribut eventuell nicht im alten Pool -> wie JS: entfernen
 			return ""
 		}
@@ -1476,7 +1479,10 @@ func SplitAttributionLines(attrOps string, text string) ([]string, error) {
 		pos += op.Chars
 	}
 
-	var deserializedOps, _ = DeserializeOps(attrOps)
+	var deserializedOps, err = DeserializeOps(attrOps)
+	if err != nil {
+		return nil, err
+	}
 
 	for _, op := range *deserializedOps {
 		var numChars = op.Chars

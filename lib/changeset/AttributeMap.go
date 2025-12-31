@@ -108,6 +108,17 @@ func (a *AttributeMap) sortAttribs() []apool.Attribute {
 	for key, value := range a.attrs {
 		copiedSlice = append(copiedSlice, apool.Attribute{Key: key, Value: value})
 	}
-	slices.SortFunc(copiedSlice, apool.CmpAttribute)
+	// Sort by pool number to ensure canonical order
+	slices.SortFunc(copiedSlice, func(attr1, attr2 apool.Attribute) int {
+		num1 := a.pool.PutAttrib(attr1, nil)
+		num2 := a.pool.PutAttrib(attr2, nil)
+		if num1 < num2 {
+			return -1
+		}
+		if num1 > num2 {
+			return 1
+		}
+		return 0
+	})
 	return copiedSlice
 }

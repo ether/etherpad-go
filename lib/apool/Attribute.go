@@ -26,6 +26,10 @@ func (a *Attribute) ToJsonAble() []string {
 	return result
 }
 
+func (a *Attribute) String() string {
+	return a.Key + "," + a.Value
+}
+
 func FromJsonAble(convertable []string) Attribute {
 	return Attribute{
 		Key:   convertable[0],

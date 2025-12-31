@@ -12,6 +12,12 @@ type ChangesetDB struct {
 	CharBank string
 }
 
+type RevPool struct {
+	NumToAttrib map[string][]string `json:"numToAttrib"`
+	AttribToNum map[string]int      `json:"attribToNum"`
+	NextNum     int                 `json:"nextNum"`
+}
+
 type RevisionDB struct {
 	RevNum int
 	cs     ChangesetDB

@@ -63,4 +63,5 @@ func (m *MergingOpAssembler) String() string {
 func (m *MergingOpAssembler) Clear() {
 	m.assem.Clear()
 	m.bufOp.clearOp()
+	m.bufOpAdditionalCharsAfterNewline = 0
 }
