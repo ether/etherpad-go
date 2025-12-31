@@ -143,7 +143,7 @@ func ReadConfig(jsonStr string) (*Settings, error) {
 	viper.SetDefault(LowerCasePadIds, false)
 	viper.SetDefault(UpdateServer, "https://static.etherpad.org")
 	viper.SetDefault(EnableDarkMode, true)
-	viper.SetDefault(AvailableExports, []string{"txt", "pdf", "etherpad"})
+	viper.SetDefault(AvailableExports, []string{"txt", "pdf", "etherpad", "word"})
 
 	users := make(map[string]User)
 	if err := viper.UnmarshalKey(Users, &users); err != nil {

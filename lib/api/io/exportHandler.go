@@ -15,10 +15,10 @@ func GetExport(ctx *fiber.Ctx, exportHandler *io.ExportEtherpad, settings *setti
 	rev := ctx.Params("rev")
 	exportType := ctx.Params("type")
 	typesToExport := []string{
-		"pdf", "doc", "txt", "html", "odt", "etherpad",
+		"pdf", "doc", "docx", "txt", "html", "odt", "etherpad",
 	}
 	externalTypes := []string{
-		"odt", "doc",
+		"odt",
 	}
 
 	if !slices.Contains(typesToExport, exportType) {

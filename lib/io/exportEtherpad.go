@@ -20,6 +20,7 @@ type ExportEtherpad struct {
 	AuthorManager *author.Manager
 	exportTxt     *ExportTxt
 	exportPDF     *ExportPDF
+	exportDocx    *ExportDocx
 	logger        *zap.SugaredLogger
 }
 
@@ -41,7 +42,8 @@ func NewExportEtherpad(hooks *hooks.Hook, padManager *pad.Manager, db db.DataSto
 			padManager:    padManager,
 			authorManager: authorMgr,
 		},
-		logger: logger,
+		exportDocx: NewExportDocx(padManager, authorMgr),
+		logger:     logger,
 	}
 }
 
@@ -198,6 +200,14 @@ func (e *ExportEtherpad) DoExport(ctx *fiber.Ctx, id string, readOnlyId *string,
 			return ctx.Status(500).SendString(err.Error())
 		}
 		return ctx.Send(pdfBytes)
+	case "doc", "docx":
+		ctx.Set("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+		docxBytes, err := e.exportDocx.GetPadDocxDocument(id, optRevNum)
+		if err != nil {
+			e.logger.Warnf("Failed to get docx document for id: %s with cause %s", id, err.Error())
+			return ctx.Status(500).SendString(err.Error())
+		}
+		return ctx.Send(docxBytes)
 	default:
 		return ctx.Status(400).SendString("Not Implemented")
 	}

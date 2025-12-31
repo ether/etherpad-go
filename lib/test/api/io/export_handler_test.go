@@ -80,6 +80,26 @@ func TestExportHandler(t *testing.T) {
 			Test: testExportMixedFormattingPadAsPdf,
 		},
 		testutils.TestRunConfig{
+			Name: "Export Plain Text Pad as DOCX",
+			Test: testExportPlainTextPadAsDocx,
+		},
+		testutils.TestRunConfig{
+			Name: "Export Bold Text Pad as DOCX",
+			Test: testExportBoldTextPadAsDocx,
+		},
+		testutils.TestRunConfig{
+			Name: "Export Italic Text Pad as DOCX",
+			Test: testExportItalicTextPadAsDocx,
+		},
+		testutils.TestRunConfig{
+			Name: "Export Indented Text Pad as DOCX",
+			Test: testExportIndentedTextPadAsDocx,
+		},
+		testutils.TestRunConfig{
+			Name: "Export Mixed Formatting Pad as DOCX",
+			Test: testExportMixedFormattingPadAsDocx,
+		},
+		testutils.TestRunConfig{
 			Name: "Export Non Existing Pad Returns 404",
 			Test: testExportNonExistingPadReturns404,
 		},
@@ -551,4 +571,127 @@ func testExportMixedFormattingPadAsPdf(t *testing.T, tsStore testutils.TestDataS
 
 	assert.True(t, len(body) > 4, "PDF body should not be empty")
 	assert.Equal(t, "%PDF", string(body[:4]), "PDF should start with %PDF header")
+}
+
+// DOCX Export Tests
+func testExportPlainTextPadAsDocx(t *testing.T, tsStore testutils.TestDataStore) {
+	app := setupExportApp(tsStore)
+	padId := "plainTextPadDocx"
+	testText := "Hello World DOCX"
+
+	token := createPadWithPlainText(t, tsStore, padId, testText)
+
+	req := httptest.NewRequest("GET", "/p/"+padId+"/export/docx", nil)
+	req.AddCookie(&http.Cookie{Name: "token", Value: token})
+	resp, err := app.Test(req, 5000)
+	assert.NoError(t, err)
+
+	body, err := io.ReadAll(resp.Body)
+	assert.NoError(t, err)
+
+	if resp.StatusCode != 200 {
+		t.Logf("DOCX Export failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	assert.Equal(t, 200, resp.StatusCode)
+
+	// Check Content-Type header
+	contentType := resp.Header.Get("Content-Type")
+	assert.Equal(t, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", contentType)
+
+	// DOCX files are ZIP files, they start with PK (0x50 0x4B)
+	assert.True(t, len(body) > 4, "DOCX body should not be empty")
+	assert.Equal(t, "PK", string(body[:2]), "DOCX should start with PK (ZIP header)")
+}
+
+func testExportBoldTextPadAsDocx(t *testing.T, tsStore testutils.TestDataStore) {
+	app := setupExportApp(tsStore)
+	padId := "boldTextPadDocx"
+	testText := "Bold Text DOCX"
+
+	token := createPadWithBoldText(t, tsStore, padId, testText)
+
+	req := httptest.NewRequest("GET", "/p/"+padId+"/export/docx", nil)
+	req.AddCookie(&http.Cookie{Name: "token", Value: token})
+	resp, err := app.Test(req, 5000)
+	assert.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	contentType := resp.Header.Get("Content-Type")
+	assert.Equal(t, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", contentType)
+
+	body, err := io.ReadAll(resp.Body)
+	assert.NoError(t, err)
+
+	assert.True(t, len(body) > 4, "DOCX body should not be empty")
+	assert.Equal(t, "PK", string(body[:2]), "DOCX should start with PK (ZIP header)")
+}
+
+func testExportItalicTextPadAsDocx(t *testing.T, tsStore testutils.TestDataStore) {
+	app := setupExportApp(tsStore)
+	padId := "italicTextPadDocx"
+	testText := "Italic Text DOCX"
+
+	token := createPadWithItalicText(t, tsStore, padId, testText)
+
+	req := httptest.NewRequest("GET", "/p/"+padId+"/export/docx", nil)
+	req.AddCookie(&http.Cookie{Name: "token", Value: token})
+	resp, err := app.Test(req, 5000)
+	assert.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	contentType := resp.Header.Get("Content-Type")
+	assert.Equal(t, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", contentType)
+
+	body, err := io.ReadAll(resp.Body)
+	assert.NoError(t, err)
+
+	assert.True(t, len(body) > 4, "DOCX body should not be empty")
+	assert.Equal(t, "PK", string(body[:2]), "DOCX should start with PK (ZIP header)")
+}
+
+func testExportIndentedTextPadAsDocx(t *testing.T, tsStore testutils.TestDataStore) {
+	app := setupExportApp(tsStore)
+	padId := "indentedTextPadDocx"
+	testText := "Indented Text DOCX"
+
+	token := createPadWithIndentation(t, tsStore, padId, testText)
+
+	req := httptest.NewRequest("GET", "/p/"+padId+"/export/docx", nil)
+	req.AddCookie(&http.Cookie{Name: "token", Value: token})
+	resp, err := app.Test(req, 5000)
+	assert.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	contentType := resp.Header.Get("Content-Type")
+	assert.Equal(t, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", contentType)
+
+	body, err := io.ReadAll(resp.Body)
+	assert.NoError(t, err)
+
+	assert.True(t, len(body) > 4, "DOCX body should not be empty")
+	assert.Equal(t, "PK", string(body[:2]), "DOCX should start with PK (ZIP header)")
+}
+
+func testExportMixedFormattingPadAsDocx(t *testing.T, tsStore testutils.TestDataStore) {
+	app := setupExportApp(tsStore)
+	padId := "mixedFormattingPadDocx"
+	testText := "Mixed Formatting Text DOCX"
+
+	token := createPadWithMixedFormatting(t, tsStore, padId, testText)
+
+	req := httptest.NewRequest("GET", "/p/"+padId+"/export/docx", nil)
+	req.AddCookie(&http.Cookie{Name: "token", Value: token})
+	resp, err := app.Test(req, 5000)
+	assert.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	contentType := resp.Header.Get("Content-Type")
+	assert.Equal(t, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", contentType)
+
+	body, err := io.ReadAll(resp.Body)
+	assert.NoError(t, err)
+
+	assert.True(t, len(body) > 4, "DOCX body should not be empty")
+	assert.Equal(t, "PK", string(body[:2]), "DOCX should start with PK (ZIP header)")
 }
