@@ -228,6 +228,8 @@ func (s *Settings) ExportAvailable() string {
 	var abiword = s.abiwordAvailable()
 	var soffice = s.sofficeAvailable()
 
+	return "yes"
+
 	if abiword == "no" && soffice == "no" {
 		return "no"
 	} else if (abiword == "withoutPDF" && soffice == "no") || (soffice == "withoutPDF" && abiword == "no") {

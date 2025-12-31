@@ -120,7 +120,10 @@ func GetTxtFromAText(retrievedPad *pad.Pad, atext apool.AText) (*string, error) 
 		const LEAVE = 0
 		const TRUE = 3
 		const FALSE = 4
-		propVals := []int{FALSE, FALSE, FALSE}
+		propVals := make([]int, len(props))
+		for i := range propVals {
+			propVals[i] = FALSE
+		}
 
 		// Use order of tags (b/i/u) as order of nesting, for simplicity
 		// and decent nesting.  For example,

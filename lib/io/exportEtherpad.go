@@ -1,6 +1,7 @@
 package io
 
 import (
+	"embed"
 	"fmt"
 	"strconv"
 
@@ -18,16 +19,24 @@ type ExportEtherpad struct {
 	PadManager    *pad.Manager
 	AuthorManager *author.Manager
 	exportTxt     *ExportTxt
+	exportPDF     *ExportPDF
 	logger        *zap.SugaredLogger
 }
 
-func NewExportEtherpad(hooks *hooks.Hook, padManager *pad.Manager, db db.DataStore, logger *zap.SugaredLogger) *ExportEtherpad {
+func NewExportEtherpad(hooks *hooks.Hook, padManager *pad.Manager, db db.DataStore, logger *zap.SugaredLogger, uiAssets embed.FS) *ExportEtherpad {
+	exportTxt := ExportTxt{
+		PadManager: padManager,
+	}
+
 	return &ExportEtherpad{
 		hooks:         hooks,
 		PadManager:    padManager,
 		AuthorManager: author.NewManager(db),
-		exportTxt: &ExportTxt{
-			PadManager: padManager,
+		exportTxt:     &exportTxt,
+		exportPDF: &ExportPDF{
+			uiAssets:   uiAssets,
+			exportTxt:  &exportTxt,
+			padManager: padManager,
 		},
 		logger: logger,
 	}
@@ -160,7 +169,8 @@ func (e *ExportEtherpad) DoExport(ctx *fiber.Ctx, id string, readOnlyId *string,
 
 	}
 
-	if fileExportType == "etherpad" {
+	switch fileExportType {
+	case "etherpad":
 		exportedPad, err := e.GetPadRaw(id, readOnlyId)
 		if err != nil {
 			return ctx.Status(500).SendString(err.Error())
@@ -170,16 +180,22 @@ func (e *ExportEtherpad) DoExport(ctx *fiber.Ctx, id string, readOnlyId *string,
 			return ctx.Status(500).SendString(err.Error())
 		}
 		return ctx.Send(marshalledPad)
-	} else if fileExportType == "txt" {
+	case "txt":
 		textString, err := e.exportTxt.GetPadTxtDocument(id, optRevNum)
 		if err != nil {
 			e.logger.Warnf("Failed to get txt document for id: %s with cause %s", id, err.Error())
 			return ctx.Status(500).SendString(err.Error())
 		}
 		return ctx.SendString(*textString)
+	case "pdf":
+		ctx.Set("Content-Type", "application/pdf")
+		pdfBytes, err := e.exportPDF.GetPadPdfDocument(id, optRevNum)
+		if err != nil {
+			e.logger.Warnf("Failed to get pdf document for id: %s with cause %s", id, err.Error())
+			return ctx.Status(500).SendString(err.Error())
+		}
+		return ctx.Send(pdfBytes)
+	default:
+		return ctx.Status(400).SendString("Not Implemented")
 	}
-
-	ctx.SendString("Not Implemented")
-
-	return nil
 }
