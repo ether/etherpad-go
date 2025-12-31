@@ -7,7 +7,7 @@ import (
 )
 
 func Init(store *lib.InitStore) {
-	exportEtherpad := io.NewExportEtherpad(store.Hooks, store.PadManager, store.Store)
+	exportEtherpad := io.NewExportEtherpad(store.Hooks, store.PadManager, store.Store, store.Logger)
 	store.C.Get("/p/:pad/:rev/export/:type", func(ctx *fiber.Ctx) error {
 		return GetExport(ctx, exportEtherpad, store.RetrievedSettings, store.Logger, store.PadManager, store.ReadOnlyManager, store.SecurityManager)
 	})

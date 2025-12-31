@@ -10,6 +10,7 @@ import (
 	"github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/utils"
 	"github.com/gofiber/fiber/v2"
+	"go.uber.org/zap"
 )
 
 type ExportEtherpad struct {
@@ -17,9 +18,10 @@ type ExportEtherpad struct {
 	PadManager    *pad.Manager
 	AuthorManager *author.Manager
 	exportTxt     *ExportTxt
+	logger        *zap.SugaredLogger
 }
 
-func NewExportEtherpad(hooks *hooks.Hook, padManager *pad.Manager, db db.DataStore) *ExportEtherpad {
+func NewExportEtherpad(hooks *hooks.Hook, padManager *pad.Manager, db db.DataStore, logger *zap.SugaredLogger) *ExportEtherpad {
 	return &ExportEtherpad{
 		hooks:         hooks,
 		PadManager:    padManager,
@@ -27,6 +29,7 @@ func NewExportEtherpad(hooks *hooks.Hook, padManager *pad.Manager, db db.DataSto
 		exportTxt: &ExportTxt{
 			PadManager: padManager,
 		},
+		logger: logger,
 	}
 }
 
@@ -160,6 +163,7 @@ func (e *ExportEtherpad) DoExport(ctx *fiber.Ctx, id string, readOnlyId *string,
 	} else if fileExportType == "txt" {
 		textString, err := e.exportTxt.GetPadTxtDocument(id, optRevNum)
 		if err != nil {
+			e.logger.Warnf("Failed to get txt document for id: %s with cause %s", id, err.Error())
 			return ctx.Status(500).SendString(err.Error())
 		}
 		return ctx.SendString(*textString)

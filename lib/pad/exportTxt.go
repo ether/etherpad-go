@@ -1,7 +1,6 @@
 package pad
 
 import (
-	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -135,7 +134,8 @@ func GetTxtFromAText(retrievedPad *pad.Pad, atext apool.AText) (*string, error) 
 
 		processNextChars := func(numChars int) error {
 			if numChars <= 0 {
-				return errors.New("invalid character count")
+				// Skip processing
+				return nil
 			}
 			optEnd := idx + numChars
 			resultingOps, err := changeset.Subattribution(attribs, idx, &optEnd)
@@ -283,7 +283,7 @@ func GetTxtFromAText(retrievedPad *pad.Pad, atext apool.AText) (*string, error) 
 					}
 				}
 
-				pieces = append(pieces, fmt.Sprintf("%d.", listNumbers[line.ListLevel]))
+				pieces = append(pieces, fmt.Sprintf("%d. ", listNumbers[line.ListLevel]))
 				prevListLevel = line.ListLevel
 			}
 
