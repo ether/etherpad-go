@@ -45,6 +45,10 @@ type SessionInfo struct {
 
 var colorRegEx *regexp.Regexp
 
+func init() {
+	colorRegEx = regexp.MustCompile(`^#[0-9A-Fa-f]{6}$`)
+}
+
 type Task struct {
 	socket  *Client
 	message ws.UserChange
@@ -298,7 +302,7 @@ func (p *PadMessageHandler) ComposePadChangesets(retrievedPad *pad2.Pad, startNu
 	return startChangeset, nil
 }
 
-func (p *PadMessageHandler) handleMessage(message any, client *Client, ctx *fiber.Ctx, retrievedSettings *settings.Settings, logger *zap.SugaredLogger) {
+func (p *PadMessageHandler) HandleMessage(message any, client *Client, ctx *fiber.Ctx, retrievedSettings *settings.Settings, logger *zap.SugaredLogger) {
 	var isSessionInfo = p.SessionStore.hasSession(client.SessionId)
 
 	if !isSessionInfo {
@@ -341,7 +345,9 @@ func (p *PadMessageHandler) handleMessage(message any, client *Client, ctx *fibe
 
 	if auth == nil {
 		var ip string
-		if settings.Displayed.DisableIPLogging {
+		if ctx == nil {
+			ip = "TEST"
+		} else if settings.Displayed.DisableIPLogging {
 			ip = "ANONYMOUS"
 		} else {
 			ip = ctx.IP()
@@ -350,10 +356,13 @@ func (p *PadMessageHandler) handleMessage(message any, client *Client, ctx *fibe
 		return
 	}
 
-	var user, okConv = ctx.Locals(clientVars2.WebAccessStore).(*webaccess.SocketClientRequest)
-
-	if !okConv {
-		user = nil
+	var user *webaccess.SocketClientRequest
+	if ctx != nil {
+		var okConv bool
+		user, okConv = ctx.Locals(clientVars2.WebAccessStore).(*webaccess.SocketClientRequest)
+		if !okConv {
+			user = nil
+		}
 	}
 
 	var grantedAccess, err = p.securityManager.CheckAccess(&auth.PadId, &auth.SessionId, &auth.Token, user)
