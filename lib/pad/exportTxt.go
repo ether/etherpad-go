@@ -42,7 +42,7 @@ func parseListType(listType string) (tag string, num int, ok bool) {
 	return m[1], n, true
 }
 
-func analyzeLine(text string, aline string, attrpool apool.APool) (*LineModel, error) {
+func AnalyzeLine(text string, aline string, attrpool apool.APool) (*LineModel, error) {
 	line := &LineModel{}
 
 	lineMarker := 0
@@ -245,7 +245,7 @@ func GetTxtFromAText(retrievedPad *pad.Pad, atext apool.AText) (*string, error) 
 	prevListLevel := 0
 
 	for i, lineText := range textLines {
-		line, err := analyzeLine(lineText, attribLines[i], padPool)
+		line, err := AnalyzeLine(lineText, attribLines[i], padPool)
 		if err != nil {
 			return nil, err
 		}

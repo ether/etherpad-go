@@ -43,7 +43,7 @@ func TestAnalyzeLine_WithListAttribute(t *testing.T) {
 	trueVal := true
 	pool.PutAttrib(apool.Attribute{Key: "list", Value: "bullet1"}, &trueVal)
 
-	line, err := analyzeLine("test\n", "*0+5", pool)
+	line, err := AnalyzeLine("test\n", "*0+5", pool)
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -65,7 +65,7 @@ func TestAnalyzeLine_WithStartAttribute(t *testing.T) {
 	pool.PutAttrib(apool.Attribute{Key: "list", Value: "number1"}, &trueVal)
 	pool.PutAttrib(apool.Attribute{Key: "start", Value: "5"}, &trueVal)
 
-	line, err := analyzeLine("item\n", "*0*1+5", pool)
+	line, err := AnalyzeLine("item\n", "*0*1+5", pool)
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -80,7 +80,7 @@ func TestAnalyzeLine_EmptyText(t *testing.T) {
 	trueVal := true
 	pool.PutAttrib(apool.Attribute{Key: "list", Value: "bullet1"}, &trueVal)
 
-	line, err := analyzeLine("", "*0|1+0", pool)
+	line, err := AnalyzeLine("", "*0|1+0", pool)
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
