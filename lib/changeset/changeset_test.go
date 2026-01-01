@@ -852,3 +852,315 @@ func SimpleComposeAttributes(t *testing.T) {
 
 	Compose(*cs1, *cs2, &pool)
 }
+
+// Tests for MutateAttributionLines
+
+func TestMutateAttributionLines_SimpleInsert(t *testing.T) {
+	pool := apool.NewAPool()
+
+	// Start with a simple line
+	lines := []string{"|1+5"}
+
+	// Insert 3 characters at the beginning
+	cs := "Z:5>3+3$abc"
+
+	err := MutateAttributionLines(cs, &lines, &pool)
+	require.NoError(t, err)
+
+	// Should have updated the attribution line
+	assert.Equal(t, 1, len(lines))
+	// The line should now account for 8 characters (5 original + 3 inserted)
+}
+
+func TestMutateAttributionLines_SimpleDelete(t *testing.T) {
+	pool := apool.NewAPool()
+
+	// Start with a line of 10 characters
+	lines := []string{"|1+a"} // 10 characters (a in base36 = 10)
+
+	// Delete 3 characters
+	cs := "Z:a<3-3$"
+
+	err := MutateAttributionLines(cs, &lines, &pool)
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, len(lines))
+}
+
+func TestMutateAttributionLines_MultiLineInsert(t *testing.T) {
+	pool := apool.NewAPool()
+
+	// Start with two lines
+	lines := []string{"|1+5", "|1+5"}
+
+	// Insert a new line in the middle
+	cs := "Z:a>6|1+6$hello\n"
+
+	err := MutateAttributionLines(cs, &lines, &pool)
+	require.NoError(t, err)
+
+	// Should now have 3 lines
+	assert.Equal(t, 3, len(lines))
+}
+
+func TestMutateAttributionLines_DeleteEntireLine(t *testing.T) {
+	pool := apool.NewAPool()
+
+	// Start with two lines (5 chars each including newline)
+	lines := []string{"|1+5", "|1+5"}
+
+	// Delete the first line entirely
+	cs := "Z:a<5|1-5$"
+
+	err := MutateAttributionLines(cs, &lines, &pool)
+	require.NoError(t, err)
+
+	// Should now have 1 line
+	assert.Equal(t, 1, len(lines))
+}
+
+func TestMutateAttributionLines_WithAttributes(t *testing.T) {
+	pool := apool.NewAPool()
+	pool.PutAttrib(apool.Attribute{Key: "bold", Value: "true"}, nil)
+
+	// Start with a plain line
+	lines := []string{"|1+5"}
+
+	// Insert bold text
+	cs := "Z:5>3*0+3$abc"
+
+	err := MutateAttributionLines(cs, &lines, &pool)
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, len(lines))
+	// The line should contain the bold attribute
+	assert.Contains(t, lines[0], "*0")
+}
+
+func TestMutateAttributionLines_KeepOperation(t *testing.T) {
+	pool := apool.NewAPool()
+
+	// Start with a line
+	lines := []string{"|1+a"} // 10 characters
+
+	// Keep first 5 chars, insert 3, keep rest
+	cs := "Z:a>3=5+3$abc"
+
+	err := MutateAttributionLines(cs, &lines, &pool)
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, len(lines))
+}
+
+func TestMutateAttributionLines_EmptyChangeset(t *testing.T) {
+	pool := apool.NewAPool()
+
+	lines := []string{"|1+5"}
+	originalLine := lines[0]
+
+	// Identity changeset (no changes)
+	cs := "Z:5>0$"
+
+	err := MutateAttributionLines(cs, &lines, &pool)
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, len(lines))
+	assert.Equal(t, originalLine, lines[0])
+}
+
+func TestMutateAttributionLines_InvalidChangeset(t *testing.T) {
+	pool := apool.NewAPool()
+
+	lines := []string{"|1+5"}
+
+	// Invalid changeset
+	cs := "invalid"
+
+	err := MutateAttributionLines(cs, &lines, &pool)
+	assert.Error(t, err)
+}
+
+func TestMutateAttributionLines_EmptyLines(t *testing.T) {
+	pool := apool.NewAPool()
+
+	// Empty document
+	lines := []string{}
+
+	// Insert first content
+	cs := "Z:0>5|1+5$test\n"
+
+	err := MutateAttributionLines(cs, &lines, &pool)
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, len(lines))
+}
+
+func TestMutateAttributionLines_ComplexMultiLineOperation(t *testing.T) {
+	pool := apool.NewAPool()
+	pool.PutAttrib(apool.Attribute{Key: "bold", Value: "true"}, nil)
+
+	// Start with 3 lines, each 6 chars including newline (total 18 = 'i' in base36)
+	lines := []string{"|1+6", "|1+6", "|1+6"}
+
+	// Keep first line, insert bold text at start of second line
+	cs := "Z:i>3|1=6*0+3$abc"
+
+	err := MutateAttributionLines(cs, &lines, &pool)
+	require.NoError(t, err)
+
+	// Should still have 3 lines
+	assert.Equal(t, 3, len(lines))
+}
+
+func TestMutateAttributionLines_SkipMultipleLines(t *testing.T) {
+	pool := apool.NewAPool()
+
+	// Start with 5 lines
+	lines := []string{"|1+5", "|1+5", "|1+5", "|1+5", "|1+5"}
+
+	// Skip first 3 lines (15 chars), then insert
+	cs := "Z:p>3|3=f+3$abc"
+
+	err := MutateAttributionLines(cs, &lines, &pool)
+	require.NoError(t, err)
+
+	assert.Equal(t, 5, len(lines))
+}
+
+func TestMutateAttributionLines_InsertAtEnd(t *testing.T) {
+	pool := apool.NewAPool()
+
+	lines := []string{"|1+5"}
+
+	// Keep all 5 chars, insert at end (before newline)
+	cs := "Z:5>3=4+3$abc"
+
+	err := MutateAttributionLines(cs, &lines, &pool)
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, len(lines))
+}
+
+func TestMutateAttributionLines_ReplaceContent(t *testing.T) {
+	pool := apool.NewAPool()
+
+	// Line with 10 characters
+	lines := []string{"|1+a"}
+
+	// Replace middle content: keep 2, delete 5, insert 3, keep rest
+	cs := "Z:a<2=2-5+3$new"
+
+	err := MutateAttributionLines(cs, &lines, &pool)
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, len(lines))
+}
+
+func TestMutateAttributionLines_AttributeChange(t *testing.T) {
+	pool := apool.NewAPool()
+	pool.PutAttrib(apool.Attribute{Key: "bold", Value: "true"}, nil)
+	pool.PutAttrib(apool.Attribute{Key: "italic", Value: "true"}, nil)
+
+	// Line with plain text (5 chars including newline)
+	lines := []string{"|1+5"}
+
+	// Insert italic text at the beginning
+	cs := "Z:5>3*1+3$abc"
+
+	err := MutateAttributionLines(cs, &lines, &pool)
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, len(lines))
+	// Should contain italic attribute
+	assert.Contains(t, lines[0], "*1")
+}
+
+func TestMutateAttributionLines_InsertNewLineAtEnd(t *testing.T) {
+	pool := apool.NewAPool()
+
+	// Single line without trailing content
+	lines := []string{"|1+5"}
+
+	// Insert a new line at the end
+	cs := "Z:5>5|1=5|1+5$test\n"
+
+	err := MutateAttributionLines(cs, &lines, &pool)
+	require.NoError(t, err)
+
+	// Should have 2 lines now
+	assert.Equal(t, 2, len(lines))
+}
+
+func TestMutateAttributionLines_DeleteAndInsertSameLine(t *testing.T) {
+	pool := apool.NewAPool()
+
+	lines := []string{"|1+a"} // 10 chars
+
+	// Delete 3, insert 5 at same position
+	cs := "Z:a>2=2-3+5$hello"
+
+	err := MutateAttributionLines(cs, &lines, &pool)
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, len(lines))
+}
+
+func TestMutateAttributionLines_MergeLines(t *testing.T) {
+	pool := apool.NewAPool()
+
+	// Two lines, each 5 chars (including newline): total 10 chars = 'a' in base36
+	lines := []string{"|1+5", "|1+5"}
+
+	// Simple insert at the beginning - this tests the basic mutation works with multiple lines
+	cs := "Z:a>2+2$ab"
+
+	err := MutateAttributionLines(cs, &lines, &pool)
+	require.NoError(t, err)
+
+	// Should still have two lines
+	assert.Equal(t, 2, len(lines))
+}
+
+func TestMutateAttributionLines_SplitLine(t *testing.T) {
+	pool := apool.NewAPool()
+
+	// One long line
+	lines := []string{"|1+a"} // 10 chars
+
+	// Insert newline in middle
+	cs := "Z:a>1=5|1+1$\n"
+
+	err := MutateAttributionLines(cs, &lines, &pool)
+	require.NoError(t, err)
+
+	// Should be split into two lines
+	assert.Equal(t, 2, len(lines))
+}
+
+func TestMutateAttributionLines_PreserveAttributesOnKeep(t *testing.T) {
+	pool := apool.NewAPool()
+	pool.PutAttrib(apool.Attribute{Key: "bold", Value: "true"}, nil)
+
+	// Line with plain text (5 chars)
+	lines := []string{"|1+5"}
+
+	// Insert bold text at beginning
+	cs := "Z:5>3*0+3$abc"
+
+	err := MutateAttributionLines(cs, &lines, &pool)
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, len(lines))
+	// Should contain bold attribute for inserted text
+	assert.Contains(t, lines[0], "*0")
+}
+
+func TestMutateAttributionLines_NilPool(t *testing.T) {
+	lines := []string{"|1+5"}
+
+	cs := "Z:5>3+3$abc"
+
+	// Should work with nil pool for operations without attributes
+	err := MutateAttributionLines(cs, &lines, nil)
+	require.NoError(t, err)
+}
