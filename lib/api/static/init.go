@@ -160,6 +160,10 @@ func Init(store *lib.InitStore) {
 	var nodeEnv = os.Getenv("NODE_ENV")
 	buildCssInDev(nodeEnv, store.RetrievedSettings)
 
+	store.C.Get("/health", func(c *fiber.Ctx) error {
+		return c.SendString("OK")
+	})
+
 	store.C.Use("/p/", func(c *fiber.Ctx) error {
 		c.Path()
 
