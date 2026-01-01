@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	sq "github.com/Masterminds/squirrel"
+	"github.com/ether/etherpad-go/lib/db/migrations"
 	"github.com/ether/etherpad-go/lib/models/db"
 	session2 "github.com/ether/etherpad-go/lib/models/session"
 	"github.com/ory/fosite"
@@ -906,7 +907,7 @@ func (d SQLiteDB) Close() error {
 	return d.sqlDB.Close()
 }
 
-// NewSQLiteDB This function creates a new PostgresDB and returns a pointer to it.
+// NewSQLiteDB This function creates a new SQLiteDB and returns a pointer to it.
 func NewSQLiteDB(path string) (*SQLiteDB, error) {
 	if path == ":memory" {
 		path = "file::memory:?cache=shared"
@@ -934,57 +935,11 @@ func NewSQLiteDB(path string) (*SQLiteDB, error) {
 		return nil, err
 	}
 
-	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS pad (id TEXT PRIMARY KEY, data TEXT)")
-	if err != nil {
-		return nil, err
-	}
-	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS globalAuthorPads(id TEXT NOT NULL, padID TEXT NOT NULL,  PRIMARY KEY(id, padID), FOREIGN KEY(id) REFERENCES globalAuthor(id) ON DELETE CASCADE, FOREIGN KEY(padID) REFERENCES pad(id) ON DELETE CASCADE)")
-
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS padRev(id TEXT, rev INTEGER, changeset TEXT, atextText TEXT, atextAttribs TEXT, authorId TEXT, timestamp INTEGER, pool TEXT,  PRIMARY KEY (id, rev), FOREIGN KEY(id) REFERENCES pad(id) ON DELETE CASCADE, FOREIGN KEY(authorId) REFERENCES globalAuthor(id) ON DELETE SET NULL)")
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS token2author(token TEXT PRIMARY KEY, author TEXT, FOREIGN KEY(author) REFERENCES globalAuthor(id) ON DELETE CASCADE)")
-
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS globalAuthor(id TEXT PRIMARY KEY, colorId TEXT, name TEXT, timestamp BIGINT)")
-
-	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS pad2readonly(id TEXT PRIMARY KEY, data TEXT, FOREIGN KEY(id) REFERENCES pad(id) ON DELETE CASCADE)")
-
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS readonly2pad(id TEXT PRIMARY KEY, data TEXT, FOREIGN KEY(data) REFERENCES pad(id) ON DELETE CASCADE)")
-
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS sessionstorage(id TEXT PRIMARY KEY, originalMaxAge INTEGER, expires TEXT, secure BOOLEAN, httpOnly BOOLEAN, path TEXT, sameSite TEXT, connections TEXT)")
-
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS groupPadGroup(id TEXT PRIMARY KEY, name TEXT)")
-
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS padChat(padId TEXT NOT NULL, padHead INTEGER,  chatText TEXT NOT NULL, authorId TEXT, timestamp BIGINT, PRIMARY KEY(padId, padHead), FOREIGN KEY(padId) REFERENCES pad(id) ON DELETE CASCADE)")
-
-	if err != nil {
-		return nil, err
+	// Run migrations
+	migrationManager := migrations.NewMigrationManager(sqlDb, migrations.DialectSQLite)
+	if err := migrationManager.Run(); err != nil {
+		sqlDb.Close()
+		return nil, fmt.Errorf("failed to run migrations: %w", err)
 	}
 
 	return &SQLiteDB{
