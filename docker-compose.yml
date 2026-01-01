@@ -16,6 +16,27 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+  etherpad:
+    image: etherpad/etherpad:latest
+    container_name: etherpad
+    restart: unless-stopped
+    environment:
+      - ETHERPAD_DBSETTINGS_TYPE=postgres
+      - ETHERPAD_DBSETTINGS_HOST=postgres
+      - ETHERPAD_DBSETTINGS_PORT=5432
+      - ETHERPAD_DBSETTINGS_NAME=mydb
+      - ETHERPAD_DBSETTINGS_USER=myuser
+      - ETHPERPAD_DBSETTINGS_PASSWORD=mypassword
+    ports:
+      - "9001:9001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 volumes:
   postgres-data:
