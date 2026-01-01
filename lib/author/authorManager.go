@@ -28,8 +28,8 @@ type Author struct {
 	Timestamp int64
 }
 
-func (m *Manager) SetAuthorColor(author string, colorId string) {
-	m.Db.SaveAuthorColor(author, colorId)
+func (m *Manager) SetAuthorColor(author string, colorId string) error {
+	return m.Db.SaveAuthorColor(author, colorId)
 }
 
 func (m *Manager) mapAuthorWithDBKey(token string) (*Author, error) {
@@ -124,9 +124,9 @@ func (m *Manager) GetAuthorName(authorId string) (*string, error) {
 	return author.Name, nil
 }
 
-func (m *Manager) SetAuthorName(authorId string, authorName string) {
+func (m *Manager) SetAuthorName(authorId string, authorName string) error {
 
-	m.Db.SaveAuthorName(authorId, authorName)
+	return m.Db.SaveAuthorName(authorId, authorName)
 }
 
 func (m *Manager) GetAuthorId(token string) (*Author, error) {
