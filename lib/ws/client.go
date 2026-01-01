@@ -147,7 +147,7 @@ func (c *Client) readPump(retrievedSettings *settings.Settings, logger *zap.Suga
 				println("Error unmarshalling", err)
 			}
 
-			c.Handler.handleMessage(clientReady, c, c.Ctx, retrievedSettings, logger)
+			c.Handler.HandleMessage(clientReady, c, c.Ctx, retrievedSettings, logger)
 		} else if strings.Contains(decodedMessage, "USER_CHANGES") {
 			var userchange ws.UserChange
 			err := json.Unmarshal(message, &userchange)
@@ -157,7 +157,7 @@ func (c *Client) readPump(retrievedSettings *settings.Settings, logger *zap.Suga
 				continue
 			}
 
-			c.Handler.handleMessage(userchange, c, c.Ctx, retrievedSettings, logger)
+			c.Handler.HandleMessage(userchange, c, c.Ctx, retrievedSettings, logger)
 		} else if strings.Contains(decodedMessage, "USERINFO_UPDATE") {
 			var userInfoChange UserInfoUpdateWrapper
 			errorUserInfoChange := json.Unmarshal(message, &userInfoChange)
@@ -167,7 +167,7 @@ func (c *Client) readPump(retrievedSettings *settings.Settings, logger *zap.Suga
 				continue
 			}
 
-			c.Handler.handleMessage(userInfoChange.Data, c, c.Ctx, retrievedSettings, logger)
+			c.Handler.HandleMessage(userInfoChange.Data, c, c.Ctx, retrievedSettings, logger)
 		} else if strings.Contains(decodedMessage, "GET_CHAT_MESSAGES") {
 			var getChatMessages ws.GetChatMessages
 			err := json.Unmarshal(message, &getChatMessages)
@@ -177,7 +177,7 @@ func (c *Client) readPump(retrievedSettings *settings.Settings, logger *zap.Suga
 				continue
 			}
 
-			c.Handler.handleMessage(getChatMessages, c, c.Ctx, retrievedSettings, logger)
+			c.Handler.HandleMessage(getChatMessages, c, c.Ctx, retrievedSettings, logger)
 		} else if strings.Contains(decodedMessage, "CHANGESET_REQ") {
 			var changesetReq ws.ChangesetReq
 			err := json.Unmarshal(message, &changesetReq)
@@ -186,7 +186,7 @@ func (c *Client) readPump(retrievedSettings *settings.Settings, logger *zap.Suga
 				continue
 			}
 
-			c.Handler.handleMessage(changesetReq, c, c.Ctx, retrievedSettings, logger)
+			c.Handler.HandleMessage(changesetReq, c, c.Ctx, retrievedSettings, logger)
 		} else if strings.Contains(decodedMessage, "CHAT_MESSAGE") {
 			var chatMessage ws.ChatMessage
 			err := json.Unmarshal(message, &chatMessage)
@@ -195,7 +195,7 @@ func (c *Client) readPump(retrievedSettings *settings.Settings, logger *zap.Suga
 				logger.Error("Error unmarshalling CHAT_MESSAGE: ", err)
 				continue
 			}
-			c.Handler.handleMessage(chatMessage, c, c.Ctx, retrievedSettings, logger)
+			c.Handler.HandleMessage(chatMessage, c, c.Ctx, retrievedSettings, logger)
 		}
 
 		c.Hub.Broadcast <- message

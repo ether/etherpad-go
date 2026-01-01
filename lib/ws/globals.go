@@ -82,3 +82,66 @@ func (s *SessionStore) resetSession(sessionId string) {
 	s.sessions[sessionId] = &ws.Session{}
 	s.sync.Unlock()
 }
+
+// Test helper methods - these are exported for testing purposes only
+
+// InitSessionForTest initializes a session for testing
+func (s *SessionStore) InitSessionForTest(sessionId string) {
+	s.initSession(sessionId)
+}
+
+// AddHandleClientInformationForTest adds client information for testing
+func (s *SessionStore) AddHandleClientInformationForTest(sessionId string, padId string, token string) *ws.Session {
+	return s.addHandleClientInformation(sessionId, padId, token)
+}
+
+// AddPadReadOnlyIdsForTest adds pad read-only IDs for testing
+func (s *SessionStore) AddPadReadOnlyIdsForTest(sessionId, padId string, readOnlyPadId string, readOnly bool) {
+	s.addPadReadOnlyIds(sessionId, padId, readOnlyPadId, readOnly)
+}
+
+// SetAuthorForTest sets the author for a session for testing
+func (s *SessionStore) SetAuthorForTest(sessionId string, authorId string) {
+	s.sync.Lock()
+	if s.sessions[sessionId] != nil {
+		s.sessions[sessionId].Author = authorId
+	}
+	s.sync.Unlock()
+}
+
+// SetPadIdForTest sets the pad ID for a session for testing
+func (s *SessionStore) SetPadIdForTest(sessionId string, padId string) {
+	s.sync.Lock()
+	if s.sessions[sessionId] != nil {
+		s.sessions[sessionId].PadId = padId
+	}
+	s.sync.Unlock()
+}
+
+// SetRevisionForTest sets the revision for a session for testing
+func (s *SessionStore) SetRevisionForTest(sessionId string, revision int) {
+	s.sync.Lock()
+	if s.sessions[sessionId] != nil {
+		s.sessions[sessionId].Revision = revision
+	}
+	s.sync.Unlock()
+}
+
+// SetReadOnlyForTest sets the read-only flag for a session for testing
+func (s *SessionStore) SetReadOnlyForTest(sessionId string, readOnly bool) {
+	s.sync.Lock()
+	if s.sessions[sessionId] != nil {
+		s.sessions[sessionId].ReadOnly = readOnly
+	}
+	s.sync.Unlock()
+}
+
+// GetSessionForTest returns a session for testing
+func (s *SessionStore) GetSessionForTest(sessionId string) *ws.Session {
+	return s.getSession(sessionId)
+}
+
+// RemoveSessionForTest removes a session for testing
+func (s *SessionStore) RemoveSessionForTest(sessionId string) {
+	s.removeSession(sessionId)
+}
