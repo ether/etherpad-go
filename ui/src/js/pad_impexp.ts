@@ -145,22 +145,6 @@ const padimpexp = (() => {
         const foundExportOptionNode = $(`#export${exportOption}a`)
         foundExportOptionNode.show()
         foundExportOptionNode.attr('href', `${padRootPath}/export/${exportOption}`);
-
-      }
-
-      $('#exporthtmla').attr('href', `${padRootPath}/export/html`);
-      $('#exportetherpada').attr('href', `${padRootPath}/export/etherpad`);
-      $('#exporttxta').attr('href', `${padRootPath}/export/txt`);
-
-      // hide stuff thats not avaible if abiword/soffice is disabled
-      if (clientVars.availableExports.includes('word')) {
-        $('#exportworda').attr('href', `${padRootPath}/export/docx`);
-        $('#exportopena').attr('href', `${padRootPath}/export/odt`);
-      } else {
-        $('#exportworda').remove();
-        $('#exportopena').remove();
-
-        $('#importmessageabiword').show();
       }
 
       addImportFrames();

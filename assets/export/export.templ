@@ -1,0 +1,57 @@
+package export
+
+
+templ ExportTemplateHeader(padId string, extraCSS string) {
+    <head>
+           <title>{padId}</title>
+             <link rel="manifest" href="/manifest.json" />
+             <meta name="generator" content="Etherpad"/>
+           <meta name="author" content="Etherpad"/>
+           <meta name="changedby" content="Etherpad"/>
+           <meta charset="utf-8"/>
+           <style>
+           /* Base list styles */
+           ul, ol {
+             margin: 0.5em 0;
+             padding-left: 2em;
+             list-style-position: outside;
+           }
+
+           ul.bullet {
+             list-style-type: disc;
+           }
+
+           ul.indent {
+             list-style-type: none;
+           }
+
+           ol.number {
+             list-style-type: decimal;
+           }
+
+           /* Consistent list item spacing */
+           li {
+             margin: 0.25em 0;
+             padding: 0;
+           }
+
+           {extraCSS}
+           </style>
+           </head>
+}
+
+
+templ ExportTemplateBody(padContent string) {
+    <body>
+        <div id="padcontent">
+            @templ.Raw(padContent)
+        </div>
+    </body>
+}
+
+templ ExportTemplate(padId string, extraCSS string, padContent string) {
+    <html lang="en">
+    @ExportTemplateHeader(padId, extraCSS)
+    @ExportTemplateBody(padContent)
+    </html>
+}

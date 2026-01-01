@@ -22,6 +22,7 @@ type ExportEtherpad struct {
 	exportPDF     *ExportPDF
 	exportDocx    *ExportDocx
 	exportOdt     *ExportOdt
+	exportHtml    *ExportHtml
 	logger        *zap.SugaredLogger
 }
 
@@ -45,6 +46,7 @@ func NewExportEtherpad(hooks *hooks.Hook, padManager *pad.Manager, db db.DataSto
 		},
 		exportDocx: NewExportDocx(padManager, authorMgr),
 		exportOdt:  NewExportOdt(padManager, authorMgr),
+		exportHtml: NewExportHtml(padManager, authorMgr),
 		logger:     logger,
 	}
 }
@@ -218,6 +220,14 @@ func (e *ExportEtherpad) DoExport(ctx *fiber.Ctx, id string, readOnlyId *string,
 			return ctx.Status(500).SendString(err.Error())
 		}
 		return ctx.Send(odtBytes)
+	case "html":
+		ctx.Set("Content-Type", "text/html; charset=utf-8")
+		htmlContent, err := e.exportHtml.GetPadHTMLDocument(id, optRevNum, readOnlyId)
+		if err != nil {
+			e.logger.Warnf("Failed to get html document for id: %s with cause %s", id, err.Error())
+			return ctx.Status(500).SendString(err.Error())
+		}
+		return ctx.SendString(htmlContent)
 	default:
 		return ctx.Status(400).SendString("Not Implemented")
 	}
