@@ -39,6 +39,22 @@ type NewChangesMessage struct {
 	Data NewChangesMessageData `json:"data"`
 }
 
+type ClientReconnectData struct {
+	Type        string      `json:"type"`
+	HeadRev     int         `json:"headRev,omitempty"`
+	NewRev      int         `json:"newRev"`
+	Changeset   string      `json:"changeset,omitempty"`
+	APool       apool.APool `json:"apool,omitempty"`
+	Author      string      `json:"author,omitempty"`
+	CurrentTime int64       `json:"currentTime,omitempty"`
+	NoChanges   bool        `json:"noChanges,omitempty"`
+}
+
+type ClientReconnectMessage struct {
+	Type string              `json:"type"`
+	Data ClientReconnectData `json:"data"`
+}
+
 type AccessStatusMessage struct {
 	AccessStatus string `json:"accessStatus"`
 }

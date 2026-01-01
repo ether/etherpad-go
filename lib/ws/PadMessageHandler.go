@@ -1105,7 +1105,106 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 	}
 
 	if ready.Data.Reconnect != nil && *ready.Data.Reconnect {
+		// This is a reconnect - the client already has the pad content
+		// We need to send any changesets the client missed while disconnected
+		thisSession.PadId = retrievedPad.Id
 
+		// Get the client's current revision
+		clientRev := 0
+		if ready.Data.ClientRev != nil {
+			clientRev = *ready.Data.ClientRev
+		}
+
+		// Save the revision in sessioninfos
+		thisSession.Revision = clientRev
+
+		headRev := retrievedPad.Head
+
+		// Calculate the range of revisions needed
+		startNum := clientRev + 1
+		endNum := headRev + 1
+
+		if endNum > headRev+1 {
+			endNum = headRev + 1
+		}
+		if startNum < 0 {
+			startNum = 0
+		}
+
+		logger.Infof("Client reconnected to pad %s at revision %d (head: %d), sending revisions %d to %d",
+			thisSession.PadId, clientRev, headRev, startNum, endNum-1)
+
+		// If there are revisions to send
+		if startNum < endNum {
+			// Load all needed revisions in one query
+			revisions, err := retrievedPad.GetRevisions(startNum, endNum-1)
+			if err != nil {
+				logger.Warnf("Error getting revisions for reconnect: %v", err)
+				return
+			}
+
+			// Send each missed revision as CLIENT_RECONNECT
+			for _, rev := range *revisions {
+				forWire := changeset.PrepareForWire(rev.Changeset, retrievedPad.Pool)
+				wirePool := forWire.Pool.ToJsonable()
+
+				var authorId string
+				if rev.AuthorId != nil {
+					authorId = *rev.AuthorId
+				}
+
+				reconnectMsg := ClientReconnectMessage{
+					Type: "COLLABROOM",
+					Data: ClientReconnectData{
+						Type:        "CLIENT_RECONNECT",
+						HeadRev:     headRev,
+						NewRev:      rev.RevNum,
+						Changeset:   forWire.Translated,
+						APool:       wirePool,
+						Author:      authorId,
+						CurrentTime: rev.Timestamp,
+					},
+				}
+
+				arr := make([]interface{}, 2)
+				arr[0] = "message"
+				arr[1] = reconnectMsg
+
+				encoded, err := json.Marshal(arr)
+				if err != nil {
+					logger.Warnf("Error marshaling CLIENT_RECONNECT message: %v", err)
+					continue
+				}
+
+				if err := client.Conn.WriteMessage(websocket.TextMessage, encoded); err != nil {
+					logger.Warnf("Error sending CLIENT_RECONNECT message: %v", err)
+					return
+				}
+
+				// Update session revision
+				thisSession.Revision = rev.RevNum
+				thisSession.Time = rev.Timestamp
+			}
+		} else {
+			// No changes - send a noChanges message
+			noChangesMsg := ClientReconnectMessage{
+				Type: "COLLABROOM",
+				Data: ClientReconnectData{
+					Type:      "CLIENT_RECONNECT",
+					NoChanges: true,
+					NewRev:    headRev,
+				},
+			}
+
+			arr := make([]interface{}, 2)
+			arr[0] = "message"
+			arr[1] = noChangesMsg
+
+			encoded, _ := json.Marshal(arr)
+			client.Conn.WriteMessage(websocket.TextMessage, encoded)
+
+			thisSession.Revision = headRev
+		}
 	} else {
 		var atext = changeset.CloneAText(retrievedPad.AText)
 		var attribsForWire = changeset.PrepareForWire(atext.Attribs, retrievedPad.Pool)

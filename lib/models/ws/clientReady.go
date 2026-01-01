@@ -12,5 +12,6 @@ type ClientReady struct {
 			Name    *string `json:"name"`
 		} `json:"userInfo"`
 		Reconnect *bool `json:"reconnect"`
+		ClientRev *int  `json:"client_rev"`
 	} `json:"data"`
 }
