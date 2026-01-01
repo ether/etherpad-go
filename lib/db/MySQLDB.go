@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	sq "github.com/Masterminds/squirrel"
+	"github.com/ether/etherpad-go/lib/db/migrations"
 	"github.com/ether/etherpad-go/lib/models/db"
 	session2 "github.com/ether/etherpad-go/lib/models/session"
 	mysql2 "github.com/go-sql-driver/mysql"
@@ -912,54 +913,11 @@ func NewMySQLDB(options MySQLOptions) (*MysqlDB, error) {
 	sqlDb.SetMaxOpenConns(25)
 	sqlDb.SetMaxIdleConns(5)
 
-	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS pad (id VARCHAR(255) PRIMARY KEY, data TEXT)")
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS globalAuthor(id VARCHAR(255) PRIMARY KEY, colorId VARCHAR(50), name VARCHAR(255), timestamp BIGINT)")
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS padRev(id VARCHAR(255), rev INTEGER, changeset TEXT, atextText TEXT, atextAttribs TEXT, authorId VARCHAR(255), timestamp BIGINT, pool TEXT NOT NULL, PRIMARY KEY (id, rev), FOREIGN KEY(id) REFERENCES pad(id) ON DELETE CASCADE)")
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS token2author(token VARCHAR(255) PRIMARY KEY, author VARCHAR(255), FOREIGN KEY(author) REFERENCES globalAuthor(id) ON DELETE CASCADE)")
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS globalAuthorPads(id VARCHAR(255) NOT NULL, padID VARCHAR(255) NOT NULL, PRIMARY KEY(id, padID), FOREIGN KEY(id) REFERENCES globalAuthor(id) ON DELETE CASCADE, FOREIGN KEY(padID) REFERENCES pad(id) ON DELETE CASCADE)")
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS pad2readonly(id VARCHAR(255) PRIMARY KEY, data VARCHAR(255), FOREIGN KEY(id) REFERENCES pad(id) ON DELETE CASCADE)")
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS readonly2pad(id VARCHAR(255) PRIMARY KEY, data VARCHAR(255), FOREIGN KEY(data) REFERENCES pad(id) ON DELETE CASCADE)")
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS sessionstorage(id VARCHAR(255) PRIMARY KEY, originalMaxAge INTEGER, expires VARCHAR(255), secure BOOLEAN, httpOnly BOOLEAN, path VARCHAR(255), sameSite VARCHAR(50), connections TEXT)")
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS groupPadGroup(id VARCHAR(255) PRIMARY KEY, name VARCHAR(255))")
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS padChat(padId VARCHAR(255) NOT NULL, padHead INTEGER, chatText TEXT NOT NULL, authorId VARCHAR(255), timestamp BIGINT, PRIMARY KEY(padId, padHead), FOREIGN KEY(padId) REFERENCES pad(id) ON DELETE CASCADE)")
-	if err != nil {
-		return nil, err
+	// Run migrations
+	migrationManager := migrations.NewMigrationManager(sqlDb, migrations.DialectMySQL)
+	if err := migrationManager.Run(); err != nil {
+		sqlDb.Close()
+		return nil, fmt.Errorf("failed to run migrations: %w", err)
 	}
 
 	return &MysqlDB{
