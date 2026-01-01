@@ -414,7 +414,7 @@ func (d PostgresDB) GetRevision(padId string, rev int) (*db.PadSingleRevision, e
 
 	query, err := d.sqlDB.Query(retrievedSql, args...)
 	if err != nil {
-		println("Error getting revision", err)
+		return nil, err
 	}
 
 	defer query.Close()
@@ -452,13 +452,13 @@ func (d PostgresDB) DoesPadExist(padID string) (*bool, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer query.Close()
 
 	for query.Next() {
 		trueVal := true
 		return &trueVal, nil
 	}
 
-	defer query.Close()
 	falseVal := false
 	return &falseVal, nil
 }
@@ -870,6 +870,7 @@ func (d PostgresDB) GetPadMetaData(padId string, revNum int) (*db.PadMetaData, e
 	if err != nil {
 		return nil, err
 	}
+	defer query.Close()
 
 	var padMetaData db.PadMetaData
 	for query.Next() {
@@ -884,7 +885,6 @@ func (d PostgresDB) GetPadMetaData(padId string, revNum int) (*db.PadMetaData, e
 
 		return &padMetaData, nil
 	}
-	defer query.Close()
 
 	return nil, errors.New(PadRevisionNotFoundError)
 }
@@ -908,6 +908,11 @@ func NewPostgresDB(options PostgresOptions) (*PostgresDB, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// Set connection pool limits to avoid "too many clients" error
+	sqlDb.SetMaxOpenConns(25)
+	sqlDb.SetMaxIdleConns(5)
+
 	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS pad (id TEXT PRIMARY KEY, data TEXT)")
 
 	_, err = sqlDb.Exec("CREATE TABLE IF NOT EXISTS globalAuthor(id TEXT PRIMARY KEY, colorId TEXT, name TEXT, timestamp BIGINT)")

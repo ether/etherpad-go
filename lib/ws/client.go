@@ -153,8 +153,8 @@ func (c *Client) readPump(retrievedSettings *settings.Settings, logger *zap.Suga
 			err := json.Unmarshal(message, &userchange)
 
 			if err != nil {
-				logger.Error("Error unmarshalling")
-				return
+				logger.Error("Error unmarshalling USER_CHANGES: ", err)
+				continue
 			}
 
 			c.Handler.handleMessage(userchange, c, c.Ctx, retrievedSettings, logger)
@@ -163,8 +163,8 @@ func (c *Client) readPump(retrievedSettings *settings.Settings, logger *zap.Suga
 			errorUserInfoChange := json.Unmarshal(message, &userInfoChange)
 
 			if errorUserInfoChange != nil {
-				logger.Error("Error unmarshalling")
-				return
+				logger.Error("Error unmarshalling USERINFO_UPDATE: ", errorUserInfoChange)
+				continue
 			}
 
 			c.Handler.handleMessage(userInfoChange.Data, c, c.Ctx, retrievedSettings, logger)
@@ -173,8 +173,8 @@ func (c *Client) readPump(retrievedSettings *settings.Settings, logger *zap.Suga
 			err := json.Unmarshal(message, &getChatMessages)
 
 			if err != nil {
-				logger.Error("Error unmarshalling", err)
-				return
+				logger.Error("Error unmarshalling GET_CHAT_MESSAGES: ", err)
+				continue
 			}
 
 			c.Handler.handleMessage(getChatMessages, c, c.Ctx, retrievedSettings, logger)
@@ -182,8 +182,8 @@ func (c *Client) readPump(retrievedSettings *settings.Settings, logger *zap.Suga
 			var changesetReq ws.ChangesetReq
 			err := json.Unmarshal(message, &changesetReq)
 			if err != nil {
-				logger.Error("Error unmarshalling", err)
-				return
+				logger.Error("Error unmarshalling CHANGESET_REQ: ", err)
+				continue
 			}
 
 			c.Handler.handleMessage(changesetReq, c, c.Ctx, retrievedSettings, logger)
@@ -192,7 +192,8 @@ func (c *Client) readPump(retrievedSettings *settings.Settings, logger *zap.Suga
 			err := json.Unmarshal(message, &chatMessage)
 
 			if err != nil {
-				logger.Error("Error unmarshalling", err)
+				logger.Error("Error unmarshalling CHAT_MESSAGE: ", err)
+				continue
 			}
 			c.Handler.handleMessage(chatMessage, c, c.Ctx, retrievedSettings, logger)
 		}
