@@ -399,7 +399,7 @@ func (p *PadMessageHandler) handleMessage(message any, client *Client, ctx *fibe
 		}
 	case ws.ChangesetReq:
 		{
-			p.handleChangesetRequest(client, expectedType)
+			p.HandleChangesetRequest(client, expectedType)
 		}
 	case ws.ChatMessage:
 		{
@@ -493,7 +493,7 @@ func (p *PadMessageHandler) handleMessage(message any, client *Client, ctx *fibe
 	}
 }
 
-func (p *PadMessageHandler) handleChangesetRequest(socket *Client, message ws.ChangesetReq) {
+func (p *PadMessageHandler) HandleChangesetRequest(socket *Client, message ws.ChangesetReq) {
 	if (message.Data.Data.Granularity <= 0) || (message.Data.Data.Start < 0) {
 		println("Invalid changeset request parameters")
 		return
