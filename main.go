@@ -11,6 +11,7 @@ import (
 	_ "github.com/ether/etherpad-go/docs"
 	"github.com/ether/etherpad-go/lib"
 	api2 "github.com/ether/etherpad-go/lib/api"
+	"github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/hooks"
 	"github.com/ether/etherpad-go/lib/pad"
 	session2 "github.com/ether/etherpad-go/lib/session"
@@ -106,6 +107,7 @@ func main() {
 	}
 
 	padManager := pad.NewManager(dataStore, &retrievedHooks)
+	authorManager := author.NewManager(dataStore)
 
 	padMessageHandler := ws.NewPadMessageHandler(dataStore, &retrievedHooks, padManager, &sessionStore, globalHub, setupLogger)
 	adminMessageHandler := ws.NewAdminMessageHandler(dataStore, &retrievedHooks, padManager, padMessageHandler, setupLogger, globalHub)
@@ -114,6 +116,7 @@ func main() {
 		C:                 app,
 		Validator:         validatorEvaluator,
 		PadManager:        padManager,
+		AuthorManager:     authorManager,
 		Hooks:             &retrievedHooks,
 		RetrievedSettings: &settings,
 		Logger:            setupLogger,

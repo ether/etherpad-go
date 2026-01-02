@@ -157,5 +157,6 @@ func (m *Manager) GetPad(padID string, text *string, authorId *string) (*pad.Pad
 }
 
 func (m *Manager) UnloadPad(id string) {
+	m.globalPadCache.DeletePad(id)
 	m.padList.RemovePad(id)
 }

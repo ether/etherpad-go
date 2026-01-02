@@ -187,7 +187,10 @@ func (h *ImportHandler) doImport(ctx *fiber.Ctx, padId string, authorId string) 
 
 // importEtherpad imports a .etherpad file (direct database access)
 func (h *ImportHandler) importEtherpad(padId string, authorId string, content []byte) (bool, *ImportError) {
-	// Check if pad already has content
+	// Unload pad from cache first to ensure fresh state
+	h.padManager.UnloadPad(padId)
+
+	// Check if pad already has significant content
 	newText := "\n"
 	retrievedPad, err := h.padManager.GetPad(padId, &newText, &authorId)
 	if err != nil {
@@ -200,13 +203,24 @@ func (h *ImportHandler) importEtherpad(padId string, authorId string, content []
 		return false, &ImportError{Status: "padHasData"}
 	}
 
-	// Parse the etherpad JSON
+	// Unload pad before raw import (SetPadRaw will delete and recreate)
+	h.padManager.UnloadPad(padId)
+
+	// Parse the etherpad JSON and import directly to database
 	if err := h.importer.SetPadRaw(padId, content, authorId); err != nil {
 		h.logger.Warnf("Import failed: could not import etherpad: %v", err)
 		return false, &ImportError{Status: "importFailed", Message: err.Error()}
 	}
 
-	// Direct database access - client should reload
+	// Reload pad from database to get fresh state
+	retrievedPad, err = h.padManager.GetPad(padId, nil, nil)
+	if err != nil {
+		h.logger.Warnf("Import succeeded but could not reload pad: %v", err)
+	} else {
+		// Notify connected clients
+		h.padHandler.UpdatePadClients(retrievedPad)
+	}
+
 	return true, nil
 }
 
@@ -247,6 +261,15 @@ func (h *ImportHandler) importText(padId string, authorId string, content string
 		return false, &ImportError{Status: "uploadFailed", Message: "file contains invalid characters"}
 	}
 
+	// Ensure content ends with newline
+	if !strings.HasSuffix(content, "\n") {
+		content += "\n"
+	}
+
+	// First, unload the pad to disconnect any clients and clear cache
+	h.padManager.UnloadPad(padId)
+
+	// Get a fresh pad instance
 	newText := "\n"
 	retrievedPad, err := h.padManager.GetPad(padId, &newText, &authorId)
 	if err != nil {
@@ -260,7 +283,7 @@ func (h *ImportHandler) importText(padId string, authorId string, content string
 		return false, &ImportError{Status: "importFailed", Message: err.Error()}
 	}
 
-	// Unload and reload pad
+	// Unload and reload pad to ensure fresh state
 	h.padManager.UnloadPad(padId)
 	retrievedPad, err = h.padManager.GetPad(padId, &newText, &authorId)
 	if err != nil {
@@ -268,7 +291,7 @@ func (h *ImportHandler) importText(padId string, authorId string, content string
 		return false, &ImportError{Status: "internalError", Message: "could not reload pad"}
 	}
 
-	// Notify connected clients
+	// Notify connected clients to reload
 	h.padHandler.UpdatePadClients(retrievedPad)
 
 	return false, nil
@@ -308,7 +331,36 @@ func (h *ImportHandler) importRtf(padId string, authorId string, content []byte)
 }
 
 // importPdf imports a PDF file
+// First tries to extract embedded Etherpad JSON data (similar to ZUGFeRD format)
+// Falls back to text extraction if no embedded data is found
 func (h *ImportHandler) importPdf(padId string, authorId string, content []byte) (bool, *ImportError) {
+	// Try to extract embedded Etherpad JSON first
+	etherpadJson, err := h.importer.ExtractEtherpadFromPdf(content)
+	if err == nil && etherpadJson != nil {
+		h.logger.Info("Found embedded Etherpad JSON in PDF, attempting lossless import")
+
+		// Check if pad already has content
+		newText := "\n"
+		retrievedPad, err := h.padManager.GetPad(padId, &newText, &authorId)
+		if err != nil {
+			h.logger.Warnf("Could not get pad: %v", err)
+			// Fall through to text extraction
+		} else if retrievedPad.Head < 10 {
+			// Pad is empty enough, try raw import
+			return h.importEtherpad(padId, authorId, etherpadJson)
+		} else {
+			// Pad already has content, extract text from Etherpad JSON and import as text
+			h.logger.Info("Pad already has content, extracting text from Etherpad JSON")
+			text, err := h.importer.ExtractTextFromEtherpadJson(etherpadJson)
+			if err == nil && text != "" {
+				return h.importText(padId, authorId, text)
+			}
+			h.logger.Warnf("Could not extract text from Etherpad JSON: %v", err)
+		}
+	}
+
+	// Fall back to text extraction from PDF
+	h.logger.Info("Falling back to text extraction from PDF")
 	text, err := h.importer.ExtractTextFromPdf(content)
 	if err != nil {
 		h.logger.Warnf("Import failed: could not extract text from PDF: %v", err)
@@ -321,13 +373,16 @@ func (h *ImportHandler) importPdf(padId string, authorId string, content []byte)
 // isValidText checks if the content is valid text (no binary/control characters except newlines/tabs)
 func isValidText(content string) bool {
 	for _, r := range content {
-		// Allow printable characters, newlines, tabs, and carriage returns
-		if r > 127 || (r < 32 && r != '\n' && r != '\t' && r != '\r') {
-			// Allow high bytes for UTF-8
-			if r > 240 {
-				return false
-			}
+		// Block control characters (0-31) except for newline, tab, and carriage return
+		if r < 32 && r != '\n' && r != '\t' && r != '\r' {
+			return false
 		}
+		// Block the DEL character
+		if r == 127 {
+			return false
+		}
+		// Allow all other valid Unicode characters (including UTF-8 characters > 127)
+		// This includes: umlauts, bullet points, emojis, etc.
 	}
 	return true
 }

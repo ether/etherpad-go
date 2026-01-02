@@ -33,22 +33,27 @@ func NewExportEtherpad(hooks *hooks.Hook, padManager *pad.Manager, db db.DataSto
 
 	authorMgr := author.NewManager(db)
 
-	return &ExportEtherpad{
+	exportEtherpad := &ExportEtherpad{
 		hooks:         hooks,
 		PadManager:    padManager,
 		AuthorManager: authorMgr,
 		exportTxt:     &exportTxt,
-		exportPDF: &ExportPDF{
-			uiAssets:      uiAssets,
-			exportTxt:     &exportTxt,
-			padManager:    padManager,
-			authorManager: authorMgr,
-		},
-		exportDocx: NewExportDocx(padManager, authorMgr),
-		exportOdt:  NewExportOdt(padManager, authorMgr),
-		exportHtml: NewExportHtml(padManager, authorMgr),
-		logger:     logger,
+		exportDocx:    NewExportDocx(padManager, authorMgr),
+		exportOdt:     NewExportOdt(padManager, authorMgr),
+		exportHtml:    NewExportHtml(padManager, authorMgr),
+		logger:        logger,
 	}
+
+	// Create exportPDF with reference back to exportEtherpad for embedding JSON data
+	exportEtherpad.exportPDF = &ExportPDF{
+		uiAssets:       uiAssets,
+		exportTxt:      &exportTxt,
+		exportEtherpad: exportEtherpad,
+		padManager:     padManager,
+		authorManager:  authorMgr,
+	}
+
+	return exportEtherpad
 }
 
 func (e *ExportEtherpad) GetPadRaw(padId string, readOnlyId *string) (*EtherpadExport, error) {

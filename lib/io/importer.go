@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"errors"
+	"fmt"
 	"io"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -17,11 +19,13 @@ import (
 	db2 "github.com/ether/etherpad-go/lib/models/db"
 	padModel "github.com/ether/etherpad-go/lib/models/pad"
 	"github.com/ether/etherpad-go/lib/pad"
+	"github.com/ledongthuc/pdf"
+	"github.com/pdfcpu/pdfcpu/pkg/api"
+	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/model"
 	"go.uber.org/zap"
 	"golang.org/x/net/html"
 )
 
-// Importer handles importing pads from various formats
 type Importer struct {
 	padManager    *pad.Manager
 	authorManager *author.Manager
@@ -29,7 +33,6 @@ type Importer struct {
 	logger        *zap.SugaredLogger
 }
 
-// NewImporter creates a new Importer
 func NewImporter(padManager *pad.Manager, authorManager *author.Manager, db db.DataStore, logger *zap.SugaredLogger) *Importer {
 	return &Importer{
 		padManager:    padManager,
@@ -39,30 +42,28 @@ func NewImporter(padManager *pad.Manager, authorManager *author.Manager, db db.D
 	}
 }
 
-// EtherpadImport represents the structure of an imported .etherpad file
 type EtherpadImport struct {
-	// The data is stored with dynamic keys, so we parse it manually
 	rawData map[string]json.RawMessage
 }
 
-// SetPadRaw imports a pad from .etherpad format (direct database access)
 func (i *Importer) SetPadRaw(padId string, content []byte, authorId string) error {
-	// Parse the JSON
 	var rawData map[string]json.RawMessage
 	if err := json.Unmarshal(content, &rawData); err != nil {
 		return errors.New("invalid etherpad JSON: " + err.Error())
 	}
 
-	// Find the pad data key (format: "pad:padId")
 	var padData PadData
 	var foundPadData bool
 
+	padKeyRegex := regexp.MustCompile(`^pad:[^:]+:$`)
 	for key, value := range rawData {
-		if strings.HasPrefix(key, "pad:") && !strings.HasSuffix(key, ":") {
-			// This might be pad:padId or pad:readonlyId
+		if padKeyRegex.MatchString(key) {
 			// Try to parse as PadData
 			if err := json.Unmarshal(value, &padData); err == nil {
 				foundPadData = true
+				if i.logger != nil {
+					i.logger.Infof("Found pad data at key: %s", key)
+				}
 				break
 			}
 		}
@@ -72,7 +73,8 @@ func (i *Importer) SetPadRaw(padId string, content []byte, authorId string) erro
 		return errors.New("no pad data found in etherpad file")
 	}
 
-	// Create the pool from imported data
+	_ = i.db.RemovePad(padId)
+
 	pool := apool.NewAPool()
 	for numStr, attrib := range padData.Pool.NumToAttrib {
 		num, err := strconv.Atoi(numStr)
@@ -88,13 +90,11 @@ func (i *Importer) SetPadRaw(padId string, content []byte, authorId string) erro
 	}
 	pool.NextNum = padData.Pool.NextNum
 
-	// Create AText
 	atext := apool.AText{
 		Text:    padData.AText.Text,
 		Attribs: padData.AText.Attribs,
 	}
 
-	// Import revisions
 	revisions := make(map[int]Revision)
 	revisionRegex := regexp.MustCompile(`^pad:[^:]+:revs:(\d+)$`)
 
@@ -109,7 +109,6 @@ func (i *Importer) SetPadRaw(padId string, content []byte, authorId string) erro
 		}
 	}
 
-	// Import authors
 	authorRegex := regexp.MustCompile(`^globalAuthor:(.+)$`)
 	for key, value := range rawData {
 		matches := authorRegex.FindStringSubmatch(key)
@@ -117,10 +116,8 @@ func (i *Importer) SetPadRaw(padId string, content []byte, authorId string) erro
 			authorIdFromFile := matches[1]
 			var authorData GlobalAuthor
 			if err := json.Unmarshal(value, &authorData); err == nil {
-				// Create or update author - use existing CreateAuthor and update methods
 				existingAuthor, _ := i.authorManager.GetAuthor(authorIdFromFile)
 				if existingAuthor == nil {
-					// Author doesn't exist, create with SaveAuthor
 					i.db.SaveAuthor(db2.AuthorDB{
 						ID:        authorIdFromFile,
 						Name:      authorData.Name,
@@ -140,7 +137,6 @@ func (i *Importer) SetPadRaw(padId string, content []byte, authorId string) erro
 		}
 	}
 
-	// Create the pad in the database
 	dbPad := db2.PadDB{
 		SavedRevisions: make(map[int]db2.PadRevision),
 		Revisions:      make(map[int]db2.PadSingleRevision),
@@ -151,7 +147,10 @@ func (i *Importer) SetPadRaw(padId string, content []byte, authorId string) erro
 		PublicStatus:   padData.PublicStatus,
 	}
 
-	// Add revisions
+	if err := i.db.CreatePad(padId, dbPad); err != nil {
+		return errors.New("failed to save pad: " + err.Error())
+	}
+
 	for revNum, rev := range revisions {
 		var revAuthor *string
 		if rev.Meta.Author != nil {
@@ -162,21 +161,33 @@ func (i *Importer) SetPadRaw(padId string, content []byte, authorId string) erro
 			timestamp = *rev.Meta.Timestamp
 		}
 
-		dbPad.Revisions[revNum] = db2.PadSingleRevision{
-			PadId:     padId,
-			RevNum:    revNum,
-			Changeset: rev.Changeset,
-			AuthorId:  revAuthor,
-			Timestamp: timestamp,
+		// Get atext from revision meta if available
+		var revAText db2.AText
+		if rev.Meta.AText != nil {
+			revAText = db2.AText{
+				Text:    rev.Meta.AText.Text,
+				Attribs: rev.Meta.AText.Attribs,
+			}
+		}
+
+		// Get pool from revision meta if available
+		var revPool db2.RevPool
+		if rev.Meta.Pool != nil {
+			revPool = db2.RevPool{
+				NumToAttrib: rev.Meta.Pool.NumToAttrib,
+				AttribToNum: rev.Meta.Pool.AttribToNum,
+				NextNum:     rev.Meta.Pool.NextNum,
+			}
+		}
+
+		err := i.db.SaveRevision(padId, revNum, rev.Changeset, revAText, revPool, revAuthor, timestamp)
+		if err != nil {
+			if i.logger != nil {
+				i.logger.Warnf("Failed to save revision %d: %v", revNum, err)
+			}
 		}
 	}
 
-	// Save to database
-	if err := i.db.CreatePad(padId, dbPad); err != nil {
-		return errors.New("failed to save pad: " + err.Error())
-	}
-
-	// Import chat messages - get the pad and use AppendChatMessage
 	newText := "\n"
 	retrievedPad, err := i.padManager.GetPad(padId, &newText, nil)
 	if err != nil {
@@ -859,56 +870,45 @@ func (i *Importer) ExtractTextFromRtf(content []byte) (string, error) {
 	return result, nil
 }
 
-// ExtractTextFromPdf extracts text content from a PDF file
-// Note: PDF text extraction is complex. This is a basic implementation.
-// For production use, consider using a dedicated PDF library.
+// ExtractTextFromPdf extracts text content from a PDF file using the ledongthuc/pdf library
 func (i *Importer) ExtractTextFromPdf(content []byte) (string, error) {
-	// PDF text extraction is very complex due to the format
-	// This is a simplified implementation that looks for text streams
-	text := string(content)
-
 	// Check for PDF header
-	if !strings.HasPrefix(text, "%PDF") {
+	if len(content) < 4 || string(content[:4]) != "%PDF" {
 		return "", errors.New("invalid PDF file")
+	}
+
+	// Create a reader from the content
+	reader := bytes.NewReader(content)
+
+	// Open the PDF
+	pdfReader, err := pdf.NewReader(reader, int64(len(content)))
+	if err != nil {
+		return "", fmt.Errorf("could not open PDF: %w", err)
 	}
 
 	var sb strings.Builder
 
-	// Look for text between BT (begin text) and ET (end text) markers
-	// This is a very simplified approach and won't work for all PDFs
-	btRegex := regexp.MustCompile(`BT\s*(.*?)\s*ET`)
-	matches := btRegex.FindAllStringSubmatch(text, -1)
+	// Extract text from all pages
+	numPages := pdfReader.NumPage()
+	for pageNum := 1; pageNum <= numPages; pageNum++ {
+		page := pdfReader.Page(pageNum)
+		if page.V.IsNull() {
+			continue
+		}
 
-	for _, match := range matches {
-		if len(match) > 1 {
-			textBlock := match[1]
+		text, err := page.GetPlainText(nil)
+		if err != nil {
+			// Try to continue with other pages even if one fails
+			i.logger.Warnf("Could not extract text from page %d: %v", pageNum, err)
+			continue
+		}
 
-			// Extract text from Tj and TJ operators
-			tjRegex := regexp.MustCompile(`\((.*?)\)\s*Tj`)
-			tjMatches := tjRegex.FindAllStringSubmatch(textBlock, -1)
-			for _, tj := range tjMatches {
-				if len(tj) > 1 {
-					sb.WriteString(tj[1])
-				}
+		if text != "" {
+			sb.WriteString(text)
+			// Add page separator if not the last page
+			if pageNum < numPages {
+				sb.WriteString("\n")
 			}
-
-			// Handle TJ (array of strings)
-			tjArrayRegex := regexp.MustCompile(`\[(.*?)\]\s*TJ`)
-			tjArrayMatches := tjArrayRegex.FindAllStringSubmatch(textBlock, -1)
-			for _, tja := range tjArrayMatches {
-				if len(tja) > 1 {
-					// Extract strings from array
-					strRegex := regexp.MustCompile(`\((.*?)\)`)
-					strMatches := strRegex.FindAllStringSubmatch(tja[1], -1)
-					for _, s := range strMatches {
-						if len(s) > 1 {
-							sb.WriteString(s[1])
-						}
-					}
-				}
-			}
-
-			sb.WriteString("\n")
 		}
 	}
 
@@ -928,4 +928,79 @@ func (i *Importer) ExtractTextFromPdf(content []byte) (string, error) {
 	}
 
 	return result, nil
+}
+
+// ExtractEtherpadFromPdf extracts embedded Etherpad JSON data from a PDF file
+// This is similar to how ZUGFeRD embeds XML in PDF, but uses JSON for Etherpad data
+// Returns nil if no embedded Etherpad data is found
+func (i *Importer) ExtractEtherpadFromPdf(content []byte) ([]byte, error) {
+	// Check for PDF header
+	if len(content) < 4 || string(content[:4]) != "%PDF" {
+		return nil, errors.New("invalid PDF file")
+	}
+
+	// Create temporary directory for pdfcpu operations
+	tempDir, err := os.MkdirTemp("", "etherpad-pdf-import-*")
+	if err != nil {
+		return nil, fmt.Errorf("could not create temp dir: %w", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Write PDF to temp file
+	inputPdfPath := tempDir + "/input.pdf"
+	if err := os.WriteFile(inputPdfPath, content, 0644); err != nil {
+		return nil, fmt.Errorf("could not write pdf temp file: %w", err)
+	}
+
+	// Configure pdfcpu for relaxed validation
+	conf := model.NewDefaultConfiguration()
+	conf.ValidationMode = model.ValidationRelaxed
+
+	// Extract attachments from the PDF
+	outputDir := tempDir + "/attachments"
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		return nil, fmt.Errorf("could not create output dir: %w", err)
+	}
+
+	err = api.ExtractAttachmentsFile(inputPdfPath, outputDir, []string{"etherpad.json"}, conf)
+	if err != nil {
+		// Try extracting all attachments if specific one fails
+		err = api.ExtractAttachmentsFile(inputPdfPath, outputDir, nil, conf)
+		if err != nil {
+			return nil, fmt.Errorf("could not extract attachments: %w", err)
+		}
+	}
+
+	// Look for etherpad.json in the output directory
+	jsonPath := outputDir + "/etherpad.json"
+	jsonData, err := os.ReadFile(jsonPath)
+	if err != nil {
+		return nil, errors.New("no embedded Etherpad data found in PDF")
+	}
+
+	i.logger.Info("Found embedded etherpad.json in PDF")
+	return jsonData, nil
+}
+
+// ExtractTextFromEtherpadJson extracts the plain text content from Etherpad JSON export
+func (i *Importer) ExtractTextFromEtherpadJson(content []byte) (string, error) {
+	var rawData map[string]json.RawMessage
+	if err := json.Unmarshal(content, &rawData); err != nil {
+		return "", fmt.Errorf("could not parse etherpad JSON: %w", err)
+	}
+
+	padRegex := regexp.MustCompile(`^pad:.+:$`)
+	for key, value := range rawData {
+		if padRegex.MatchString(key) {
+			var padData PadData
+			if err := json.Unmarshal(value, &padData); err == nil && padData.AText.Text != "" {
+				if i.logger != nil {
+					i.logger.Infof("Extracted text from Etherpad JSON (key: %s, length: %d)", key, len(padData.AText.Text))
+				}
+				return padData.AText.Text, nil
+			}
+		}
+	}
+
+	return "", errors.New("no text content found in etherpad JSON")
 }

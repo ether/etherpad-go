@@ -3,7 +3,9 @@ package io
 import (
 	"bytes"
 	"embed"
+	"encoding/json"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 
@@ -12,14 +14,17 @@ import (
 	"github.com/ether/etherpad-go/lib/changeset"
 	"github.com/ether/etherpad-go/lib/models/pad"
 	padLib "github.com/ether/etherpad-go/lib/pad"
+	"github.com/pdfcpu/pdfcpu/pkg/api"
+	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/model"
 	"github.com/signintech/gopdf"
 )
 
 type ExportPDF struct {
-	exportTxt     *ExportTxt
-	uiAssets      embed.FS
-	padManager    *padLib.Manager
-	authorManager *author.Manager
+	exportTxt      *ExportTxt
+	exportEtherpad *ExportEtherpad
+	uiAssets       embed.FS
+	padManager     *padLib.Manager
+	authorManager  *author.Manager
 }
 
 const (
@@ -40,6 +45,11 @@ type textSegment struct {
 	underline     bool
 	strikethrough bool
 	authorColor   string
+}
+
+type listInfo struct {
+	listType string // "bullet", "number", or ""
+	level    int    // 1-based level for nested lists
 }
 
 func (e *ExportPDF) GetPadPdfDocument(padId string, optRevNum *int) ([]byte, error) {
@@ -78,7 +88,74 @@ func (e *ExportPDF) GetPadPdfDocument(padId string, optRevNum *int) ([]byte, err
 		return nil, err
 	}
 
-	return buf.Bytes(), nil
+	// Embed Etherpad JSON data as attachment for lossless import
+	pdfBytes, err := e.embedEtherpadData(buf.Bytes(), padId)
+	if err != nil {
+		// If embedding fails, return the PDF without the attachment
+		return buf.Bytes(), nil
+	}
+
+	return pdfBytes, nil
+}
+
+// embedEtherpadData embeds the Etherpad JSON export as a PDF attachment
+// This allows for lossless import similar to ZUGFeRD format (but with JSON instead of XML)
+func (e *ExportPDF) embedEtherpadData(pdfContent []byte, padId string) ([]byte, error) {
+	if e.exportEtherpad == nil {
+		return pdfContent, nil
+	}
+
+	// Get the Etherpad export data
+	etherpadExport, err := e.exportEtherpad.GetPadRaw(padId, nil)
+	if err != nil {
+		return nil, fmt.Errorf("could not get etherpad export: %w", err)
+	}
+
+	// Convert to JSON
+	jsonData, err := json.Marshal(etherpadExport)
+	if err != nil {
+		return nil, fmt.Errorf("could not marshal etherpad data: %w", err)
+	}
+
+	// Create temporary files for pdfcpu (it requires file paths)
+	tempDir, err := os.MkdirTemp("", "etherpad-pdf-*")
+	if err != nil {
+		return nil, fmt.Errorf("could not create temp dir: %w", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Write JSON to temp file
+	jsonPath := tempDir + "/etherpad.json"
+	if err := os.WriteFile(jsonPath, jsonData, 0644); err != nil {
+		return nil, fmt.Errorf("could not write json temp file: %w", err)
+	}
+
+	// Write input PDF to temp file
+	inputPdfPath := tempDir + "/input.pdf"
+	if err := os.WriteFile(inputPdfPath, pdfContent, 0644); err != nil {
+		return nil, fmt.Errorf("could not write pdf temp file: %w", err)
+	}
+
+	// Output PDF path
+	outputPdfPath := tempDir + "/output.pdf"
+
+	// Configure pdfcpu
+	conf := model.NewDefaultConfiguration()
+	conf.ValidationMode = model.ValidationRelaxed
+
+	// Add the JSON as an embedded file attachment
+	err = api.AddAttachmentsFile(inputPdfPath, outputPdfPath, []string{jsonPath}, false, conf)
+	if err != nil {
+		return nil, fmt.Errorf("could not embed attachment: %w", err)
+	}
+
+	// Read the output PDF
+	outputPdf, err := os.ReadFile(outputPdfPath)
+	if err != nil {
+		return nil, fmt.Errorf("could not read output pdf: %w", err)
+	}
+
+	return outputPdf, nil
 }
 
 func (e *ExportPDF) loadFonts(pdf *gopdf.GoPdf) error {
@@ -141,22 +218,56 @@ func (e *ExportPDF) renderFormattedText(pdf *gopdf.GoPdf, retrievedPad *pad.Pad,
 	pdf.SetX(marginLeft)
 	pdf.SetY(marginTop)
 
+	// Track numbered list counters for different levels
+	listCounters := make(map[int]int)
+	lastListType := ""
+	lastListLevel := 0
+
 	for i, lineText := range textLines {
 		var aline string
 		if i < len(attribLines) {
 			aline = attribLines[i]
 		}
 
-		segments, listPrefix, err := e.parseLineSegments(lineText, aline, &padPool, authorColors)
+		segments, listInfo, err := e.parseLineSegments(lineText, aline, &padPool, authorColors)
 		if err != nil {
 			return err
 		}
 
-		if listPrefix != "" {
+		// Handle list prefix with proper numbering
+		if listInfo.listType != "" {
+			// Calculate indentation based on list level
+			indent := marginLeft + float64(listInfo.level-1)*20.0
+			pdf.SetX(indent)
+
 			if err := pdf.SetFont("Roboto", "", fontSize); err != nil {
 				return err
 			}
-			pdf.Cell(nil, listPrefix)
+
+			// Reset counter if list type or level changed
+			if listInfo.listType != lastListType || listInfo.level != lastListLevel {
+				if listInfo.listType == "number" {
+					// Reset counter for new numbered lists at this level
+					if lastListType != "number" || listInfo.level != lastListLevel {
+						listCounters[listInfo.level] = 0
+					}
+				}
+			}
+
+			if listInfo.listType == "bullet" {
+				pdf.Cell(nil, "• ")
+			} else if listInfo.listType == "number" {
+				listCounters[listInfo.level]++
+				pdf.Cell(nil, fmt.Sprintf("%d. ", listCounters[listInfo.level]))
+			}
+
+			lastListType = listInfo.listType
+			lastListLevel = listInfo.level
+		} else {
+			// Reset list tracking when not in a list
+			lastListType = ""
+			lastListLevel = 0
+			pdf.SetX(marginLeft)
 		}
 
 		for _, seg := range segments {
@@ -196,35 +307,52 @@ func (e *ExportPDF) buildAuthorColorCache(padPool *apool.APool) map[string]strin
 	return authorColors
 }
 
-func (e *ExportPDF) parseLineSegments(text string, aline string, padPool *apool.APool, authorColors map[string]string) ([]textSegment, string, error) {
+func (e *ExportPDF) parseLineSegments(text string, aline string, padPool *apool.APool, authorColors map[string]string) ([]textSegment, listInfo, error) {
 	var segments []textSegment
-	listPrefix := ""
+	info := listInfo{}
 
 	if text == "" {
-		return segments, listPrefix, nil
+		return segments, info, nil
 	}
 
 	if aline != "" {
 		ops, err := changeset.DeserializeOps(aline)
 		if err != nil {
-			return nil, "", err
+			return nil, info, err
 		}
 		if len(*ops) > 0 {
 			op := (*ops)[0]
 			attribs := changeset.FromString(op.Attribs, padPool)
 			listTypeStr := attribs.Get("list")
 			if listTypeStr != nil {
-				if strings.HasPrefix(*listTypeStr, "bullet") {
-					listPrefix = "• "
-				} else if strings.HasPrefix(*listTypeStr, "number") {
-					listPrefix = "  "
+				// Parse list type and level (e.g., "bullet1", "number2")
+				listVal := *listTypeStr
+				if strings.HasPrefix(listVal, "bullet") {
+					info.listType = "bullet"
+					// Extract level from suffix (e.g., "bullet2" -> level 2)
+					levelStr := strings.TrimPrefix(listVal, "bullet")
+					if level, err := strconv.Atoi(levelStr); err == nil && level > 0 {
+						info.level = level
+					} else {
+						info.level = 1
+					}
+				} else if strings.HasPrefix(listVal, "number") {
+					info.listType = "number"
+					levelStr := strings.TrimPrefix(listVal, "number")
+					if level, err := strconv.Atoi(levelStr); err == nil && level > 0 {
+						info.level = level
+					} else {
+						info.level = 1
+					}
 				}
-				if len(text) > 0 {
+
+				// Remove the leading * marker from list items
+				if len(text) > 0 && text[0] == '*' {
 					text = text[1:]
 				}
 				newAline, err := changeset.Subattribution(aline, 1, nil)
 				if err != nil {
-					return nil, "", err
+					return nil, info, err
 				}
 				aline = *newAline
 			}
@@ -235,12 +363,12 @@ func (e *ExportPDF) parseLineSegments(text string, aline string, padPool *apool.
 		if text != "" {
 			segments = append(segments, textSegment{text: text})
 		}
-		return segments, listPrefix, nil
+		return segments, info, nil
 	}
 
 	ops, err := changeset.DeserializeOps(aline)
 	if err != nil {
-		return nil, "", err
+		return nil, info, err
 	}
 
 	textRunes := []rune(text)
@@ -296,7 +424,7 @@ func (e *ExportPDF) parseLineSegments(text string, aline string, padPool *apool.
 		segments = append(segments, textSegment{text: string(textRunes[pos:])})
 	}
 
-	return segments, listPrefix, nil
+	return segments, info, nil
 }
 
 // parseHexColor converts a hex color string to RGB values
