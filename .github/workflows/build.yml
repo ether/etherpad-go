@@ -131,15 +131,12 @@ jobs:
       - name: Install UI dependencies
         run: pnpm install
         working-directory: ./ui
+      - name: Install admin dependencies
+        run: pnpm install
+        working-directory: ./admin
       - name: Build UI
         run: node build.js
         working-directory: ./ui
-      - name: Install admin frontend dependencies
-        run: pnpm install
-        working-directory: ./admin
-      - name: Build admin
-        run: pnpm run build
-        working-directory: ./admin
       - name: Install Go dependencies
         run: go mod download
       - name: Install templ

@@ -1,9 +1,14 @@
 import { defineConfig, devices } from '@playwright/test';
+import path from 'node:path';
+import os from 'node:os';
+
+const isWindows = os.platform() === 'win32';
+const appPath = path.resolve(__dirname, '..', isWindows ? 'etherpad-go.exe' : 'etherpad-go');
 
 export default defineConfig({
-  testDir: '.',
-  testMatch: ['**/*.spec.ts'],
   fullyParallel: true,
+  testDir: '.',
+  testMatch: '**/*.spec.ts',
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : undefined,
@@ -28,7 +33,8 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'cd .. && ./etherpad-go',
+    command: appPath,
+    cwd: path.resolve(__dirname, '..'),
     url: 'http://localhost:9001',
     reuseExistingServer: !process.env.CI,
     timeout: 120000,
