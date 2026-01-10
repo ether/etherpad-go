@@ -43,16 +43,23 @@ jobs:
       - name: Build admin
         run: pnpm run build
         working-directory: ./admin
+      - name: Prepare built assets
+        run: |
+          mkdir -p built-assets/js/admin
+          mkdir -p built-assets/js/timeslider/assets
+          mkdir -p built-assets/js/pad/assets
+          mkdir -p built-assets/js/welcome/assets
+          mkdir -p built-assets/css/build
+          cp -r assets/js/admin/* built-assets/js/admin/
+          cp assets/js/timeslider/assets/timeslider.js built-assets/js/timeslider/assets/
+          cp assets/js/pad/assets/pad.js built-assets/js/pad/assets/
+          cp assets/js/welcome/assets/welcome.js built-assets/js/welcome/assets/
+          cp -r assets/css/build/* built-assets/css/build/
       - name: Upload assets
         uses: actions/upload-artifact@v6
         with:
           name: built-assets
-          path: |
-            assets/js/admin/
-            assets/js/timeslider/assets/timeslider.js
-            assets/js/pad/assets/pad.js
-            assets/js/welcome/assets/welcome.js
-            assets/css/build/
+          path: built-assets/
           retention-days: 1
       - name: Run tests with coverage
         run: |
@@ -109,7 +116,7 @@ jobs:
         uses: actions/download-artifact@v7
         with:
           name: built-assets
-          path: .
+          path: assets/
       - name: Prepare
         run: |
           platform=${{ matrix.platform }}
