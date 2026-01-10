@@ -3,7 +3,7 @@ FROM debian:bookworm-slim AS cache
 RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
 
 
-FROM golang:bookworm AS backend
+FROM golang:alpine AS backend
 WORKDIR /app
 
 RUN go install github.com/a-h/templ/cmd/templ@latest
@@ -12,9 +12,11 @@ RUN go mod download
 
 COPY . .
 
+ARG TARGETOS
+ARG TARGETARCH
 
 RUN templ generate
-RUN go build -o app .
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -ldflags="-s -w" -o app .
 
 
 FROM scratch AS runtime
