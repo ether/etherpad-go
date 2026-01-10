@@ -22,9 +22,6 @@
     "socket.io-client": "^4.8.0",
     "tinycon": "^0.6.8",
     "underscore": "^1.13.7",
-    "unorm": "^1.6.0",
-    "y-quill": "^1.0.0",
-    "y-websocket": "^2.0.4",
-    "yjs": "^13.6.19"
+    "unorm": "^1.6.0"
   }
 }
