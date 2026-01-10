@@ -31,13 +31,13 @@ importers:
         version: 1.6.0
       y-quill:
         specifier: ^1.0.0
-        version: 1.0.0(quill-cursors@4.0.4)(quill@2.0.3)(yjs@13.6.27)
+        version: 1.0.0(quill-cursors@4.0.4)(quill@2.0.3)(yjs@13.6.29)
       y-websocket:
         specifier: ^2.0.4
-        version: 2.1.0(yjs@13.6.27)
+        version: 2.1.0(yjs@13.6.29)
       yjs:
-        specifier: ^13.6.19
-        version: 13.6.27
+        specifier: ^13.6.29
+        version: 13.6.29
     devDependencies:
       '@types/jquery':
         specifier: ^3.5.31
@@ -528,8 +528,13 @@ packages:
     engines: {node: '>=16'}
     hasBin: true
 
-  lodash-es@4.17.21:
-    resolution: {integrity: sha512-mKnC+QJ9pWVzv+C4/U3rRsHapFfHvQFoFB92e52xeyGMcX6/OlIl78je1u8vePzYZSkkogMPJ2yjxxsb89cxyw==}
+  lib0@0.2.117:
+    resolution: {integrity: sha512-DeXj9X5xDCjgKLU/7RR+/HQEVzuuEUiwldwOGsHK/sfAfELGWEyTcf0x+uOvCvK3O2zPmZePXWL85vtia6GyZw==}
+    engines: {node: '>=16'}
+    hasBin: true
+
+  lodash-es@4.17.22:
+    resolution: {integrity: sha512-XEawp1t0gxSi9x01glktRZ5HDy0HXqrM0x5pXQM98EaI0NxO6jVM7omDOxsuEo5UIASAnm2bRp1Jt/e0a2XU8Q==}
 
   lodash.clonedeep@4.5.0:
     resolution: {integrity: sha512-H5ZhCF25riFd9uB5UCkVKo61m3S/xZk1x4wA6yp/L3RFP6Z/eHH1ymQcGLo7J3GMPfm0V/7m1tryHuGVxpqEBQ==}
@@ -751,8 +756,8 @@ packages:
     peerDependencies:
       yjs: ^13.5.6
 
-  yjs@13.6.27:
-    resolution: {integrity: sha512-OIDwaflOaq4wC6YlPBy2L6ceKeKuF7DeTxx+jPzv1FHn9tCZ0ZwSRnUBxD05E3yed46fv/FWJbvR+Ud7x0L7zw==}
+  yjs@13.6.29:
+    resolution: {integrity: sha512-kHqDPdltoXH+X4w1lVmMtddE3Oeqq48nM40FD5ojTd8xYhQpzIDcfE2keMSU5bAgRPJBe225WTUdyUgj1DtbiQ==}
     engines: {node: '>=16.0.0', npm: '>=8.0.0'}
 
 snapshots:
@@ -1143,7 +1148,11 @@ snapshots:
     dependencies:
       isomorphic.js: 0.2.5
 
-  lodash-es@4.17.21: {}
+  lib0@0.2.117:
+    dependencies:
+      isomorphic.js: 0.2.5
+
+  lodash-es@4.17.22: {}
 
   lodash.clonedeep@4.5.0: {}
 
@@ -1202,7 +1211,7 @@ snapshots:
   quill@2.0.3:
     dependencies:
       eventemitter3: 5.0.1
-      lodash-es: 4.17.21
+      lodash-es: 4.17.22
       parchment: 3.0.0
       quill-delta: 5.1.0
 
@@ -1315,39 +1324,39 @@ snapshots:
   xtend@4.0.2:
     optional: true
 
-  y-leveldb@0.1.2(yjs@13.6.27):
+  y-leveldb@0.1.2(yjs@13.6.29):
     dependencies:
       level: 6.0.1
       lib0: 0.2.114
-      yjs: 13.6.27
+      yjs: 13.6.29
     optional: true
 
-  y-protocols@1.0.6(yjs@13.6.27):
+  y-protocols@1.0.6(yjs@13.6.29):
     dependencies:
       lib0: 0.2.114
-      yjs: 13.6.27
+      yjs: 13.6.29
 
-  y-quill@1.0.0(quill-cursors@4.0.4)(quill@2.0.3)(yjs@13.6.27):
+  y-quill@1.0.0(quill-cursors@4.0.4)(quill@2.0.3)(yjs@13.6.29):
     dependencies:
       lib0: 0.2.114
       quill: 2.0.3
       quill-cursors: 4.0.4
-      y-protocols: 1.0.6(yjs@13.6.27)
-      yjs: 13.6.27
+      y-protocols: 1.0.6(yjs@13.6.29)
+      yjs: 13.6.29
 
-  y-websocket@2.1.0(yjs@13.6.27):
+  y-websocket@2.1.0(yjs@13.6.29):
     dependencies:
       lib0: 0.2.114
       lodash.debounce: 4.0.8
-      y-protocols: 1.0.6(yjs@13.6.27)
-      yjs: 13.6.27
+      y-protocols: 1.0.6(yjs@13.6.29)
+      yjs: 13.6.29
     optionalDependencies:
       ws: 6.2.3
-      y-leveldb: 0.1.2(yjs@13.6.27)
+      y-leveldb: 0.1.2(yjs@13.6.29)
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
 
-  yjs@13.6.27:
+  yjs@13.6.29:
     dependencies:
-      lib0: 0.2.114
+      lib0: 0.2.117
