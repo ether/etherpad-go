@@ -1,9 +1,9 @@
-FROM alpine AS cache
+FROM debian:bookworm-slim AS cache
 
-RUN apk add -U --no-cache ca-certificates
+RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
 
 
-FROM node:alpine AS admin
+FROM node:bookworm-slim AS admin
 
 WORKDIR /app
 COPY ./admin/package.json .
@@ -15,7 +15,7 @@ RUN pnpm run build
 
 
 
-FROM node:alpine AS frontend
+FROM node:bookworm-slim AS frontend
 WORKDIR /app
 
 RUN npm install -g pnpm
@@ -35,7 +35,7 @@ COPY ./ui /app/ui
 WORKDIR /app/ui
 RUN node ./build.js
 
-FROM golang:alpine AS backend
+FROM golang:bookworm AS backend
 WORKDIR /app
 
 RUN go install github.com/a-h/templ/cmd/templ@latest
@@ -64,5 +64,3 @@ COPY --from=backend /app/app /app
 
 COPY --from=cache /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 ENTRYPOINT ["/app"]
-
-

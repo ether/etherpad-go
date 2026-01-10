@@ -80,12 +80,10 @@ jobs:
           - platform: linux/arm64
             runs-on: ubuntu-24.04-arm
           - platform: linux/arm/v7
-            runs-on: ubuntu-latest
+            runs-on: ubuntu-24.04-arm
           - platform: linux/386
             runs-on: ubuntu-latest
           - platform: linux/ppc64le
-            runs-on: ubuntu-latest
-          - platform: linux/s390x
             runs-on: ubuntu-latest
     runs-on: ${{ matrix.runs-on }}
     steps:
