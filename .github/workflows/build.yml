@@ -109,7 +109,7 @@ jobs:
         uses: actions/download-artifact@v7
         with:
           name: built-assets
-          path: assets/
+          path: .
       - name: Prepare
         run: |
           platform=${{ matrix.platform }}
