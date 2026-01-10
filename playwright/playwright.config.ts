@@ -5,6 +5,9 @@ import os from 'node:os';
 const isWindows = os.platform() === 'win32';
 const appPath = path.resolve(__dirname, '..', isWindows ? 'etherpad-go.exe' : 'etherpad-go');
 
+
+process.env['NODE_ENV'] = 'production';
+
 export default defineConfig({
   fullyParallel: true,
   testDir: '.',
@@ -32,12 +35,12 @@ export default defineConfig({
       use: { ...devices['Desktop Safari'] },
     },
   ],
-  webServer: {
+  /*webServer: {
     command: appPath,
     cwd: path.resolve(__dirname, '..'),
     url: 'http://localhost:9001',
     reuseExistingServer: !process.env.CI,
     timeout: 120000,
-  },
+  },*/
 });
 

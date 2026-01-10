@@ -18,7 +18,7 @@ test.describe('bold button', ()=>{
         await selectAllText(page);
 
         // click the bold button
-        await page.locator("button[data-l10n-id='pad.toolbar.bold.title']").click();
+        await page.locator("button[class~='buttonicon-bold']").click();
 
 
         // check if the text is bold

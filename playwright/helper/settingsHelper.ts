@@ -8,13 +8,13 @@ export const isSettingsShown = async (page: Page) => {
 
 export const showSettings = async (page: Page) => {
     if(await isSettingsShown(page)) return
-    await page.locator("button[data-l10n-id='pad.toolbar.settings.title']").click()
+    await page.locator("button[title='Settings']").click()
     await page.waitForFunction(`document.querySelector('#settings').classList.contains('popup-show')`)
 }
 
 export const hideSettings = async (page: Page) => {
     if(!await isSettingsShown(page)) return
-    await page.locator("button[data-l10n-id='pad.toolbar.settings.title']").click()
+    await page.locator("button[title='Settings']").click()
     await page.waitForFunction(`!document.querySelector('#settings').classList.contains('popup-show')`)
 }
 

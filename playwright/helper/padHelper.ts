@@ -16,12 +16,12 @@ export const selectAllText = async (page: Page) => {
 }
 
 export const toggleUserList = async (page: Page) => {
-    await page.locator("button[data-l10n-id='pad.toolbar.showusers.title']").click()
+    await page.locator("button[class~='buttonicon-showusers']").click()
 }
 
 export const setUserName = async (page: Page, userName: string) => {
     await page.waitForSelector('[class="popup popup-show"]')
-    await page.click("input[data-l10n-id='pad.userlist.entername']");
+    await page.click("#myusernameedit");
     await page.keyboard.type(userName);
 }
 
@@ -142,7 +142,7 @@ export const writeToPad = async (page: Page, text: string) => {
 }
 
 export const clearAuthorship = async (page: Page) => {
-    await page.locator("button[data-l10n-id='pad.toolbar.clearAuthorship.title']").click()
+    await page.locator("button[class~='buttonicon-clearauthorship']").click()
 }
 
 export const undoChanges = async (page: Page) => {

@@ -1,6 +1,7 @@
 package ratelimiter
 
 import (
+	"sync"
 	"time"
 
 	"github.com/ether/etherpad-go/lib/settings"
@@ -12,10 +13,18 @@ type Event struct {
 	LastOccurrence int64
 }
 
-var rateLimiter map[IPAddress][]Event
+type RateLimiter struct {
+	Mu          sync.RWMutex
+	RateLimiter map[IPAddress][]Event
+}
+
+var rateLimiter RateLimiter
 
 func init() {
-	rateLimiter = make(map[IPAddress][]Event)
+	rateLimiter = RateLimiter{
+		Mu:          sync.RWMutex{},
+		RateLimiter: make(map[IPAddress][]Event),
+	}
 }
 
 type ErrRateLimitExceeded struct{}
@@ -25,10 +34,14 @@ func (e ErrRateLimitExceeded) Error() string {
 }
 
 func CheckRateLimit(ip IPAddress, limiting settings.CommitRateLimiting) error {
-	value, ok := rateLimiter[ip]
+	rateLimiter.Mu.RLock()
+	value, ok := rateLimiter.RateLimiter[ip]
+	rateLimiter.Mu.RUnlock()
 	if !ok {
-		rateLimiter[ip] = []Event{}
-		value = rateLimiter[ip]
+		rateLimiter.Mu.Lock()
+		rateLimiter.RateLimiter[ip] = []Event{}
+		value = rateLimiter.RateLimiter[ip]
+		rateLimiter.Mu.Unlock()
 	}
 
 	// Clean up old events
@@ -41,9 +54,12 @@ func CheckRateLimit(ip IPAddress, limiting settings.CommitRateLimiting) error {
 	}
 
 	// Add the new event
+
 	filteredEvents = append(filteredEvents, Event{LastOccurrence: time.Now().Unix()})
-	rateLimiter[ip] = filteredEvents
-	if len(rateLimiter[ip]) > limiting.Points {
+	rateLimiter.Mu.Lock()
+	defer rateLimiter.Mu.Unlock()
+	rateLimiter.RateLimiter[ip] = filteredEvents
+	if len(rateLimiter.RateLimiter[ip]) > limiting.Points {
 		return ErrRateLimitExceeded{}
 	}
 	return nil

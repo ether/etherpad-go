@@ -15,7 +15,7 @@ test("Remembers the username after a refresh", async ({page}) => {
 
     await page.reload();
     await toggleUserList(page);
-    const usernameField = page.locator("input[data-l10n-id='pad.userlist.entername']");
+    const usernameField = page.locator("#myusernameedit");
     await expect(usernameField).toHaveValue('😃');
 })
 
