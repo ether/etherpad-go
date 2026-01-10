@@ -40,6 +40,20 @@ jobs:
         run: templ generate
       - name: Build app
         run: go build -o etherpad-go
+      - name: Build admin
+        run: pnpm run build
+        working-directory: ./admin
+      - name: Upload assets
+        uses: actions/upload-artifact@v6
+        with:
+          name: built-assets
+          path: |
+            assets/js/admin/
+            assets/js/timeslider/assets/timeslider.js
+            assets/js/pad/assets/pad.js
+            assets/js/welcome/assets/welcome.js
+            assets/css/build/
+          retention-days: 1
       - name: Run tests with coverage
         run: |
           go test -v -coverpkg=./... -coverprofile=coverage.out ./...
@@ -91,6 +105,11 @@ jobs:
         with:
           fetch-tags: 'true'
           fetch-depth: '0'
+      - name: Download assets
+        uses: actions/download-artifact@v7
+        with:
+          name: built-assets
+          path: assets/
       - name: Prepare
         run: |
           platform=${{ matrix.platform }}
@@ -120,6 +139,7 @@ jobs:
         id: build
         uses: docker/build-push-action@v6
         with:
+          file: Dockerfile.build
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
           tags: ${{ env.REGISTRY_IMAGE }}
