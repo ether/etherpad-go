@@ -120,7 +120,7 @@ func PreparePostgresDB() (*TestContainerConfiguration, error) {
 			wait.ForSQL("5432/tcp", "postgres", func(host string, port nat.Port) string {
 				return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable", DbUser, DbPass, host, port.Port(), DbName)
 			}).
-				WithStartupTimeout(time.Second*5).
+				WithStartupTimeout(time.Second*30).
 				WithQuery("SELECT 10"),
 		),
 		testcontainers.WithEnv(env),
