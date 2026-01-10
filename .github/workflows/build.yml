@@ -45,8 +45,10 @@ jobs:
           go test -v -coverpkg=./... -coverprofile=coverage.out ./...
           go tool cover -html=coverage.out -o coverage.html
       - name: Setup SonarQube
+        if: github.actor == 'samtv12345' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
         uses: warchant/setup-sonar-scanner@v9
       - name: Run SonarQube Scanner
+        if: github.actor == 'samtv12345' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
         run: sonar-scanner
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -55,6 +57,7 @@ jobs:
           PROJECT_KEY: etherpad-go
 
       - name: SonarQube Quality Gate Check
+        if: github.actor == 'samtv12345' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
         uses: sonarsource/sonarqube-quality-gate-action@master
         with:
           scanMetadataReportFile: .scannerwork/report-task.txt
