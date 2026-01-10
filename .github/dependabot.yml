@@ -1,0 +1,34 @@
+version: 2
+updates:
+  # Maintain dependencies for GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "daily"
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "daily"
+  - package-ecosystem: "npm"
+    directory: "/ui"
+    schedule:
+      interval: "daily"
+    versioning-strategy: "increase"
+    open-pull-requests-limit: 30
+    groups:
+      dev-dependencies:
+        dependency-type: "development"
+  - package-ecosystem: "npm"
+    directory: "/admin"
+    schedule:
+      interval: "daily"
+    versioning-strategy: "increase"
+    open-pull-requests-limit: 30
+    groups:
+      dev-dependencies:
+        dependency-type: "development"
+  - package-ecosystem: gomod
+    directory: "/"
+    schedule:
+      interval: "daily"
+    open-pull-requests-limit: 30
