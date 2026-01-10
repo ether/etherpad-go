@@ -24,7 +24,7 @@
     "underscore": "^1.13.7",
     "unorm": "^1.6.0",
     "y-quill": "^1.0.0",
-    "y-websocket": "^2.0.4",
+    "y-websocket": "^3.0.0",
     "yjs": "^13.6.19"
   }
 }
