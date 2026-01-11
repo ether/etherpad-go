@@ -14,7 +14,7 @@ export default defineConfig({
   testMatch: 'specs/**/*.spec.ts',
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  workers: 5,
   reporter: process.env.CI ? [['html', { open: 'never' }], ['github']] : 'html',
   use: {
     baseURL: 'http://localhost:9001',
