@@ -77,7 +77,7 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 					return
 				}
 
-				c.Send <- responseBytes
+				c.SafeSend(responseBytes)
 			} else {
 				_, err := h.padManager.GetPad(padCreateData.PadName, nil, nil)
 				if err != nil {
@@ -97,7 +97,7 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 					println("Error marshalling response:", err.Error())
 					return
 				}
-				c.Send <- responseBytes
+				c.SafeSend(responseBytes)
 			}
 
 		}
@@ -136,7 +136,7 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 				println("Error marshalling response:", err.Error())
 				return
 			}
-			c.Send <- responseBytes
+			c.SafeSend(responseBytes)
 		}
 	case "getInstalled":
 		{
@@ -160,7 +160,7 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 				println("Error marshalling response:", err.Error())
 				return
 			}
-			c.Send <- responseBytes
+			c.SafeSend(responseBytes)
 		}
 	case "shout":
 		{
@@ -188,8 +188,8 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 				return
 			}
 
-			for key, _ := range h.hub.Clients {
-				key.Send <- responseBytes
+			for key := range h.hub.Clients {
+				key.SafeSend(responseBytes)
 			}
 
 		}
@@ -217,7 +217,7 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 				println("Error marshalling response:", err.Error())
 				return
 			}
-			c.Send <- responseBytes
+			c.SafeSend(responseBytes)
 		}
 	case "cleanupPadRevisions":
 		{
@@ -254,7 +254,7 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 			if err != nil {
 				println("Error marshalling response:", err.Error())
 			}
-			c.Send <- responseBytes
+			c.SafeSend(responseBytes)
 		}
 	case "search":
 		{
@@ -278,7 +278,7 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 				println("Error marshalling response:", err.Error())
 				return
 			}
-			c.Send <- responseBytes
+			c.SafeSend(responseBytes)
 		}
 	case "getStats":
 		{
@@ -294,7 +294,7 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 				println("Error marshalling response:", err.Error())
 				return
 			}
-			c.Send <- responseBytes
+			c.SafeSend(responseBytes)
 		}
 	default:
 		// Unknown event

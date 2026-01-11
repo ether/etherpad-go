@@ -77,7 +77,14 @@ func testHandleLoadSettings(t *testing.T, ds testutils.TestDataStore) {
 		Handler:   nil,
 	}
 
+	// Start mock write pump to forward messages from Send channel to MockWebSocket
+	wg := startMockWritePump(client, ds.MockWebSocket)
+
 	ds.AdminMessageHandler.HandleMessage(message, &settingsToLoad, client)
+
+	// Wait for the mock write pump to process the message
+	wg.Wait()
+
 	assert.Len(t, ds.MockWebSocket.Data, 1)
 	var response []interface{}
 	assert.NoError(t, json.Unmarshal(ds.MockWebSocket.Data[0].Data, &response))
@@ -102,6 +109,7 @@ func testHandleCreatePadWithExistingPad(t *testing.T, ds testutils.TestDataStore
 		Ctx:       nil,
 		Handler:   nil,
 	}
+
 	padCreateMessage := admin.PadCreateData{
 		PadName: "test",
 	}
@@ -115,7 +123,12 @@ func testHandleCreatePadWithExistingPad(t *testing.T, ds testutils.TestDataStore
 	assert.NoError(t, err)
 	assert.NotNil(t, createdPad)
 
+	// Start mock write pump right before HandleMessage
+	wg := startMockWritePump(client, ds.MockWebSocket)
+
 	ds.AdminMessageHandler.HandleMessage(padAdminMessage, &settingsToLoad, client)
+	wg.Wait()
+
 	assert.Len(t, ds.MockWebSocket.Data, 1)
 	var resp = make([]interface{}, 2)
 	assert.NoError(t, json.Unmarshal(ds.MockWebSocket.Data[0].Data, &resp))
@@ -138,6 +151,9 @@ func testHandleShout(t *testing.T, ds testutils.TestDataStore) {
 		Handler:   nil,
 	}
 
+	// Start mock write pump
+	wg := startMockWritePump(client, ds.MockWebSocket)
+
 	ds.Hub.Clients[client] = true
 	shoutMessageRequest := admin.ShoutMessageRequest{
 		Message: "This is a shout message",
@@ -151,6 +167,8 @@ func testHandleShout(t *testing.T, ds testutils.TestDataStore) {
 	}
 
 	ds.AdminMessageHandler.HandleMessage(padAdminMessage, &settingsToLoad, client)
+	wg.Wait()
+
 	assert.Len(t, ds.MockWebSocket.Data, 1)
 	var resp = make([]interface{}, 2)
 	assert.NoError(t, json.Unmarshal(ds.MockWebSocket.Data[0].Data, &resp))
@@ -176,6 +194,10 @@ func testHandleCreatePadWithNoExistingPad(t *testing.T, ds testutils.TestDataSto
 		Ctx:       nil,
 		Handler:   nil,
 	}
+
+	// Start mock write pump
+	wg := startMockWritePump(client, ds.MockWebSocket)
+
 	padCreateMessage := admin.PadCreateData{
 		PadName: "test",
 	}
@@ -187,6 +209,8 @@ func testHandleCreatePadWithNoExistingPad(t *testing.T, ds testutils.TestDataSto
 	}
 
 	ds.AdminMessageHandler.HandleMessage(padAdminMessage, &settingsToLoad, client)
+	wg.Wait()
+
 	assert.Len(t, ds.MockWebSocket.Data, 1)
 	var resp = make([]interface{}, 2)
 	assert.NoError(t, json.Unmarshal(ds.MockWebSocket.Data[0].Data, &resp))
@@ -208,6 +232,10 @@ func testHandlePadLoad(t *testing.T, ds testutils.TestDataStore) {
 		Ctx:       nil,
 		Handler:   nil,
 	}
+
+	// Start mock write pump
+	wg := startMockWritePump(client, ds.MockWebSocket)
+
 	padCreateMessage := admin.PadLoadData{
 		Limit:     10,
 		Offset:    0,
@@ -223,6 +251,8 @@ func testHandlePadLoad(t *testing.T, ds testutils.TestDataStore) {
 	}
 
 	ds.AdminMessageHandler.HandleMessage(padAdminMessage, &settingsToLoad, client)
+	wg.Wait()
+
 	assert.Len(t, ds.MockWebSocket.Data, 1)
 	var resp = make([]interface{}, 2)
 	assert.NoError(t, json.Unmarshal(ds.MockWebSocket.Data[0].Data, &resp))
@@ -250,6 +280,10 @@ func testHandlePadLoadExactPattern(t *testing.T, ds testutils.TestDataStore) {
 		Ctx:       nil,
 		Handler:   nil,
 	}
+
+	// Start mock write pump
+	wg := startMockWritePump(client, ds.MockWebSocket)
+
 	padCreateMessage := admin.PadLoadData{
 		Limit:     10,
 		Offset:    0,
@@ -265,6 +299,8 @@ func testHandlePadLoadExactPattern(t *testing.T, ds testutils.TestDataStore) {
 	}
 
 	ds.AdminMessageHandler.HandleMessage(padAdminMessage, &settingsToLoad, client)
+	wg.Wait()
+
 	assert.Len(t, ds.MockWebSocket.Data, 1)
 	var resp = make([]interface{}, 2)
 	assert.NoError(t, json.Unmarshal(ds.MockWebSocket.Data[0].Data, &resp))
@@ -292,6 +328,10 @@ func testHandlePadLoadFuzzyPattern(t *testing.T, ds testutils.TestDataStore) {
 		Ctx:       nil,
 		Handler:   nil,
 	}
+
+	// Start mock write pump
+	wg := startMockWritePump(client, ds.MockWebSocket)
+
 	padCreateMessage := admin.PadLoadData{
 		Limit:     10,
 		Offset:    0,
@@ -307,6 +347,8 @@ func testHandlePadLoadFuzzyPattern(t *testing.T, ds testutils.TestDataStore) {
 	}
 
 	ds.AdminMessageHandler.HandleMessage(padAdminMessage, &settingsToLoad, client)
+	wg.Wait()
+
 	assert.Len(t, ds.MockWebSocket.Data, 1)
 	var resp = make([]interface{}, 2)
 	assert.NoError(t, json.Unmarshal(ds.MockWebSocket.Data[0].Data, &resp))
@@ -329,11 +371,17 @@ func testGetInstalled(t *testing.T, ds testutils.TestDataStore) {
 		Ctx:       nil,
 		Handler:   nil,
 	}
+
+	// Start mock write pump
+	wg := startMockWritePump(client, ds.MockWebSocket)
+
 	getInstalledRequest := admin.EventMessage{
 		Event: "getInstalled",
 		Data:  make(json.RawMessage, 0),
 	}
 	ds.AdminMessageHandler.HandleMessage(getInstalledRequest, &settingsToLoad, client)
+	wg.Wait()
+
 	assert.Len(t, ds.MockWebSocket.Data, 1)
 	var resp = make([]interface{}, 2)
 	assert.NoError(t, json.Unmarshal(ds.MockWebSocket.Data[0].Data, &resp))
@@ -378,6 +426,7 @@ func testHandleDeletePad(t *testing.T, ds testutils.TestDataStore) {
 		Ctx:       nil,
 		Handler:   nil,
 	}
+
 	padDelete := "existingPad"
 	createdPad, err := ds.PadManager.GetPad(padDelete, nil, nil)
 	assert.NoError(t, err)
@@ -389,7 +438,12 @@ func testHandleDeletePad(t *testing.T, ds testutils.TestDataStore) {
 		Data:  data,
 	}
 
+	// Start mock write pump right before HandleMessage
+	wg := startMockWritePump(client, ds.MockWebSocket)
+
 	ds.AdminMessageHandler.HandleMessage(padAdminMessage, &settingsToLoad, client)
+	wg.Wait()
+
 	assert.Len(t, ds.MockWebSocket.Data, 1)
 	var resp = make([]interface{}, 2)
 	assert.NoError(t, json.Unmarshal(ds.MockWebSocket.Data[0].Data, &resp))
