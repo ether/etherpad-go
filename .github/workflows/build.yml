@@ -145,6 +145,9 @@ jobs:
         run: templ generate
       - name: Build app
         run: go build -o etherpad-go
+      - name: Build admin
+        run: pnpm run build
+        working-directory: ./admin
       - name: Install Playwright dependencies
         run: pnpm install
         working-directory: ./playwright
@@ -156,6 +159,7 @@ jobs:
         working-directory: ./playwright
         env:
           CI: true
+        timeout-minutes: 15
       - name: Upload Playwright report
         if: always()
         uses: actions/upload-artifact@v6

@@ -19,9 +19,8 @@ test.describe('All the alphabet works n stuff', () => {
         // delete possible old content
         await clearPadContent(page!);
 
-
         await page.keyboard.type(expectedString);
-        const text = await innerFrame.locator('div').innerText();
+        const text = await innerFrame.locator('div').first().innerText();
         expect(text).toBe(expectedString);
     });
 });

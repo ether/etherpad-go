@@ -6,15 +6,18 @@ test.beforeEach(async ({ page })=>{
 })
 
 test.describe('entering a URL makes a link', function () {
-    for (const url of ['https://etherpad.org', 'www.etherpad.org', 'https://www.etherpad.org']) {
-        test(url, async function ({page}) {
+    const urls = ['https://etherpad.org', 'www.etherpad.org', 'https://www.etherpad.org'];
+    for (let i = 0; i < urls.length; i++) {
+        const testUrl = urls[i];
+        test(`url format ${i}`, async function ({page}) {
             const padBody = await getPadBody(page);
             await clearPadContent(page)
-            const url = 'https://etherpad.org';
-            await writeToPad(page, url);
-            await expect(padBody.locator('div').first()).toHaveText(url);
-            await expect(padBody.locator('a')).toHaveText(url);
-            await expect(padBody.locator('a')).toHaveAttribute('href', url);
+            await writeToPad(page, testUrl);
+            await expect(padBody.locator('div').first()).toHaveText(testUrl);
+            await expect(padBody.locator('a')).toHaveText(testUrl);
+            // www.etherpad.org should become https://www.etherpad.org
+            const expectedHref = testUrl.startsWith('http') ? testUrl : `https://${testUrl}`;
+            await expect(padBody.locator('a')).toHaveAttribute('href', expectedHref);
         });
     }
 });
@@ -39,10 +42,12 @@ test.describe('special characters inside URL', async function () {
 });
 
 test.describe('punctuation after URL is ignored', ()=> {
-    for (const char of ':.,;?!)]\'*') {
+    const chars = ':.,;?!)]\'*';
+    for (let i = 0; i < chars.length; i++) {
+        const char = chars[i];
         const want = 'https://etherpad.org';
         const input = want + char;
-        test(input, async function ({page}) {
+        test(`punctuation char ${i}`, async function ({page}) {
             const padBody = await getPadBody(page);
             await clearPadContent(page)
             await writeToPad(page, input);

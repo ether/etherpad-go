@@ -1,5 +1,9 @@
 import {Frame, Locator, Page} from "@playwright/test";
 import {randomUUID} from "node:crypto";
+import os from "node:os";
+
+const isMac = os.platform() === 'darwin';
+const modifier = isMac ? 'Meta' : 'Control';
 
 export const getPadOuter =  async (page: Page): Promise<Frame> => {
     return page.frame('ace_outer')!;
@@ -10,9 +14,9 @@ export const getPadBody =  async (page: Page): Promise<Locator> => {
 }
 
 export const selectAllText = async (page: Page) => {
-    await page.keyboard.down('Control');
-    await page.keyboard.press('A');
-    await page.keyboard.up('Control');
+    await page.keyboard.down(modifier);
+    await page.keyboard.press('a');
+    await page.keyboard.up(modifier);
 }
 
 export const toggleUserList = async (page: Page) => {
@@ -116,29 +120,48 @@ export const goToNewPad = async (page: Page) => {
     // create a new pad before each test run
     const padId = "FRONTEND_TESTS"+randomUUID();
     await page.goto('http://localhost:9001/p/'+padId);
-    await page.waitForSelector('iframe[name="ace_outer"]');
+    // Wait for the editor to be fully loaded
+    await page.waitForSelector('iframe[name="ace_outer"]', { timeout: 30000 });
+    // Wait for the inner frame to be ready
+    const innerFrame = page.frame('ace_inner');
+    if (innerFrame) {
+        await innerFrame.waitForSelector('#innerdocbody', { timeout: 30000 });
+    }
+    // Give the editor a moment to stabilize
+    await page.waitForTimeout(500);
     return padId;
 }
 
 export const goToPad = async (page: Page, padId: string) => {
     await page.goto('http://localhost:9001/p/'+padId);
-    await page.waitForSelector('iframe[name="ace_outer"]');
+    await page.waitForSelector('iframe[name="ace_outer"]', { timeout: 30000 });
+    // Wait for the inner frame to be ready
+    const innerFrame = page.frame('ace_inner');
+    if (innerFrame) {
+        await innerFrame.waitForSelector('#innerdocbody', { timeout: 30000 });
+    }
+    // Give the editor a moment to stabilize
+    await page.waitForTimeout(500);
 }
 
 
 export const clearPadContent = async (page: Page) => {
     const body = await getPadBody(page);
     await body.click();
-    await page.keyboard.down('Control');
-    await page.keyboard.press('A');
-    await page.keyboard.up('Control');
+    await page.keyboard.down(modifier);
+    await page.keyboard.press('a');
+    await page.keyboard.up(modifier);
     await page.keyboard.press('Delete');
+    // Wait for content to be cleared
+    await page.waitForTimeout(100);
 }
 
 export const writeToPad = async (page: Page, text: string) => {
     const body = await getPadBody(page);
     await body.click();
-    await page.keyboard.type(text);
+    await page.keyboard.type(text, { delay: 10 });
+    // Wait for text to be rendered
+    await page.waitForTimeout(100);
 }
 
 export const clearAuthorship = async (page: Page) => {
@@ -146,9 +169,9 @@ export const clearAuthorship = async (page: Page) => {
 }
 
 export const undoChanges = async (page: Page) => {
-    await page.keyboard.down('Control');
+    await page.keyboard.down(modifier);
     await page.keyboard.press('z');
-    await page.keyboard.up('Control');
+    await page.keyboard.up(modifier);
 }
 
 export const pressUndoButton = async (page: Page) => {
