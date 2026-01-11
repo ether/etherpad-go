@@ -27,7 +27,6 @@ import (
 	"github.com/ether/etherpad-go/lib/utils"
 	"github.com/ether/etherpad-go/lib/ws/constants"
 	"github.com/gofiber/fiber/v2"
-	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
 )
 
@@ -252,11 +251,7 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 		},
 	}
 	var bytes, _ = json.Marshal(arr)
-	err = task.socket.Conn.WriteMessage(websocket.TextMessage, bytes)
-	if err != nil {
-		p.Logger.Warnf("Error writing to socket: %v", err)
-		return
-	}
+	task.socket.SafeSend(bytes)
 
 	session.Revision = finalRev
 
@@ -375,7 +370,7 @@ func (p *PadMessageHandler) HandleMessage(message any, client *Client, ctx *fibe
 		}
 		var messageToSend, _ = json.Marshal(arr)
 
-		client.Conn.WriteMessage(websocket.TextMessage, messageToSend)
+		client.SafeSend(messageToSend)
 		println("Error checking access", err)
 		return
 	}
@@ -387,7 +382,7 @@ func (p *PadMessageHandler) HandleMessage(message any, client *Client, ctx *fibe
 			Disconnect: "rejected",
 		}
 		var encoded, _ = json.Marshal(arr)
-		client.Conn.WriteMessage(websocket.TextMessage, encoded)
+		client.SafeSend(encoded)
 		return
 	}
 
@@ -487,7 +482,7 @@ func (p *PadMessageHandler) HandleMessage(message any, client *Client, ctx *fibe
 				}{Type: "CHAT_MESSAGES", Messages: convertedMessages},
 			}
 			var marshalled, _ = json.Marshal(arr)
-			client.Conn.WriteMessage(websocket.TextMessage, marshalled)
+			client.SafeSend(marshalled)
 		}
 	case UserInfoUpdate:
 		{
@@ -558,7 +553,7 @@ func (p *PadMessageHandler) HandleChangesetRequest(socket *Client, message ws.Ch
 		return
 	}
 
-	socket.Conn.WriteMessage(websocket.TextMessage, encoded)
+	socket.SafeSend(encoded)
 }
 
 func (p *PadMessageHandler) composePadChangesets(retrievedPad *pad2.Pad, start int, end int) (string, error) {
@@ -775,10 +770,7 @@ func (p *PadMessageHandler) SendChatMessageToPadClients(session *ws.Session, cha
 
 		var marshalledMessage, _ = json.Marshal(arr)
 
-		err := socket.Conn.WriteMessage(websocket.TextMessage, marshalledMessage)
-		if err != nil {
-			println("Error sending chat message to client", err.Error())
-		}
+		socket.SafeSend(marshalledMessage)
 	}
 }
 
@@ -911,7 +903,7 @@ func (p *PadMessageHandler) HandleUserInfoUpdate(userInfo UserInfoUpdate, client
 	var marshalled, _ = json.Marshal(arr)
 
 	for _, p := range padSockets {
-		p.Conn.WriteMessage(websocket.TextMessage, marshalled)
+		p.SafeSend(marshalled)
 	}
 
 }
@@ -1005,10 +997,7 @@ func (p *PadMessageHandler) HandleDisconnectOfPadClient(client *Client, settings
 		arr[0] = "message"
 		arr[1] = userLeave
 		var marshalled, _ = json.Marshal(arr)
-		if err := otherSocket.Conn.WriteMessage(websocket.TextMessage, marshalled); err != nil {
-			println("Error broadcasting USER_LEAVE message")
-			return
-		}
+		otherSocket.SafeSend(marshalled)
 	}
 
 	p.SessionStore.removeSession(client.SessionId)
@@ -1100,7 +1089,7 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 				Disconnect: "userdup",
 			}
 			var encoded, _ = json.Marshal(arr)
-			otherSocket.Conn.WriteMessage(websocket.TextMessage, encoded)
+			otherSocket.SafeSend(encoded)
 		}
 	}
 
@@ -1176,10 +1165,7 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 					continue
 				}
 
-				if err := client.Conn.WriteMessage(websocket.TextMessage, encoded); err != nil {
-					logger.Warnf("Error sending CLIENT_RECONNECT message: %v", err)
-					return
-				}
+				client.SafeSend(encoded)
 
 				// Update session revision
 				thisSession.Revision = rev.RevNum
@@ -1201,7 +1187,7 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 			arr[1] = noChangesMsg
 
 			encoded, _ := json.Marshal(arr)
-			client.Conn.WriteMessage(websocket.TextMessage, encoded)
+			client.SafeSend(encoded)
 
 			thisSession.Revision = headRev
 		}
@@ -1225,7 +1211,7 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 		// Join the pad and start receiving updates
 		thisSession.PadId = retrievedPad.Id
 		// Send the clientVars to the Client
-		client.Conn.WriteMessage(websocket.TextMessage, encoded)
+		client.SafeSend(encoded)
 		// Save the current revision in sessioninfos, should be the same as in clientVars
 		thisSession.Revision = retrievedPad.Head
 	}
@@ -1259,9 +1245,7 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 	var marshalled, _ = json.Marshal(arr)
 
 	for _, socket := range roomSockets {
-		if err := socket.Conn.WriteMessage(websocket.TextMessage, marshalled); err != nil {
-			println("Error broadcasting USER_NEWINFO message")
-		}
+		socket.SafeSend(marshalled)
 	}
 
 	// send all other users' info to the new client
@@ -1298,9 +1282,7 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 		arr[1] = userNewInfoActual
 		var marshalled, _ = json.Marshal(arr)
 
-		if err := client.Conn.WriteMessage(websocket.TextMessage, marshalled); err != nil {
-			println("Error sending USER_NEWINFO message to new client")
-		}
+		client.SafeSend(marshalled)
 	}
 }
 
@@ -1356,7 +1338,7 @@ func (p *PadMessageHandler) UpdatePadClients(pad *pad2.Pad) {
 				return
 			}
 
-			err = socket.Conn.WriteMessage(websocket.TextMessage, marshalledMessage)
+			socket.SafeSend(marshalledMessage)
 			sessionInfo.Time = currentTime
 			sessionInfo.Revision = r
 		}

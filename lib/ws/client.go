@@ -133,6 +133,7 @@ func (c *Client) readPump(retrievedSettings *settings.Settings, logger *zap.Suga
 			c.Handler.HandleDisconnectOfPadClient(c, retrievedSettings, logger)
 			break
 		}
+		retrievedSettings.CommitRateLimiting.LoadTest = retrievedSettings.LoadTest
 		if err := ratelimiter.CheckRateLimit(ratelimiter.IPAddress(c.Ctx.IP()), retrievedSettings.CommitRateLimiting); err != nil {
 			println("Rate limit exceeded:", err.Error())
 			continue
@@ -206,12 +207,28 @@ func (c *Client) Leave() {
 	c.Hub.Unregister <- c
 }
 
+// SafeSend sends a message to the client, returning false if the channel is closed.
+// This prevents panic on send to closed channel.
+func (c *Client) SafeSend(message []byte) (sent bool) {
+	defer func() {
+		if recover() != nil {
+			sent = false
+		}
+	}()
+	select {
+	case c.Send <- message:
+		return true
+	default:
+		return false
+	}
+}
+
 func (c *Client) SendUserDupMessage() {
-	c.Send <- []byte(`{"disconnect":"userdup"}`)
+	c.SafeSend([]byte(`{"disconnect":"userdup"}`))
 }
 
 func (c *Client) SendPadDelete() {
-	c.Send <- []byte(`{"disconnect":"deleted"}`)
+	c.SafeSend([]byte(`{"disconnect":"deleted"}`))
 }
 
 // ServeWs handles websocket requests from the peer.

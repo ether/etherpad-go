@@ -3,15 +3,15 @@ import path from 'node:path';
 import os from 'node:os';
 
 const isWindows = os.platform() === 'win32';
-const appPath = path.resolve(__dirname, '..', isWindows ? 'etherpad-go.exe' : 'etherpad-go');
 
 
 process.env['NODE_ENV'] = 'production';
+process.env['ETHERPAD_LOADTEST'] = 'true'
 
 export default defineConfig({
   fullyParallel: true,
   testDir: '.',
-  testMatch: '**/*.spec.ts',
+  testMatch: 'specs/**/*.spec.ts',
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : undefined,
@@ -35,12 +35,11 @@ export default defineConfig({
       use: { ...devices['Desktop Safari'] },
     },
   ],
-  /*webServer: {
-    command: appPath,
+  webServer: {
+    command: isWindows ? 'cmd /c "go build -o etherpad-go.exe . && etherpad-go.exe"' : 'go build -o etherpad-go . && ./etherpad-go',
     cwd: path.resolve(__dirname, '..'),
     url: 'http://localhost:9001',
     reuseExistingServer: !process.env.CI,
     timeout: 120000,
-  },*/
+  },
 });
-

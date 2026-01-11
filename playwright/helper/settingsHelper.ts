@@ -2,13 +2,14 @@ import {Page} from "@playwright/test";
 
 export const isSettingsShown = async (page: Page) => {
     const classes = await page.locator('#settings').getAttribute('class')
-    return classes && classes.includes('popup-show')
+    return classes?.includes('popup-show')
 }
 
 
 export const showSettings = async (page: Page) => {
     if(await isSettingsShown(page)) return
-    await page.locator("button[title='Settings']").click()
+    await page.waitForSelector('iframe[name="ace_outer"]');
+    await page.locator("button[class~='buttonicon-settings']").click()
     await page.waitForFunction(`document.querySelector('#settings').classList.contains('popup-show')`)
 }
 

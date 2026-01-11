@@ -34,6 +34,10 @@ func (e ErrRateLimitExceeded) Error() string {
 }
 
 func CheckRateLimit(ip IPAddress, limiting settings.CommitRateLimiting) error {
+	if limiting.LoadTest {
+		return nil
+	}
+
 	rateLimiter.Mu.RLock()
 	value, ok := rateLimiter.RateLimiter[ip]
 	rateLimiter.Mu.RUnlock()

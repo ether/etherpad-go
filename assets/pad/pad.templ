@@ -56,7 +56,7 @@ templ EditorLoadingBox(translations map[string]string) {
           </div>
 }
 
-templ SettingsPopup(translations map[string]string) {
+templ SettingsPopup(translations map[string]string, availablefonts []string) {
           <div id="settings" class="popup"><div class="popup-content">
               <h1 id="padSettingsTitle">{translations["pad.settings.padSettings"]}</h1>
               <h2>{translations["pad.settings.myView"]}</h2>
@@ -86,6 +86,9 @@ templ SettingsPopup(translations map[string]string) {
                   <label for="viewfontmenu">{translations["pad.settings.fontType"]}</label>
                   <select id="viewfontmenu">
                     <option value="">{translations["pad.settings.fontType.normal"]}</option>
+                    for _, valueInLoop := range availablefonts {
+                        <option value={valueInLoop}>{valueInLoop}</option>
+                        }
                   </select>
                 </p>
 
@@ -320,7 +323,7 @@ templ ChatBox(translations map[string]string) {
 
 
 
-templ Greeting(pad padModel.Model, jsScript string, translations map[string]string, settings *settings.Settings) {
+templ PadIndex(pad padModel.Model, jsScript string, translations map[string]string, settings *settings.Settings, availableFonts []string) {
   <html class="pad super-light-toolbar super-light-editor light-background">
   <head>
     <title>{settings.Title}</title>
@@ -336,7 +339,7 @@ templ Greeting(pad padModel.Model, jsScript string, translations map[string]stri
               <div id="editorcontainer" class="editorcontainer"></div>
 
             @EditorLoadingBox(translations)
-            @SettingsPopup(translations)
+            @SettingsPopup(translations, availableFonts)
             @ImportExportPopup(translations)
             @ConnectivityPopup(translations)
             @EmbedPopup(translations)

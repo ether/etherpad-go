@@ -50,9 +50,15 @@ func (s *SecurityManager) CheckAccess(padId *string, sessionCookie *string, toke
 	}
 
 	if settings.Displayed.LoadTest {
+		retrievedAuthorFromToken, err := s.AuthorManager.GetAuthorId(*token)
+
+		if err != nil {
+			return nil, errors.New("access denied: invalid author token")
+		}
+
 		return &GrantedAccess{
 			AccessStatus: "grant",
-			AuthorId:     "loadtest",
+			AuthorId:     retrievedAuthorFromToken.Id,
 		}, nil
 	} else if settings.Displayed.RequireAuthentication {
 		if userSettings == nil {

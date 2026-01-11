@@ -21,9 +21,11 @@ test.describe('entering a URL makes a link', function () {
 
 
 test.describe('special characters inside URL', async function () {
-    for (const char of '-:@_.,~%+/?=&#!;()[]$\'*') {
+    const chars = '-:@_.,~%+/?=&#!;()[]$\'*';
+    for (let i = 0; i < chars.length; i++) {
+        const char = chars[i];
         const url = `https://etherpad.org/${char}foo`;
-        test(url, async function ({page}) {
+        test(`special char ${i}`, async function ({page}) {
             const padBody = await getPadBody(page);
             await clearPadContent(page)
             await padBody.click()
