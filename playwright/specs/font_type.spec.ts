@@ -9,31 +9,33 @@ test.beforeEach(async ({ page })=>{
 
 
 test.describe('font select', function () {
-    // create a new pad before each test run
 
     test('makes text RobotoMono', async function ({page}) {
         // click on the settings button to make settings visible
         await showSettings(page);
+        await page.waitForTimeout(300);
 
-        // get the font menu and RobotoMono option
-        const viewFontMenu = page.locator('#viewfontmenu');
+        // Find and click the font dropdown
+        const dropdown = page.locator('.dropdowns-container .dropdown-line .current').nth(0);
+        await dropdown.waitFor({ state: 'visible', timeout: 10000 });
+        await dropdown.click();
+        await page.waitForTimeout(200);
 
-        // select RobotoMono and fire change event
-        // $RobotoMonooption.attr('selected','selected');
-        // commenting out above will break safari test
-        const dropdown = page.locator('.dropdowns-container .dropdown-line .current').nth(0)
-        await dropdown.click()
-        await page.locator('li:text("RobotoMono")').click()
+        // Select RobotoMono
+        const robotoOption = page.locator('li:text("RobotoMono")');
+        await robotoOption.waitFor({ state: 'visible', timeout: 5000 });
+        await robotoOption.click();
+        await page.waitForTimeout(500);
 
-        await viewFontMenu.dispatchEvent('change');
-        const padBody = await getPadBody(page)
-        const color = await padBody.evaluate((e) => {
-            return window.getComputedStyle(e).getPropertyValue("font-family")
-        })
+        // Check if font changed to RobotoMono
+        const innerFrame = page.frame('ace_inner');
+        if (!innerFrame) throw new Error('Could not find ace_inner frame');
+        const body = innerFrame.locator('#innerdocbody');
 
+        const fontFamily = await body.evaluate((e) => {
+            return window.getComputedStyle(e).getPropertyValue("font-family").toLowerCase();
+        });
 
-        // check if font changed to RobotoMono
-        const containsStr = color.toLowerCase().indexOf('robotomono');
-        expect(containsStr).not.toBe(-1);
+        expect(fontFamily).toContain('robotomono');
     });
 });

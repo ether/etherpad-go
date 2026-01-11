@@ -8,84 +8,88 @@ test.beforeEach(async ({ page, browser })=>{
     await goToNewPad(page);
 })
 
-
-
 test.describe('Language select and change', function () {
 
     // Destroy language cookies
     test('makes text german', async function ({page}) {
         // click on the settings button to make settings visible
         await showSettings(page)
+        await page.waitForTimeout(300);
 
-        // click the language button
-        const languageDropDown  = page.locator('.nice-select').nth(1)
+        // Wait for language dropdown to be visible
+        const languageDropDown = page.locator('.nice-select').nth(1);
+        await languageDropDown.waitFor({ state: 'visible', timeout: 10000 });
 
-        await languageDropDown.click()
-        await page.locator('.nice-select').locator('[data-value=de]').click()
-        await expect(languageDropDown.locator('.current')).toHaveText('Deutsch')
+        await languageDropDown.click();
+        await page.waitForTimeout(200);
 
-        // select german
-        await page.locator('.buttonicon-bold').evaluate((el) => el.parentElement!.title === 'Fett (Strg-B)');
+        await page.locator('.nice-select.open [data-value=de]').click();
+        await page.waitForTimeout(500);
+
+        await expect(languageDropDown.locator('.current')).toHaveText('Deutsch', { timeout: 10000 });
     });
 
     test('makes text English', async function ({page}) {
+        await showSettings(page);
+        await page.waitForTimeout(300);
 
-        await showSettings(page)
+        // Wait for language dropdown to be visible
+        const languageDropDown = page.locator('.nice-select').nth(1);
+        await languageDropDown.waitFor({ state: 'visible', timeout: 10000 });
 
-        // click the language button
-        await page.locator('.nice-select').nth(1).click()
-        await page.locator('.nice-select').nth(1).locator('[data-value=de]').click()
+        // Select German first
+        await languageDropDown.click();
+        await page.waitForTimeout(200);
+        await page.locator('.nice-select.open [data-value=de]').click();
+        await page.waitForTimeout(500);
 
-        // select german
-        await page.locator('.buttonicon-bold').evaluate((el) => el.parentElement!.title === 'Fett (Strg-B)');
+        // Now change to English
+        await showSettings(page);
+        await page.waitForTimeout(300);
 
+        await languageDropDown.click();
+        await page.waitForTimeout(200);
+        await page.locator('.nice-select.open [data-value=en]').click();
+        await page.waitForTimeout(500);
 
-        // change to english
-
-        await showSettings(page)
-        await page.locator('.nice-select').nth(1).click()
-        await page.locator('.nice-select').nth(1).locator('[data-value=en]').click()
-
-        // check if the language is now English
-        await page.locator('.buttonicon-bold').evaluate((el) => el.parentElement!.title !== 'Fett (Strg-B)');
+        await expect(languageDropDown.locator('.current')).toHaveText('English', { timeout: 10000 });
     });
 
     test('changes direction when picking an rtl lang', async function ({page}) {
+        await showSettings(page);
+        await page.waitForTimeout(300);
 
-        await showSettings(page)
+        // Wait for language dropdown to be visible
+        const languageDropDown = page.locator('.nice-select').nth(1);
+        await languageDropDown.waitFor({ state: 'visible', timeout: 10000 });
 
-        // click the language button
-        await page.locator('.nice-select').nth(1).click()
-        await page.locator('.nice-select').locator('[data-value=de]').click()
+        // Select Arabic (RTL)
+        await languageDropDown.click();
+        await page.waitForTimeout(200);
+        await page.locator('.nice-select.open [data-value=ar]').click();
+        await page.waitForTimeout(500);
 
-        // select german
-        await page.locator('.buttonicon-bold').evaluate((el) => el.parentElement!.title === 'Fett (Strg-B)');
-
-        // click the language button
-        await showSettings(page)
-        await page.locator('.nice-select').nth(1).click()
-        // select arabic
-        // $languageoption.attr('selected','selected'); // Breaks the test..
-        await page.locator('.nice-select').locator('[data-value=ar]').click()
-
-        await page.waitForSelector('html[dir="rtl"]')
+        // Check for RTL direction
+        await page.waitForSelector('html[dir="rtl"]', { timeout: 10000 });
     });
 
     test('changes direction when picking an ltr lang', async function ({page}) {
-        await showSettings(page)
+        await showSettings(page);
+        await page.waitForTimeout(300);
 
-        // change to english
-        const languageDropDown  = page.locator('.nice-select').nth(1)
-        await languageDropDown.locator('.current').click()
-        await languageDropDown.locator('[data-value=en]').click()
+        // Wait for language dropdown to be visible
+        const languageDropDown = page.locator('.nice-select').nth(1);
+        await languageDropDown.waitFor({ state: 'visible', timeout: 10000 });
 
-        await expect(languageDropDown.locator('.current')).toHaveText('English')
+        // First set to English (LTR)
+        await languageDropDown.click();
+        await page.waitForTimeout(200);
+        await page.locator('.nice-select.open [data-value=en]').click();
+        await page.waitForTimeout(500);
 
-        // check if the language is now English
-        await page.locator('.buttonicon-bold').evaluate((el) => el.parentElement!.title !== 'Fett (Strg-B)');
+        await expect(languageDropDown.locator('.current')).toHaveText('English', { timeout: 10000 });
 
-
-        await page.waitForSelector('html[dir="ltr"]')
-
+        // Check for LTR direction
+        await page.waitForSelector('html[dir="ltr"]', { timeout: 10000 });
     });
 });
