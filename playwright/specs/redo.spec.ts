@@ -8,56 +8,37 @@ test.beforeEach(async ({ page })=>{
 
 test.describe('undo button then redo button', function () {
 
-
     test('redo some typing with button', async function ({page}) {
         const padBody = await getPadBody(page);
-        const newString = 'Foo';
-
         await clearPadContent(page)
-        await writeToPad(page, newString);
-        await page.waitForTimeout(200);
+        await writeToPad(page, 'Foo');
 
-        // Verify text was written
         const firstDiv = padBody.locator('div').first();
-        await expect(firstDiv).toHaveText(newString);
+        await expect(firstDiv).toHaveText('Foo');
 
-        // Undo
         await page.locator('.buttonicon-undo').click()
-        await page.waitForTimeout(300);
+        await expect(firstDiv).toHaveText('');
 
-        // Redo
         await page.locator('.buttonicon-redo').click()
-        await page.waitForTimeout(300);
-
-        // Check that text is back
-        await expect(firstDiv).toHaveText(newString);
+        await expect(firstDiv).toHaveText('Foo');
     });
 
     test('redo some typing with keypress', async function ({page}) {
         const padBody = await getPadBody(page);
-        const newString = 'Foo';
-
         await clearPadContent(page)
-        await writeToPad(page, newString);
-        await page.waitForTimeout(200);
+        await writeToPad(page, 'Foo');
 
-        // Verify text was written
         const firstDiv = padBody.locator('div').first();
-        await expect(firstDiv).toHaveText(newString);
+        await expect(firstDiv).toHaveText('Foo');
 
-        // Undo the change
         await page.keyboard.down('Control');
         await page.keyboard.press('z');
         await page.keyboard.up('Control');
-        await page.waitForTimeout(300);
+        await expect(firstDiv).toHaveText('');
 
-        // Redo the change
         await page.keyboard.down('Control');
         await page.keyboard.press('y');
         await page.keyboard.up('Control');
-        await page.waitForTimeout(300);
-
-        // Check that text is back
-        await expect(firstDiv).toHaveText(newString);
+        await expect(firstDiv).toHaveText('Foo');
     });
 });

@@ -13,11 +13,9 @@ test.describe('entering a URL makes a link', function () {
             const padBody = await getPadBody(page);
             await clearPadContent(page)
             await writeToPad(page, testUrl);
-            // Wait for the link to be created
-            await page.waitForTimeout(500);
-            await expect(padBody.locator('div').first()).toHaveText(testUrl, { timeout: 15000 });
+            // Wait for link to be created by the auto-linker
+            await expect(padBody.locator('a')).toBeVisible();
             await expect(padBody.locator('a')).toHaveText(testUrl);
-            // www.etherpad.org becomes http://www.etherpad.org (not https)
             const expectedHref = testUrl.startsWith('http') ? testUrl : `http://${testUrl}`;
             await expect(padBody.locator('a')).toHaveAttribute('href', expectedHref);
         });
