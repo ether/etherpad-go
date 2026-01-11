@@ -25,7 +25,7 @@ require (
 	github.com/signintech/gopdf v0.34.0
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.11.1
-	github.com/swaggo/swag v1.16.4
+	github.com/swaggo/swag v1.16.6
 	github.com/testcontainers/testcontainers-go v0.40.0
 	github.com/valyala/fasthttp v1.55.0
 	go.uber.org/zap v1.27.0
