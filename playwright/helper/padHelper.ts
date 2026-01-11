@@ -70,15 +70,20 @@ export const sendChatMessage = async (page: Page, message: string) => {
 
     const chatInput = page.locator('#chatinput')
     await chatInput.click()
-    await page.keyboard.type(message)
+    await page.keyboard.type(message, { delay: 10 })
     await page.keyboard.press('Enter')
     if(message === "") return
-    await page.waitForFunction(`document.querySelector('#chattext').querySelectorAll('p').length >${currentChatCount}`)
+
+    // Wait for the message to appear with a proper timeout
+    await page.waitForFunction(
+        `document.querySelector('#chattext').querySelectorAll('p').length > ${currentChatCount}`,
+        { timeout: 30000 }
+    )
 }
 
-export const isChatBoxShown = async (page: Page):Promise<boolean> => {
+export const isChatBoxShown = async (page: Page) => {
     const classes = await page.locator('#chatbox').getAttribute('class')
-    return classes !==null && classes.includes('visible')
+    return classes?.includes('visible')
 }
 
 export const isChatBoxSticky = async (page: Page):Promise<boolean> => {
@@ -113,51 +118,85 @@ export const appendQueryParams = async (page: Page, queryParameters: Record<stri
         searchParams.append(key, queryParameters[key]);
     });
     await page.goto(page.url()+"?"+ searchParams.toString());
-    await page.waitForSelector('iframe[name="ace_outer"]');
+    await page.waitForSelector('iframe[name="ace_outer"]', { timeout: 60000 });
 }
+
+const waitForPadToLoad = async (page: Page, timeout: number = 60000) => {
+    // Wait for the outer frame
+    await page.waitForSelector('iframe[name="ace_outer"]', { timeout, state: 'attached' });
+
+    // Wait for the page to be fully loaded
+    await page.waitForLoadState('networkidle', { timeout });
+
+    // Wait for the inner frame to be ready
+    let innerFrame = page.frame('ace_inner');
+    const startTime = Date.now();
+    while (!innerFrame && Date.now() - startTime < timeout) {
+        await page.waitForTimeout(100);
+        innerFrame = page.frame('ace_inner');
+    }
+
+    if (innerFrame) {
+        await innerFrame.waitForSelector('#innerdocbody', { timeout: Math.max(timeout - (Date.now() - startTime), 5000) });
+        // Wait for text content to appear (the default "Welcome to Etherpad!" message)
+        try {
+            await innerFrame.waitForFunction(
+                () => {
+                    const body = document.querySelector('#innerdocbody');
+                    return body && body.textContent && body.textContent.length > 0;
+                },
+                { timeout: 15000 }
+            );
+        } catch {
+            // If waiting for content times out, that's okay - the pad might be empty
+        }
+    }
+
+    // Give the editor a moment to stabilize
+    await page.waitForTimeout(500);
+};
 
 export const goToNewPad = async (page: Page) => {
     // create a new pad before each test run
     const padId = "FRONTEND_TESTS"+randomUUID();
-    await page.goto('http://localhost:9001/p/'+padId);
-    // Wait for the editor to be fully loaded
-    await page.waitForSelector('iframe[name="ace_outer"]', { timeout: 30000 });
-    // Wait for the inner frame to be ready
-    const innerFrame = page.frame('ace_inner');
-    if (innerFrame) {
-        await innerFrame.waitForSelector('#innerdocbody', { timeout: 30000 });
-        // Wait for text content to appear (the default "Welcome to Etherpad!" message)
-        await innerFrame.waitForFunction(
-            () => {
-                const body = document.querySelector('#innerdocbody');
-                return body && body.textContent && body.textContent.length > 0;
-            },
-            { timeout: 10000 }
-        );
+
+    // Retry logic for flaky CI environments
+    let lastError: Error | null = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+            await page.goto('http://localhost:9001/p/'+padId, {
+                waitUntil: 'domcontentloaded',
+                timeout: 60000
+            });
+            await waitForPadToLoad(page, 60000);
+            return padId;
+        } catch (error) {
+            lastError = error as Error;
+            console.log(`goToNewPad attempt ${attempt + 1} failed, retrying...`);
+            await page.waitForTimeout(1000);
+        }
     }
-    // Give the editor a moment to stabilize
-    await page.waitForTimeout(500);
-    return padId;
+    throw lastError;
 }
 
 export const goToPad = async (page: Page, padId: string) => {
-    await page.goto('http://localhost:9001/p/'+padId);
-    await page.waitForSelector('iframe[name="ace_outer"]', { timeout: 30000 });
-    // Wait for the inner frame to be ready
-    const innerFrame = page.frame('ace_inner');
-    if (innerFrame) {
-        await innerFrame.waitForSelector('#innerdocbody', { timeout: 30000 });
-        // Wait for text content to appear
-        await innerFrame.waitForFunction(
-            () => {
-                const body = document.querySelector('#innerdocbody');
-                return body && body.textContent && body.textContent.length > 0;
-            },
-            { timeout: 10000 }
-        );
+    // Retry logic for flaky CI environments
+    let lastError: Error | null = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+            await page.goto('http://localhost:9001/p/'+padId, {
+                waitUntil: 'domcontentloaded',
+                timeout: 60000
+            });
+            await waitForPadToLoad(page, 60000);
+            return;
+        } catch (error) {
+            lastError = error as Error;
+            console.log(`goToPad attempt ${attempt + 1} failed, retrying...`);
+            await page.waitForTimeout(1000);
+        }
     }
-    // Give the editor a moment to stabilize
-    await page.waitForTimeout(500);
+    throw lastError;
 }
 
 

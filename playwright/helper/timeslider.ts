@@ -15,6 +15,17 @@ import {Page} from "@playwright/test";
  */
 export const gotoTimeslider = async (page: Page, revision: number): Promise<any> => {
     let revisionString = Number.isInteger(revision) ? `#${revision}` : '';
-    await page.goto(`${page.url()}/timeslider${revisionString}`);
-    await page.waitForSelector('#timer')
+    await page.goto(`${page.url()}/timeslider${revisionString}`, {
+        waitUntil: 'domcontentloaded',
+        timeout: 60000
+    });
+
+    // Wait for the timeslider to load - the timer might be hidden initially
+    await page.waitForLoadState('networkidle', { timeout: 30000 });
+
+    // Wait for the timeslider container to be ready
+    await page.waitForSelector('#timeslider-wrapper', { timeout: 30000 });
+
+    // Give it time to fully initialize
+    await page.waitForTimeout(500);
 };

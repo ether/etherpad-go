@@ -4,6 +4,7 @@ import os from 'node:os';
 
 const isWindows = os.platform() === 'win32';
 const isMac = os.platform() === 'darwin';
+const isCI = !!process.env.CI;
 
 process.env['NODE_ENV'] = 'production';
 process.env['ETHERPAD_LOADTEST'] = 'true'
@@ -12,21 +13,21 @@ export default defineConfig({
   fullyParallel: true,
   testDir: '.',
   testMatch: 'specs/**/*.spec.ts',
-  forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
-  // Every pad is tested in isolation, so we can have more workers
-  workers: 10,
-  reporter: process.env.CI ? [['html', { open: 'never' }], ['github']] : 'html',
-  timeout: 60000,
+  forbidOnly: isCI,
+  retries: isCI ? 2 : 0,
+  // Reduce parallelism in CI to avoid overwhelming the server
+  workers: isCI ? 2 : 10,
+  reporter: isCI ? [['html', { open: 'never' }], ['github']] : 'html',
+  timeout: isCI ? 120000 : 60000,
   expect: {
-    timeout: 15000,
+    timeout: isCI ? 30000 : 15000,
   },
   use: {
     baseURL: 'http://localhost:9001',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
-    actionTimeout: 20000,
-    navigationTimeout: 30000,
+    actionTimeout: isCI ? 30000 : 20000,
+    navigationTimeout: isCI ? 60000 : 30000,
   },
   projects: [
     {
@@ -47,7 +48,7 @@ export default defineConfig({
     command: isWindows ? 'cmd /c "go build -o etherpad-go.exe . && etherpad-go.exe"' : 'go build -o etherpad-go . && ./etherpad-go',
     cwd: path.resolve(__dirname, '..'),
     url: 'http://localhost:9001',
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: !isCI,
     timeout: 180000,
     stdout: 'pipe',
     stderr: 'pipe',

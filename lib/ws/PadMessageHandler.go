@@ -224,7 +224,7 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 
 	newRev, err := retrievedPad.AppendRevision(rebasedChangeset, &session.Author)
 	if err != nil {
-		println("Error appending revision", err)
+		println("Error appending revision", err.Error())
 		return
 	}
 	// The head revision will either stay the same or increase by 1 depending on whether the

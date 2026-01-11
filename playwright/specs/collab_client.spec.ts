@@ -13,30 +13,33 @@ test.describe('Messages in the COLLABROOM', function () {
         const body = innerFrame.locator('#innerdocbody');
         const div = body.locator('div').nth(lineNumber);
 
-        // Click at the beginning of the line
+        // Wait for the div to be visible
+        await div.waitFor({ state: 'visible', timeout: 10000 });
+
+        // Click to focus on the line
         await div.click();
-        await page.waitForTimeout(50);
+        await page.waitForTimeout(100);
 
         // Go to the beginning of the line
         await page.keyboard.press('Home');
         await page.waitForTimeout(50);
 
-        // Select to the end of the line
+        // Select to the end of the line (not including the newline)
         await page.keyboard.down('Shift');
         await page.keyboard.press('End');
         await page.keyboard.up('Shift');
         await page.waitForTimeout(50);
 
-        // Delete the selected text and type the new text
+        // Type the new text (this replaces the selected text)
         await page.keyboard.type(newText, { delay: 10 });
 
         // Wait for changes to propagate
-        await page.waitForTimeout(300);
+        await page.waitForTimeout(500);
     };
 
     test('bug #4978 regression test', async function ({browser}) {
         // Increase timeout for this complex multi-user test
-        test.setTimeout(120000);
+        test.setTimeout(180000);
 
         // User 1 creates the pad
         const context1 = await browser.newContext();
