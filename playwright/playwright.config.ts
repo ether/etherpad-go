@@ -14,7 +14,8 @@ export default defineConfig({
   testMatch: 'specs/**/*.spec.ts',
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : 10,
+  // Every pad is tested in isolation, so we can have more workers
+  workers: 10,
   reporter: process.env.CI ? [['html', { open: 'never' }], ['github']] : 'html',
   timeout: 60000,
   expect: {

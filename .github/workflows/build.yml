@@ -159,7 +159,7 @@ jobs:
         working-directory: ./playwright
         env:
           CI: true
-        timeout-minutes: 15
+        timeout-minutes: 30
       - name: Upload Playwright report
         if: always()
         uses: actions/upload-artifact@v6
