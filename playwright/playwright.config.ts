@@ -14,7 +14,7 @@ export default defineConfig({
   testMatch: 'specs/**/*.spec.ts',
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: 10,
+  workers: process.env.CI ? 1 : 10,
   reporter: process.env.CI ? [['html', { open: 'never' }], ['github']] : 'html',
   timeout: 60000,
   expect: {

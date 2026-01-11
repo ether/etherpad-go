@@ -99,11 +99,14 @@ test.describe('embed links', function () {
                 // open share dropdown
                 const shareButton = page.locator('.buttonicon-embed')
                 await shareButton.click()
+                await page.waitForTimeout(200);
+
                 const readonlyCheckbox = page.locator('#readonlyinput')
                 await readonlyCheckbox.click({
                     force: true
                 })
-                await page.waitForSelector('#readonlyinput:checked')
+                // Wait for the checkbox to be checked
+                await expect(readonlyCheckbox).toBeChecked({ timeout: 5000 });
 
                 // get the link of the share field + the actual pad url and compare them
                 const shareLink = await page.locator('#linkinput').inputValue()
@@ -117,6 +120,7 @@ test.describe('embed links', function () {
                 // open share dropdown
                 const shareButton = page.locator('.buttonicon-embed')
                 await shareButton.click()
+                await page.waitForTimeout(200);
 
                 // check read only checkbox, a bit hacky
                 const readonlyCheckbox = page.locator('#readonlyinput')
@@ -124,7 +128,8 @@ test.describe('embed links', function () {
                     force: true
                 })
 
-                await page.waitForSelector('#readonlyinput:checked')
+                // Wait for the checkbox to be checked
+                await expect(readonlyCheckbox).toBeChecked({ timeout: 5000 });
 
 
                 // get the link of the share field + the actual pad url and compare them
