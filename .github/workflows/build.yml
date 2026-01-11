@@ -98,7 +98,6 @@ jobs:
         timeout-minutes: 5
 
   playwright:
-    if: false
     needs:
       - test
     strategy:
