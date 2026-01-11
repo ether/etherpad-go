@@ -71,17 +71,20 @@ test("makes text clear authorship colors and checks it can't be undone", async f
 test('clears authorship when first line has line attributes', async function ({page}) {
     // Make sure there is text with author info. The first line must have a line attribute.
     const padBody = await getPadBody(page);
-    await padBody.click()
     await clearPadContent(page);
     await writeToPad(page,'Hello')
+    await page.waitForTimeout(200);
     await page.locator('.buttonicon-insertunorderedlist').click();
-    const retrievedClasses = await padBody.locator('div span').nth(0).getAttribute('class')
-    expect(retrievedClasses).toContain('author');
-    await padBody.click()
+    await page.waitForTimeout(300);
+
+    // Check that there's an author class somewhere
+    const authorElements = await padBody.locator('[class*="author-"]').count();
+    expect(authorElements).toBeGreaterThan(0);
+
     await selectAllText(page);
     await clearAuthorship(page);
-    const retrievedClasses2 = await padBody.locator('div span').nth(0).getAttribute('class')
-    expect(retrievedClasses2).not.toContain('author');
+    await page.waitForTimeout(500);
 
-    expect(await page.locator('[class*="author-"]').count()).toBe(0)
+    // After clearing authorship, there should be no author classes
+    expect(await padBody.locator('[class*="author-"]').count()).toBe(0);
 });

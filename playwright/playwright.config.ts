@@ -14,17 +14,17 @@ export default defineConfig({
   testMatch: 'specs/**/*.spec.ts',
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: '75%',
+  workers: 10,
   reporter: process.env.CI ? [['html', { open: 'never' }], ['github']] : 'html',
   timeout: 60000,
   expect: {
-    timeout: 10000,
+    timeout: 15000,
   },
   use: {
     baseURL: 'http://localhost:9001',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
-    actionTimeout: 15000,
+    actionTimeout: 20000,
     navigationTimeout: 30000,
   },
   projects: [

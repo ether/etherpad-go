@@ -126,6 +126,14 @@ export const goToNewPad = async (page: Page) => {
     const innerFrame = page.frame('ace_inner');
     if (innerFrame) {
         await innerFrame.waitForSelector('#innerdocbody', { timeout: 30000 });
+        // Wait for text content to appear (the default "Welcome to Etherpad!" message)
+        await innerFrame.waitForFunction(
+            () => {
+                const body = document.querySelector('#innerdocbody');
+                return body && body.textContent && body.textContent.length > 0;
+            },
+            { timeout: 10000 }
+        );
     }
     // Give the editor a moment to stabilize
     await page.waitForTimeout(500);
@@ -139,6 +147,14 @@ export const goToPad = async (page: Page, padId: string) => {
     const innerFrame = page.frame('ace_inner');
     if (innerFrame) {
         await innerFrame.waitForSelector('#innerdocbody', { timeout: 30000 });
+        // Wait for text content to appear
+        await innerFrame.waitForFunction(
+            () => {
+                const body = document.querySelector('#innerdocbody');
+                return body && body.textContent && body.textContent.length > 0;
+            },
+            { timeout: 10000 }
+        );
     }
     // Give the editor a moment to stabilize
     await page.waitForTimeout(500);
@@ -146,22 +162,44 @@ export const goToPad = async (page: Page, padId: string) => {
 
 
 export const clearPadContent = async (page: Page) => {
-    const body = await getPadBody(page);
+    const innerFrame = page.frame('ace_inner');
+    if (!innerFrame) {
+        throw new Error('Could not find ace_inner frame');
+    }
+    const body = innerFrame.locator('#innerdocbody');
+
+    // Click to focus
     await body.click();
+    // Small delay to ensure focus
+    await page.waitForTimeout(100);
+
+    // Select all and delete
     await page.keyboard.down(modifier);
     await page.keyboard.press('a');
     await page.keyboard.up(modifier);
-    await page.keyboard.press('Delete');
+    await page.keyboard.press('Backspace');
+
     // Wait for content to be cleared
-    await page.waitForTimeout(100);
+    await page.waitForTimeout(200);
 }
 
 export const writeToPad = async (page: Page, text: string) => {
-    const body = await getPadBody(page);
+    const innerFrame = page.frame('ace_inner');
+    if (!innerFrame) {
+        throw new Error('Could not find ace_inner frame');
+    }
+    const body = innerFrame.locator('#innerdocbody');
+
+    // Click to focus the editor
     await body.click();
-    await page.keyboard.type(text, { delay: 10 });
-    // Wait for text to be rendered
+    // Small delay to ensure focus
     await page.waitForTimeout(100);
+
+    // Type the text
+    await page.keyboard.type(text, { delay: 20 });
+
+    // Wait for text to be rendered
+    await page.waitForTimeout(200);
 }
 
 export const clearAuthorship = async (page: Page) => {

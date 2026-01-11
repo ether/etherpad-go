@@ -11,55 +11,53 @@ test.describe('undo button then redo button', function () {
 
     test('redo some typing with button', async function ({page}) {
         const padBody = await getPadBody(page);
-
-        // get the first text element inside the editable space
-        const $firstTextElement = padBody.locator('div span').first();
-        const originalValue = await $firstTextElement.textContent(); // get the original value
         const newString = 'Foo';
 
-        await $firstTextElement.focus()
-        expect(await $firstTextElement.textContent()).toContain(originalValue);
-        await padBody.click()
         await clearPadContent(page)
-        await writeToPad(page, newString); // send line 1 to the pad
+        await writeToPad(page, newString);
+        await page.waitForTimeout(200);
 
-        const modifiedValue = await $firstTextElement.textContent(); // get the modified value
-        expect(modifiedValue).not.toBe(originalValue); // expect the value to change
+        // Verify text was written
+        const firstDiv = padBody.locator('div').first();
+        await expect(firstDiv).toHaveText(newString);
 
-        // get undo and redo buttons // click the buttons
-        await page.locator('.buttonicon-undo').click() // removes foo
-        await page.locator('.buttonicon-redo').click() // resends foo
+        // Undo
+        await page.locator('.buttonicon-undo').click()
+        await page.waitForTimeout(300);
 
-        await expect($firstTextElement).toHaveText(newString);
+        // Redo
+        await page.locator('.buttonicon-redo').click()
+        await page.waitForTimeout(300);
 
-        const finalValue = await padBody.locator('div').first().textContent();
-        expect(finalValue).toBe(modifiedValue); // expect the value to change
+        // Check that text is back
+        await expect(firstDiv).toHaveText(newString);
     });
 
     test('redo some typing with keypress', async function ({page}) {
         const padBody = await getPadBody(page);
-
-        // get the first text element inside the editable space
-        const $firstTextElement = padBody.locator('div span').first();
-        const originalValue = await $firstTextElement.textContent(); // get the original value
         const newString = 'Foo';
 
-        await padBody.click()
         await clearPadContent(page)
-        await writeToPad(page, newString); // send line 1 to the pad
-        const modifiedValue = await $firstTextElement.textContent(); // get the modified value
-        expect(modifiedValue).not.toBe(originalValue); // expect the value to change
+        await writeToPad(page, newString);
+        await page.waitForTimeout(200);
 
-        // undo the change
-        await padBody.click()
-        await page.keyboard.press('Control+Z');
+        // Verify text was written
+        const firstDiv = padBody.locator('div').first();
+        await expect(firstDiv).toHaveText(newString);
 
-        await page.keyboard.press('Control+Y'); // redo the change
+        // Undo the change
+        await page.keyboard.down('Control');
+        await page.keyboard.press('z');
+        await page.keyboard.up('Control');
+        await page.waitForTimeout(300);
 
+        // Redo the change
+        await page.keyboard.down('Control');
+        await page.keyboard.press('y');
+        await page.keyboard.up('Control');
+        await page.waitForTimeout(300);
 
-        await expect($firstTextElement).toHaveText(newString);
-
-        const finalValue = await padBody.locator('div').first().textContent();
-        expect(finalValue).toBe(modifiedValue); // expect the value to change
+        // Check that text is back
+        await expect(firstDiv).toHaveText(newString);
     });
 });

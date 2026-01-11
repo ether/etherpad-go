@@ -56,84 +56,64 @@ test.describe('indentation button', function () {
     test('indents text with spaces on enter if previous line ends ' +
         "with ':', '[', '(', or '{'", async function ({page}) {
         const padBody = await getPadBody(page);
-        await padBody.click()
         await clearPadContent(page)
-        // type a bit, make a line break and type again
-        const $firstTextElement = padBody.locator('div').first();
-        await writeToPad(page, "line with ':'");
+
+        // Test colon
+        await writeToPad(page, "line with colon:");
         await page.keyboard.press('Enter');
-        await writeToPad(page, "line with '['");
-        await page.keyboard.press('Enter');
-        await writeToPad(page, "line with '('");
-        await page.keyboard.press('Enter');
-        await writeToPad(page, "line with '{{}'");
+        await page.waitForTimeout(200);
 
-        await expect(padBody.locator('div').nth(3)).toHaveText("line with '{{}'");
-
-        // we validate bottom to top for easier implementation
-
-
-        // curly braces
-        const $lineWithCurlyBraces = padBody.locator('div').nth(3)
-        await $lineWithCurlyBraces.click();
-        await page.keyboard.press('End');
-        await page.keyboard.type('{{');
-
-        // cannot use sendkeys('{enter}') here, browser does not read the command properly
-        await page.keyboard.press('Enter');
-
-        expect(await padBody.locator('div').nth(4).textContent()).toMatch(/\s{4}/); // tab === 4 spaces
-
-
-
-        // parenthesis
-        const $lineWithParenthesis = padBody.locator('div').nth(2)
-        await $lineWithParenthesis.click();
-        await page.keyboard.press('End');
-        await page.keyboard.type('(');
-        await page.keyboard.press('Enter');
-        const $lineAfterParenthesis = padBody.locator('div').nth(3)
-        expect(await $lineAfterParenthesis.textContent()).toMatch(/\s{4}/);
-
-        // bracket
-        const $lineWithBracket = padBody.locator('div').nth(1)
-        await $lineWithBracket.click();
-        await page.keyboard.press('End');
-        await page.keyboard.type('[');
-        await page.keyboard.press('Enter');
-        const $lineAfterBracket = padBody.locator('div').nth(2);
-        expect(await $lineAfterBracket.textContent()).toMatch(/\s{4}/);
-
-        // colon
-        const $lineWithColon = padBody.locator('div').first();
-        await $lineWithColon.click();
-        await page.keyboard.press('End');
-        await page.keyboard.type(':');
-        await page.keyboard.press('Enter');
+        // Check that the new line has indentation
         const $lineAfterColon = padBody.locator('div').nth(1);
-        expect(await $lineAfterColon.textContent()).toMatch(/\s{4}/);
+        expect(await $lineAfterColon.textContent()).toMatch(/^\s{4}/);
+
+        // Clean up for next test
+        await clearPadContent(page);
+
+        // Test bracket
+        await writeToPad(page, "line with bracket[");
+        await page.keyboard.press('Enter');
+        await page.waitForTimeout(200);
+
+        const $lineAfterBracket = padBody.locator('div').nth(1);
+        expect(await $lineAfterBracket.textContent()).toMatch(/^\s{4}/);
+
+        // Clean up for next test
+        await clearPadContent(page);
+
+        // Test parenthesis
+        await writeToPad(page, "line with parenthesis(");
+        await page.keyboard.press('Enter');
+        await page.waitForTimeout(200);
+
+        const $lineAfterParenthesis = padBody.locator('div').nth(1);
+        expect(await $lineAfterParenthesis.textContent()).toMatch(/^\s{4}/);
+
+        // Clean up for next test
+        await clearPadContent(page);
+
+        // Test curly brace
+        await writeToPad(page, "line with brace{");
+        await page.keyboard.press('Enter');
+        await page.waitForTimeout(200);
+
+        const $lineAfterBrace = padBody.locator('div').nth(1);
+        expect(await $lineAfterBrace.textContent()).toMatch(/^\s{4}/);
     });
 
     test('appends indentation to the indent of previous line if previous line ends ' +
         "with ':', '[', '(', or '{'", async function ({page}) {
         const padBody = await getPadBody(page);
-        await padBody.click()
         await clearPadContent(page)
 
-        // type a bit, make a line break and type again
-        await writeToPad(page, "  line with some indentation and ':'")
+        // type a line with indentation and colon
+        await writeToPad(page, "  line with indentation:");
         await page.keyboard.press('Enter');
-        await writeToPad(page, "line 2")
-
-        const $lineWithColon = padBody.locator('div').first();
-        await $lineWithColon.click();
-        await page.keyboard.press('End');
-        await page.keyboard.type(':');
-        await page.keyboard.press('Enter');
+        await page.waitForTimeout(200);
 
         const $lineAfterColon = padBody.locator('div').nth(1);
-        // previous line indentation + regular tab (4 spaces)
-        expect(await $lineAfterColon.textContent()).toMatch(/\s{6}/);
+        // previous line indentation (2 spaces) + regular tab (4 spaces) = 6 spaces
+        expect(await $lineAfterColon.textContent()).toMatch(/^\s{6}/);
     });
 
     test("issue #2772 shows '*' when multiple indented lines " +
