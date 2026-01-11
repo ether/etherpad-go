@@ -3,6 +3,7 @@ package pad
 import (
 	"errors"
 	"regexp"
+	"sync"
 	"unicode/utf8"
 
 	"github.com/ether/etherpad-go/lib/author"
@@ -67,17 +68,24 @@ func init() {
 
 type GlobalPadCache struct {
 	padCache map[string]*pad.Pad
+	mutex    sync.RWMutex
 }
 
 func (g *GlobalPadCache) GetPad(padID string) *pad.Pad {
+	g.mutex.RLock()
+	defer g.mutex.RUnlock()
 	return g.padCache[padID]
 }
 
 func (g *GlobalPadCache) SetPad(padID string, pad *pad.Pad) {
+	g.mutex.Lock()
+	defer g.mutex.Unlock()
 	g.padCache[padID] = pad
 }
 
 func (g *GlobalPadCache) DeletePad(padID string) {
+	g.mutex.Lock()
+	defer g.mutex.Unlock()
 	delete(g.padCache, padID)
 }
 
@@ -98,6 +106,7 @@ func NewManager(db db.DataStore, hook *hooks.Hook) *Manager {
 		},
 		globalPadCache: &GlobalPadCache{
 			padCache: make(map[string]*pad.Pad),
+			mutex:    sync.RWMutex{},
 		},
 		padList: NewList(db),
 	}

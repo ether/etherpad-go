@@ -8,7 +8,15 @@ env:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            arch: amd64
+          - os: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -56,6 +64,7 @@ jobs:
           cp assets/js/welcome/assets/welcome.js built-assets/js/welcome/assets/
           cp -r assets/css/build/* built-assets/css/build/
       - name: Upload assets
+        if: matrix.arch == 'amd64'
         uses: actions/upload-artifact@v6
         with:
           name: built-assets
@@ -66,10 +75,10 @@ jobs:
           go test -v -coverpkg=./... -coverprofile=coverage.out ./...
           go tool cover -html=coverage.out -o coverage.html
       - name: Setup SonarQube
-        if: github.actor == 'samtv12345' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+        if: (github.actor == 'samtv12345' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')) && matrix.arch == 'amd64'
         uses: warchant/setup-sonar-scanner@v9
       - name: Run SonarQube Scanner
-        if: github.actor == 'samtv12345' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+        if: (github.actor == 'samtv12345' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')) && matrix.arch == 'amd64'
         run: sonar-scanner
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -78,7 +87,7 @@ jobs:
           PROJECT_KEY: etherpad-go
 
       - name: SonarQube Quality Gate Check
-        if: github.actor == 'samtv12345' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+        if: (github.actor == 'samtv12345' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')) && matrix.arch == 'amd64'
         uses: sonarsource/sonarqube-quality-gate-action@master
         with:
           scanMetadataReportFile: .scannerwork/report-task.txt
@@ -88,9 +97,81 @@ jobs:
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
         timeout-minutes: 5
 
+  playwright:
+    needs:
+      - test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            arch: amd64
+          - os: ubuntu-24.04-arm
+            arch: arm64
+          - os: macos-latest
+            arch: amd64
+          - os: windows-latest
+            arch: amd64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: 1.25
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install pnpm
+        run: npm install -g pnpm@latest
+      - name: Install UI dependencies
+        run: pnpm install
+        working-directory: ./ui
+      - name: Install admin dependencies
+        run: pnpm install
+        working-directory: ./admin
+      - name: Build UI
+        run: node build.js
+        working-directory: ./ui
+      - name: Install Go dependencies
+        run: go mod download
+      - name: Install templ
+        run: go install github.com/a-h/templ/cmd/templ@latest
+      - name: Generate templ
+        run: templ generate
+      - name: Build app
+        run: go build -o etherpad-go
+      - name: Build admin
+        run: pnpm run build
+        working-directory: ./admin
+      - name: Install Playwright dependencies
+        run: pnpm install
+        working-directory: ./playwright
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+        working-directory: ./playwright
+      - name: Run Playwright tests
+        run: pnpm test
+        working-directory: ./playwright
+        env:
+          CI: true
+        timeout-minutes: 30
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: playwright-report-${{ matrix.os }}-${{ matrix.arch }}
+          path: playwright/playwright-report/
+          retention-days: 7
+
   build:
     needs:
       - test
+      - playwright
     strategy:
       fail-fast: false
       matrix:

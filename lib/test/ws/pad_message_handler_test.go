@@ -364,6 +364,9 @@ func testSendChatMessageToPadClients(t *testing.T, ds testutils.TestDataStore) {
 		delete(ds.Hub.Clients, client)
 	}()
 
+	// Start mock write pump
+	wg := startMockWritePump(client, mockConn)
+
 	// Initialize session
 	ds.PadMessageHandler.SessionStore.InitSessionForTest(sessionId)
 	ds.PadMessageHandler.SessionStore.AddHandleClientInformationForTest(sessionId, padId, "test-token")
@@ -384,8 +387,8 @@ func testSendChatMessageToPadClients(t *testing.T, ds testutils.TestDataStore) {
 
 	ds.PadMessageHandler.SendChatMessageToPadClients(session, chatMessage)
 
-	// Wait for message to be sent
-	time.Sleep(100 * time.Millisecond)
+	// Wait for mock write pump to process messages
+	wg.Wait()
 
 	// Verify that the message was sent
 	assert.GreaterOrEqual(t, len(mockConn.Data), 1, "Expected at least one message to be sent")
@@ -719,6 +722,9 @@ func testHandleChangesetRequest(t *testing.T, ds testutils.TestDataStore) {
 		delete(ds.Hub.Clients, client)
 	}()
 
+	// Start mock write pump
+	wg := startMockWritePump(client, mockConn)
+
 	// Initialize session
 	ds.PadMessageHandler.SessionStore.InitSessionForTest(sessionId)
 	ds.PadMessageHandler.SessionStore.AddHandleClientInformationForTest(sessionId, padId, "test-token")
@@ -758,8 +764,8 @@ func testHandleChangesetRequest(t *testing.T, ds testutils.TestDataStore) {
 	// Handle the request
 	ds.PadMessageHandler.HandleChangesetRequest(client, changesetReq)
 
-	// Wait for message to be sent
-	time.Sleep(100 * time.Millisecond)
+	// Wait for mock write pump to process messages
+	wg.Wait()
 
 	// Verify that a response was sent
 	assert.GreaterOrEqual(t, len(mockConn.Data), 1, "Expected CHANGESET_REQ response to be sent")
@@ -901,6 +907,9 @@ func testHandleUserInfoUpdateVerifyMessage(t *testing.T, ds testutils.TestDataSt
 		delete(ds.Hub.Clients, client)
 	}()
 
+	// Start mock write pump
+	wg := startMockWritePump(client, mockConn)
+
 	// Initialize session
 	ds.PadMessageHandler.SessionStore.InitSessionForTest(sessionId)
 	ds.PadMessageHandler.SessionStore.AddHandleClientInformationForTest(sessionId, padId, "test-token")
@@ -937,8 +946,8 @@ func testHandleUserInfoUpdateVerifyMessage(t *testing.T, ds testutils.TestDataSt
 	// Handle the update
 	ds.PadMessageHandler.HandleUserInfoUpdate(userInfoUpdate, client)
 
-	// Wait for message to be sent
-	time.Sleep(100 * time.Millisecond)
+	// Wait for mock write pump to process messages
+	wg.Wait()
 
 	// Verify that the message was sent
 	require.GreaterOrEqual(t, len(mockConn.Data), 1, "Expected USER_NEWINFO message")
@@ -963,6 +972,9 @@ func testSendChatMessageVerifyMessageFormat(t *testing.T, ds testutils.TestDataS
 		delete(ds.Hub.Clients, client)
 	}()
 
+	// Start mock write pump
+	wg := startMockWritePump(client, mockConn)
+
 	// Initialize session
 	ds.PadMessageHandler.SessionStore.InitSessionForTest(sessionId)
 	ds.PadMessageHandler.SessionStore.AddHandleClientInformationForTest(sessionId, padId, "test-token")
@@ -983,8 +995,8 @@ func testSendChatMessageVerifyMessageFormat(t *testing.T, ds testutils.TestDataS
 
 	ds.PadMessageHandler.SendChatMessageToPadClients(session, chatMessage)
 
-	// Wait for message to be sent
-	time.Sleep(100 * time.Millisecond)
+	// Wait for mock write pump to process messages
+	wg.Wait()
 
 	// Verify message was sent
 	require.GreaterOrEqual(t, len(mockConn.Data), 1, "Expected CHAT_MESSAGE to be sent")
@@ -1160,6 +1172,9 @@ func testHandleChangesetRequestVerifyFormat(t *testing.T, ds testutils.TestDataS
 		delete(ds.Hub.Clients, client)
 	}()
 
+	// Start mock write pump
+	wg := startMockWritePump(client, mockConn)
+
 	// Initialize session
 	ds.PadMessageHandler.SessionStore.InitSessionForTest(sessionId)
 	ds.PadMessageHandler.SessionStore.AddHandleClientInformationForTest(sessionId, padId, "test-token")
@@ -1199,8 +1214,8 @@ func testHandleChangesetRequestVerifyFormat(t *testing.T, ds testutils.TestDataS
 	// Handle the request
 	ds.PadMessageHandler.HandleChangesetRequest(client, changesetReq)
 
-	// Wait for message to be sent
-	time.Sleep(100 * time.Millisecond)
+	// Wait for mock write pump to process messages
+	wg.Wait()
 
 	// Verify response
 	require.GreaterOrEqual(t, len(mockConn.Data), 1, "Expected CHANGESET_REQ response")
@@ -1225,6 +1240,9 @@ func testMultipleChatMessages(t *testing.T, ds testutils.TestDataStore) {
 		delete(ds.Hub.Clients, client)
 	}()
 
+	// Start mock write pump
+	wg := startMockWritePump(client, mockConn)
+
 	// Initialize session
 	ds.PadMessageHandler.SessionStore.InitSessionForTest(sessionId)
 	ds.PadMessageHandler.SessionStore.AddHandleClientInformationForTest(sessionId, padId, "test-token")
@@ -1246,8 +1264,8 @@ func testMultipleChatMessages(t *testing.T, ds testutils.TestDataStore) {
 		ds.PadMessageHandler.SendChatMessageToPadClients(session, chatMessage)
 	}
 
-	// Wait for messages to be sent
-	time.Sleep(200 * time.Millisecond)
+	// Wait for mock write pump to process messages
+	wg.Wait()
 
 	// Verify all messages were sent
 	assert.GreaterOrEqual(t, len(mockConn.Data), 3, "Expected 3 chat messages to be sent")
@@ -1348,6 +1366,9 @@ func testHandleMessageChatMessage(t *testing.T, ds testutils.TestDataStore) {
 		delete(ds.Hub.Clients, client)
 	}()
 
+	// Start mock write pump
+	wg := startMockWritePump(client, mockConn)
+
 	// Initialize session
 	ds.PadMessageHandler.SessionStore.InitSessionForTest(sessionId)
 	ds.PadMessageHandler.SessionStore.AddHandleClientInformationForTest(sessionId, padId, "test-token")
@@ -1368,8 +1389,8 @@ func testHandleMessageChatMessage(t *testing.T, ds testutils.TestDataStore) {
 
 	ds.PadMessageHandler.SendChatMessageToPadClients(session, chatMessage)
 
-	// Wait for processing
-	time.Sleep(150 * time.Millisecond)
+	// Wait for mock write pump to process messages
+	wg.Wait()
 
 	// Verify that a chat message was sent
 	assert.GreaterOrEqual(t, len(mockConn.Data), 1, "Expected chat message to be broadcast")
@@ -1403,6 +1424,9 @@ func testHandleMessageGetChatMessages(t *testing.T, ds testutils.TestDataStore) 
 	_, err = retrievedPad.AppendChatMessage(&authorId, chatTime, "Test message 1")
 	require.NoError(t, err)
 
+	// Start mock write pump
+	wg := startMockWritePump(client, mockConn)
+
 	// Create GET_CHAT_MESSAGES
 	getChatMessages := ws.GetChatMessages{
 		Event: "message",
@@ -1433,8 +1457,8 @@ func testHandleMessageGetChatMessages(t *testing.T, ds testutils.TestDataStore) 
 	initStore := ds.ToInitStore()
 	ds.PadMessageHandler.HandleMessage(getChatMessages, client, nil, initStore.RetrievedSettings, ds.Logger)
 
-	// Wait for processing
-	time.Sleep(100 * time.Millisecond)
+	// Wait for mock write pump to process messages
+	wg.Wait()
 
 	// Verify that a response was sent
 	assert.GreaterOrEqual(t, len(mockConn.Data), 1, "Expected CHAT_MESSAGES response")
@@ -1453,6 +1477,9 @@ func testHandleMessageChangesetReq(t *testing.T, ds testutils.TestDataStore) {
 	defer func() {
 		delete(ds.Hub.Clients, client)
 	}()
+
+	// Start mock write pump
+	wg := startMockWritePump(client, mockConn)
 
 	// Initialize session
 	ds.PadMessageHandler.SessionStore.InitSessionForTest(sessionId)
@@ -1495,8 +1522,8 @@ func testHandleMessageChangesetReq(t *testing.T, ds testutils.TestDataStore) {
 	initStore := ds.ToInitStore()
 	ds.PadMessageHandler.HandleMessage(changesetReq, client, nil, initStore.RetrievedSettings, ds.Logger)
 
-	// Wait for processing
-	time.Sleep(100 * time.Millisecond)
+	// Wait for mock write pump to process messages
+	wg.Wait()
 
 	// Verify that a response was sent
 	assert.GreaterOrEqual(t, len(mockConn.Data), 1, "Expected CHANGESET_REQ response")

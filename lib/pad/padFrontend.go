@@ -13,6 +13,16 @@ import (
 )
 import padAsset "github.com/ether/etherpad-go/assets/pad"
 
+var AvailableFonts = []string{
+	"Quicksand",
+	"Roboto",
+	"Alegreya",
+	"PlayfairDisplay",
+	"Montserrat",
+	"OpenDyslexic",
+	"RobotoMono",
+}
+
 func HandlePadOpen(c *fiber.Ctx, uiAssets embed.FS, retrievedSettings *settings.Settings) error {
 	pad := models.Model{
 		Name: "test",
@@ -26,7 +36,7 @@ func HandlePadOpen(c *fiber.Ctx, uiAssets embed.FS, retrievedSettings *settings.
 
 	jsFilePath := "/js/pad/assets/pad.js?v=" + strconv.Itoa(utils.RandomVersionString)
 
-	padComp := padAsset.Greeting(pad, jsFilePath, keyValues, retrievedSettings)
+	padComp := padAsset.PadIndex(pad, jsFilePath, keyValues, retrievedSettings, AvailableFonts)
 
 	return adaptor.HTTPHandler(templ.Handler(padComp))(c)
 }

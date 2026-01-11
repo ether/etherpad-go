@@ -389,6 +389,9 @@ exports.padeditbar = new class {
       this.toggleDropDown('users');
       $('#myusernameedit').trigger('focus');
     });
+    this.registerCommand('home', ()=>{
+      globalThis.location.href = globalThis.location.href + "/../.."
+    })
 
     this.registerCommand('embed', () => {
       this.setEmbedLinks();

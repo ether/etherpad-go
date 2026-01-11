@@ -122,8 +122,9 @@ type ImportExportRateLimiting struct {
 }
 
 type CommitRateLimiting struct {
-	Duration int `json:"duration"`
-	Points   int `json:"points"`
+	Duration int  `json:"duration"`
+	Points   int  `json:"points"`
+	LoadTest bool `json:"loadTest"`
 }
 
 type SSLSettings struct {

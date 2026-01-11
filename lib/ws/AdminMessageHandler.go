@@ -14,7 +14,6 @@ import (
 	"github.com/ether/etherpad-go/lib/models/ws/admin"
 	"github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/settings"
-	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
 )
 
@@ -51,9 +50,7 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 			if err != nil {
 				return
 			}
-			if err := c.Conn.WriteMessage(websocket.TextMessage, responseBytes); err != nil {
-				h.Logger.Errorf("error writing response: %v", err)
-			}
+			c.SafeSend(responseBytes)
 		}
 	case "createPad":
 		{
@@ -80,9 +77,7 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 					return
 				}
 
-				if err = c.Conn.WriteMessage(websocket.TextMessage, responseBytes); err != nil {
-					h.Logger.Errorf("Error writing response: %v", err)
-				}
+				c.SafeSend(responseBytes)
 			} else {
 				_, err := h.padManager.GetPad(padCreateData.PadName, nil, nil)
 				if err != nil {
@@ -102,9 +97,7 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 					println("Error marshalling response:", err.Error())
 					return
 				}
-				if err := c.Conn.WriteMessage(websocket.TextMessage, responseBytes); err != nil {
-					h.Logger.Errorf("Error writing response: %v", err)
-				}
+				c.SafeSend(responseBytes)
 			}
 
 		}
@@ -143,7 +136,7 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 				println("Error marshalling response:", err.Error())
 				return
 			}
-			c.Conn.WriteMessage(websocket.TextMessage, responseBytes)
+			c.SafeSend(responseBytes)
 		}
 	case "getInstalled":
 		{
@@ -167,7 +160,7 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 				println("Error marshalling response:", err.Error())
 				return
 			}
-			c.Conn.WriteMessage(websocket.TextMessage, responseBytes)
+			c.SafeSend(responseBytes)
 		}
 	case "shout":
 		{
@@ -195,8 +188,8 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 				return
 			}
 
-			for key, _ := range h.hub.Clients {
-				key.Conn.WriteMessage(websocket.TextMessage, responseBytes)
+			for key := range h.hub.Clients {
+				key.SafeSend(responseBytes)
 			}
 
 		}
@@ -224,9 +217,7 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 				println("Error marshalling response:", err.Error())
 				return
 			}
-			if err := c.Conn.WriteMessage(websocket.TextMessage, responseBytes); err != nil {
-				h.Logger.Errorf("Error writing response: %v", err)
-			}
+			c.SafeSend(responseBytes)
 		}
 	case "cleanupPadRevisions":
 		{
@@ -263,9 +254,7 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 			if err != nil {
 				println("Error marshalling response:", err.Error())
 			}
-			if err := c.Conn.WriteMessage(websocket.TextMessage, responseBytes); err != nil {
-				h.Logger.Errorf("Error writing response: %v", err)
-			}
+			c.SafeSend(responseBytes)
 		}
 	case "search":
 		{
@@ -289,7 +278,7 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 				println("Error marshalling response:", err.Error())
 				return
 			}
-			c.Conn.WriteMessage(websocket.TextMessage, responseBytes)
+			c.SafeSend(responseBytes)
 		}
 	case "getStats":
 		{
@@ -305,7 +294,7 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 				println("Error marshalling response:", err.Error())
 				return
 			}
-			c.Conn.WriteMessage(websocket.TextMessage, responseBytes)
+			c.SafeSend(responseBytes)
 		}
 	default:
 		// Unknown event
