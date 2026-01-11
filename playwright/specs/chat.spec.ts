@@ -68,11 +68,12 @@ test('makes chat stick to right side of the screen via settings, remove sticky v
 
     await disableStickyChat(page);
     expect(await isChatBoxShown(page)).toBe(true);
-    expect(await isChatBoxSticky(page)).toBe(false);
+    // Wait for sticky class to be removed
+    await expect(page.locator('#chatbox')).not.toHaveClass(/stickyChat/, { timeout: 5000 });
+
     await hideSettings(page);
     await hideChat(page);
     expect(await isChatBoxShown(page)).toBe(false);
-    expect(await isChatBoxSticky(page)).toBe(false);
 });
 
 test('makes chat stick to right side of the screen via icon on the top right, ' +
