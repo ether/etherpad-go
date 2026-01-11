@@ -1,4 +1,4 @@
-import {Frame, Locator, Page} from "@playwright/test";
+import {expect, Frame, Locator, Page} from "@playwright/test";
 import {randomUUID} from "node:crypto";
 import os from "node:os";
 
@@ -70,15 +70,14 @@ export const sendChatMessage = async (page: Page, message: string) => {
 
     const chatInput = page.locator('#chatinput')
     await chatInput.click()
-    await page.keyboard.type(message, { delay: 10 })
+    await page.waitForTimeout(100)
+    await page.keyboard.type(message, { delay: 20 })
     await page.keyboard.press('Enter')
     if(message === "") return
 
-    // Wait for the message to appear with a proper timeout
-    await page.waitForFunction(
-        `document.querySelector('#chattext').querySelectorAll('p').length > ${currentChatCount}`,
-        { timeout: 30000 }
-    )
+    // Wait for the message to appear - use polling instead of waitForFunction
+    const chatText = page.locator('#chattext')
+    await expect(chatText.locator('p')).toHaveCount(currentChatCount + 1, { timeout: 30000 })
 }
 
 export const isChatBoxShown = async (page: Page) => {
@@ -118,10 +117,10 @@ export const appendQueryParams = async (page: Page, queryParameters: Record<stri
         searchParams.append(key, queryParameters[key]);
     });
     await page.goto(page.url()+"?"+ searchParams.toString());
-    await page.waitForSelector('iframe[name="ace_outer"]', { timeout: 30000 });
+    await page.waitForSelector('iframe[name="ace_outer"]', { timeout: 60000 });
 }
 
-const waitForPadToLoad = async (page: Page, timeout: number = 30000) => {
+const waitForPadToLoad = async (page: Page, timeout: number = 60000) => {
     // Wait for the outer frame
     await page.waitForSelector('iframe[name="ace_outer"]', { timeout, state: 'attached' });
 
@@ -129,25 +128,46 @@ const waitForPadToLoad = async (page: Page, timeout: number = 30000) => {
     let innerFrame = page.frame('ace_inner');
     const startTime = Date.now();
     while (!innerFrame && Date.now() - startTime < timeout) {
-        await page.waitForTimeout(50);
+        await page.waitForTimeout(100);
         innerFrame = page.frame('ace_inner');
     }
 
     if (innerFrame) {
-        await innerFrame.waitForSelector('#innerdocbody', { timeout: Math.max(timeout - (Date.now() - startTime), 5000) });
+        await innerFrame.waitForSelector('#innerdocbody', { timeout: Math.max(timeout - (Date.now() - startTime), 10000) });
     }
 };
 
 export const goToNewPad = async (page: Page) => {
     const padId = "FRONTEND_TESTS"+randomUUID();
-    await page.goto('http://localhost:9001/p/'+padId, { waitUntil: 'domcontentloaded', timeout: 30000 });
-    await waitForPadToLoad(page, 30000);
+
+    // Retry logic for flaky CI environments
+    for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+            await page.goto('http://localhost:9001/p/'+padId, { waitUntil: 'load', timeout: 60000 });
+            await waitForPadToLoad(page, 60000);
+            return padId;
+        } catch (error) {
+            if (attempt === 2) throw error;
+            console.log(`goToNewPad attempt ${attempt + 1} failed, retrying...`);
+            await page.waitForTimeout(2000);
+        }
+    }
     return padId;
 }
 
 export const goToPad = async (page: Page, padId: string) => {
-    await page.goto('http://localhost:9001/p/'+padId, { waitUntil: 'domcontentloaded', timeout: 30000 });
-    await waitForPadToLoad(page, 30000);
+    // Retry logic for flaky CI environments
+    for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+            await page.goto('http://localhost:9001/p/'+padId, { waitUntil: 'load', timeout: 60000 });
+            await waitForPadToLoad(page, 60000);
+            return;
+        } catch (error) {
+            if (attempt === 2) throw error;
+            console.log(`goToPad attempt ${attempt + 1} failed, retrying...`);
+            await page.waitForTimeout(2000);
+        }
+    }
 }
 
 

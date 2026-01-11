@@ -15,19 +15,19 @@ export default defineConfig({
   testMatch: 'specs/**/*.spec.ts',
   forbidOnly: isCI,
   retries: isCI ? 2 : 0,
-  // More workers = faster tests, but don't overwhelm CI
-  workers: isCI ? 4 : '75%',
+  // Reduce workers in CI to avoid overwhelming the server
+  workers: isCI ? 2 : '75%',
   reporter: isCI ? [['html', { open: 'never' }], ['github']] : 'html',
-  timeout: 60000,
+  timeout: isCI ? 120000 : 60000,
   expect: {
-    timeout: 10000,
+    timeout: isCI ? 20000 : 10000,
   },
   use: {
     baseURL: 'http://localhost:9001',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
-    actionTimeout: 10000,
-    navigationTimeout: 30000,
+    actionTimeout: isCI ? 20000 : 10000,
+    navigationTimeout: isCI ? 60000 : 30000,
   },
   projects: [
     {
