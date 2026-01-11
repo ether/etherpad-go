@@ -1,5 +1,4 @@
 .idea
-*_templ.go
 
 settings.json
 *.db
