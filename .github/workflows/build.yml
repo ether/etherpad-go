@@ -2,6 +2,10 @@ name: ci
 
 on:
   push:
+    branches:
+      - main
+    tags:
+      - 'v*'
 
 env:
   REGISTRY_IMAGE: ghcr.io/ether/etherpad-go
@@ -206,7 +210,7 @@ jobs:
           images: ${{ env.REGISTRY_IMAGE }}
 
       - name: Login to Github Container Registry
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -228,17 +232,17 @@ jobs:
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
           tags: ${{ env.REGISTRY_IMAGE }}
-          outputs: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && 'type=image,push-by-digest=true,name-canonical=true,push=true' || 'type=image,push=false' }}
+          outputs: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')) && 'type=image,push-by-digest=true,name-canonical=true,push=true' || 'type=image,push=false' }}
 
       - name: Export digest
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
         run: |
           mkdir -p ${{ runner.temp }}/digests
           digest="${{ steps.build.outputs.digest }}"
           touch "${{ runner.temp }}/digests/${digest#sha256:}"
 
       - name: Upload digest
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
         uses: actions/upload-artifact@v6
         with:
           name: digests-${{ env.PLATFORM_PAIR }}
@@ -248,7 +252,7 @@ jobs:
 
   merge:
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
     needs:
       - build
     steps:
@@ -284,24 +288,31 @@ jobs:
             type=ref,event=pr
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-      - name: Get last tag and commit hash
-        id: vars
-        run: |
-          TAG=$(git describe --tags --abbrev=0)
-          HASH=$(git rev-parse --short HEAD)
-          echo "IMAGE_TAG=${TAG}-${HASH}" >> $GITHUB_ENV
+
+      - name: Set image tag for main branch
+        if: github.ref == 'refs/heads/main'
+        run: echo "IMAGE_TAG=develop" >> $GITHUB_ENV
+
+      - name: Set image tag for release tag
+        if: startsWith(github.ref, 'refs/tags/')
+        run: echo "IMAGE_TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+
       - name: Create manifest list and push
         working-directory: ${{ runner.temp }}/digests
         run: |
           DIGEST_FLAGS=$(for f in *; do printf '%s@sha256:%s ' "$REGISTRY_IMAGE" "$f"; done)
           docker buildx imagetools create -t $REGISTRY_IMAGE:$IMAGE_TAG $DIGEST_FLAGS
-      - name: Checkout
+
+      - name: Checkout ether-charts
+        if: github.ref == 'refs/heads/main'
         uses: actions/checkout@v6
         with:
           path: ether-charts
           repository: ether/ether-charts
           token: ${{ secrets.ETHER_CHART_TOKEN }}
+
       - name: Change argocd tag
+        if: github.ref == 'refs/heads/main'
         run: |
           cd ether-charts
           sed -i "s|tag: .*|tag: \"${{ env.IMAGE_TAG }}\"|g" ./values-go.yaml
@@ -310,3 +321,92 @@ jobs:
           git add .
           git commit -m "chore: bump etherpad-go image to ${{ env.IMAGE_TAG }}"
           git push origin main
+
+  release:
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    needs:
+      - test
+      - playwright
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            suffix: linux-amd64
+          - goos: linux
+            goarch: arm64
+            suffix: linux-arm64
+          - goos: darwin
+            goarch: amd64
+            suffix: darwin-amd64
+          - goos: darwin
+            goarch: arm64
+            suffix: darwin-arm64
+          - goos: windows
+            goarch: amd64
+            suffix: windows-amd64.exe
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: 1.25
+
+      - name: Download assets
+        uses: actions/download-artifact@v7
+        with:
+          name: built-assets
+          path: assets/
+
+      - name: Install templ
+        run: go install github.com/a-h/templ/cmd/templ@latest
+
+      - name: Generate templ
+        run: templ generate
+
+      - name: Build binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 0
+        run: |
+          go build -ldflags="-s -w" -o etherpad-go-${{ matrix.suffix }}
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: binary-${{ matrix.suffix }}
+          path: etherpad-go-${{ matrix.suffix }}
+          retention-days: 1
+
+  create-release:
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    needs:
+      - release
+      - merge
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Download all binaries
+        uses: actions/download-artifact@v7
+        with:
+          path: binaries/
+          pattern: binary-*
+          merge-multiple: true
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: binaries/*
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
