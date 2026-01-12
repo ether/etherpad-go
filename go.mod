@@ -30,7 +30,7 @@ require (
 	github.com/valyala/fasthttp v1.55.0
 	go.uber.org/zap v1.27.1
 	golang.org/x/crypto v0.47.0
-	golang.org/x/net v0.48.0
+	golang.org/x/net v0.49.0
 	modernc.org/sqlite v1.43.0
 )
 
