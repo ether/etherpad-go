@@ -19,8 +19,8 @@
     "@radix-ui/react-toast": "^1.2.15",
     "@types/react": "^19.2.8",
     "@types/react-dom": "^19.2.3",
-    "@typescript-eslint/eslint-plugin": "^8.52.0",
-    "@typescript-eslint/parser": "^8.52.0",
+    "@typescript-eslint/eslint-plugin": "^8.53.0",
+    "@typescript-eslint/parser": "^8.53.0",
     "@vitejs/plugin-react": "^5.1.2",
     "babel-plugin-react-compiler": "19.1.0-rc.3",
     "eslint": "^9.39.2",
@@ -32,13 +32,13 @@
     "lucide-react": "^0.562.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
-    "react-hook-form": "^7.70.0",
-    "react-i18next": "^16.5.1",
+    "react-hook-form": "^7.71.0",
+    "react-i18next": "^16.5.2",
     "react-router-dom": "^7.12.0",
     "typescript": "^5.9.3",
     "vite": "npm:rolldown-vite@latest",
     "vite-plugin-babel": "^1.3.2",
-    "zustand": "^5.0.9"
+    "zustand": "^5.0.10"
   },
   "overrides": {
     "vite": "npm:rolldown-vite@latest"
