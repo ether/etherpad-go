@@ -304,6 +304,10 @@ jobs:
           DIGEST_FLAGS=$(for f in *; do printf '%s@sha256:%s ' "$REGISTRY_IMAGE" "$f"; done)
           docker buildx imagetools create -t $REGISTRY_IMAGE:$IMAGE_TAG $DIGEST_FLAGS
 
+      - name: Get image digest
+        if: github.ref == 'refs/heads/main'
+        run: echo "IMAGE_DIGEST=$(docker buildx imagetools inspect $REGISTRY_IMAGE:$IMAGE_TAG --format '{{.Manifest.Digest}}')" >> $GITHUB_ENV
+
       - name: Checkout ether-charts
         if: github.ref == 'refs/heads/main'
         uses: actions/checkout@v6
@@ -316,11 +320,11 @@ jobs:
         if: github.ref == 'refs/heads/main'
         run: |
           cd ether-charts
-          sed -i "s|tag: .*|tag: \"${{ env.IMAGE_TAG }}\"|g" ./values-go.yaml
+          sed -i "s|tag: .*|tag: \"${{ env.IMAGE_DIGEST }}\"|g" ./values-go.yaml
           git config --global user.name 'github-actions'
           git config --global user.email 'noreply@github.com'
           git add .
-          git commit -m "chore: bump etherpad-go image to ${{ env.IMAGE_TAG }}"
+          git commit -m "chore: bump etherpad-go image to ${{ env.IMAGE_DIGEST }}"
           git push origin main
 
   release:
