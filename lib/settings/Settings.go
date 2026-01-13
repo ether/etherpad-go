@@ -7,6 +7,7 @@ import (
 	"runtime"
 
 	clientVars2 "github.com/ether/etherpad-go/lib/models/clientVars"
+	"go.uber.org/zap"
 )
 
 type DBSettings struct {
@@ -403,7 +404,7 @@ func StripWithOptions(jsonString string, options *Options) string {
 	return result + buffer + end
 }
 
-func init() {
+func InitSettings(logger *zap.SugaredLogger) {
 	var pathToRoot string
 
 	var envPathToSettings = os.Getenv("ETHERPAD_SETTINGS_PATH")
@@ -412,44 +413,45 @@ func init() {
 	}
 
 	if pathToRoot == "" {
-		for i := 0; i < 10; i++ {
-			var builtPath = ""
-			for j := 0; j < i; j++ {
-				builtPath += "../"
-			}
+		execPath, err := os.Executable()
+		if err != nil {
+			panic("Error finding executable path: " + err.Error())
+		}
+		pathToRoot = filepath.Dir(execPath)
 
-			var assetDir string
-
-			if i == 0 {
-				assetDir = "./assets"
-			} else {
-				assetDir = "assets"
-			}
-
-			pathToAssets, err := filepath.Abs(builtPath + assetDir)
-
-			_, err = os.Stat(pathToAssets)
-
+		assetsPath := filepath.Join(pathToRoot, "assets")
+		if _, err := os.Stat(assetsPath); os.IsNotExist(err) {
+			wd, err := os.Getwd()
 			if err == nil {
-				pathToRoot, _ = filepath.Abs(builtPath)
-				break
-			}
-
-			if i == 9 {
-				panic("Error finding root")
+				if _, err := os.Stat(filepath.Join(wd, "assets")); err == nil {
+					pathToRoot = wd
+				}
 			}
 		}
 	}
 
 	var settingsFilePath = filepath.Join(pathToRoot, "settings.json")
 	settings, err := os.ReadFile(settingsFilePath)
+	if err != nil {
+		logger.Infof("No settings file found. Using default settings.")
+	}
 	settings = []byte(StripWithOptions(string(settings), &Options{Whitespace: true, TrailingCommas: true}))
 
 	setting, err := ReadConfig(string(settings))
 	if err != nil {
-		println("error is " + err.Error())
+		logger.Errorf("error is " + err.Error())
 		return
 	}
+
+	if setting.DBSettings != nil && setting.DBSettings.Filename != "" {
+		dbDir := filepath.Dir(setting.DBSettings.Filename)
+		if dbDir != "" && dbDir != "." {
+			if err := os.MkdirAll(dbDir, 0755); err != nil {
+				panic("Error creating database directory: " + err.Error())
+			}
+		}
+	}
+
 	setting.GitVersion = GitVersion()
 	setting.Root = pathToRoot
 	Displayed = *setting
