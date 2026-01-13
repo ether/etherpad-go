@@ -147,8 +147,8 @@ func buildStaticPadCSSInDev(retrievedSettings *settings.Settings) {
 	}
 }
 
-func buildCssInDev(nodeEnv string, retrievedSettings *settings.Settings) {
-	if nodeEnv == "production" {
+func buildCssInDev(retrievedSettings *settings.Settings) {
+	if !utils.IsDevModeEnabled() {
 		return
 	}
 
@@ -157,8 +157,7 @@ func buildCssInDev(nodeEnv string, retrievedSettings *settings.Settings) {
 }
 
 func Init(store *lib.InitStore) {
-	var nodeEnv = os.Getenv("NODE_ENV")
-	buildCssInDev(nodeEnv, store.RetrievedSettings)
+	buildCssInDev(store.RetrievedSettings)
 
 	store.C.Get("/health", func(c *fiber.Ctx) error {
 		return c.SendString("OK")
@@ -191,7 +190,7 @@ func Init(store *lib.InitStore) {
 	}
 
 	store.C.Get("/css/static/pad.css", func(ctx *fiber.Ctx) error {
-		if nodeEnv != "production" {
+		if utils.IsDevModeEnabled() {
 			fileContent, err := os.ReadFile("assets/css/build/static/pad.css")
 			if err != nil {
 				store.Logger.Errorf("Error setting up build page: %v. Did you forget to run the build script in ui directory?", err)
@@ -207,7 +206,7 @@ func Init(store *lib.InitStore) {
 	})
 
 	store.C.Get("/css/skin/colibris/pad.css", func(ctx *fiber.Ctx) error {
-		if nodeEnv != "production" {
+		if utils.IsDevModeEnabled() {
 			fileContent, err := os.ReadFile("assets/css/build/skin/colibris/pad.css")
 			if err != nil {
 				store.Logger.Errorf("Error setting up build page: %v. Did you forget to run the build script in ui directory?", err)
@@ -257,7 +256,7 @@ func Init(store *lib.InitStore) {
 		return adaptor.HTTPHandler(templ.Handler(component))(c)
 	})
 
-	if nodeEnv == "production" {
+	if !utils.IsDevModeEnabled() {
 		registerEmbeddedStatic(store.C, "/js/pad/assets/", "assets/js/pad/assets", store.UiAssets)
 		registerEmbeddedStatic(store.C, "/js/welcome/assets/", "assets/js/welcome/assets", store.UiAssets)
 		registerEmbeddedStatic(store.C, "/admin/assets", "assets/js/admin/assets", store.UiAssets)

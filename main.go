@@ -66,6 +66,8 @@ var uiAssets embed.FS
 func main() {
 	setupLogger := utils.SetupLogger()
 	defer setupLogger.Sync()
+	settings2.InitSettings(setupLogger)
+
 	var settings = settings2.Displayed
 	validatorEvaluator := validator.New(validator.WithRequiredStructEnabled())
 
