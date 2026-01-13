@@ -1,6 +1,7 @@
 package pad
 
 import (
+	"errors"
 	"strings"
 
 	"github.com/ether/etherpad-go/lib/db"
@@ -68,6 +69,10 @@ func (r *ReadOnlyManager) GetIds(id *string) (*IdRequest, error) {
 		padIdPtr, err := r.GetPadId(readOnlyPadId)
 		if err != nil {
 			return nil, err
+		}
+
+		if padIdPtr == nil {
+			return nil, errors.New("pad not found for readonly ID: " + readOnlyPadId)
 		}
 
 		padId = *padIdPtr
