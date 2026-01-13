@@ -43,7 +43,7 @@ func (s *SecurityManager) CheckAccess(padId *string, sessionCookie *string, toke
 		canCreate = false
 		foundPadId, err := s.ReadOnlyManager.GetPadId(*padId)
 
-		if err == nil {
+		if err != nil {
 			return nil, errors.New("padId not found")
 		}
 		padId = foundPadId

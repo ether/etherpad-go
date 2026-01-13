@@ -109,10 +109,6 @@ func (f *Factory) NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apoo
 	if err != nil {
 		return nil, err
 	}
-	readonlyId, err := f.ReadOnlyManager.GetIds(&pad.Id)
-	if err != nil {
-		return nil, err
-	}
 
 	etherPadConvertedAttribs := make(map[string][]string)
 	for k, v := range apool.NumToAttrib {
@@ -165,8 +161,8 @@ func (f *Factory) NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apoo
 		Opts:                               map[string]interface{}{},
 		ChatHead:                           pad.ChatHead,
 		NumConnectedUsers:                  0,
-		ReadOnlyId:                         readonlyId.ReadOnlyPadId,
-		ReadOnly:                           readonlyId.ReadOnly,
+		ReadOnlyId:                         sessionInfo.ReadOnlyPadId,
+		ReadOnly:                           sessionInfo.ReadOnly,
 		ServerTimeStamp:                    time.Now().UTC().UnixMilli(),
 		SessionRefreshInterval:             86400000,
 		UserName:                           currentAuthor.Name,
