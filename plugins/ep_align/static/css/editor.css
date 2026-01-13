@@ -1,0 +1,46 @@
+/* ep_align - Editor CSS */
+
+/* Alignment-Klassen für den Editor */
+.align-left {
+  text-align: left !important;
+}
+
+.align-center {
+  text-align: center !important;
+}
+
+.align-right {
+  text-align: right !important;
+}
+
+.align-justify {
+  text-align: justify !important;
+}
+
+/* Styling für Alignment-Container */
+div[style*="text-align"] {
+  display: block;
+  width: 100%;
+}
+
+/* Toolbar Button Icons */
+.buttonicon-align-left:before {
+  content: "\f036"; /* Font Awesome align-left */
+  font-family: "fontawesome-etherpad";
+}
+
+.buttonicon-align-center:before {
+  content: "\f037"; /* Font Awesome align-center */
+  font-family: "fontawesome-etherpad";
+}
+
+.buttonicon-align-right:before {
+  content: "\f038"; /* Font Awesome align-right */
+  font-family: "fontawesome-etherpad";
+}
+
+.buttonicon-align-justify:before {
+  content: "\f039"; /* Font Awesome align-justify */
+  font-family: "fontawesome-etherpad";
+}
+

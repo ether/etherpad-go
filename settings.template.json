@@ -141,5 +141,10 @@
         "redirect_uris": ["http://localhost:9001/"]
       }
     ]
+  },
+  "plugins": {
+    "ep_align": {
+      "enabled": false
+    }
   }
 }

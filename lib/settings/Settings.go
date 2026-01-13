@@ -134,6 +134,11 @@ type SSLSettings struct {
 	Ca   []string `json:"ca"`
 }
 
+// PluginSettings definiert die Einstellungen für einzelne Plugins
+type PluginSettings struct {
+	Enabled bool `json:"enabled"`
+}
+
 type Settings struct {
 	Root                               string
 	SettingsFilename                   string                                         `json:"settingsFilename"`
@@ -193,6 +198,18 @@ type Settings struct {
 	DevMode                            bool                                           `json:"devMode"`
 	GitVersion                         string                                         `json:"-"`
 	AvailableExports                   []string                                       `json:"availableExports"`
+	Plugins                            map[string]PluginSettings                      `json:"plugins"`
+}
+
+// IsPluginEnabled prüft, ob ein Plugin in den Settings aktiviert ist
+func (s *Settings) IsPluginEnabled(pluginName string) bool {
+	if s.Plugins == nil {
+		return false
+	}
+	if plugin, exists := s.Plugins[pluginName]; exists {
+		return plugin.Enabled
+	}
+	return false
 }
 
 func (s *Settings) GetPublicSettings() PublicSettings {

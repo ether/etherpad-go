@@ -1,0 +1,16 @@
+{
+  "parts": [
+    {
+      "name": "ep_align",
+      "client_hooks": {
+        "aceInitialized": "ep_align/static/js/index:aceInitialized",
+        "aceAttribsToClasses": "ep_align/static/js/index:aceAttribsToClasses",
+        "aceCreateDomLine": "ep_align/static/js/index:aceCreateDomLine",
+        "postToolbarInit": "ep_align/static/js/index:postToolbarInit",
+        "aceEditorCSS": "ep_align/static/js/index:aceEditorCSS",
+        "aceRegisterBlockElements": "ep_align/static/js/index:aceRegisterBlockElements"
+      }
+    }
+  ]
+}
+

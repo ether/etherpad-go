@@ -1,0 +1,31 @@
+/* ep_align - Toolbar CSS */
+
+/* Toolbar Button Icons für die Editbar */
+.buttonicon-align-left:before {
+  content: "\f036"; /* Font Awesome align-left */
+  font-family: "fontawesome-etherpad";
+}
+
+.buttonicon-align-center:before {
+  content: "\f037"; /* Font Awesome align-center */
+  font-family: "fontawesome-etherpad";
+}
+
+.buttonicon-align-right:before {
+  content: "\f038"; /* Font Awesome align-right */
+  font-family: "fontawesome-etherpad";
+}
+
+.buttonicon-align-justify:before {
+  content: "\f039"; /* Font Awesome align-justify */
+  font-family: "fontawesome-etherpad";
+}
+
+/* Aktiver Zustand für Alignment-Buttons */
+[data-key="alignLeft"].active .buttonicon,
+[data-key="alignCenter"].active .buttonicon,
+[data-key="alignRight"].active .buttonicon,
+[data-key="alignJustify"].active .buttonicon {
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
