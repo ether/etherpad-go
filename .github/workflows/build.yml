@@ -304,9 +304,18 @@ jobs:
           DIGEST_FLAGS=$(for f in *; do printf '%s@sha256:%s ' "$REGISTRY_IMAGE" "$f"; done)
           docker buildx imagetools create -t $REGISTRY_IMAGE:$IMAGE_TAG $DIGEST_FLAGS
 
-      - name: Get image digest
+      - name: Download amd64 digest for ArgoCD
         if: github.ref == 'refs/heads/main'
-        run: echo "IMAGE_DIGEST=$(docker buildx imagetools inspect $REGISTRY_IMAGE:$IMAGE_TAG --format '{{.Manifest.Digest}}')" >> $GITHUB_ENV
+        uses: actions/download-artifact@v7
+        with:
+          name: digests-linux-amd64
+          path: ${{ runner.temp }}/amd64-digest
+
+      - name: Get amd64 image digest
+        if: github.ref == 'refs/heads/main'
+        run: |
+          AMD64_DIGEST=$(ls ${{ runner.temp }}/amd64-digest | head -n1)
+          echo "IMAGE_DIGEST=sha256:${AMD64_DIGEST}" >> $GITHUB_ENV
 
       - name: Checkout ether-charts
         if: github.ref == 'refs/heads/main'
@@ -325,6 +334,38 @@ jobs:
           git config --global user.email 'noreply@github.com'
           git add .
           git commit -m "chore: bump etherpad-go image to ${{ env.IMAGE_DIGEST }}"
+          git push origin main
+
+      - name: Download amd64 digest for ArgoCD (release)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: actions/download-artifact@v7
+        with:
+          name: digests-linux-amd64
+          path: ${{ runner.temp }}/amd64-digest
+
+      - name: Get amd64 image digest (release)
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          AMD64_DIGEST=$(ls ${{ runner.temp }}/amd64-digest | head -n1)
+          echo "IMAGE_DIGEST=sha256:${AMD64_DIGEST}" >> $GITHUB_ENV
+
+      - name: Checkout ether-charts (release)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: actions/checkout@v6
+        with:
+          path: ether-charts
+          repository: ether/ether-charts
+          token: ${{ secrets.ETHER_CHART_TOKEN }}
+
+      - name: Change argocd prod tag
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          cd ether-charts
+          sed -i "s|tag: .*|tag: \"${{ env.IMAGE_DIGEST }}\"|g" ./values-go-prod.yaml
+          git config --global user.name 'github-actions'
+          git config --global user.email 'noreply@github.com'
+          git add .
+          git commit -m "chore: bump etherpad-go prod image to ${{ env.IMAGE_DIGEST }}"
           git push origin main
 
   release:
