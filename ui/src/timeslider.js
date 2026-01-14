@@ -19,6 +19,8 @@ window.clientVars = {
 
     window.browser = require('./js/vendors/browser');
 
+    const pluginRegistry = require('./js/pluginfw/plugin_registry');
+
     window.plugins = require('./js/pluginfw/client_plugins');
     const socket = timeSlider.socket;
     BroadcastSlider = timeSlider.BroadcastSlider;

@@ -13,6 +13,11 @@ const disabledHookReasons = {
 
 const loadedPluginModules = new Map();
 
+// Prüft, ob ein Modul bereits registriert ist
+exports.isModuleRegistered = (path) => {
+  return loadedPluginModules.has(path);
+};
+
 const loadFn = (path, hookName, modules) => {
   let functionName;
   const parts = path.split(':');

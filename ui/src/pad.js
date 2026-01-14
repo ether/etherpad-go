@@ -17,6 +17,10 @@
     window.browser = require('./js/vendors/browser');
     const pad = require('./js/pad');
     pad.baseURL = basePath;
+
+    // Plugin Registry laden - registriert alle eingebauten client_hooks Module
+    const pluginRegistry = require('./js/pluginfw/plugin_registry');
+
     window.plugins = require('./js/pluginfw/client_plugins');
     const hooks = require('./js/pluginfw/hooks');
 

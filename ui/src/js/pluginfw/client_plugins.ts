@@ -8,9 +8,15 @@ exports.baseURL = '';
 
 exports.ensure = (cb) => !defs.loaded ? exports.update(cb) : cb();
 
-// Lädt ein Plugin-Script dynamisch
+// Lädt ein Plugin-Script dynamisch (nur für externe Plugins die nicht gebündelt sind)
 const loadPluginScript = (pluginPath) => {
   return new Promise((resolve, reject) => {
+    // Prüfe erst, ob das Modul bereits registriert ist (gebündelt)
+    if (pluginUtils.isModuleRegistered && pluginUtils.isModuleRegistered(pluginPath)) {
+      resolve();
+      return;
+    }
+
     // Konvertiere Plugin-Pfad zu URL
     // z.B. "ep_align/static/js/index" -> "/static/plugins/ep_align/static/js/index.js"
     const url = `${exports.baseURL}static/plugins/${pluginPath}.js?v=${clientVars.randomVersionString}`;

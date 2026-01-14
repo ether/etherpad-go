@@ -132,3 +132,44 @@ func ReturnPluginResponse(c *fiber.Ctx) error {
 	c.GetRespHeaders()["Content-Type"] = []string{"application/json"}
 	return c.Send(clPlugin)
 }
+
+// GetToolbarButtons gibt alle Toolbar-Buttons von aktivierten Plugins zurück
+func GetToolbarButtons() []ToolbarButton {
+	_, parts, _ := Update()
+	var buttons []ToolbarButton
+
+	for _, part := range parts {
+		if len(part.ToolbarButtons) > 0 {
+			buttons = append(buttons, part.ToolbarButtons...)
+		}
+	}
+
+	return buttons
+}
+
+// ToolbarButtonGroup repräsentiert eine Gruppe von Toolbar-Buttons
+type ToolbarButtonGroup struct {
+	PluginName string
+	Buttons    []ToolbarButton
+}
+
+// GetToolbarButtonGroups gibt Toolbar-Buttons gruppiert nach Plugin zurück
+func GetToolbarButtonGroups() []ToolbarButtonGroup {
+	_, parts, _ := Update()
+	var groups []ToolbarButtonGroup
+
+	for _, part := range parts {
+		if len(part.ToolbarButtons) > 0 {
+			pluginName := ""
+			if part.Plugin != nil {
+				pluginName = *part.Plugin
+			}
+			groups = append(groups, ToolbarButtonGroup{
+				PluginName: pluginName,
+				Buttons:    part.ToolbarButtons,
+			})
+		}
+	}
+
+	return groups
+}

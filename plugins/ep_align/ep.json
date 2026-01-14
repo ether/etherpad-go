@@ -3,13 +3,45 @@
     {
       "name": "ep_align",
       "client_hooks": {
-        "aceInitialized": "ep_align/static/js/index:aceInitialized",
+        "aceRegisterBlockElements": "ep_align/static/js/index:aceRegisterBlockElements",
         "aceAttribsToClasses": "ep_align/static/js/index:aceAttribsToClasses",
-        "aceCreateDomLine": "ep_align/static/js/index:aceCreateDomLine",
-        "postToolbarInit": "ep_align/static/js/index:postToolbarInit",
+        "aceDomLineProcessLineAttributes": "ep_align/static/js/index:aceDomLineProcessLineAttributes",
+        "aceEditEvent": "ep_align/static/js/index:aceEditEvent",
         "aceEditorCSS": "ep_align/static/js/index:aceEditorCSS",
-        "aceRegisterBlockElements": "ep_align/static/js/index:aceRegisterBlockElements"
-      }
+        "aceInitialized": "ep_align/static/js/index:aceInitialized",
+        "postAceInit": "ep_align/static/js/index:postAceInit",
+        "postToolbarInit": "ep_align/static/js/index:postToolbarInit"
+      },
+      "toolbar_buttons": [
+        {
+          "key": "alignLeft",
+          "title": "ep_align.toolbar.left.title",
+          "icon": "buttonicon-align-left ep_align_left",
+          "group": "left",
+          "data_align": "0"
+        },
+        {
+          "key": "alignCenter",
+          "title": "ep_align.toolbar.center.title",
+          "icon": "buttonicon-align-center ep_align_center",
+          "group": "middle",
+          "data_align": "1"
+        },
+        {
+          "key": "alignRight",
+          "title": "ep_align.toolbar.right.title",
+          "icon": "buttonicon-align-right ep_align_right",
+          "group": "middle",
+          "data_align": "3"
+        },
+        {
+          "key": "alignJustify",
+          "title": "ep_align.toolbar.justify.title",
+          "icon": "buttonicon-align-justify ep_align_justify",
+          "group": "right",
+          "data_align": "2"
+        }
+      ]
     }
   ]
 }
