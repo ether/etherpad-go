@@ -329,7 +329,7 @@ jobs:
         if: github.ref == 'refs/heads/main'
         run: |
           cd ether-charts
-          sed -i "s|tag: .*|tag: \"${{ env.IMAGE_DIGEST }}\"|g" ./values-go.yaml
+          sed -i "s|tag: .*|tag: \"${{ env.IMAGE_DIGEST }}\"|g" ./values-go-dev.yaml
           git config --global user.name 'github-actions'
           git config --global user.email 'noreply@github.com'
           git add .
