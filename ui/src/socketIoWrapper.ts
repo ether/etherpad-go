@@ -84,7 +84,6 @@ export class SocketIoWrapper {
 
     private onMessage(evt: MessageEvent) {
         const arr = JSON.parse(evt.data)
-        console.log(`Received message: ${evt.data}`)
         if (!SocketIoWrapper.eventCallbacks[arr[0]]) return
         SocketIoWrapper.eventCallbacks[arr[0]].forEach(f => {
             f(arr[1])

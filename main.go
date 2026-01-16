@@ -1,11 +1,11 @@
 package main
 
 import (
-	"context"
 	"embed"
 	"fmt"
 	_ "fmt"
 	"net/http"
+	"os"
 	"time"
 
 	_ "github.com/ether/etherpad-go/docs"
@@ -14,6 +14,7 @@ import (
 	"github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/hooks"
 	"github.com/ether/etherpad-go/lib/pad"
+	"github.com/ether/etherpad-go/lib/plugins"
 	session2 "github.com/ether/etherpad-go/lib/session"
 	settings2 "github.com/ether/etherpad-go/lib/settings"
 	"github.com/ether/etherpad-go/lib/utils"
@@ -22,33 +23,7 @@ import (
 	"github.com/gofiber/adaptor/v2"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/session"
-	"github.com/gorilla/sessions"
 )
-
-var store *sessions.CookieStore
-
-func sessionMiddleware(h http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		sessionFromCookie, err := store.Get(r, "express_sid")
-		if err != nil {
-			println("Error getting sessionFromCookie", err)
-			http.SetCookie(w, &http.Cookie{Name: "express_sid", MaxAge: -1, Path: "/"})
-			return
-		}
-
-		if sessionFromCookie.IsNew {
-			http.SetCookie(w, &http.Cookie{Name: "express_sid", MaxAge: -1, Path: "/"})
-			err := sessionFromCookie.Save(r, w)
-			if err != nil {
-				println("Error saving sessionFromCookie", err)
-				return
-			}
-		}
-
-		r = r.WithContext(context.WithValue(r.Context(), "sessionFromCookie", sessionFromCookie))
-		h(w, r)
-	}
-}
 
 //go:embed assets
 var uiAssets embed.FS
@@ -72,6 +47,10 @@ func main() {
 	validatorEvaluator := validator.New(validator.WithRequiredStructEnabled())
 
 	retrievedHooks := hooks.NewHook()
+
+	// init plugins
+	plugins.InitPlugins(&settings, &retrievedHooks)
+
 	gitVersion := settings2.GetGitCommit(&settings)
 	setupLogger.Info("Starting Etherpad Go...")
 	setupLogger.Info("Report bugs at https://github.com/ether/etherpad-go/issues")
@@ -173,7 +152,8 @@ func main() {
 	setupLogger.Info("Starting Web UI on " + fiberString)
 	err = app.Listen(fiberString)
 	if err != nil {
-		return
+		setupLogger.Error("Error starting web UI: " + err.Error())
+		os.Exit(1)
 	}
 
 }

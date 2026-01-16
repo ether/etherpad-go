@@ -1,1 +1,210 @@
-{"plugins":{"ep_etherpad-lite":{"parts":[{"name":"DB","hooks":{"shutdown":"ep_etherpad-lite/node/db/DB"},"plugin":"ep_etherpad-lite","full_name":"ep_etherpad-lite/DB"},{"name":"Minify","hooks":{"shutdown":"ep_etherpad-lite/node/utils/Minify"},"plugin":"ep_etherpad-lite","full_name":"ep_etherpad-lite/Minify"},{"name":"express","hooks":{"createServer":"ep_etherpad-lite/node/hooks/express","restartServer":"ep_etherpad-lite/node/hooks/express","shutdown":"ep_etherpad-lite/node/hooks/express"},"plugin":"ep_etherpad-lite","full_name":"ep_etherpad-lite/express"},{"name":"static","hooks":{"expressPreSession":"ep_etherpad-lite/node/hooks/express/static"},"plugin":"ep_etherpad-lite","full_name":"ep_etherpad-lite/static"},{"name":"stats","hooks":{"shutdown":"ep_etherpad-lite/node/stats"},"plugin":"ep_etherpad-lite","full_name":"ep_etherpad-lite/stats"},{"name":"i18n","hooks":{"expressPreSession":"ep_etherpad-lite/node/hooks/i18n"},"plugin":"ep_etherpad-lite","full_name":"ep_etherpad-lite/i18n"},{"name":"specialpages","hooks":{"expressCreateServer":"ep_etherpad-lite/node/hooks/express/specialpages","expressPreSession":"ep_etherpad-lite/node/hooks/express/specialpages"},"plugin":"ep_etherpad-lite","full_name":"ep_etherpad-lite/specialpages"},{"name":"oauth2","hooks":{"expressCreateServer":"ep_etherpad-lite/node/security/OAuth2Provider"},"plugin":"ep_etherpad-lite","full_name":"ep_etherpad-lite/oauth2"},{"name":"padurlsanitize","hooks":{"expressCreateServer":"ep_etherpad-lite/node/hooks/express/padurlsanitize"},"plugin":"ep_etherpad-lite","full_name":"ep_etherpad-lite/padurlsanitize"},{"name":"apicalls","hooks":{"expressPreSession":"ep_etherpad-lite/node/hooks/express/apicalls"},"plugin":"ep_etherpad-lite","full_name":"ep_etherpad-lite/apicalls"},{"name":"importexport","hooks":{"expressCreateServer":"ep_etherpad-lite/node/hooks/express/importexport"},"plugin":"ep_etherpad-lite","full_name":"ep_etherpad-lite/importexport"},{"name":"errorhandling","hooks":{"expressCreateServer":"ep_etherpad-lite/node/hooks/express/errorhandling"},"plugin":"ep_etherpad-lite","full_name":"ep_etherpad-lite/errorhandling"},{"name":"socketio","hooks":{"expressCloseServer":"ep_etherpad-lite/node/hooks/express/socketio","expressCreateServer":"ep_etherpad-lite/node/hooks/express/socketio","socketio":"ep_etherpad-lite/node/handler/PadMessageHandler"},"plugin":"ep_etherpad-lite","full_name":"ep_etherpad-lite/socketio"},{"name":"tests","hooks":{"expressPreSession":"ep_etherpad-lite/node/hooks/express/tests"},"plugin":"ep_etherpad-lite","full_name":"ep_etherpad-lite/tests"},{"name":"admin","hooks":{"expressCreateServer":"ep_etherpad-lite/node/hooks/express/admin"},"plugin":"ep_etherpad-lite","full_name":"ep_etherpad-lite/admin"},{"name":"adminplugins","hooks":{"socketio":"ep_etherpad-lite/node/hooks/express/adminplugins"},"plugin":"ep_etherpad-lite","full_name":"ep_etherpad-lite/adminplugins"},{"name":"adminsettings","hooks":{"socketio":"ep_etherpad-lite/node/hooks/express/adminsettings"},"plugin":"ep_etherpad-lite","full_name":"ep_etherpad-lite/adminsettings"},{"name":"openapi","hooks":{"expressPreSession":"ep_etherpad-lite/node/hooks/express/openapi"},"plugin":"ep_etherpad-lite","full_name":"ep_etherpad-lite/openapi"}]}}}
+{
+  "plugins": {
+    "ep_etherpad-lite": "1.8.13",
+    "ep_align": "0.0.1"
+  },
+  "parts": [
+    {
+      "name": "DB",
+      "hooks": {
+        "shutdown": "ep_etherpad-lite/node/db/DB"
+      },
+      "plugin": "ep_etherpad-lite",
+      "full_name": "ep_etherpad-lite/DB"
+    },
+    {
+      "name": "Minify",
+      "hooks": {
+        "shutdown": "ep_etherpad-lite/node/utils/Minify"
+      },
+      "plugin": "ep_etherpad-lite",
+      "full_name": "ep_etherpad-lite/Minify"
+    },
+    {
+      "name": "express",
+      "hooks": {
+        "createServer": "ep_etherpad-lite/node/hooks/express",
+        "restartServer": "ep_etherpad-lite/node/hooks/express",
+        "shutdown": "ep_etherpad-lite/node/hooks/express"
+      },
+      "plugin": "ep_etherpad-lite",
+      "full_name": "ep_etherpad-lite/express"
+    },
+    {
+      "name": "static",
+      "hooks": {
+        "expressPreSession": "ep_etherpad-lite/node/hooks/express/static"
+      },
+      "plugin": "ep_etherpad-lite",
+      "full_name": "ep_etherpad-lite/static"
+    },
+    {
+      "name": "stats",
+      "hooks": {
+        "shutdown": "ep_etherpad-lite/node/stats"
+      },
+      "plugin": "ep_etherpad-lite",
+      "full_name": "ep_etherpad-lite/stats"
+    },
+    {
+      "name": "i18n",
+      "hooks": {
+        "expressPreSession": "ep_etherpad-lite/node/hooks/i18n"
+      },
+      "plugin": "ep_etherpad-lite",
+      "full_name": "ep_etherpad-lite/i18n"
+    },
+    {
+      "name": "specialpages",
+      "hooks": {
+        "expressCreateServer": "ep_etherpad-lite/node/hooks/express/specialpages",
+        "expressPreSession": "ep_etherpad-lite/node/hooks/express/specialpages"
+      },
+      "plugin": "ep_etherpad-lite",
+      "full_name": "ep_etherpad-lite/specialpages"
+    },
+    {
+      "name": "oauth2",
+      "hooks": {
+        "expressCreateServer": "ep_etherpad-lite/node/security/OAuth2Provider"
+      },
+      "plugin": "ep_etherpad-lite",
+      "full_name": "ep_etherpad-lite/oauth2"
+    },
+    {
+      "name": "padurlsanitize",
+      "hooks": {
+        "expressCreateServer": "ep_etherpad-lite/node/hooks/express/padurlsanitize"
+      },
+      "plugin": "ep_etherpad-lite",
+      "full_name": "ep_etherpad-lite/padurlsanitize"
+    },
+    {
+      "name": "apicalls",
+      "hooks": {
+        "expressPreSession": "ep_etherpad-lite/node/hooks/express/apicalls"
+      },
+      "plugin": "ep_etherpad-lite",
+      "full_name": "ep_etherpad-lite/apicalls"
+    },
+    {
+      "name": "importexport",
+      "hooks": {
+        "expressCreateServer": "ep_etherpad-lite/node/hooks/express/importexport"
+      },
+      "plugin": "ep_etherpad-lite",
+      "full_name": "ep_etherpad-lite/importexport"
+    },
+    {
+      "name": "errorhandling",
+      "hooks": {
+        "expressCreateServer": "ep_etherpad-lite/node/hooks/express/errorhandling"
+      },
+      "plugin": "ep_etherpad-lite",
+      "full_name": "ep_etherpad-lite/errorhandling"
+    },
+    {
+      "name": "socketio",
+      "hooks": {
+        "expressCloseServer": "ep_etherpad-lite/node/hooks/express/socketio",
+        "expressCreateServer": "ep_etherpad-lite/node/hooks/express/socketio",
+        "socketio": "ep_etherpad-lite/node/handler/PadMessageHandler"
+      },
+      "plugin": "ep_etherpad-lite",
+      "full_name": "ep_etherpad-lite/socketio"
+    },
+    {
+      "name": "tests",
+      "hooks": {
+        "expressPreSession": "ep_etherpad-lite/node/hooks/express/tests"
+      },
+      "plugin": "ep_etherpad-lite",
+      "full_name": "ep_etherpad-lite/tests"
+    },
+    {
+      "name": "admin",
+      "hooks": {
+        "expressCreateServer": "ep_etherpad-lite/node/hooks/express/admin"
+      },
+      "plugin": "ep_etherpad-lite",
+      "full_name": "ep_etherpad-lite/admin"
+    },
+    {
+      "name": "adminplugins",
+      "hooks": {
+        "socketio": "ep_etherpad-lite/node/hooks/express/adminplugins"
+      },
+      "plugin": "ep_etherpad-lite",
+      "full_name": "ep_etherpad-lite/adminplugins"
+    },
+    {
+      "name": "adminsettings",
+      "hooks": {
+        "socketio": "ep_etherpad-lite/node/hooks/express/adminsettings"
+      },
+      "plugin": "ep_etherpad-lite",
+      "full_name": "ep_etherpad-lite/adminsettings"
+    },
+    {
+      "name": "openapi",
+      "hooks": {
+        "expressPreSession": "ep_etherpad-lite/node/hooks/express/openapi"
+      },
+      "plugin": "ep_etherpad-lite",
+      "full_name": "ep_etherpad-lite/openapi"
+    },
+    {
+      "name": "ep_message_all",
+      "client_hooks": {
+        "handleClientMessage_shoutMessage": "ep_etherpad-lite/static/js/messageHandler"
+      },
+      "plugin": "ep_etherpad-lite",
+      "full_name": "ep_etherpad-lite/ep_message_all"
+    },
+    {
+      "name": "ep_align",
+      "client_hooks": {
+        "aceRegisterBlockElements": "ep_align/static/js/index:aceRegisterBlockElements",
+        "aceAttribsToClasses": "ep_align/static/js/index:aceAttribsToClasses",
+        "aceDomLineProcessLineAttributes": "ep_align/static/js/index:aceDomLineProcessLineAttributes",
+        "aceEditEvent": "ep_align/static/js/index:aceEditEvent",
+        "aceEditorCSS": "ep_align/static/js/index:aceEditorCSS",
+        "aceInitialized": "ep_align/static/js/index:aceInitialized",
+        "postAceInit": "ep_align/static/js/index:postAceInit",
+        "postToolbarInit": "ep_align/static/js/index:postToolbarInit"
+      },
+      "toolbar_buttons": [
+        {
+          "key": "alignLeft",
+          "title": "ep_align.toolbar.left.title",
+          "icon": "buttonicon-align-left ep_align_left",
+          "group": "left",
+          "data_align": "0"
+        },
+        {
+          "key": "alignCenter",
+          "title": "ep_align.toolbar.center.title",
+          "icon": "buttonicon-align-center ep_align_center",
+          "group": "middle",
+          "data_align": "1"
+        },
+        {
+          "key": "alignRight",
+          "title": "ep_align.toolbar.right.title",
+          "icon": "buttonicon-align-right ep_align_right",
+          "group": "middle",
+          "data_align": "3"
+        },
+        {
+          "key": "alignJustify",
+          "title": "ep_align.toolbar.justify.title",
+          "icon": "buttonicon-align-justify ep_align_justify",
+          "group": "right",
+          "data_align": "2"
+        }
+      ],
+      "plugin": "ep_align",
+      "full_name": "ep_align/ep_align"
+    }
+  ]
+}

@@ -5,7 +5,10 @@ import (
 	"testing"
 
 	"github.com/ether/etherpad-go/lib/apool"
+	"github.com/ether/etherpad-go/lib/hooks"
 )
+
+var hooksToUse = hooks.NewHook()
 
 func TestProcessSpaces(t *testing.T) {
 	testCases := []struct {
@@ -335,7 +338,9 @@ func TestFilterList(t *testing.T) {
 }
 
 func TestGetHTMLFromAtext_SimpleText(t *testing.T) {
-	exporter := &ExportHtml{}
+	exporter := &ExportHtml{
+		Hooks: &hooksToUse,
+	}
 	pool := apool.NewAPool()
 
 	atext := apool.AText{
@@ -343,7 +348,7 @@ func TestGetHTMLFromAtext_SimpleText(t *testing.T) {
 		Attribs: "|1+c",
 	}
 
-	result, err := exporter.getHTMLFromAtext(&pool, atext, nil)
+	result, err := exporter.getHTMLFromAtext("test-pad", &pool, atext, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -357,7 +362,9 @@ func TestGetHTMLFromAtext_SimpleText(t *testing.T) {
 }
 
 func TestGetHTMLFromAtext_BoldText(t *testing.T) {
-	exporter := &ExportHtml{}
+	exporter := &ExportHtml{
+		Hooks: &hooksToUse,
+	}
 	pool := apool.NewAPool()
 	pool.PutAttrib(apool.Attribute{Key: "bold", Value: "true"}, nil)
 
@@ -366,7 +373,7 @@ func TestGetHTMLFromAtext_BoldText(t *testing.T) {
 		Attribs: "*0|1+5",
 	}
 
-	result, err := exporter.getHTMLFromAtext(&pool, atext, nil)
+	result, err := exporter.getHTMLFromAtext("test-pad", &pool, atext, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -383,7 +390,9 @@ func TestGetHTMLFromAtext_BoldText(t *testing.T) {
 }
 
 func TestGetHTMLFromAtext_ItalicText(t *testing.T) {
-	exporter := &ExportHtml{}
+	exporter := &ExportHtml{
+		Hooks: &hooksToUse,
+	}
 	pool := apool.NewAPool()
 	pool.PutAttrib(apool.Attribute{Key: "italic", Value: "true"}, nil)
 
@@ -392,7 +401,7 @@ func TestGetHTMLFromAtext_ItalicText(t *testing.T) {
 		Attribs: "*0|1+7",
 	}
 
-	result, err := exporter.getHTMLFromAtext(&pool, atext, nil)
+	result, err := exporter.getHTMLFromAtext("test-pad", &pool, atext, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -406,7 +415,9 @@ func TestGetHTMLFromAtext_ItalicText(t *testing.T) {
 }
 
 func TestGetHTMLFromAtext_UnderlineText(t *testing.T) {
-	exporter := &ExportHtml{}
+	exporter := &ExportHtml{
+		Hooks: &hooksToUse,
+	}
 	pool := apool.NewAPool()
 	pool.PutAttrib(apool.Attribute{Key: "underline", Value: "true"}, nil)
 
@@ -415,7 +426,7 @@ func TestGetHTMLFromAtext_UnderlineText(t *testing.T) {
 		Attribs: "*0|1+b",
 	}
 
-	result, err := exporter.getHTMLFromAtext(&pool, atext, nil)
+	result, err := exporter.getHTMLFromAtext("test-pad", &pool, atext, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -429,7 +440,9 @@ func TestGetHTMLFromAtext_UnderlineText(t *testing.T) {
 }
 
 func TestGetHTMLFromAtext_StrikethroughText(t *testing.T) {
-	exporter := &ExportHtml{}
+	exporter := &ExportHtml{
+		Hooks: &hooksToUse,
+	}
 	pool := apool.NewAPool()
 	pool.PutAttrib(apool.Attribute{Key: "strikethrough", Value: "true"}, nil)
 
@@ -438,7 +451,7 @@ func TestGetHTMLFromAtext_StrikethroughText(t *testing.T) {
 		Attribs: "*0|1+e",
 	}
 
-	result, err := exporter.getHTMLFromAtext(&pool, atext, nil)
+	result, err := exporter.getHTMLFromAtext("test-pad", &pool, atext, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -452,7 +465,9 @@ func TestGetHTMLFromAtext_StrikethroughText(t *testing.T) {
 }
 
 func TestGetHTMLFromAtext_Heading1(t *testing.T) {
-	exporter := &ExportHtml{}
+	exporter := &ExportHtml{
+		Hooks: &hooksToUse,
+	}
 	pool := apool.NewAPool()
 	pool.PutAttrib(apool.Attribute{Key: "heading1", Value: "true"}, nil)
 
@@ -461,7 +476,7 @@ func TestGetHTMLFromAtext_Heading1(t *testing.T) {
 		Attribs: "*0|1+8",
 	}
 
-	result, err := exporter.getHTMLFromAtext(&pool, atext, nil)
+	result, err := exporter.getHTMLFromAtext("test-pad", &pool, atext, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -475,7 +490,9 @@ func TestGetHTMLFromAtext_Heading1(t *testing.T) {
 }
 
 func TestGetHTMLFromAtext_Heading2(t *testing.T) {
-	exporter := &ExportHtml{}
+	exporter := &ExportHtml{
+		Hooks: &hooksToUse,
+	}
 	pool := apool.NewAPool()
 	pool.PutAttrib(apool.Attribute{Key: "heading2", Value: "true"}, nil)
 
@@ -484,7 +501,7 @@ func TestGetHTMLFromAtext_Heading2(t *testing.T) {
 		Attribs: "*0|1+a",
 	}
 
-	result, err := exporter.getHTMLFromAtext(&pool, atext, nil)
+	result, err := exporter.getHTMLFromAtext("test-pad", &pool, atext, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -498,7 +515,9 @@ func TestGetHTMLFromAtext_Heading2(t *testing.T) {
 }
 
 func TestGetHTMLFromAtext_MultipleFormats(t *testing.T) {
-	exporter := &ExportHtml{}
+	exporter := &ExportHtml{
+		Hooks: &hooksToUse,
+	}
 	pool := apool.NewAPool()
 	pool.PutAttrib(apool.Attribute{Key: "bold", Value: "true"}, nil)
 	pool.PutAttrib(apool.Attribute{Key: "italic", Value: "true"}, nil)
@@ -508,7 +527,7 @@ func TestGetHTMLFromAtext_MultipleFormats(t *testing.T) {
 		Attribs: "*0*1|1+b",
 	}
 
-	result, err := exporter.getHTMLFromAtext(&pool, atext, nil)
+	result, err := exporter.getHTMLFromAtext("test-pad", &pool, atext, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -522,7 +541,9 @@ func TestGetHTMLFromAtext_MultipleFormats(t *testing.T) {
 }
 
 func TestGetHTMLFromAtext_MixedFormattedText(t *testing.T) {
-	exporter := &ExportHtml{}
+	exporter := &ExportHtml{
+		Hooks: &hooksToUse,
+	}
 	pool := apool.NewAPool()
 	pool.PutAttrib(apool.Attribute{Key: "bold", Value: "true"}, nil)
 
@@ -532,7 +553,7 @@ func TestGetHTMLFromAtext_MixedFormattedText(t *testing.T) {
 		Attribs: "+7*0+4+8|1+1",
 	}
 
-	result, err := exporter.getHTMLFromAtext(&pool, atext, nil)
+	result, err := exporter.getHTMLFromAtext("test-pad", &pool, atext, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -546,7 +567,9 @@ func TestGetHTMLFromAtext_MixedFormattedText(t *testing.T) {
 }
 
 func TestGetHTMLFromAtext_EmptyText(t *testing.T) {
-	exporter := &ExportHtml{}
+	exporter := &ExportHtml{
+		Hooks: &hooksToUse,
+	}
 	pool := apool.NewAPool()
 
 	atext := apool.AText{
@@ -554,7 +577,7 @@ func TestGetHTMLFromAtext_EmptyText(t *testing.T) {
 		Attribs: "|1+1",
 	}
 
-	result, err := exporter.getHTMLFromAtext(&pool, atext, nil)
+	result, err := exporter.getHTMLFromAtext("test-pad", &pool, atext, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -565,7 +588,9 @@ func TestGetHTMLFromAtext_EmptyText(t *testing.T) {
 }
 
 func TestGetHTMLFromAtext_MultipleLines(t *testing.T) {
-	exporter := &ExportHtml{}
+	exporter := &ExportHtml{
+		Hooks: &hooksToUse,
+	}
 	pool := apool.NewAPool()
 
 	atext := apool.AText{
@@ -573,7 +598,7 @@ func TestGetHTMLFromAtext_MultipleLines(t *testing.T) {
 		Attribs: "|1+7|1+7",
 	}
 
-	result, err := exporter.getHTMLFromAtext(&pool, atext, nil)
+	result, err := exporter.getHTMLFromAtext("test-pad", &pool, atext, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -590,7 +615,9 @@ func TestGetHTMLFromAtext_MultipleLines(t *testing.T) {
 }
 
 func TestGetHTMLFromAtext_SpecialCharacters(t *testing.T) {
-	exporter := &ExportHtml{}
+	exporter := &ExportHtml{
+		Hooks: &hooksToUse,
+	}
 	pool := apool.NewAPool()
 
 	atext := apool.AText{
@@ -598,7 +625,7 @@ func TestGetHTMLFromAtext_SpecialCharacters(t *testing.T) {
 		Attribs: "|1+1e",
 	}
 
-	result, err := exporter.getHTMLFromAtext(&pool, atext, nil)
+	result, err := exporter.getHTMLFromAtext("test-pad", &pool, atext, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -613,7 +640,9 @@ func TestGetHTMLFromAtext_SpecialCharacters(t *testing.T) {
 }
 
 func TestGetHTMLFromAtext_WithURL(t *testing.T) {
-	exporter := &ExportHtml{}
+	exporter := &ExportHtml{
+		Hooks: &hooksToUse,
+	}
 	pool := apool.NewAPool()
 
 	atext := apool.AText{
@@ -621,7 +650,7 @@ func TestGetHTMLFromAtext_WithURL(t *testing.T) {
 		Attribs: "|1+1g",
 	}
 
-	result, err := exporter.getHTMLFromAtext(&pool, atext, nil)
+	result, err := exporter.getHTMLFromAtext("test-pad", &pool, atext, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -638,7 +667,9 @@ func TestGetHTMLFromAtext_WithURL(t *testing.T) {
 }
 
 func TestGetHTMLFromAtext_BulletList(t *testing.T) {
-	exporter := &ExportHtml{}
+	exporter := &ExportHtml{
+		Hooks: &hooksToUse,
+	}
 	pool := apool.NewAPool()
 	pool.PutAttrib(apool.Attribute{Key: "list", Value: "bullet1"}, nil)
 
@@ -647,7 +678,7 @@ func TestGetHTMLFromAtext_BulletList(t *testing.T) {
 		Attribs: "*0|1+8",
 	}
 
-	result, err := exporter.getHTMLFromAtext(&pool, atext, nil)
+	result, err := exporter.getHTMLFromAtext("test-pad", &pool, atext, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -664,7 +695,9 @@ func TestGetHTMLFromAtext_BulletList(t *testing.T) {
 }
 
 func TestGetHTMLFromAtext_NumberedList(t *testing.T) {
-	exporter := &ExportHtml{}
+	exporter := &ExportHtml{
+		Hooks: &hooksToUse,
+	}
 	pool := apool.NewAPool()
 	pool.PutAttrib(apool.Attribute{Key: "list", Value: "number1"}, nil)
 
@@ -673,7 +706,7 @@ func TestGetHTMLFromAtext_NumberedList(t *testing.T) {
 		Attribs: "*0|1+8",
 	}
 
-	result, err := exporter.getHTMLFromAtext(&pool, atext, nil)
+	result, err := exporter.getHTMLFromAtext("test-pad", &pool, atext, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -690,7 +723,9 @@ func TestGetHTMLFromAtext_NumberedList(t *testing.T) {
 }
 
 func TestGetHTMLFromAtext_WithAuthorColors(t *testing.T) {
-	exporter := &ExportHtml{}
+	exporter := &ExportHtml{
+		Hooks: &hooksToUse,
+	}
 	pool := apool.NewAPool()
 	pool.PutAttrib(apool.Attribute{Key: "author", Value: "a.test123"}, nil)
 
@@ -703,7 +738,7 @@ func TestGetHTMLFromAtext_WithAuthorColors(t *testing.T) {
 		Attribs: "*0|1+c",
 	}
 
-	result, err := exporter.getHTMLFromAtext(&pool, atext, authorColors)
+	result, err := exporter.getHTMLFromAtext("test-pad", &pool, atext, authorColors)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -720,7 +755,9 @@ func TestGetHTMLFromAtext_WithAuthorColors(t *testing.T) {
 }
 
 func TestGetHTMLFromAtext_UnicodeText(t *testing.T) {
-	exporter := &ExportHtml{}
+	exporter := &ExportHtml{
+		Hooks: &hooksToUse,
+	}
 	pool := apool.NewAPool()
 
 	atext := apool.AText{
@@ -728,7 +765,7 @@ func TestGetHTMLFromAtext_UnicodeText(t *testing.T) {
 		Attribs: "|1+c",
 	}
 
-	result, err := exporter.getHTMLFromAtext(&pool, atext, nil)
+	result, err := exporter.getHTMLFromAtext("test-pad", &pool, atext, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -745,7 +782,9 @@ func TestGetHTMLFromAtext_UnicodeText(t *testing.T) {
 }
 
 func TestGetHTMLFromAtext_BulletFollowedByNumber(t *testing.T) {
-	exporter := &ExportHtml{}
+	exporter := &ExportHtml{
+		Hooks: &hooksToUse,
+	}
 	pool := apool.NewAPool()
 	pool.PutAttrib(apool.Attribute{Key: "list", Value: "bullet1"}, nil)
 	pool.PutAttrib(apool.Attribute{Key: "list", Value: "number1"}, nil)
@@ -756,7 +795,7 @@ func TestGetHTMLFromAtext_BulletFollowedByNumber(t *testing.T) {
 		Attribs: "*0|1+d*1|1+d",
 	}
 
-	result, err := exporter.getHTMLFromAtext(&pool, atext, nil)
+	result, err := exporter.getHTMLFromAtext("test-pad", &pool, atext, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -786,7 +825,9 @@ func TestGetHTMLFromAtext_BulletFollowedByNumber(t *testing.T) {
 }
 
 func TestGetHTMLFromAtext_MultipleBulletItems(t *testing.T) {
-	exporter := &ExportHtml{}
+	exporter := &ExportHtml{
+		Hooks: &hooksToUse,
+	}
 	pool := apool.NewAPool()
 	pool.PutAttrib(apool.Attribute{Key: "list", Value: "bullet1"}, nil)
 
@@ -796,7 +837,7 @@ func TestGetHTMLFromAtext_MultipleBulletItems(t *testing.T) {
 		Attribs: "*0|1+8*0|1+8*0|1+8",
 	}
 
-	result, err := exporter.getHTMLFromAtext(&pool, atext, nil)
+	result, err := exporter.getHTMLFromAtext("test-pad", &pool, atext, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

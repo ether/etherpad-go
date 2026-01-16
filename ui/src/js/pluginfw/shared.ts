@@ -10,6 +10,14 @@ const disabledHookReasons = {
   },
 };
 
+
+const loadedPluginModules = new Map();
+
+// Prüft, ob ein Modul bereits registriert ist
+exports.isModuleRegistered = (path) => {
+  return loadedPluginModules.has(path);
+};
+
 const loadFn = (path, hookName, modules) => {
   let functionName;
   const parts = path.split(':');
@@ -25,11 +33,24 @@ const loadFn = (path, hookName, modules) => {
     functionName = parts[1];
   }
 
-  let fn
-  if (modules === undefined || !("get" in modules)) {
-    fn = require(/* webpackIgnore: true */ path);
-  } else {
+  let fn;
+  if (modules !== undefined && "get" in modules) {
     fn = modules.get(path);
+  } else if (loadedPluginModules.has(path)) {
+    fn = loadedPluginModules.get(path);
+  } else {
+    // Versuche require (für Build-Zeit Module)
+    try {
+      fn = require(/* webpackIgnore: true */ path);
+    } catch (e) {
+      console.warn(`Could not require ${path}, may need to be loaded dynamically`);
+      return null;
+    }
+  }
+
+  if (!fn) {
+    console.error(`[shared.loadFn] Module not found: ${path}`);
+    return null;
   }
 
   functionName = functionName ? functionName : hookName;
@@ -37,7 +58,13 @@ const loadFn = (path, hookName, modules) => {
   for (const name of functionName.split('.')) {
     fn = fn[name];
   }
+
   return fn;
+};
+
+// Registriert ein Plugin-Modul für den späteren Zugriff
+exports.registerPluginModule = (path, module) => {
+  loadedPluginModules.set(path, module);
 };
 
 const extractHooks = (parts, hookSetName, normalizer, modules) => {

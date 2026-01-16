@@ -339,5 +339,11 @@ func ReadConfig(jsonStr string) (*Settings, error) {
 		DevMode:             viper.GetBool(DevMode),
 	}
 
+	// Parse Plugins
+	pluginsMap := make(map[string]PluginSettings)
+	if err := viper.UnmarshalKey("plugins", &pluginsMap); err == nil {
+		s.Plugins = pluginsMap
+	}
+
 	return s, nil
 }

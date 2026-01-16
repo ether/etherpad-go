@@ -14,6 +14,14 @@ func NewHook() Hook {
 	}
 }
 
+func (h *Hook) EnqueueGetLineHtmlForExportHook(ctx func(hookName string, ctx any)) {
+	h.EnqueueHook("getLineHTMLForExport", ctx)
+}
+
+func (h *Hook) ExecuteGetLineHtmlForExportHooks(ctx any) {
+	h.ExecuteHooks("getLineHTMLForExport", ctx)
+}
+
 func (h *Hook) EnqueueHook(key string, ctx func(hookName string, ctx any)) string {
 	var uuid = utils.UUID()
 	var _, ok = h.hooks[key]

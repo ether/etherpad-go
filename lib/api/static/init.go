@@ -176,6 +176,8 @@ func Init(store *lib.InitStore) {
 
 	store.C.Get("/pluginfw/plugin-definitions.json", plugins.ReturnPluginResponse)
 
+	store.C.Static("/static/plugins/", "./plugins")
+
 	adminHtml, err := getAdminBody(store.UiAssets, store.RetrievedSettings)
 
 	if err != nil {

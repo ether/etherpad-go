@@ -1,0 +1,51 @@
+/**
+ * ep_align - CSS Styles for Text Alignment
+ */
+
+/* Alignment Classes */
+.align-left {
+  text-align: left !important;
+}
+
+.align-center {
+  text-align: center !important;
+}
+
+.align-right {
+  text-align: right !important;
+}
+
+.align-justify {
+  text-align: justify !important;
+}
+
+/* Toolbar Button Icons */
+.buttonicon-alignLeft:before {
+  content: "\f036"; /* fa-align-left */
+  font-family: 'fontawesome-etherpad';
+}
+
+.buttonicon-alignCenter:before {
+  content: "\f037"; /* fa-align-center */
+  font-family: 'fontawesome-etherpad';
+}
+
+.buttonicon-alignRight:before {
+  content: "\f038"; /* fa-align-right */
+  font-family: 'fontawesome-etherpad';
+}
+
+.buttonicon-alignJustify:before {
+  content: "\f039"; /* fa-align-justify */
+  font-family: 'fontawesome-etherpad';
+}
+
+/* Active button state */
+.toolbar .align-left-active .buttonicon-alignLeft,
+.toolbar .align-center-active .buttonicon-alignCenter,
+.toolbar .align-right-active .buttonicon-alignRight,
+.toolbar .align-justify-active .buttonicon-alignJustify {
+  background-color: rgba(0, 0, 0, 0.1);
+  border-radius: 3px;
+}
+

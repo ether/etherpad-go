@@ -17,6 +17,10 @@
     window.browser = require('./js/vendors/browser');
     const pad = require('./js/pad');
     pad.baseURL = basePath;
+
+    // Plugin Registry laden - registriert alle eingebauten client_hooks Module
+    const pluginRegistry = require('./js/pluginfw/plugin_registry');
+
     window.plugins = require('./js/pluginfw/client_plugins');
     const hooks = require('./js/pluginfw/hooks');
 
@@ -29,6 +33,10 @@
     require('./js/basic_error_handler')
 
     window.plugins.baseURL = basePath;
+
+    // Lade Plugin-Definitionen und extrahiere Hooks
+    // Übergebe die Module-Map damit die Hooks korrekt geladen werden
+    await window.plugins.update(pluginRegistry.getModuleMap());
 
     // Mechanism for tests to register hook functions (install fake plugins).
     window._postPluginUpdateForTestingDone = false;
