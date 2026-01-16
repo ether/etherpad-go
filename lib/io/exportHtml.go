@@ -47,7 +47,10 @@ func (e *ExportHtml) GetPadHTMLDocument(padId string, revNum *int, readOnlyId *s
 		return "", err
 	}
 
-	htmlContent, err := e.GetPadHTML(retrievedPad, revNum, nil)
+	// Build author color cache
+	authorColors := e.buildAuthorColorCache(&retrievedPad.Pool)
+
+	htmlContent, err := e.GetPadHTML(retrievedPad, revNum, authorColors)
 	if err != nil {
 		return "", err
 	}
@@ -628,6 +631,25 @@ func processSpaces(s string) string {
 	}
 
 	return strings.Join(parts, "")
+}
+
+// buildAuthorColorCache builds a cache of author IDs to their colors
+func (e *ExportHtml) buildAuthorColorCache(padPool *apool.APool) map[string]string {
+	authorColors := make(map[string]string)
+
+	for _, attr := range padPool.NumToAttrib {
+		if attr.Key == "author" && attr.Value != "" {
+			authorId := attr.Value
+			if _, exists := authorColors[authorId]; !exists {
+				// Try to get author color from database
+				if authorData, err := e.AuthorManager.GetAuthor(authorId); err == nil {
+					authorColors[authorId] = authorData.ColorId
+				}
+			}
+		}
+	}
+
+	return authorColors
 }
 
 // Export returns a rendered HTML string (for interface compatibility)
