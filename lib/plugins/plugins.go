@@ -16,14 +16,16 @@ type Plugin struct {
 	RealPath string
 }
 
+const corePluginName = "ep_etherpad-lite"
+
 // GetPackages gibt alle installierten Plugins zurück
 func GetPackages() map[string]Plugin {
 	var mappedPlugins = make(map[string]Plugin)
 	root, _ := os.Getwd()
-	mappedPlugins["ep_etherpad-lite"] = Plugin{
-		Name:     "ep_etherpad-lite",
+	mappedPlugins[corePluginName] = Plugin{
+		Name:     corePluginName,
 		Version:  "1.8.13",
-		Path:     "node_modules/ep_etherpad-lite",
+		Path:     "node_modules/" + corePluginName,
 		RealPath: path.Join(root, "assets", "ep.json"),
 	}
 
@@ -56,8 +58,8 @@ func GetEnabledPackages() map[string]Plugin {
 	enabledPackages := make(map[string]Plugin)
 
 	for name, plugin := range allPackages {
-		// ep_etherpad-lite ist immer aktiviert (Core-Plugin)
-		if name == "ep_etherpad-lite" {
+		// ep_etherpad-lite is always activated
+		if name == corePluginName {
 			enabledPackages[name] = plugin
 			continue
 		}
