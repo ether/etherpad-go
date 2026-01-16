@@ -34,6 +34,10 @@
 
     window.plugins.baseURL = basePath;
 
+    // Lade Plugin-Definitionen und extrahiere Hooks
+    // Übergebe die Module-Map damit die Hooks korrekt geladen werden
+    await window.plugins.update(pluginRegistry.getModuleMap());
+
     // Mechanism for tests to register hook functions (install fake plugins).
     window._postPluginUpdateForTestingDone = false;
     if (window._postPluginUpdateForTesting != null) window._postPluginUpdateForTesting();

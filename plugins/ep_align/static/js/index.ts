@@ -1,6 +1,3 @@
-// @ts-nocheck
-'use strict';
-
 /**
  * ep_align - Text Alignment Plugin for Etherpad
  *
@@ -139,6 +136,7 @@ exports.aceInitialized = (hook, context) => {
 };
 
 const align = (context, alignment) => {
+  console.log("Aligning text with alignment code:", alignment);
   context.ace.callWithAce((ace) => {
     ace.ace_doInsertAlign(alignment);
     ace.ace_focus();

@@ -6,7 +6,7 @@ const defs = require('./plugin_defs');
 
 exports.baseURL = '';
 
-exports.ensure = (cb) => !defs.loaded ? exports.update(cb) : cb();
+exports.ensure = (cb) => !defs.loaded ? exports.update().then(cb) : cb();
 
 // Lädt ein Plugin-Script dynamisch (nur für externe Plugins die nicht gebündelt sind)
 const loadPluginScript = (pluginPath) => {

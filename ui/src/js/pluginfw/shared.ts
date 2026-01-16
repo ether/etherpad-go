@@ -48,11 +48,17 @@ const loadFn = (path, hookName, modules) => {
     }
   }
 
+  if (!fn) {
+    console.error(`[shared.loadFn] Module not found: ${path}`);
+    return null;
+  }
+
   functionName = functionName ? functionName : hookName;
 
   for (const name of functionName.split('.')) {
     fn = fn[name];
   }
+
   return fn;
 };
 
