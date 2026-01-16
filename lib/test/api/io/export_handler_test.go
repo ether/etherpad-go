@@ -601,7 +601,7 @@ func testExportPlainTextPadAsDocx(t *testing.T, tsStore testutils.TestDataStore)
 
 	token := createPadWithPlainText(t, tsStore, padId, testText)
 
-	req := httptest.NewRequest("GET", "/p/"+padId+"/export/docx", nil)
+	req := httptest.NewRequest("GET", "/p/"+padId+"/export/word", nil)
 	req.AddCookie(&http.Cookie{Name: "token", Value: token})
 	resp, err := app.Test(req, 5000)
 	assert.NoError(t, err)
@@ -631,7 +631,7 @@ func testExportBoldTextPadAsDocx(t *testing.T, tsStore testutils.TestDataStore) 
 
 	token := createPadWithBoldText(t, tsStore, padId, testText)
 
-	req := httptest.NewRequest("GET", "/p/"+padId+"/export/docx", nil)
+	req := httptest.NewRequest("GET", "/p/"+padId+"/export/word", nil)
 	req.AddCookie(&http.Cookie{Name: "token", Value: token})
 	resp, err := app.Test(req, 5000)
 	assert.NoError(t, err)
@@ -654,7 +654,7 @@ func testExportItalicTextPadAsDocx(t *testing.T, tsStore testutils.TestDataStore
 
 	token := createPadWithItalicText(t, tsStore, padId, testText)
 
-	req := httptest.NewRequest("GET", "/p/"+padId+"/export/docx", nil)
+	req := httptest.NewRequest("GET", "/p/"+padId+"/export/word", nil)
 	req.AddCookie(&http.Cookie{Name: "token", Value: token})
 	resp, err := app.Test(req, 5000)
 	assert.NoError(t, err)
@@ -677,7 +677,7 @@ func testExportIndentedTextPadAsDocx(t *testing.T, tsStore testutils.TestDataSto
 
 	token := createPadWithIndentation(t, tsStore, padId, testText)
 
-	req := httptest.NewRequest("GET", "/p/"+padId+"/export/docx", nil)
+	req := httptest.NewRequest("GET", "/p/"+padId+"/export/word", nil)
 	req.AddCookie(&http.Cookie{Name: "token", Value: token})
 	resp, err := app.Test(req, 5000)
 	assert.NoError(t, err)
@@ -700,7 +700,7 @@ func testExportMixedFormattingPadAsDocx(t *testing.T, tsStore testutils.TestData
 
 	token := createPadWithMixedFormatting(t, tsStore, padId, testText)
 
-	req := httptest.NewRequest("GET", "/p/"+padId+"/export/docx", nil)
+	req := httptest.NewRequest("GET", "/p/"+padId+"/export/word", nil)
 	req.AddCookie(&http.Cookie{Name: "token", Value: token})
 	resp, err := app.Test(req, 5000)
 	assert.NoError(t, err)
@@ -724,7 +724,7 @@ func testExportPlainTextPadAsOdt(t *testing.T, tsStore testutils.TestDataStore) 
 
 	token := createPadWithPlainText(t, tsStore, padId, testText)
 
-	req := httptest.NewRequest("GET", "/p/"+padId+"/export/odt", nil)
+	req := httptest.NewRequest("GET", "/p/"+padId+"/export/open", nil)
 	req.AddCookie(&http.Cookie{Name: "token", Value: token})
 	resp, err := app.Test(req, 5000)
 	assert.NoError(t, err)
@@ -754,7 +754,7 @@ func testExportBoldTextPadAsOdt(t *testing.T, tsStore testutils.TestDataStore) {
 
 	token := createPadWithBoldText(t, tsStore, padId, testText)
 
-	req := httptest.NewRequest("GET", "/p/"+padId+"/export/odt", nil)
+	req := httptest.NewRequest("GET", "/p/"+padId+"/export/open", nil)
 	req.AddCookie(&http.Cookie{Name: "token", Value: token})
 	resp, err := app.Test(req, 5000)
 	assert.NoError(t, err)
@@ -777,7 +777,7 @@ func testExportItalicTextPadAsOdt(t *testing.T, tsStore testutils.TestDataStore)
 
 	token := createPadWithItalicText(t, tsStore, padId, testText)
 
-	req := httptest.NewRequest("GET", "/p/"+padId+"/export/odt", nil)
+	req := httptest.NewRequest("GET", "/p/"+padId+"/export/open", nil)
 	req.AddCookie(&http.Cookie{Name: "token", Value: token})
 	resp, err := app.Test(req, 5000)
 	assert.NoError(t, err)
@@ -800,7 +800,7 @@ func testExportIndentedTextPadAsOdt(t *testing.T, tsStore testutils.TestDataStor
 
 	token := createPadWithIndentation(t, tsStore, padId, testText)
 
-	req := httptest.NewRequest("GET", "/p/"+padId+"/export/odt", nil)
+	req := httptest.NewRequest("GET", "/p/"+padId+"/export/open", nil)
 	req.AddCookie(&http.Cookie{Name: "token", Value: token})
 	resp, err := app.Test(req, 5000)
 	assert.NoError(t, err)
@@ -823,7 +823,7 @@ func testExportMixedFormattingPadAsOdt(t *testing.T, tsStore testutils.TestDataS
 
 	token := createPadWithMixedFormatting(t, tsStore, padId, testText)
 
-	req := httptest.NewRequest("GET", "/p/"+padId+"/export/odt", nil)
+	req := httptest.NewRequest("GET", "/p/"+padId+"/export/open", nil)
 	req.AddCookie(&http.Cookie{Name: "token", Value: token})
 	resp, err := app.Test(req, 5000)
 	assert.NoError(t, err)
