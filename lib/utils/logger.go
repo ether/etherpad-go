@@ -1,10 +1,14 @@
 package utils
 
-import "go.uber.org/zap"
+import (
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+)
 
 func SetupLogger() *zap.SugaredLogger {
-	logger, _ := zap.NewProduction()
-	logger = zap.Must(zap.NewDevelopment())
+	cfg := zap.NewDevelopmentConfig()
+	cfg.Level = zap.NewAtomicLevelAt(zapcore.InfoLevel)
+	logger := zap.Must(cfg.Build())
 	sugar := logger.Sugar()
 
 	return sugar
