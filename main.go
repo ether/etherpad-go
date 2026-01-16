@@ -12,6 +12,7 @@ import (
 	"github.com/ether/etherpad-go/lib"
 	api2 "github.com/ether/etherpad-go/lib/api"
 	"github.com/ether/etherpad-go/lib/author"
+	"github.com/ether/etherpad-go/lib/cli"
 	"github.com/ether/etherpad-go/lib/hooks"
 	"github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/plugins"
@@ -41,6 +42,11 @@ var uiAssets embed.FS
 func main() {
 	setupLogger := utils.SetupLogger()
 	defer setupLogger.Sync()
+	if len(os.Args) > 1 && os.Args[1] == "cli" {
+		cli.StartCLI(setupLogger)
+		return
+	}
+
 	settings2.InitSettings(setupLogger)
 
 	var settings = settings2.Displayed
