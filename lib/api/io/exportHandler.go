@@ -14,13 +14,18 @@ func GetExport(ctx *fiber.Ctx, exportHandler *io.ExportEtherpad, settings *setti
 	padId := ctx.Params("pad")
 	rev := ctx.Params("rev")
 	exportType := ctx.Params("type")
-	typesToExport := []string{
-		"pdf", "doc", "docx", "txt", "html", "odt", "etherpad",
+	typesToExport := map[string]string{
+		"pdf":      "pdf",
+		"word":     "docx",
+		"txt":      "txt",
+		"html":     "html",
+		"open":     "odt",
+		"etherpad": "etherpad",
 	}
 	// All formats are now supported internally, no external tools needed
-	externalTypes := []string{}
+	var externalTypes []string
 
-	if !slices.Contains(typesToExport, exportType) {
+	if _, ok := typesToExport[exportType]; !ok {
 		return ctx.Status(400).SendString("Invalid export type")
 	}
 
@@ -51,7 +56,7 @@ func GetExport(ctx *fiber.Ctx, exportHandler *io.ExportEtherpad, settings *setti
 
 		logger.Infof("Exporting pad %s revision %s to %s", padId, rev, exportType)
 
-		return exportHandler.DoExport(ctx, padId, readOnlyId, exportType)
+		return exportHandler.DoExport(ctx, padId, readOnlyId, typesToExport[exportType])
 	}
 
 	return ctx.Status(401).SendString("Unauthorized to access this pad")

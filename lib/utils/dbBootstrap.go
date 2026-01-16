@@ -5,14 +5,9 @@ import (
 	"strconv"
 
 	"github.com/ether/etherpad-go/lib/db"
-	plugins2 "github.com/ether/etherpad-go/lib/plugins"
 	"github.com/ether/etherpad-go/lib/settings"
 	"go.uber.org/zap"
 )
-
-func init() {
-	GetPlugins()
-}
 
 var ColorPalette = []string{
 	"#ffc7c7",
@@ -119,29 +114,4 @@ func GetDB(retrievedSettings settings.Settings, setupLogger *zap.SugaredLogger) 
 		})
 	}
 	return nil, errors.New("unsupported database type")
-}
-
-var plugins = map[string]plugins2.Plugin{}
-var parts = map[string]plugins2.Part{}
-var packages = map[string]plugins2.Plugin{}
-
-func GetPlugins() map[string]plugins2.Plugin {
-	if len(plugins) == 0 {
-		packages, parts, plugins = plugins2.Update()
-	}
-	return plugins
-}
-
-func GetParts() map[string]plugins2.Part {
-	if parts == nil {
-		packages, parts, plugins = plugins2.Update()
-	}
-	return parts
-}
-
-func GetPackages() map[string]plugins2.Plugin {
-	if packages == nil {
-		packages, parts, plugins = plugins2.Update()
-	}
-	return packages
 }

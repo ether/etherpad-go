@@ -11,18 +11,22 @@ import (
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/changeset"
+	"github.com/ether/etherpad-go/lib/hooks"
+	"github.com/ether/etherpad-go/lib/hooks/events"
 	padLib "github.com/ether/etherpad-go/lib/pad"
 )
 
 type ExportOdt struct {
 	padManager    *padLib.Manager
 	authorManager *author.Manager
+	Hooks         *hooks.Hook
 }
 
-func NewExportOdt(padManager *padLib.Manager, authorManager *author.Manager) *ExportOdt {
+func NewExportOdt(padManager *padLib.Manager, authorManager *author.Manager, hooksSystem *hooks.Hook) *ExportOdt {
 	return &ExportOdt{
 		padManager:    padManager,
 		authorManager: authorManager,
+		Hooks:         hooksSystem,
 	}
 }
 
@@ -39,6 +43,7 @@ type odtParagraph struct {
 	segments  []odtTextSegment
 	listType  string // "bullet", "number", or ""
 	listLevel int    // 1-based level
+	alignment string // "left", "center", "right", "justify"
 }
 
 func (e *ExportOdt) GetPadOdtDocument(padId string, optRevNum *int) ([]byte, error) {
@@ -80,6 +85,21 @@ func (e *ExportOdt) GetPadOdtDocument(padId string, optRevNum *int) ([]byte, err
 		para, err := e.parseLineSegments(lineText, aline, &retrievedPad.Pool, authorColors)
 		if err != nil {
 			return nil, err
+		}
+
+		// Call hook to allow plugins to modify the paragraph (e.g., set alignment)
+		hookContext := &events.LineOdtForExportContext{
+			Apool:      &retrievedPad.Pool,
+			AttribLine: &aline,
+			Text:       &lineText,
+			PadId:      &padId,
+			Alignment:  nil,
+		}
+		e.Hooks.ExecuteHooks("getLineOdtForExport", hookContext)
+
+		// Apply alignment from hook if set
+		if hookContext.Alignment != nil {
+			para.alignment = *hookContext.Alignment
 		}
 
 		paragraphs = append(paragraphs, para)
@@ -167,6 +187,12 @@ func (e *ExportOdt) generateContentXML(paragraphs []odtParagraph, authorColors m
 	// Generate combined styles for multiple formatting
 	automaticStyles.WriteString(`<style:style style:name="TBoldItalic" style:family="text"><style:text-properties fo:font-weight="bold" fo:font-style="italic" style:font-weight-asian="bold" style:font-style-asian="italic" style:font-weight-complex="bold" style:font-style-complex="italic"/></style:style>`)
 
+	// Alignment paragraph styles
+	automaticStyles.WriteString(`<style:style style:name="PLeft" style:family="paragraph" style:parent-style-name="Standard"><style:paragraph-properties fo:text-align="start"/></style:style>`)
+	automaticStyles.WriteString(`<style:style style:name="PCenter" style:family="paragraph" style:parent-style-name="Standard"><style:paragraph-properties fo:text-align="center"/></style:style>`)
+	automaticStyles.WriteString(`<style:style style:name="PRight" style:family="paragraph" style:parent-style-name="Standard"><style:paragraph-properties fo:text-align="end"/></style:style>`)
+	automaticStyles.WriteString(`<style:style style:name="PJustify" style:family="paragraph" style:parent-style-name="Standard"><style:paragraph-properties fo:text-align="justify"/></style:style>`)
+
 	// Bullet list style
 	automaticStyles.WriteString(`<text:list-style style:name="L1">`)
 	automaticStyles.WriteString(`<text:list-level-style-bullet text:level="1" text:style-name="Bullet_20_Symbols" text:bullet-char="•">`)
@@ -190,6 +216,19 @@ func (e *ExportOdt) generateContentXML(paragraphs []odtParagraph, authorColors m
 	inNumberList := false
 
 	for _, para := range paragraphs {
+		// Determine paragraph style based on alignment
+		paraStyle := "Standard"
+		switch para.alignment {
+		case "left":
+			paraStyle = "PLeft"
+		case "center":
+			paraStyle = "PCenter"
+		case "right":
+			paraStyle = "PRight"
+		case "justify":
+			paraStyle = "PJustify"
+		}
+
 		// Handle list transitions
 		if para.listType == "bullet" {
 			if inNumberList {
@@ -201,7 +240,7 @@ func (e *ExportOdt) generateContentXML(paragraphs []odtParagraph, authorColors m
 				inBulletList = true
 			}
 			bodyContent.WriteString("<text:list-item>")
-			bodyContent.WriteString("<text:p text:style-name=\"Standard\">")
+			bodyContent.WriteString(fmt.Sprintf(`<text:p text:style-name="%s">`, paraStyle))
 		} else if para.listType == "number" {
 			if inBulletList {
 				bodyContent.WriteString("</text:list>")
@@ -212,7 +251,7 @@ func (e *ExportOdt) generateContentXML(paragraphs []odtParagraph, authorColors m
 				inNumberList = true
 			}
 			bodyContent.WriteString("<text:list-item>")
-			bodyContent.WriteString("<text:p text:style-name=\"Standard\">")
+			bodyContent.WriteString(fmt.Sprintf(`<text:p text:style-name="%s">`, paraStyle))
 		} else {
 			if inBulletList {
 				bodyContent.WriteString("</text:list>")
@@ -222,7 +261,7 @@ func (e *ExportOdt) generateContentXML(paragraphs []odtParagraph, authorColors m
 				bodyContent.WriteString("</text:list>")
 				inNumberList = false
 			}
-			bodyContent.WriteString("<text:p text:style-name=\"Standard\">")
+			bodyContent.WriteString(fmt.Sprintf(`<text:p text:style-name="%s">`, paraStyle))
 		}
 
 		// Write segments
@@ -311,7 +350,7 @@ func (e *ExportOdt) parseLineSegments(text string, aline string, padPool *apool.
 		return para, nil
 	}
 
-	// Check for list markers
+	// Check for list markers and alignment
 	if aline != "" {
 		ops, err := changeset.DeserializeOps(aline)
 		if err != nil {
@@ -320,18 +359,35 @@ func (e *ExportOdt) parseLineSegments(text string, aline string, padPool *apool.
 		if len(*ops) > 0 {
 			op := (*ops)[0]
 			attribs := changeset.FromString(op.Attribs, padPool)
+
+			// Check for align attribute and remove leading * marker
+			alignStr := attribs.Get("align")
+			if alignStr != nil {
+				para.alignment = *alignStr
+				// Remove the leading * marker for aligned lines
+				if len(text) > 0 && text[0] == '*' {
+					text = text[1:]
+					newAline, err := changeset.Subattribution(aline, 1, nil)
+					if err != nil {
+						return para, err
+					}
+					aline = *newAline
+				}
+			}
+
 			listTypeStr := attribs.Get("list")
 			if listTypeStr != nil {
 				para.listType, para.listLevel = parseListTypeOdt(*listTypeStr)
 
-				if len(text) > 0 {
+				// Remove leading * if not already removed by align
+				if len(text) > 0 && text[0] == '*' {
 					text = text[1:]
+					newAline, err := changeset.Subattribution(aline, 1, nil)
+					if err != nil {
+						return para, err
+					}
+					aline = *newAline
 				}
-				newAline, err := changeset.Subattribution(aline, 1, nil)
-				if err != nil {
-					return para, err
-				}
-				aline = *newAline
 			}
 		}
 	}

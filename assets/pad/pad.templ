@@ -4,12 +4,12 @@ import (
     padModel "github.com/ether/etherpad-go/lib/models"
 	"github.com/ether/etherpad-go/lib/hooks"
 	"github.com/ether/etherpad-go/lib/settings"
-	"github.com/ether/etherpad-go/lib/plugins"
+	pluginTypes "github.com/ether/etherpad-go/lib/models/plugins"
 )
 
 // PluginToolbarButtons rendert die Toolbar-Buttons für alle aktivierten Plugins
-templ PluginToolbarButtons(translations map[string]string) {
-    for _, group := range plugins.GetToolbarButtonGroups() {
+templ PluginToolbarButtons(translations map[string]string, buttonGroups []pluginTypes.ToolbarButtonGroup) {
+    for _, group := range buttonGroups {
         <li class="separator acl-write"></li>
         for _, btn := range group.Buttons {
             <li data-type="button" data-key={btn.Key} data-l10n-id={btn.Title}>
@@ -29,7 +29,7 @@ func getTranslation(translations map[string]string, key string) string {
     return key
 }
 
-templ EditBar(translations map[string]string) {
+templ EditBar(translations map[string]string, buttonGroups []pluginTypes.ToolbarButtonGroup) {
       <div id="editbar" class="toolbar enabledtoolbar" style="display: flex;">
           <div id="toolbar-overlay"></div>
 
@@ -44,7 +44,7 @@ templ EditBar(translations map[string]string) {
           <li data-type="button" data-key="outdent"><a class="grouped-right" title={translations["pad.toolbar.unindent.title"]} aria-label={translations["pad.toolbar.unindent.title"]}><button class=" buttonicon buttonicon-outdent" title={translations["pad.toolbar.unindent.title"]} aria-label={translations["pad.toolbar.unindent.title"]}></button></a></li><li class="separator"></li><li data-type="button" data-key="undo"><a class="grouped-left" title={translations["pad.toolbar.undo.title"]} aria-label={translations["pad.toolbar.undo.title"]}><button class=" buttonicon buttonicon-undo" title={translations["pad.toolbar.undo.title"]} aria-label={translations["pad.toolbar.undo.title"]}></button></a></li>
           <li data-type="button" data-key="redo"><a class="grouped-right" title={translations["pad.toolbar.redo.title"]} aria-label={translations["pad.toolbar.redo.title"]}><button class=" buttonicon buttonicon-redo" title={translations["pad.toolbar.redo.title"]} aria-label={translations["pad.toolbar.redo.title"]}></button></a></li><li class="separator"></li><li data-type="button" data-key="clearauthorship"><a class="" title={translations["pad.toolbar.clearAuthorship.title"]} aria-label={translations["pad.toolbar.clearAuthorship.title"]}><button class=" buttonicon buttonicon-clearauthorship" title={translations["pad.toolbar.clearAuthorship.title"]} aria-label={translations["pad.toolbar.clearAuthorship.title"]}></button></a></li>
 
-          @PluginToolbarButtons(translations)
+          @PluginToolbarButtons(translations, buttonGroups)
 
           </ul>
           <ul class="menu_right" role="toolbar">
@@ -348,7 +348,7 @@ templ ChatBox(translations map[string]string) {
 
 
 
-templ PadIndex(pad padModel.Model, jsScript string, translations map[string]string, settings *settings.Settings, availableFonts []string) {
+templ PadIndex(pad padModel.Model, jsScript string, translations map[string]string, settings *settings.Settings, availableFonts []string, buttonGroups []pluginTypes.ToolbarButtonGroup) {
   <html class="pad super-light-toolbar super-light-editor light-background">
   <head>
     <title>{settings.Title}</title>
@@ -359,7 +359,7 @@ templ PadIndex(pad padModel.Model, jsScript string, translations map[string]stri
     <link rel="localizations" type="application/l10n+json" href="/locales.json"/>
   </head>
   <body>
-  @EditBar(translations)
+  @EditBar(translations, buttonGroups)
     <div id="editorcontainerbox" class="flex-layout">
               <div id="editorcontainer" class="editorcontainer"></div>
 

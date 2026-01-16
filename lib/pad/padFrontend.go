@@ -6,6 +6,7 @@ import (
 
 	"github.com/a-h/templ"
 	"github.com/ether/etherpad-go/lib/models"
+	"github.com/ether/etherpad-go/lib/plugins"
 	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/ether/etherpad-go/lib/utils"
 	"github.com/gofiber/adaptor/v2"
@@ -35,8 +36,9 @@ func HandlePadOpen(c *fiber.Ctx, uiAssets embed.FS, retrievedSettings *settings.
 	}
 
 	jsFilePath := "/js/pad/assets/pad.js?v=" + strconv.Itoa(utils.RandomVersionString)
+	buttonGroups := plugins.GetToolbarButtonGroups()
 
-	padComp := padAsset.PadIndex(pad, jsFilePath, keyValues, retrievedSettings, AvailableFonts)
+	padComp := padAsset.PadIndex(pad, jsFilePath, keyValues, retrievedSettings, AvailableFonts, buttonGroups)
 
 	return adaptor.HTTPHandler(templ.Handler(padComp))(c)
 }

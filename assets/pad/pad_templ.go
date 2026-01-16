@@ -11,12 +11,12 @@ import templruntime "github.com/a-h/templ/runtime"
 import (
 	"github.com/ether/etherpad-go/lib/hooks"
 	padModel "github.com/ether/etherpad-go/lib/models"
-	"github.com/ether/etherpad-go/lib/plugins"
+	pluginTypes "github.com/ether/etherpad-go/lib/models/plugins"
 	"github.com/ether/etherpad-go/lib/settings"
 )
 
 // PluginToolbarButtons rendert die Toolbar-Buttons für alle aktivierten Plugins
-func PluginToolbarButtons(translations map[string]string) templ.Component {
+func PluginToolbarButtons(translations map[string]string, buttonGroups []pluginTypes.ToolbarButtonGroup) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -37,7 +37,7 @@ func PluginToolbarButtons(translations map[string]string) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		for _, group := range plugins.GetToolbarButtonGroups() {
+		for _, group := range buttonGroups {
 			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<li class=\"separator acl-write\"></li>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -209,7 +209,7 @@ func getTranslation(translations map[string]string, key string) string {
 	return key
 }
 
-func EditBar(translations map[string]string) templ.Component {
+func EditBar(translations map[string]string, buttonGroups []pluginTypes.ToolbarButtonGroup) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -806,7 +806,7 @@ func EditBar(translations map[string]string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = PluginToolbarButtons(translations).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = PluginToolbarButtons(translations, buttonGroups).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -2409,7 +2409,7 @@ func ChatBox(translations map[string]string) templ.Component {
 	})
 }
 
-func PadIndex(pad padModel.Model, jsScript string, translations map[string]string, settings *settings.Settings, availableFonts []string) templ.Component {
+func PadIndex(pad padModel.Model, jsScript string, translations map[string]string, settings *settings.Settings, availableFonts []string, buttonGroups []pluginTypes.ToolbarButtonGroup) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -2473,7 +2473,7 @@ func PadIndex(pad padModel.Model, jsScript string, translations map[string]strin
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = EditBar(translations).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = EditBar(translations, buttonGroups).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

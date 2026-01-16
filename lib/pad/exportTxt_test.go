@@ -111,3 +111,80 @@ func TestGetTxtFromAText_BoldText(t *testing.T) {
 		t.Fatal("result is nil")
 	}
 }
+
+func TestAnalyzeLine_WithAlignAttribute(t *testing.T) {
+	pool := apool.NewAPool()
+	pool.PutAttrib(apool.Attribute{Key: "align", Value: "center"}, nil)
+
+	// Text with a leading asterisk (as Etherpad stores aligned lines)
+	line, err := AnalyzeLine("*test\n", "*0|1+6", pool)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// The leading asterisk should be removed
+	if string(line.Text) != "test\n" {
+		t.Errorf("got text %q, want %q (asterisk should be removed)", string(line.Text), "test\n")
+	}
+}
+
+func TestAnalyzeLine_WithAlignAttributeNoAsterisk(t *testing.T) {
+	pool := apool.NewAPool()
+	pool.PutAttrib(apool.Attribute{Key: "align", Value: "right"}, nil)
+
+	// Text without leading asterisk (edge case)
+	line, err := AnalyzeLine("test\n", "*0|1+5", pool)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Should handle gracefully even without asterisk - first char is removed
+	if string(line.Text) != "est\n" {
+		t.Errorf("got text %q, want %q", string(line.Text), "est\n")
+	}
+}
+
+func TestAnalyzeLine_WithAlignAndListAttributes(t *testing.T) {
+	pool := apool.NewAPool()
+	pool.PutAttrib(apool.Attribute{Key: "align", Value: "center"}, nil)
+	pool.PutAttrib(apool.Attribute{Key: "list", Value: "bullet1"}, nil)
+
+	// Line with both align and list attributes
+	line, err := AnalyzeLine("*item\n", "*0*1|1+6", pool)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Should have list properties
+	if line.ListLevel != 1 {
+		t.Errorf("got ListLevel %d, want 1", line.ListLevel)
+	}
+	if line.ListTypeName != "bullet" {
+		t.Errorf("got ListTypeName %q, want %q", line.ListTypeName, "bullet")
+	}
+	// Asterisk should be removed
+	if string(line.Text) != "item\n" {
+		t.Errorf("got text %q, want %q", string(line.Text), "item\n")
+	}
+}
+
+func TestAnalyzeLine_AllAlignmentTypes(t *testing.T) {
+	alignments := []string{"left", "center", "right", "justify"}
+
+	for _, alignment := range alignments {
+		t.Run(alignment, func(t *testing.T) {
+			pool := apool.NewAPool()
+			pool.PutAttrib(apool.Attribute{Key: "align", Value: alignment}, nil)
+
+			line, err := AnalyzeLine("*Hello\n", "*0|1+7", pool)
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			// Asterisk should be removed for all alignment types
+			if string(line.Text) != "Hello\n" {
+				t.Errorf("got text %q, want %q for alignment %s", string(line.Text), "Hello\n", alignment)
+			}
+		})
+	}
+}

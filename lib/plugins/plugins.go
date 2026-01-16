@@ -147,12 +147,6 @@ func GetToolbarButtons() []ToolbarButton {
 	return buttons
 }
 
-// ToolbarButtonGroup repräsentiert eine Gruppe von Toolbar-Buttons
-type ToolbarButtonGroup struct {
-	PluginName string
-	Buttons    []ToolbarButton
-}
-
 // GetToolbarButtonGroups gibt Toolbar-Buttons gruppiert nach Plugin zurück
 func GetToolbarButtonGroups() []ToolbarButtonGroup {
 	_, parts, _ := Update()
@@ -172,4 +166,37 @@ func GetToolbarButtonGroups() []ToolbarButtonGroup {
 	}
 
 	return groups
+}
+
+// Cached plugin data
+var cachedPlugins = map[string]Plugin{}
+var cachedParts = map[string]Part{}
+var cachedPackages = map[string]Plugin{}
+
+func init() {
+	GetCachedPlugins()
+}
+
+// GetCachedPlugins returns cached plugins, loading them if necessary
+func GetCachedPlugins() map[string]Plugin {
+	if len(cachedPlugins) == 0 {
+		cachedPackages, cachedParts, cachedPlugins = Update()
+	}
+	return cachedPlugins
+}
+
+// GetCachedParts returns cached parts, loading them if necessary
+func GetCachedParts() map[string]Part {
+	if cachedParts == nil {
+		cachedPackages, cachedParts, cachedPlugins = Update()
+	}
+	return cachedParts
+}
+
+// GetCachedPackages returns cached packages, loading them if necessary
+func GetCachedPackages() map[string]Plugin {
+	if cachedPackages == nil {
+		cachedPackages, cachedParts, cachedPlugins = Update()
+	}
+	return cachedPackages
 }

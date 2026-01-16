@@ -38,9 +38,9 @@ func NewExportEtherpad(hooks *hooks.Hook, padManager *pad.Manager, db db.DataSto
 		PadManager:    padManager,
 		AuthorManager: authorMgr,
 		exportTxt:     &exportTxt,
-		exportDocx:    NewExportDocx(padManager, authorMgr),
-		exportOdt:     NewExportOdt(padManager, authorMgr),
-		exportHtml:    NewExportHtml(padManager, authorMgr),
+		exportDocx:    NewExportDocx(padManager, authorMgr, hooks),
+		exportOdt:     NewExportOdt(padManager, authorMgr, hooks),
+		exportHtml:    NewExportHtml(padManager, authorMgr, hooks),
 		logger:        logger,
 	}
 
@@ -51,6 +51,7 @@ func NewExportEtherpad(hooks *hooks.Hook, padManager *pad.Manager, db db.DataSto
 		exportEtherpad: exportEtherpad,
 		padManager:     padManager,
 		authorManager:  authorMgr,
+		Hooks:          hooks,
 	}
 
 	return exportEtherpad
@@ -209,7 +210,7 @@ func (e *ExportEtherpad) DoExport(ctx *fiber.Ctx, id string, readOnlyId *string,
 			return ctx.Status(500).SendString(err.Error())
 		}
 		return ctx.Send(pdfBytes)
-	case "doc", "docx":
+	case "doc", "docx", "word":
 		ctx.Set("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
 		docxBytes, err := e.exportDocx.GetPadDocxDocument(id, optRevNum)
 		if err != nil {
@@ -217,7 +218,7 @@ func (e *ExportEtherpad) DoExport(ctx *fiber.Ctx, id string, readOnlyId *string,
 			return ctx.Status(500).SendString(err.Error())
 		}
 		return ctx.Send(docxBytes)
-	case "odt":
+	case "odt", "open":
 		ctx.Set("Content-Type", "application/vnd.oasis.opendocument.text")
 		odtBytes, err := e.exportOdt.GetPadOdtDocument(id, optRevNum)
 		if err != nil {

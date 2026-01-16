@@ -11,18 +11,22 @@ import (
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/changeset"
+	"github.com/ether/etherpad-go/lib/hooks"
+	"github.com/ether/etherpad-go/lib/hooks/events"
 	padLib "github.com/ether/etherpad-go/lib/pad"
 )
 
 type ExportDocx struct {
 	padManager    *padLib.Manager
 	authorManager *author.Manager
+	Hooks         *hooks.Hook
 }
 
-func NewExportDocx(padManager *padLib.Manager, authorManager *author.Manager) *ExportDocx {
+func NewExportDocx(padManager *padLib.Manager, authorManager *author.Manager, hooksSystem *hooks.Hook) *ExportDocx {
 	return &ExportDocx{
 		padManager:    padManager,
 		authorManager: authorManager,
+		Hooks:         hooksSystem,
 	}
 }
 
@@ -39,6 +43,7 @@ type docxParagraph struct {
 	segments  []docxTextSegment
 	listType  string // "bullet", "number", or ""
 	listLevel int    // 0-based level
+	alignment string // "left", "center", "right", "justify"
 }
 
 func (e *ExportDocx) GetPadDocxDocument(padId string, optRevNum *int) ([]byte, error) {
@@ -80,6 +85,21 @@ func (e *ExportDocx) GetPadDocxDocument(padId string, optRevNum *int) ([]byte, e
 		para, err := e.parseLineSegments(lineText, aline, &retrievedPad.Pool, authorColors)
 		if err != nil {
 			return nil, err
+		}
+
+		// Call hook to allow plugins to modify the paragraph (e.g., set alignment)
+		hookContext := &events.LineDocxForExportContext{
+			Apool:      &retrievedPad.Pool,
+			AttribLine: &aline,
+			Text:       &lineText,
+			PadId:      &padId,
+			Alignment:  nil,
+		}
+		e.Hooks.ExecuteHooks("getLineDocxForExport", hookContext)
+
+		// Apply alignment from hook if set
+		if hookContext.Alignment != nil {
+			para.alignment = *hookContext.Alignment
 		}
 
 		paragraphs = append(paragraphs, para)
@@ -127,15 +147,33 @@ func (e *ExportDocx) generateDocumentXML(paragraphs []docxParagraph) string {
 	for _, para := range paragraphs {
 		bodyContent.WriteString("<w:p>")
 
-		// Add paragraph properties for lists
-		if para.listType != "" {
+		// Add paragraph properties for lists and alignment
+		if para.listType != "" || para.alignment != "" {
 			bodyContent.WriteString("<w:pPr>")
-			// numId 1 = bullet, numId 2 = numbered
-			numId := 1
-			if para.listType == "number" {
-				numId = 2
+
+			// Add alignment if set
+			if para.alignment != "" {
+				alignVal := "left"
+				switch para.alignment {
+				case "center":
+					alignVal = "center"
+				case "right":
+					alignVal = "right"
+				case "justify":
+					alignVal = "both"
+				}
+				bodyContent.WriteString(fmt.Sprintf(`<w:jc w:val="%s"/>`, alignVal))
 			}
-			bodyContent.WriteString(fmt.Sprintf(`<w:numPr><w:ilvl w:val="%d"/><w:numId w:val="%d"/></w:numPr>`, para.listLevel-1, numId))
+
+			// Add list properties
+			if para.listType != "" {
+				// numId 1 = bullet, numId 2 = numbered
+				numId := 1
+				if para.listType == "number" {
+					numId = 2
+				}
+				bodyContent.WriteString(fmt.Sprintf(`<w:numPr><w:ilvl w:val="%d"/><w:numId w:val="%d"/></w:numPr>`, para.listLevel-1, numId))
+			}
 			bodyContent.WriteString("</w:pPr>")
 		}
 
@@ -208,7 +246,7 @@ func (e *ExportDocx) parseLineSegments(text string, aline string, padPool *apool
 		return para, nil
 	}
 
-	// Check for list markers
+	// Check for list markers and alignment
 	if aline != "" {
 		ops, err := changeset.DeserializeOps(aline)
 		if err != nil {
@@ -217,19 +255,36 @@ func (e *ExportDocx) parseLineSegments(text string, aline string, padPool *apool
 		if len(*ops) > 0 {
 			op := (*ops)[0]
 			attribs := changeset.FromString(op.Attribs, padPool)
+
+			// Check for align attribute and remove leading * marker
+			alignStr := attribs.Get("align")
+			if alignStr != nil {
+				para.alignment = *alignStr
+				// Remove the leading * marker for aligned lines
+				if len(text) > 0 && text[0] == '*' {
+					text = text[1:]
+					newAline, err := changeset.Subattribution(aline, 1, nil)
+					if err != nil {
+						return para, err
+					}
+					aline = *newAline
+				}
+			}
+
 			listTypeStr := attribs.Get("list")
 			if listTypeStr != nil {
 				// Parse list type and level (e.g., "bullet1", "number2")
 				para.listType, para.listLevel = parseListType(*listTypeStr)
 
-				if len(text) > 0 {
+				// Remove leading * if not already removed by align
+				if len(text) > 0 && text[0] == '*' {
 					text = text[1:]
+					newAline, err := changeset.Subattribution(aline, 1, nil)
+					if err != nil {
+						return para, err
+					}
+					aline = *newAline
 				}
-				newAline, err := changeset.Subattribution(aline, 1, nil)
-				if err != nil {
-					return para, err
-				}
-				aline = *newAline
 			}
 		}
 	}

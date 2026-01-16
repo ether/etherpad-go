@@ -8,6 +8,7 @@ import (
 
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/changeset"
+	"github.com/ether/etherpad-go/lib/models"
 	"github.com/ether/etherpad-go/lib/models/pad"
 	"github.com/ether/etherpad-go/lib/utils"
 )
@@ -24,13 +25,8 @@ func SplitRemoveLastRune(s string) []string {
 	return strings.Split(trimmed, "\n")
 }
 
-type LineModel struct {
-	ListLevel    int
-	Text         []rune
-	Aline        string
-	ListTypeName string
-	Start        string
-}
+// LineModel is an alias for models.LineModel for backwards compatibility
+type LineModel = models.LineModel
 
 func parseListType(listType string) (tag string, num int, ok bool) {
 	re := regexp.MustCompile(`^([a-z]+)([0-9]+)`)
@@ -55,6 +51,12 @@ func AnalyzeLine(text string, aline string, attrpool apool.APool) (*LineModel, e
 		if len(*ops) > 0 {
 			op := (*ops)[0]
 			attribs := changeset.FromString(op.Attribs, &attrpool)
+
+			// Check for align attribute - also requires removing the leading *
+			alignStr := attribs.Get("align")
+			if alignStr != nil {
+				lineMarker = 1
+			}
 
 			listTypeStr := attribs.Get("list")
 			if listTypeStr != nil {

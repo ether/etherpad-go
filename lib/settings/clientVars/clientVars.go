@@ -10,6 +10,7 @@ import (
 	"github.com/ether/etherpad-go/lib/models/pad"
 	"github.com/ether/etherpad-go/lib/models/ws"
 	pad2 "github.com/ether/etherpad-go/lib/pad"
+	"github.com/ether/etherpad-go/lib/plugins"
 	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/ether/etherpad-go/lib/utils"
 )
@@ -80,9 +81,9 @@ func (f *Factory) NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apoo
 		Parts:   make(map[string]clientVars.PartInMessage),
 	}
 
-	var plugins = utils.GetPlugins()
-	for s := range plugins {
-		var rawParts = utils.GetParts()
+	var loadedPlugins = plugins.GetCachedPlugins()
+	for s := range loadedPlugins {
+		var rawParts = plugins.GetCachedParts()
 		var convertedParts = make([]clientVars.PartInMessage, 0)
 		for part := range rawParts {
 			if rawParts[part].Plugin != nil && *rawParts[part].Plugin == s {
@@ -97,10 +98,10 @@ func (f *Factory) NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apoo
 		rootPlugin.Plugins[s] = clientVars.PluginInMessage{
 			Parts: convertedParts,
 			Package: clientVars.PluginInMessagePackage{
-				Name:     plugins[s].Name,
-				Path:     plugins[s].Path,
-				RealPath: plugins[s].RealPath,
-				Version:  plugins[s].Version,
+				Name:     loadedPlugins[s].Name,
+				Path:     loadedPlugins[s].Path,
+				RealPath: loadedPlugins[s].RealPath,
+				Version:  loadedPlugins[s].Version,
 			},
 		}
 	}

@@ -1,13 +1,14 @@
 package plugins
 
-// ToolbarButton definiert einen Toolbar-Button für ein Plugin
-type ToolbarButton struct {
-	Key       string `json:"key"`        // z.B. "alignLeft"
-	Title     string `json:"title"`      // Lokalisierungsschlüssel oder direkter Text
-	Icon      string `json:"icon"`       // CSS-Klasse für das Icon
-	Group     string `json:"group"`      // "left", "middle", "right" für Gruppierung
-	DataAlign string `json:"data_align"` // Optional: data-align Attribut
-}
+import (
+	pluginTypes "github.com/ether/etherpad-go/lib/models/plugins"
+)
+
+// ToolbarButton is an alias to the type in models/plugins
+type ToolbarButton = pluginTypes.ToolbarButton
+
+// ToolbarButtonGroup is an alias to the type in models/plugins
+type ToolbarButtonGroup = pluginTypes.ToolbarButtonGroup
 
 // Part repräsentiert einen Teil eines Plugins
 type Part struct {

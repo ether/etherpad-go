@@ -12,6 +12,8 @@ import (
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/changeset"
+	"github.com/ether/etherpad-go/lib/hooks"
+	"github.com/ether/etherpad-go/lib/hooks/events"
 	"github.com/ether/etherpad-go/lib/models/pad"
 	padLib "github.com/ether/etherpad-go/lib/pad"
 	"github.com/pdfcpu/pdfcpu/pkg/api"
@@ -25,6 +27,7 @@ type ExportPDF struct {
 	uiAssets       embed.FS
 	padManager     *padLib.Manager
 	authorManager  *author.Manager
+	Hooks          *hooks.Hook
 }
 
 const (
@@ -48,8 +51,9 @@ type textSegment struct {
 }
 
 type listInfo struct {
-	listType string // "bullet", "number", or ""
-	level    int    // 1-based level for nested lists
+	listType  string // "bullet", "number", or ""
+	level     int    // 1-based level for nested lists
+	alignment string // "left", "center", "right", "justify"
 }
 
 func (e *ExportPDF) GetPadPdfDocument(padId string, optRevNum *int) ([]byte, error) {
@@ -234,6 +238,22 @@ func (e *ExportPDF) renderFormattedText(pdf *gopdf.GoPdf, retrievedPad *pad.Pad,
 			return err
 		}
 
+		// Call hook to allow plugins to modify the line (e.g., set alignment)
+		padId := retrievedPad.Id
+		hookContext := &events.LinePDFForExportContext{
+			Apool:      &padPool,
+			AttribLine: &aline,
+			Text:       &lineText,
+			PadId:      &padId,
+			Alignment:  nil,
+		}
+		e.Hooks.ExecuteHooks("getLinePDFForExport", hookContext)
+
+		// Apply alignment from hook if set
+		if hookContext.Alignment != nil {
+			listInfo.alignment = *hookContext.Alignment
+		}
+
 		// Handle list prefix with proper numbering
 		if listInfo.listType != "" {
 			// Calculate indentation based on list level
@@ -267,7 +287,31 @@ func (e *ExportPDF) renderFormattedText(pdf *gopdf.GoPdf, retrievedPad *pad.Pad,
 			// Reset list tracking when not in a list
 			lastListType = ""
 			lastListLevel = 0
-			pdf.SetX(marginLeft)
+
+			// Apply alignment for non-list content
+			if listInfo.alignment != "" && listInfo.alignment != "left" {
+				// Calculate total text width
+				totalWidth := 0.0
+				for _, seg := range segments {
+					if err := pdf.SetFont("Roboto", "", fontSize); err != nil {
+						return err
+					}
+					w, _ := pdf.MeasureTextWidth(seg.text)
+					totalWidth += w
+				}
+
+				availableWidth := pageWidth - marginLeft - marginRight
+				switch listInfo.alignment {
+				case "center":
+					pdf.SetX(marginLeft + (availableWidth-totalWidth)/2)
+				case "right":
+					pdf.SetX(marginLeft + availableWidth - totalWidth)
+				default:
+					pdf.SetX(marginLeft)
+				}
+			} else {
+				pdf.SetX(marginLeft)
+			}
 		}
 
 		for _, seg := range segments {
@@ -323,6 +367,22 @@ func (e *ExportPDF) parseLineSegments(text string, aline string, padPool *apool.
 		if len(*ops) > 0 {
 			op := (*ops)[0]
 			attribs := changeset.FromString(op.Attribs, padPool)
+
+			// Check for align attribute and remove leading * marker
+			alignStr := attribs.Get("align")
+			if alignStr != nil {
+				info.alignment = *alignStr
+				// Remove the leading * marker for aligned lines
+				if len(text) > 0 && text[0] == '*' {
+					text = text[1:]
+					newAline, err := changeset.Subattribution(aline, 1, nil)
+					if err != nil {
+						return nil, info, err
+					}
+					aline = *newAline
+				}
+			}
+
 			listTypeStr := attribs.Get("list")
 			if listTypeStr != nil {
 				// Parse list type and level (e.g., "bullet1", "number2")
@@ -346,15 +406,15 @@ func (e *ExportPDF) parseLineSegments(text string, aline string, padPool *apool.
 					}
 				}
 
-				// Remove the leading * marker from list items
+				// Remove the leading * marker from list items (if not already removed by align)
 				if len(text) > 0 && text[0] == '*' {
 					text = text[1:]
+					newAline, err := changeset.Subattribution(aline, 1, nil)
+					if err != nil {
+						return nil, info, err
+					}
+					aline = *newAline
 				}
-				newAline, err := changeset.Subattribution(aline, 1, nil)
-				if err != nil {
-					return nil, info, err
-				}
-				aline = *newAline
 			}
 		}
 	}

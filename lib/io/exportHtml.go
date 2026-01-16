@@ -11,6 +11,8 @@ import (
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/changeset"
+	"github.com/ether/etherpad-go/lib/hooks"
+	"github.com/ether/etherpad-go/lib/hooks/events"
 	padModel "github.com/ether/etherpad-go/lib/models/pad"
 	padLib "github.com/ether/etherpad-go/lib/pad"
 )
@@ -18,12 +20,14 @@ import (
 type ExportHtml struct {
 	PadManager    *padLib.Manager
 	AuthorManager *author.Manager
+	Hooks         *hooks.Hook
 }
 
-func NewExportHtml(padManager *padLib.Manager, authorManager *author.Manager) *ExportHtml {
+func NewExportHtml(padManager *padLib.Manager, authorManager *author.Manager, hooks *hooks.Hook) *ExportHtml {
 	return &ExportHtml{
 		PadManager:    padManager,
 		AuthorManager: authorManager,
+		Hooks:         hooks,
 	}
 }
 
@@ -78,11 +82,11 @@ func (e *ExportHtml) GetPadHTML(pad *padModel.Pad, revNum *int, authorColors map
 		}
 	}
 
-	return e.getHTMLFromAtext(&pad.Pool, atext, authorColors)
+	return e.getHTMLFromAtext(pad.Id, &pad.Pool, atext, authorColors)
 }
 
 // getHTMLFromAtext converts an AText to HTML
-func (e *ExportHtml) getHTMLFromAtext(padPool *apool.APool, atext apool.AText, authorColors map[string]string) (string, error) {
+func (e *ExportHtml) getHTMLFromAtext(padId string, padPool *apool.APool, atext apool.AText, authorColors map[string]string) (string, error) {
 	textLines := padLib.SplitRemoveLastRune(atext.Text)
 	attribLines, err := changeset.SplitAttributionLines(atext.Attribs, atext.Text)
 	if err != nil {
@@ -362,7 +366,17 @@ func (e *ExportHtml) getHTMLFromAtext(padPool *apool.APool, atext apool.AText, a
 			return "", err
 		}
 
+		// If we are inside a list
 		if line.ListLevel > 0 {
+			hookContext := &events.LineHtmlForExportContext{
+				Line:        line,
+				LineContent: &lineContent,
+				Apool:       padPool,
+				AttribLine:  &attribLines[i],
+				Text:        &textLines[i],
+				PadId:       &padId,
+			}
+
 			var prevLine *padLib.LineModel
 			var nextLine *padLib.LineModel
 
@@ -377,7 +391,9 @@ func (e *ExportHtml) getHTMLFromAtext(padPool *apool.APool, atext apool.AText, a
 				nextLine, _ = padLib.AnalyzeLine(textLines[i+1], nextAline, *padPool)
 			}
 
-			// Create list parent elements
+			e.Hooks.ExecuteHooks("getLineHTMLForExport", hookContext)
+
+			// To create list parent elements
 			if prevLine == nil || prevLine.ListLevel != line.ListLevel || line.ListTypeName != prevLine.ListTypeName {
 				exists := listExists(openLists, line.ListLevel, line.ListTypeName)
 				if !exists {
@@ -403,7 +419,13 @@ func (e *ExportHtml) getHTMLFromAtext(padPool *apool.APool, atext apool.AText, a
 						}
 
 						if line.ListTypeName == "number" {
-							pieces = append(pieces, "<ol class=\""+line.ListTypeName+"\">")
+							// We introduce line.start here, this is useful for continuing
+							// Ordered list line numbers
+							if line.Start != "" {
+								pieces = append(pieces, "<ol start=\""+line.Start+"\" class=\""+line.ListTypeName+"\">")
+							} else {
+								pieces = append(pieces, "<ol class=\""+line.ListTypeName+"\">")
+							}
 						} else {
 							pieces = append(pieces, "<ul class=\""+line.ListTypeName+"\">")
 						}
@@ -411,18 +433,29 @@ func (e *ExportHtml) getHTMLFromAtext(padPool *apool.APool, atext apool.AText, a
 				}
 			}
 
-			// Add list item content
-			if lineContent != "" {
-				pieces = append(pieces, "<li>", lineContent)
+			// if we're going up a level we shouldn't be adding..
+			if hookContext.LineContent != nil && *hookContext.LineContent != "" {
+				pieces = append(pieces, "<li>", *hookContext.LineContent)
 			}
 
-			// Check if we need to close lists
-			needsListClose := nextLine == nil ||
+			// To close list elements
+			if nextLine != nil &&
+				nextLine.ListLevel == line.ListLevel &&
+				line.ListTypeName == nextLine.ListTypeName {
+				if hookContext.LineContent != nil && *hookContext.LineContent != "" {
+					if nextLine.ListTypeName == "number" && string(nextLine.Text) == "" {
+						// don't do anything because the next item is a nested ol opener so we need to
+						// keep the li open
+					} else {
+						pieces = append(pieces, "</li>")
+					}
+				}
+			}
+
+			if nextLine == nil ||
 				nextLine.ListLevel == 0 ||
 				nextLine.ListLevel < line.ListLevel ||
-				line.ListTypeName != nextLine.ListTypeName
-
-			if needsListClose {
+				line.ListTypeName != nextLine.ListTypeName {
 				nextLevel := 0
 				if nextLine != nil && nextLine.ListLevel > 0 {
 					nextLevel = nextLine.ListLevel
@@ -431,13 +464,15 @@ func (e *ExportHtml) getHTMLFromAtext(padPool *apool.APool, atext apool.AText, a
 					nextLevel = 0
 				}
 
-				// Close the current li before closing the list
-				if lineContent != "" {
-					pieces = append(pieces, "</li>")
-				}
-
 				for diff := nextLevel; diff < line.ListLevel; diff++ {
 					openLists = filterList(openLists, diff, line.ListTypeName)
+
+					if len(pieces) > 0 {
+						lastPiece := pieces[len(pieces)-1]
+						if strings.HasPrefix(lastPiece, "</ul") || strings.HasPrefix(lastPiece, "</ol") {
+							pieces = append(pieces, "</li>")
+						}
+					}
 
 					if line.ListTypeName == "number" {
 						pieces = append(pieces, "</ol>")
@@ -445,19 +480,20 @@ func (e *ExportHtml) getHTMLFromAtext(padPool *apool.APool, atext apool.AText, a
 						pieces = append(pieces, "</ul>")
 					}
 				}
-			} else if lineContent != "" {
-				// Close list item if next line continues same list
-				if nextLine != nil &&
-					nextLine.ListLevel == line.ListLevel &&
-					line.ListTypeName == nextLine.ListTypeName {
-					if !(nextLine.ListTypeName == "number" && string(nextLine.Text) == "") {
-						pieces = append(pieces, "</li>")
-					}
-				}
 			}
 		} else {
-			// Outside any list
-			pieces = append(pieces, lineContent, "<br>")
+			// outside any list
+			hookContext := &events.LineHtmlForExportContext{
+				Line:        line,
+				LineContent: &lineContent,
+				Apool:       padPool,
+				AttribLine:  &attribLines[i],
+				Text:        &textLines[i],
+				PadId:       &padId,
+			}
+
+			e.Hooks.ExecuteHooks("getLineHTMLForExport", hookContext)
+			pieces = append(pieces, *hookContext.LineContent, "<br>")
 		}
 	}
 
