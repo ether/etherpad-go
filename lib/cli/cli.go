@@ -31,7 +31,6 @@ type Pad struct {
 	outgoing  *PadChangeset
 }
 
-// NewPad erstellt ein neues Pad-Objekt
 func NewPad(host, padId string, conn *websocket.Conn) *Pad {
 	return &Pad{
 		host:      host,
@@ -42,19 +41,16 @@ func NewPad(host, padId string, conn *websocket.Conn) *Pad {
 	}
 }
 
-// On registriert einen Event-Handler
 func (p *Pad) On(event string, handler func(interface{})) {
 	p.events[event] = append(p.events[event], handler)
 }
 
-// emit löst ein Event aus
 func (p *Pad) emit(event string, data interface{}) {
 	for _, handler := range p.events[event] {
 		go handler(data)
 	}
 }
 
-// Close schließt die Verbindung
 func (p *Pad) Close() {
 	close(p.closeChan)
 	if p.conn != nil {
@@ -98,13 +94,14 @@ func (p *Pad) Append(text string) {
 
 }
 
-// Dummy Pad struct und Methoden für Demo-Zwecke
-// In echter Implementierung: WebSocket/HTTP-Client für Etherpad
-
 type PadState struct {
 	Host  string
 	Path  string
 	PadId string
+}
+
+func Connect(host string, logger *zap.SugaredLogger) *Pad {
+	return connect(host, logger)
 }
 
 func connect(host string, logger *zap.SugaredLogger) *Pad {
@@ -212,6 +209,7 @@ func connect(host string, logger *zap.SugaredLogger) *Pad {
 							Text:    initText["text"].(string),
 							Attribs: initText["attribs"].(string),
 						}
+						pad.emit("numConnectedUsers", collabVars["numConnectedUsers"])
 						apoolMap, _ := collabVars["apool"].(map[string]interface{})
 						pool := apool.NewAPool()
 						if numToAttrib, ok := apoolMap["numToAttrib"].(map[string]interface{}); ok {
@@ -327,6 +325,7 @@ func connect(host string, logger *zap.SugaredLogger) *Pad {
 								// CLIENT_READY-Event: einfach als connected behandeln
 								pad.emit("connected", nil)
 							}
+							pad.emit("message", data)
 						}
 					}
 				}
@@ -402,6 +401,28 @@ func (p *Pad) sendMessage(optMsg *PadChangeset) {
 func (p *Pad) OnConnected(callback func(padState *Pad)) {
 	p.On("connected", func(data interface{}) {
 		callback(p)
+	})
+}
+
+func (p *Pad) OnNumConnectedUsers(callback func(count int)) {
+	p.On("numConnectedUsers", func(data interface{}) {
+		if count, ok := data.(float64); ok {
+			callback(int(count))
+		}
+	})
+}
+
+func (p *Pad) OnDisconnect(callback func(err interface{})) {
+	p.On("disconnect", func(data interface{}) {
+		callback(data)
+	})
+}
+
+func (p *Pad) OnMessage(callback func(msg map[string]interface{})) {
+	p.On("message", func(data interface{}) {
+		if msg, ok := data.(map[string]interface{}); ok {
+			callback(msg)
+		}
 	})
 }
 

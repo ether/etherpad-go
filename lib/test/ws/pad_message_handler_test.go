@@ -1620,18 +1620,7 @@ func testHandleMessageUserChangeReadonly(t *testing.T, ds testutils.TestDataStor
 	// Create USER_CHANGES message
 	userChange := ws.UserChange{
 		Event: "message",
-		Data: struct {
-			Component string `json:"component"`
-			Data      struct {
-				Apool struct {
-					NumToAttrib map[int][]string `json:"numToAttrib"`
-					NextNum     int              `json:"nextNum"`
-				} `json:"apool"`
-				BaseRev   int    `json:"baseRev"`
-				Changeset string `json:"changeset"`
-			} `json:"data"`
-			Type string `json:"type"`
-		}{
+		Data: ws.UserChangeData{
 			Component: "pad",
 			Type:      "USER_CHANGES",
 			Data: struct {

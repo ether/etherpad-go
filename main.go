@@ -14,6 +14,7 @@ import (
 	"github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/cli"
 	"github.com/ether/etherpad-go/lib/hooks"
+	"github.com/ether/etherpad-go/lib/loadtest"
 	"github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/plugins"
 	session2 "github.com/ether/etherpad-go/lib/session"
@@ -44,6 +45,56 @@ func main() {
 	defer setupLogger.Sync()
 	if len(os.Args) > 1 && os.Args[1] == "cli" {
 		cli.StartCLI(setupLogger)
+		return
+	}
+	if len(os.Args) > 1 && os.Args[1] == "loadtest" {
+		host := ""
+		if len(os.Args) > 2 {
+			host = os.Args[2]
+		}
+		// Basic parsing of arguments for loadtest
+		// In a real app we would use a flag package, but for now let's keep it simple
+		authors := 0
+		lurkers := 0
+		duration := 0
+		untilFail := false
+
+		for i := 2; i < len(os.Args); i++ {
+			arg := os.Args[i]
+			if arg == "-a" || arg == "--authors" {
+				if i+1 < len(os.Args) {
+					fmt.Sscanf(os.Args[i+1], "%d", &authors)
+					i++
+				}
+			} else if arg == "-l" || arg == "--lurkers" {
+				if i+1 < len(os.Args) {
+					fmt.Sscanf(os.Args[i+1], "%d", &lurkers)
+					i++
+				}
+			} else if arg == "-d" || arg == "--duration" {
+				if i+1 < len(os.Args) {
+					fmt.Sscanf(os.Args[i+1], "%d", &duration)
+					i++
+				}
+			} else if arg == "--loadUntilFail" {
+				untilFail = true
+			}
+		}
+
+		loadtest.StartLoadTest(setupLogger, host, authors, lurkers, duration, untilFail)
+		return
+	}
+	if len(os.Args) > 1 && os.Args[1] == "multiload" {
+		host := ""
+		if len(os.Args) > 2 {
+			host = os.Args[2]
+		}
+		maxPads := 10
+		if len(os.Args) > 3 {
+			fmt.Sscanf(os.Args[3], "%d", &maxPads)
+		}
+
+		loadtest.StartMultiLoadTest(setupLogger, host, maxPads)
 		return
 	}
 
