@@ -16,17 +16,17 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-  etherpad:
-    image: etherpad/etherpad:latest
-    container_name: etherpad
+  etherpad_go:
+    image: ghcr.io/ether/etherpad-go:develop
+    container_name: etherpad_go
     restart: unless-stopped
     environment:
-      - ETHERPAD_DBSETTINGS_TYPE=postgres
+      - ETHERPAD_DBTYPE=postgres
       - ETHERPAD_DBSETTINGS_HOST=postgres
       - ETHERPAD_DBSETTINGS_PORT=5432
-      - ETHERPAD_DBSETTINGS_NAME=mydb
+      - ETHERPAD_DBSETTINGS_DATABASE=mydb
       - ETHERPAD_DBSETTINGS_USER=myuser
-      - ETHPERPAD_DBSETTINGS_PASSWORD=mypassword
+      - ETHERPAD_DBSETTINGS_PASSWORD=mypassword
     ports:
       - "9001:9001"
     depends_on:
