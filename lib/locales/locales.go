@@ -22,10 +22,17 @@ func Init(initStore *lib.InitStore) {
 		}
 		fileName := file.Name()
 		Locales[strings.Replace(fileName, ".json", "", -1)] = `locales/` + fileName
-		content, _ := fs.ReadFile(initStore.UiAssets, "./assets/locales/en.json")
+		content, err := fs.ReadFile(initStore.UiAssets, "./assets/locales/en.json")
+		if err != nil {
+			initStore.Logger.Warnf("Could not read en.json: %v", err)
+			continue
+		}
 
 		var enMap = make(map[string]string)
-		json.Unmarshal(content, &enMap)
+		if err := json.Unmarshal(content, &enMap); err != nil {
+			initStore.Logger.Warnf("Could not unmarshal en.json: %v", err)
+			continue
+		}
 		Locales["en"] = enMap
 	}
 }

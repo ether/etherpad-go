@@ -18,7 +18,15 @@ import (
 )
 
 func RunFromCLI(logger *zap.SugaredLogger, args []string) {
-	fs := flag.NewFlagSet("loadtest", flag.ExitOnError)
+	host, authors, lurkers, duration, untilFail, err := parseRunArgs(args)
+	if err != nil {
+		return
+	}
+	StartLoadTest(logger, host, authors, lurkers, duration, untilFail)
+}
+
+func parseRunArgs(args []string) (string, int, int, int, bool, error) {
+	fs := flag.NewFlagSet("loadtest", flag.ContinueOnError)
 	host := fs.String("host", "http://127.0.0.1:9001", "The host to test")
 	authors := fs.Int("authors", 0, "Number of authors")
 	lurkers := fs.Int("lurkers", 0, "Number of lurkers")
@@ -30,13 +38,20 @@ func RunFromCLI(logger *zap.SugaredLogger, args []string) {
 		args = args[1:]
 	}
 
-	fs.Parse(args)
-
-	StartLoadTest(logger, *host, *authors, *lurkers, *duration, *untilFail)
+	err := fs.Parse(args)
+	return *host, *authors, *lurkers, *duration, *untilFail, err
 }
 
 func RunMultiFromCLI(logger *zap.SugaredLogger, args []string) {
-	fs := flag.NewFlagSet("multiload", flag.ExitOnError)
+	host, maxPads, err := parseMultiRunArgs(args)
+	if err != nil {
+		return
+	}
+	StartMultiLoadTest(logger, host, maxPads)
+}
+
+func parseMultiRunArgs(args []string) (string, int, error) {
+	fs := flag.NewFlagSet("multiload", flag.ContinueOnError)
 	host := fs.String("host", "http://127.0.0.1:9001", "The host to test")
 	maxPads := fs.Int("maxPads", 10, "Maximum number of pads")
 
@@ -45,9 +60,8 @@ func RunMultiFromCLI(logger *zap.SugaredLogger, args []string) {
 		args = args[1:]
 	}
 
-	fs.Parse(args)
-
-	StartMultiLoadTest(logger, *host, *maxPads)
+	err := fs.Parse(args)
+	return *host, *maxPads, err
 }
 
 type Metrics struct {
@@ -272,6 +286,9 @@ func StartLoadTest(logger *zap.SugaredLogger, host string, numAuthors, numLurker
 			fmt.Println("Test duration complete and Load Tests PASS")
 			// Print final stats
 			fmt.Printf("%+v\n", stats)
+			if os.Getenv("GO_TEST_MODE") == "true" {
+				return
+			}
 			os.Exit(0)
 		}
 
@@ -279,6 +296,9 @@ func StartLoadTest(logger *zap.SugaredLogger, host string, numAuthors, numLurker
 			diff := atomic.LoadInt64(&stats.AppendSent) - atomic.LoadInt64(&stats.AcceptedCommit)
 			if diff > 100 {
 				fmt.Printf("Load test failed: too many pending commits (%d)\n", diff)
+				if os.Getenv("GO_TEST_MODE") == "true" {
+					return
+				}
 				os.Exit(1)
 			}
 		}

@@ -9,8 +9,11 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 
 	"flag"
+	"io"
+	"time"
 
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/changeset"
@@ -29,6 +32,7 @@ type Pad struct {
 	conn      *websocket.Conn
 	events    map[string][]func(interface{})
 	closeChan chan struct{}
+	closeOnce sync.Once
 	inFlight  *PadChangeset
 	outgoing  *PadChangeset
 }
@@ -54,11 +58,13 @@ func (p *Pad) emit(event string, data interface{}) {
 }
 
 func (p *Pad) Close() {
-	close(p.closeChan)
-	if p.conn != nil {
-		_ = p.conn.Close() // Fehler ignorieren
-	}
-	p.emit("disconnect", nil)
+	p.closeOnce.Do(func() {
+		close(p.closeChan)
+		if p.conn != nil {
+			_ = p.conn.Close() // Fehler ignorieren
+		}
+		p.emit("disconnect", nil)
+	})
 }
 
 // Append sendet einen Text-Append (Dummy, Changeset-Logik fehlt)
@@ -133,9 +139,16 @@ func connect(host string, logger *zap.SugaredLogger) *Pad {
 	}
 
 	httpClient := &http.Client{}
-	resp, err := httpClient.Get(fmt.Sprintf("%s%s/p/%s", padState.Host, padState.Path, padState.PadId))
-	if err != nil || resp.StatusCode != http.StatusOK {
-		fmt.Printf("Failed to connect to pad at %s%s/p/%s\n", padState.Host, padState.Path, padState.PadId)
+	fullUrl := fmt.Sprintf("%s%s/p/%s", padState.Host, padState.Path, padState.PadId)
+	fmt.Printf("Getting Pad at %s\n", fullUrl)
+	resp, err := httpClient.Get(fullUrl)
+	if err != nil {
+		fmt.Printf("Failed to connect to pad at %s: %v\n", fullUrl, err)
+		os.Exit(1)
+	}
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		fmt.Printf("Failed to connect to pad at %s, status: %s, body: %s\n", fullUrl, resp.Status, string(body))
 		os.Exit(1)
 	}
 	defer func() {
@@ -144,9 +157,12 @@ func connect(host string, logger *zap.SugaredLogger) *Pad {
 
 	wsUrl := fmt.Sprintf("%s/%ssocket.io", strings.Replace(padState.Host, "http", "ws", 1), padState.Path)
 	fmt.Printf("Connecting to WebSocket at %s\n", wsUrl)
-	connection, _, err := websocket.DefaultDialer.Dial(wsUrl, nil)
+	connection, resp, err := websocket.DefaultDialer.Dial(wsUrl, nil)
 	if err != nil {
 		fmt.Printf("WebSocket connection failed: %v\n", err)
+		if resp != nil {
+			fmt.Printf("Response Status: %s\n", resp.Status)
+		}
 		os.Exit(1)
 	}
 
@@ -441,36 +457,49 @@ func (p *Pad) OnNewContents(callback func(atext apool.AText)) {
 }
 
 func RunFromCLI(logger *zap.SugaredLogger, args []string) {
-	fs := flag.NewFlagSet("cli", flag.ExitOnError)
-	host := fs.String("host", "", "The host of the pad (e.g. http://127.0.0.1:9001/p/test)")
-	appendStr := fs.String("append", "", "Append contents to pad")
-	fs.StringVar(appendStr, "a", "", "Append contents to pad (shorthand)")
-
-	// Compatibility for old positional host argument
-	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
-		*host = args[0]
-		args = args[1:]
+	host, appendStr, err := parseCLIArgs(args)
+	if err != nil {
+		return
 	}
 
-	fs.Parse(args)
-
-	if *host == "" {
+	if host == "" {
 		fmt.Println("No host specified..")
-		fs.Usage()
-		os.Exit(1)
+		return
 	}
 
-	if *appendStr != "" {
-		pad := connect(*host, logger)
+	if appendStr != "" {
+		pad := connect(host, logger)
 		pad.OnConnected(func(_ *Pad) {
-			pad.Append(*appendStr)
-			fmt.Printf("Appended %q to %s\n", *appendStr, *host)
-			os.Exit(0)
+			fmt.Println("CLI Connected, appending...")
+			pad.Append(appendStr)
+			fmt.Printf("Appended %q to %s\n", appendStr, host)
+			// Don't os.Exit(0) in tests, use a channel to signal completion
+			if os.Getenv("GO_TEST_MODE") == "true" {
+				pad.emit("append_done", nil)
+			} else {
+				os.Exit(0)
+			}
 		})
 		// Block to wait for connection/append
-		select {}
+		if os.Getenv("GO_TEST_MODE") == "true" {
+			done := make(chan struct{})
+			pad.On("append_done", func(_ interface{}) {
+				close(done)
+			})
+			select {
+			case <-done:
+				pad.Close()
+				return
+			case <-time.After(10 * time.Second):
+				fmt.Println("Append timeout")
+				pad.Close()
+				return
+			}
+		} else {
+			select {}
+		}
 	} else {
-		pad := connect(*host, logger)
+		pad := connect(host, logger)
 		pad.OnConnected(func(padState *Pad) {
 			fmt.Printf("Connected to %s with padId %s\n", padState.host, padState.padId)
 			fmt.Print("\u001b[2J\u001b[0;0H")
@@ -491,6 +520,22 @@ func RunFromCLI(logger *zap.SugaredLogger, args []string) {
 	}
 
 	logger.Infof("Stopping CLI")
+}
+
+func parseCLIArgs(args []string) (string, string, error) {
+	fs := flag.NewFlagSet("cli", flag.ContinueOnError)
+	host := fs.String("host", "", "The host of the pad (e.g. http://127.0.0.1:9001/p/test)")
+	appendStr := fs.String("append", "", "Append contents to pad")
+	fs.StringVar(appendStr, "a", "", "Append contents to pad (shorthand)")
+
+	// Compatibility for old positional host argument
+	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
+		*host = args[0]
+		args = args[1:]
+	}
+
+	err := fs.Parse(args)
+	return *host, *appendStr, err
 }
 
 func StartCLI(logger *zap.SugaredLogger) {
