@@ -24,21 +24,14 @@ func StartMultiLoadTest(logger *zap.SugaredLogger, host string, maxPads int) {
 	}
 
 	var wg sync.WaitGroup
-	messageCount := 0 // Simplified as in JS
+	messageCount := 0
 
 	for i := 0; i < maxPads; i++ {
 		wg.Add(1)
 		go func(id int) {
 			defer wg.Done()
-			// Equivalent to: node app.js -a 3 -d 30
-			// We use the same binary with 'loadtest' subcommand
-			cmd := exec.Command(executable, "loadtest", host, "-a", "3", "-d", "30")
+			cmd := exec.Command(executable, "loadtest", "-host", host, "-authors", "3", "-duration", "30")
 			cmd.Env = append(os.Environ(), "SILENT_METRICS=true")
-
-			// In JS it uses fork, here we use exec.
-			// We don't necessarily want all of them clearing the screen,
-			// but the JS version would have them all writing to the same terminal too.
-			// To keep it simple and similar to JS, we just run them.
 
 			output, err := cmd.CombinedOutput()
 			if err != nil {
@@ -50,7 +43,6 @@ func StartMultiLoadTest(logger *zap.SugaredLogger, host string, maxPads int) {
 			}
 		}(i)
 
-		// Small delay between starts to not overwhelm everything at once
 		time.Sleep(100 * time.Millisecond)
 	}
 

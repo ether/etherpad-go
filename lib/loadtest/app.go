@@ -10,10 +10,45 @@ import (
 	"sync/atomic"
 	"time"
 
+	"flag"
+
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/cli"
 	"go.uber.org/zap"
 )
+
+func RunFromCLI(logger *zap.SugaredLogger, args []string) {
+	fs := flag.NewFlagSet("loadtest", flag.ExitOnError)
+	host := fs.String("host", "http://127.0.0.1:9001", "The host to test")
+	authors := fs.Int("authors", 0, "Number of authors")
+	lurkers := fs.Int("lurkers", 0, "Number of lurkers")
+	duration := fs.Int("duration", 0, "Duration of the test in seconds")
+	untilFail := fs.Bool("loadUntilFail", false, "Load until the server fails")
+
+	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
+		*host = args[0]
+		args = args[1:]
+	}
+
+	fs.Parse(args)
+
+	StartLoadTest(logger, *host, *authors, *lurkers, *duration, *untilFail)
+}
+
+func RunMultiFromCLI(logger *zap.SugaredLogger, args []string) {
+	fs := flag.NewFlagSet("multiload", flag.ExitOnError)
+	host := fs.String("host", "http://127.0.0.1:9001", "The host to test")
+	maxPads := fs.Int("maxPads", 10, "Maximum number of pads")
+
+	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
+		*host = args[0]
+		args = args[1:]
+	}
+
+	fs.Parse(args)
+
+	StartMultiLoadTest(logger, *host, *maxPads)
+}
 
 type Metrics struct {
 	ClientsConnected  int64

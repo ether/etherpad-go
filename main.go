@@ -43,59 +43,27 @@ var uiAssets embed.FS
 func main() {
 	setupLogger := utils.SetupLogger()
 	defer setupLogger.Sync()
-	if len(os.Args) > 1 && os.Args[1] == "cli" {
-		cli.StartCLI(setupLogger)
-		return
-	}
-	if len(os.Args) > 1 && os.Args[1] == "loadtest" {
-		host := ""
-		if len(os.Args) > 2 {
-			host = os.Args[2]
-		}
-		// Basic parsing of arguments for loadtest
-		// In a real app we would use a flag package, but for now let's keep it simple
-		authors := 0
-		lurkers := 0
-		duration := 0
-		untilFail := false
 
-		for i := 2; i < len(os.Args); i++ {
-			arg := os.Args[i]
-			if arg == "-a" || arg == "--authors" {
-				if i+1 < len(os.Args) {
-					fmt.Sscanf(os.Args[i+1], "%d", &authors)
-					i++
-				}
-			} else if arg == "-l" || arg == "--lurkers" {
-				if i+1 < len(os.Args) {
-					fmt.Sscanf(os.Args[i+1], "%d", &lurkers)
-					i++
-				}
-			} else if arg == "-d" || arg == "--duration" {
-				if i+1 < len(os.Args) {
-					fmt.Sscanf(os.Args[i+1], "%d", &duration)
-					i++
-				}
-			} else if arg == "--loadUntilFail" {
-				untilFail = true
-			}
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "cli":
+			cli.RunFromCLI(setupLogger, os.Args[2:])
+			return
+		case "loadtest":
+			loadtest.RunFromCLI(setupLogger, os.Args[2:])
+			return
+		case "multiload":
+			loadtest.RunMultiFromCLI(setupLogger, os.Args[2:])
+			return
+		case "-h", "--help", "help":
+			fmt.Println("Usage: etherpad [command] [options]")
+			fmt.Println("Commands:")
+			fmt.Println("  cli        Interactive CLI for pads")
+			fmt.Println("  loadtest   Run a load test on a single pad")
+			fmt.Println("  multiload  Run a multi-pad load test")
+			fmt.Println("  (none)     Start the Etherpad server")
+			return
 		}
-
-		loadtest.StartLoadTest(setupLogger, host, authors, lurkers, duration, untilFail)
-		return
-	}
-	if len(os.Args) > 1 && os.Args[1] == "multiload" {
-		host := ""
-		if len(os.Args) > 2 {
-			host = os.Args[2]
-		}
-		maxPads := 10
-		if len(os.Args) > 3 {
-			fmt.Sscanf(os.Args[3], "%d", &maxPads)
-		}
-
-		loadtest.StartMultiLoadTest(setupLogger, host, maxPads)
-		return
 	}
 
 	settings2.InitSettings(setupLogger)

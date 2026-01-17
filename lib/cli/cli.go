@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 
+	"flag"
+
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/changeset"
 	"github.com/ether/etherpad-go/lib/models/ws"
@@ -438,59 +440,59 @@ func (p *Pad) OnNewContents(callback func(atext apool.AText)) {
 	})
 }
 
-func StartCLI(logger *zap.SugaredLogger) {
-	args := os.Args
-	if len(args) < 3 {
+func RunFromCLI(logger *zap.SugaredLogger, args []string) {
+	fs := flag.NewFlagSet("cli", flag.ExitOnError)
+	host := fs.String("host", "", "The host of the pad (e.g. http://127.0.0.1:9001/p/test)")
+	appendStr := fs.String("append", "", "Append contents to pad")
+	fs.StringVar(appendStr, "a", "", "Append contents to pad (shorthand)")
+
+	// Compatibility for old positional host argument
+	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
+		*host = args[0]
+		args = args[1:]
+	}
+
+	fs.Parse(args)
+
+	if *host == "" {
 		fmt.Println("No host specified..")
-		fmt.Println("Stream Pad to CLI: etherpad http://127.0.0.1:9001/p/test")
-		fmt.Println("Append contents to pad: etherpad http://127.0.0.1:9001/p/test -a 'hello world'")
+		fs.Usage()
 		os.Exit(1)
 	}
 
-	host := args[2]
-	action := ""
-	if len(args) > 3 {
-		action = args[3]
-	}
-	str := ""
-	if len(args) > 4 {
-		str = args[4]
-	}
-
-	if host != "" {
-		if action == "" {
-			pad := connect(host, logger)
-			pad.OnConnected(func(padState *Pad) {
-				fmt.Printf("Connected to %s with padId %s\n", padState.host, padState.padId)
-				fmt.Print("\u001b[2J\u001b[0;0H")
-				if padState.atext != nil {
-					fmt.Println("Pad Contents", "\n"+padState.atext.Text)
-				}
-			})
-			pad.OnNewContents(func(atext apool.AText) {
-				fmt.Print("\u001b[2J\u001b[0;0H")
-				fmt.Println("Pad Contents", "\n"+atext.Text)
-			})
-
-			done := make(chan struct{})
-			pad.On("disconnect", func(_ interface{}) {
-				close(done)
-			})
-			<-done
-		}
-		if action == "-a" {
-			if str == "" {
-				fmt.Println("No string specified with pad")
-				os.Exit(1)
+	if *appendStr != "" {
+		pad := connect(*host, logger)
+		pad.OnConnected(func(_ *Pad) {
+			pad.Append(*appendStr)
+			fmt.Printf("Appended %q to %s\n", *appendStr, *host)
+			os.Exit(0)
+		})
+		// Block to wait for connection/append
+		select {}
+	} else {
+		pad := connect(*host, logger)
+		pad.OnConnected(func(padState *Pad) {
+			fmt.Printf("Connected to %s with padId %s\n", padState.host, padState.padId)
+			fmt.Print("\u001b[2J\u001b[0;0H")
+			if padState.atext != nil {
+				fmt.Println("Pad Contents", "\n"+padState.atext.Text)
 			}
-			pad := connect(host, logger)
-			pad.OnConnected(func(_ *Pad) {
-				pad.Append(str)
-				fmt.Printf("Appended %q to %s\n", str, host)
-				os.Exit(0)
-			})
-		}
+		})
+		pad.OnNewContents(func(atext apool.AText) {
+			fmt.Print("\u001b[2J\u001b[0;0H")
+			fmt.Println("Pad Contents", "\n"+atext.Text)
+		})
+
+		done := make(chan struct{})
+		pad.On("disconnect", func(_ interface{}) {
+			close(done)
+		})
+		<-done
 	}
 
 	logger.Infof("Stopping CLI")
+}
+
+func StartCLI(logger *zap.SugaredLogger) {
+	RunFromCLI(logger, os.Args[2:])
 }
