@@ -61,14 +61,17 @@ func (p *Pad) Close() {
 	p.closeOnce.Do(func() {
 		close(p.closeChan)
 		if p.conn != nil {
-			_ = p.conn.Close() // Fehler ignorieren
+			_ = p.conn.Close()
 		}
 		p.emit("disconnect", nil)
 	})
 }
 
-// Append sendet einen Text-Append (Dummy, Changeset-Logik fehlt)
 func (p *Pad) Append(text string) {
+	if text[len(text)-1] != '\n' {
+		text += "\n"
+	}
+
 	newChangeset, err := changeset.MakeSplice(p.atext.Text, len(p.atext.Text), 0, text, nil, nil)
 	if err != nil {
 		fmt.Printf("Error creating changeset: %v\n", err)
@@ -152,7 +155,7 @@ func connect(host string, logger *zap.SugaredLogger) *Pad {
 		os.Exit(1)
 	}
 	defer func() {
-		_ = resp.Body.Close() // Fehler ignorieren
+		_ = resp.Body.Close()
 	}()
 
 	wsUrl := fmt.Sprintf("%s/%ssocket.io", strings.Replace(padState.Host, "http", "ws", 1), padState.Path)
@@ -340,7 +343,6 @@ func connect(host string, logger *zap.SugaredLogger) *Pad {
 						if ok {
 							typeStr, _ := data["type"].(string)
 							if typeStr == "CLIENT_READY" {
-								// CLIENT_READY-Event: einfach als connected behandeln
 								pad.emit("connected", nil)
 							}
 							pad.emit("message", data)
@@ -384,12 +386,11 @@ type PadChangeset struct {
 	baseRev   int
 }
 
-// sendMessage-Logik wie im JS
 func (p *Pad) sendMessage(optMsg *PadChangeset) {
 	if optMsg != nil {
 		if p.outgoing != nil {
 			if optMsg.baseRev != p.outgoing.baseRev {
-				return // oder Fehlerbehandlung
+				return
 			}
 			if cs, err := changeset.Compose(p.outgoing.changeset, optMsg.changeset, p.apool); err == nil && cs != nil {
 				p.outgoing.changeset = *cs
@@ -401,7 +402,6 @@ func (p *Pad) sendMessage(optMsg *PadChangeset) {
 	if p.inFlight == nil && p.outgoing != nil {
 		p.inFlight = p.outgoing
 		p.outgoing = nil
-		// Sende COLLABROOM-Nachricht
 		msg := map[string]interface{}{
 			"type":      "COLLABROOM",
 			"component": "pad",
@@ -473,14 +473,12 @@ func RunFromCLI(logger *zap.SugaredLogger, args []string) {
 			fmt.Println("CLI Connected, appending...")
 			pad.Append(appendStr)
 			fmt.Printf("Appended %q to %s\n", appendStr, host)
-			// Don't os.Exit(0) in tests, use a channel to signal completion
 			if os.Getenv("GO_TEST_MODE") == "true" {
 				pad.emit("append_done", nil)
 			} else {
 				os.Exit(0)
 			}
 		})
-		// Block to wait for connection/append
 		if os.Getenv("GO_TEST_MODE") == "true" {
 			done := make(chan struct{})
 			pad.On("append_done", func(_ interface{}) {
@@ -528,7 +526,6 @@ func parseCLIArgs(args []string) (string, string, error) {
 	appendStr := fs.String("append", "", "Append contents to pad")
 	fs.StringVar(appendStr, "a", "", "Append contents to pad (shorthand)")
 
-	// Compatibility for old positional host argument
 	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
 		*host = args[0]
 		args = args[1:]
@@ -536,8 +533,4 @@ func parseCLIArgs(args []string) (string, string, error) {
 
 	err := fs.Parse(args)
 	return *host, *appendStr, err
-}
-
-func StartCLI(logger *zap.SugaredLogger) {
-	RunFromCLI(logger, os.Args[2:])
 }
