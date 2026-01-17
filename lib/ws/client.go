@@ -7,7 +7,6 @@ package ws
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -19,7 +18,6 @@ import (
 	"github.com/ether/etherpad-go/lib/ws/ratelimiter"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/session"
-	fiberwebsocket "github.com/gofiber/websocket/v2"
 	"go.uber.org/zap"
 
 	"github.com/gorilla/websocket"
@@ -119,10 +117,8 @@ func (c *Client) writePump() {
 // ensures that there is at most one reader on a connection by executing all
 // reads from this goroutine.
 func (c *Client) readPump(retrievedSettings *settings.Settings, logger *zap.SugaredLogger) {
-	fmt.Printf("readPump started for SessionId: %s\n", c.SessionId)
 	c.Hub.Register <- c
 	defer func() {
-		fmt.Printf("readPump ended for SessionId: %s\n", c.SessionId)
 		c.Hub.Unregister <- c
 		c.Conn.Close()
 	}()
@@ -237,37 +233,6 @@ func (c *Client) SendUserDupMessage() {
 
 func (c *Client) SendPadDelete() {
 	c.SafeSend([]byte(`{"disconnect":"deleted"}`))
-}
-
-func ServeWsFiber(sessionStore *session.Store, configSettings *settings.Settings,
-	logger *zap.SugaredLogger, handler *PadMessageHandler) fiber.Handler {
-	return fiberwebsocket.New(func(c *fiberwebsocket.Conn) {
-		ctxObj := c.Locals("ctx")
-		if ctxObj == nil {
-			logger.Error("Ctx local not found in websocket connection")
-			return
-		}
-		fctx := ctxObj.(*fiber.Ctx)
-		store, err := sessionStore.Get(fctx)
-		if err != nil {
-			logger.Error("Error establishing socket conn session: ", err)
-			return
-		}
-
-		client := &Client{
-			Hub:       handler.hub,
-			Conn:      c,
-			Send:      make(chan []byte, 256),
-			SessionId: store.ID(),
-			Ctx:       fctx,
-			Handler:   handler,
-		}
-		fmt.Printf("WS client created for SessionId: %s\n", store.ID())
-		handler.SessionStore.initSession(store.ID())
-		client.Hub.Register <- client
-		go client.writePump()
-		client.readPump(configSettings, logger)
-	})
 }
 
 // ServeWs handles websocket requests from the peer.

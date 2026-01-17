@@ -22,7 +22,7 @@ func Init(initStore *lib.InitStore) {
 		}
 		fileName := file.Name()
 		Locales[strings.Replace(fileName, ".json", "", -1)] = `locales/` + fileName
-		content, err := fs.ReadFile(initStore.UiAssets, "./assets/locales/en.json")
+		content, err := fs.ReadFile(initStore.UiAssets, "assets/locales/en.json")
 		if err != nil {
 			initStore.Logger.Warnf("Could not read en.json: %v", err)
 			continue

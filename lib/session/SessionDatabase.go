@@ -1,20 +1,19 @@
 package session
 
 import (
-	"github.com/ether/etherpad-go/lib/db"
 	"time"
+
+	"github.com/ether/etherpad-go/lib/db"
 )
 
 type Database struct {
 }
 
 func (s Database) Get(key string) ([]byte, error) {
-	println(key)
 	return nil, nil
 }
 
 func (s Database) Set(key string, val []byte, exp time.Duration) error {
-	println(key, val, exp)
 	//TODO implement me
 	return nil
 }
