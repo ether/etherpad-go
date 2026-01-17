@@ -30,6 +30,7 @@ type Pad struct {
 	baseRev   int
 	atext     *apool.AText
 	conn      *websocket.Conn
+	connWrite sync.Mutex
 	events    map[string][]func(interface{})
 	closeChan chan struct{}
 	closeOnce sync.Once
@@ -42,6 +43,7 @@ func NewPad(host, padId string, conn *websocket.Conn) *Pad {
 		host:      host,
 		padId:     padId,
 		conn:      conn,
+		connWrite: sync.Mutex{},
 		events:    make(map[string][]func(interface{})),
 		closeChan: make(chan struct{}),
 	}
@@ -68,7 +70,14 @@ func (p *Pad) Close() {
 }
 
 func (p *Pad) Append(text string) {
-	if text[len(text)-1] != '\n' {
+	if p.atext == nil || p.apool == nil {
+		fmt.Println("Pad ist nicht initialisiert (atext oder apool ist nil)")
+		return
+	}
+
+	if len(text) == 0 {
+		text = "\n"
+	} else if text[len(text)-1] != '\n' {
 		text += "\n"
 	}
 
@@ -87,6 +96,14 @@ func (p *Pad) Append(text string) {
 	tempPool := apool.NewAPool()
 	wireApool := tempPool.ToJsonable()
 
+	// Ensure websocket connection exists before attempting to write
+	if p.conn == nil {
+		fmt.Println("WebSocket connection is nil; cannot send USER_CHANGES")
+		return
+	}
+
+	p.connWrite.Lock()
+	defer p.connWrite.Unlock()
 	err = p.conn.WriteJSON(ws.UserChange{
 		Event: "message",
 		Data: ws.UserChangeData{
@@ -102,6 +119,10 @@ func (p *Pad) Append(text string) {
 			},
 		},
 	})
+
+	if err != nil {
+		fmt.Printf("Error writing USER_CHANGES to websocket: %v\n", err)
+	}
 
 }
 
@@ -412,6 +433,8 @@ func (p *Pad) sendMessage(optMsg *PadChangeset) {
 				"apool":     p.apool.ToJsonable(),
 			},
 		}
+		p.connWrite.Lock()
+		defer p.connWrite.Unlock()
 		_ = p.conn.WriteJSON(msg)
 	}
 }

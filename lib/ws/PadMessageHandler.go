@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"slices"
 	"strconv"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -56,6 +57,7 @@ type Task struct {
 type ChannelOperator struct {
 	channels map[string]chan Task
 	handler  *PadMessageHandler
+	mu       sync.Mutex
 }
 
 func NewChannelOperator(p *PadMessageHandler) ChannelOperator {
@@ -66,19 +68,21 @@ func NewChannelOperator(p *PadMessageHandler) ChannelOperator {
 }
 
 func (c *ChannelOperator) AddToQueue(ch string, t Task) {
-	var _, ok = c.channels[ch]
-
+	c.mu.Lock()
+	chChan, ok := c.channels[ch]
 	if !ok {
-		c.channels[ch] = make(chan Task)
-		go func() {
-			for {
-				var incomingTask = <-c.channels[ch]
+		// small buffer to decouple producer from goroutine scheduling
+		chChan = make(chan Task, 1)
+		c.channels[ch] = chChan
+		go func(localCh chan Task) {
+			for incomingTask := range localCh {
 				c.handler.handleUserChanges(incomingTask)
 			}
-		}()
+		}(chChan)
 	}
+	c.mu.Unlock()
 
-	c.channels[ch] <- t
+	chChan <- t
 }
 
 type PadMessageHandler struct {
@@ -199,7 +203,7 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 		// and can be applied after "c".
 		optRebasedChangeset, err := changeset.Follow(revisionPad.Changeset, rebasedChangeset, false, &retrievedPad.Pool)
 		if err != nil {
-			p.Logger.Warnf("Error rebasing changeset at rev %d: %v", r, err)
+			p.Logger.Warnf("Error rebasing changeset at rev %d: %v for %s", r, err, retrievedPad.Id)
 			return
 		}
 		rebasedChangeset = *optRebasedChangeset
@@ -1347,16 +1351,19 @@ func (p *PadMessageHandler) UpdatePadClients(pad *pad2.Pad) {
 
 func (p *PadMessageHandler) GetRoomSockets(padID string) []Client {
 	var sockets = make([]Client, 0)
+	p.hub.ClientsRWMutex.RLock()
 	for k := range p.hub.Clients {
 		sessId := p.SessionStore.getSession(k.SessionId)
 		if sessId != nil && sessId.PadId == padID {
 			sockets = append(sockets, *k)
 		}
 	}
+	p.hub.ClientsRWMutex.RUnlock()
 	return sockets
 }
 
 func (p *PadMessageHandler) KickSessionsFromPad(padID string) {
+	p.hub.ClientsRWMutex.RLock()
 	for k := range p.hub.Clients {
 		if k == nil || k.SessionId == "" {
 			continue
@@ -1370,4 +1377,5 @@ func (p *PadMessageHandler) KickSessionsFromPad(padID string) {
 			k.SendPadDelete()
 		}
 	}
+	p.hub.ClientsRWMutex.RUnlock()
 }
