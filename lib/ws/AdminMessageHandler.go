@@ -188,9 +188,11 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 				return
 			}
 
+			h.hub.ClientsRWMutex.RLock()
 			for key := range h.hub.Clients {
 				key.SafeSend(responseBytes)
 			}
+			h.hub.ClientsRWMutex.RUnlock()
 
 		}
 	case "deletePad":

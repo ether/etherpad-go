@@ -26,6 +26,9 @@ import (
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
+	CheckOrigin: func(r *http.Request) bool {
+		return true
+	},
 }
 
 var (
@@ -114,6 +117,7 @@ func (c *Client) writePump() {
 // ensures that there is at most one reader on a connection by executing all
 // reads from this goroutine.
 func (c *Client) readPump(retrievedSettings *settings.Settings, logger *zap.SugaredLogger) {
+	c.Hub.Register <- c
 	defer func() {
 		c.Hub.Unregister <- c
 		c.Conn.Close()

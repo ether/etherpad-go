@@ -1,10 +1,13 @@
 package ws
 
+import "sync"
+
 // Hub maintains the set of active Clients and broadcasts messages to the
 // Clients.
 type Hub struct {
 	// Registered Clients.
-	Clients map[*Client]bool
+	Clients        map[*Client]bool
+	ClientsRWMutex sync.RWMutex
 
 	// Inbound messages from the Clients.
 	Broadcast chan []byte
@@ -29,16 +32,21 @@ func (h *Hub) Run() {
 	for {
 		select {
 		case client := <-h.Register:
+			h.ClientsRWMutex.Lock()
 			h.Clients[client] = true
+			h.ClientsRWMutex.Unlock()
 		case client := <-h.Unregister:
 			if client == nil {
 				continue
 			}
+			h.ClientsRWMutex.Lock()
 			if _, ok := h.Clients[client]; ok {
 				delete(h.Clients, client)
 				close(client.Send)
 			}
+			h.ClientsRWMutex.Unlock()
 		case message := <-h.Broadcast:
+			h.ClientsRWMutex.RLock()
 			for client := range h.Clients {
 				if client == nil {
 					continue
@@ -50,6 +58,7 @@ func (h *Hub) Run() {
 					delete(h.Clients, client)
 				}
 			}
+			h.ClientsRWMutex.RUnlock()
 		}
 	}
 }

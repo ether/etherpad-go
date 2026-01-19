@@ -134,6 +134,10 @@ func MakeSplice(orig string, start int, ndel int, ins string, attribs *string, p
 		stringAttribs: &emptyStringAttribs,
 	}
 
+	if attribs == nil {
+		attribs = &emptyStringAttribs
+	}
+
 	var equalOps = OpsFromText("=", utils.RuneSlice(orig, 0, start), &keepArgsToUse, nil)
 	var deletedOps = OpsFromText("-", deleted, &keepArgsToUse, nil)
 	var insertedOps = OpsFromText("+", ins, &KeepArgs{

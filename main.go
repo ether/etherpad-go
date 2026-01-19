@@ -12,7 +12,9 @@ import (
 	"github.com/ether/etherpad-go/lib"
 	api2 "github.com/ether/etherpad-go/lib/api"
 	"github.com/ether/etherpad-go/lib/author"
+	"github.com/ether/etherpad-go/lib/cli"
 	"github.com/ether/etherpad-go/lib/hooks"
+	"github.com/ether/etherpad-go/lib/loadtest"
 	"github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/plugins"
 	session2 "github.com/ether/etherpad-go/lib/session"
@@ -41,6 +43,29 @@ var uiAssets embed.FS
 func main() {
 	setupLogger := utils.SetupLogger()
 	defer setupLogger.Sync()
+
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "cli":
+			cli.RunFromCLI(setupLogger, os.Args[2:])
+			return
+		case "loadtest":
+			loadtest.RunFromCLI(setupLogger, os.Args[2:])
+			return
+		case "multiload":
+			loadtest.RunMultiFromCLI(setupLogger, os.Args[2:])
+			return
+		case "-h", "--help", "help":
+			fmt.Println("Usage: etherpad [command] [options]")
+			fmt.Println("Commands:")
+			fmt.Println("  cli        Interactive CLI for pads")
+			fmt.Println("  loadtest   Run a load test on a single pad")
+			fmt.Println("  multiload  Run a multi-pad load test")
+			fmt.Println("  (none)     Start the Etherpad server")
+			return
+		}
+	}
+
 	settings2.InitSettings(setupLogger)
 
 	var settings = settings2.Displayed

@@ -733,10 +733,14 @@ func (d PostgresDB) SetAuthorByToken(token, authorId string) error {
  * @param {String} author The id of the author
  */
 func (d PostgresDB) GetAuthor(author string) (*db.AuthorDB, error) {
-
-	var resultedSQL, args, err = psql.Select("*").
+	var resultedSQL, args, err = psql.Select("globalAuthor.*, padRev.id").
 		From("globalAuthor").
-		Where(sq.Eq{"id": author}).ToSql()
+		LeftJoin("padRev ON globalAuthor.id = padRev.authorId").
+		Where(sq.Eq{"globalAuthor.id": author}).ToSql()
+
+	if err != nil {
+		return nil, err
+	}
 
 	query, err := d.sqlDB.Query(resultedSQL, args...)
 	if err != nil {
@@ -745,14 +749,37 @@ func (d PostgresDB) GetAuthor(author string) (*db.AuthorDB, error) {
 	defer query.Close()
 
 	var authorDB *db.AuthorDB
+
 	for query.Next() {
-		var authorCopy db.AuthorDB
-		query.Scan(&authorCopy.ID, &authorCopy.ColorId, &authorCopy.Name, &authorCopy.Timestamp)
-		authorDB = &authorCopy
-		return authorDB, nil
+		var padID sql.NullString
+
+		if authorDB == nil {
+			authorDB = &db.AuthorDB{
+				PadIDs: make(map[string]struct{}),
+			}
+			err = query.Scan(&authorDB.ID, &authorDB.ColorId, &authorDB.Name,
+				&authorDB.Timestamp, &padID)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			var dummy1, dummy2, dummy3, dummy4 interface{}
+			err = query.Scan(&dummy1, &dummy2, &dummy3, &dummy4, &padID)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		if padID.Valid {
+			authorDB.PadIDs[padID.String] = struct{}{}
+		}
 	}
 
-	return nil, errors.New(AuthorNotFoundError)
+	if authorDB == nil {
+		return nil, errors.New(AuthorNotFoundError)
+	}
+
+	return authorDB, nil
 }
 
 func (d PostgresDB) GetAuthorByToken(token string) (*string, error) {
