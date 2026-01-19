@@ -11,11 +11,14 @@ type UserChangeData struct {
 	Type      string             `json:"type"`
 }
 
+type UserChangeDataDataApool struct {
+	NumToAttrib map[int][]string `json:"numToAttrib"`
+	NextNum     int              `json:"nextNum"`
+}
+
 type UserChangeDataData struct {
-	Apool struct {
-		NumToAttrib map[int][]string `json:"numToAttrib"`
-		NextNum     int              `json:"nextNum"`
-	} `json:"apool"`
-	BaseRev   int    `json:"baseRev"`
-	Changeset string `json:"changeset"`
+	Type      string                  `json:"type"`
+	Apool     UserChangeDataDataApool `json:"apool"`
+	BaseRev   int                     `json:"baseRev"`
+	Changeset string                  `json:"changeset"`
 }

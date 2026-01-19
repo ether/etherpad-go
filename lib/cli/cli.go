@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"unicode/utf8"
 
 	"flag"
 	"io"
@@ -31,6 +32,7 @@ type Pad struct {
 	atext     *apool.AText
 	conn      *websocket.Conn
 	connWrite sync.Mutex
+	poolLock  sync.RWMutex
 	events    map[string][]func(interface{})
 	closeChan chan struct{}
 	closeOnce sync.Once
@@ -70,60 +72,71 @@ func (p *Pad) Close() {
 }
 
 func (p *Pad) Append(text string) {
+	// Acquire lock while we read/modify shared pad state (atext, apool, baseRev)
+	p.poolLock.Lock()
 	if p.atext == nil || p.apool == nil {
+		p.poolLock.Unlock()
 		fmt.Println("Pad ist nicht initialisiert (atext oder apool ist nil)")
 		return
 	}
 
 	if len(text) == 0 {
-		text = "\n"
-	} else if text[len(text)-1] != '\n' {
+		fmt.Println("Kein Text zum Anhängen – Changeset wird nicht erzeugt.")
+		p.poolLock.Unlock()
+		return
+	}
+
+	if text == "\n" && strings.HasSuffix(p.atext.Text, "\n") {
+		fmt.Println("Pad endet bereits mit Zeilenumbruch – Changeset wird nicht erzeugt.")
+		p.poolLock.Unlock()
+		return
+	}
+
+	if text[len(text)-1] != '\n' {
 		text += "\n"
 	}
 
-	newChangeset, err := changeset.MakeSplice(p.atext.Text, len(p.atext.Text), 0, text, nil, nil)
+	start := utf8.RuneCountInString(p.atext.Text)
+	emptyAttribs := ""
+	newChangeset, err := changeset.MakeSplice(p.atext.Text, start, 0, text, &emptyAttribs, p.apool)
 	if err != nil {
+		p.poolLock.Unlock()
 		fmt.Printf("Error creating changeset: %v\n", err)
 		return
 	}
-	newRev := p.baseRev
 
-	p.atext, err = changeset.ApplyToAText(newChangeset, *p.atext, *p.apool)
+	// Unpack and repack to ensure canonical form
+	unpacked, err := changeset.Unpack(newChangeset)
 	if err != nil {
+		p.poolLock.Unlock()
+		fmt.Printf("Error unpacking changeset: %v\n", err)
+		return
+	}
+	newChangeset = changeset.Pack(unpacked.OldLen, unpacked.NewLen, unpacked.Ops, unpacked.CharBank)
+
+	// Validate generated changeset header: oldLen should equal current local text length
+	if unpacked.OldLen != start {
+		p.poolLock.Unlock()
+		fmt.Printf("Generated changeset oldLen mismatch: expected %d got %d; not sending\n", start, unpacked.OldLen)
+		// emit an error event so callers/tests can react
+		p.emit("append_error", map[string]interface{}{"error": "oldLen_mismatch", "expected": start, "got": unpacked.OldLen})
+		return
+	}
+
+	newAText, err := changeset.ApplyToAText(newChangeset, *p.atext, *p.apool)
+	if err != nil {
+		p.poolLock.Unlock()
 		fmt.Printf("Error applying changeset: %v\n", err)
 		return
 	}
-	tempPool := apool.NewAPool()
-	wireApool := tempPool.ToJsonable()
 
-	// Ensure websocket connection exists before attempting to write
-	if p.conn == nil {
-		fmt.Println("WebSocket connection is nil; cannot send USER_CHANGES")
-		return
-	}
+	p.atext = newAText
+	baseRev := p.baseRev
+	p.poolLock.Unlock()
 
-	p.connWrite.Lock()
-	defer p.connWrite.Unlock()
-	err = p.conn.WriteJSON(ws.UserChange{
-		Event: "message",
-		Data: ws.UserChangeData{
-			Component: "pad",
-			Type:      "USER_CHANGES",
-			Data: ws.UserChangeDataData{
-				Apool: struct {
-					NumToAttrib map[int][]string `json:"numToAttrib"`
-					NextNum     int              `json:"nextNum"`
-				}{NumToAttrib: wireApool.NumToAttribRaw, NextNum: wireApool.NextNum},
-				BaseRev:   newRev,
-				Changeset: newChangeset,
-			},
-		},
-	})
-
-	if err != nil {
-		fmt.Printf("Error writing USER_CHANGES to websocket: %v\n", err)
-	}
-
+	// Queue the changeset for sending
+	pc := &PadChangeset{changeset: newChangeset, baseRev: baseRev}
+	p.sendMessage(pc)
 }
 
 type PadState struct {
@@ -195,7 +208,16 @@ func connect(host string, logger *zap.SugaredLogger) *Pad {
 	pad := NewPad(padState.Host, padState.PadId, connection)
 
 	go func() {
-		defer pad.Close()
+		// Recover to avoid crashing the whole process on unexpected panics in the reader loop
+		defer func() {
+			if r := recover(); r != nil {
+				logger.Errorf("panic in recv goroutine: %v", r)
+				pad.emit("disconnect", r)
+				_ = connection.Close()
+			}
+			pad.Close()
+		}()
+
 		var (
 			newline = []byte{'\n'}
 			space   = []byte{' '}
@@ -226,6 +248,7 @@ func connect(host string, logger *zap.SugaredLogger) *Pad {
 					msgType, _ := arr[0].(string)
 					if msgType != "message" {
 						continue
+
 					}
 					msgObj := arr[1]
 					msgMap, ok := msgObj.(map[string]interface{})
@@ -272,11 +295,14 @@ func connect(host string, logger *zap.SugaredLogger) *Pad {
 						if nextNum, ok := apoolMap["nextNum"].(float64); ok {
 							pool.NextNum = int(nextNum)
 						}
+						// protect setting shared fields
+						pad.poolLock.Lock()
 						pad.apool = &pool
 						if rev, ok := collabVars["rev"].(float64); ok {
 							pad.baseRev = int(rev)
 						}
 						pad.atext = &atext
+						pad.poolLock.Unlock()
 						pad.emit("connected", nil)
 					case "COLLABROOM":
 						data, ok := msgMap["data"].(map[string]interface{})
@@ -284,6 +310,15 @@ func connect(host string, logger *zap.SugaredLogger) *Pad {
 							continue
 						}
 						if data["type"] == "NEW_CHANGES" {
+							// Ensure we have initial state
+							pad.poolLock.RLock()
+							havePool := pad.apool != nil
+							haveAText := pad.atext != nil
+							pad.poolLock.RUnlock()
+							if !havePool || !haveAText {
+								logger.Errorf("received NEW_CHANGES but pad.apool or pad.atext is nil - skipping")
+								continue
+							}
 							if newRev, ok := data["newRev"].(float64); ok && int(newRev) <= pad.baseRev {
 								continue
 							}
@@ -315,23 +350,43 @@ func connect(host string, logger *zap.SugaredLogger) *Pad {
 								}
 							}
 							changesetStr, _ := data["changeset"].(string)
-							serverChangeset := changeset.MoveOpsToNewPool(changesetStr, &wireApool, pad.apool)
+							// Re-read pad.apool and pad.atext under read lock to ensure stability
+							pad.poolLock.RLock()
+							localPool := pad.apool
+							localAText := pad.atext
+							pad.poolLock.RUnlock()
+							if localPool == nil || localAText == nil {
+								logger.Errorf("pad.apool or pad.atext became nil while processing NEW_CHANGES - skipping")
+								continue
+							}
+							serverChangeset := changeset.MoveOpsToNewPool(changesetStr, &wireApool, localPool)
 							server := &PadChangeset{changeset: serverChangeset}
+							// Validate server changeset header before attempting to apply it
+							if unpacked, err := changeset.Unpack(server.changeset); err != nil {
+								logger.Errorf("cannot unpack server changeset: %v - skipping", err)
+								continue
+							} else if utf8.RuneCountInString(localAText.Text) != unpacked.OldLen {
+								logger.Errorf("server changeset oldLen %d does not match local text length %d - skipping", unpacked.OldLen, utf8.RuneCountInString(localAText.Text))
+								continue
+							}
 							if pad.inFlight != nil {
-								transformX(pad.inFlight, server, pad.apool)
+								transformX(pad.inFlight, server, localPool)
 							}
 							if pad.outgoing != nil {
-								transformX(pad.outgoing, server, pad.apool)
+								transformX(pad.outgoing, server, localPool)
 								if newRev, ok := data["newRev"].(float64); ok {
 									pad.outgoing.baseRev = int(newRev)
 								}
 							}
-							atext, err := changeset.ApplyToAText(server.changeset, *pad.atext, *pad.apool)
+							atext, err := changeset.ApplyToAText(server.changeset, *localAText, *localPool)
 							if err != nil {
 								logger.Errorf("Fehler beim Anwenden des Changesets: %v", err)
 								continue
 							}
+							// write back updated atext under lock
+							pad.poolLock.Lock()
 							pad.atext = atext
+							pad.poolLock.Unlock()
 							if newRev, ok := data["newRev"].(float64); ok {
 								pad.baseRev = int(newRev)
 							}
@@ -411,11 +466,15 @@ func (p *Pad) sendMessage(optMsg *PadChangeset) {
 	if optMsg != nil {
 		if p.outgoing != nil {
 			if optMsg.baseRev != p.outgoing.baseRev {
+				fmt.Println("Dropping outgoing changeset due to baseRev mismatch")
 				return
 			}
-			if cs, err := changeset.Compose(p.outgoing.changeset, optMsg.changeset, p.apool); err == nil && cs != nil {
-				p.outgoing.changeset = *cs
+			tempStr, err := changeset.Compose(p.outgoing.changeset, optMsg.changeset, p.apool)
+			if err != nil {
+				fmt.Printf("Error composing outgoing changesets: %v\n", err)
+				return
 			}
+			p.outgoing.changeset = *tempStr
 		} else {
 			p.outgoing = optMsg
 		}
@@ -423,14 +482,24 @@ func (p *Pad) sendMessage(optMsg *PadChangeset) {
 	if p.inFlight == nil && p.outgoing != nil {
 		p.inFlight = p.outgoing
 		p.outgoing = nil
-		msg := map[string]interface{}{
-			"type":      "COLLABROOM",
-			"component": "pad",
-			"data": map[string]interface{}{
-				"type":      "USER_CHANGES",
-				"baseRev":   p.inFlight.baseRev,
-				"changeset": p.inFlight.changeset,
-				"apool":     p.apool.ToJsonable(),
+		apoolCreated := apool.NewAPool()
+		changeset.MoveOpsToNewPool(p.inFlight.changeset, p.apool, &apoolCreated)
+		wirePool := apoolCreated.ToJsonable()
+		fmt.Println("Sending changeset:", p.inFlight.changeset)
+		msg := ws.UserChange{
+			Event: "message",
+			Data: ws.UserChangeData{
+				Type:      "COLLABROOM",
+				Component: "pad",
+				Data: ws.UserChangeDataData{
+					Type:      "USER_CHANGES",
+					BaseRev:   p.inFlight.baseRev,
+					Changeset: p.inFlight.changeset,
+					Apool: ws.UserChangeDataDataApool{
+						NumToAttrib: wirePool.NumToAttribRaw,
+						NextNum:     wirePool.NextNum,
+					},
+				},
 			},
 		}
 		p.connWrite.Lock()

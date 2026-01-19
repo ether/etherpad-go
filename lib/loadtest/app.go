@@ -14,6 +14,7 @@ import (
 
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/cli"
+	"github.com/ether/etherpad-go/lib/utils"
 	"go.uber.org/zap"
 )
 
@@ -79,17 +80,6 @@ type Metrics struct {
 var stats Metrics
 var maxPS float64
 var statsLock sync.Mutex
-
-func randomString() string {
-	const stringLength = 4
-	var b strings.Builder
-	for i := 0; i < stringLength; i++ {
-		// JS: Math.random() * (300 - 1) + 1
-		charNumber := rand.Intn(299) + 1
-		b.WriteRune(rune(charNumber))
-	}
-	return b.String()
-}
 
 func randomPadName() string {
 	const chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
@@ -165,7 +155,7 @@ func newAuthor(host string, logger *zap.SugaredLogger) {
 			for range ticker.C {
 				atomic.AddInt64(&stats.AppendSent, 1)
 				updateMetricsUI(host)
-				p.Append(randomString())
+				p.Append(utils.RandomString(10))
 			}
 		}()
 	})

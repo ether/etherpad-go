@@ -1,17 +1,15 @@
 package utils
 
 import (
-	randc "crypto/rand"
-	"encoding/hex"
 	"math/big"
 	"strconv"
 	"strings"
+
+	"github.com/ether/etherpad-go/lib/test/testutils/general"
 )
 
 func RandomString(length int) string {
-	bytes := make([]byte, length)
-	randc.Read(bytes)
-	return hex.EncodeToString(bytes)
+	return general.RandomInlineString(length)
 }
 
 func NumToString(num int) string {

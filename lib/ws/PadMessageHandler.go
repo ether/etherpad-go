@@ -222,7 +222,6 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 	if *oldLen != utf8.RuneCountInString(prevText) {
 		p.Logger.Warnf("Can't apply changeset to pad text: oldLen=%d, prevTextLen=%d, baseRev=%d, headRev=%d",
 			*oldLen, utf8.RuneCountInString(prevText), r, retrievedPad.Head)
-		// Don't panic - just return and let the client retry or reconnect
 		return
 	}
 
