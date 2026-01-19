@@ -29,7 +29,7 @@ func RandomMultiline(approxMaxLines, approxMaxCols int) string {
 }
 
 func RandomInlineString(length int) string {
-	const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 !@#$%^&*()_+-=[]{}|;:,.<>?"
+	const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	var result strings.Builder
 	result.Grow(length)
 

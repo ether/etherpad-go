@@ -25,6 +25,7 @@ import (
 )
 
 type Pad struct {
+	logger    *zap.SugaredLogger
 	host      string
 	padId     string
 	apool     *apool.APool
@@ -40,8 +41,9 @@ type Pad struct {
 	outgoing  *PadChangeset
 }
 
-func NewPad(host, padId string, conn *websocket.Conn) *Pad {
+func NewPad(host, padId string, conn *websocket.Conn, logger *zap.SugaredLogger) *Pad {
 	return &Pad{
+		logger:    logger,
 		host:      host,
 		padId:     padId,
 		conn:      conn,
@@ -76,18 +78,18 @@ func (p *Pad) Append(text string) {
 	p.poolLock.Lock()
 	if p.atext == nil || p.apool == nil {
 		p.poolLock.Unlock()
-		fmt.Println("Pad ist nicht initialisiert (atext oder apool ist nil)")
+		p.logger.Errorf("Pad is not initialized")
 		return
 	}
 
 	if len(text) == 0 {
-		fmt.Println("Kein Text zum Anhängen – Changeset wird nicht erzeugt.")
+		p.logger.Warnf("No text to append - changeset will not be created.")
 		p.poolLock.Unlock()
 		return
 	}
 
 	if text == "\n" && strings.HasSuffix(p.atext.Text, "\n") {
-		fmt.Println("Pad endet bereits mit Zeilenumbruch – Changeset wird nicht erzeugt.")
+		p.logger.Infof("Pad already ends with newline - not appending another.")
 		p.poolLock.Unlock()
 		return
 	}
@@ -101,7 +103,7 @@ func (p *Pad) Append(text string) {
 	newChangeset, err := changeset.MakeSplice(p.atext.Text, start, 0, text, &emptyAttribs, p.apool)
 	if err != nil {
 		p.poolLock.Unlock()
-		fmt.Printf("Error creating changeset: %v\n", err)
+		p.logger.Errorf("Error creating changeset: %v", err)
 		return
 	}
 
@@ -109,7 +111,7 @@ func (p *Pad) Append(text string) {
 	unpacked, err := changeset.Unpack(newChangeset)
 	if err != nil {
 		p.poolLock.Unlock()
-		fmt.Printf("Error unpacking changeset: %v\n", err)
+		p.logger.Errorf("Error unpacking changeset: %v", err)
 		return
 	}
 	newChangeset = changeset.Pack(unpacked.OldLen, unpacked.NewLen, unpacked.Ops, unpacked.CharBank)
@@ -117,7 +119,7 @@ func (p *Pad) Append(text string) {
 	// Validate generated changeset header: oldLen should equal current local text length
 	if unpacked.OldLen != start {
 		p.poolLock.Unlock()
-		fmt.Printf("Generated changeset oldLen mismatch: expected %d got %d; not sending\n", start, unpacked.OldLen)
+		p.logger.Errorf("Generated changeset oldLen mismatch: expected %d got %d; not sending", start, unpacked.OldLen)
 		// emit an error event so callers/tests can react
 		p.emit("append_error", map[string]interface{}{"error": "oldLen_mismatch", "expected": start, "got": unpacked.OldLen})
 		return
@@ -126,7 +128,7 @@ func (p *Pad) Append(text string) {
 	newAText, err := changeset.ApplyToAText(newChangeset, *p.atext, *p.apool)
 	if err != nil {
 		p.poolLock.Unlock()
-		fmt.Printf("Error applying changeset: %v\n", err)
+		p.logger.Errorf("Error applying changeset: %v", err)
 		return
 	}
 
@@ -160,7 +162,7 @@ func connect(host string, logger *zap.SugaredLogger) *Pad {
 	} else {
 		parsedUrl, err := url.Parse(host)
 		if err != nil {
-			fmt.Println("Invalid host URL:", err)
+			logger.Warnf("Invalid host URL: %v", err)
 			os.Exit(1)
 		}
 		padState.Host = fmt.Sprintf("%s://%s", parsedUrl.Scheme, parsedUrl.Host)
@@ -177,15 +179,15 @@ func connect(host string, logger *zap.SugaredLogger) *Pad {
 
 	httpClient := &http.Client{}
 	fullUrl := fmt.Sprintf("%s%s/p/%s", padState.Host, padState.Path, padState.PadId)
-	fmt.Printf("Getting Pad at %s\n", fullUrl)
+	logger.Infof("Getting Pad at %s", fullUrl)
 	resp, err := httpClient.Get(fullUrl)
 	if err != nil {
-		fmt.Printf("Failed to connect to pad at %s: %v\n", fullUrl, err)
+		logger.Errorf("Failed to connect to pad at %s: %v", fullUrl, err)
 		os.Exit(1)
 	}
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		fmt.Printf("Failed to connect to pad at %s, status: %s, body: %s\n", fullUrl, resp.Status, string(body))
+		logger.Errorf("Failed to connect to pad at %s, status: %s, body: %s", fullUrl, resp.Status, string(body))
 		os.Exit(1)
 	}
 	defer func() {
@@ -193,19 +195,19 @@ func connect(host string, logger *zap.SugaredLogger) *Pad {
 	}()
 
 	wsUrl := fmt.Sprintf("%s/%ssocket.io", strings.Replace(padState.Host, "http", "ws", 1), padState.Path)
-	fmt.Printf("Connecting to WebSocket at %s\n", wsUrl)
+	logger.Infof("Connecting to WebSocket at %s", wsUrl)
 	connection, resp, err := websocket.DefaultDialer.Dial(wsUrl, nil)
 	if err != nil {
-		fmt.Printf("WebSocket connection failed: %v\n", err)
+		logger.Errorf("WebSocket connection failed: %v", err)
 		if resp != nil {
-			fmt.Printf("Response Status: %s\n", resp.Status)
+			logger.Warnf("Response Status: %s", resp.Status)
 		}
 		os.Exit(1)
 	}
 
 	var authorToken = "t." + utils.RandomString(20)
 
-	pad := NewPad(padState.Host, padState.PadId, connection)
+	pad := NewPad(padState.Host, padState.PadId, connection, logger)
 
 	go func() {
 		// Recover to avoid crashing the whole process on unexpected panics in the reader loop
@@ -466,12 +468,12 @@ func (p *Pad) sendMessage(optMsg *PadChangeset) {
 	if optMsg != nil {
 		if p.outgoing != nil {
 			if optMsg.baseRev != p.outgoing.baseRev {
-				fmt.Println("Dropping outgoing changeset due to baseRev mismatch")
+				p.logger.Warnf("Dropping outgoing changeset due to baseRev mismatch")
 				return
 			}
 			tempStr, err := changeset.Compose(p.outgoing.changeset, optMsg.changeset, p.apool)
 			if err != nil {
-				fmt.Printf("Error composing outgoing changesets: %v\n", err)
+				p.logger.Errorf("Error composing outgoing changesets: %v", err)
 				return
 			}
 			p.outgoing.changeset = *tempStr
@@ -485,7 +487,7 @@ func (p *Pad) sendMessage(optMsg *PadChangeset) {
 		apoolCreated := apool.NewAPool()
 		changeset.MoveOpsToNewPool(p.inFlight.changeset, p.apool, &apoolCreated)
 		wirePool := apoolCreated.ToJsonable()
-		fmt.Println("Sending changeset:", p.inFlight.changeset)
+		p.logger.Debugf("Sending changeset: %s", p.inFlight.changeset)
 		msg := ws.UserChange{
 			Event: "message",
 			Data: ws.UserChangeData{
@@ -555,16 +557,16 @@ func RunFromCLI(logger *zap.SugaredLogger, args []string) {
 	}
 
 	if host == "" {
-		fmt.Println("No host specified..")
+		logger.Warnf("No host specified..")
 		return
 	}
 
 	if appendStr != "" {
 		pad := connect(host, logger)
 		pad.OnConnected(func(_ *Pad) {
-			fmt.Println("CLI Connected, appending...")
+			logger.Infof("CLI Connected, appending...")
 			pad.Append(appendStr)
-			fmt.Printf("Appended %q to %s\n", appendStr, host)
+			logger.Infof("Appended %q to %s", appendStr, host)
 			if os.Getenv("GO_TEST_MODE") == "true" {
 				pad.emit("append_done", nil)
 			} else {
@@ -581,7 +583,7 @@ func RunFromCLI(logger *zap.SugaredLogger, args []string) {
 				pad.Close()
 				return
 			case <-time.After(10 * time.Second):
-				fmt.Println("Append timeout")
+				logger.Warnf("Append timeout")
 				pad.Close()
 				return
 			}
@@ -591,15 +593,11 @@ func RunFromCLI(logger *zap.SugaredLogger, args []string) {
 	} else {
 		pad := connect(host, logger)
 		pad.OnConnected(func(padState *Pad) {
-			fmt.Printf("Connected to %s with padId %s\n", padState.host, padState.padId)
-			fmt.Print("\u001b[2J\u001b[0;0H")
-			if padState.atext != nil {
-				fmt.Println("Pad Contents", "\n"+padState.atext.Text)
-			}
+			logger.Infof("Connected to %s with padId %s", padState.host, padState.padId)
+			logger.Debugf("Pad Contents: \n%s", padState.atext.Text)
 		})
 		pad.OnNewContents(func(atext apool.AText) {
-			fmt.Print("\u001b[2J\u001b[0;0H")
-			fmt.Println("Pad Contents", "\n"+atext.Text)
+			logger.Debugf("Pad Contents: \n%s", atext.Text)
 		})
 
 		done := make(chan struct{})

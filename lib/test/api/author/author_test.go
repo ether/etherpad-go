@@ -9,7 +9,6 @@ import (
 
 	"github.com/ether/etherpad-go/lib/api/author"
 	"github.com/ether/etherpad-go/lib/test/testutils"
-	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -108,15 +107,18 @@ func testGetExistingAuthor(t *testing.T, tsStore testutils.TestDataStore) {
 }
 
 func testGetAuthorPadIDS(t *testing.T, tsStore testutils.TestDataStore) {
-	t.Skip()
-	// Skip because we cannot yet map pads to authors
-	app := fiber.New()
 	author.Init(tsStore.ToInitStore())
 	dbAuthorToSave := testutils.GenerateDBAuthor()
 	assert.NoError(t, tsStore.DS.SaveAuthor(dbAuthorToSave))
+	padText := "Hallo123\n"
+	_, err := tsStore.PadManager.GetPad("pad123", &padText, &dbAuthorToSave.ID)
+	assert.NoError(t, err)
 	req := httptest.NewRequest("GET", "/author/"+dbAuthorToSave.ID+"/pads", nil)
 
-	resp, _ := app.Test(req, 10)
+	resp, err := tsStore.App.Test(req, 100)
+	if err != nil {
+		t.Errorf("error getting author pads: %v", err)
+	}
 	if resp.StatusCode != 200 {
 		t.Errorf("should return 200 for existing author pads, got %d", resp.StatusCode)
 	}
