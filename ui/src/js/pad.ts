@@ -144,7 +144,7 @@ const getParameters = [
         callback: (val) => {
             console.log('Val is', val)
             html10n.localize([val, 'en']);
-            Cookies.set('language', val);
+            Cookies.set('language', val, { expires: 36500 });
         },
     },
 ];

@@ -21,7 +21,6 @@ templ PluginToolbarButtons(translations map[string]string, buttonGroups []plugin
     }
 }
 
-// getTranslation gibt die Übersetzung zurück oder den Schlüssel, wenn nicht vorhanden
 func getTranslation(translations map[string]string, key string) string {
     if val, ok := translations[key]; ok {
         return val

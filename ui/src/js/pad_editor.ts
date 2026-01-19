@@ -121,7 +121,7 @@ const padeditor = (() => {
       });
       $('#languagemenu').val(html10n.getLanguage());
       $('#languagemenu').on('change', () => {
-        Cookies.set('language', $('#languagemenu').val());
+        Cookies.set('language', $('#languagemenu').val(), { expires: 36500 });
         location.reload()
         html10n.localize([$('#languagemenu').val(), 'en']);
         if ($('select').niceSelect) {
