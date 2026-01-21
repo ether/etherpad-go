@@ -14,7 +14,7 @@ import (
 
 type MemoryDataStore struct {
 	padStore     map[string]db.PadDB
-	padRevisions map[string][]db.PadSingleRevision
+	padRevisions map[string]map[int]db.PadSingleRevision
 	authorStore  map[string]db.AuthorDB
 	readonly2Pad map[string]string
 	pad2Readonly map[string]string
@@ -61,10 +61,10 @@ func (m *MemoryDataStore) GetRevisions(padId string, startRev int, endRev int) (
 	}
 
 	revisions, ok := m.padRevisions[padId]
+	revisionsToReturn := make([]db.PadSingleRevision, 0)
 
 	if !ok {
-		revisions = []db.PadSingleRevision{}
-		return &revisions, nil
+		return &revisionsToReturn, nil
 	}
 	for rev := startRev; rev <= endRev; rev++ {
 		if len(revisions) <= rev {
@@ -83,9 +83,9 @@ func (m *MemoryDataStore) GetRevisions(padId string, startRev int, endRev int) (
 			Timestamp: revisionFromPad.Timestamp,
 		}
 
-		revisions = append(revisions, padSingleRevision)
+		revisionsToReturn = append(revisionsToReturn, padSingleRevision)
 	}
-	return &revisions, nil
+	return &revisionsToReturn, nil
 }
 
 func (m *MemoryDataStore) QueryPad(offset int, limit int, sortBy string, ascending bool, pattern string) (*db.PadDBSearchResult, error) {
@@ -195,7 +195,7 @@ func (m *MemoryDataStore) RemoveRevisionsOfPad(padId string) error {
 		return errors.New(PadDoesNotExistError)
 	}
 
-	m.padRevisions[padId] = make([]db.PadSingleRevision, 0)
+	m.padRevisions[padId] = make(map[int]db.PadSingleRevision)
 	pad.RevNum = -1
 	m.padStore[padId] = pad
 	return nil
@@ -324,14 +324,19 @@ func (m *MemoryDataStore) GetPadIds() (*[]string, error) {
 
 func NewMemoryDataStore() *MemoryDataStore {
 	return &MemoryDataStore{
-		padStore:     make(map[string]db.PadDB),
-		authorStore:  make(map[string]db.AuthorDB),
-		pad2Readonly: make(map[string]string),
-		readonly2Pad: make(map[string]string),
-		sessionStore: make(map[string]session2.Session),
-		tokenStore:   make(map[string]string),
-		groupStore:   make(map[string]string),
-		chatPads:     make(map[string]db.ChatMessageDB),
+		padRevisions:           make(map[string]map[int]db.PadSingleRevision),
+		accessTokenRequestIDs:  make(map[string]string),
+		accessTokens:           make(map[string]fosite.Requester),
+		refreshTokenRequestIDs: make(map[string]string),
+		refreshTokens:          make(map[string]db.StoreRefreshToken),
+		padStore:               make(map[string]db.PadDB),
+		authorStore:            make(map[string]db.AuthorDB),
+		pad2Readonly:           make(map[string]string),
+		readonly2Pad:           make(map[string]string),
+		sessionStore:           make(map[string]session2.Session),
+		tokenStore:             make(map[string]string),
+		groupStore:             make(map[string]string),
+		chatPads:               make(map[string]db.ChatMessageDB),
 	}
 }
 
@@ -342,7 +347,7 @@ func (m *MemoryDataStore) DoesPadExist(padID string) (*bool, error) {
 
 func (m *MemoryDataStore) CreatePad(padID string, padDB db.PadDB) error {
 	m.padStore[padID] = padDB
-	m.padRevisions[padID] = make([]db.PadSingleRevision, 0)
+	m.padRevisions[padID] = make(map[int]db.PadSingleRevision)
 	return nil
 }
 
