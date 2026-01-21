@@ -65,6 +65,14 @@ type RootPlugin struct {
 	Parts   map[string]PartInMessage   `json:"parts"`
 }
 
+type SavedRevisionClient struct {
+	Id        string  `json:"id"`
+	Revnum    int     `json:"revNum"`
+	SavedBy   string  `json:"savedById"`
+	Label     *string `json:"label"`
+	Timestamp int64   `json:"timestamp"`
+}
+
 type ClientVars struct {
 	SkinName                           string                             `json:"skinName"`
 	SkinVariants                       string                             `json:"skinVariants"`
@@ -73,7 +81,7 @@ type ClientVars struct {
 	AutomaticReconnectionTimeout       int                                `json:"automaticReconnectionTimeout"`
 	InitialRevisionList                []string                           `json:"initialRevisionList"`
 	InitialOptions                     map[string]interface{}             `json:"initialOptions"`
-	SavedRevisions                     []string                           `json:"savedRevisions"`
+	SavedRevisions                     []SavedRevisionClient              `json:"savedRevisions"`
 	CollabClientVars                   CollabClientVars                   `json:"collab_client_vars"`
 	ColorPalette                       []string                           `json:"colorPalette"`
 	ClientIP                           string                             `json:"clientIp"`

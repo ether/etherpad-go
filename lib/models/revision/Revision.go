@@ -3,7 +3,11 @@ package revision
 import "github.com/ether/etherpad-go/lib/apool"
 
 type SavedRevision struct {
-	RevNum int
+	RevNum    int
+	SavedBy   string
+	Timestamp int64
+	Label     *string
+	Id        string
 }
 
 type Revision struct {

@@ -126,6 +126,17 @@ func (f *Factory) NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apoo
 		sofficeAvailable = "yes"
 	}
 
+	var savedRevisions = make([]clientVars.SavedRevisionClient, 0)
+	for _, rev := range pad.SavedRevisions {
+		savedRevisions = append(savedRevisions, clientVars.SavedRevisionClient{
+			Revnum:    rev.RevNum,
+			SavedBy:   rev.SavedBy,
+			Timestamp: rev.Timestamp,
+			Label:     rev.Label,
+			Id:        rev.Id,
+		})
+	}
+
 	return &clientVars.ClientVars{
 		SkinName:            retrievedSettings.SkinName,
 		SkinVariants:        retrievedSettings.SkinVariants,
@@ -136,7 +147,7 @@ func (f *Factory) NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apoo
 		AutomaticReconnectionTimeout: retrievedSettings.AutomaticReconnectionTimeout,
 		InitialRevisionList:          make([]string, 0),
 		InitialOptions:               make(map[string]interface{}),
-		SavedRevisions:               make([]string, 0),
+		SavedRevisions:               savedRevisions,
 		CollabClientVars: clientVars.CollabClientVars{
 			InitialAttributedText: clientVars.InitialAttributedText{
 				Text:    pad.AText.Text,

@@ -153,6 +153,24 @@ func (c *Client) readPump(retrievedSettings *settings.Settings, logger *zap.Suga
 			}
 
 			c.Handler.HandleMessage(clientReady, c, c.Ctx, retrievedSettings, logger)
+		} else if strings.Contains(decodedMessage, "PAD_DELETE") {
+			var padDelete PadDelete
+			err := json.Unmarshal(message, &padDelete)
+			if err != nil {
+				logger.Error("Error unmarshalling PAD_DELETE: ", err)
+				continue
+			}
+			c.Handler.HandleMessage(padDelete, c, c.Ctx, retrievedSettings, logger)
+		} else if strings.Contains(decodedMessage, "SAVE_REVISION") {
+			var saveRevision SavedRevision
+			err := json.Unmarshal(message, &saveRevision)
+			if err != nil {
+				logger.Error("Error unmarshalling SAVE_REVISION: ", err)
+				continue
+			}
+
+			c.Handler.HandleMessage(saveRevision, c, c.Ctx, retrievedSettings, logger)
+
 		} else if strings.Contains(decodedMessage, "USER_CHANGES") {
 			var userchange ws.UserChange
 			err := json.Unmarshal(message, &userchange)

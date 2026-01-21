@@ -434,9 +434,19 @@ func (p *Pad) GetRevisions(start int, end int) (*[]db2.PadSingleRevision, error)
 }
 
 func (p *Pad) Save() error {
+	savedRevisionsInDB := make(map[int]db2.SavedRevision)
+	for _, savedRevision := range p.SavedRevisions {
+		savedRevisionsInDB[savedRevision.RevNum] = db2.SavedRevision{
+			RevNum:    savedRevision.RevNum,
+			SavedBy:   savedRevision.SavedBy,
+			Timestamp: savedRevision.Timestamp,
+			Label:     savedRevision.Label,
+			Id:        savedRevision.Id,
+		}
+	}
+
 	return p.db.CreatePad(p.Id, db2.PadDB{
-		SavedRevisions: make(map[int]db2.PadRevision),
-		Revisions:      map[int]db2.PadSingleRevision{},
+		SavedRevisions: savedRevisionsInDB,
 		RevNum:         p.Head,
 		Pool:           p.Pool.ToPadDB(),
 		AText:          p.AText.ToDBAText(),
@@ -549,4 +559,22 @@ func (p *Pad) GetPadMetaData(revNum int) *db2.PadMetaData {
 
 func (p *Pad) GetChatMessages(start int, end int) (*[]db2.ChatMessageDBWithDisplayName, error) {
 	return p.db.GetChatsOfPad(p.Id, start, end)
+}
+
+func (p *Pad) AddSavedRevision(author string) error {
+	for _, savedRev := range p.SavedRevisions {
+		if savedRev.RevNum == p.Head {
+			return errors.New("saved revision already exists")
+		}
+	}
+
+	label := "Revision " + strconv.Itoa(p.Head)
+	p.SavedRevisions = append(p.SavedRevisions, revision.SavedRevision{
+		RevNum:    p.Head,
+		SavedBy:   author,
+		Timestamp: time.Now().UnixNano() / int64(time.Millisecond),
+		Label:     &label,
+		Id:        utils.RandomString(10),
+	})
+	return p.Save()
 }
