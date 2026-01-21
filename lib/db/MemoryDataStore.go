@@ -66,12 +66,12 @@ func (m *MemoryDataStore) GetRevisions(padId string, startRev int, endRev int) (
 	if !ok {
 		return &revisionsToReturn, nil
 	}
-	for rev := startRev; rev <= endRev; rev++ {
-		if len(revisions) <= rev {
+	for rev := startRev + 1; rev <= endRev; rev++ {
+
+		revisionFromPad, ok := revisions[rev]
+		if !ok {
 			return nil, errors.New(PadRevisionNotFoundError)
 		}
-
-		var revisionFromPad = revisions[rev]
 
 		var padSingleRevision = db.PadSingleRevision{
 			PadId:     padId,
@@ -271,12 +271,11 @@ func (m *MemoryDataStore) GetRevision(padId string, rev int) (*db.PadSingleRevis
 		return nil, errors.New(PadRevisionNotFoundError)
 	}
 
-	var okRev = len(m.padRevisions[padId]) > rev
-	if !okRev {
+	revisionFromPad, ok := m.padRevisions[padId][rev]
+
+	if !ok {
 		return nil, errors.New(PadRevisionNotFoundError)
 	}
-
-	var revisionFromPad = m.padRevisions[padId][rev]
 
 	var padSingleRevision = db.PadSingleRevision{
 		PadId:     padId,
@@ -299,10 +298,10 @@ func (m *MemoryDataStore) GetPadMetaData(padId string, revNum int) (*db.PadMetaD
 	}
 	padRevs := m.padRevisions[padId]
 
-	if len(padRevs) <= revNum {
+	rev, ok := padRevs[revNum]
+	if !ok {
 		return nil, errors.New(PadRevisionNotFoundError)
 	}
-	rev := padRevs[revNum]
 
 	return &db.PadMetaData{
 		AuthorId:  rev.AuthorId,
@@ -358,6 +357,10 @@ func (m *MemoryDataStore) SaveRevision(padId string, rev int, changeset string,
 		return errors.New(PadDoesNotExistError)
 	}
 	retrievedPad.RevNum = rev
+
+	if m.padRevisions[padId] == nil {
+		m.padRevisions[padId] = make(map[int]db.PadSingleRevision)
+	}
 
 	m.padRevisions[padId][rev] = db.PadSingleRevision{
 		PadId:     padId,
