@@ -66,11 +66,11 @@ func (m *MemoryDataStore) GetRevisions(padId string, startRev int, endRev int) (
 	if !ok {
 		return &revisionsToReturn, nil
 	}
-	for rev := startRev + 1; rev <= endRev; rev++ {
+	for rev := startRev; rev <= endRev; rev++ {
 
 		revisionFromPad, ok := revisions[rev]
 		if !ok {
-			return nil, errors.New(PadRevisionNotFoundError)
+			continue
 		}
 
 		var padSingleRevision = db.PadSingleRevision{
