@@ -37,8 +37,9 @@ func HandlePadOpen(c *fiber.Ctx, uiAssets embed.FS, retrievedSettings *settings.
 
 	jsFilePath := "/js/pad/assets/pad.js?v=" + strconv.Itoa(utils.RandomVersionString)
 	buttonGroups := plugins.GetToolbarButtonGroups()
+	settingsMenuGroups := plugins.GetSettingsMenuGroups()
 
-	padComp := padAsset.PadIndex(pad, jsFilePath, keyValues, retrievedSettings, AvailableFonts, buttonGroups)
+	padComp := padAsset.PadIndex(pad, jsFilePath, keyValues, retrievedSettings, AvailableFonts, buttonGroups, settingsMenuGroups)
 
 	return adaptor.HTTPHandler(templ.Handler(padComp))(c)
 }

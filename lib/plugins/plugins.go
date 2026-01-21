@@ -149,6 +149,25 @@ func GetToolbarButtons() []ToolbarButton {
 	return buttons
 }
 
+func GetSettingsMenuGroups() []SettingsMenuItemGroup {
+	_, parts, _ := Update()
+	var groups []SettingsMenuItemGroup
+
+	for _, part := range parts {
+		if len(part.SettingsMenuItems) > 0 {
+			pluginName := ""
+			if part.Plugin != nil {
+				pluginName = *part.Plugin
+			}
+			groups = append(groups, SettingsMenuItemGroup{
+				PluginName: pluginName,
+				Items:      part.SettingsMenuItems,
+			})
+		}
+	}
+	return groups
+}
+
 // GetToolbarButtonGroups gibt Toolbar-Buttons gruppiert nach Plugin zurück
 func GetToolbarButtonGroups() []ToolbarButtonGroup {
 	_, parts, _ := Update()

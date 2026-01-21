@@ -80,7 +80,7 @@ templ EditorLoadingBox(translations map[string]string) {
           </div>
 }
 
-templ SettingsPopup(translations map[string]string, availablefonts []string) {
+templ SettingsPopup(translations map[string]string, availablefonts []string, settingsGroups []pluginTypes.SettingsMenuItemGroup) {
           <div id="settings" class="popup"><div class="popup-content">
               <h1 id="padSettingsTitle">{translations["pad.settings.padSettings"]}</h1>
               <h2>{translations["pad.settings.myView"]}</h2>
@@ -347,7 +347,8 @@ templ ChatBox(translations map[string]string) {
 
 
 
-templ PadIndex(pad padModel.Model, jsScript string, translations map[string]string, settings *settings.Settings, availableFonts []string, buttonGroups []pluginTypes.ToolbarButtonGroup) {
+templ PadIndex(pad padModel.Model, jsScript string, translations map[string]string, settings *settings.Settings,
+availableFonts []string, buttonGroups []pluginTypes.ToolbarButtonGroup, settingsGroups []pluginTypes.SettingsMenuItemGroup) {
   <html class="pad super-light-toolbar super-light-editor light-background">
   <head>
     <title>{settings.Title}</title>
@@ -363,7 +364,7 @@ templ PadIndex(pad padModel.Model, jsScript string, translations map[string]stri
               <div id="editorcontainer" class="editorcontainer"></div>
 
             @EditorLoadingBox(translations)
-            @SettingsPopup(translations, availableFonts)
+            @SettingsPopup(translations, availableFonts, settingsGroups)
             @ImportExportPopup(translations)
             @ConnectivityPopup(translations)
             @EmbedPopup(translations)
