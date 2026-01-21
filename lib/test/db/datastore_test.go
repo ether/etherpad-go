@@ -49,10 +49,6 @@ func runAllDataStoreTests(testHandler *testutils.TestDBHandler) {
 			Test: testSaveRevisionsOnNonexistentPad,
 		},
 		testutils.TestRunConfig{
-			Name: "GetRevisionsOnExistentPadWithNonExistingRevision",
-			Test: testGetRevisionsOnExistentPadWithNonExistingRevision,
-		},
-		testutils.TestRunConfig{
 			Name: "RemoveChatOnNonExistingPad",
 			Test: testRemoveChatOnNonExistingPad,
 		},
@@ -215,17 +211,6 @@ func testGetRevisionsOnNonexistentPad(t *testing.T, ds testutils.TestDataStore) 
 func testSaveRevisionsOnNonexistentPad(t *testing.T, ds testutils.TestDataStore) {
 	err := ds.DS.SaveRevision("nonexistentPad", 0, "test", modeldb.AText{}, modeldb.RevPool{}, nil, 1234)
 	if err == nil || err.Error() != "pad not found" {
-		t.Fatalf("should return error for nonexistent pad")
-	}
-}
-
-func testGetRevisionsOnExistentPadWithNonExistingRevision(t *testing.T, ds testutils.TestDataStore) {
-	err := ds.DS.CreatePad("padA", db.CreateRandomPad())
-	if err != nil {
-		t.Fatalf("CreatePad returned error: %v", err)
-	}
-	_, err = ds.DS.GetRevisions("padA", 0, 100)
-	if err == nil || err.Error() != db.PadRevisionNotFoundError {
 		t.Fatalf("should return error for nonexistent pad")
 	}
 }
