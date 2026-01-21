@@ -1,0 +1,13 @@
+{
+	"@metadata": {
+		"authors": [
+			"আজিজ",
+			"আফতাবুজ্জামান"
+		]
+	},
+	"ep_align.align": "সারিবিন্যাস",
+	"ep_align.toolbar.left.title": "বামে",
+	"ep_align.toolbar.center.title": "কেন্দ্রে",
+	"ep_align.toolbar.right.title": "ডানে",
+	"ep_align.toolbar.justify.title": "যথাযথ"
+}

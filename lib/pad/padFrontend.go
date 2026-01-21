@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/a-h/templ"
+	"github.com/ether/etherpad-go/lib/hooks"
 	"github.com/ether/etherpad-go/lib/models"
 	"github.com/ether/etherpad-go/lib/plugins"
 	"github.com/ether/etherpad-go/lib/settings"
@@ -24,13 +25,14 @@ var AvailableFonts = []string{
 	"RobotoMono",
 }
 
-func HandlePadOpen(c *fiber.Ctx, uiAssets embed.FS, retrievedSettings *settings.Settings) error {
+func HandlePadOpen(c *fiber.Ctx, uiAssets embed.FS, retrievedSettings *settings.Settings, hooks *hooks.Hook) error {
 	pad := models.Model{
 		Name: "test",
 	}
 
 	var language = c.Cookies("language", "en")
-	var keyValues, err = utils.LoadTranslations(language, uiAssets)
+
+	var keyValues, err = utils.LoadTranslations(language, uiAssets, hooks)
 	if err != nil {
 		return err
 	}

@@ -74,7 +74,7 @@ func main() {
 	retrievedHooks := hooks.NewHook()
 
 	// init plugins
-	plugins.InitPlugins(&settings, &retrievedHooks)
+	plugins.InitPlugins(&settings, &retrievedHooks, setupLogger, uiAssets)
 
 	gitVersion := settings2.GetGitCommit(&settings)
 	setupLogger.Info("Starting Etherpad Go...")

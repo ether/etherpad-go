@@ -237,11 +237,11 @@ func Init(store *lib.InitStore) {
 	})
 
 	store.C.Get("/p/:pad", func(ctx *fiber.Ctx) error {
-		return pad.HandlePadOpen(ctx, store.UiAssets, store.RetrievedSettings)
+		return pad.HandlePadOpen(ctx, store.UiAssets, store.RetrievedSettings, store.Hooks)
 	})
 
 	store.C.Get("/p/:pad/timeslider", func(c *fiber.Ctx) error {
-		return timeslider.HandleTimesliderOpen(c, store.UiAssets, store.RetrievedSettings)
+		return timeslider.HandleTimesliderOpen(c, store.UiAssets, store.RetrievedSettings, store.Hooks)
 	})
 
 	store.C.Get("/favicon.ico", func(c *fiber.Ctx) error {
@@ -250,7 +250,7 @@ func Init(store *lib.InitStore) {
 
 	store.C.Get("/", func(c *fiber.Ctx) error {
 		var language = c.Cookies("language", "en")
-		var keyValues, err = utils.LoadTranslations(language, store.UiAssets)
+		var keyValues, err = utils.LoadTranslations(language, store.UiAssets, store.Hooks)
 		if err != nil {
 			return err
 		}
@@ -279,6 +279,7 @@ func Init(store *lib.InitStore) {
 			var alias = make(map[string]string)
 			alias["ep_etherpad-lite/static/js/ace2_inner"] = relativePath + "/ace2_inner"
 			alias["ep_etherpad-lite/static/js/ace2_common"] = relativePath + "/ace2_common"
+			alias["ep_etherpad-lite/static/js/pad_cookie"] = relativePath + "/pad_cookie"
 			alias["ep_etherpad-lite/static/js/pluginfw/client_plugins"] = relativePath + "/pluginfw/client_plugins"
 			alias["ep_etherpad-lite/static/js/rjquery"] = relativePath + "/rjquery"
 			alias["ep_etherpad-lite/static/js/nice-select"] = "ep_etherpad-lite/static/js/vendors/nice-select"

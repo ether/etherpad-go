@@ -1,7 +1,8 @@
 {
   "plugins": {
     "ep_etherpad-lite": "1.8.13",
-    "ep_align": "0.0.1"
+    "ep_align": "0.0.1",
+    "ep_spellcheck": "0.0.1"
   },
   "parts": [
     {
@@ -205,6 +206,21 @@
       ],
       "plugin": "ep_align",
       "full_name": "ep_align/ep_align"
+    },
+    {
+      "name": "ep_spellcheck",
+      "settings_menu_items": [
+        {
+          "key": "spellcheck",
+          "title": "ep_spellcheck.spellcheck",
+          "id": "options-spellcheck"
+        }
+      ],
+      "client_hooks": {
+        "postAceInit": "ep_spellcheck/static/js/index:postAceInit"
+      },
+      "plugin": "ep_spellcheck",
+      "full_name": "ep_spellcheck/ep_spellcheck"
     }
   ]
 }

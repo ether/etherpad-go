@@ -138,6 +138,15 @@ templ SettingsPopup(translations map[string]string, availablefonts []string, set
                     </svg>
               </div>
 
+              for _, group := range settingsGroups {
+                  for _, item := range group.Items {
+                      <p>
+                          <input id={item.Id} type="checkbox" class="settings-plugin-item" data-key={item.Key}/>
+                          <label for={item.Id}>{getTranslation(translations, item.Title)}</label>
+                      </p>
+                      }
+                }
+
               <h2>{translations["pad.settings.about"]}</h2>
               <span>{translations["pad.settings.poweredBy"]}</span>
               <a href="https://etherpad.org">Etherpad</a>

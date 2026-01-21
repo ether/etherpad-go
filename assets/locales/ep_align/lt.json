@@ -1,0 +1,12 @@
+{
+	"@metadata": {
+		"authors": [
+			"Nokeoo"
+		]
+	},
+	"ep_align.align": "Lygiavimas",
+	"ep_align.toolbar.left.title": "Kairė",
+	"ep_align.toolbar.center.title": "Centras",
+	"ep_align.toolbar.right.title": "Dešinė",
+	"ep_align.toolbar.justify.title": "Abipusis"
+}

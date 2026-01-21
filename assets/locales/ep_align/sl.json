@@ -1,0 +1,13 @@
+{
+	"@metadata": {
+		"authors": [
+			"Eleassar",
+			"HairyFotr"
+		]
+	},
+	"ep_align.align": "Prilagodi",
+	"ep_align.toolbar.left.title": "Levo",
+	"ep_align.toolbar.center.title": "Usredini",
+	"ep_align.toolbar.right.title": "Desno",
+	"ep_align.toolbar.justify.title": "Poravnaj"
+}
