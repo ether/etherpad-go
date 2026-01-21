@@ -138,8 +138,7 @@ func (i *Importer) SetPadRaw(padId string, content []byte, authorId string) erro
 	}
 
 	dbPad := db2.PadDB{
-		SavedRevisions: make(map[int]db2.PadRevision),
-		Revisions:      make(map[int]db2.PadSingleRevision),
+		SavedRevisions: make(map[int]db2.SavedRevision),
 		RevNum:         padData.Head,
 		Pool:           pool.ToPadDB(),
 		AText:          db2.AText{Text: atext.Text, Attribs: atext.Attribs},

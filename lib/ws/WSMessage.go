@@ -84,6 +84,21 @@ type PadDelete struct {
 	}
 }
 
+type SavedRevision struct {
+	Event string            `json:"event"`
+	Data  SavedRevisionData `json:"data"`
+}
+
+type SavedRevisionData struct {
+	Type      string                `json:"type"`
+	Component string                `json:"component"`
+	Data      SavedRevisionDataData `json:"data"`
+}
+
+type SavedRevisionDataData struct {
+	Type string `json:"type"`
+}
+
 type PadDeleteMessage struct {
 	Disconnect string `json:"disconnect"`
 }

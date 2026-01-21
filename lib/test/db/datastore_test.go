@@ -311,7 +311,7 @@ func testSaveAndGetRevisionAndMetaData(t *testing.T, ds testutils.TestDataStore)
 
 	pad := modeldb.PadDB{
 		RevNum:         -1,
-		SavedRevisions: make(map[int]modeldb.PadRevision),
+		SavedRevisions: make(map[int]modeldb.SavedRevision),
 		Revisions:      make(map[int]modeldb.PadSingleRevision),
 	}
 	if err := ds.DS.CreatePad("pad1", pad); err != nil {
@@ -354,7 +354,7 @@ func testSaveAndGetRevisionAndMetaData(t *testing.T, ds testutils.TestDataStore)
 	}
 
 	if meta.AuthorId == nil || *meta.AuthorId != randomAuthor.Id {
-		t.Fatalf("GetPadMetaData AuthorId mismatch")
+		t.Fatalf("GetPadMetaData SavedBy mismatch")
 	}
 }
 
@@ -438,7 +438,7 @@ func testQueryPadSortingAndPattern(t *testing.T, ds testutils.TestDataStore) {
 		p := modeldb.PadDB{
 			RevNum:         rev,
 			Revisions:      make(map[int]modeldb.PadSingleRevision),
-			SavedRevisions: map[int]modeldb.PadRevision{rev: {Content: "c", PadDBMeta: modeldb.PadRevDBMeta{AText: &dbAtext, Pool: &dbPool, Author: &savedAuthor.Id, Timestamp: ts}}},
+			SavedRevisions: map[int]modeldb.SavedRevision{rev: {Content: "c", PadDBMeta: modeldb.PadRevDBMeta{AText: &dbAtext, Pool: &dbPool, Author: &savedAuthor.Id, Timestamp: ts}}},
 		}
 		if err := ds.DS.CreatePad(name, p); err != nil {
 			t.Fatalf("CreatePad failed: %v", err)
@@ -708,7 +708,7 @@ func testReadonlyMappingsAndRemoveRevisions(t *testing.T, ds testutils.TestDataS
 	pad := modeldb.PadDB{
 		RevNum:         2,
 		Revisions:      make(map[int]modeldb.PadSingleRevision),
-		SavedRevisions: map[int]modeldb.PadRevision{0: {Content: "c", PadDBMeta: modeldb.PadRevDBMeta{AText: &atext, Pool: &padDbPool, Author: &author, Timestamp: 1}}},
+		SavedRevisions: map[int]modeldb.SavedRevision{0: {Content: "c", PadDBMeta: modeldb.PadRevDBMeta{AText: &atext, Pool: &padDbPool, Author: &author, Timestamp: 1}}},
 	}
 	err = ds.DS.CreatePad("padRem", pad)
 	if err != nil {

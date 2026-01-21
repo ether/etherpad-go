@@ -14,6 +14,7 @@ import (
 
 type MemoryDataStore struct {
 	padStore     map[string]db.PadDB
+	padRevisions map[string][]db.PadSingleRevision
 	authorStore  map[string]db.AuthorDB
 	readonly2Pad map[string]string
 	pad2Readonly map[string]string
@@ -53,19 +54,24 @@ func (m *MemoryDataStore) RemoveGroup(groupId string) error {
 }
 
 func (m *MemoryDataStore) GetRevisions(padId string, startRev int, endRev int) (*[]db.PadSingleRevision, error) {
-	var pad, ok = m.padStore[padId]
+	var _, ok = m.padStore[padId]
 
 	if !ok {
 		return nil, errors.New(PadDoesNotExistError)
 	}
 
-	var revisions []db.PadSingleRevision
-	for rev := startRev; rev <= endRev; rev++ {
-		var revisionFromPad, okRev = pad.Revisions[rev]
+	revisions, ok := m.padRevisions[padId]
 
-		if !okRev {
+	if !ok {
+		revisions = []db.PadSingleRevision{}
+		return &revisions, nil
+	}
+	for rev := startRev; rev <= endRev; rev++ {
+		if len(revisions) <= rev {
 			return nil, errors.New(PadRevisionNotFoundError)
 		}
+
+		var revisionFromPad = revisions[rev]
 
 		var padSingleRevision = db.PadSingleRevision{
 			PadId:     padId,
@@ -115,7 +121,7 @@ func (m *MemoryDataStore) QueryPad(offset int, limit int, sortBy string, ascendi
 		padSearch = append(padSearch, db.PadDBSearch{
 			Padname:        padKey,
 			RevisionNumber: m.padStore[padKey].RevNum,
-			LastEdited:     retrievedPad.Revisions[retrievedPad.RevNum].Timestamp,
+			LastEdited:     m.padRevisions[padKey][retrievedPad.RevNum].Timestamp,
 		})
 	}
 
@@ -189,7 +195,7 @@ func (m *MemoryDataStore) RemoveRevisionsOfPad(padId string) error {
 		return errors.New(PadDoesNotExistError)
 	}
 
-	pad.Revisions = make(map[int]db.PadSingleRevision)
+	m.padRevisions[padId] = make([]db.PadSingleRevision, 0)
 	pad.RevNum = -1
 	m.padStore[padId] = pad
 	return nil
@@ -255,17 +261,22 @@ func (m *MemoryDataStore) SetAuthorByToken(token string, author string) error {
 }
 
 func (m *MemoryDataStore) GetRevision(padId string, rev int) (*db.PadSingleRevision, error) {
-	var pad, ok = m.padStore[padId]
+	var _, ok = m.padStore[padId]
 
 	if !ok {
 		return nil, errors.New(PadDoesNotExistError)
 	}
 
-	var revisionFromPad, okRev = pad.Revisions[rev]
+	if m.padRevisions[padId] == nil {
+		return nil, errors.New(PadRevisionNotFoundError)
+	}
 
+	var okRev = len(m.padRevisions[padId]) > rev
 	if !okRev {
 		return nil, errors.New(PadRevisionNotFoundError)
 	}
+
+	var revisionFromPad = m.padRevisions[padId][rev]
 
 	var padSingleRevision = db.PadSingleRevision{
 		PadId:     padId,
@@ -281,16 +292,17 @@ func (m *MemoryDataStore) GetRevision(padId string, rev int) (*db.PadSingleRevis
 }
 
 func (m *MemoryDataStore) GetPadMetaData(padId string, revNum int) (*db.PadMetaData, error) {
-	var retrievedPad, ok = m.padStore[padId]
+	var _, ok = m.padStore[padId]
 
 	if !ok {
 		return nil, errors.New(PadDoesNotExistError)
 	}
-	var rev, found = retrievedPad.Revisions[revNum]
+	padRevs := m.padRevisions[padId]
 
-	if !found {
+	if len(padRevs) <= revNum {
 		return nil, errors.New(PadRevisionNotFoundError)
 	}
+	rev := padRevs[revNum]
 
 	return &db.PadMetaData{
 		AuthorId:  rev.AuthorId,
@@ -329,16 +341,8 @@ func (m *MemoryDataStore) DoesPadExist(padID string) (*bool, error) {
 }
 
 func (m *MemoryDataStore) CreatePad(padID string, padDB db.PadDB) error {
-	// Preserve existing revisions if the pad already exists
-	if existingPad, ok := m.padStore[padID]; ok {
-		if padDB.Revisions == nil || len(padDB.Revisions) == 0 {
-			padDB.Revisions = existingPad.Revisions
-		}
-		if padDB.SavedRevisions == nil || len(padDB.SavedRevisions) == 0 {
-			padDB.SavedRevisions = existingPad.SavedRevisions
-		}
-	}
 	m.padStore[padID] = padDB
+	m.padRevisions[padID] = make([]db.PadSingleRevision, 0)
 	return nil
 }
 
@@ -350,12 +354,7 @@ func (m *MemoryDataStore) SaveRevision(padId string, rev int, changeset string,
 	}
 	retrievedPad.RevNum = rev
 
-	// Initialize the Revisions map if it's nil
-	if retrievedPad.Revisions == nil {
-		retrievedPad.Revisions = make(map[int]db.PadSingleRevision)
-	}
-
-	retrievedPad.Revisions[rev] = db.PadSingleRevision{
+	m.padRevisions[padId][rev] = db.PadSingleRevision{
 		PadId:     padId,
 		RevNum:    rev,
 		Changeset: changeset,

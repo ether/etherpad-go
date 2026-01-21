@@ -428,6 +428,20 @@ func (p *PadMessageHandler) HandleMessage(message any, client *Client, ctx *fibe
 				socket:  client,
 			})
 		}
+	case SavedRevision:
+		{
+			sess := p.SessionStore.getSession(client.SessionId)
+			if sess == nil {
+				p.Logger.Errorf("Session not found for saved revision")
+				return
+			}
+			foundPad, err := p.padManager.GetPad(sess.PadId, nil, nil)
+			if err != nil {
+				p.Logger.Errorf("Error retrieving pad for saved revision: %v", err)
+				return
+			}
+			p.HandleSavedRevisionMessage(foundPad, sess.Author)
+		}
 	case ws.GetChatMessages:
 		{
 			if expectedType.Data.Data.Start < 0 {
@@ -1377,4 +1391,11 @@ func (p *PadMessageHandler) KickSessionsFromPad(padID string) {
 		}
 	}
 	p.hub.ClientsRWMutex.RUnlock()
+}
+
+func (p *PadMessageHandler) HandleSavedRevisionMessage(foundPad *pad2.Pad, author string) {
+	if err := foundPad.AddSavedRevision(author); err != nil {
+		p.Logger.Warnf("Error adding saved revision:%s", err)
+	}
+	p.Logger.Infof("Added saved revision:%v by %s", foundPad.Id, author)
 }
