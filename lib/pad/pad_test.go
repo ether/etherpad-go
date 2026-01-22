@@ -63,7 +63,7 @@ func TestUseProvidedContent(t *testing.T) {
 	if want == settings.Displayed.DefaultPadText {
 		return
 	}
-	createdHooks.EnqueueHook(hooks.PadDefaultContentString, func(hookName string, ctx any) {
+	createdHooks.EnqueueHook(hooks.PadDefaultContentString, func(ctx any) {
 		var content = ctx.(*pad.DefaultContent)
 
 		var emptyString = ""
@@ -97,7 +97,7 @@ func TestApplyToAText(t *testing.T) {
 func TestRunWhenAPadIsCreated(t *testing.T) {
 	var called = false
 	var hook = hooks.NewHook()
-	hook.EnqueueHook(hooks.PadDefaultContentString, func(hookName string, ctx any) {
+	hook.EnqueueHook(hooks.PadDefaultContentString, func(ctx any) {
 		called = true
 	})
 	var padManager = NewManager(db.NewMemoryDataStore(), &hook)
@@ -110,7 +110,7 @@ func TestRunWhenAPadIsCreated(t *testing.T) {
 func TestNotCalledWithSpecificText(t *testing.T) {
 	var called = false
 	var hook = hooks.NewHook()
-	hook.EnqueueHook(hooks.PadDefaultContentString, func(hookName string, ctx any) {
+	hook.EnqueueHook(hooks.PadDefaultContentString, func(ctx any) {
 		called = true
 	})
 	var padManager = NewManager(db.NewMemoryDataStore(), &hook)
@@ -124,7 +124,7 @@ func TestNotCalledWithSpecificText(t *testing.T) {
 func TestDefaultsToSettingsPadText(t *testing.T) {
 	var hook = hooks.NewHook()
 	var padManager = NewManager(db.NewMemoryDataStore(), &hook)
-	hook.EnqueueHook(hooks.PadDefaultContentString, func(hookName string, ctx any) {
+	hook.EnqueueHook(hooks.PadDefaultContentString, func(ctx any) {
 		if *ctx.(*pad.DefaultContent).Type != "text" {
 			t.Error("wrong type")
 		}
@@ -140,7 +140,7 @@ func TestDefaultsToSettingsPadText(t *testing.T) {
 func TestPassesEmptyAuthorIdIfNotProvided(t *testing.T) {
 	var authorId *string
 	var hook = hooks.NewHook()
-	hook.EnqueueHook(hooks.PadDefaultContentString, func(hookName string, ctx any) {
+	hook.EnqueueHook(hooks.PadDefaultContentString, func(ctx any) {
 		authorId = ctx.(*pad.DefaultContent).AuthorId
 	})
 	padManager := NewManager(db.NewMemoryDataStore(), &hook)
@@ -154,7 +154,7 @@ func TestPassesEmptyAuthorIdIfNotProvided(t *testing.T) {
 func TestPassesAuthorIdIfProvided(t *testing.T) {
 	var hook = hooks.NewHook()
 	var authorId string
-	hook.EnqueueHook(hooks.PadDefaultContentString, func(hookName string, ctx any) {
+	hook.EnqueueHook(hooks.PadDefaultContentString, func(ctx any) {
 		authorId = *ctx.(*pad.DefaultContent).AuthorId
 	})
 	padManager := NewManager(db.NewMemoryDataStore(), &hook)
