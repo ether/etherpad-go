@@ -1,0 +1,11 @@
+{
+	"@metadata": {
+		"authors": [
+			"Norhorn"
+		]
+	},
+	"ep_align.align": "Ευθυγράμμιση",
+	"ep_align.toolbar.left.title": "Αριστερά",
+	"ep_align.toolbar.center.title": "Κέντρο",
+	"ep_align.toolbar.right.title": "Δεξιά"
+}

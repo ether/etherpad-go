@@ -6,16 +6,17 @@ import (
 
 	"github.com/a-h/templ"
 	"github.com/ether/etherpad-go/assets/timeslider"
+	"github.com/ether/etherpad-go/lib/hooks"
 	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/ether/etherpad-go/lib/utils"
 	"github.com/gofiber/adaptor/v2"
 	"github.com/gofiber/fiber/v2"
 )
 
-func HandleTimesliderOpen(c *fiber.Ctx, uiAssets embed.FS, retrievedSettings *settings.Settings) error {
+func HandleTimesliderOpen(c *fiber.Ctx, uiAssets embed.FS, retrievedSettings *settings.Settings, hook *hooks.Hook) error {
 
 	var language = c.Cookies("language", "en")
-	var keyValues, err = utils.LoadTranslations(language, uiAssets)
+	var keyValues, err = utils.LoadTranslations(language, uiAssets, hook)
 	if err != nil {
 		return err
 	}

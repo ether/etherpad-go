@@ -1,0 +1,13 @@
+{
+	"@metadata": {
+		"authors": [
+			"Spinster",
+			"woeterman_94"
+		]
+	},
+	"ep_align.align": "Uitlijnen",
+	"ep_align.toolbar.left.title": "Links",
+	"ep_align.toolbar.center.title": "Centreren",
+	"ep_align.toolbar.right.title": "Rechts",
+	"ep_align.toolbar.justify.title": "Uitvullen"
+}

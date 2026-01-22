@@ -1,0 +1,17 @@
+{
+  "parts": [
+    {
+      "name": "ep_spellcheck",
+      "settings_menu_items": [
+        {
+          "key": "spellcheck",
+          "title": "ep_spellcheck.spellcheck",
+          "id": "options-spellcheck"
+        }
+      ],
+      "client_hooks": {
+        "postAceInit": "ep_spellcheck/static/js/index:postAceInit"
+      }
+    }
+  ]
+}

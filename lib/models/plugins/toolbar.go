@@ -9,7 +9,7 @@ type ToolbarButton struct {
 	DataAlign string `json:"dataAlign"`
 }
 
-// ToolbarButtonGroup repräsentiert eine Gruppe von Toolbar-Buttons
+// ToolbarButtonGroup represents a group of toolbar buttons belonging to a plugin
 type ToolbarButtonGroup struct {
 	PluginName string
 	Buttons    []ToolbarButton

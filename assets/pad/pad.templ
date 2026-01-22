@@ -80,7 +80,7 @@ templ EditorLoadingBox(translations map[string]string) {
           </div>
 }
 
-templ SettingsPopup(translations map[string]string, availablefonts []string) {
+templ SettingsPopup(translations map[string]string, availablefonts []string, settingsGroups []pluginTypes.SettingsMenuItemGroup) {
           <div id="settings" class="popup"><div class="popup-content">
               <h1 id="padSettingsTitle">{translations["pad.settings.padSettings"]}</h1>
               <h2>{translations["pad.settings.myView"]}</h2>
@@ -137,6 +137,15 @@ templ SettingsPopup(translations map[string]string, availablefonts []string) {
                       <path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" />
                     </svg>
               </div>
+
+              for _, group := range settingsGroups {
+                  for _, item := range group.Items {
+                      <p>
+                          <input id={item.Id} type="checkbox" class="settings-plugin-item" data-key={item.Key}/>
+                          <label for={item.Id}>{getTranslation(translations, item.Title)}</label>
+                      </p>
+                      }
+                }
 
               <h2>{translations["pad.settings.about"]}</h2>
               <span>{translations["pad.settings.poweredBy"]}</span>
@@ -347,7 +356,8 @@ templ ChatBox(translations map[string]string) {
 
 
 
-templ PadIndex(pad padModel.Model, jsScript string, translations map[string]string, settings *settings.Settings, availableFonts []string, buttonGroups []pluginTypes.ToolbarButtonGroup) {
+templ PadIndex(pad padModel.Model, jsScript string, translations map[string]string, settings *settings.Settings,
+availableFonts []string, buttonGroups []pluginTypes.ToolbarButtonGroup, settingsGroups []pluginTypes.SettingsMenuItemGroup) {
   <html class="pad super-light-toolbar super-light-editor light-background">
   <head>
     <title>{settings.Title}</title>
@@ -363,7 +373,7 @@ templ PadIndex(pad padModel.Model, jsScript string, translations map[string]stri
               <div id="editorcontainer" class="editorcontainer"></div>
 
             @EditorLoadingBox(translations)
-            @SettingsPopup(translations, availableFonts)
+            @SettingsPopup(translations, availableFonts, settingsGroups)
             @ImportExportPopup(translations)
             @ConnectivityPopup(translations)
             @EmbedPopup(translations)
