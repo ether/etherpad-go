@@ -234,6 +234,14 @@ func (e *ExportEtherpad) DoExport(ctx *fiber.Ctx, id string, readOnlyId *string,
 			return ctx.Status(500).SendString(err.Error())
 		}
 		return ctx.SendString(htmlContent)
+	case "markdown", "md":
+		ctx.Set("Content-Type", "text/markdown; charset=utf-8")
+		markdownContent, err := e.exportHtml.GetPadMarkdownDocument(id, optRevNum, readOnlyId)
+		if err != nil {
+			e.logger.Warnf("Failed to get markdown document for id: %s with cause %s", id, err.Error())
+			return ctx.Status(500).SendString(err.Error())
+		}
+		return ctx.SendString(markdownContent)
 	default:
 		return ctx.Status(400).SendString("Not Implemented")
 	}

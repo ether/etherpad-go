@@ -143,7 +143,7 @@ func ReadConfig(jsonStr string) (*Settings, error) {
 	viper.SetDefault(LowerCasePadIds, false)
 	viper.SetDefault(UpdateServer, "https://static.etherpad.org")
 	viper.SetDefault(EnableDarkMode, true)
-	viper.SetDefault(AvailableExports, []string{"txt", "pdf", "etherpad", "word", "open", "html"})
+	viper.SetDefault(AvailableExports, []string{"txt", "pdf", "etherpad", "word", "open", "html", "markdown"})
 
 	// plugins
 	viper.SetDefault(EP_ALIGN_ENABLED, false)

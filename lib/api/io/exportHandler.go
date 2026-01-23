@@ -21,6 +21,7 @@ func GetExport(ctx *fiber.Ctx, exportHandler *io.ExportEtherpad, settings *setti
 		"html":     "html",
 		"open":     "odt",
 		"etherpad": "etherpad",
+		"markdown": "md",
 	}
 	// All formats are now supported internally, no external tools needed
 	var externalTypes []string
