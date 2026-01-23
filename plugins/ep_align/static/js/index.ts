@@ -4,7 +4,7 @@
  * Ermöglicht Text-Ausrichtung: links, zentriert, rechts, Blocksatz
  */
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
+
 
 import {
   AceContext,
@@ -144,7 +144,7 @@ export const aceInitialized = (_hook: string, context: AceContext): void => {
 
     const firstLine = rep.selStart[0];
     const lastLine = Math.max(firstLine, rep.selEnd[0] - ((rep.selEnd[1] === 0) ? 1 : 0));
-    range(firstLine, lastLine + 1).forEach((i) => {
+    range(firstLine, lastLine).forEach((i) => {
       if (level >= 0) {
         documentAttributeManager.setAttributeOnLine(i, 'align', tags[level]);
       } else {
