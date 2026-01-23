@@ -145,6 +145,10 @@ func ReadConfig(jsonStr string) (*Settings, error) {
 	viper.SetDefault(EnableDarkMode, true)
 	viper.SetDefault(AvailableExports, []string{"txt", "pdf", "etherpad", "word", "open", "html"})
 
+	// plugins
+	viper.SetDefault(EP_ALIGN_ENABLED, false)
+	viper.SetDefault(EP_SPELLCHECK_ENABLED, false)
+
 	users := make(map[string]User)
 	if err := viper.UnmarshalKey(Users, &users); err != nil {
 		users = make(map[string]User)
@@ -165,6 +169,20 @@ func ReadConfig(jsonStr string) (*Settings, error) {
 	dbTypeToUse, err := ParseDBType(viper.GetString(DBType))
 	if err != nil {
 		return nil, err
+	}
+
+	plugins := make(map[string]PluginSettings)
+
+	if viper.GetBool(EP_ALIGN_ENABLED) {
+		plugins["ep_align"] = PluginSettings{
+			Enabled: true,
+		}
+	}
+
+	if viper.GetBool(EP_SPELLCHECK_ENABLED) {
+		plugins["ep_spellcheck"] = PluginSettings{
+			Enabled: true,
+		}
 	}
 
 	s := &Settings{
@@ -337,6 +355,7 @@ func ReadConfig(jsonStr string) (*Settings, error) {
 		LowerCasePadIDs:     viper.GetBool(LowerCasePadIds),
 		RandomVersionString: "123",
 		DevMode:             viper.GetBool(DevMode),
+		Plugins:             plugins,
 	}
 
 	// Parse Plugins

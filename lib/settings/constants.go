@@ -105,4 +105,10 @@ const (
 	DevMode                             = "devMode"
 	SsoIssuer                           = "sso.issuer"
 	SsoClients                          = "sso.clients"
+
+	// ep_align
+	EP_ALIGN_ENABLED = "epalign.enabled"
+
+	// ep_spellcheck
+	EP_SPELLCHECK_ENABLED = "epspellcheck.enabled"
 )
