@@ -39,8 +39,12 @@ func NewSQLDatabase(db *sql.DB, driver DriverType) *SQLDatabase {
 	switch driver {
 	case DriverPostgres:
 		s.placeholder = func(n int) string { return fmt.Sprintf("$%d", n) }
-	case DriverSQLite, DriverMySQL:
+	case DriverSQLite:
 		s.placeholder = func(n int) string { return "?" }
+	case DriverMySQL:
+		s.placeholder = func(n int) string { return "?" }
+		s.keyColumn = "`key`"
+		s.valueColumn = "`value`"
 	}
 
 	return s
@@ -117,15 +121,16 @@ func (s *SQLDatabase) getKeysAndValuesByPrefix(
 
 	if lastKey == "" {
 		query = fmt.Sprintf(
-			"SELECT %s, %s FROM %s WHERE %s LIKE %s ORDER BY %s ASC LIMIT %s",
-			s.keyColumn, s.valueColumn, s.tableName, s.keyColumn,
+			"SELECT * FROM %s WHERE %s LIKE %s ORDER BY %s ASC LIMIT %s",
+			s.tableName, s.keyColumn,
 			s.placeholder(1), s.keyColumn, s.placeholder(2),
 		)
+		println(query)
 		args = []interface{}{prefix + "%", limit}
 	} else {
 		query = fmt.Sprintf(
-			"SELECT %s, %s FROM %s WHERE %s LIKE %s AND %s > %s ORDER BY %s ASC LIMIT %s",
-			s.keyColumn, s.valueColumn, s.tableName, s.keyColumn,
+			"SELECT * FROM %s WHERE %s LIKE %s AND %s > %s ORDER BY %s ASC LIMIT %s",
+			s.tableName, s.keyColumn,
 			s.placeholder(1), s.keyColumn, s.placeholder(2),
 			s.keyColumn, s.placeholder(3),
 		)
@@ -133,6 +138,7 @@ func (s *SQLDatabase) getKeysAndValuesByPrefix(
 	}
 
 	rows, err := s.db.Query(query, args...)
+	fmt.Printf("Args are %v", args)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
