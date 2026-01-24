@@ -148,6 +148,9 @@
     },
     "ep_spellcheck": {
       "enabled": false
+    },
+    "ep_markdown": {
+      "enabled": false
     }
   }
 }

@@ -143,11 +143,12 @@ func ReadConfig(jsonStr string) (*Settings, error) {
 	viper.SetDefault(LowerCasePadIds, false)
 	viper.SetDefault(UpdateServer, "https://static.etherpad.org")
 	viper.SetDefault(EnableDarkMode, true)
-	viper.SetDefault(AvailableExports, []string{"txt", "pdf", "etherpad", "word", "open", "html"})
+	viper.SetDefault(AvailableExports, []string{"txt", "pdf", "etherpad", "word", "open", "html", "markdown"})
 
 	// plugins
-	viper.SetDefault(EP_ALIGN_ENABLED, false)
-	viper.SetDefault(EP_SPELLCHECK_ENABLED, false)
+	viper.SetDefault(EpAlignEnabled, false)
+	viper.SetDefault(EpSpellcheckEnabled, false)
+	viper.SetDefault(EpMarkdownEnabled, false)
 
 	users := make(map[string]User)
 	if err := viper.UnmarshalKey(Users, &users); err != nil {
@@ -173,14 +174,20 @@ func ReadConfig(jsonStr string) (*Settings, error) {
 
 	plugins := make(map[string]PluginSettings)
 
-	if viper.GetBool(EP_ALIGN_ENABLED) {
+	if viper.GetBool(EpAlignEnabled) {
 		plugins["ep_align"] = PluginSettings{
 			Enabled: true,
 		}
 	}
 
-	if viper.GetBool(EP_SPELLCHECK_ENABLED) {
+	if viper.GetBool(EpSpellcheckEnabled) {
 		plugins["ep_spellcheck"] = PluginSettings{
+			Enabled: true,
+		}
+	}
+
+	if viper.GetBool(EpMarkdownEnabled) {
+		plugins["ep_markdown"] = PluginSettings{
 			Enabled: true,
 		}
 	}

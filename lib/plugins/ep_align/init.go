@@ -6,9 +6,10 @@ import (
 	"github.com/ether/etherpad-go/lib/hooks"
 	"github.com/ether/etherpad-go/lib/hooks/events"
 	"github.com/ether/etherpad-go/lib/utils"
+	"go.uber.org/zap"
 )
 
-func InitPlugin(hookSystem *hooks.Hook, uiAssets embed.FS) {
+func InitPlugin(hookSystem *hooks.Hook, uiAssets embed.FS, zap *zap.SugaredLogger) {
 	// HTML Export hook
 	hookSystem.EnqueueHook("getLineHTMLForExport", func(ctx any) {
 		var event = ctx.(*events.LineHtmlForExportContext)
@@ -38,6 +39,7 @@ func InitPlugin(hookSystem *hooks.Hook, uiAssets embed.FS) {
 		if err != nil {
 			return
 		}
+		zap.Debugf("Loading ep_align translations for locale: %s", ctx.RequestedLocale)
 		for k, v := range loadedTranslations {
 			ctx.LoadedTranslations[k] = v
 		}

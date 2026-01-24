@@ -15,15 +15,16 @@ import (
 )
 
 type ExportEtherpad struct {
-	hooks         *hooks.Hook
-	PadManager    *pad.Manager
-	AuthorManager *author.Manager
-	exportTxt     *ExportTxt
-	exportPDF     *ExportPDF
-	exportDocx    *ExportDocx
-	exportOdt     *ExportOdt
-	exportHtml    *ExportHtml
-	logger        *zap.SugaredLogger
+	hooks          *hooks.Hook
+	PadManager     *pad.Manager
+	AuthorManager  *author.Manager
+	exportTxt      *ExportTxt
+	exportPDF      *ExportPDF
+	exportDocx     *ExportDocx
+	exportOdt      *ExportOdt
+	exportHtml     *ExportHtml
+	exportMarkdown *ExportMarkdown
+	logger         *zap.SugaredLogger
 }
 
 func NewExportEtherpad(hooks *hooks.Hook, padManager *pad.Manager, db db.DataStore, logger *zap.SugaredLogger, uiAssets embed.FS) *ExportEtherpad {
@@ -34,14 +35,15 @@ func NewExportEtherpad(hooks *hooks.Hook, padManager *pad.Manager, db db.DataSto
 	authorMgr := author.NewManager(db)
 
 	exportEtherpad := &ExportEtherpad{
-		hooks:         hooks,
-		PadManager:    padManager,
-		AuthorManager: authorMgr,
-		exportTxt:     &exportTxt,
-		exportDocx:    NewExportDocx(padManager, authorMgr, hooks),
-		exportOdt:     NewExportOdt(padManager, authorMgr, hooks),
-		exportHtml:    NewExportHtml(padManager, authorMgr, hooks),
-		logger:        logger,
+		hooks:          hooks,
+		PadManager:     padManager,
+		AuthorManager:  authorMgr,
+		exportTxt:      &exportTxt,
+		exportDocx:     NewExportDocx(padManager, authorMgr, hooks),
+		exportOdt:      NewExportOdt(padManager, authorMgr, hooks),
+		exportHtml:     NewExportHtml(padManager, authorMgr, hooks),
+		exportMarkdown: NewExportMarkdown(padManager),
+		logger:         logger,
 	}
 
 	// Create exportPDF with reference back to exportEtherpad for embedding JSON data
@@ -234,6 +236,14 @@ func (e *ExportEtherpad) DoExport(ctx *fiber.Ctx, id string, readOnlyId *string,
 			return ctx.Status(500).SendString(err.Error())
 		}
 		return ctx.SendString(htmlContent)
+	case "markdown", "md":
+		ctx.Set("Content-Type", "text/markdown; charset=utf-8")
+		markdownContent, err := e.exportMarkdown.GetPadMarkdownDocument(id, optRevNum)
+		if err != nil {
+			e.logger.Warnf("Failed to get markdown document for id: %s with cause %s", id, err.Error())
+			return ctx.Status(500).SendString(err.Error())
+		}
+		return ctx.SendString(*markdownContent)
 	default:
 		return ctx.Status(400).SendString("Not Implemented")
 	}

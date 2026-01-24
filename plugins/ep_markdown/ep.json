@@ -1,0 +1,18 @@
+{
+  "parts": [
+    {
+      "name": "ep_markdown",
+      "settings_menu_items": [
+        {
+          "key": "markdown",
+          "title": "ep_markdown.showMarkdown",
+          "id": "options-markdown"
+        }
+      ],
+      "client_hooks": {
+        "aceEditorCSS": "ep_markdown/static/js/markdown",
+        "postAceInit": "ep_markdown/static/js/markdown"
+      }
+    }
+  ]
+}

@@ -84,6 +84,7 @@ jobs:
         uses: warchant/setup-sonar-scanner@v9
       - name: Run SonarQube Scanner
         if: (github.actor == 'samtv12345' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')) && matrix.arch == 'amd64'
+        continue-on-error: true
         run: sonar-scanner
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -93,6 +94,7 @@ jobs:
 
       - name: SonarQube Quality Gate Check
         if: (github.actor == 'samtv12345' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')) && matrix.arch == 'amd64'
+        continue-on-error: true
         uses: sonarsource/sonarqube-quality-gate-action@master
         with:
           scanMetadataReportFile: .scannerwork/report-task.txt

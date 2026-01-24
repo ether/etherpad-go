@@ -1,4 +1,4 @@
-package ep_spellcheck
+package ep_markdown
 
 import (
 	"embed"
@@ -11,8 +11,8 @@ import (
 
 func InitPlugin(hookSystem *hooks.Hook, uiAssets embed.FS, zap *zap.SugaredLogger) {
 	hookSystem.EnqueueGetPluginTranslationHooks(func(ctx *events.LocaleLoadContext) {
-		zap.Debugf("Loading ep_spellcheck translations for locale: %s", ctx.RequestedLocale)
-		var loadedTranslations, err = utils.LoadPluginTranslations(ctx.RequestedLocale, uiAssets, "ep_spellcheck")
+		zap.Infof("Loading ep_markdown translations for locale: %s", ctx.RequestedLocale)
+		var loadedTranslations, err = utils.LoadPluginTranslations(ctx.RequestedLocale, uiAssets, "ep_markdown")
 		if err != nil {
 			return
 		}
