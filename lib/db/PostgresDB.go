@@ -1,7 +1,7 @@
 package db
 
 import (
-	"database/sql"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,46 +11,66 @@ import (
 	"github.com/ether/etherpad-go/lib/db/migrations"
 	"github.com/ether/etherpad-go/lib/models/db"
 	session2 "github.com/ether/etherpad-go/lib/models/session"
-	_ "github.com/lib/pq"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/stdlib"
 )
 
 type PostgresDB struct {
 	options PostgresOptions
-	sqlDB   *sql.DB
+	pool    *pgxpool.Pool
 }
 
-func (d PostgresDB) SaveGroup(groupId string) error {
-	var resultedSQL, args, err = psql.Insert("groupPadGroup").
-		Columns("id").
-		Values(groupId).
+func (d PostgresDB) GetAuthorIdsOfPadChats(id string) (*[]string, error) {
+	var authorIds []string
+	var resultedSQL, args, err = psql.
+		Select("DISTINCT authorId").
+		From("padChat").
+		Where(sq.Eq{"padId": id}).
 		ToSql()
 	if err != nil {
-		return err
+		return nil, err
 	}
-	_, err = d.sqlDB.Exec(resultedSQL, args...)
+	ctx := context.Background()
 
+	query, err := d.pool.Query(ctx, resultedSQL, args...)
 	if err != nil {
-		return err
+		return nil, err
 	}
+	defer query.Close()
+	for query.Next() {
+		var authorId string
+		query.Scan(&authorId)
+		authorIds = append(authorIds, authorId)
+	}
+	return &authorIds, nil
+}
 
-	return nil
+var psql = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
+
+func (d PostgresDB) SaveGroup(groupId string) error {
+	ctx := context.Background()
+	_, err := d.pool.Exec(ctx,
+		`INSERT INTO "grouppadgroup" (id) VALUES ($1) ON CONFLICT (id) DO NOTHING`,
+		groupId)
+	return err
 }
 
 func (d PostgresDB) RemoveGroup(groupId string) error {
-	var resultedSQL, args, err = psql.Delete("groupPadGroup").
-		Where(sq.Eq{"id": groupId}).
-		ToSql()
-	if err != nil {
-		return err
-	}
-	_, err = d.sqlDB.Exec(resultedSQL, args...)
-	if err != nil {
-		return err
-	}
-	return nil
+	ctx := context.Background()
+	_, err := d.pool.Exec(ctx,
+		`DELETE FROM "grouppadgroup" WHERE id = $1`,
+		groupId)
+	return err
 }
 
-func (d PostgresDB) GetRevisions(padId string, startRev int, endRev int) (*[]db.PadSingleRevision, error) {
+func (d PostgresDB) GetRevisions(
+	padId string,
+	startRev int,
+	endRev int,
+) (*[]db.PadSingleRevision, error) {
+	ctx := context.Background()
+
 	padExists, err := d.DoesPadExist(padId)
 	if err != nil {
 		return nil, err
@@ -59,41 +79,41 @@ func (d PostgresDB) GetRevisions(padId string, startRev int, endRev int) (*[]db.
 		return nil, errors.New(PadDoesNotExistError)
 	}
 
-	resultedSQL, args, err := psql.
-		Select("*").
-		From("padRev").
-		Where(sq.Eq{"id": padId}).
-		Where(sq.GtOrEq{"rev": startRev}).
-		Where(sq.LtOrEq{"rev": endRev}).
-		OrderBy("rev ASC").
-		ToSql()
-
+	rows, err := d.pool.Query(ctx,
+		`SELECT id, rev, changeset, "atexttext", "atextattribs", "authorid", 
+		        timestamp, pool 
+		 FROM "padrev" 
+		 WHERE id = $1 AND rev >= $2 AND rev <= $3 
+		 ORDER BY rev ASC`,
+		padId, startRev, endRev)
 	if err != nil {
 		return nil, err
 	}
-
-	query, err := d.sqlDB.Query(resultedSQL, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer query.Close()
+	defer rows.Close()
 
 	var revisions []db.PadSingleRevision
-	for query.Next() {
-		var revisionDB db.PadSingleRevision
+	for rows.Next() {
+		var rev db.PadSingleRevision
 		var serializedPool string
 
-		if err := query.Scan(&revisionDB.PadId, &revisionDB.RevNum, &revisionDB.Changeset, &revisionDB.AText.Text, &revisionDB.AText.Attribs, &revisionDB.AuthorId, &revisionDB.Timestamp, &serializedPool); err != nil {
-			return nil, fmt.Errorf("error scanning revision: %v", err)
+		if err := rows.Scan(
+			&rev.PadId, &rev.RevNum, &rev.Changeset,
+			&rev.AText.Text, &rev.AText.Attribs,
+			&rev.AuthorId, &rev.Timestamp, &serializedPool,
+		); err != nil {
+			return nil, fmt.Errorf("error scanning revision: %w", err)
 		}
-		if err := json.Unmarshal([]byte(serializedPool), &revisionDB.Pool); err != nil {
-			return nil, fmt.Errorf("error deserializing pool: %v", err)
+		if err := json.Unmarshal([]byte(serializedPool), &rev.Pool); err != nil {
+			return nil, fmt.Errorf("error deserializing pool: %w", err)
 		}
-		revisions = append(revisions, revisionDB)
+		revisions = append(revisions, rev)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 
 	if len(revisions) != (endRev - startRev + 1) {
-		println("Revision is", len(revisions), endRev, startRev+1)
 		return nil, errors.New(PadRevisionNotFoundError)
 	}
 
@@ -101,69 +121,67 @@ func (d PostgresDB) GetRevisions(padId string, startRev int, endRev int) (*[]db.
 }
 
 func (d PostgresDB) countQuery(pattern string) (*int, error) {
-	subQuery := psql.Select("MAX(rev)").
-		From("padRev").
-		Where(sq.Expr("padRev.id = pad.id"))
+	ctx := context.Background()
 
-	subSQL, subArgs, err := subQuery.ToSql()
-	if err != nil {
-		return nil, err
-	}
-
-	var countBuilder = psql.
-		Select("COUNT(*)").
-		From("pad").
-		Join("padRev ON padRev.id = pad.id").
-		Where(sq.Expr("padRev.rev = ("+subSQL+")", subArgs...))
+	var countSQL string
+	var args []interface{}
 
 	if pattern != "" {
-		countBuilder = countBuilder.Where(sq.Like{"pad.id": "%" + pattern + "%"})
+		countSQL = `
+			SELECT COUNT(*) FROM pad 
+			JOIN "padrev" ON "padrev".id = pad.id 
+			WHERE "padrev".rev = (SELECT MAX(rev) FROM "padrev" WHERE "padrev".id = pad.id)
+			AND pad.id LIKE $1`
+		args = []interface{}{"%" + pattern + "%"}
+	} else {
+		countSQL = `
+			SELECT COUNT(*) FROM pad 
+			JOIN "padrev" ON "padrev".id = pad.id 
+			WHERE "padrev".rev = (SELECT MAX(rev) FROM "padrev" WHERE "padrev".id = pad.id)`
 	}
-
-	countSQL, countArgs, err := countBuilder.ToSql()
-	if err != nil {
-		return nil, err
-	}
-
-	countQuery, err := d.sqlDB.Query(countSQL, countArgs...)
-	if err != nil {
-		return nil, err
-	}
-	defer countQuery.Close()
 
 	var totalPads int
-	for countQuery.Next() {
-		countQuery.Scan(&totalPads)
+	err := d.pool.QueryRow(ctx, countSQL, args...).Scan(&totalPads)
+	if err != nil {
+		return nil, err
 	}
 
 	return &totalPads, nil
 }
 
-func (d PostgresDB) queryPad(pattern string, sortBy string, limit int, offset int, ascending bool) (*[]db.PadDBSearch, error) {
+func (d PostgresDB) queryPad(
+	pattern string,
+	sortBy string,
+	limit int,
+	offset int,
+	ascending bool,
+) (*[]db.PadDBSearch, error) {
+	ctx := context.Background()
+
 	subQuery := psql.Select("MAX(rev)").
-		From("padRev").
-		Where(sq.Expr("padRev.id = pad.id"))
+		From(`"padrev"`).
+		Where(sq.Expr(`"padrev".id = pad.id`))
 
 	subSQL, subArgs, err := subQuery.ToSql()
 	if err != nil {
 		return nil, err
 	}
 
-	var builder = psql.
-		Select("pad.id", "pad.data", "padRev.timestamp").
+	builder := psql.
+		Select("pad.id", "pad.data", `"padrev".timestamp`).
 		From("pad").
-		Join("padRev ON padRev.id = pad.id").
-		Where(sq.Expr("padRev.rev = ("+subSQL+")", subArgs...))
+		Join(`"padrev" ON "padrev".id = pad.id`).
+		Where(sq.Expr(`"padrev".rev = (`+subSQL+`)`, subArgs...))
 
 	if pattern != "" {
 		builder = builder.Where(sq.Like{"pad.id": "%" + pattern + "%"})
 	}
 
 	if sortBy == "padName" {
-		if !ascending {
-			builder = builder.OrderBy("pad.id DESC")
-		} else {
+		if ascending {
 			builder = builder.OrderBy("pad.id ASC")
+		} else {
+			builder = builder.OrderBy("pad.id DESC")
 		}
 	}
 	if limit > 0 {
@@ -178,21 +196,21 @@ func (d PostgresDB) queryPad(pattern string, sortBy string, limit int, offset in
 		return nil, err
 	}
 
-	query, err := d.sqlDB.Query(resultedSQL, args...)
+	rows, err := d.pool.Query(ctx, resultedSQL, args...)
 	if err != nil {
 		return nil, err
 	}
-	defer query.Close()
+	defer rows.Close()
 
 	var padSearch []db.PadDBSearch
-	for query.Next() {
-		var padId string
-		var data string
+	for rows.Next() {
+		var padId, data string
 		var timestamp int64
-		query.Scan(&padId, &data, &timestamp)
+		if err := rows.Scan(&padId, &data, &timestamp); err != nil {
+			return nil, err
+		}
 		var padDB db.PadDB
-		err = json.Unmarshal([]byte(data), &padDB)
-		if err != nil {
+		if err := json.Unmarshal([]byte(data), &padDB); err != nil {
 			return nil, err
 		}
 		padSearch = append(padSearch, db.PadDBSearch{
@@ -201,11 +219,21 @@ func (d PostgresDB) queryPad(pattern string, sortBy string, limit int, offset in
 			LastEdited:     timestamp,
 		})
 	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
 	return &padSearch, nil
 }
 
-func (d PostgresDB) QueryPad(offset int, limit int, sortBy string, ascending bool, pattern string) (*db.PadDBSearchResult, error) {
-
+func (d PostgresDB) QueryPad(
+	offset int,
+	limit int,
+	sortBy string,
+	ascending bool,
+	pattern string,
+) (*db.PadDBSearchResult, error) {
 	padSearch, err := d.queryPad(pattern, sortBy, limit, offset, ascending)
 	if err != nil {
 		return nil, err
@@ -221,74 +249,76 @@ func (d PostgresDB) QueryPad(offset int, limit int, sortBy string, ascending boo
 	}, nil
 }
 
-var psql = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
+func (d PostgresDB) GetChatsOfPad(
+	padId string,
+	start int,
+	end int,
+) (*[]db.ChatMessageDBWithDisplayName, error) {
+	ctx := context.Background()
 
-func (d PostgresDB) GetChatsOfPad(padId string, start int, end int) (*[]db.ChatMessageDBWithDisplayName, error) {
-	var resultedSQL, args, err = psql.
-		Select("padChat.padid, padChat.padHead, padChat.chatText, padChat.authorId, padChat.timestamp, globalAuthor.name").
-		From("padChat").
-		Join("globalAuthor ON globalAuthor.id = padChat.authorId").
-		Where(sq.Eq{"padId": padId}).
-		Where(sq.GtOrEq{"padHead": start}).
-		Where(sq.LtOrEq{"padHead": end}).
-		OrderBy("padHead ASC").
-		ToSql()
-
+	rows, err := d.pool.Query(ctx,
+		`SELECT "padchat"."padid", "padchat"."padhead", "padchat"."chattext", 
+		        "padchat"."authorid", "padchat".timestamp, "globalauthor".name
+		 FROM "padchat"
+		 JOIN "globalauthor" ON "globalauthor".id = "padchat"."authorid"
+		 WHERE "padid" = $1 AND "padhead" >= $2 AND "padhead" <= $3
+		 ORDER BY "padhead" ASC`,
+		padId, start, end)
 	if err != nil {
 		return nil, err
 	}
-
-	query, err := d.sqlDB.Query(resultedSQL, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer query.Close()
+	defer rows.Close()
 
 	var chatMessages []db.ChatMessageDBWithDisplayName
-	for query.Next() {
-		var chatMessage db.ChatMessageDBWithDisplayName
-		query.Scan(&chatMessage.PadId, &chatMessage.Head, &chatMessage.Message, &chatMessage.AuthorId, &chatMessage.Time, &chatMessage.DisplayName)
-		chatMessages = append(chatMessages, chatMessage)
+	for rows.Next() {
+		var msg db.ChatMessageDBWithDisplayName
+		if err := rows.Scan(
+			&msg.PadId, &msg.Head, &msg.Message,
+			&msg.AuthorId, &msg.Time, &msg.DisplayName,
+		); err != nil {
+			return nil, err
+		}
+		chatMessages = append(chatMessages, msg)
 	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
 	return &chatMessages, nil
 }
 
 func (d PostgresDB) SaveChatHeadOfPad(padId string, head int) error {
-	var resultingPad, err = d.GetPad(padId)
+	resultingPad, err := d.GetPad(padId)
 	if err != nil {
 		return err
 	}
 	resultingPad.ChatHead = head
-	d.CreatePad(padId, *resultingPad)
-	return nil
+	return d.CreatePad(padId, *resultingPad)
 }
 
-func (d PostgresDB) SaveChatMessage(padId string, head int, authorId *string, timestamp int64, text string) error {
-	var resultedSQL, args, err = psql.
-		Insert("padChat").
-		Columns("padId", "padHead", "chatText", "authorId", "timestamp").
-		Values(padId, head, text, authorId, timestamp).
-		ToSql()
-
-	if err != nil {
-		return err
-	}
-
-	_, err = d.sqlDB.Exec(resultedSQL, args...)
-
+func (d PostgresDB) SaveChatMessage(
+	padId string,
+	head int,
+	authorId *string,
+	timestamp int64,
+	text string,
+) error {
+	ctx := context.Background()
+	_, err := d.pool.Exec(ctx,
+		`INSERT INTO "padchat" ("padid", "padhead", "chattext", "authorid", timestamp)
+		 VALUES ($1, $2, $3, $4, $5)
+		 ON CONFLICT ("padid", "padhead") DO UPDATE SET
+		     "chattext" = EXCLUDED."chattext",
+		     "authorid" = EXCLUDED."authorid",
+		     timestamp = EXCLUDED.timestamp`,
+		padId, head, text, authorId, timestamp)
 	return err
 }
 
 func (d PostgresDB) RemovePad(padID string) error {
-	var resultedSQL, args, err = psql.
-		Delete("pad").
-		Where(sq.Eq{"id": padID}).
-		ToSql()
-
-	if err != nil {
-		return err
-	}
-	_, err = d.sqlDB.Exec(resultedSQL, args...)
+	ctx := context.Background()
+	_, err := d.pool.Exec(ctx, `DELETE FROM pad WHERE id = $1`, padID)
 	return err
 }
 
@@ -301,478 +331,342 @@ func (d PostgresDB) RemoveRevisionsOfPad(padId string) error {
 		return errors.New(PadDoesNotExistError)
 	}
 
-	resultedSQL, args, err := psql.
-		Delete("padRev").
-		Where(sq.Eq{"id": padId}).
-		ToSql()
-
-	if err != nil {
-		return err
-	}
-	_, err = d.sqlDB.Exec(resultedSQL, args...)
+	ctx := context.Background()
+	_, err = d.pool.Exec(ctx, `DELETE FROM "padrev" WHERE id = $1`, padId)
 	return err
 }
 
 func (d PostgresDB) RemoveChat(padId string) error {
-	var resultedSQL, args, err = psql.
-		Delete("padChat").
-		Where(sq.Eq{"padId": padId}).
-		ToSql()
+	ctx := context.Background()
 
-	if err != nil {
-		return err
-	}
-	_, err = d.sqlDB.Exec(resultedSQL, args...)
+	_, err := d.pool.Exec(ctx, `DELETE FROM "padchat" WHERE "padid" = $1`, padId)
 	return err
 }
 
 func (d PostgresDB) RemovePad2ReadOnly(id string) error {
-	var resultedSQL, args, err = psql.
-		Delete("pad2readonly").
-		Where(sq.Eq{"id": id}).
-		ToSql()
-
-	if err != nil {
-		return err
-	}
-	_, err = d.sqlDB.Exec(resultedSQL, args...)
+	ctx := context.Background()
+	_, err := d.pool.Exec(ctx, `DELETE FROM pad2readonly WHERE id = $1`, id)
 	return err
 }
 
 func (d PostgresDB) RemoveReadOnly2Pad(id string) error {
-	var resultedSQL, args, err = psql.
-		Delete("readonly2pad").
-		Where(sq.Eq{"id": id}).
-		ToSql()
-
-	if err != nil {
-		return err
-	}
-	_, err = d.sqlDB.Exec(resultedSQL, args...)
+	ctx := context.Background()
+	_, err := d.pool.Exec(ctx, `DELETE FROM readonly2pad WHERE id = $1`, id)
 	return err
 }
 
 func (d PostgresDB) GetGroup(groupId string) (*string, error) {
-	var resultedSQL, args, err = psql.
-		Select("id").
-		From("groupPadGroup").
-		Where(sq.Eq{"id": groupId}).
-		ToSql()
-
-	if err != nil {
-		return nil, err
-	}
-	query, err := d.sqlDB.Query(resultedSQL, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer query.Close()
+	ctx := context.Background()
 	var foundGroup string
-	for query.Next() {
-		query.Scan(&foundGroup)
-		return &foundGroup, nil
+	err := d.pool.QueryRow(ctx,
+		`SELECT id FROM "grouppadgroup" WHERE id = $1`,
+		groupId).Scan(&foundGroup)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, errors.New("group not found")
+		}
+		return nil, err
 	}
-	return nil, errors.New("group not found")
+	return &foundGroup, nil
 }
 
 func (d PostgresDB) GetSessionById(sessionID string) (*session2.Session, error) {
-	var createdSQL, arr, err = psql.Select("*").From("sessionstorage").Where(sq.Eq{"id": sessionID}).ToSql()
+	ctx := context.Background()
+	var s session2.Session
+	err := d.pool.QueryRow(ctx,
+		`SELECT id, "originalmaxage", expires, secure, "httponly", path, 
+		        "samesite", connections 
+		 FROM sessionstorage WHERE id = $1`,
+		sessionID).Scan(
+		&s.Id, &s.OriginalMaxAge, &s.Expires, &s.Secure,
+		&s.HttpOnly, &s.Path, &s.SameSite, &s.Connections,
+	)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
 		return nil, err
 	}
-
-	query, err := d.sqlDB.Query(createdSQL, arr...)
-
-	if err != nil {
-		return nil, err
-	}
-	defer query.Close()
-
-	for query.Next() {
-		var possibleSession session2.Session
-		query.Scan(&possibleSession.Id, &possibleSession.OriginalMaxAge, &possibleSession.Expires, &possibleSession.Secure, &possibleSession.HttpOnly, &possibleSession.Path, &possibleSession.SameSite, &possibleSession.Connections)
-		return &possibleSession, nil
-	}
-
-	return nil, nil
+	return &s, nil
 }
 
 func (d PostgresDB) SetSessionById(sessionID string, session session2.Session) error {
-	var retrievedSql, inserts, _ = psql.Insert("sessionstorage").Columns("id", "originalMaxAge", "expires", "secure", "httpOnly", "path", "sameSite", "connections").
-		Values(sessionID, session.OriginalMaxAge, session.Expires, session.Secure, session.HttpOnly, session.Path, session.SameSite, "").ToSql()
-
-	_, err := d.sqlDB.Exec(retrievedSql, inserts...)
-
-	if err != nil {
-		return err
-	}
-
-	return nil
+	ctx := context.Background()
+	_, err := d.pool.Exec(ctx,
+		`INSERT INTO sessionstorage 
+		     (id, "originalmaxage", expires, secure, "httponly", path, "samesite", connections)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		 ON CONFLICT (id) DO UPDATE SET
+		     "originalmaxage" = EXCLUDED."originalmaxage",
+		     expires = EXCLUDED.expires,
+		     secure = EXCLUDED.secure,
+		     "httponly" = EXCLUDED."httponly",
+		     path = EXCLUDED.path,
+		     "samesite" = EXCLUDED."samesite",
+		     connections = EXCLUDED.connections`,
+		sessionID, session.OriginalMaxAge, session.Expires, session.Secure,
+		session.HttpOnly, session.Path, session.SameSite, "")
+	return err
 }
 
 func (d PostgresDB) GetRevision(padId string, rev int) (*db.PadSingleRevision, error) {
-	var retrievedSql, args, _ = psql.Select("*").From("padRev").Where(sq.Eq{"id": padId}).Where(sq.Eq{"rev": rev}).ToSql()
+	ctx := context.Background()
 
-	query, err := d.sqlDB.Query(retrievedSql, args...)
+	var revision db.PadSingleRevision
+	var serializedPool string
+
+	err := d.pool.QueryRow(ctx,
+		`SELECT id, rev, changeset, "atexttext", "atextattribs", "authorid", 
+		        timestamp, pool 
+		 FROM "padrev" WHERE id = $1 AND rev = $2`,
+		padId, rev).Scan(
+		&revision.PadId, &revision.RevNum, &revision.Changeset,
+		&revision.AText.Text, &revision.AText.Attribs,
+		&revision.AuthorId, &revision.Timestamp, &serializedPool,
+	)
 	if err != nil {
-		return nil, err
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, errors.New(PadRevisionNotFoundError)
+		}
+		return nil, fmt.Errorf("error scanning revision: %w", err)
 	}
 
-	defer query.Close()
-
-	for query.Next() {
-		var revisionDB db.PadSingleRevision
-		var serializedPool string
-		if err := query.Scan(&revisionDB.PadId, &revisionDB.RevNum, &revisionDB.Changeset, &revisionDB.AText.Text,
-			&revisionDB.AText.Attribs, &revisionDB.AuthorId, &revisionDB.Timestamp, &serializedPool); err != nil {
-			return nil, fmt.Errorf("error scanning revision: %v", err)
-		}
-
-		if err := json.Unmarshal([]byte(serializedPool), &revisionDB.Pool); err != nil {
-			return nil, fmt.Errorf("error deserializing pool: %v", err)
-		}
-
-		return &revisionDB, nil
+	if err := json.Unmarshal([]byte(serializedPool), &revision.Pool); err != nil {
+		return nil, fmt.Errorf("error deserializing pool: %w", err)
 	}
 
-	return nil, errors.New(PadRevisionNotFoundError)
+	return &revision, nil
 }
 
 func (d PostgresDB) DoesPadExist(padID string) (*bool, error) {
-	var resultedSQL, args, err = psql.
-		Select("id").
-		From("pad").
-		Where(sq.Eq{"id": padID}).
-		ToSql()
-
+	ctx := context.Background()
+	var exists bool
+	err := d.pool.QueryRow(ctx,
+		`SELECT EXISTS(SELECT 1 FROM pad WHERE id = $1)`,
+		padID).Scan(&exists)
 	if err != nil {
 		return nil, err
 	}
-
-	query, err := d.sqlDB.Query(resultedSQL, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer query.Close()
-
-	for query.Next() {
-		trueVal := true
-		return &trueVal, nil
-	}
-
-	falseVal := false
-	return &falseVal, nil
+	return &exists, nil
 }
 
 func (d PostgresDB) RemoveSessionById(sid string) error {
-
-	var foundSession, err = d.GetSessionById(sid)
+	ctx := context.Background()
+	result, err := d.pool.Exec(ctx,
+		`DELETE FROM sessionstorage WHERE id = $1`, sid)
 	if err != nil {
 		return err
 	}
-
-	if foundSession == nil {
+	if result.RowsAffected() == 0 {
 		return errors.New(SessionNotFoundError)
 	}
-
-	resultedSQL, args, err := psql.Delete("sessionstorage").Where(sq.Eq{"id": sid}).ToSql()
-
-	if err != nil {
-		return err
-	}
-
-	_, err = d.sqlDB.Exec(resultedSQL, args...)
-
-	if err != nil {
-		return err
-	}
-
 	return nil
 }
 
 func (d PostgresDB) CreatePad(padID string, padDB db.PadDB) error {
+	ctx := context.Background()
 
-	_, notFound := d.GetPad(padID)
-
-	var marshalled, err = json.Marshal(padDB)
-
+	marshalled, err := json.Marshal(padDB)
 	if err != nil {
 		return err
 	}
 
-	var resultedSQL string
-	var args []interface{}
-	var err1 error
-
-	if notFound != nil {
-		resultedSQL, args, err1 = psql.
-			Insert("pad").
-			Columns("id", "data").
-			Values(padID, string(marshalled)).ToSql()
-	} else {
-		resultedSQL, args, err1 = psql.
-			Update("pad").
-			Set("data", string(marshalled)).
-			Where(sq.Eq{
-				"id": padID,
-			}).ToSql()
-	}
-	if err1 != nil {
-		return err1
-	}
-
-	_, err = d.sqlDB.Exec(resultedSQL, args...)
-
-	if err != nil {
-		return err
-	}
-
+	_, err = d.pool.Exec(ctx,
+		`INSERT INTO pad (id, data) VALUES ($1, $2)
+		 ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data`,
+		padID, string(marshalled))
 	return err
 }
 
 func (d PostgresDB) GetPadIds() (*[]string, error) {
+	ctx := context.Background()
+
+	rows, err := d.pool.Query(ctx, `SELECT id FROM pad`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
 	var padIds []string
-	var resultedSQL, _, err = psql.
-		Select("id").
-		From("pad").
-		ToSql()
-
-	if err != nil {
-		return nil, err
-	}
-
-	query, err := d.sqlDB.Query(resultedSQL)
-	if err != nil {
-		return nil, err
-	}
-	defer query.Close()
-
-	for query.Next() {
+	for rows.Next() {
 		var padId string
-		query.Scan(&padId)
+		if err := rows.Scan(&padId); err != nil {
+			return nil, err
+		}
 		padIds = append(padIds, strings.TrimPrefix(padId, "pad:"))
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 
 	return &padIds, nil
 }
 
-func (d PostgresDB) SaveRevision(padId string, rev int, changeset string, text db.AText, pool db.RevPool, authorId *string, timestamp int64) error {
+func (d PostgresDB) SaveRevision(
+	padId string,
+	rev int,
+	changeset string,
+	text db.AText,
+	pool db.RevPool,
+	authorId *string,
+	timestamp int64,
+) error {
 	exists, err := d.DoesPadExist(padId)
 	if err != nil {
 		return err
 	}
-
 	if !*exists {
 		return errors.New(PadDoesNotExistError)
 	}
 
 	serializedPool, err := json.Marshal(pool)
 	if err != nil {
-		return fmt.Errorf("error serializing pool: %v", err)
+		return fmt.Errorf("error serializing pool: %w", err)
 	}
 
-	toSql, i, err := psql.Insert("padRev").
-		Columns("id", "rev", "changeset", "atextText", "atextAttribs", "authorId", "timestamp", "pool").
-		Values(padId, rev, changeset, text.Text, text.Attribs, authorId, timestamp, string(serializedPool)).
-		ToSql()
-
-	if err != nil {
-		return err
-	}
-
-	_, err = d.sqlDB.Exec(toSql, i...)
-
-	if err != nil {
-		return err
-	}
-
-	return nil
+	ctx := context.Background()
+	_, err = d.pool.Exec(ctx,
+		`INSERT INTO "padrev" 
+		     (id, rev, changeset, "atexttext", "atextattribs", "authorid", timestamp, pool)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		 ON CONFLICT (id, rev) DO UPDATE SET
+		     changeset = EXCLUDED.changeset,
+		     "atexttext" = EXCLUDED."atexttext",
+		     "atextattribs" = EXCLUDED."atextattribs",
+		     "authorid" = EXCLUDED."authorid",
+		     timestamp = EXCLUDED.timestamp,
+		     pool = EXCLUDED.pool`,
+		padId, rev, changeset, text.Text, text.Attribs,
+		authorId, timestamp, string(serializedPool))
+	return err
 }
 
 func (d PostgresDB) GetPad(padID string) (*db.PadDB, error) {
+	ctx := context.Background()
 
-	var resultedSQL, args, err = psql.
-		Select("data").
-		From("pad").
-		Where(sq.Eq{"id": padID}).
-		ToSql()
-
+	var data string
+	err := d.pool.QueryRow(ctx,
+		`SELECT data FROM pad WHERE id = $1`,
+		padID).Scan(&data)
 	if err != nil {
-		return nil, err
-	}
-
-	query, err := d.sqlDB.Query(resultedSQL, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer query.Close()
-
-	var padDB *db.PadDB
-	for query.Next() {
-		var data string
-		query.Scan(&data)
-		err = json.Unmarshal([]byte(data), &padDB)
-		if err != nil {
-			return nil, err
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, errors.New(PadDoesNotExistError)
 		}
+		return nil, err
 	}
 
-	if padDB == nil {
-		return nil, errors.New(PadDoesNotExistError)
+	var padDB db.PadDB
+	if err := json.Unmarshal([]byte(data), &padDB); err != nil {
+		return nil, err
 	}
 
-	return padDB, nil
+	return &padDB, nil
 }
 
 func (d PostgresDB) GetReadonlyPad(padId string) (*string, error) {
-	var resultedSQL, args, err = psql.
-		Select("data").
-		From("pad2readonly").
-		Where(sq.Eq{"id": padId}).
-		ToSql()
+	ctx := context.Background()
 
+	var readonlyId string
+	err := d.pool.QueryRow(ctx,
+		`SELECT data FROM pad2readonly WHERE id = $1`,
+		padId).Scan(&readonlyId)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, errors.New(PadReadOnlyIdNotFoundError)
+		}
 		return nil, err
 	}
-
-	query, err := d.sqlDB.Query(resultedSQL, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer query.Close()
-
-	for query.Next() {
-		var readonlyId string
-		query.Scan(&readonlyId)
-		return &readonlyId, nil
-	}
-
-	return nil, errors.New(PadReadOnlyIdNotFoundError)
+	return &readonlyId, nil
 }
 
 func (d PostgresDB) CreatePad2ReadOnly(padId string, readonlyId string) error {
-	var resultedSQL, args, err = psql.
-		Insert("pad2readonly").
-		Columns("id", "data").
-		Values(padId, readonlyId).
-		ToSql()
-
-	if err != nil {
-		return err
-	}
-
-	_, err = d.sqlDB.Exec(resultedSQL, args...)
-	if err != nil {
-		return err
-	}
-	return nil
+	ctx := context.Background()
+	_, err := d.pool.Exec(ctx,
+		`INSERT INTO pad2readonly (id, data) VALUES ($1, $2)
+		 ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data`,
+		padId, readonlyId)
+	return err
 }
 
 func (d PostgresDB) CreateReadOnly2Pad(padId string, readonlyId string) error {
-	var resultedSQL, args, err = psql.
-		Insert("readonly2pad").
-		Columns("id", "data").
-		Values(readonlyId, padId).
-		ToSql()
-
-	if err != nil {
-		return err
-	}
-
-	_, err = d.sqlDB.Exec(resultedSQL, args...)
-
-	if err != nil {
-		return err
-	}
-	return nil
+	ctx := context.Background()
+	_, err := d.pool.Exec(ctx,
+		`INSERT INTO readonly2pad (id, data) VALUES ($1, $2)
+		 ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data`,
+		readonlyId, padId)
+	return err
 }
 
 func (d PostgresDB) GetReadOnly2Pad(id string) (*string, error) {
-	var resultedSQL, args, err = psql.
-		Select("data").
-		From("readonly2pad").
-		Where(sq.Eq{"id": id}).
-		ToSql()
+	ctx := context.Background()
 
+	var padId string
+	err := d.pool.QueryRow(ctx,
+		`SELECT data FROM readonly2pad WHERE id = $1`,
+		id).Scan(&padId)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
 		return nil, err
 	}
-
-	query, err := d.sqlDB.Query(resultedSQL, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer query.Close()
-
-	for query.Next() {
-		var padId string
-		query.Scan(&padId)
-		return &padId, nil
-	}
-
-	return nil, nil
+	return &padId, nil
 }
 
 func (d PostgresDB) SetAuthorByToken(token, authorId string) error {
-	var resulltedSQL, arg, _ = psql.
-		Insert("token2author").
-		Columns("token,author").
-		Values(token, authorId).ToSql()
-
-	_, err := d.sqlDB.Exec(resulltedSQL, arg...)
-
-	if err != nil {
-		return err
-	}
-
-	return nil
+	ctx := context.Background()
+	_, err := d.pool.Exec(ctx,
+		`INSERT INTO token2author (token, author) VALUES ($1, $2)
+		 ON CONFLICT (token) DO UPDATE SET author = EXCLUDED.author`,
+		token, authorId)
+	return err
 }
 
-/**
- * Returns the Author Obj of the author
- * @param {String} author The id of the author
- */
 func (d PostgresDB) GetAuthor(author string) (*db.AuthorDB, error) {
-	var resultedSQL, args, err = psql.Select("globalAuthor.*, padRev.id").
-		From("globalAuthor").
-		LeftJoin("padRev ON globalAuthor.id = padRev.authorId").
-		Where(sq.Eq{"globalAuthor.id": author}).ToSql()
+	ctx := context.Background()
 
+	rows, err := d.pool.Query(ctx,
+		`SELECT "globalauthor".id, "globalauthor"."colorid", "globalauthor".name, 
+		        "globalauthor".timestamp, "padrev".id
+		 FROM "globalauthor"
+		 LEFT JOIN "padrev" ON "globalauthor".id = "padrev"."authorid"
+		 WHERE "globalauthor".id = $1`,
+		author)
 	if err != nil {
 		return nil, err
 	}
-
-	query, err := d.sqlDB.Query(resultedSQL, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer query.Close()
+	defer rows.Close()
 
 	var authorDB *db.AuthorDB
 
-	for query.Next() {
-		var padID sql.NullString
+	for rows.Next() {
+		var padID *string
 
 		if authorDB == nil {
 			authorDB = &db.AuthorDB{
 				PadIDs: make(map[string]struct{}),
 			}
-			err = query.Scan(&authorDB.ID, &authorDB.ColorId, &authorDB.Name,
-				&authorDB.Timestamp, &padID)
-			if err != nil {
+			if err := rows.Scan(
+				&authorDB.ID, &authorDB.ColorId, &authorDB.Name,
+				&authorDB.Timestamp, &padID,
+			); err != nil {
 				return nil, err
 			}
 		} else {
 			var dummy1, dummy2, dummy3, dummy4 interface{}
-			err = query.Scan(&dummy1, &dummy2, &dummy3, &dummy4, &padID)
-			if err != nil {
+			if err := rows.Scan(&dummy1, &dummy2, &dummy3, &dummy4, &padID); err != nil {
 				return nil, err
 			}
 		}
 
-		if padID.Valid {
-			authorDB.PadIDs[padID.String] = struct{}{}
+		if padID != nil {
+			authorDB.PadIDs[*padID] = struct{}{}
 		}
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 
 	if authorDB == nil {
@@ -783,79 +677,50 @@ func (d PostgresDB) GetAuthor(author string) (*db.AuthorDB, error) {
 }
 
 func (d PostgresDB) GetAuthorByToken(token string) (*string, error) {
-	var resultedSQL, args, err = psql.
-		Select("author").
-		From("token2author").
-		Where(sq.Eq{"token": token}).
-		ToSql()
+	ctx := context.Background()
 
+	var authorID string
+	err := d.pool.QueryRow(ctx,
+		`SELECT author FROM token2author WHERE token = $1`,
+		token).Scan(&authorID)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, errors.New(AuthorNotFoundError)
+		}
 		return nil, err
 	}
-
-	query, err := d.sqlDB.Query(resultedSQL, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer query.Close()
-
-	for query.Next() {
-		var authorID string
-		query.Scan(&authorID)
-		return &authorID, nil
-	}
-
-	return nil, errors.New(AuthorNotFoundError)
+	return &authorID, nil
 }
 
 func (d PostgresDB) SaveAuthor(author db.AuthorDB) error {
 	if author.ID == "" {
 		return errors.New("author ID is empty")
 	}
-	var foundAuthor, err = d.GetAuthor(author.ID)
-	if err != nil && err.Error() != AuthorNotFoundError {
-		return err
-	}
 
-	if foundAuthor == nil {
-		var resultedSQL, i, err = psql.
-			Insert("globalAuthor").
-			Columns("id", "colorId", "name", "timestamp").
-			Values(author.ID, author.ColorId, author.Name, author.Timestamp).
-			ToSql()
-		_, err = d.sqlDB.Exec(resultedSQL, i...)
-		if err != nil {
-			return err
-		}
-	} else {
-		var resultedSQL, i, err = psql.
-			Update("globalAuthor").
-			Set("colorId", author.ColorId).
-			Set("name", author.Name).
-			Set("timestamp", author.Timestamp).
-			Where(sq.Eq{"id": author.ID}).
-			ToSql()
-		_, err = d.sqlDB.Exec(resultedSQL, i...)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
+	ctx := context.Background()
+	_, err := d.pool.Exec(ctx,
+		`INSERT INTO "globalauthor" (id, "colorid", name, timestamp) 
+		 VALUES ($1, $2, $3, $4)
+		 ON CONFLICT (id) DO UPDATE SET
+		     "colorid" = EXCLUDED."colorid",
+		     name = EXCLUDED.name,
+		     timestamp = EXCLUDED.timestamp`,
+		author.ID, author.ColorId, author.Name, author.Timestamp)
+	return err
 }
 
 func (d PostgresDB) SaveAuthorName(authorId string, authorName string) error {
 	if authorId == "" {
 		return errors.New("authorId is empty")
 	}
-	var authorString, err = d.GetAuthor(authorId)
 
-	if err != nil || authorString == nil {
+	authorDB, err := d.GetAuthor(authorId)
+	if err != nil {
 		return err
 	}
 
-	authorString.Name = &authorName
-	d.SaveAuthor(*authorString)
-	return nil
+	authorDB.Name = &authorName
+	return d.SaveAuthor(*authorDB)
 }
 
 func (d PostgresDB) SaveAuthorColor(authorId string, authorColor string) error {
@@ -863,15 +728,13 @@ func (d PostgresDB) SaveAuthorColor(authorId string, authorColor string) error {
 		return errors.New("authorId is empty")
 	}
 
-	var authorString, err = d.GetAuthor(authorId)
-
-	if err != nil || authorString == nil {
+	authorDB, err := d.GetAuthor(authorId)
+	if err != nil {
 		return err
 	}
 
-	authorString.ColorId = authorColor
-	d.SaveAuthor(*authorString)
-	return nil
+	authorDB.ColorId = authorColor
+	return d.SaveAuthor(*authorDB)
 }
 
 func (d PostgresDB) GetPadMetaData(padId string, revNum int) (*db.PadMetaData, error) {
@@ -883,42 +746,36 @@ func (d PostgresDB) GetPadMetaData(padId string, revNum int) (*db.PadMetaData, e
 		return nil, errors.New(PadDoesNotExistError)
 	}
 
-	resultedSQL, args, err := psql.
-		Select("*").
-		From("padRev").
-		Where(sq.Eq{"id": padId}).
-		Where(sq.Eq{"rev": revNum}).
-		ToSql()
+	ctx := context.Background()
+	var meta db.PadMetaData
+	var serializedPool string
 
+	err = d.pool.QueryRow(ctx,
+		`SELECT id, rev, changeset, "atexttext", "atextattribs", "authorid", 
+		        timestamp, pool
+		 FROM "padrev" WHERE id = $1 AND rev = $2`,
+		padId, revNum).Scan(
+		&meta.Id, &meta.RevNum, &meta.ChangeSet,
+		&meta.Atext.Text, &meta.AtextAttribs,
+		&meta.AuthorId, &meta.Timestamp, &serializedPool,
+	)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, errors.New(PadRevisionNotFoundError)
+		}
 		return nil, err
 	}
 
-	query, err := d.sqlDB.Query(resultedSQL, args...)
-	if err != nil {
+	if err := json.Unmarshal([]byte(serializedPool), &meta.PadPool); err != nil {
 		return nil, err
 	}
-	defer query.Close()
 
-	var padMetaData db.PadMetaData
-	for query.Next() {
-		var serializedPool string
-		err := query.Scan(&padMetaData.Id, &padMetaData.RevNum, &padMetaData.ChangeSet, &padMetaData.Atext.Text, &padMetaData.AtextAttribs, &padMetaData.AuthorId, &padMetaData.Timestamp, &serializedPool)
-		if err != nil {
-			return nil, err
-		}
-		if err := json.Unmarshal([]byte(serializedPool), &padMetaData.PadPool); err != nil {
-			return nil, err
-		}
-
-		return &padMetaData, nil
-	}
-
-	return nil, errors.New(PadRevisionNotFoundError)
+	return &meta, nil
 }
 
 func (d PostgresDB) Close() error {
-	return d.sqlDB.Close()
+	d.pool.Close()
+	return nil
 }
 
 type PostgresOptions struct {
@@ -929,28 +786,46 @@ type PostgresOptions struct {
 	Database string
 }
 
-// NewPostgresDB This function creates a new PostgresDB and returns a pointer to it.
 func NewPostgresDB(options PostgresOptions) (*PostgresDB, error) {
-	dbUrl := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable", options.Username, options.Password, options.Host, options.Port, options.Database)
-	sqlDb, err := sql.Open("postgres", dbUrl)
+	ctx := context.Background()
+
+	connString := fmt.Sprintf(
+		"postgres://%s:%s@%s:%d/%s?sslmode=disable",
+		options.Username, options.Password,
+		options.Host, options.Port, options.Database,
+	)
+
+	config, err := pgxpool.ParseConfig(connString)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse config: %w", err)
 	}
 
-	// Set connection pool limits to avoid "too many clients" error
-	sqlDb.SetMaxOpenConns(25)
-	sqlDb.SetMaxIdleConns(5)
+	config.MaxConns = 25
+	config.MinConns = 5
 
-	// Run migrations
-	migrationManager := migrations.NewMigrationManager(sqlDb, migrations.DialectPostgres)
+	pool, err := pgxpool.NewWithConfig(ctx, config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create pool: %w", err)
+	}
+
+	// Verify connection
+	if err := pool.Ping(ctx); err != nil {
+		pool.Close()
+		return nil, fmt.Errorf("failed to ping database: %w", err)
+	}
+
+	sqlDB := stdlib.OpenDBFromPool(pool)
+	migrationManager := migrations.NewMigrationManager(sqlDB, migrations.DialectPostgres)
 	if err := migrationManager.Run(); err != nil {
-		sqlDb.Close()
+		sqlDB.Close()
+		pool.Close()
 		return nil, fmt.Errorf("failed to run migrations: %w", err)
 	}
+	sqlDB.Close()
 
 	return &PostgresDB{
 		options: options,
-		sqlDB:   sqlDb,
+		pool:    pool,
 	}, nil
 }
 

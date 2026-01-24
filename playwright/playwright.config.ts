@@ -3,6 +3,7 @@ import path from 'node:path';
 import os from 'node:os';
 
 const isWindows = os.platform() === 'win32';
+const isLinux = os.platform() === 'linux';
 const isMac = os.platform() === 'darwin';
 const isCI = !!process.env.CI;
 
@@ -30,14 +31,14 @@ export default defineConfig({
     navigationTimeout: isCI ? 60000 : 30000,
   },
   projects: [
-    {
+      ...(isWindows ? [] : [{
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
-    },
-    {
+    }]),
+      ...(isLinux ? [] : [{
       name: 'firefox',
       use: { ...devices['Desktop Firefox'] },
-    },
+      }]),
     // Only run webkit on macOS where it's most stable
     ...(isMac ? [{
       name: 'webkit',

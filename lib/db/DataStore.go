@@ -54,6 +54,7 @@ type ChatMethods interface {
 	RemoveChat(padId string) error
 	SaveChatMessage(padId string, head int, authorId *string, timestamp int64, text string) error
 	GetChatsOfPad(padId string, start int, end int) (*[]db.ChatMessageDBWithDisplayName, error)
+	GetAuthorIdsOfPadChats(id string) (*[]string, error)
 }
 
 type DataStore interface {

@@ -61,6 +61,10 @@ func runAllDataStoreTests(testHandler *testutils.TestDBHandler) {
 			Test: testRemoveChatOnExistingPadWithOneChatMessage,
 		},
 		testutils.TestRunConfig{
+			Name: "GetChatAuthorIdsChatOnExistingPadWithOneChatMessage",
+			Test: testGetChatAuthorIdsChatOnExistingPadWithOneChatMessage,
+		},
+		testutils.TestRunConfig{
 			Name: "RemoveNonExistingSession",
 			Test: testRemoveNonExistingSession,
 		},
@@ -255,6 +259,27 @@ func testRemoveChatOnExistingPadWithOneChatMessage(t *testing.T, ds testutils.Te
 	}
 	if len(*res) != 0 {
 		t.Fatalf("expected 0 chat messages after RemoveChat, got %d", len(*res))
+	}
+}
+
+func testGetChatAuthorIdsChatOnExistingPadWithOneChatMessage(t *testing.T, ds testutils.TestDataStore) {
+	randomPad := db.CreateRandomPad()
+	err := ds.DS.CreatePad("existentPad", randomPad)
+	if err != nil {
+		t.Fatalf("RemoveChat should not return error for nonexistent pad")
+	}
+	randomAuthor := author2.NewRandomAuthor()
+	err = ds.DS.SaveAuthor(*author2.ToDBAuthor(randomAuthor))
+	if err := ds.DS.SaveChatMessage("existentPad", 0, &randomAuthor.Id, 1234, "hello"); err != nil {
+		t.Fatalf("SaveChatMessage failed: %v", err)
+	}
+
+	resultingAuthorIds, err := ds.DS.GetAuthorIdsOfPadChats("existentPad")
+	if err != nil {
+		t.Fatalf("GetAuthorIdsOfPadChats failed: %v", err)
+	}
+	if len(*resultingAuthorIds) != 1 || (*resultingAuthorIds)[0] != randomAuthor.Id {
+		t.Fatalf("GetAuthorIdsOfPadChats returned unexpected result: %#v", resultingAuthorIds)
 	}
 }
 
