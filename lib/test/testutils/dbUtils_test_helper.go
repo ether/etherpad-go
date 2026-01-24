@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -433,6 +434,11 @@ func (test *TestDBHandler) InitMySQL() *db.MysqlDB {
 	return mysqlDB
 }
 
+var (
+	mysqlTestLock    sync.Mutex
+	postgresTestLock sync.Mutex
+)
+
 func (test *TestDBHandler) TestRun(
 	t *testing.T,
 	testRun TestRunConfig,
@@ -441,9 +447,22 @@ func (test *TestDBHandler) TestRun(
 	t.Run(testRun.Name, func(t *testing.T) {
 		ds := newDS()
 
+		switch ds.(type) {
+		case *db.MysqlDB:
+			mysqlTestLock.Lock()
+		case *db.PostgresDB:
+			postgresTestLock.Lock()
+		}
+
 		t.Cleanup(func() {
 			if err := ds.Close(); err != nil {
 				t.Fatalf("Failed to close DataStore: %v", err)
+			}
+			switch ds.(type) {
+			case *db.MysqlDB:
+				mysqlTestLock.Unlock()
+			case *db.PostgresDB:
+				postgresTestLock.Unlock()
 			}
 		})
 
