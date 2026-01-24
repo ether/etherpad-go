@@ -1,27 +1,30 @@
 package io
 
 import (
+	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/ether/etherpad-go/lib/apool"
-	"github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/changeset"
-	"github.com/ether/etherpad-go/lib/hooks"
 	pad2 "github.com/ether/etherpad-go/lib/models/pad"
 	"github.com/ether/etherpad-go/lib/pad"
 	"mvdan.cc/xurls/v2"
 )
 
 type ExportMarkdown struct {
-	PadManager    *pad.Manager
-	AuthorManager *author.Manager
-	Hooks         *hooks.Hook
+	PadManager *pad.Manager
+}
+
+func NewExportMarkdown(padManager *pad.Manager) *ExportMarkdown {
+	return &ExportMarkdown{
+		PadManager: padManager,
+	}
 }
 
 // getMarkdownFromAtext übersetzt einen Pad-Inhalt (AText) in Markdown
-func getMarkdownFromAtext(retrievedPad *pad2.Pad, atext AText) string {
+func (em *ExportMarkdown) getMarkdownFromAtext(retrievedPad *pad2.Pad, atext apool.AText) string {
 	padPool := retrievedPad.Pool
 	textLines := pad.SplitRemoveLastRune(atext.Text)
 	attribLines, _ := changeset.SplitAttributionLines(atext.Attribs, atext.Text)
@@ -58,8 +61,8 @@ func getMarkdownFromAtext(retrievedPad *pad2.Pad, atext AText) string {
 	var lists [][]interface{}
 
 	for i := 0; i < len(textLines); i++ {
-		line, _ := analyzeLine(&textLines[i], &attribLines[i], &padPool)
-		lineContent, err := getLineMarkdown(string(line.Text), line.Aline, tags, anumMap, headinganumMap, headingtags)
+		line, _ := em.analyzeLine(&textLines[i], &attribLines[i], &padPool)
+		lineContent, err := em.getLineMarkdown(string(line.Text), line.Aline, tags, anumMap, headinganumMap, headingtags)
 		if err != nil {
 			return ""
 		}
@@ -88,7 +91,7 @@ func getMarkdownFromAtext(retrievedPad *pad2.Pad, atext AText) string {
 
 var markdownListTypeRegex = regexp.MustCompile(`^([a-z]+)([12345678])`)
 
-func analyzeLine(text, aline *string, attribPool *apool.APool) (*pad.LineModel, error) {
+func (em *ExportMarkdown) analyzeLine(text, aline *string, attribPool *apool.APool) (*pad.LineModel, error) {
 	var line pad.LineModel
 	lineMarker := 0
 	line.ListLevel = 0
@@ -149,13 +152,13 @@ func findUrlsWithIndex(text string) []FindURLPair {
 	return result
 }
 
-func getLineMarkdown(text string, attribs string, tags []string, anumMap, headinganumMap map[int]int, headingtags []string) (string, error) {
+func (em *ExportMarkdown) getLineMarkdown(text string, attribs string, tags []string, anumMap, headinganumMap map[int]int, headingtags []string) (string, error) {
 	const ENTER = 1
 	const STAY = 2
 	const LEAVE = 0
 	const TRUE = 3
 	const FALSE = 4
-	propVals := make([]int, 3)
+	propVals := make([]int, len(headingtags))
 	for i := range propVals {
 		propVals[i] = FALSE
 	}
@@ -170,12 +173,12 @@ func getLineMarkdown(text string, attribs string, tags []string, anumMap, headin
 
 	openTags := []int{}
 	emitOpenTag := func(i int) {
-		openTags = append([]int{i}, openTags...) // unshift equivalent
+		openTags = append([]int{i}, openTags...)
 		assem.Append(tags[i])
 	}
 
 	emitCloseTag := func(i int) {
-		openTags = openTags[1:] // shift equivalent
+		openTags = openTags[1:]
 		assem.Append(tags[i])
 	}
 
@@ -219,7 +222,7 @@ func getLineMarkdown(text string, attribs string, tags []string, anumMap, headin
 		assem.Append(*heading)
 	}
 
-	urls := findURLs(text)
+	urls := findUrlsWithIndex(text)
 	idx := 0
 
 	processNextChars := func(numChars int) error {
@@ -326,16 +329,17 @@ func getLineMarkdown(text string, attribs string, tags []string, anumMap, headin
 	}
 
 	for _, url := range urls {
-		startIndex := url.start
-		currentUrl := url.url
+		startIndex := url.StartIndex
+		currentUrl := url.Url
 		urlLength := len(currentUrl)
 		if err := processNextChars(startIndex - idx); err != nil {
 			return "", err
 		}
-		assem.Append(`[${url}](`)
+		assem.Append(fmt.Sprintf("[%s](", currentUrl))
 		if err := processNextChars(urlLength); err != nil {
 			return "", err
 		}
+		assem.Append(")")
 	}
 
 	if err := processNextChars(len(text) - idx); err != nil {
@@ -346,6 +350,32 @@ func getLineMarkdown(text string, attribs string, tags []string, anumMap, headin
 	assemStr = strings.ReplaceAll(assemStr, "&", "\\&")
 	assemStr = strings.ReplaceAll(assemStr, "_", "\\_")
 	return assem.String(), nil
+}
+
+func (em *ExportMarkdown) GetPadMarkdownDocument(padID string, revNum *int) (*string, error) {
+	retrievedPad, err := em.PadManager.GetPad(padID, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	markdown, err := em.getPadMarkdown(*retrievedPad, revNum)
+	if err != nil {
+		return nil, err
+	}
+	return &markdown, nil
+}
+
+func (em *ExportMarkdown) getPadMarkdown(pad pad2.Pad, revNum *int) (string, error) {
+	var atext apool.AText
+	if revNum != nil {
+		retrievedAtext := pad.GetInternalRevisionAText(*revNum)
+		if retrievedAtext != nil {
+			atext = *retrievedAtext
+		}
+	} else {
+		atext = pad.AText
+	}
+	markdown := em.getMarkdownFromAtext(&pad, atext)
+	return markdown, nil
 }
 
 func spaces(n int) string {
