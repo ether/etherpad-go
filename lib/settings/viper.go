@@ -365,11 +365,5 @@ func ReadConfig(jsonStr string) (*Settings, error) {
 		Plugins:             plugins,
 	}
 
-	// Parse Plugins
-	pluginsMap := make(map[string]PluginSettings)
-	if err := viper.UnmarshalKey("plugins", &pluginsMap); err == nil {
-		s.Plugins = pluginsMap
-	}
-
 	return s, nil
 }
