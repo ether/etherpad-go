@@ -15,6 +15,7 @@ import (
 	"github.com/ether/etherpad-go/lib/cli"
 	"github.com/ether/etherpad-go/lib/hooks"
 	"github.com/ether/etherpad-go/lib/loadtest"
+	"github.com/ether/etherpad-go/lib/migration"
 	"github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/plugins"
 	session2 "github.com/ether/etherpad-go/lib/session"
@@ -46,6 +47,9 @@ func main() {
 
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
+		case "migration":
+			migration.RunFromCLI(setupLogger, os.Args[2:])
+			return
 		case "cli":
 			cli.RunFromCLI(setupLogger, os.Args[2:])
 			return

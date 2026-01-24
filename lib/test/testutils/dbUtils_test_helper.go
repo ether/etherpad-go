@@ -23,6 +23,7 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 )
 
 type TestDataStore struct {
@@ -87,23 +88,42 @@ type TestContainerConfiguration struct {
 }
 
 func NewTestDBHandler(t *testing.T) *TestDBHandler {
+	t.Helper()
 
-	postgresConfig, err := PreparePostgresDB()
-	if err != nil {
-		t.Fatalf("Failed to prepare Postgres test container: %v", err)
-	}
-	mysqlConfig, err := PrepareMySQLDB()
-	if err != nil {
-		t.Fatalf("Failed to prepare MySQL test container: %v", err)
+	var (
+		postgresConfig *TestContainerConfiguration
+		mysqlConfig    *TestContainerConfiguration
+	)
+
+	var g errgroup.Group
+
+	g.Go(func() error {
+		cfg, err := PreparePostgresDB()
+		if err != nil {
+			return fmt.Errorf("postgres: %w", err)
+		}
+		postgresConfig = cfg
+		return nil
+	})
+
+	g.Go(func() error {
+		cfg, err := PrepareMySQLDB()
+		if err != nil {
+			return fmt.Errorf("mysql: %w", err)
+		}
+		mysqlConfig = cfg
+		return nil
+	})
+
+	if err := g.Wait(); err != nil {
+		t.Fatalf("Failed to prepare test databases: %v", err)
 	}
 
-	testDBHandler := TestDBHandler{
+	return &TestDBHandler{
 		t:                     t,
 		testPostgresContainer: postgresConfig,
 		testMysqlContainer:    mysqlConfig,
 	}
-
-	return &testDBHandler
 }
 
 func PreparePostgresDB() (*TestContainerConfiguration, error) {
@@ -332,7 +352,6 @@ func (test *TestDBHandler) AddTests(testConfs ...TestRunConfig) {
 }
 
 func (test *TestDBHandler) StartTestDBHandler() {
-
 	datastores := map[string]func() db.DataStore{
 		"Memory": func() db.DataStore {
 			return db.NewMemoryDataStore()
@@ -342,7 +361,6 @@ func (test *TestDBHandler) StartTestDBHandler() {
 			if err != nil {
 				test.t.Fatalf("Failed to create SQLite DataStore: %v", err)
 			}
-
 			return sqliteDB
 		},
 		"Postgres": func() db.DataStore {
@@ -354,17 +372,27 @@ func (test *TestDBHandler) StartTestDBHandler() {
 	}
 
 	for dsName, newDS := range datastores {
+		dsName := dsName
+		newDS := newDS
+
 		test.t.Run(dsName, func(t *testing.T) {
+			t.Parallel()
+
 			for _, testConf := range test.tests {
+				testConf := testConf
 				test.TestRun(t, testConf, newDS)
 			}
 		})
 	}
 
-	// Cleanup containers
-	if err := test.testPostgresContainer.Container.Terminate(context.Background()); err != nil {
-		test.t.Fatalf("Failed to terminate Postgres test container: %v", err)
-	}
+	test.t.Cleanup(func() {
+		if test.testPostgresContainer != nil {
+			_ = test.testPostgresContainer.Container.Terminate(context.Background())
+		}
+		if test.testMysqlContainer != nil {
+			_ = test.testMysqlContainer.Container.Terminate(context.Background())
+		}
+	})
 }
 
 func (test *TestDBHandler) InitPostgres() *db.PostgresDB {
@@ -405,9 +433,20 @@ func (test *TestDBHandler) InitMySQL() *db.MysqlDB {
 	return mysqlDB
 }
 
-func (test *TestDBHandler) TestRun(t *testing.T, testRun TestRunConfig, newDS func() db.DataStore) {
+func (test *TestDBHandler) TestRun(
+	t *testing.T,
+	testRun TestRunConfig,
+	newDS func() db.DataStore,
+) {
 	t.Run(testRun.Name, func(t *testing.T) {
 		ds := newDS()
+
+		t.Cleanup(func() {
+			if err := ds.Close(); err != nil {
+				t.Fatalf("Failed to close DataStore: %v", err)
+			}
+		})
+
 		authManager := author.NewManager(ds)
 		hooks := hooks2.NewHook()
 		hub := ws.NewHub()
@@ -415,9 +454,14 @@ func (test *TestDBHandler) TestRun(t *testing.T, testRun TestRunConfig, newDS fu
 		sess := ws.NewSessionStore()
 		padManager := pad.NewManager(ds, &hooks)
 		loggerPart := zap.NewNop().Sugar()
-		padMessageHandler := ws.NewPadMessageHandler(ds, &hooks, padManager, &sess, hub, loggerPart)
-		adminMessageHandler := ws.NewAdminMessageHandler(ds, &hooks, padManager, padMessageHandler, loggerPart, hub)
+		padMessageHandler := ws.NewPadMessageHandler(
+			ds, &hooks, padManager, &sess, hub, loggerPart,
+		)
+		adminMessageHandler := ws.NewAdminMessageHandler(
+			ds, &hooks, padManager, padMessageHandler, loggerPart, hub,
+		)
 		validatorEvaluator := validator.New(validator.WithRequiredStructEnabled())
+
 		testRun.Test(t, TestDataStore{
 			DS:                  ds,
 			AuthorManager:       authManager,
@@ -434,19 +478,15 @@ func (test *TestDBHandler) TestRun(t *testing.T, testRun TestRunConfig, newDS fu
 			SecurityManager:     pad.NewSecurityManager(ds, &hooks, padManager),
 		})
 		t.Cleanup(func() {
-			if err := ds.Close(); err != nil {
-				t.Fatalf("Failed to close SQLite DataStore: %v", err)
-			}
-			if test.testPostgresContainer != nil {
+			switch ds.(type) {
+			case *db.PostgresDB:
 				if err := test.cleanupPostgresTables(); err != nil {
 					t.Fatalf("Postgres cleanup failed: %v", err)
 				}
-			}
-			if test.testMysqlContainer != nil {
+			case *db.MysqlDB:
 				if err := test.cleanupMySQLTables(); err != nil {
-					t.Fatalf("MYSQL cleanup failed: %v", err)
+					t.Fatalf("MySQL cleanup failed: %v", err)
 				}
-
 			}
 
 			if err := ds.Close(); err != nil {
