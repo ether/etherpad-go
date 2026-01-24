@@ -10,6 +10,7 @@ import (
 )
 
 func InitPlugin(hookSystem *hooks.Hook, uiAssets embed.FS, zap *zap.SugaredLogger) {
+	zap.Info("Initializing ep_align plugin")
 	// HTML Export hook
 	hookSystem.EnqueueHook("getLineHTMLForExport", func(ctx any) {
 		var event = ctx.(*events.LineHtmlForExportContext)

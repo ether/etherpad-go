@@ -10,6 +10,7 @@ import (
 )
 
 func InitPlugin(hookSystem *hooks.Hook, uiAssets embed.FS, zap *zap.SugaredLogger) {
+	zap.Info("Initializing ep_spellcheck plugin")
 	hookSystem.EnqueueGetPluginTranslationHooks(func(ctx *events.LocaleLoadContext) {
 		zap.Debugf("Loading ep_spellcheck translations for locale: %s", ctx.RequestedLocale)
 		var loadedTranslations, err = utils.LoadPluginTranslations(ctx.RequestedLocale, uiAssets, "ep_spellcheck")
