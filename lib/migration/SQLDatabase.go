@@ -125,7 +125,6 @@ func (s *SQLDatabase) getKeysAndValuesByPrefix(
 			s.tableName, s.keyColumn,
 			s.placeholder(1), s.keyColumn, s.placeholder(2),
 		)
-		println(query)
 		args = []interface{}{prefix + "%", limit}
 	} else {
 		query = fmt.Sprintf(
@@ -138,7 +137,6 @@ func (s *SQLDatabase) getKeysAndValuesByPrefix(
 	}
 
 	rows, err := s.db.Query(query, args...)
-	fmt.Printf("Args are %v", args)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -317,7 +315,7 @@ func (s *SQLDatabase) GetNextAuthors(lastAuthorId string, limit int) ([]Author, 
 // Readonly Mappings
 // ============================================================================
 
-// Key pattern: readonly2pad:<readonlyId>
+// GetNextReadonly2Pad Key pattern: readonly2pad:<readonlyId>
 func (s *SQLDatabase) GetNextReadonly2Pad(
 	lastReadonlyId string,
 	limit int,
@@ -336,7 +334,6 @@ func (s *SQLDatabase) GetNextReadonly2Pad(
 	for key, value := range data {
 		readonlyId := strings.TrimPrefix(key, "readonly2pad:")
 
-		// Value is just the padId as a JSON string
 		var padId string
 		if err := json.Unmarshal([]byte(value), &padId); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal readonly2pad %s: %w", readonlyId, err)

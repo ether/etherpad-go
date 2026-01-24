@@ -30,6 +30,19 @@ type MemoryDataStore struct {
 	refreshTokenRequestIDs map[string]string
 }
 
+func (m *MemoryDataStore) GetAuthorIdsOfPadChats(id string) (*[]string, error) {
+	var authorIds []string
+	for k := range m.chatPads {
+		if strings.HasPrefix(k, id+":") {
+			chatMessage := m.chatPads[k]
+			if chatMessage.AuthorId != nil {
+				authorIds = append(authorIds, *chatMessage.AuthorId)
+			}
+		}
+	}
+	return &authorIds, nil
+}
+
 func (m *MemoryDataStore) GetAccessTokenRequestID(requestID string) (*string, error) {
 	token, ok := m.accessTokenRequestIDs[requestID]
 	if !ok {

@@ -547,6 +547,10 @@ func (p *Pad) GetAllAuthors() []string {
 	return authorIds
 }
 
+func (p *Pad) GetAllChatters() (*[]string, error) {
+	return p.db.GetAuthorIdsOfPadChats(p.Id)
+}
+
 func (p *Pad) GetPadMetaData(revNum int) *db2.PadMetaData {
 	meta, err := p.db.GetPadMetaData(p.Id, revNum)
 

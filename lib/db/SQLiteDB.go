@@ -20,10 +20,34 @@ type SQLiteDB struct {
 	sqlDB *sql.DB
 }
 
+func (d SQLiteDB) GetAuthorIdsOfPadChats(id string) (*[]string, error) {
+	var resultedSQL, args, err = sq.
+		Select("DISTINCT authorId").
+		From("padChat").
+		Where(sq.Eq{"padId": id}).
+		ToSql()
+	if err != nil {
+		return nil, err
+	}
+	query, err := d.sqlDB.Query(resultedSQL, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer query.Close()
+	var authorIds []string
+	for query.Next() {
+		var authorId string
+		query.Scan(&authorId)
+		authorIds = append(authorIds, authorId)
+	}
+	return &authorIds, nil
+}
+
 func (d SQLiteDB) SaveGroup(groupId string) error {
 	var resultedSQL, args, err = sq.Insert("groupPadGroup").
 		Columns("id").
 		Values(groupId).
+		Suffix("ON CONFLICT(id) DO NOTHING").
 		ToSql()
 
 	if err != nil {
@@ -255,8 +279,7 @@ func (d SQLiteDB) SaveChatHeadOfPad(padId string, head int) error {
 		return err
 	}
 	resultingPad.ChatHead = head
-	d.CreatePad(padId, *resultingPad)
-	return nil
+	return d.CreatePad(padId, *resultingPad)
 }
 
 func (d SQLiteDB) SaveChatMessage(padId string, head int, authorId *string, timestamp int64, text string) error {
@@ -264,6 +287,7 @@ func (d SQLiteDB) SaveChatMessage(padId string, head int, authorId *string, time
 		Insert("padChat").
 		Columns("padId", "padHead", "chatText", "authorId", "timestamp").
 		Values(padId, head, text, authorId, timestamp).
+		Suffix("ON CONFLICT(padId, padHead) DO UPDATE SET chatText = excluded.chatText, authorId = excluded.authorId, timestamp = excluded.timestamp").
 		ToSql()
 
 	if err != nil {
@@ -393,10 +417,17 @@ func (d SQLiteDB) GetSessionById(sessionID string) (*session2.Session, error) {
 }
 
 func (d SQLiteDB) SetSessionById(sessionID string, session session2.Session) error {
-	var retrievedSql, inserts, _ = sq.Insert("sessionstorage").Columns("id", "originalMaxAge", "expires", "secure", "httpOnly", "path", "sameSite", "connections").
-		Values(sessionID, session.OriginalMaxAge, session.Expires, session.Secure, session.HttpOnly, session.Path, session.SameSite, "").ToSql()
+	var retrievedSql, inserts, err = sq.Insert("sessionstorage").
+		Columns("id", "originalMaxAge", "expires", "secure", "httpOnly", "path", "sameSite", "connections").
+		Values(sessionID, session.OriginalMaxAge, session.Expires, session.Secure, session.HttpOnly, session.Path, session.SameSite, "").
+		Suffix("ON CONFLICT(id) DO UPDATE SET originalMaxAge = excluded.originalMaxAge, expires = excluded.expires, secure = excluded.secure, httpOnly = excluded.httpOnly, path = excluded.path, sameSite = excluded.sameSite, connections = excluded.connections").
+		ToSql()
 
-	_, err := d.sqlDB.Exec(retrievedSql, inserts...)
+	if err != nil {
+		return err
+	}
+
+	_, err = d.sqlDB.Exec(retrievedSql, inserts...)
 
 	if err != nil {
 		return err
@@ -488,43 +519,24 @@ func (d SQLiteDB) RemoveSessionById(sid string) error {
 }
 
 func (d SQLiteDB) CreatePad(padID string, padDB db.PadDB) error {
-
-	_, notFound := d.GetPad(padID)
-
-	var marshalled, err = json.Marshal(padDB)
-
+	marshalled, err := json.Marshal(padDB)
 	if err != nil {
 		return err
 	}
 
-	var resultedSQL string
-	var args []interface{}
-	var err1 error
+	resultedSQL, args, err := sq.
+		Insert("pad").
+		Columns("id", "data").
+		Values(padID, string(marshalled)).
+		Suffix("ON CONFLICT(id) DO UPDATE SET data = excluded.data").
+		ToSql()
 
-	if notFound != nil {
-		resultedSQL, args, err1 = sq.
-			Insert("pad").
-			Columns("id", "data").
-			Values(padID, string(marshalled)).ToSql()
-	} else {
-		resultedSQL, args, err1 = sq.
-			Update("pad").
-			Set("data", string(marshalled)).
-			Where(sq.Eq{
-				"id": padID,
-			}).ToSql()
-	}
-	if err1 != nil {
-		panic(err)
+	if err != nil {
+		return err
 	}
 
 	_, err = d.sqlDB.Exec(resultedSQL, args...)
-
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
 func (d SQLiteDB) GetPadIds() (*[]string, error) {
@@ -568,22 +580,18 @@ func (d SQLiteDB) SaveRevision(padId string, rev int, changeset string, text db.
 		return fmt.Errorf("error serializing pool: %v", err)
 	}
 
-	toSql, i, err := sq.Insert("padRev").
+	toSql, args, err := sq.Insert("padRev").
 		Columns("id", "rev", "changeset", "atextText", "atextAttribs", "authorId", "timestamp", "pool").
 		Values(padId, rev, changeset, text.Text, text.Attribs, authorId, timestamp, serializedPool).
+		Suffix("ON CONFLICT(id, rev) DO UPDATE SET changeset = excluded.changeset, atextText = excluded.atextText, atextAttribs = excluded.atextAttribs, authorId = excluded.authorId, timestamp = excluded.timestamp, pool = excluded.pool").
 		ToSql()
 
 	if err != nil {
 		return err
 	}
 
-	_, err = d.sqlDB.Exec(toSql, i...)
-
-	if err != nil {
-		return err
-	}
-
-	return nil
+	_, err = d.sqlDB.Exec(toSql, args...)
+	return err
 }
 
 func (d SQLiteDB) GetPad(padID string) (*db.PadDB, error) {
@@ -652,6 +660,7 @@ func (d SQLiteDB) CreatePad2ReadOnly(padId string, readonlyId string) error {
 		Insert("pad2readonly").
 		Columns("id", "data").
 		Values(padId, readonlyId).
+		Suffix("ON CONFLICT(id) DO UPDATE SET data = excluded.data").
 		ToSql()
 
 	if err != nil {
@@ -659,10 +668,7 @@ func (d SQLiteDB) CreatePad2ReadOnly(padId string, readonlyId string) error {
 	}
 
 	_, err = d.sqlDB.Exec(resultedSQL, args...)
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 
 func (d SQLiteDB) CreateReadOnly2Pad(padId string, readonlyId string) error {
@@ -670,6 +676,7 @@ func (d SQLiteDB) CreateReadOnly2Pad(padId string, readonlyId string) error {
 		Insert("readonly2pad").
 		Columns("id", "data").
 		Values(readonlyId, padId).
+		Suffix("ON CONFLICT(id) DO UPDATE SET data = excluded.data").
 		ToSql()
 
 	if err != nil {
@@ -677,11 +684,7 @@ func (d SQLiteDB) CreateReadOnly2Pad(padId string, readonlyId string) error {
 	}
 
 	_, err = d.sqlDB.Exec(resultedSQL, args...)
-
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 
 func (d SQLiteDB) GetReadOnly2Pad(id string) (*string, error) {
@@ -711,18 +714,19 @@ func (d SQLiteDB) GetReadOnly2Pad(id string) (*string, error) {
 }
 
 func (d SQLiteDB) SetAuthorByToken(token, authorId string) error {
-	var resulltedSQL, arg, _ = sq.
+	var resultedSQL, args, err = sq.
 		Insert("token2author").
-		Columns("token,author").
-		Values(token, authorId).ToSql()
-
-	_, err := d.sqlDB.Exec(resulltedSQL, arg...)
+		Columns("token", "author").
+		Values(token, authorId).
+		Suffix("ON CONFLICT(token) DO UPDATE SET author = excluded.author").
+		ToSql()
 
 	if err != nil {
 		return err
 	}
 
-	return nil
+	_, err = d.sqlDB.Exec(resultedSQL, args...)
+	return err
 }
 
 /**
@@ -807,35 +811,20 @@ func (d SQLiteDB) SaveAuthor(author db.AuthorDB) error {
 	if author.ID == "" {
 		return errors.New("author ID is empty")
 	}
-	var foundAuthor, err = d.GetAuthor(author.ID)
-	if err != nil && err.Error() != AuthorNotFoundError {
+
+	resultedSQL, args, err := sq.
+		Insert("globalAuthor").
+		Columns("id", "colorId", "name", "timestamp").
+		Values(author.ID, author.ColorId, author.Name, author.Timestamp).
+		Suffix("ON CONFLICT(id) DO UPDATE SET colorId = excluded.colorId, name = excluded.name, timestamp = excluded.timestamp").
+		ToSql()
+
+	if err != nil {
 		return err
 	}
 
-	if foundAuthor == nil {
-		var resultedSQL, i, err = sq.
-			Insert("globalAuthor").
-			Columns("id", "colorId", "name", "timestamp").
-			Values(author.ID, author.ColorId, author.Name, author.Timestamp).
-			ToSql()
-		_, err = d.sqlDB.Exec(resultedSQL, i...)
-		if err != nil {
-			return err
-		}
-	} else {
-		var resultedSQL, i, err = sq.
-			Update("globalAuthor").
-			Set("colorId", author.ColorId).
-			Set("name", author.Name).
-			Set("timestamp", author.Timestamp).
-			Where(sq.Eq{"id": author.ID}).
-			ToSql()
-		_, err = d.sqlDB.Exec(resultedSQL, i...)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
+	_, err = d.sqlDB.Exec(resultedSQL, args...)
+	return err
 }
 
 func (d SQLiteDB) SaveAuthorName(authorId string, authorName string) error {
@@ -849,8 +838,7 @@ func (d SQLiteDB) SaveAuthorName(authorId string, authorName string) error {
 	}
 
 	authorString.Name = &authorName
-	d.SaveAuthor(*authorString)
-	return nil
+	return d.SaveAuthor(*authorString)
 }
 
 func (d SQLiteDB) SaveAuthorColor(authorId string, authorColor string) error {
@@ -865,8 +853,7 @@ func (d SQLiteDB) SaveAuthorColor(authorId string, authorColor string) error {
 	}
 
 	authorString.ColorId = authorColor
-	d.SaveAuthor(*authorString)
-	return nil
+	return d.SaveAuthor(*authorString)
 }
 
 func (d SQLiteDB) GetPadMetaData(padId string, revNum int) (*db.PadMetaData, error) {
@@ -918,6 +905,7 @@ func (d SQLiteDB) SaveAccessToken(token string, data fosite.Requester) error {
 		Insert("access_tokens").
 		Columns("token", "data").
 		Values(token, data).
+		Suffix("ON CONFLICT(token) DO UPDATE SET data = excluded.data").
 		ToSql()
 
 	if err != nil {
@@ -925,10 +913,7 @@ func (d SQLiteDB) SaveAccessToken(token string, data fosite.Requester) error {
 	}
 
 	_, err = d.sqlDB.Exec(resultedSQL, args...)
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 
 func (d SQLiteDB) Close() error {

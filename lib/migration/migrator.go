@@ -41,7 +41,7 @@ func (m *Migrator) MigrateAuthors() error {
 				ID:        author.Id,
 				ColorId:   utils.ColorPalette[author.ColorId],
 				Name:      &author.Name,
-				Timestamp: author.Timestamp,
+				Timestamp: author.Timestamp / 1000,
 			}); err != nil {
 				return fmt.Errorf("failed to save author %s: %v", author.Id, err)
 			}
@@ -145,5 +145,94 @@ func (m *Migrator) MigrateRevisions() error {
 		}
 	}
 	m.logger.Info("Finished migration of revisions.")
+	return nil
+}
+
+func (m *Migrator) MigratePadChats() error {
+	m.logger.Info("Starting migration of pad chats...")
+	lastPadId := ""
+	lastChatId := -1
+	for {
+		pads, err := m.oldEtherpadDB.GetNextPads(lastPadId, 10)
+		if err != nil {
+			return fmt.Errorf("failed to get pads for chat migration: %v", err)
+		}
+		if len(pads) == 0 {
+			break
+		}
+
+		for _, pad := range pads {
+			lastPadId = pad.PadId
+			m.logger.Debug("Migrating chats for pad: %s\n", pad.PadId)
+			chatMessages, err := m.oldEtherpadDB.GetPadChatMessages(lastPadId, lastChatId, 100)
+			if err != nil {
+				return fmt.Errorf("failed to get chat messages: %v", err)
+			}
+			for _, msg := range chatMessages {
+				m.logger.Debug("Migrating chat message %d for pad %s\n", msg.ChatNum, pad.PadId)
+				if err := m.newDataStore.SaveChatMessage(pad.PadId, msg.ChatNum, &msg.AuthorId, msg.Timestamp, msg.Text); err != nil {
+					return fmt.Errorf("failed to save chat message %d for pad %s: %v", msg.ChatNum, pad.PadId, err)
+				}
+			}
+			lastPadId = pad.PadId
+		}
+	}
+	m.logger.Info("Finished migration of pad chats.")
+	return nil
+}
+
+func (m *Migrator) MigratePad2Readonly() error {
+	m.logger.Info("Starting migration of pad2readonly...")
+	pad2Readonly, err := m.oldEtherpadDB.GetNextPad2Readonly("", 1000000)
+	if err != nil {
+		return fmt.Errorf("failed to get Pad2Readonly: %v", err)
+	}
+	for _, mapping := range pad2Readonly {
+		m.logger.Debug("Migrating readonly mapping %s for pad %s\n", mapping.ReadonlyId, mapping.PadId)
+		if err := m.newDataStore.CreatePad2ReadOnly(mapping.PadId, mapping.ReadonlyId); err != nil {
+			return fmt.Errorf("failed to save readonly mapping %s for pad %s: %v", mapping.ReadonlyId, mapping.PadId, err)
+		}
+	}
+	m.logger.Info("Finished migration of pad 2 readonly.")
+	return nil
+}
+
+func (m *Migrator) MigrateReadonly2Pad() error {
+	m.logger.Info("Starting migration of readonly2pad...")
+	pad2Readonly, err := m.oldEtherpadDB.GetNextReadonly2Pad("", 1000000)
+	if err != nil {
+		return fmt.Errorf("failed to get Readonly2Pad: %v", err)
+	}
+	for _, mapping := range pad2Readonly {
+		m.logger.Debug("Migrating readonly mapping %s for pad %s\n", mapping.ReadonlyId, mapping.PadId)
+		if err := m.newDataStore.CreateReadOnly2Pad(mapping.PadId, mapping.ReadonlyId); err != nil {
+			return fmt.Errorf("failed to save readonly mapping %s for pad %s: %v", mapping.ReadonlyId, mapping.PadId, err)
+		}
+	}
+	m.logger.Info("Finished migration of readonly 2 pad.")
+	return nil
+}
+
+func (m *Migrator) MigrateToken2Author() error {
+	m.logger.Info("Starting migration of token2author...")
+	lastToken := ""
+	for {
+		tokenMappings, err := m.oldEtherpadDB.GetNextToken2Author(lastToken, 100)
+		if err != nil {
+			return fmt.Errorf("failed to get Token2Author mappings: %v", err)
+		}
+		if len(tokenMappings) == 0 {
+			break
+		}
+
+		for _, mapping := range tokenMappings {
+			m.logger.Debug("Migrating token mapping %s for author %s\n", mapping.Token, mapping.AuthorId)
+			if err := m.newDataStore.SetAuthorByToken(mapping.Token, mapping.AuthorId); err != nil {
+				return fmt.Errorf("failed to save token mapping %s for author %s: %v", mapping.Token, mapping.AuthorId, err)
+			}
+			lastToken = mapping.Token
+		}
+	}
+	m.logger.Info("Finished migration of token 2 author.")
 	return nil
 }

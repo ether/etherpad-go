@@ -1071,12 +1071,25 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 	}
 
 	var authors = retrievedPad.GetAllAuthors()
+	chatAuthors, err := retrievedPad.GetAllChatters()
+	if err != nil {
+		p.Logger.Errorf("Error retrieving chat authors")
+		return
+	}
+
+	setOfAuthors := make(map[string]struct{})
+	for _, a := range authors {
+		setOfAuthors[a] = struct{}{}
+	}
+	for _, ca := range *chatAuthors {
+		setOfAuthors[ca] = struct{}{}
+	}
 
 	var _ = retrievedPad.GetPadMetaData(retrievedPad.Head)
 
 	var historicalAuthorData = make(map[string]author.Author)
 
-	for _, a := range authors {
+	for a := range setOfAuthors {
 		var retrievedAuthor, err = p.authorManager.GetAuthor(a)
 
 		if err != nil {

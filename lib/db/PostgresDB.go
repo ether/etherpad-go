@@ -21,6 +21,31 @@ type PostgresDB struct {
 	pool    *pgxpool.Pool
 }
 
+func (d PostgresDB) GetAuthorIdsOfPadChats(id string) (*[]string, error) {
+	var authorIds []string
+	var resultedSQL, args, err = psql.
+		Select("DISTINCT authorId").
+		From("padChat").
+		Where(sq.Eq{"padId": id}).
+		ToSql()
+	if err != nil {
+		return nil, err
+	}
+	ctx := context.Background()
+
+	query, err := d.pool.Query(ctx, resultedSQL, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer query.Close()
+	for query.Next() {
+		var authorId string
+		query.Scan(&authorId)
+		authorIds = append(authorIds, authorId)
+	}
+	return &authorIds, nil
+}
+
 var psql = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
 func (d PostgresDB) SaveGroup(groupId string) error {

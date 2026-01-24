@@ -20,10 +20,36 @@ type MysqlDB struct {
 	sqlDB   *sql.DB
 }
 
+var mysql = sq.StatementBuilder.PlaceholderFormat(sq.Question)
+
+func (d MysqlDB) GetAuthorIdsOfPadChats(id string) (*[]string, error) {
+	var authorIds []string
+	var resultedSQL, args, err = mysql.
+		Select("DISTINCT authorId").
+		From("padChat").
+		Where(sq.Eq{"padId": id}).
+		ToSql()
+	if err != nil {
+		return nil, err
+	}
+	query, err := d.sqlDB.Query(resultedSQL, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer query.Close()
+	for query.Next() {
+		var authorId string
+		query.Scan(&authorId)
+		authorIds = append(authorIds, authorId)
+	}
+	return &authorIds, nil
+}
+
 func (d MysqlDB) SaveGroup(groupId string) error {
 	var resultedSQL, args, err = mysql.Insert("groupPadGroup").
 		Columns("id").
 		Values(groupId).
+		Suffix("ON DUPLICATE KEY UPDATE id = id").
 		ToSql()
 	if err != nil {
 		return err
@@ -219,8 +245,6 @@ func (d MysqlDB) QueryPad(offset int, limit int, sortBy string, ascending bool, 
 	}, nil
 }
 
-var mysql = sq.StatementBuilder.PlaceholderFormat(sq.Question)
-
 func (d MysqlDB) GetChatsOfPad(padId string, start int, end int) (*[]db.ChatMessageDBWithDisplayName, error) {
 	var resultedSQL, args, err = mysql.
 		Select("padChat.padid, padChat.padHead, padChat.chatText, padChat.authorId, padChat.timestamp, globalAuthor.name").
@@ -257,8 +281,7 @@ func (d MysqlDB) SaveChatHeadOfPad(padId string, head int) error {
 		return err
 	}
 	resultingPad.ChatHead = head
-	d.CreatePad(padId, *resultingPad)
-	return nil
+	return d.CreatePad(padId, *resultingPad)
 }
 
 func (d MysqlDB) SaveChatMessage(padId string, head int, authorId *string, timestamp int64, text string) error {
@@ -266,6 +289,7 @@ func (d MysqlDB) SaveChatMessage(padId string, head int, authorId *string, times
 		Insert("padChat").
 		Columns("padId", "padHead", "chatText", "authorId", "timestamp").
 		Values(padId, head, text, authorId, timestamp).
+		Suffix("ON DUPLICATE KEY UPDATE chatText = VALUES(chatText), authorId = VALUES(authorId), timestamp = VALUES(timestamp)").
 		ToSql()
 
 	if err != nil {
@@ -396,10 +420,17 @@ func (d MysqlDB) GetSessionById(sessionID string) (*session2.Session, error) {
 }
 
 func (d MysqlDB) SetSessionById(sessionID string, session session2.Session) error {
-	var retrievedSql, inserts, _ = mysql.Insert("sessionstorage").Columns("id", "originalMaxAge", "expires", "secure", "httpOnly", "path", "sameSite", "connections").
-		Values(sessionID, session.OriginalMaxAge, session.Expires, session.Secure, session.HttpOnly, session.Path, session.SameSite, "").ToSql()
+	var retrievedSql, inserts, err = mysql.Insert("sessionstorage").
+		Columns("id", "originalMaxAge", "expires", "secure", "httpOnly", "path", "sameSite", "connections").
+		Values(sessionID, session.OriginalMaxAge, session.Expires, session.Secure, session.HttpOnly, session.Path, session.SameSite, "").
+		Suffix("ON DUPLICATE KEY UPDATE originalMaxAge = VALUES(originalMaxAge), expires = VALUES(expires), secure = VALUES(secure), httpOnly = VALUES(httpOnly), path = VALUES(path), sameSite = VALUES(sameSite), connections = VALUES(connections)").
+		ToSql()
 
-	_, err := d.sqlDB.Exec(retrievedSql, inserts...)
+	if err != nil {
+		return err
+	}
+
+	_, err = d.sqlDB.Exec(retrievedSql, inserts...)
 
 	if err != nil {
 		return err
@@ -446,13 +477,13 @@ func (d MysqlDB) DoesPadExist(padID string) (*bool, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer query.Close()
 
 	for query.Next() {
 		trueVal := true
 		return &trueVal, nil
 	}
 
-	defer query.Close()
 	falseVal := false
 	return &falseVal, nil
 }
@@ -484,42 +515,23 @@ func (d MysqlDB) RemoveSessionById(sid string) error {
 }
 
 func (d MysqlDB) CreatePad(padID string, padDB db.PadDB) error {
-
-	_, notFound := d.GetPad(padID)
-
-	var marshalled, err = json.Marshal(padDB)
-
+	marshalled, err := json.Marshal(padDB)
 	if err != nil {
 		return err
 	}
 
-	var resultedSQL string
-	var args []interface{}
-	var err1 error
+	resultedSQL, args, err := mysql.
+		Insert("pad").
+		Columns("id", "data").
+		Values(padID, string(marshalled)).
+		Suffix("ON DUPLICATE KEY UPDATE data = VALUES(data)").
+		ToSql()
 
-	if notFound != nil {
-		resultedSQL, args, err1 = mysql.
-			Insert("pad").
-			Columns("id", "data").
-			Values(padID, string(marshalled)).ToSql()
-	} else {
-		resultedSQL, args, err1 = mysql.
-			Update("pad").
-			Set("data", string(marshalled)).
-			Where(sq.Eq{
-				"id": padID,
-			}).ToSql()
-	}
-	if err1 != nil {
-		return err1
+	if err != nil {
+		return err
 	}
 
 	_, err = d.sqlDB.Exec(resultedSQL, args...)
-
-	if err != nil {
-		return err
-	}
-
 	return err
 }
 
@@ -564,22 +576,18 @@ func (d MysqlDB) SaveRevision(padId string, rev int, changeset string, text db.A
 		return fmt.Errorf("failed to marshal pool: %v", err)
 	}
 
-	toSql, i, err := mysql.Insert("padRev").
+	toSql, args, err := mysql.Insert("padRev").
 		Columns("id", "rev", "changeset", "atextText", "atextAttribs", "authorId", "timestamp", "pool").
 		Values(padId, rev, changeset, text.Text, text.Attribs, authorId, timestamp, string(marshalled)).
+		Suffix("ON DUPLICATE KEY UPDATE changeset = VALUES(changeset), atextText = VALUES(atextText), atextAttribs = VALUES(atextAttribs), authorId = VALUES(authorId), timestamp = VALUES(timestamp), pool = VALUES(pool)").
 		ToSql()
 
 	if err != nil {
 		return err
 	}
 
-	_, err = d.sqlDB.Exec(toSql, i...)
-
-	if err != nil {
-		return err
-	}
-
-	return nil
+	_, err = d.sqlDB.Exec(toSql, args...)
+	return err
 }
 
 func (d MysqlDB) GetPad(padID string) (*db.PadDB, error) {
@@ -648,6 +656,7 @@ func (d MysqlDB) CreatePad2ReadOnly(padId string, readonlyId string) error {
 		Insert("pad2readonly").
 		Columns("id", "data").
 		Values(padId, readonlyId).
+		Suffix("ON DUPLICATE KEY UPDATE data = VALUES(data)").
 		ToSql()
 
 	if err != nil {
@@ -655,10 +664,7 @@ func (d MysqlDB) CreatePad2ReadOnly(padId string, readonlyId string) error {
 	}
 
 	_, err = d.sqlDB.Exec(resultedSQL, args...)
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 
 func (d MysqlDB) CreateReadOnly2Pad(padId string, readonlyId string) error {
@@ -666,6 +672,7 @@ func (d MysqlDB) CreateReadOnly2Pad(padId string, readonlyId string) error {
 		Insert("readonly2pad").
 		Columns("id", "data").
 		Values(readonlyId, padId).
+		Suffix("ON DUPLICATE KEY UPDATE data = VALUES(data)").
 		ToSql()
 
 	if err != nil {
@@ -673,11 +680,7 @@ func (d MysqlDB) CreateReadOnly2Pad(padId string, readonlyId string) error {
 	}
 
 	_, err = d.sqlDB.Exec(resultedSQL, args...)
-
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 
 func (d MysqlDB) GetReadOnly2Pad(id string) (*string, error) {
@@ -707,18 +710,19 @@ func (d MysqlDB) GetReadOnly2Pad(id string) (*string, error) {
 }
 
 func (d MysqlDB) SetAuthorByToken(token, authorId string) error {
-	var resulltedSQL, arg, _ = mysql.
+	var resultedSQL, args, err = mysql.
 		Insert("token2author").
-		Columns("token,author").
-		Values(token, authorId).ToSql()
-
-	_, err := d.sqlDB.Exec(resulltedSQL, arg...)
+		Columns("token", "author").
+		Values(token, authorId).
+		Suffix("ON DUPLICATE KEY UPDATE author = VALUES(author)").
+		ToSql()
 
 	if err != nil {
 		return err
 	}
 
-	return nil
+	_, err = d.sqlDB.Exec(resultedSQL, args...)
+	return err
 }
 
 /**
@@ -805,35 +809,20 @@ func (d MysqlDB) SaveAuthor(author db.AuthorDB) error {
 	if author.ID == "" {
 		return errors.New("author ID is empty")
 	}
-	var foundAuthor, err = d.GetAuthor(author.ID)
-	if err != nil && err.Error() != AuthorNotFoundError {
+
+	resultedSQL, args, err := mysql.
+		Insert("globalAuthor").
+		Columns("id", "colorId", "name", "timestamp").
+		Values(author.ID, author.ColorId, author.Name, author.Timestamp).
+		Suffix("ON DUPLICATE KEY UPDATE colorId = VALUES(colorId), name = VALUES(name), timestamp = VALUES(timestamp)").
+		ToSql()
+
+	if err != nil {
 		return err
 	}
 
-	if foundAuthor == nil {
-		var resultedSQL, i, err = mysql.
-			Insert("globalAuthor").
-			Columns("id", "colorId", "name", "timestamp").
-			Values(author.ID, author.ColorId, author.Name, author.Timestamp).
-			ToSql()
-		_, err = d.sqlDB.Exec(resultedSQL, i...)
-		if err != nil {
-			return err
-		}
-	} else {
-		var resultedSQL, i, err = mysql.
-			Update("globalAuthor").
-			Set("colorId", author.ColorId).
-			Set("name", author.Name).
-			Set("timestamp", author.Timestamp).
-			Where(sq.Eq{"id": author.ID}).
-			ToSql()
-		_, err = d.sqlDB.Exec(resultedSQL, i...)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
+	_, err = d.sqlDB.Exec(resultedSQL, args...)
+	return err
 }
 
 func (d MysqlDB) SaveAuthorName(authorId string, authorName string) error {
@@ -847,8 +836,7 @@ func (d MysqlDB) SaveAuthorName(authorId string, authorName string) error {
 	}
 
 	authorString.Name = &authorName
-	d.SaveAuthor(*authorString)
-	return nil
+	return d.SaveAuthor(*authorString)
 }
 
 func (d MysqlDB) SaveAuthorColor(authorId string, authorColor string) error {
@@ -863,8 +851,7 @@ func (d MysqlDB) SaveAuthorColor(authorId string, authorColor string) error {
 	}
 
 	authorString.ColorId = authorColor
-	d.SaveAuthor(*authorString)
-	return nil
+	return d.SaveAuthor(*authorString)
 }
 
 func (d MysqlDB) GetPadMetaData(padId string, revNum int) (*db.PadMetaData, error) {
@@ -891,9 +878,10 @@ func (d MysqlDB) GetPadMetaData(padId string, revNum int) (*db.PadMetaData, erro
 	if err != nil {
 		return nil, err
 	}
+	defer query.Close()
 
-	var padMetaData db.PadMetaData
 	for query.Next() {
+		var padMetaData db.PadMetaData
 		var serializedPool string
 		err := query.Scan(&padMetaData.Id, &padMetaData.RevNum, &padMetaData.ChangeSet, &padMetaData.Atext.Text, &padMetaData.AtextAttribs, &padMetaData.AuthorId, &padMetaData.Timestamp, &serializedPool)
 		if err != nil {
@@ -904,7 +892,6 @@ func (d MysqlDB) GetPadMetaData(padId string, revNum int) (*db.PadMetaData, erro
 		}
 		return &padMetaData, nil
 	}
-	defer query.Close()
 
 	return nil, errors.New(PadRevisionNotFoundError)
 }

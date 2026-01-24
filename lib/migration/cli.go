@@ -59,6 +59,21 @@ func RunFromCLI(logger *zap.SugaredLogger, args []string) {
 	if err := migrator.MigrateRevisions(); err != nil {
 		logger.Fatalf("Failed to migrate revisions: %v", err)
 	}
+
+	if err := migrator.MigratePadChats(); err != nil {
+		logger.Fatalf("Failed to migrate pad chats: %v", err)
+	}
+
+	if err := migrator.MigratePad2Readonly(); err != nil {
+		logger.Fatalf("Failed to migrate pad2readonly: %v", err)
+	}
+
+	if err := migrator.MigrateReadonly2Pad(); err != nil {
+		logger.Fatalf("Failed to migrate readonly2pad: %v", err)
+	}
+	if err := migrator.MigrateToken2Author(); err != nil {
+		logger.Fatalf("Failed to migrate token2author: %v", err)
+	}
 }
 
 func parseCLIArgs(
