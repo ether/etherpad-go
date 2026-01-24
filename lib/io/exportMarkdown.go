@@ -67,7 +67,6 @@ func (em *ExportMarkdown) getMarkdownFromAtext(retrievedPad *pad2.Pad, atext apo
 			return ""
 		}
 		if line.ListLevel > 0 {
-			// TODO: continue here implementing nested lists properly
 			whichList := len(lists)
 			for j := len(lists) - 1; j >= 0; j-- {
 				if line.ListLevel <= lists[j][0].(int) {
