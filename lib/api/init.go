@@ -18,10 +18,14 @@ import (
 func InitAPI(store *lib.InitStore) *oidc.Authenticator {
 	ssoAdminClient := store.RetrievedSettings.SSO.GetAdminClient()
 	if ssoAdminClient == nil {
-		store.Logger.Fatal("SSO admin client is not configured, cannot start admin API")
+		store.Logger.Warnf("SSO admin client is not configured, cannot start admin API")
 	}
 	authenticator := oidc.Init(store)
 	store.PrivateAPI.Use(func(c *fiber.Ctx) error {
+		if ssoAdminClient == nil {
+			store.Logger.Fatal("SSO admin client is not configured, cannot validate admin token")
+			return c.Status(http.StatusUnauthorized).Send([]byte("No Authorization header provided"))
+		}
 		authorizationValue := c.Get("Authorization", "")
 		if authorizationValue == "" {
 			store.Logger.Warn("No Authorization header provided for admin API")
@@ -30,11 +34,6 @@ func InitAPI(store *lib.InitStore) *oidc.Authenticator {
 		bearerToken := strings.Split(authorizationValue, " ")
 		if len(bearerToken) != 2 || bearerToken[0] != "Bearer" {
 			store.Logger.Warn("Invalid Authorization header format for admin API")
-			return c.Status(http.StatusUnauthorized).Send([]byte("No Authorization header provided"))
-		}
-
-		if ssoAdminClient == nil {
-			store.Logger.Fatal("SSO admin client is not configured, cannot validate admin token")
 			return c.Status(http.StatusUnauthorized).Send([]byte("No Authorization header provided"))
 		}
 
