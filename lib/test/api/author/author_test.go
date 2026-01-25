@@ -67,7 +67,10 @@ func testGetNotExistingAuthor(t *testing.T, tsStore testutils.TestDataStore) {
 	author.Init(initStore)
 	req := httptest.NewRequest("GET", "/author/unknownAuthorId", nil)
 
-	resp, _ := initStore.C.Test(req, 10)
+	resp, err := initStore.C.Test(req, 100)
+	if err != nil {
+		t.Errorf("error getting not existing author: %v", err)
+	}
 	if resp.StatusCode != 404 {
 		t.Errorf("should return 404 for not existing author, got %d", resp.StatusCode)
 	}
