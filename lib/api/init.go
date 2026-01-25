@@ -23,7 +23,7 @@ func InitAPI(store *lib.InitStore) *oidc.Authenticator {
 	authenticator := oidc.Init(store)
 	store.PrivateAPI.Use(func(c *fiber.Ctx) error {
 		if ssoAdminClient == nil {
-			store.Logger.Fatal("SSO admin client is not configured, cannot validate admin token")
+			store.Logger.Warnf("SSO admin client is not configured, cannot validate admin token")
 			return c.Status(http.StatusUnauthorized).Send([]byte("No Authorization header provided"))
 		}
 		authorizationValue := c.Get("Authorization", "")
