@@ -2,6 +2,7 @@ package migration
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/ether/etherpad-go/lib/db"
 	db2 "github.com/ether/etherpad-go/lib/models/db"
@@ -39,6 +40,10 @@ func (m *Migrator) MigrateAuthors() error {
 			m.logger.Debug("Author: %s (%s)\n", author.Id, author.Name)
 			if err := m.newDataStore.SaveAuthor(db2.AuthorDB{
 				ID:        author.Id,
+				CreatedAt: time.Now(),
+				PadIDs:    make(map[string]struct{}),
+				// will be set at a later stage
+				Token:     nil,
 				ColorId:   utils.ColorPalette[author.ColorId],
 				Name:      &author.Name,
 				Timestamp: author.Timestamp / 1000,
@@ -81,12 +86,15 @@ func (m *Migrator) MigratePads() error {
 			}
 
 			m.logger.Debug("Pad: %s (%s)\n", pad.PadId)
-			var emptyReadOnlyID = ""
 			if err := m.newDataStore.CreatePad(pad.PadId, db2.PadDB{
-				Head:       pad.Head,
-				ChatHead:   pad.ChatHead,
-				ReadOnlyId: &emptyReadOnlyID,
-				ATextText:  pad.AText.Text,
+				Head:     pad.Head,
+				ChatHead: pad.ChatHead,
+				// will be set at a later stage
+				ReadOnlyId:   nil,
+				ATextAttribs: pad.AText.Attribs,
+				CreatedAt:    time.Now(),
+				UpdatedAt:    nil,
+				ATextText:    pad.AText.Text,
 				Pool: db2.RevPool{
 					NumToAttrib: pad.Pool.NumToAttrib,
 					NextNum:     pad.Pool.NextNum,
