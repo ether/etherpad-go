@@ -374,7 +374,7 @@ func (p *PadMessageHandler) HandleMessage(message any, client *Client, ctx *fibe
 		var messageToSend, _ = json.Marshal(arr)
 
 		client.SafeSend(messageToSend)
-		println("Error checking access", err)
+		p.Logger.Warn("Error checking access", err.Error())
 		return
 	}
 
