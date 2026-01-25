@@ -183,7 +183,7 @@ func PrepareMySQLDB() (*TestContainerConfiguration, error) {
 	}
 	ctx := context.Background()
 	mysqlContainer, err := testcontainers.Run(
-		ctx, "mysql:lts",
+		ctx, "mysql:9.6",
 		testcontainers.WithExposedPorts("3306/tcp"),
 		testcontainers.WithEnv(env),
 	)

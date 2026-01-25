@@ -28,7 +28,7 @@ func NewSQLiteDatabase(dsn string) (*SQLDatabase, error) {
 		return nil, fmt.Errorf("failed to ping sqlite database: %w", err)
 	}
 
-	return NewSQLDatabase(db, DriverSQLite), nil
+	return NewSQLDatabase(db, DriverSQLite)
 }
 
 // NewPostgresDatabase creates a PostgreSQL-backed database
@@ -42,7 +42,7 @@ func NewPostgresDatabase(dsn string) (*SQLDatabase, error) {
 		return nil, fmt.Errorf("failed to ping postgres database: %w", err)
 	}
 
-	return NewSQLDatabase(db, DriverPostgres), nil
+	return NewSQLDatabase(db, DriverPostgres)
 }
 
 // NewMySQLDatabase creates a MySQL-backed database
@@ -56,5 +56,5 @@ func NewMySQLDatabase(dsn string) (*SQLDatabase, error) {
 		return nil, fmt.Errorf("failed to ping mysql database: %w", err)
 	}
 
-	return NewSQLDatabase(db, DriverMySQL), nil
+	return NewSQLDatabase(db, DriverMySQL)
 }
