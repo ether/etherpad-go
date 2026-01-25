@@ -1079,8 +1079,6 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 		setOfAuthors[ca] = struct{}{}
 	}
 
-	var _ = retrievedPad.GetPadMetaData(retrievedPad.Head)
-
 	var historicalAuthorData = make(map[string]author.Author)
 
 	authorIds := make([]string, 0, len(setOfAuthors))

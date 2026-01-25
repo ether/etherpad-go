@@ -166,3 +166,11 @@ func (m *Manager) GetAuthor(authorId string) (*Author, error) {
 	mappedDbAuthor := MapFromDB(*author)
 	return &mappedDbAuthor, nil
 }
+
+func (m *Manager) GetPadsOfAuthor(authorId string) (*[]string, error) {
+	padIds, err := m.Db.GetPadIdsOfAuthor(authorId)
+	if err != nil {
+		return nil, err
+	}
+	return padIds, nil
+}

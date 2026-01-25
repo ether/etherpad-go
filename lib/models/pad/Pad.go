@@ -565,16 +565,6 @@ func (p *Pad) GetAllChatters() (*[]string, error) {
 	return p.db.GetAuthorIdsOfPadChats(p.Id)
 }
 
-func (p *Pad) GetPadMetaData(revNum int) *db2.PadMetaData {
-	meta, err := p.db.GetPadMetaData(p.Id, revNum)
-
-	if err != nil {
-		return nil
-	}
-
-	return meta
-}
-
 func (p *Pad) GetChatMessages(start int, end int) (*[]db2.ChatMessageDBWithDisplayName, error) {
 	return p.db.GetChatsOfPad(p.Id, start, end)
 }

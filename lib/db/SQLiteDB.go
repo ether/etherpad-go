@@ -73,16 +73,7 @@ func (d SQLiteDB) GetPad(padID string) (*db.PadDB, error) {
 
 	row := d.sqlDB.QueryRow(resultedSQL, args...)
 
-	var padDB db.PadDB
-	var savedRevisions, pool sql.NullString
-	var readonlyId sql.NullString
-	var createdAt, updatedAt sql.NullTime
-
-	err = row.Scan(
-		&padDB.ID, &padDB.Head, &savedRevisions, &readonlyId, &pool,
-		&padDB.ChatHead, &padDB.PublicStatus, &padDB.ATextText, &padDB.ATextAttribs,
-		&createdAt, &updatedAt,
-	)
+	padDB, err := ReadToPadDB(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errors.New(PadDoesNotExistError)
@@ -90,30 +81,7 @@ func (d SQLiteDB) GetPad(padID string) (*db.PadDB, error) {
 		return nil, err
 	}
 
-	if readonlyId.Valid {
-		padDB.ReadOnlyId = &readonlyId.String
-	}
-
-	if savedRevisions.Valid {
-		if err := json.Unmarshal([]byte(savedRevisions.String), &padDB.SavedRevisions); err != nil {
-			return nil, fmt.Errorf("error unmarshaling saved revisions: %w", err)
-		}
-	}
-
-	if pool.Valid {
-		if err := json.Unmarshal([]byte(pool.String), &padDB.Pool); err != nil {
-			return nil, fmt.Errorf("error unmarshaling pool: %w", err)
-		}
-	}
-
-	if createdAt.Valid {
-		padDB.CreatedAt = createdAt.Time
-	}
-	if updatedAt.Valid {
-		padDB.UpdatedAt = &updatedAt.Time
-	}
-
-	return &padDB, nil
+	return padDB, nil
 }
 
 func (d SQLiteDB) DoesPadExist(padID string) (*bool, error) {
@@ -318,6 +286,7 @@ func (d SQLiteDB) GetPadIdsOfAuthor(authorId string) (*[]string, error) {
 		if err := query.Scan(&padId); err != nil {
 			return nil, err
 		}
+		padIds = append(padIds, padId)
 	}
 	return &padIds, query.Err()
 }
@@ -1051,51 +1020,6 @@ func (d SQLiteDB) QueryPad(
 		TotalPads: *totalPads,
 		Pads:      *padSearch,
 	}, nil
-}
-
-func (d SQLiteDB) GetPadMetaData(padId string, revNum int) (*db.PadMetaData, error) {
-	padExists, err := d.DoesPadExist(padId)
-	if err != nil {
-		return nil, err
-	}
-	if !*padExists {
-		return nil, errors.New(PadDoesNotExistError)
-	}
-
-	resultedSQL, args, err := sq.
-		Select("id", "rev", "changeset", "atextText", "atextAttribs", "authorId", "timestamp", "pool").
-		From("padRev").
-		Where(sq.Eq{"id": padId}).
-		Where(sq.Eq{"rev": revNum}).
-		ToSql()
-
-	if err != nil {
-		return nil, err
-	}
-
-	row := d.sqlDB.QueryRow(resultedSQL, args...)
-
-	var padMetaData db.PadMetaData
-	var serializedPool string
-
-	err = row.Scan(
-		&padMetaData.Id, &padMetaData.RevNum, &padMetaData.ChangeSet,
-		&padMetaData.Atext.Text, &padMetaData.AtextAttribs,
-		&padMetaData.AuthorId, &padMetaData.Timestamp, &serializedPool,
-	)
-
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, errors.New(PadRevisionNotFoundError)
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	if err := json.Unmarshal([]byte(serializedPool), &padMetaData.PadPool); err != nil {
-		return nil, err
-	}
-
-	return &padMetaData, nil
 }
 
 // ============== LIFECYCLE ==============

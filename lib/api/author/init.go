@@ -70,6 +70,11 @@ func Init(initStore *lib.InitStore) {
 			return c.Status(500).JSON(errors.InternalServerError)
 		}
 
-		return c.JSON(foundAuthor.PadIDs)
+		padsOfAuthor, err := authorManager.GetPadsOfAuthor(authorId)
+		if err != nil {
+			return c.Status(500).JSON(errors.InternalServerError)
+		}
+
+		return c.JSON(*padsOfAuthor)
 	})
 }

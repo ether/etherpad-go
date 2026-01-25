@@ -599,36 +599,6 @@ func (m *MemoryDataStore) QueryPad(
 	}, nil
 }
 
-func (m *MemoryDataStore) GetPadMetaData(padId string, revNum int) (*db.PadMetaData, error) {
-	_, ok := m.padStore[padId]
-	if !ok {
-		return nil, errors.New(PadDoesNotExistError)
-	}
-
-	padRevs := m.padRevisions[padId]
-	rev, ok := padRevs[revNum]
-	if !ok {
-		return nil, errors.New(PadRevisionNotFoundError)
-	}
-
-	return &db.PadMetaData{
-		Id:        padId,
-		RevNum:    revNum,
-		AuthorId:  rev.AuthorId,
-		Timestamp: rev.Timestamp,
-		ChangeSet: rev.Changeset,
-		Atext: db.AText{
-			Text:    rev.AText.Text,
-			Attribs: rev.AText.Attribs,
-		},
-		AtextAttribs: rev.AText.Attribs,
-		PadPool: db.PadPool{
-			NextNum:     rev.Pool.NextNum,
-			NumToAttrib: rev.Pool.NumToAttrib,
-		},
-	}, nil
-}
-
 // ============== OIDC METHODS ==============
 
 func (m *MemoryDataStore) GetAccessTokenRequestID(requestID string) (*string, error) {

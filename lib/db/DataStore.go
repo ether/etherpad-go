@@ -22,10 +22,6 @@ type PadMethods interface {
 	QueryPad(offset int, limit int, sortBy string, ascending bool, pattern string) (*db.PadDBSearchResult, error)
 }
 
-type PadMetaData interface {
-	GetPadMetaData(padId string, revNum int) (*db.PadMetaData, error)
-}
-
 type AuthorMethods interface {
 	GetAuthor(author string) (*db.AuthorDB, error)
 	GetPadIdsOfAuthor(authorId string) (*[]string, error)
@@ -59,7 +55,6 @@ type ChatMethods interface {
 type DataStore interface {
 	PadMethods
 	AuthorMethods
-	PadMetaData
 	SessionMethods
 	GroupMethods
 	ChatMethods
