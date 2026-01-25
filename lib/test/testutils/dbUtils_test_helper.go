@@ -41,6 +41,7 @@ type TestDataStore struct {
 	Validator           *validator.Validate
 	Hub                 *ws.Hub
 	App                 *fiber.App
+	PrivateAPI          fiber.Router
 }
 
 func (t *TestDataStore) ToInitStore() *lib.InitStore {
@@ -57,6 +58,7 @@ func (t *TestDataStore) ToInitStore() *lib.InitStore {
 		Hooks:             t.Hooks,
 		ReadOnlyManager:   t.ReadOnlyManager,
 		C:                 t.App,
+		PrivateAPI:        t.PrivateAPI,
 		UiAssets:          GetTestAssets(),
 	}
 }
@@ -481,6 +483,8 @@ func (test *TestDBHandler) TestRun(
 		)
 		validatorEvaluator := validator.New(validator.WithRequiredStructEnabled())
 
+		app := fiber.New()
+		privateAPI := app.Group("/admin/api")
 		testRun.Test(t, TestDataStore{
 			DS:                  ds,
 			AuthorManager:       authManager,
@@ -492,7 +496,8 @@ func (test *TestDBHandler) TestRun(
 			Hub:                 hub,
 			ReadOnlyManager:     pad.NewReadOnlyManager(ds),
 			Hooks:               &hooks,
-			App:                 fiber.New(),
+			App:                 app,
+			PrivateAPI:          privateAPI,
 			Logger:              loggerPart,
 			SecurityManager:     pad.NewSecurityManager(ds, &hooks, padManager),
 		})

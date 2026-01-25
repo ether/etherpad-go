@@ -1079,18 +1079,21 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 		setOfAuthors[ca] = struct{}{}
 	}
 
-	var _ = retrievedPad.GetPadMetaData(retrievedPad.Head)
-
 	var historicalAuthorData = make(map[string]author.Author)
 
-	for a := range setOfAuthors {
-		var retrievedAuthor, err = p.authorManager.GetAuthor(a)
+	authorIds := make([]string, 0, len(setOfAuthors))
+	for authorId := range setOfAuthors {
+		authorIds = append(authorIds, authorId)
+	}
 
-		if err != nil {
-			continue
-		}
+	allAuthors, err := p.authorManager.GetAuthors(authorIds)
+	if err != nil {
+		p.Logger.Errorf("Error retrieving authors: %v", err)
+		return
+	}
 
-		historicalAuthorData[a] = *retrievedAuthor
+	for _, a := range *allAuthors {
+		historicalAuthorData[a.Id] = a
 	}
 
 	var roomSockets = p.GetRoomSockets(thisSession.PadId)

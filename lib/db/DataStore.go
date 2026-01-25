@@ -22,17 +22,15 @@ type PadMethods interface {
 	QueryPad(offset int, limit int, sortBy string, ascending bool, pattern string) (*db.PadDBSearchResult, error)
 }
 
-type PadMetaData interface {
-	GetPadMetaData(padId string, revNum int) (*db.PadMetaData, error)
-}
-
 type AuthorMethods interface {
 	GetAuthor(author string) (*db.AuthorDB, error)
+	GetPadIdsOfAuthor(authorId string) (*[]string, error)
 	GetAuthorByToken(token string) (*string, error)
 	SetAuthorByToken(token string, author string) error
 	SaveAuthor(author db.AuthorDB) error
 	SaveAuthorName(authorId string, authorName string) error
 	SaveAuthorColor(authorId string, authorColor string) error
+	GetAuthors(ids []string) (*[]db.AuthorDB, error)
 }
 
 type SessionMethods interface {
@@ -57,7 +55,6 @@ type ChatMethods interface {
 type DataStore interface {
 	PadMethods
 	AuthorMethods
-	PadMetaData
 	SessionMethods
 	GroupMethods
 	ChatMethods

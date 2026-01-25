@@ -61,18 +61,11 @@ func (d PostgresDB) CreatePad(padID string, padDB db.PadDB) error {
 func (d PostgresDB) GetPad(padID string) (*db.PadDB, error) {
 	ctx := context.Background()
 
-	var padDB db.PadDB
-	var savedRevisions, pool []byte
-
-	err := d.pool.QueryRow(ctx,
+	padDB, err := ReadToPadDB(d.pool.QueryRow(ctx,
 		`SELECT id, head, saved_revisions, readonly_id, pool, chat_head, 
                 public_status, atext_text, atext_attribs, created_at, updated_at
          FROM pad WHERE id = $1`,
-		padID).Scan(
-		&padDB.ID, &padDB.Head, &savedRevisions, &padDB.ReadOnlyId, &pool,
-		&padDB.ChatHead, &padDB.PublicStatus, &padDB.ATextText, &padDB.ATextAttribs,
-		&padDB.CreatedAt, &padDB.UpdatedAt,
-	)
+		padID))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, errors.New(PadDoesNotExistError)
@@ -80,14 +73,7 @@ func (d PostgresDB) GetPad(padID string) (*db.PadDB, error) {
 		return nil, err
 	}
 
-	if err := json.Unmarshal(savedRevisions, &padDB.SavedRevisions); err != nil {
-		return nil, fmt.Errorf("error unmarshaling saved revisions: %w", err)
-	}
-	if err := json.Unmarshal(pool, &padDB.Pool); err != nil {
-		return nil, fmt.Errorf("error unmarshaling pool: %w", err)
-	}
-
-	return &padDB, nil
+	return padDB, nil
 }
 
 func (d PostgresDB) DoesPadExist(padID string) (*bool, error) {
@@ -143,7 +129,7 @@ func (d PostgresDB) SaveChatHeadOfPad(padId string, head int) error {
 	return nil
 }
 
-// ============== READONLY METHODS (simplified) ==============
+// ============== READONLY METHODS ==============
 
 func (d PostgresDB) GetReadonlyPad(padId string) (*string, error) {
 	ctx := context.Background()
@@ -196,6 +182,82 @@ func (d PostgresDB) GetPadByReadOnlyId(readonlyId string) (*string, error) {
 
 // ============== AUTHOR METHODS ==============
 
+func (d PostgresDB) GetPadIdsOfAuthor(authorId string) (*[]string, error) {
+	ctx := context.Background()
+	rows, err := d.pool.Query(ctx,
+		`SELECT DISTINCT pr.id
+		 FROM padrev pr
+		 WHERE pr.authorid = $1`,
+		authorId)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var padIds []string
+	for rows.Next() {
+		var padId string
+		if err := rows.Scan(&padId); err != nil {
+			return nil, err
+		}
+		padIds = append(padIds, padId)
+	}
+	return &padIds, rows.Err()
+}
+
+func (d PostgresDB) GetAuthors(
+	ids []string,
+) (*[]db.AuthorDB, error) {
+	if len(ids) == 0 {
+		return &[]db.AuthorDB{}, nil
+	}
+
+	ctx := context.Background()
+
+	sqlStr, args, err := psql.
+		Select(
+			"ga.id",
+			"ga.colorid",
+			"ga.name",
+			"ga.timestamp",
+			"ga.token",
+			"ga.created_at",
+		).
+		From("globalauthor ga").
+		Where(sq.Eq{"ga.id": ids}).
+		ToSql()
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := d.pool.Query(ctx, sqlStr, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	authorsMap := make(map[string]db.AuthorDB)
+
+	for rows.Next() {
+		author, err := ReadToAuthorDB(rows)
+		if err != nil {
+			return nil, err
+		}
+
+		authorsMap[author.ID] = *author
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	authors := make([]db.AuthorDB, 0, len(authorsMap))
+	for _, a := range authorsMap {
+		authors = append(authors, a)
+	}
+
+	return &authors, nil
+}
+
 func (d PostgresDB) SaveAuthor(author db.AuthorDB) error {
 	if author.ID == "" {
 		return errors.New("author ID is empty")
@@ -219,9 +281,8 @@ func (d PostgresDB) GetAuthor(authorId string) (*db.AuthorDB, error) {
 	ctx := context.Background()
 
 	rows, err := d.pool.Query(ctx,
-		`SELECT ga.id, ga."colorid", ga.name, ga.timestamp, ga.token, ga.created_at, pr.id
+		`SELECT ga.id, ga."colorid", ga.name, ga.timestamp, ga.token, ga.created_at
          FROM "globalauthor" ga
-         LEFT JOIN "padrev" pr ON ga.id = pr."authorid"
          WHERE ga.id = $1`,
 		authorId)
 	if err != nil {
@@ -229,42 +290,25 @@ func (d PostgresDB) GetAuthor(authorId string) (*db.AuthorDB, error) {
 	}
 	defer rows.Close()
 
-	var authorDB *db.AuthorDB
+	var authorDB db.AuthorDB
 
 	for rows.Next() {
-		var padID *string
-
-		if authorDB == nil {
-			authorDB = &db.AuthorDB{
-				PadIDs: make(map[string]struct{}),
-			}
-			if err := rows.Scan(
-				&authorDB.ID, &authorDB.ColorId, &authorDB.Name,
-				&authorDB.Timestamp, &authorDB.Token, &authorDB.CreatedAt, &padID,
-			); err != nil {
-				return nil, err
-			}
-		} else {
-			var dummy1, dummy2, dummy3, dummy4, dummy5, dummy6 interface{}
-			if err := rows.Scan(&dummy1, &dummy2, &dummy3, &dummy4, &dummy5, &dummy6, &padID); err != nil {
-				return nil, err
-			}
+		author, err := ReadToAuthorDB(rows)
+		if err != nil {
+			return nil, err
 		}
-
-		if padID != nil {
-			authorDB.PadIDs[*padID] = struct{}{}
-		}
+		authorDB = *author
 	}
 
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 
-	if authorDB == nil {
+	if authorDB.ID == "" {
 		return nil, errors.New(AuthorNotFoundError)
 	}
 
-	return authorDB, nil
+	return &authorDB, nil
 }
 
 func (d PostgresDB) SetAuthorByToken(token, authorId string) error {
@@ -751,42 +795,6 @@ func (d PostgresDB) QueryPad(
 		TotalPads: *totalPads,
 		Pads:      *padSearch,
 	}, nil
-}
-
-func (d PostgresDB) GetPadMetaData(padId string, revNum int) (*db.PadMetaData, error) {
-	padExists, err := d.DoesPadExist(padId)
-	if err != nil {
-		return nil, err
-	}
-	if !*padExists {
-		return nil, errors.New(PadDoesNotExistError)
-	}
-
-	ctx := context.Background()
-	var meta db.PadMetaData
-	var serializedPool string
-
-	err = d.pool.QueryRow(ctx,
-		`SELECT id, rev, changeset, "atexttext", "atextattribs", "authorid", 
-                timestamp, pool
-         FROM "padrev" WHERE id = $1 AND rev = $2`,
-		padId, revNum).Scan(
-		&meta.Id, &meta.RevNum, &meta.ChangeSet,
-		&meta.Atext.Text, &meta.AtextAttribs,
-		&meta.AuthorId, &meta.Timestamp, &serializedPool,
-	)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, errors.New(PadRevisionNotFoundError)
-		}
-		return nil, err
-	}
-
-	if err := json.Unmarshal([]byte(serializedPool), &meta.PadPool); err != nil {
-		return nil, err
-	}
-
-	return &meta, nil
 }
 
 // ============== LIFECYCLE ==============

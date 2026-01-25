@@ -538,12 +538,14 @@ func (p *Pad) AppendRevision(cs string, authorId *string) (*int, error) {
 		return nil, errors.New("Error saving revision during append " + err.Error())
 	}
 
-	if authorId != nil {
-		var clonedAuthorId = *authorId
-		if clonedAuthorId != "" {
-			p.authorManager.AddPad(*authorId, p.Id)
-		}
-	}
+	/*
+		Not needed as the author is tracked in the revision already
+		if authorId != nil {
+			var clonedAuthorId = *authorId
+			if clonedAuthorId != "" {
+				p.authorManager.AddPad(*authorId, p.Id)
+			}
+		}*/
 
 	return &p.Head, nil
 }
@@ -561,16 +563,6 @@ func (p *Pad) GetAllAuthors() []string {
 
 func (p *Pad) GetAllChatters() (*[]string, error) {
 	return p.db.GetAuthorIdsOfPadChats(p.Id)
-}
-
-func (p *Pad) GetPadMetaData(revNum int) *db2.PadMetaData {
-	meta, err := p.db.GetPadMetaData(p.Id, revNum)
-
-	if err != nil {
-		return nil
-	}
-
-	return meta
 }
 
 func (p *Pad) GetChatMessages(start int, end int) (*[]db2.ChatMessageDBWithDisplayName, error) {

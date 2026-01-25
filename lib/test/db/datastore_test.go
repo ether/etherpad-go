@@ -38,6 +38,14 @@ func runAllDataStoreTests(testHandler *testutils.TestDBHandler) {
 			Test: testCreateGetRemovePadAndIds,
 		},
 		testutils.TestRunConfig{
+			Name: "GetAuthors",
+			Test: testGetAuthors,
+		},
+		testutils.TestRunConfig{
+			Name: "GetPadIdsOfAuthor",
+			Test: testGetPadIdsOfAuthor,
+		},
+		testutils.TestRunConfig{
 			Name: "GetRevisionOnNonexistentPad",
 			Test: testGetRevisionOnNonexistentPad,
 		},
@@ -76,14 +84,6 @@ func runAllDataStoreTests(testHandler *testutils.TestDBHandler) {
 		testutils.TestRunConfig{
 			Name: "SaveAndGetRevisionAndMetaData",
 			Test: testSaveAndGetRevisionAndMetaData,
-		},
-		testutils.TestRunConfig{
-			Name: "GetPadMetadataOnNonExistingPad",
-			Test: testGetPadMetadataOnNonExistingPad,
-		},
-		testutils.TestRunConfig{
-			Name: "GetPadMetadataOnNonExistingPadRevision",
-			Test: testGetPadMetadataOnNonExistingPadRevision,
 		},
 		testutils.TestRunConfig{
 			Name: "GetPadOnNonExistingPad",
@@ -154,6 +154,61 @@ func runAllDataStoreTests(testHandler *testutils.TestDBHandler) {
 			Test: testReadonlyMappingsAndRemoveRevisions,
 		},
 	)
+}
+
+func testGetPadIdsOfAuthor(t *testing.T, ds testutils.TestDataStore) {
+	author := author2.NewRandomAuthor()
+	assert.NoError(t, ds.DS.SaveAuthor(*author2.ToDBAuthor(author)))
+	pad1 := db.CreateRandomPad()
+	pad2 := db.CreateRandomPad()
+	assert.NoError(t, ds.DS.CreatePad("pad1", pad1))
+	assert.NoError(t, ds.DS.CreatePad("pad2", pad2))
+	err := ds.DS.SaveRevision("pad1", 0, "changeset1", modeldb.AText{}, modeldb.RevPool{}, &author.Id, 1234)
+	if err != nil {
+		t.Fatalf("SaveRevision failed: %v", err)
+	}
+	err = ds.DS.SaveRevision("pad2", 0, "changeset2", modeldb.AText{}, modeldb.RevPool{}, &author.Id, 1234)
+	if err != nil {
+		t.Fatalf("SaveRevision failed: %v", err)
+	}
+	padIds, err := ds.DS.GetPadIdsOfAuthor(author.Id)
+	if err != nil {
+		t.Fatalf("GetPadIdsOfAuthor returned error: %v", err)
+	}
+	if len(*padIds) != 2 || !containsString(*padIds, "pad1") || !containsString(*padIds, "pad2") {
+		t.Fatalf("GetPadIdsOfAuthor returned unexpected pad IDs: %#v", padIds)
+	}
+}
+
+func testGetAuthors(t *testing.T, ds testutils.TestDataStore) {
+	author1 := author2.NewRandomAuthor()
+	author3 := author2.NewRandomAuthor()
+	assert.NoError(t, ds.DS.SaveAuthor(*author2.ToDBAuthor(author1)))
+
+	assert.NoError(t, ds.DS.SaveAuthor(*author2.ToDBAuthor(author3)))
+	authorsToFind := []string{author1.Id, author3.Id}
+	authorList, err := ds.DS.GetAuthors(authorsToFind)
+	if err != nil {
+		t.Fatalf("GetAuthors returned error: %v", err)
+	}
+	if len(*authorList) != 2 {
+		t.Fatalf("GetAuthors returned unexpected number of authors: %d", len(*authorList))
+	}
+	var foundAuthor1, foundAuthor3 = false, false
+
+	for _, dbAuthor := range *authorList {
+		if dbAuthor.ID == author1.Id {
+			assert.Equal(t, *author1, author2.MapFromDB(dbAuthor))
+			foundAuthor1 = true
+		}
+		if dbAuthor.ID == author3.Id {
+			assert.Equal(t, *author3, author2.MapFromDB(dbAuthor))
+			foundAuthor3 = true
+		}
+	}
+
+	assert.True(t, foundAuthor1)
+	assert.True(t, foundAuthor3)
 }
 
 func testCreateGetRemovePadAndIds(t *testing.T, testDSStore testutils.TestDataStore) {
@@ -354,40 +409,6 @@ func testSaveAndGetRevisionAndMetaData(t *testing.T, ds testutils.TestDataStore)
 	}
 	if len(*list) != 1 || (*list)[0].RevNum != 0 {
 		t.Fatalf("GetRevisions returned unexpected: %#v", list)
-	}
-
-	meta, err := ds.DS.GetPadMetaData("pad1", 0)
-	if err != nil {
-		t.Fatalf("GetPadMetaData failed: %v", err)
-	}
-	if meta.Timestamp != 12345 {
-		t.Fatalf("GetPadMetaData Timestamp mismatch")
-	}
-
-	if len(meta.PadPool.NumToAttrib) != 1 || meta.PadPool.NextNum != 1 {
-		t.Fatalf("GetPadMetaData PadPool mismatch")
-	}
-
-	if meta.AuthorId == nil || *meta.AuthorId != randomAuthor.Id {
-		t.Fatalf("GetPadMetaData SavedBy mismatch")
-	}
-}
-
-func testGetPadMetadataOnNonExistingPad(t *testing.T, ds testutils.TestDataStore) {
-	_, err := ds.DS.GetPadMetaData("nonexistentPad", 0)
-	if err == nil || err.Error() != "pad not found" {
-		t.Fatalf("should return error for nonexistent pad")
-	}
-}
-
-func testGetPadMetadataOnNonExistingPadRevision(t *testing.T, ds testutils.TestDataStore) {
-	err := ds.DS.CreatePad("nonexistentPad", db.CreateRandomPad())
-	if err != nil {
-		t.Fatalf("CreatePad failed: %v", err)
-	}
-	_, err = ds.DS.GetPadMetaData("nonexistentPad", 23)
-	if err == nil || err.Error() != db.PadRevisionNotFoundError {
-		t.Fatalf("should return error when pad revision does not exist")
 	}
 }
 

@@ -122,8 +122,11 @@ func main() {
 	padMessageHandler := ws.NewPadMessageHandler(dataStore, &retrievedHooks, padManager, &sessionStore, globalHub, setupLogger)
 	adminMessageHandler := ws.NewAdminMessageHandler(dataStore, &retrievedHooks, padManager, padMessageHandler, setupLogger, globalHub)
 	securityManager := pad.NewSecurityManager(dataStore, &retrievedHooks, padManager)
+	adminAPIRoute := app.Group("/admin/api")
+
 	authenticator := api2.InitAPI(&lib.InitStore{
 		C:                 app,
+		PrivateAPI:        adminAPIRoute,
 		Validator:         validatorEvaluator,
 		PadManager:        padManager,
 		AuthorManager:     authorManager,
@@ -137,6 +140,7 @@ func main() {
 		Store:             dataStore,
 		ReadOnlyManager:   readOnlyManager,
 	})
+
 	app.Get("/socket.io/*", func(c *fiber.Ctx) error {
 		return adaptor.HTTPHandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 			ws.ServeWs(writer, request, cookieStore, c, &settings, setupLogger, padMessageHandler)

@@ -21,6 +21,31 @@ type MysqlDB struct {
 	sqlDB   *sql.DB
 }
 
+func (d MysqlDB) GetPadIdsOfAuthor(authorId string) (*[]string, error) {
+	resultedSQL, args, err := mysql.
+		Select("DISTINCT pr.id").
+		From("padRev pr").
+		Where(sq.Eq{"pr.authorId": authorId}).
+		ToSql()
+	if err != nil {
+		return nil, err
+	}
+	query, err := d.sqlDB.Query(resultedSQL, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer query.Close()
+	var padIds []string
+	for query.Next() {
+		var padId string
+		if err := query.Scan(&padId); err != nil {
+			return nil, err
+		}
+		padIds = append(padIds, padId)
+	}
+	return &padIds, query.Err()
+}
+
 var mysql = sq.StatementBuilder.PlaceholderFormat(sq.Question)
 
 // ============== PAD METHODS ==============
@@ -75,16 +100,7 @@ func (d MysqlDB) GetPad(padID string) (*db.PadDB, error) {
 
 	row := d.sqlDB.QueryRow(resultedSQL, args...)
 
-	var padDB db.PadDB
-	var savedRevisions, pool sql.NullString
-	var readonlyId sql.NullString
-	var createdAt, updatedAt sql.NullTime
-
-	err = row.Scan(
-		&padDB.ID, &padDB.Head, &savedRevisions, &readonlyId, &pool,
-		&padDB.ChatHead, &padDB.PublicStatus, &padDB.ATextText, &padDB.ATextAttribs,
-		&createdAt, &updatedAt,
-	)
+	padDb, err := ReadToPadDB(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errors.New(PadDoesNotExistError)
@@ -92,30 +108,7 @@ func (d MysqlDB) GetPad(padID string) (*db.PadDB, error) {
 		return nil, err
 	}
 
-	if readonlyId.Valid {
-		padDB.ReadOnlyId = &readonlyId.String
-	}
-
-	if savedRevisions.Valid {
-		if err := json.Unmarshal([]byte(savedRevisions.String), &padDB.SavedRevisions); err != nil {
-			return nil, fmt.Errorf("error unmarshaling saved revisions: %w", err)
-		}
-	}
-
-	if pool.Valid {
-		if err := json.Unmarshal([]byte(pool.String), &padDB.Pool); err != nil {
-			return nil, fmt.Errorf("error unmarshaling pool: %w", err)
-		}
-	}
-
-	if createdAt.Valid {
-		padDB.CreatedAt = createdAt.Time
-	}
-	if updatedAt.Valid {
-		padDB.UpdatedAt = &updatedAt.Time
-	}
-
-	return &padDB, nil
+	return padDb, nil
 }
 
 func (d MysqlDB) DoesPadExist(padID string) (*bool, error) {
@@ -321,11 +314,38 @@ func (d MysqlDB) SaveAuthor(author db.AuthorDB) error {
 	return err
 }
 
+func (d MysqlDB) GetAuthors(ids []string) (*[]db.AuthorDB, error) {
+	if len(ids) == 0 {
+		return &[]db.AuthorDB{}, nil
+	}
+	resultedSQL, args, err := mysql.
+		Select("id", "colorId", "name", "timestamp", "token", "created_at").
+		From("globalAuthor").
+		Where(sq.Eq{"id": ids}).
+		ToSql()
+	if err != nil {
+		return nil, err
+	}
+	query, err := d.sqlDB.Query(resultedSQL, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer query.Close()
+	var authors []db.AuthorDB
+	for query.Next() {
+		foundAuthor, err := ReadToAuthorDB(query)
+		if err != nil {
+			return nil, err
+		}
+		authors = append(authors, *foundAuthor)
+	}
+	return &authors, query.Err()
+}
+
 func (d MysqlDB) GetAuthor(authorId string) (*db.AuthorDB, error) {
 	resultedSQL, args, err := mysql.
-		Select("ga.id", "ga.colorId", "ga.name", "ga.timestamp", "ga.token", "ga.created_at", "pr.id").
+		Select("ga.id", "ga.colorId", "ga.name", "ga.timestamp", "ga.token", "ga.created_at").
 		From("globalAuthor ga").
-		LeftJoin("padRev pr ON ga.id = pr.authorId").
 		Where(sq.Eq{"ga.id": authorId}).
 		ToSql()
 
@@ -342,36 +362,11 @@ func (d MysqlDB) GetAuthor(authorId string) (*db.AuthorDB, error) {
 	var authorDB *db.AuthorDB
 
 	for query.Next() {
-		var padID sql.NullString
-		var token sql.NullString
-		var createdAt sql.NullTime
-
-		if authorDB == nil {
-			authorDB = &db.AuthorDB{
-				PadIDs: make(map[string]struct{}),
-			}
-			err = query.Scan(&authorDB.ID, &authorDB.ColorId, &authorDB.Name,
-				&authorDB.Timestamp, &token, &createdAt, &padID)
-			if err != nil {
-				return nil, err
-			}
-			if token.Valid {
-				authorDB.Token = &token.String
-			}
-			if createdAt.Valid {
-				authorDB.CreatedAt = createdAt.Time
-			}
-		} else {
-			var dummy1, dummy2, dummy3, dummy4, dummy5, dummy6 interface{}
-			err = query.Scan(&dummy1, &dummy2, &dummy3, &dummy4, &dummy5, &dummy6, &padID)
-			if err != nil {
-				return nil, err
-			}
+		foundAuthor, err := ReadToAuthorDB(query)
+		if err != nil {
+			return nil, err
 		}
-
-		if padID.Valid {
-			authorDB.PadIDs[padID.String] = struct{}{}
-		}
+		authorDB = foundAuthor
 	}
 
 	if err := query.Err(); err != nil {
@@ -1010,51 +1005,6 @@ func (d MysqlDB) QueryPad(
 		TotalPads: *totalPads,
 		Pads:      *padSearch,
 	}, nil
-}
-
-func (d MysqlDB) GetPadMetaData(padId string, revNum int) (*db.PadMetaData, error) {
-	padExists, err := d.DoesPadExist(padId)
-	if err != nil {
-		return nil, err
-	}
-	if !*padExists {
-		return nil, errors.New(PadDoesNotExistError)
-	}
-
-	resultedSQL, args, err := mysql.
-		Select("id", "rev", "changeset", "atextText", "atextAttribs", "authorId", "timestamp", "pool").
-		From("padRev").
-		Where(sq.Eq{"id": padId}).
-		Where(sq.Eq{"rev": revNum}).
-		ToSql()
-
-	if err != nil {
-		return nil, err
-	}
-
-	row := d.sqlDB.QueryRow(resultedSQL, args...)
-
-	var padMetaData db.PadMetaData
-	var serializedPool string
-
-	err = row.Scan(
-		&padMetaData.Id, &padMetaData.RevNum, &padMetaData.ChangeSet,
-		&padMetaData.Atext.Text, &padMetaData.AtextAttribs,
-		&padMetaData.AuthorId, &padMetaData.Timestamp, &serializedPool,
-	)
-
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, errors.New(PadRevisionNotFoundError)
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	if err := json.Unmarshal([]byte(serializedPool), &padMetaData.PadPool); err != nil {
-		return nil, err
-	}
-
-	return &padMetaData, nil
 }
 
 // ============== LIFECYCLE ==============
