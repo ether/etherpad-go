@@ -232,7 +232,6 @@ func startMigratorPipeline(t *testing.T, oldDB *SQLDatabase, newDB db.DataStore)
 
 	assert.NoError(t, m.MigratePad2Readonly())
 
-	assert.NoError(t, m.MigrateReadonly2Pad())
 	assert.NoError(t, m.MigrateToken2Author())
 
 	author, err := newDB.GetAuthor("a.kpvBkCBIU7ZJPhhz")
@@ -246,8 +245,8 @@ func startMigratorPipeline(t *testing.T, oldDB *SQLDatabase, newDB db.DataStore)
 
 	savedPad, err := newDB.GetPad("test")
 	assert.NoError(t, err)
-	if savedPad.RevNum != 5 {
-		t.Fatalf("expected RevNum 5, got %d", savedPad.RevNum)
+	if savedPad.Head != 5 {
+		t.Fatalf("expected RevNum 5, got %d", savedPad.Head)
 	}
 	if savedPad.ChatHead != 1 {
 		t.Fatalf("expected ChatHead 1, got %d", savedPad.ChatHead)
@@ -258,8 +257,8 @@ func startMigratorPipeline(t *testing.T, oldDB *SQLDatabase, newDB db.DataStore)
 	if len(savedPad.SavedRevisions) != 0 {
 		t.Fatalf("expected 0 SavedRevisions, got %d", len(savedPad.SavedRevisions))
 	}
-	if savedPad.AText.Text != "HalloEtherpad\n" {
-		t.Fatalf("unexpected AText: %s", savedPad.AText.Text)
+	if savedPad.ATextText != "HalloEtherpad\n" {
+		t.Fatalf("unexpected AText: %s", savedPad.ATextText)
 	}
 
 	revisionsSaved, err := newDB.GetRevisions("test", 0, 1)
@@ -307,7 +306,7 @@ func startMigratorPipeline(t *testing.T, oldDB *SQLDatabase, newDB db.DataStore)
 		t.Fatalf("unexpected readonly pad: %s", *readonlyPad)
 	}
 
-	padFromReadonly, err := newDB.GetReadOnly2Pad("r.1d99de0f761b68fc6b2e5b8b224f250f")
+	padFromReadonly, err := newDB.GetPadByReadOnlyId("r.1d99de0f761b68fc6b2e5b8b224f250f")
 	assert.NoError(t, err)
 	if *padFromReadonly != "testpad" {
 		t.Fatalf("unexpected pad from readonly: %s", *padFromReadonly)

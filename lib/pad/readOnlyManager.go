@@ -32,26 +32,15 @@ func (r *ReadOnlyManager) GetReadOnlyId(pad string) string {
 	var readonlyId, err = r.Store.GetReadonlyPad(pad)
 	if err != nil {
 		var randomId = "r." + utils.RandomString(16)
-		r.Store.CreateReadOnly2Pad(pad, randomId)
-		r.Store.CreatePad2ReadOnly(pad, randomId)
+		r.Store.SetReadOnlyId(pad, randomId)
 		return randomId
 	}
 
 	return *readonlyId
 }
 
-func (r *ReadOnlyManager) RemoveReadOnlyPad(readonlyId, padId string) error {
-	err := r.Store.RemoveReadOnly2Pad(readonlyId)
-	if err != nil {
-		return err
-	}
-
-	err = r.Store.RemovePad2ReadOnly(padId)
-	return err
-}
-
 func (r *ReadOnlyManager) GetPadId(readonlyId string) (*string, error) {
-	return r.Store.GetReadOnly2Pad(readonlyId)
+	return r.Store.GetPadByReadOnlyId(readonlyId)
 }
 
 func (r *ReadOnlyManager) GetIds(id *string) (*IdRequest, error) {

@@ -65,30 +65,35 @@ func (m *Migrator) MigratePads() error {
 		}
 
 		for _, pad := range pads {
-			savedRevisions := make(map[int]db2.SavedRevision)
+			savedRevisions := make([]db2.SavedRevision, 0)
 			for _, savedRev := range pad.SavedRevisions {
 				var labelForDB *string
 				if savedRev.Label != "" {
 					labelForDB = &savedRev.Label
 				}
-				savedRevisions[savedRev.RevNum] = db2.SavedRevision{
+				savedRevisions = append(savedRevisions, db2.SavedRevision{
 					RevNum:    savedRev.RevNum,
 					SavedBy:   savedRev.SavedById,
 					Timestamp: savedRev.Timestamp,
 					Label:     labelForDB,
 					Id:        savedRev.Id,
-				}
+				})
 			}
 
 			m.logger.Debug("Pad: %s (%s)\n", pad.PadId)
+			var emptyReadOnlyID = ""
 			if err := m.newDataStore.CreatePad(pad.PadId, db2.PadDB{
-				RevNum:         pad.Head,
-				ChatHead:       pad.ChatHead,
-				ReadOnlyId:     "",
-				AText:          pad.AText,
-				Pool:           pad.Pool,
+				Head:       pad.Head,
+				ChatHead:   pad.ChatHead,
+				ReadOnlyId: &emptyReadOnlyID,
+				ATextText:  pad.AText.Text,
+				Pool: db2.RevPool{
+					NumToAttrib: pad.Pool.NumToAttrib,
+					NextNum:     pad.Pool.NextNum,
+				},
 				PublicStatus:   pad.PublicStatus,
 				SavedRevisions: savedRevisions,
+				ID:             pad.PadId,
 			}); err != nil {
 				return fmt.Errorf("failed to save author %s: %v", pad.PadId, err)
 			}
@@ -189,27 +194,11 @@ func (m *Migrator) MigratePad2Readonly() error {
 	}
 	for _, mapping := range pad2Readonly {
 		m.logger.Debug("Migrating readonly mapping %s for pad %s\n", mapping.ReadonlyId, mapping.PadId)
-		if err := m.newDataStore.CreatePad2ReadOnly(mapping.PadId, mapping.ReadonlyId); err != nil {
+		if err := m.newDataStore.SetReadOnlyId(mapping.PadId, mapping.ReadonlyId); err != nil {
 			return fmt.Errorf("failed to save readonly mapping %s for pad %s: %v", mapping.ReadonlyId, mapping.PadId, err)
 		}
 	}
 	m.logger.Info("Finished migration of pad 2 readonly.")
-	return nil
-}
-
-func (m *Migrator) MigrateReadonly2Pad() error {
-	m.logger.Info("Starting migration of readonly2pad...")
-	pad2Readonly, err := m.oldEtherpadDB.GetNextReadonly2Pad("", 1000000)
-	if err != nil {
-		return fmt.Errorf("failed to get Readonly2Pad: %v", err)
-	}
-	for _, mapping := range pad2Readonly {
-		m.logger.Debug("Migrating readonly mapping %s for pad %s\n", mapping.ReadonlyId, mapping.PadId)
-		if err := m.newDataStore.CreateReadOnly2Pad(mapping.PadId, mapping.ReadonlyId); err != nil {
-			return fmt.Errorf("failed to save readonly mapping %s for pad %s: %v", mapping.ReadonlyId, mapping.PadId, err)
-		}
-	}
-	m.logger.Info("Finished migration of readonly 2 pad.")
 	return nil
 }
 

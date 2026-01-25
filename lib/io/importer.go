@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/author"
@@ -138,10 +139,15 @@ func (i *Importer) SetPadRaw(padId string, content []byte, authorId string) erro
 	}
 
 	dbPad := db2.PadDB{
-		SavedRevisions: make(map[int]db2.SavedRevision),
-		RevNum:         padData.Head,
-		Pool:           pool.ToPadDB(),
-		AText:          db2.AText{Text: atext.Text, Attribs: atext.Attribs},
+		SavedRevisions: make([]db2.SavedRevision, 0),
+		Head:           padData.Head,
+		Pool:           pool.ToRevDB(),
+		ATextText:      atext.Text,
+		CreatedAt:      time.Now(),
+		ReadOnlyId:     nil,
+		ID:             padId,
+		ATextAttribs:   atext.Attribs,
+		UpdatedAt:      nil,
 		ChatHead:       padData.ChatHead,
 		PublicStatus:   padData.PublicStatus,
 	}
