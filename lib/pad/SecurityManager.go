@@ -53,7 +53,7 @@ func (s *SecurityManager) CheckAccess(padId *string, sessionCookie *string, toke
 		retrievedAuthorFromToken, err := s.AuthorManager.GetAuthorId(*token)
 
 		if err != nil {
-			return nil, errors.New("access denied: invalid author token")
+			return nil, errors.New("access denied: invalid author token" + err.Error())
 		}
 
 		return &GrantedAccess{

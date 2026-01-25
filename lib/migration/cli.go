@@ -68,9 +68,6 @@ func RunFromCLI(logger *zap.SugaredLogger, args []string) {
 		logger.Fatalf("Failed to migrate pad2readonly: %v", err)
 	}
 
-	if err := migrator.MigrateReadonly2Pad(); err != nil {
-		logger.Fatalf("Failed to migrate readonly2pad: %v", err)
-	}
 	if err := migrator.MigrateToken2Author(); err != nil {
 		logger.Fatalf("Failed to migrate token2author: %v", err)
 	}

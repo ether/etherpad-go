@@ -12,6 +12,7 @@ import (
 	modeldb "github.com/ether/etherpad-go/lib/models/db"
 	sessionmodel "github.com/ether/etherpad-go/lib/models/session"
 	"github.com/ether/etherpad-go/lib/test/testutils"
+	"github.com/stretchr/testify/assert"
 )
 
 func containsString(slice []string, s string) bool {
@@ -93,6 +94,10 @@ func runAllDataStoreTests(testHandler *testutils.TestDBHandler) {
 			Test: testGetReadonlyPadOnNonExistingPad,
 		},
 		testutils.TestRunConfig{
+			Name: "testGetReadonlyPadWhenPadDoesNotHaveReadonlyIdOnNonExistingPad",
+			Test: testGetReadonlyPadWhenPadDoesNotHaveReadonlyIdOnNonExistingPad,
+		},
+		testutils.TestRunConfig{
 			Name: "GetAuthorOnNonExistingAuthor",
 			Test: testGetAuthorOnNonExistingAuthor,
 		},
@@ -154,6 +159,7 @@ func runAllDataStoreTests(testHandler *testutils.TestDBHandler) {
 func testCreateGetRemovePadAndIds(t *testing.T, testDSStore testutils.TestDataStore) {
 
 	pad := db.CreateRandomPad()
+	pad2 := db.CreateRandomPad()
 	err := testDSStore.DS.CreatePad("padA", pad)
 	if err != nil {
 		t.Fatalf("CreatePad for padA returned error: %v", err)
@@ -170,11 +176,11 @@ func testCreateGetRemovePadAndIds(t *testing.T, testDSStore testutils.TestDataSt
 	if err != nil {
 		t.Fatalf("GetPad failed: %v", err)
 	}
-	if gotPad.RevNum != 0 {
-		t.Fatalf("unexpected RevNum, got %d", gotPad.RevNum)
+	if gotPad.Head != 0 {
+		t.Fatalf("unexpected RevNum, got %d", gotPad.Head)
 	}
 
-	err = testDSStore.DS.CreatePad("padB", pad)
+	err = testDSStore.DS.CreatePad("padB", pad2)
 	if err != nil {
 		t.Fatalf("CreatePad for padB returned error: %v", err)
 	}
@@ -320,8 +326,8 @@ func testSaveAndGetRevisionAndMetaData(t *testing.T, ds testutils.TestDataStore)
 	}
 
 	pad := modeldb.PadDB{
-		RevNum:         -1,
-		SavedRevisions: make(map[int]modeldb.SavedRevision),
+		Head:           -1,
+		SavedRevisions: make([]modeldb.SavedRevision, 0),
 	}
 	if err := ds.DS.CreatePad("pad1", pad); err != nil {
 		t.Fatalf("CreatePad failed: %v", err)
@@ -394,6 +400,16 @@ func testGetPadOnNonExistingPad(t *testing.T, ds testutils.TestDataStore) {
 
 func testGetReadonlyPadOnNonExistingPad(t *testing.T, ds testutils.TestDataStore) {
 	_, err := ds.DS.GetReadonlyPad("nonexistentPad")
+	if err == nil || err.Error() != db.PadDoesNotExistError {
+		t.Fatalf("should return error for nonexistent readonly pad mapping")
+	}
+}
+
+func testGetReadonlyPadWhenPadDoesNotHaveReadonlyIdOnNonExistingPad(t *testing.T, ds testutils.TestDataStore) {
+	randomPad := db.CreateRandomPad()
+	randomPad.ReadOnlyId = nil
+	assert.NoError(t, ds.DS.CreatePad(randomPad.ID, randomPad))
+	_, err := ds.DS.GetReadonlyPad(randomPad.ID)
 	if err == nil || err.Error() != db.PadReadOnlyIdNotFoundError {
 		t.Fatalf("should return error for nonexistent readonly pad mapping")
 	}
@@ -442,7 +458,7 @@ func testQueryPadSortingAndPattern(t *testing.T, ds testutils.TestDataStore) {
 			t.Fatalf("CreateAuthor failed: %v", err)
 		}
 		p := modeldb.PadDB{
-			RevNum: rev,
+			Head: rev,
 		}
 		if err := ds.DS.CreatePad(name, p); err != nil {
 			t.Fatalf("CreatePad failed: %v", err)
@@ -505,11 +521,11 @@ func testRemovePad2ReadOnly(t *testing.T, ds testutils.TestDataStore) {
 		t.Fatalf("CreatePad failed: %v", err)
 	}
 
-	err := ds.DS.CreatePad2ReadOnly("padROTest", "ro1")
+	err := ds.DS.SetReadOnlyId("padROTest", "ro1")
 	if err != nil {
 		t.Fatalf("CreatePad2ReadOnly failed: %v", err)
 	}
-	err = ds.DS.RemovePad2ReadOnly("padROTest")
+	err = ds.DS.RemovePad("padROTest")
 	if err != nil {
 		t.Fatalf("RemovePad2ReadOnly failed: %v", err)
 	}
@@ -676,36 +692,23 @@ func testReadonlyMappingsAndRemoveRevisions(t *testing.T, ds testutils.TestDataS
 		t.Fatalf("CreatePad failed: %v", err)
 	}
 
-	if err := ds.DS.CreatePad2ReadOnly("padR", "r1"); err != nil {
+	if err := ds.DS.SetReadOnlyId("padR", "r1"); err != nil {
 		t.Fatalf("CreatePad2ReadOnly failed: %v", err)
 	}
 	gotRO, err := ds.DS.GetReadonlyPad("padR")
 	if err != nil || gotRO == nil || *gotRO != "r1" {
 		t.Fatalf("CreatePad2ReadOnly/GetReadonlyPad failed")
 	}
-	if err := ds.DS.CreateReadOnly2Pad("padR", "r1"); err != nil {
-		t.Fatalf("CreateReadOnly2Pad failed: %v", err)
-	}
-	rev, err := ds.DS.GetReadOnly2Pad("r1")
+	rev, err := ds.DS.GetPadByReadOnlyId("r1")
 	if err != nil {
 		t.Fatalf("GetReadOnly2Pad failed: %v", err)
 	}
 	if rev == nil || *rev != "padR" {
 		t.Fatalf("CreateReadOnly2Pad/GetReadOnly2Pad failed")
 	}
-	if err := ds.DS.RemoveReadOnly2Pad("r1"); err != nil {
-		t.Fatalf("RemoveReadOnly2Pad failed: %v", err)
-	}
-	readOnlyPad, err := ds.DS.GetReadOnly2Pad("r1")
-	if err != nil {
-		t.Fatalf("GetReadOnly2Pad after removal failed: %v", err)
-	}
-	if readOnlyPad != nil {
-		t.Fatalf("RemoveReadOnly2Pad did not remove mapping")
-	}
 
 	pad := modeldb.PadDB{
-		RevNum: 2,
+		Head: 2,
 	}
 	err = ds.DS.CreatePad("padRem", pad)
 	if err != nil {

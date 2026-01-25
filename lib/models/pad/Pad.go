@@ -43,6 +43,9 @@ type Pad struct {
 	Pool           apool.APool
 	AText          apool.AText
 	hook           *hooks.Hook
+	ReadonlyId     *string
+	UpdatedAt      *time.Time
+	CreatedAt      time.Time
 }
 
 func NewPad(id string, db db.DataStore, hook *hooks.Hook) Pad {
@@ -343,7 +346,7 @@ func (p *Pad) Init(text *string, author *string, authorManager *author.Manager) 
 	var pad, err = p.db.GetPad(p.Id)
 
 	if err == nil {
-		var _, err = p.db.GetRevision(p.Id, pad.RevNum)
+		var _, err = p.db.GetRevision(p.Id, pad.Head)
 		if err != nil {
 			return errors.New("pad data is corrupted: missing revision")
 		}
@@ -434,22 +437,31 @@ func (p *Pad) GetRevisions(start int, end int) (*[]db2.PadSingleRevision, error)
 }
 
 func (p *Pad) Save() error {
-	savedRevisionsInDB := make(map[int]db2.SavedRevision)
+	savedRevisionsInDB := make([]db2.SavedRevision, 0)
 	for _, savedRevision := range p.SavedRevisions {
-		savedRevisionsInDB[savedRevision.RevNum] = db2.SavedRevision{
+		savedRevisionsInDB = append(savedRevisionsInDB, db2.SavedRevision{
 			RevNum:    savedRevision.RevNum,
 			SavedBy:   savedRevision.SavedBy,
 			Timestamp: savedRevision.Timestamp,
 			Label:     savedRevision.Label,
 			Id:        savedRevision.Id,
-		}
+		})
 	}
+
+	updatedAt := time.Now()
 
 	return p.db.CreatePad(p.Id, db2.PadDB{
 		SavedRevisions: savedRevisionsInDB,
-		RevNum:         p.Head,
-		Pool:           p.Pool.ToPadDB(),
-		AText:          p.AText.ToDBAText(),
+		Head:           p.Head,
+		ChatHead:       p.ChatHead,
+		Pool:           p.Pool.ToRevDB(),
+		ATextText:      p.AText.Text,
+		ID:             p.Id,
+		PublicStatus:   p.PublicStatus,
+		UpdatedAt:      &updatedAt,
+		CreatedAt:      p.CreatedAt,
+		ReadOnlyId:     p.ReadonlyId,
+		ATextAttribs:   p.AText.Attribs,
 	})
 }
 

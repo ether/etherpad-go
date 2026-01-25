@@ -847,12 +847,6 @@ func (p *PadMessageHandler) DeletePad(padId string) error {
 		return err
 	}
 	p.KickSessionsFromPad(retrievedPadObj.Id)
-	// remove the readonly entries
-	var readonlyId = p.readOnlyManager.GetReadOnlyId(retrievedPadObj.Id)
-	err = p.readOnlyManager.RemoveReadOnlyPad(readonlyId, retrievedPadObj.Id)
-	if err != nil {
-		return err
-	}
 	if err := retrievedPadObj.RemoveAllChats(); err != nil {
 		return err
 	}

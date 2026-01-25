@@ -1,6 +1,9 @@
 package db
 
-import "strconv"
+import (
+	"strconv"
+	"time"
+)
 
 type AText struct {
 	Text    string `json:"text"`
@@ -25,13 +28,17 @@ func (p *PadPool) ToIntPool() map[int][]string {
 }
 
 type PadDB struct {
-	RevNum         int                   `json:"head"`
-	SavedRevisions map[int]SavedRevision `json:"savedRevisions"`
-	ReadOnlyId     string                `json:"readOnlyId"`
-	Pool           PadPool               `json:"pool"`
-	ChatHead       int                   `json:"chatHead"`
-	PublicStatus   bool                  `json:"publicStatus"`
-	AText          AText                 `json:"atext"`
+	ID             string          `json:"id"`
+	Head           int             `json:"head"`
+	SavedRevisions []SavedRevision `json:"savedRevisions"`
+	ReadOnlyId     *string         `json:"readonlyId"`
+	Pool           RevPool         `json:"pool"`
+	ChatHead       int             `json:"chatHead"`
+	PublicStatus   bool            `json:"publicStatus"`
+	ATextText      string          `json:"atextText"`
+	ATextAttribs   string          `json:"atextAttribs"`
+	CreatedAt      time.Time       `json:"createdAt"`
+	UpdatedAt      *time.Time      `json:"updatedAt"`
 }
 
 type SavedRevision struct {

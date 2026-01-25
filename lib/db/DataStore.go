@@ -16,11 +16,8 @@ type PadMethods interface {
 	GetRevisions(padId string, startRev int, endRev int) (*[]db.PadSingleRevision, error)
 	GetPad(padID string) (*db.PadDB, error)
 	GetReadonlyPad(padId string) (*string, error)
-	CreatePad2ReadOnly(padId string, readonlyId string) error
-	CreateReadOnly2Pad(padId string, readonlyId string) error
-	GetReadOnly2Pad(id string) (*string, error)
-	RemoveReadOnly2Pad(id string) error
-	RemovePad2ReadOnly(id string) error
+	SetReadOnlyId(padId string, readOnlyId string) error
+	GetPadByReadOnlyId(id string) (*string, error)
 	SaveChatHeadOfPad(padId string, head int) error
 	QueryPad(offset int, limit int, sortBy string, ascending bool, pattern string) (*db.PadDBSearchResult, error)
 }

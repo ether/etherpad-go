@@ -6,12 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/ether/etherpad-go/lib/db/migrations"
 	"github.com/ether/etherpad-go/lib/models/db"
 	session2 "github.com/ether/etherpad-go/lib/models/session"
-	"github.com/ory/fosite"
 	_ "modernc.org/sqlite"
 )
 
@@ -20,64 +20,592 @@ type SQLiteDB struct {
 	sqlDB *sql.DB
 }
 
-func (d SQLiteDB) GetAuthorIdsOfPadChats(id string) (*[]string, error) {
-	var resultedSQL, args, err = sq.
-		Select("DISTINCT authorId").
-		From("padChat").
-		Where(sq.Eq{"padId": id}).
+// ============== PAD METHODS ==============
+
+func (d SQLiteDB) CreatePad(padID string, padDB db.PadDB) error {
+	savedRevisions, err := json.Marshal(padDB.SavedRevisions)
+	if err != nil {
+		return fmt.Errorf("error marshaling saved revisions: %w", err)
+	}
+
+	pool, err := json.Marshal(padDB.Pool)
+	if err != nil {
+		return fmt.Errorf("error marshaling pool: %w", err)
+	}
+
+	resultedSQL, args, err := sq.
+		Insert("pad").
+		Columns("id", "head", "saved_revisions", "readonly_id", "pool", "chat_head",
+			"public_status", "atext_text", "atext_attribs").
+		Values(padID, padDB.Head, string(savedRevisions), padDB.ReadOnlyId, string(pool),
+			padDB.ChatHead, padDB.PublicStatus, padDB.ATextText, padDB.ATextAttribs).
+		Suffix(`ON CONFLICT(id) DO UPDATE SET
+			head = excluded.head,
+			saved_revisions = excluded.saved_revisions,
+			readonly_id = excluded.readonly_id,
+			pool = excluded.pool,
+			chat_head = excluded.chat_head,
+			public_status = excluded.public_status,
+			atext_text = excluded.atext_text,
+			atext_attribs = excluded.atext_attribs,
+			updated_at = CURRENT_TIMESTAMP`).
 		ToSql()
+
+	if err != nil {
+		return err
+	}
+
+	_, err = d.sqlDB.Exec(resultedSQL, args...)
+	return err
+}
+
+func (d SQLiteDB) GetPad(padID string) (*db.PadDB, error) {
+	resultedSQL, args, err := sq.
+		Select("id", "head", "saved_revisions", "readonly_id", "pool", "chat_head",
+			"public_status", "atext_text", "atext_attribs", "created_at", "updated_at").
+		From("pad").
+		Where(sq.Eq{"id": padID}).
+		ToSql()
+
 	if err != nil {
 		return nil, err
 	}
+
+	row := d.sqlDB.QueryRow(resultedSQL, args...)
+
+	var padDB db.PadDB
+	var savedRevisions, pool sql.NullString
+	var readonlyId sql.NullString
+	var createdAt, updatedAt sql.NullTime
+
+	err = row.Scan(
+		&padDB.ID, &padDB.Head, &savedRevisions, &readonlyId, &pool,
+		&padDB.ChatHead, &padDB.PublicStatus, &padDB.ATextText, &padDB.ATextAttribs,
+		&createdAt, &updatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errors.New(PadDoesNotExistError)
+		}
+		return nil, err
+	}
+
+	if readonlyId.Valid {
+		padDB.ReadOnlyId = &readonlyId.String
+	}
+
+	if savedRevisions.Valid {
+		if err := json.Unmarshal([]byte(savedRevisions.String), &padDB.SavedRevisions); err != nil {
+			return nil, fmt.Errorf("error unmarshaling saved revisions: %w", err)
+		}
+	}
+
+	if pool.Valid {
+		if err := json.Unmarshal([]byte(pool.String), &padDB.Pool); err != nil {
+			return nil, fmt.Errorf("error unmarshaling pool: %w", err)
+		}
+	}
+
+	if createdAt.Valid {
+		padDB.CreatedAt = createdAt.Time
+	}
+	if updatedAt.Valid {
+		padDB.UpdatedAt = &updatedAt.Time
+	}
+
+	return &padDB, nil
+}
+
+func (d SQLiteDB) DoesPadExist(padID string) (*bool, error) {
+	resultedSQL, args, err := sq.
+		Select("1").
+		From("pad").
+		Where(sq.Eq{"id": padID}).
+		Limit(1).
+		ToSql()
+
+	if err != nil {
+		return nil, err
+	}
+
+	row := d.sqlDB.QueryRow(resultedSQL, args...)
+	var exists int
+	err = row.Scan(&exists)
+
+	if errors.Is(err, sql.ErrNoRows) {
+		falseVal := false
+		return &falseVal, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	trueVal := true
+	return &trueVal, nil
+}
+
+func (d SQLiteDB) RemovePad(padID string) error {
+	resultedSQL, args, err := sq.
+		Delete("pad").
+		Where(sq.Eq{"id": padID}).
+		ToSql()
+
+	if err != nil {
+		return err
+	}
+	_, err = d.sqlDB.Exec(resultedSQL, args...)
+	return err
+}
+
+func (d SQLiteDB) GetPadIds() (*[]string, error) {
+	resultedSQL, _, err := sq.
+		Select("id").
+		From("pad").
+		ToSql()
+
+	if err != nil {
+		return nil, err
+	}
+
+	query, err := d.sqlDB.Query(resultedSQL)
+	if err != nil {
+		return nil, err
+	}
+	defer query.Close()
+
+	var padIds []string
+	for query.Next() {
+		var padId string
+		if err := query.Scan(&padId); err != nil {
+			return nil, err
+		}
+		padIds = append(padIds, strings.TrimPrefix(padId, "pad:"))
+	}
+
+	return &padIds, query.Err()
+}
+
+func (d SQLiteDB) SaveChatHeadOfPad(padId string, head int) error {
+	resultedSQL, args, err := sq.
+		Update("pad").
+		Set("chat_head", head).
+		Set("updated_at", sq.Expr("CURRENT_TIMESTAMP")).
+		Where(sq.Eq{"id": padId}).
+		ToSql()
+
+	if err != nil {
+		return err
+	}
+
+	result, err := d.sqlDB.Exec(resultedSQL, args...)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rowsAffected == 0 {
+		return errors.New(PadDoesNotExistError)
+	}
+	return nil
+}
+
+// ============== READONLY METHODS (simplified) ==============
+
+func (d SQLiteDB) GetReadonlyPad(padId string) (*string, error) {
+	resultedSQL, args, err := sq.
+		Select("readonly_id").
+		From("pad").
+		Where(sq.Eq{"id": padId}).
+		ToSql()
+
+	if err != nil {
+		return nil, err
+	}
+
+	row := d.sqlDB.QueryRow(resultedSQL, args...)
+	var readonlyId sql.NullString
+	err = row.Scan(&readonlyId)
+
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, errors.New(PadDoesNotExistError)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	if !readonlyId.Valid {
+		return nil, errors.New(PadReadOnlyIdNotFoundError)
+	}
+
+	return &readonlyId.String, nil
+}
+
+func (d SQLiteDB) SetReadOnlyId(padId string, readonlyId string) error {
+	resultedSQL, args, err := sq.
+		Update("pad").
+		Set("readonly_id", readonlyId).
+		Set("updated_at", sq.Expr("CURRENT_TIMESTAMP")).
+		Where(sq.Eq{"id": padId}).
+		ToSql()
+
+	if err != nil {
+		return err
+	}
+
+	result, err := d.sqlDB.Exec(resultedSQL, args...)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rowsAffected == 0 {
+		return errors.New(PadDoesNotExistError)
+	}
+	return nil
+}
+
+func (d SQLiteDB) GetPadByReadOnlyId(readonlyId string) (*string, error) {
+	resultedSQL, args, err := sq.
+		Select("id").
+		From("pad").
+		Where(sq.Eq{"readonly_id": readonlyId}).
+		ToSql()
+
+	if err != nil {
+		return nil, err
+	}
+
+	row := d.sqlDB.QueryRow(resultedSQL, args...)
+	var padId string
+	err = row.Scan(&padId)
+
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return &padId, nil
+}
+
+// Deprecated: Use SetReadOnlyId instead
+func (d SQLiteDB) CreatePad2ReadOnly(padId string, readonlyId string) error {
+	return d.SetReadOnlyId(padId, readonlyId)
+}
+
+// Deprecated: Use SetReadOnlyId instead - readonly2pad is derived from pad table
+func (d SQLiteDB) CreateReadOnly2Pad(padId string, readonlyId string) error {
+	return nil // No-op, data is in pad table
+}
+
+// Deprecated: Handled by RemovePad
+func (d SQLiteDB) RemovePad2ReadOnly(id string) error {
+	return nil // No-op, readonly_id is deleted with pad
+}
+
+// Deprecated: Handled by RemovePad
+func (d SQLiteDB) RemoveReadOnly2Pad(id string) error {
+	return nil // No-op
+}
+
+// Deprecated: Use GetPadByReadOnlyId instead
+func (d SQLiteDB) GetReadOnly2Pad(id string) (*string, error) {
+	return d.GetPadByReadOnlyId(id)
+}
+
+// ============== AUTHOR METHODS ==============
+
+func (d SQLiteDB) SaveAuthor(author db.AuthorDB) error {
+	if author.ID == "" {
+		return errors.New("author ID is empty")
+	}
+
+	resultedSQL, args, err := sq.
+		Insert("globalAuthor").
+		Columns("id", "colorId", "name", "timestamp", "token").
+		Values(author.ID, author.ColorId, author.Name, author.Timestamp, author.Token).
+		Suffix(`ON CONFLICT(id) DO UPDATE SET 
+			colorId = excluded.colorId, 
+			name = excluded.name, 
+			timestamp = excluded.timestamp,
+			token = COALESCE(excluded.token, globalAuthor.token)`).
+		ToSql()
+
+	if err != nil {
+		return err
+	}
+
+	_, err = d.sqlDB.Exec(resultedSQL, args...)
+	return err
+}
+
+func (d SQLiteDB) GetAuthor(authorId string) (*db.AuthorDB, error) {
+	resultedSQL, args, err := sq.
+		Select("ga.id", "ga.colorId", "ga.name", "ga.timestamp", "ga.token", "ga.created_at", "pr.id").
+		From("globalAuthor ga").
+		LeftJoin("padRev pr ON ga.id = pr.authorId").
+		Where(sq.Eq{"ga.id": authorId}).
+		ToSql()
+
+	if err != nil {
+		return nil, err
+	}
+
 	query, err := d.sqlDB.Query(resultedSQL, args...)
 	if err != nil {
 		return nil, err
 	}
 	defer query.Close()
-	var authorIds []string
+
+	var authorDB *db.AuthorDB
+
 	for query.Next() {
-		var authorId string
-		query.Scan(&authorId)
-		authorIds = append(authorIds, authorId)
+		var padID sql.NullString
+		var token sql.NullString
+		var createdAt sql.NullTime
+
+		if authorDB == nil {
+			authorDB = &db.AuthorDB{
+				PadIDs: make(map[string]struct{}),
+			}
+			err = query.Scan(&authorDB.ID, &authorDB.ColorId, &authorDB.Name,
+				&authorDB.Timestamp, &token, &createdAt, &padID)
+			if err != nil {
+				return nil, err
+			}
+			if token.Valid {
+				authorDB.Token = &token.String
+			}
+			if createdAt.Valid {
+				authorDB.CreatedAt = createdAt.Time
+			}
+		} else {
+			var dummy1, dummy2, dummy3, dummy4, dummy5, dummy6 interface{}
+			err = query.Scan(&dummy1, &dummy2, &dummy3, &dummy4, &dummy5, &dummy6, &padID)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		if padID.Valid {
+			authorDB.PadIDs[padID.String] = struct{}{}
+		}
 	}
-	return &authorIds, nil
+
+	if err := query.Err(); err != nil {
+		return nil, err
+	}
+
+	if authorDB == nil {
+		return nil, errors.New(AuthorNotFoundError)
+	}
+
+	return authorDB, nil
 }
 
-func (d SQLiteDB) SaveGroup(groupId string) error {
-	var resultedSQL, args, err = sq.Insert("groupPadGroup").
-		Columns("id").
-		Values(groupId).
-		Suffix("ON CONFLICT(id) DO NOTHING").
+func (d SQLiteDB) SetAuthorByToken(token, authorId string) error {
+	// First try to update existing author
+	updateSQL, updateArgs, err := sq.
+		Update("globalAuthor").
+		Set("token", token).
+		Where(sq.Eq{"id": authorId}).
 		ToSql()
 
 	if err != nil {
 		return err
 	}
-	_, err = d.sqlDB.Exec(resultedSQL, args...)
 
+	result, err := d.sqlDB.Exec(updateSQL, updateArgs...)
 	if err != nil {
 		return err
 	}
 
-	return nil
-}
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected > 0 {
+		return nil
+	}
 
-func (d SQLiteDB) RemoveGroup(groupId string) error {
-	var resultedSQL, args, err = sq.
-		Delete("groupPadGroup").
-		Where(sq.Eq{"id": groupId}).
+	// If author doesn't exist, create with token
+	insertSQL, insertArgs, err := sq.
+		Insert("globalAuthor").
+		Columns("id", "token", "colorId", "timestamp").
+		Values(authorId, token, "", 0).
+		Suffix("ON CONFLICT(id) DO UPDATE SET token = excluded.token").
 		ToSql()
 
 	if err != nil {
 		return err
 	}
-	_, err = d.sqlDB.Exec(resultedSQL, args...)
+
+	_, err = d.sqlDB.Exec(insertSQL, insertArgs...)
+	return err
+}
+
+func (d SQLiteDB) GetAuthorByToken(token string) (*string, error) {
+	resultedSQL, args, err := sq.
+		Select("id").
+		From("globalAuthor").
+		Where(sq.Eq{"token": token}).
+		ToSql()
+
+	if err != nil {
+		return nil, err
+	}
+
+	row := d.sqlDB.QueryRow(resultedSQL, args...)
+	var authorID string
+	err = row.Scan(&authorID)
+
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, errors.New(AuthorNotFoundError)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return &authorID, nil
+}
+
+func (d SQLiteDB) SaveAuthorName(authorId string, authorName string) error {
+	if authorId == "" {
+		return errors.New("authorId is empty")
+	}
+
+	resultedSQL, args, err := sq.
+		Update("globalAuthor").
+		Set("name", authorName).
+		Where(sq.Eq{"id": authorId}).
+		ToSql()
 
 	if err != nil {
 		return err
 	}
 
-	return nil
+	result, err := d.sqlDB.Exec(resultedSQL, args...)
+	if err != nil {
+		return err
+	}
+	rs, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rs == 0 {
+		return errors.New(AuthorNotFoundError)
+	}
+
+	return err
+}
+
+func (d SQLiteDB) SaveAuthorColor(authorId string, authorColor string) error {
+	if authorId == "" {
+		return errors.New("authorId is empty")
+	}
+
+	resultedSQL, args, err := sq.
+		Update("globalAuthor").
+		Set("colorId", authorColor).
+		Where(sq.Eq{"id": authorId}).
+		ToSql()
+
+	if err != nil {
+		return err
+	}
+
+	result, err := d.sqlDB.Exec(resultedSQL, args...)
+	if err != nil {
+		return err
+	}
+	rs, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rs == 0 {
+		return errors.New(AuthorNotFoundError)
+	}
+	return err
+}
+
+// ============== REVISION METHODS ==============
+
+func (d SQLiteDB) SaveRevision(
+	padId string,
+	rev int,
+	changeset string,
+	text db.AText,
+	pool db.RevPool,
+	authorId *string,
+	timestamp int64,
+) error {
+	exists, err := d.DoesPadExist(padId)
+	if err != nil {
+		return err
+	}
+	if !*exists {
+		return errors.New(PadDoesNotExistError)
+	}
+
+	marshalled, err := json.Marshal(pool)
+	if err != nil {
+		return fmt.Errorf("failed to marshal pool: %w", err)
+	}
+
+	// Use INSERT OR IGNORE for write-once semantics
+	toSql, args, err := sq.Insert("padRev").
+		Columns("id", "rev", "changeset", "atextText", "atextAttribs", "authorId", "timestamp", "pool").
+		Values(padId, rev, changeset, text.Text, text.Attribs, authorId, timestamp, string(marshalled)).
+		Suffix("ON CONFLICT(id, rev) DO NOTHING"). // Write-once: ignore duplicates
+		ToSql()
+
+	if err != nil {
+		return err
+	}
+
+	_, err = d.sqlDB.Exec(toSql, args...)
+	return err
+}
+
+func (d SQLiteDB) GetRevision(padId string, rev int) (*db.PadSingleRevision, error) {
+	retrievedSql, args, err := sq.
+		Select("id", "rev", "changeset", "atextText", "atextAttribs", "authorId", "timestamp", "pool").
+		From("padRev").
+		Where(sq.Eq{"id": padId}).
+		Where(sq.Eq{"rev": rev}).
+		ToSql()
+
+	if err != nil {
+		return nil, err
+	}
+
+	row := d.sqlDB.QueryRow(retrievedSql, args...)
+
+	var revisionDB db.PadSingleRevision
+	var serializedPool string
+
+	err = row.Scan(
+		&revisionDB.PadId, &revisionDB.RevNum, &revisionDB.Changeset,
+		&revisionDB.AText.Text, &revisionDB.AText.Attribs,
+		&revisionDB.AuthorId, &revisionDB.Timestamp, &serializedPool,
+	)
+
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, errors.New(PadRevisionNotFoundError)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("error scanning revision: %w", err)
+	}
+
+	if err := json.Unmarshal([]byte(serializedPool), &revisionDB.Pool); err != nil {
+		return nil, fmt.Errorf("error deserializing pool: %w", err)
+	}
+
+	return &revisionDB, nil
 }
 
 func (d SQLiteDB) GetRevisions(padId string, startRev int, endRev int) (*[]db.PadSingleRevision, error) {
@@ -88,8 +616,9 @@ func (d SQLiteDB) GetRevisions(padId string, startRev int, endRev int) (*[]db.Pa
 	if !*padExists {
 		return nil, errors.New(PadDoesNotExistError)
 	}
+
 	resultedSQL, args, err := sq.
-		Select("*").
+		Select("id", "rev", "changeset", "atextText", "atextAttribs", "authorId", "timestamp", "pool").
 		From("padRev").
 		Where(sq.Eq{"id": padId}).
 		Where(sq.GtOrEq{"rev": startRev}).
@@ -109,10 +638,25 @@ func (d SQLiteDB) GetRevisions(padId string, startRev int, endRev int) (*[]db.Pa
 
 	var revisions []db.PadSingleRevision
 	for query.Next() {
-		var revisionDB db.PadSingleRevision
 		var serializedPool string
-		query.Scan(&revisionDB.PadId, &revisionDB.RevNum, &revisionDB.Changeset, &revisionDB.AText.Text, &revisionDB.AText.Attribs, &revisionDB.AuthorId, &revisionDB.Timestamp, &serializedPool)
+		var revisionDB db.PadSingleRevision
+
+		if err := query.Scan(
+			&revisionDB.PadId, &revisionDB.RevNum, &revisionDB.Changeset,
+			&revisionDB.AText.Text, &revisionDB.AText.Attribs,
+			&revisionDB.AuthorId, &revisionDB.Timestamp, &serializedPool,
+		); err != nil {
+			return nil, fmt.Errorf("error scanning revision: %w", err)
+		}
+
+		if err := json.Unmarshal([]byte(serializedPool), &revisionDB.Pool); err != nil {
+			return nil, fmt.Errorf("error deserializing pool: %w", err)
+		}
 		revisions = append(revisions, revisionDB)
+	}
+
+	if err := query.Err(); err != nil {
+		return nil, err
 	}
 
 	if len(revisions) != (endRev - startRev + 1) {
@@ -122,72 +666,316 @@ func (d SQLiteDB) GetRevisions(padId string, startRev int, endRev int) (*[]db.Pa
 	return &revisions, nil
 }
 
-func (d SQLiteDB) countQuery(pattern string) (*int, error) {
-	subQuery := sq.Select("MAX(rev)").
-		From("padRev").
-		Where(sq.Eq{"padRev.id": sq.Expr("pad.id")})
+func (d SQLiteDB) RemoveRevisionsOfPad(padId string) error {
+	existingPad, err := d.DoesPadExist(padId)
+	if err != nil {
+		return err
+	}
+	if !*existingPad {
+		return errors.New(PadDoesNotExistError)
+	}
 
-	subSQL, subArgs, err := subQuery.ToSql()
+	resultedSQL, args, err := sq.
+		Delete("padRev").
+		Where(sq.Eq{"id": padId}).
+		ToSql()
+
+	if err != nil {
+		return err
+	}
+	_, err = d.sqlDB.Exec(resultedSQL, args...)
+	return err
+}
+
+// ============== CHAT METHODS ==============
+
+func (d SQLiteDB) SaveChatMessage(
+	padId string,
+	head int,
+	authorId *string,
+	timestamp int64,
+	text string,
+) error {
+	// Write-once: use ON CONFLICT DO NOTHING
+	resultedSQL, args, err := sq.
+		Insert("padChat").
+		Columns("padId", "padHead", "chatText", "authorId", "created_at").
+		Values(padId, head, text, authorId, timestamp).
+		Suffix("ON CONFLICT(padId, padHead) DO NOTHING"). // Write-once
+		ToSql()
+
+	if err != nil {
+		return err
+	}
+
+	_, err = d.sqlDB.Exec(resultedSQL, args...)
+	return err
+}
+
+func (d SQLiteDB) GetChatsOfPad(
+	padId string,
+	start int,
+	end int,
+) (*[]db.ChatMessageDBWithDisplayName, error) {
+	resultedSQL, args, err := sq.
+		Select("pc.padId", "pc.padHead", "pc.chatText", "pc.authorId", "pc.created_at", "ga.name").
+		From("padChat pc").
+		Join("globalAuthor ga ON ga.id = pc.authorId").
+		Where(sq.Eq{"pc.padId": padId}).
+		Where(sq.GtOrEq{"pc.padHead": start}).
+		Where(sq.LtOrEq{"pc.padHead": end}).
+		OrderBy("pc.padHead ASC").
+		ToSql()
+
 	if err != nil {
 		return nil, err
 	}
 
-	var countBuilder = sq.
-		Select("COUNT(*)").
-		From("pad").
-		Join("padRev ON padRev.id = pad.id").
-		Where(sq.Expr("padRev.rev = ("+subSQL+")", subArgs...))
+	query, err := d.sqlDB.Query(resultedSQL, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer query.Close()
+
+	var chatMessages []db.ChatMessageDBWithDisplayName
+	for query.Next() {
+		var chatMessage db.ChatMessageDBWithDisplayName
+		if err := query.Scan(
+			&chatMessage.PadId, &chatMessage.Head, &chatMessage.Message,
+			&chatMessage.AuthorId, &chatMessage.Time, &chatMessage.DisplayName,
+		); err != nil {
+			return nil, err
+		}
+		chatMessages = append(chatMessages, chatMessage)
+	}
+
+	return &chatMessages, query.Err()
+}
+
+func (d SQLiteDB) GetAuthorIdsOfPadChats(id string) (*[]string, error) {
+	resultedSQL, args, err := sq.
+		Select("DISTINCT authorId").
+		From("padChat").
+		Where(sq.Eq{"padId": id}).
+		ToSql()
+
+	if err != nil {
+		return nil, err
+	}
+
+	query, err := d.sqlDB.Query(resultedSQL, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer query.Close()
+
+	var authorIds []string
+	for query.Next() {
+		var authorId string
+		if err := query.Scan(&authorId); err != nil {
+			return nil, err
+		}
+		authorIds = append(authorIds, authorId)
+	}
+
+	return &authorIds, query.Err()
+}
+
+func (d SQLiteDB) RemoveChat(padId string) error {
+	resultedSQL, args, err := sq.
+		Delete("padChat").
+		Where(sq.Eq{"padId": padId}).
+		ToSql()
+
+	if err != nil {
+		return err
+	}
+	_, err = d.sqlDB.Exec(resultedSQL, args...)
+	return err
+}
+
+// ============== GROUP METHODS ==============
+
+func (d SQLiteDB) SaveGroup(groupId string) error {
+	resultedSQL, args, err := sq.Insert("groupPadGroup").
+		Columns("id").
+		Values(groupId).
+		Suffix("ON CONFLICT(id) DO NOTHING").
+		ToSql()
+
+	if err != nil {
+		return err
+	}
+	_, err = d.sqlDB.Exec(resultedSQL, args...)
+	return err
+}
+
+func (d SQLiteDB) RemoveGroup(groupId string) error {
+	resultedSQL, args, err := sq.Delete("groupPadGroup").
+		Where(sq.Eq{"id": groupId}).
+		ToSql()
+
+	if err != nil {
+		return err
+	}
+	_, err = d.sqlDB.Exec(resultedSQL, args...)
+	return err
+}
+
+func (d SQLiteDB) GetGroup(groupId string) (*string, error) {
+	resultedSQL, args, err := sq.
+		Select("id").
+		From("groupPadGroup").
+		Where(sq.Eq{"id": groupId}).
+		ToSql()
+
+	if err != nil {
+		return nil, err
+	}
+
+	row := d.sqlDB.QueryRow(resultedSQL, args...)
+	var foundGroup string
+	err = row.Scan(&foundGroup)
+
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, errors.New("group not found")
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return &foundGroup, nil
+}
+
+// ============== SESSION METHODS ==============
+
+func (d SQLiteDB) GetSessionById(sessionID string) (*session2.Session, error) {
+	createdSQL, arr, err := sq.
+		Select("id", "originalMaxAge", "expires", "secure", "httpOnly", "path", "sameSite", "connections").
+		From("sessionstorage").
+		Where(sq.Eq{"id": sessionID}).
+		ToSql()
+
+	if err != nil {
+		return nil, err
+	}
+
+	row := d.sqlDB.QueryRow(createdSQL, arr...)
+
+	var possibleSession session2.Session
+	err = row.Scan(
+		&possibleSession.Id, &possibleSession.OriginalMaxAge, &possibleSession.Expires,
+		&possibleSession.Secure, &possibleSession.HttpOnly, &possibleSession.Path,
+		&possibleSession.SameSite, &possibleSession.Connections,
+	)
+
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return &possibleSession, nil
+}
+
+func (d SQLiteDB) SetSessionById(sessionID string, session session2.Session) error {
+	retrievedSql, inserts, err := sq.Insert("sessionstorage").
+		Columns("id", "originalMaxAge", "expires", "secure", "httpOnly", "path", "sameSite", "connections").
+		Values(sessionID, session.OriginalMaxAge, session.Expires, session.Secure,
+			session.HttpOnly, session.Path, session.SameSite, "").
+		Suffix(`ON CONFLICT(id) DO UPDATE SET 
+			originalMaxAge = excluded.originalMaxAge, 
+			expires = excluded.expires, 
+			secure = excluded.secure, 
+			httpOnly = excluded.httpOnly, 
+			path = excluded.path, 
+			sameSite = excluded.sameSite, 
+			connections = excluded.connections`).
+		ToSql()
+
+	if err != nil {
+		return err
+	}
+
+	_, err = d.sqlDB.Exec(retrievedSql, inserts...)
+	return err
+}
+
+func (d SQLiteDB) RemoveSessionById(sid string) error {
+	resultedSQL, args, err := sq.Delete("sessionstorage").Where(sq.Eq{"id": sid}).ToSql()
+	if err != nil {
+		return err
+	}
+
+	result, err := d.sqlDB.Exec(resultedSQL, args...)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rowsAffected == 0 {
+		return errors.New(SessionNotFoundError)
+	}
+
+	return nil
+}
+
+// ============== QUERY/SEARCH METHODS ==============
+
+func (d SQLiteDB) countQuery(pattern string) (*int, error) {
+	builder := sq.Select("COUNT(*)").From("pad")
 
 	if pattern != "" {
-		countBuilder = countBuilder.Where(sq.Like{"pad.id": "%" + pattern + "%"})
+		builder = builder.Where(sq.Like{"id": "%" + pattern + "%"})
 	}
 
-	countSQL, countArgs, err := countBuilder.ToSql()
+	countSQL, countArgs, err := builder.ToSql()
 	if err != nil {
 		return nil, err
 	}
 
-	countQuery, err := d.sqlDB.Query(countSQL, countArgs...)
-	if err != nil {
-		return nil, err
-	}
-	defer countQuery.Close()
-
+	row := d.sqlDB.QueryRow(countSQL, countArgs...)
 	var totalPads int
-	for countQuery.Next() {
-		countQuery.Scan(&totalPads)
+	if err := row.Scan(&totalPads); err != nil {
+		return nil, err
 	}
 
 	return &totalPads, nil
 }
 
-func (d SQLiteDB) queryPad(pattern string, sortBy string, limit int, offset int, ascending bool) (*[]db.PadDBSearch, error) {
-	subQuery := sq.Select("MAX(rev)").
-		From("padRev").
-		Where(sq.Eq{"padRev.id": sq.Expr("pad.id")})
-
-	subSQL, subArgs, err := subQuery.ToSql()
-	if err != nil {
-		return nil, err
-	}
-
-	var builder = sq.
-		Select("pad.id", "pad.data", "padRev.timestamp").
-		From("pad").
-		Join("padRev ON padRev.id = pad.id").
-		Where(sq.Expr("padRev.rev = ("+subSQL+")", subArgs...))
+func (d SQLiteDB) queryPad(
+	pattern string,
+	sortBy string,
+	limit int,
+	offset int,
+	ascending bool,
+) (*[]db.PadDBSearch, error) {
+	builder := sq.
+		Select("id", "head", "updated_at").
+		From("pad")
 
 	if pattern != "" {
-		builder = builder.Where(sq.Like{"pad.id": "%" + pattern + "%"})
+		builder = builder.Where(sq.Like{"id": "%" + pattern + "%"})
 	}
 
 	if sortBy == "padName" {
-		if !ascending {
-			builder = builder.OrderBy("pad.id DESC")
+		if ascending {
+			builder = builder.OrderBy("id ASC")
 		} else {
-			builder = builder.OrderBy("pad.id ASC")
+			builder = builder.OrderBy("id DESC")
+		}
+	} else if sortBy == "lastEdited" {
+		if ascending {
+			builder = builder.OrderBy("updated_at ASC")
+		} else {
+			builder = builder.OrderBy("updated_at DESC")
 		}
 	}
+
 	if limit > 0 {
 		builder = builder.Limit(uint64(limit))
 	}
@@ -209,25 +997,30 @@ func (d SQLiteDB) queryPad(pattern string, sortBy string, limit int, offset int,
 	var padSearch []db.PadDBSearch
 	for query.Next() {
 		var padId string
-		var data string
-		var timestamp int64
-		query.Scan(&padId, &data, &timestamp)
-		var padDB db.PadDB
-		err = json.Unmarshal([]byte(data), &padDB)
-		if err != nil {
+		var head int
+		var updatedAt time.Time
+
+		if err := query.Scan(&padId, &head, &updatedAt); err != nil {
 			return nil, err
 		}
+
 		padSearch = append(padSearch, db.PadDBSearch{
 			Padname:        padId,
-			RevisionNumber: padDB.RevNum,
-			LastEdited:     timestamp,
+			RevisionNumber: head,
+			LastEdited:     updatedAt.UnixMilli(),
 		})
 	}
-	return &padSearch, nil
+
+	return &padSearch, query.Err()
 }
 
-func (d SQLiteDB) QueryPad(offset int, limit int, sortBy string, ascending bool, pattern string) (*db.PadDBSearchResult, error) {
-
+func (d SQLiteDB) QueryPad(
+	offset int,
+	limit int,
+	sortBy string,
+	ascending bool,
+	pattern string,
+) (*db.PadDBSearchResult, error) {
 	padSearch, err := d.queryPad(pattern, sortBy, limit, offset, ascending)
 	if err != nil {
 		return nil, err
@@ -243,619 +1036,6 @@ func (d SQLiteDB) QueryPad(offset int, limit int, sortBy string, ascending bool,
 	}, nil
 }
 
-func (d SQLiteDB) GetChatsOfPad(padId string, start int, end int) (*[]db.ChatMessageDBWithDisplayName, error) {
-	var resultedSQL, args, err = sq.
-		Select("padChat.padid, padChat.padHead, padChat.chatText, padChat.authorId, padChat.timestamp, globalAuthor.name").
-		From("padChat").
-		Join("globalAuthor ON globalAuthor.id = padChat.authorId").
-		Where(sq.Eq{"padId": padId}).
-		Where(sq.GtOrEq{"padHead": start}).
-		Where(sq.LtOrEq{"padHead": end}).
-		OrderBy("padHead ASC").
-		ToSql()
-
-	if err != nil {
-		return nil, err
-	}
-
-	query, err := d.sqlDB.Query(resultedSQL, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer query.Close()
-
-	var chatMessages []db.ChatMessageDBWithDisplayName
-	for query.Next() {
-		var chatMessage db.ChatMessageDBWithDisplayName
-		query.Scan(&chatMessage.PadId, &chatMessage.Head, &chatMessage.Message, &chatMessage.AuthorId, &chatMessage.Time, &chatMessage.DisplayName)
-		chatMessages = append(chatMessages, chatMessage)
-	}
-	return &chatMessages, nil
-}
-
-func (d SQLiteDB) SaveChatHeadOfPad(padId string, head int) error {
-	var resultingPad, err = d.GetPad(padId)
-	if err != nil {
-		return err
-	}
-	resultingPad.ChatHead = head
-	return d.CreatePad(padId, *resultingPad)
-}
-
-func (d SQLiteDB) SaveChatMessage(padId string, head int, authorId *string, timestamp int64, text string) error {
-	var resultedSQL, args, err = sq.
-		Insert("padChat").
-		Columns("padId", "padHead", "chatText", "authorId", "timestamp").
-		Values(padId, head, text, authorId, timestamp).
-		Suffix("ON CONFLICT(padId, padHead) DO UPDATE SET chatText = excluded.chatText, authorId = excluded.authorId, timestamp = excluded.timestamp").
-		ToSql()
-
-	if err != nil {
-		return err
-	}
-
-	_, err = d.sqlDB.Exec(resultedSQL, args...)
-
-	return err
-}
-
-func (d SQLiteDB) RemovePad(padID string) error {
-	var resultedSQL, args, err = sq.
-		Delete("pad").
-		Where(sq.Eq{"id": padID}).
-		ToSql()
-
-	if err != nil {
-		return err
-	}
-	_, err = d.sqlDB.Exec(resultedSQL, args...)
-	return err
-}
-
-func (d SQLiteDB) RemoveRevisionsOfPad(padId string) error {
-	existingPad, err := d.DoesPadExist(padId)
-	if err != nil {
-		return err
-	}
-	if !*existingPad {
-		return errors.New(PadDoesNotExistError)
-	}
-	resultedSQL, args, err := sq.
-		Delete("padRev").
-		Where(sq.Eq{"id": padId}).
-		ToSql()
-
-	if err != nil {
-		return err
-	}
-	_, err = d.sqlDB.Exec(resultedSQL, args...)
-	return err
-}
-
-func (d SQLiteDB) RemoveChat(padId string) error {
-	var resultedSQL, args, err = sq.
-		Delete("padChat").
-		Where(sq.Eq{"padId": padId}).
-		ToSql()
-
-	if err != nil {
-		return err
-	}
-	_, err = d.sqlDB.Exec(resultedSQL, args...)
-	return err
-}
-
-func (d SQLiteDB) RemovePad2ReadOnly(id string) error {
-	var resultedSQL, args, err = sq.
-		Delete("pad2readonly").
-		Where(sq.Eq{"id": id}).
-		ToSql()
-
-	if err != nil {
-		return err
-	}
-	_, err = d.sqlDB.Exec(resultedSQL, args...)
-	return err
-}
-
-func (d SQLiteDB) RemoveReadOnly2Pad(id string) error {
-	var resultedSQL, args, err = sq.
-		Delete("readonly2pad").
-		Where(sq.Eq{"id": id}).
-		ToSql()
-
-	if err != nil {
-		return err
-	}
-	_, err = d.sqlDB.Exec(resultedSQL, args...)
-	return err
-}
-
-func (d SQLiteDB) GetGroup(groupId string) (*string, error) {
-	var resultedSQL, args, err = sq.
-		Select("id").
-		From("groupPadGroup").
-		Where(sq.Eq{"id": groupId}).
-		ToSql()
-
-	if err != nil {
-		return nil, err
-	}
-	query, err := d.sqlDB.Query(resultedSQL, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer query.Close()
-	var foundGroup string
-	for query.Next() {
-		query.Scan(&foundGroup)
-		return &foundGroup, nil
-	}
-	return nil, errors.New("group not found")
-}
-
-func (d SQLiteDB) GetSessionById(sessionID string) (*session2.Session, error) {
-	var createdSQL, arr, err = sq.Select("*").From("sessionstorage").Where(sq.Eq{"id": sessionID}).ToSql()
-	if err != nil {
-		return nil, err
-	}
-
-	query, err := d.sqlDB.Query(createdSQL, arr...)
-
-	if err != nil {
-		return nil, err
-	}
-	defer query.Close()
-
-	for query.Next() {
-		var possibleSession session2.Session
-		query.Scan(&possibleSession.Id, &possibleSession.OriginalMaxAge, &possibleSession.Expires, &possibleSession.Secure, &possibleSession.HttpOnly, &possibleSession.Path, &possibleSession.SameSite, &possibleSession.Connections)
-		return &possibleSession, nil
-	}
-
-	return nil, nil
-}
-
-func (d SQLiteDB) SetSessionById(sessionID string, session session2.Session) error {
-	var retrievedSql, inserts, err = sq.Insert("sessionstorage").
-		Columns("id", "originalMaxAge", "expires", "secure", "httpOnly", "path", "sameSite", "connections").
-		Values(sessionID, session.OriginalMaxAge, session.Expires, session.Secure, session.HttpOnly, session.Path, session.SameSite, "").
-		Suffix("ON CONFLICT(id) DO UPDATE SET originalMaxAge = excluded.originalMaxAge, expires = excluded.expires, secure = excluded.secure, httpOnly = excluded.httpOnly, path = excluded.path, sameSite = excluded.sameSite, connections = excluded.connections").
-		ToSql()
-
-	if err != nil {
-		return err
-	}
-
-	_, err = d.sqlDB.Exec(retrievedSql, inserts...)
-
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (d SQLiteDB) GetRevision(padId string, rev int) (*db.PadSingleRevision, error) {
-	padExists, err := d.DoesPadExist(padId)
-	if err != nil {
-		return nil, err
-	}
-	if !*padExists {
-		return nil, errors.New(PadDoesNotExistError)
-	}
-
-	var retrievedSql, args, _ = sq.Select("*").From("padRev").Where(sq.Eq{"id": padId}).Where(sq.Eq{"rev": rev}).ToSql()
-
-	query, err := d.sqlDB.Query(retrievedSql, args...)
-	if err != nil {
-		return nil, err
-	}
-
-	defer query.Close()
-
-	for query.Next() {
-		var revisionDB db.PadSingleRevision
-		var serializedPool string
-		query.Scan(&revisionDB.PadId, &revisionDB.RevNum, &revisionDB.Changeset, &revisionDB.AText.Text, &revisionDB.AText.Attribs, &revisionDB.AuthorId, &revisionDB.Timestamp, &serializedPool)
-		if err := json.Unmarshal([]byte(serializedPool), &revisionDB.Pool); err != nil {
-			return nil, fmt.Errorf("error deserializing pool: %v", err)
-		}
-		return &revisionDB, nil
-	}
-
-	return nil, errors.New(PadRevisionNotFoundError)
-}
-
-func (d SQLiteDB) DoesPadExist(padID string) (*bool, error) {
-	var resultedSQL, args, err = sq.
-		Select("id").
-		From("pad").
-		Where(sq.Eq{"id": padID}).
-		ToSql()
-
-	if err != nil {
-		return nil, err
-	}
-
-	query, err := d.sqlDB.Query(resultedSQL, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer query.Close()
-
-	for query.Next() {
-		trueVal := true
-		return &trueVal, nil
-	}
-
-	falseVal := false
-	return &falseVal, nil
-}
-
-func (d SQLiteDB) RemoveSessionById(sid string) error {
-
-	var foundSession, err = d.GetSessionById(sid)
-	if err != nil {
-		return err
-	}
-
-	if foundSession == nil {
-		return errors.New(SessionNotFoundError)
-	}
-
-	resultedSQL, args, err := sq.Delete("sessionstorage").Where(sq.Eq{"id": sid}).ToSql()
-
-	if err != nil {
-		return err
-	}
-
-	_, err = d.sqlDB.Exec(resultedSQL, args...)
-
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (d SQLiteDB) CreatePad(padID string, padDB db.PadDB) error {
-	marshalled, err := json.Marshal(padDB)
-	if err != nil {
-		return err
-	}
-
-	resultedSQL, args, err := sq.
-		Insert("pad").
-		Columns("id", "data").
-		Values(padID, string(marshalled)).
-		Suffix("ON CONFLICT(id) DO UPDATE SET data = excluded.data").
-		ToSql()
-
-	if err != nil {
-		return err
-	}
-
-	_, err = d.sqlDB.Exec(resultedSQL, args...)
-	return err
-}
-
-func (d SQLiteDB) GetPadIds() (*[]string, error) {
-	var padIds []string
-	var resultedSQL, _, err = sq.
-		Select("id").
-		From("pad").
-		ToSql()
-
-	if err != nil {
-		return nil, err
-	}
-
-	query, err := d.sqlDB.Query(resultedSQL)
-	if err != nil {
-		return nil, err
-	}
-	defer query.Close()
-
-	for query.Next() {
-		var padId string
-		query.Scan(&padId)
-		padIds = append(padIds, strings.TrimPrefix(padId, "pad:"))
-	}
-
-	return &padIds, nil
-}
-
-func (d SQLiteDB) SaveRevision(padId string, rev int, changeset string, text db.AText, pool db.RevPool, authorId *string, timestamp int64) error {
-	exists, err := d.DoesPadExist(padId)
-	if err != nil {
-		return err
-	}
-
-	if !*exists {
-		return errors.New(PadDoesNotExistError)
-	}
-
-	serializedPool, err := json.Marshal(pool)
-	if err != nil {
-		return fmt.Errorf("error serializing pool: %v", err)
-	}
-
-	toSql, args, err := sq.Insert("padRev").
-		Columns("id", "rev", "changeset", "atextText", "atextAttribs", "authorId", "timestamp", "pool").
-		Values(padId, rev, changeset, text.Text, text.Attribs, authorId, timestamp, serializedPool).
-		Suffix("ON CONFLICT(id, rev) DO UPDATE SET changeset = excluded.changeset, atextText = excluded.atextText, atextAttribs = excluded.atextAttribs, authorId = excluded.authorId, timestamp = excluded.timestamp, pool = excluded.pool").
-		ToSql()
-
-	if err != nil {
-		return err
-	}
-
-	_, err = d.sqlDB.Exec(toSql, args...)
-	return err
-}
-
-func (d SQLiteDB) GetPad(padID string) (*db.PadDB, error) {
-	var resultedSQL, args, err = sq.
-		Select("data").
-		From("pad").
-		Where(sq.Eq{"id": padID}).
-		ToSql()
-
-	if err != nil {
-		return nil, err
-	}
-
-	query, err := d.sqlDB.Query(resultedSQL, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer query.Close()
-
-	var padDB *db.PadDB
-	for query.Next() {
-		var data string
-		query.Scan(&data)
-		err = json.Unmarshal([]byte(data), &padDB)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if padDB == nil {
-		return nil, errors.New(PadDoesNotExistError)
-	}
-
-	return padDB, nil
-}
-
-func (d SQLiteDB) GetReadonlyPad(padId string) (*string, error) {
-
-	resultedSQL, args, err := sq.
-		Select("data").
-		From("pad2readonly").
-		Where(sq.Eq{"id": padId}).
-		ToSql()
-
-	if err != nil {
-		return nil, err
-	}
-
-	query, err := d.sqlDB.Query(resultedSQL, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer query.Close()
-
-	for query.Next() {
-		var readonlyId string
-		query.Scan(&readonlyId)
-		return &readonlyId, nil
-	}
-
-	return nil, errors.New(PadReadOnlyIdNotFoundError)
-}
-
-func (d SQLiteDB) CreatePad2ReadOnly(padId string, readonlyId string) error {
-	var resultedSQL, args, err = sq.
-		Insert("pad2readonly").
-		Columns("id", "data").
-		Values(padId, readonlyId).
-		Suffix("ON CONFLICT(id) DO UPDATE SET data = excluded.data").
-		ToSql()
-
-	if err != nil {
-		return err
-	}
-
-	_, err = d.sqlDB.Exec(resultedSQL, args...)
-	return err
-}
-
-func (d SQLiteDB) CreateReadOnly2Pad(padId string, readonlyId string) error {
-	var resultedSQL, args, err = sq.
-		Insert("readonly2pad").
-		Columns("id", "data").
-		Values(readonlyId, padId).
-		Suffix("ON CONFLICT(id) DO UPDATE SET data = excluded.data").
-		ToSql()
-
-	if err != nil {
-		return err
-	}
-
-	_, err = d.sqlDB.Exec(resultedSQL, args...)
-	return err
-}
-
-func (d SQLiteDB) GetReadOnly2Pad(id string) (*string, error) {
-	var resultedSQL, args, err = sq.
-		Select("data").
-		From("readonly2pad").
-		Where(sq.Eq{"id": id}).
-		ToSql()
-
-	if err != nil {
-		return nil, err
-	}
-
-	query, err := d.sqlDB.Query(resultedSQL, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer query.Close()
-
-	for query.Next() {
-		var padId string
-		query.Scan(&padId)
-		return &padId, nil
-	}
-
-	return nil, nil
-}
-
-func (d SQLiteDB) SetAuthorByToken(token, authorId string) error {
-	var resultedSQL, args, err = sq.
-		Insert("token2author").
-		Columns("token", "author").
-		Values(token, authorId).
-		Suffix("ON CONFLICT(token) DO UPDATE SET author = excluded.author").
-		ToSql()
-
-	if err != nil {
-		return err
-	}
-
-	_, err = d.sqlDB.Exec(resultedSQL, args...)
-	return err
-}
-
-/**
- * Returns the Author Obj of the author
- * @param {String} author The id of the author
- */
-func (d SQLiteDB) GetAuthor(author string) (*db.AuthorDB, error) {
-	var resultedSQL, args, err = sq.Select("globalAuthor.*, padRev.id").
-		From("globalAuthor").
-		LeftJoin("padRev ON globalAuthor.id = padRev.authorId").
-		Where(sq.Eq{"globalAuthor.id": author}).ToSql()
-
-	if err != nil {
-		return nil, err
-	}
-
-	query, err := d.sqlDB.Query(resultedSQL, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer query.Close()
-
-	var authorDB *db.AuthorDB
-
-	for query.Next() {
-		var padID sql.NullString
-
-		if authorDB == nil {
-			authorDB = &db.AuthorDB{
-				PadIDs: make(map[string]struct{}),
-			}
-			err = query.Scan(&authorDB.ID, &authorDB.ColorId, &authorDB.Name,
-				&authorDB.Timestamp, &padID)
-			if err != nil {
-				return nil, err
-			}
-		} else {
-			var dummy1, dummy2, dummy3, dummy4 interface{}
-			err = query.Scan(&dummy1, &dummy2, &dummy3, &dummy4, &padID)
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		if padID.Valid {
-			authorDB.PadIDs[padID.String] = struct{}{}
-		}
-	}
-
-	if authorDB == nil {
-		return nil, errors.New(AuthorNotFoundError)
-	}
-
-	return authorDB, nil
-}
-
-func (d SQLiteDB) GetAuthorByToken(token string) (*string, error) {
-	var resultedSQL, args, err = sq.
-		Select("author").
-		From("token2author").
-		Where(sq.Eq{"token": token}).
-		ToSql()
-
-	if err != nil {
-		return nil, err
-	}
-
-	query, err := d.sqlDB.Query(resultedSQL, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer query.Close()
-	for query.Next() {
-		var authorID string
-		query.Scan(&authorID)
-		return &authorID, nil
-	}
-	return nil, errors.New(AuthorNotFoundError)
-}
-
-func (d SQLiteDB) SaveAuthor(author db.AuthorDB) error {
-	if author.ID == "" {
-		return errors.New("author ID is empty")
-	}
-
-	resultedSQL, args, err := sq.
-		Insert("globalAuthor").
-		Columns("id", "colorId", "name", "timestamp").
-		Values(author.ID, author.ColorId, author.Name, author.Timestamp).
-		Suffix("ON CONFLICT(id) DO UPDATE SET colorId = excluded.colorId, name = excluded.name, timestamp = excluded.timestamp").
-		ToSql()
-
-	if err != nil {
-		return err
-	}
-
-	_, err = d.sqlDB.Exec(resultedSQL, args...)
-	return err
-}
-
-func (d SQLiteDB) SaveAuthorName(authorId string, authorName string) error {
-	if authorId == "" {
-		return errors.New("authorId is empty")
-	}
-	var authorString, err = d.GetAuthor(authorId)
-
-	if err != nil || authorString == nil {
-		return err
-	}
-
-	authorString.Name = &authorName
-	return d.SaveAuthor(*authorString)
-}
-
-func (d SQLiteDB) SaveAuthorColor(authorId string, authorColor string) error {
-	if authorId == "" {
-		return errors.New("authorId is empty")
-	}
-
-	var authorString, err = d.GetAuthor(authorId)
-
-	if err != nil || authorString == nil {
-		return errors.New("author not found")
-	}
-
-	authorString.ColorId = authorColor
-	return d.SaveAuthor(*authorString)
-}
-
 func (d SQLiteDB) GetPadMetaData(padId string, revNum int) (*db.PadMetaData, error) {
 	padExists, err := d.DoesPadExist(padId)
 	if err != nil {
@@ -866,7 +1046,7 @@ func (d SQLiteDB) GetPadMetaData(padId string, revNum int) (*db.PadMetaData, err
 	}
 
 	resultedSQL, args, err := sq.
-		Select("*").
+		Select("id", "rev", "changeset", "atextText", "atextAttribs", "authorId", "timestamp", "pool").
 		From("padRev").
 		Where(sq.Eq{"id": padId}).
 		Where(sq.Eq{"rev": revNum}).
@@ -876,51 +1056,38 @@ func (d SQLiteDB) GetPadMetaData(padId string, revNum int) (*db.PadMetaData, err
 		return nil, err
 	}
 
-	query, err := d.sqlDB.Query(resultedSQL, args...)
+	row := d.sqlDB.QueryRow(resultedSQL, args...)
+
+	var padMetaData db.PadMetaData
+	var serializedPool string
+
+	err = row.Scan(
+		&padMetaData.Id, &padMetaData.RevNum, &padMetaData.ChangeSet,
+		&padMetaData.Atext.Text, &padMetaData.AtextAttribs,
+		&padMetaData.AuthorId, &padMetaData.Timestamp, &serializedPool,
+	)
+
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, errors.New(PadRevisionNotFoundError)
+	}
 	if err != nil {
 		return nil, err
 	}
-	defer query.Close()
 
-	for query.Next() {
-		var padMetaData db.PadMetaData
-		var serializedPool string
-		err := query.Scan(&padMetaData.Id, &padMetaData.RevNum, &padMetaData.ChangeSet, &padMetaData.Atext.Text, &padMetaData.AtextAttribs, &padMetaData.AuthorId, &padMetaData.Timestamp, &serializedPool)
-		if err != nil {
-			return nil, err
-		}
-
-		if err := json.Unmarshal([]byte(serializedPool), &padMetaData.PadPool); err != nil {
-			return nil, err
-		}
-
-		return &padMetaData, nil
+	if err := json.Unmarshal([]byte(serializedPool), &padMetaData.PadPool); err != nil {
+		return nil, err
 	}
 
-	return nil, errors.New(PadRevisionNotFoundError)
+	return &padMetaData, nil
 }
 
-func (d SQLiteDB) SaveAccessToken(token string, data fosite.Requester) error {
-	var resultedSQL, args, err = sq.
-		Insert("access_tokens").
-		Columns("token", "data").
-		Values(token, data).
-		Suffix("ON CONFLICT(token) DO UPDATE SET data = excluded.data").
-		ToSql()
-
-	if err != nil {
-		return err
-	}
-
-	_, err = d.sqlDB.Exec(resultedSQL, args...)
-	return err
-}
+// ============== LIFECYCLE ==============
 
 func (d SQLiteDB) Close() error {
 	return d.sqlDB.Close()
 }
 
-// NewSQLiteDB This function creates a new SQLiteDB and returns a pointer to it.
+// NewSQLiteDB creates a new SQLiteDB and returns a pointer to it.
 func NewSQLiteDB(path string) (*SQLiteDB, error) {
 	if path == ":memory" {
 		path = "file::memory:?cache=shared"
@@ -939,7 +1106,7 @@ func NewSQLiteDB(path string) (*SQLiteDB, error) {
 		sqlDb.Close()
 		return nil, err
 	}
-	if _, err = sqlDb.Exec("PRAGMA busy_timeout = 5000"); err != nil { // 5s Timeout
+	if _, err = sqlDb.Exec("PRAGMA busy_timeout = 5000"); err != nil {
 		sqlDb.Close()
 		return nil, err
 	}
@@ -948,7 +1115,6 @@ func NewSQLiteDB(path string) (*SQLiteDB, error) {
 		return nil, err
 	}
 
-	// Run migrations
 	migrationManager := migrations.NewMigrationManager(sqlDb, migrations.DialectSQLite)
 	if err := migrationManager.Run(); err != nil {
 		sqlDb.Close()
