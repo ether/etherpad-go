@@ -12,6 +12,7 @@ import (
 	"github.com/ether/etherpad-go/lib/models/pad"
 	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestCleanText(t *testing.T) {
@@ -45,11 +46,11 @@ func TestPadDefaultingToSettingsText(t *testing.T) {
 	var padAuthor = author.Author{
 		Id:        "123",
 		ColorId:   "#FFFFFF",
-		PadIDs:    make(map[string]struct{}),
 		Timestamp: 123,
 	}
 	manager := NewManager(memoryStore, &createdHooks)
-	var retrievedPad, _ = manager.GetPad("test", nil, &padAuthor.Id)
+	var retrievedPad, err = manager.GetPad("test", nil, &padAuthor.Id)
+	assert.NoError(t, err)
 	var padText = settings.Displayed.DefaultPadText
 
 	if retrievedPad.AText.Text != padText+"\n" {
