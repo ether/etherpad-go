@@ -12,7 +12,6 @@ func NewRandomAuthor() *Author {
 		Name:      &authorName,
 		Timestamp: gofakeit.Int64(),
 		ColorId:   gofakeit.HexColor(),
-		PadIDs:    make(map[string]struct{}),
 	}
 	return &author
 }
@@ -23,6 +22,6 @@ func ToDBAuthor(author *Author) *db.AuthorDB {
 		Name:      author.Name,
 		Timestamp: author.Timestamp,
 		ColorId:   author.ColorId,
-		PadIDs:    author.PadIDs,
+		Token:     author.Token,
 	}
 }

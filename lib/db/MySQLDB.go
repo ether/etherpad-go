@@ -21,6 +21,30 @@ type MysqlDB struct {
 	sqlDB   *sql.DB
 }
 
+func (d MysqlDB) GetPadIdsOfAuthor(authorId string) (*[]string, error) {
+	resultedSQL, args, err := mysql.
+		Select("DISTINCT pr.id").
+		From("padRev pr").
+		Where(sq.Eq{"pr.authorId": authorId}).
+		ToSql()
+	if err != nil {
+		return nil, err
+	}
+	query, err := d.sqlDB.Query(resultedSQL, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer query.Close()
+	var padIds []string
+	for query.Next() {
+		var padId string
+		if err := query.Scan(&padId); err != nil {
+			return nil, err
+		}
+	}
+	return &padIds, query.Err()
+}
+
 var mysql = sq.StatementBuilder.PlaceholderFormat(sq.Question)
 
 // ============== PAD METHODS ==============
@@ -321,11 +345,38 @@ func (d MysqlDB) SaveAuthor(author db.AuthorDB) error {
 	return err
 }
 
+func (d MysqlDB) GetAuthors(ids []string) (*[]db.AuthorDB, error) {
+	if len(ids) == 0 {
+		return &[]db.AuthorDB{}, nil
+	}
+	resultedSQL, args, err := mysql.
+		Select("id", "colorId", "name", "timestamp", "token", "created_at").
+		From("globalAuthor").
+		Where(sq.Eq{"id": ids}).
+		ToSql()
+	if err != nil {
+		return nil, err
+	}
+	query, err := d.sqlDB.Query(resultedSQL, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer query.Close()
+	var authors []db.AuthorDB
+	for query.Next() {
+		foundAuthor, err := ReadToAuthorDB(query)
+		if err != nil {
+			return nil, err
+		}
+		authors = append(authors, *foundAuthor)
+	}
+	return &authors, query.Err()
+}
+
 func (d MysqlDB) GetAuthor(authorId string) (*db.AuthorDB, error) {
 	resultedSQL, args, err := mysql.
-		Select("ga.id", "ga.colorId", "ga.name", "ga.timestamp", "ga.token", "ga.created_at", "pr.id").
+		Select("ga.id", "ga.colorId", "ga.name", "ga.timestamp", "ga.token", "ga.created_at").
 		From("globalAuthor ga").
-		LeftJoin("padRev pr ON ga.id = pr.authorId").
 		Where(sq.Eq{"ga.id": authorId}).
 		ToSql()
 
@@ -342,36 +393,11 @@ func (d MysqlDB) GetAuthor(authorId string) (*db.AuthorDB, error) {
 	var authorDB *db.AuthorDB
 
 	for query.Next() {
-		var padID sql.NullString
-		var token sql.NullString
-		var createdAt sql.NullTime
-
-		if authorDB == nil {
-			authorDB = &db.AuthorDB{
-				PadIDs: make(map[string]struct{}),
-			}
-			err = query.Scan(&authorDB.ID, &authorDB.ColorId, &authorDB.Name,
-				&authorDB.Timestamp, &token, &createdAt, &padID)
-			if err != nil {
-				return nil, err
-			}
-			if token.Valid {
-				authorDB.Token = &token.String
-			}
-			if createdAt.Valid {
-				authorDB.CreatedAt = createdAt.Time
-			}
-		} else {
-			var dummy1, dummy2, dummy3, dummy4, dummy5, dummy6 interface{}
-			err = query.Scan(&dummy1, &dummy2, &dummy3, &dummy4, &dummy5, &dummy6, &padID)
-			if err != nil {
-				return nil, err
-			}
+		foundAuthor, err := ReadToAuthorDB(query)
+		if err != nil {
+			return nil, err
 		}
-
-		if padID.Valid {
-			authorDB.PadIDs[padID.String] = struct{}{}
-		}
+		authorDB = foundAuthor
 	}
 
 	if err := query.Err(); err != nil {

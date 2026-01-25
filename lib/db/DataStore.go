@@ -28,11 +28,13 @@ type PadMetaData interface {
 
 type AuthorMethods interface {
 	GetAuthor(author string) (*db.AuthorDB, error)
+	GetPadIdsOfAuthor(authorId string) (*[]string, error)
 	GetAuthorByToken(token string) (*string, error)
 	SetAuthorByToken(token string, author string) error
 	SaveAuthor(author db.AuthorDB) error
 	SaveAuthorName(authorId string, authorName string) error
 	SaveAuthorColor(authorId string, authorColor string) error
+	GetAuthors(ids []string) (*[]db.AuthorDB, error)
 }
 
 type SessionMethods interface {

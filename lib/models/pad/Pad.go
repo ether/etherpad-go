@@ -538,12 +538,14 @@ func (p *Pad) AppendRevision(cs string, authorId *string) (*int, error) {
 		return nil, errors.New("Error saving revision during append " + err.Error())
 	}
 
-	if authorId != nil {
-		var clonedAuthorId = *authorId
-		if clonedAuthorId != "" {
-			p.authorManager.AddPad(*authorId, p.Id)
-		}
-	}
+	/*
+		Not needed as the author is tracked in the revision already
+		if authorId != nil {
+			var clonedAuthorId = *authorId
+			if clonedAuthorId != "" {
+				p.authorManager.AddPad(*authorId, p.Id)
+			}
+		}*/
 
 	return &p.Head, nil
 }

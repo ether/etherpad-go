@@ -295,32 +295,75 @@ func (d SQLiteDB) GetPadByReadOnlyId(readonlyId string) (*string, error) {
 	return &padId, nil
 }
 
-// Deprecated: Use SetReadOnlyId instead
-func (d SQLiteDB) CreatePad2ReadOnly(padId string, readonlyId string) error {
-	return d.SetReadOnlyId(padId, readonlyId)
-}
-
-// Deprecated: Use SetReadOnlyId instead - readonly2pad is derived from pad table
-func (d SQLiteDB) CreateReadOnly2Pad(padId string, readonlyId string) error {
-	return nil // No-op, data is in pad table
-}
-
-// Deprecated: Handled by RemovePad
-func (d SQLiteDB) RemovePad2ReadOnly(id string) error {
-	return nil // No-op, readonly_id is deleted with pad
-}
-
-// Deprecated: Handled by RemovePad
-func (d SQLiteDB) RemoveReadOnly2Pad(id string) error {
-	return nil // No-op
-}
-
-// Deprecated: Use GetPadByReadOnlyId instead
-func (d SQLiteDB) GetReadOnly2Pad(id string) (*string, error) {
-	return d.GetPadByReadOnlyId(id)
-}
-
 // ============== AUTHOR METHODS ==============
+
+func (d SQLiteDB) GetPadIdsOfAuthor(authorId string) (*[]string, error) {
+	resultedSQL, args, err := sq.
+		Select("id").
+		From("padRev").
+		Where(sq.Eq{"authorId": authorId}).
+		ToSql()
+
+	if err != nil {
+		return nil, err
+	}
+	query, err := d.sqlDB.Query(resultedSQL, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer query.Close()
+	var padIds []string
+	for query.Next() {
+		var padId string
+		if err := query.Scan(&padId); err != nil {
+			return nil, err
+		}
+	}
+	return &padIds, query.Err()
+}
+
+func (d SQLiteDB) GetAuthors(
+	ids []string,
+) (*[]db.AuthorDB, error) {
+	if len(ids) == 0 {
+		return &[]db.AuthorDB{}, nil
+	}
+
+	sqlStr, args, err := sq.
+		Select(
+			"ga.id",
+			"ga.colorid",
+			"ga.name",
+			"ga.timestamp",
+			"ga.token",
+			"ga.created_at",
+		).
+		From("globalauthor ga").
+		Where(sq.Eq{"ga.id": ids}).
+		ToSql()
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := d.sqlDB.Query(sqlStr, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var authors []db.AuthorDB
+
+	for rows.Next() {
+		foundAuthor, err := ReadToAuthorDB(rows)
+		if err != nil {
+			return nil, err
+		}
+
+		authors = append(authors, *foundAuthor)
+	}
+
+	return &authors, rows.Err()
+}
 
 func (d SQLiteDB) SaveAuthor(author db.AuthorDB) error {
 	if author.ID == "" {
@@ -348,9 +391,8 @@ func (d SQLiteDB) SaveAuthor(author db.AuthorDB) error {
 
 func (d SQLiteDB) GetAuthor(authorId string) (*db.AuthorDB, error) {
 	resultedSQL, args, err := sq.
-		Select("ga.id", "ga.colorId", "ga.name", "ga.timestamp", "ga.token", "ga.created_at", "pr.id").
+		Select("ga.id", "ga.colorId", "ga.name", "ga.timestamp", "ga.token", "ga.created_at").
 		From("globalAuthor ga").
-		LeftJoin("padRev pr ON ga.id = pr.authorId").
 		Where(sq.Eq{"ga.id": authorId}).
 		ToSql()
 
@@ -367,36 +409,11 @@ func (d SQLiteDB) GetAuthor(authorId string) (*db.AuthorDB, error) {
 	var authorDB *db.AuthorDB
 
 	for query.Next() {
-		var padID sql.NullString
-		var token sql.NullString
-		var createdAt sql.NullTime
-
-		if authorDB == nil {
-			authorDB = &db.AuthorDB{
-				PadIDs: make(map[string]struct{}),
-			}
-			err = query.Scan(&authorDB.ID, &authorDB.ColorId, &authorDB.Name,
-				&authorDB.Timestamp, &token, &createdAt, &padID)
-			if err != nil {
-				return nil, err
-			}
-			if token.Valid {
-				authorDB.Token = &token.String
-			}
-			if createdAt.Valid {
-				authorDB.CreatedAt = createdAt.Time
-			}
-		} else {
-			var dummy1, dummy2, dummy3, dummy4, dummy5, dummy6 interface{}
-			err = query.Scan(&dummy1, &dummy2, &dummy3, &dummy4, &dummy5, &dummy6, &padID)
-			if err != nil {
-				return nil, err
-			}
+		foundAuthor, err := ReadToAuthorDB(query)
+		if err != nil {
+			return nil, err
 		}
-
-		if padID.Valid {
-			authorDB.PadIDs[padID.String] = struct{}{}
-		}
+		authorDB = foundAuthor
 	}
 
 	if err := query.Err(); err != nil {

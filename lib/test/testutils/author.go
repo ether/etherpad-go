@@ -13,6 +13,5 @@ func GenerateDBAuthor() db.AuthorDB {
 		ColorId:   "#ffff",
 		ID:        gofakeit.UUID(),
 		Timestamp: gofakeit.Date().UnixMilli(),
-		PadIDs:    padIds,
 	}
 }

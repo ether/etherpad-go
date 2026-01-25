@@ -38,6 +38,10 @@ func runAllDataStoreTests(testHandler *testutils.TestDBHandler) {
 			Test: testCreateGetRemovePadAndIds,
 		},
 		testutils.TestRunConfig{
+			Name: "GetAuthors",
+			Test: testGetAuthors,
+		},
+		testutils.TestRunConfig{
 			Name: "GetRevisionOnNonexistentPad",
 			Test: testGetRevisionOnNonexistentPad,
 		},
@@ -154,6 +158,37 @@ func runAllDataStoreTests(testHandler *testutils.TestDBHandler) {
 			Test: testReadonlyMappingsAndRemoveRevisions,
 		},
 	)
+}
+
+func testGetAuthors(t *testing.T, ds testutils.TestDataStore) {
+	author1 := author2.NewRandomAuthor()
+	author3 := author2.NewRandomAuthor()
+	assert.NoError(t, ds.DS.SaveAuthor(*author2.ToDBAuthor(author1)))
+
+	assert.NoError(t, ds.DS.SaveAuthor(*author2.ToDBAuthor(author3)))
+	authorsToFind := []string{author1.Id, author3.Id}
+	authorList, err := ds.DS.GetAuthors(authorsToFind)
+	if err != nil {
+		t.Fatalf("GetAuthors returned error: %v", err)
+	}
+	if len(*authorList) != 2 {
+		t.Fatalf("GetAuthors returned unexpected number of authors: %d", len(*authorList))
+	}
+	var foundAuthor1, foundAuthor3 = false, false
+
+	for _, dbAuthor := range *authorList {
+		if dbAuthor.ID == author1.Id {
+			assert.Equal(t, *author1, author2.MapFromDB(dbAuthor))
+			foundAuthor1 = true
+		}
+		if dbAuthor.ID == author3.Id {
+			assert.Equal(t, *author3, author2.MapFromDB(dbAuthor))
+			foundAuthor3 = true
+		}
+	}
+
+	assert.True(t, foundAuthor1)
+	assert.True(t, foundAuthor3)
 }
 
 func testCreateGetRemovePadAndIds(t *testing.T, testDSStore testutils.TestDataStore) {

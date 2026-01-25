@@ -28,6 +28,20 @@ type MemoryDataStore struct {
 	refreshTokenRequestIDs map[string]string
 }
 
+func (m *MemoryDataStore) GetAuthors(ids []string) (*[]db.AuthorDB, error) {
+	var authors []db.AuthorDB
+	for _, id := range ids {
+		author, ok := m.authorStore[id]
+		if ok {
+			authors = append(authors, author)
+		}
+		if !ok {
+			return nil, errors.New(AuthorNotFoundError)
+		}
+	}
+	return &authors, nil
+}
+
 // ============== PAD METHODS ==============
 
 func (m *MemoryDataStore) CreatePad(padID string, padDB db.PadDB) error {
@@ -175,6 +189,22 @@ func (m *MemoryDataStore) SaveAuthor(author db.AuthorDB) error {
 	return nil
 }
 
+func (m *MemoryDataStore) GetPadIdsOfAuthor(authorId string) (*[]string, error) {
+	padIDSet := make(map[string]struct{})
+	for padId, revisions := range m.padRevisions {
+		for _, rev := range revisions {
+			if rev.AuthorId != nil && *rev.AuthorId == authorId {
+				padIDSet[padId] = struct{}{}
+			}
+		}
+	}
+	var padIDs []string
+	for padID := range padIDSet {
+		padIDs = append(padIDs, padID)
+	}
+	return &padIDs, nil
+}
+
 func (m *MemoryDataStore) GetAuthor(authorId string) (*db.AuthorDB, error) {
 	retrievedAuthor, ok := m.authorStore[authorId]
 	if !ok {
@@ -191,8 +221,6 @@ func (m *MemoryDataStore) GetAuthor(authorId string) (*db.AuthorDB, error) {
 			}
 		}
 	}
-	retrievedAuthor.PadIDs = padIDs
-
 	return &retrievedAuthor, nil
 }
 

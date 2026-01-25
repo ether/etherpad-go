@@ -41,8 +41,6 @@ func (m *Migrator) MigrateAuthors() error {
 			if err := m.newDataStore.SaveAuthor(db2.AuthorDB{
 				ID:        author.Id,
 				CreatedAt: time.Now(),
-				PadIDs:    make(map[string]struct{}),
-				// will be set at a later stage
 				Token:     nil,
 				ColorId:   utils.ColorPalette[author.ColorId],
 				Name:      &author.Name,

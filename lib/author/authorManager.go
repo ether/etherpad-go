@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/ether/etherpad-go/lib/db"
-	db2 "github.com/ether/etherpad-go/lib/models/db"
 	"github.com/ether/etherpad-go/lib/utils"
 )
 
@@ -24,7 +23,7 @@ type Author struct {
 	Id        string
 	Name      *string
 	ColorId   string
-	PadIDs    map[string]struct{}
+	Token     *string
 	Timestamp int64
 }
 
@@ -61,39 +60,17 @@ func (m *Manager) mapAuthorWithDBKey(token string) (*Author, error) {
 	}, nil
 }
 
-/**
- * Returns the AuthorID for a mapper.
- * @param {String} authorMapper The mapper
- * @param {String} name The name of the author (optional)
- */
-/*func (m *PadManager) CreateAuthorIfNotExistsFor(authorMapper string, name *string) Author {
-	var author = m.mapAuthorWithDBKey("mapper2author", authorMapper)
-
-	if name != nil {
-		m.SetAuthorName(author.Id, *name)
-	}
-
-	return author
-}*/
-
 func (m *Manager) CreateAuthor(name *string) (*Author, error) {
 	authorId := "a." + utils.RandomString(16)
 
 	author := Author{
 		Id:        authorId,
 		Name:      name,
-		PadIDs:    make(map[string]struct{}),
 		ColorId:   utils.ColorPalette[rand.Intn(len(utils.ColorPalette))],
 		Timestamp: time.Now().Unix(),
 	}
 
-	if err := m.Db.SaveAuthor(db2.AuthorDB{
-		ID:        author.Id,
-		Name:      author.Name,
-		ColorId:   author.ColorId,
-		PadIDs:    author.PadIDs,
-		Timestamp: author.Timestamp,
-	}); err != nil {
+	if err := m.Db.SaveAuthor(MapToDB(author)); err != nil {
 		return nil, err
 	}
 
@@ -102,12 +79,8 @@ func (m *Manager) CreateAuthor(name *string) (*Author, error) {
 	}, nil
 }
 
-func (m *Manager) saveAuthor(author Author) {
-	m.Db.SaveAuthor(db2.AuthorDB{
-		Name:    author.Name,
-		ColorId: author.ColorId,
-		PadIDs:  author.PadIDs,
-	})
+func (m *Manager) saveAuthor(author Author) error {
+	return m.Db.SaveAuthor(MapToDB(author))
 }
 
 /**
@@ -152,71 +125,35 @@ func (m *Manager) GetAuthor4Token(token string) (*Author, error) {
  * @param {String} authorID The id of the author
  */
 func (m *Manager) ListPadsOfAuthor(authorId string) ([]string, error) {
-	author, err := m.Db.GetAuthor(authorId)
+	_, err := m.Db.GetAuthor(authorId)
 
 	if err != nil {
-		return nil, errors.New("Author not found")
+		return nil, errors.New(db.AuthorNotFoundError)
 	}
 
 	var pads []string
 
-	for k := range author.PadIDs {
+	padIds, err := m.Db.GetPadIdsOfAuthor(authorId)
+	if err != nil {
+		return nil, err
+	}
+	for _, k := range *padIds {
 		pads = append(pads, k)
 	}
 
 	return pads, nil
 }
 
-func (m *Manager) AddPad(authorId string, padId string) {
-	retrievedAuthor, err := m.Db.GetAuthor(authorId)
-
+func (m *Manager) GetAuthors(authorIds []string) (*[]Author, error) {
+	var authors []Author
+	dbAuthors, err := m.Db.GetAuthors(authorIds)
 	if err != nil {
-		return
+		return nil, err
 	}
-
-	if retrievedAuthor.PadIDs == nil {
-		retrievedAuthor.PadIDs = make(map[string]struct{})
+	for _, author := range *dbAuthors {
+		authors = append(authors, MapFromDB(author))
 	}
-
-	// add the entry for this pad
-	retrievedAuthor.PadIDs[padId] = struct{}{} // anything, because value is not used
-
-	m.saveAuthor(Author{
-		Name:    retrievedAuthor.Name,
-		ColorId: retrievedAuthor.ColorId,
-		PadIDs:  retrievedAuthor.PadIDs,
-	})
-}
-
-/**
- * Removes a pad from the list of contributions
- * @param {String} authorID The id of the author
- * @param {String} padID The id of the pad the author contributes to
- */
-func (m *Manager) removePad(authorId string, padId string) {
-	retrievedAuthor, err := m.Db.GetAuthor(authorId)
-
-	if err != nil {
-		return
-	}
-
-	var futurePadIDs map[string]struct{}
-
-	if retrievedAuthor.PadIDs != nil {
-		for k := range retrievedAuthor.PadIDs {
-			if k != padId {
-				futurePadIDs[k] = struct{}{}
-			}
-		}
-	}
-
-	retrievedAuthor.PadIDs = futurePadIDs
-
-	m.saveAuthor(Author{
-		Name:    retrievedAuthor.Name,
-		ColorId: retrievedAuthor.ColorId,
-		PadIDs:  retrievedAuthor.PadIDs,
-	})
+	return &authors, nil
 }
 
 func (m *Manager) GetAuthor(authorId string) (*Author, error) {
@@ -226,11 +163,6 @@ func (m *Manager) GetAuthor(authorId string) (*Author, error) {
 		return nil, err
 	}
 
-	return &Author{
-		Id:        author.ID,
-		Name:      author.Name,
-		ColorId:   author.ColorId,
-		PadIDs:    author.PadIDs,
-		Timestamp: author.Timestamp,
-	}, nil
+	mappedDbAuthor := MapFromDB(*author)
+	return &mappedDbAuthor, nil
 }
