@@ -764,7 +764,7 @@ func TestSQLDatabase_GetPadChatMessages(t *testing.T) {
 					value: map[string]any{
 						"text":     "Hello everyone!",
 						"authorid": "a.author1",
-						"time":     1700000000000,
+						"time":     int64(1700000000000),
 						"userName": "Alice",
 					},
 				},
@@ -773,7 +773,7 @@ func TestSQLDatabase_GetPadChatMessages(t *testing.T) {
 					value: map[string]any{
 						"text":     "Hi Alice!",
 						"authorid": "a.author2",
-						"time":     1700000001000,
+						"time":     int64(1700000001000),
 						"userName": "Bob",
 					},
 				},
@@ -801,7 +801,7 @@ func TestSQLDatabase_GetPadChatMessages(t *testing.T) {
 					value: map[string]any{
 						"text":     "Other pad message",
 						"authorid": "a.author1",
-						"time":     1700000000000,
+						"time":     int64(1700000000000),
 						"userName": "Alice",
 					},
 				},

@@ -99,7 +99,7 @@ func insertData(t *testing.T, db *sql.DB, insertCall func(*testing.T, *sql.DB, s
 	insertCall(t, db, "globalAuthor:a.NNm64XqDYtqujZau", map[string]any{
 		"colorId":   43,
 		"name":      nil,
-		"timestamp": 1743970312393,
+		"timestamp": int64(1743970312393),
 		"padIDs": map[string]any{
 			"test": 1,
 		},
@@ -108,7 +108,7 @@ func insertData(t *testing.T, db *sql.DB, insertCall func(*testing.T, *sql.DB, s
 	insertCall(t, db, "globalAuthor:a.zIsCqGbIhuqFO0dp", map[string]any{
 		"colorId":   3,
 		"name":      nil,
-		"timestamp": 1754165107261,
+		"timestamp": int64(1754165107261),
 		"padIDs": map[string]any{
 			"bBA-oJE3Wu0mAwE_szE7": 1,
 		},
@@ -117,7 +117,7 @@ func insertData(t *testing.T, db *sql.DB, insertCall func(*testing.T, *sql.DB, s
 	insertCall(t, db, "globalAuthor:a.kpvBkCBIU7ZJPhhz", map[string]any{
 		"colorId":   61,
 		"name":      nil,
-		"timestamp": 1769293372852,
+		"timestamp": int64(1769293372852),
 		"padIDs": map[string]any{
 			"testpad": 1,
 			"test":    1,
@@ -161,7 +161,7 @@ func insertData(t *testing.T, db *sql.DB, insertCall func(*testing.T, *sql.DB, s
 				"revNum":    7,
 				"savedById": "a.kpvBkCBIU7ZJPhhz",
 				"label":     "Revision 7",
-				"timestamp": 1769268322737,
+				"timestamp": int64(1769268322737),
 				"id":        "1157f7c7f568c04236e3",
 			},
 		},
@@ -171,7 +171,7 @@ func insertData(t *testing.T, db *sql.DB, insertCall func(*testing.T, *sql.DB, s
 		"changeset": "Z:1>k+k$Welcome to Etherpad!",
 		"meta": map[string]any{
 			"author":    "a.NNm64XqDYtqujZau",
-			"timestamp": 1743970312579,
+			"timestamp": int64(1743970312579),
 			"pool": map[string]any{
 				"numToAttrib": map[string]any{
 					"0": []any{"author", "a.NNm64XqDYtqujZau"},
@@ -192,20 +192,20 @@ func insertData(t *testing.T, db *sql.DB, insertCall func(*testing.T, *sql.DB, s
 		"changeset": "Z:l<j-k*1+1$H",
 		"meta": map[string]any{
 			"author":    "a.kpvBkCBIU7ZJPhhz",
-			"timestamp": 1769293369504,
+			"timestamp": int64(1769293369504),
 		},
 	})
 
 	insertCall(t, db, "pad:test:chat:0", map[string]any{
 		"text":     "hallo eine Nachricht",
 		"authorId": "a.kpvBkCBIU7ZJPhhz",
-		"time":     1769290382564,
+		"time":     int64(1769290382564),
 	})
 
 	insertCall(t, db, "pad:test:chat:1", map[string]any{
 		"text":     "Eine weiter",
 		"authorId": "a.kpvBkCBIU7ZJPhhz",
-		"time":     1769290385972,
+		"time":     int64(1769290385972),
 	})
 
 	insertCall(t, db, "pad2readonly:testpad", "r.1d99de0f761b68fc6b2e5b8b224f250f")
