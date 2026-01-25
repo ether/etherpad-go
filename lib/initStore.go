@@ -17,6 +17,7 @@ import (
 
 type InitStore struct {
 	C                 *fiber.App
+	PrivateAPI        fiber.Router
 	UiAssets          embed.FS
 	RetrievedSettings *settings.Settings
 	CookieStore       *session.Store

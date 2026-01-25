@@ -7,7 +7,7 @@ import (
 )
 
 func Init(store *lib.InitStore) {
-	store.C.Get("/groups/pads", func(c *fiber.Ctx) error {
+	store.PrivateAPI.Get("/groups/pads", func(c *fiber.Ctx) error {
 		var groupId = c.Query("groupID")
 		if groupId == "" {
 			return c.Status(400).JSON(errors.NewMissingParamError("groupID"))

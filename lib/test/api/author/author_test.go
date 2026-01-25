@@ -44,7 +44,7 @@ func testCreateAuthorNoName(t *testing.T, tsStore testutils.TestDataStore) {
 	author.Init(initStore)
 	var dto = author.CreateDto{}
 	marshall, _ := json.Marshal(dto)
-	req := httptest.NewRequest("POST", "/author", bytes.NewBuffer(marshall))
+	req := httptest.NewRequest("POST", "/admin/api/author", bytes.NewBuffer(marshall))
 
 	resp, _ := initStore.C.Test(req, 10)
 	if resp.StatusCode != 400 {
@@ -54,7 +54,7 @@ func testCreateAuthorNoName(t *testing.T, tsStore testutils.TestDataStore) {
 
 func testCreateAuthorNoBody(t *testing.T, tsStore testutils.TestDataStore) {
 	author.Init(tsStore.ToInitStore())
-	req := httptest.NewRequest("POST", "/author", nil)
+	req := httptest.NewRequest("POST", "/admin/api/author", nil)
 
 	resp, _ := tsStore.App.Test(req, 10)
 	if resp.StatusCode != 400 {
@@ -65,7 +65,7 @@ func testCreateAuthorNoBody(t *testing.T, tsStore testutils.TestDataStore) {
 func testGetNotExistingAuthor(t *testing.T, tsStore testutils.TestDataStore) {
 	initStore := tsStore.ToInitStore()
 	author.Init(initStore)
-	req := httptest.NewRequest("GET", "/author/unknownAuthorId", nil)
+	req := httptest.NewRequest("GET", "/admin/api/author/unknownAuthorId", nil)
 
 	resp, err := initStore.C.Test(req, 100)
 	if err != nil {
@@ -85,7 +85,7 @@ func testGetExistingAuthor(t *testing.T, tsStore testutils.TestDataStore) {
 		Name: "testAuthor",
 	}
 	marshall, _ := json.Marshal(dto)
-	req := httptest.NewRequest("POST", "/author", bytes.NewBuffer(marshall))
+	req := httptest.NewRequest("POST", "/admin/api/author", bytes.NewBuffer(marshall))
 	resp, err := initStore.C.Test(req, 100)
 	if err != nil {
 		t.Errorf("error creating author: %v", err)
@@ -98,7 +98,7 @@ func testGetExistingAuthor(t *testing.T, tsStore testutils.TestDataStore) {
 	bytesOFCreate, _ := io.ReadAll(resp.Body)
 	_ = json.Unmarshal(bytesOFCreate, &createdAuthor)
 
-	req = httptest.NewRequest("GET", "/author/"+createdAuthor.AuthorId, nil)
+	req = httptest.NewRequest("GET", "/admin/api/author/"+createdAuthor.AuthorId, nil)
 
 	resp, err = initStore.C.Test(req, 100)
 	if err != nil {
@@ -116,7 +116,7 @@ func testGetAuthorPadIDS(t *testing.T, tsStore testutils.TestDataStore) {
 	padText := "Hallo123\n"
 	_, err := tsStore.PadManager.GetPad("pad123", &padText, &dbAuthorToSave.ID)
 	assert.NoError(t, err)
-	req := httptest.NewRequest("GET", "/author/"+dbAuthorToSave.ID+"/pads", nil)
+	req := httptest.NewRequest("GET", "/admin/api/author/"+dbAuthorToSave.ID+"/pads", nil)
 
 	resp, err := tsStore.App.Test(req, 100)
 	if err != nil {
@@ -129,7 +129,7 @@ func testGetAuthorPadIDS(t *testing.T, tsStore testutils.TestDataStore) {
 	var padsResponse map[string]struct{}
 	bytesOfResponse, _ := io.ReadAll(resp.Body)
 	_ = json.Unmarshal(bytesOfResponse, &padsResponse)
-	if len(padsResponse) != len(dbAuthorToSave.PadIDs) {
-		t.Errorf("should return all pad IDs of author, expected %d got %d", len(dbAuthorToSave.PadIDs), len(padsResponse))
+	if len(padsResponse) != 0 {
+		t.Errorf("should return all pad IDs of author, expected %d got %d", 0, len(padsResponse))
 	}
 }

@@ -124,7 +124,6 @@ func (i *Importer) SetPadRaw(padId string, content []byte, authorId string) erro
 						Name:      authorData.Name,
 						ColorId:   authorData.ColorId,
 						Timestamp: authorData.Timestamp,
-						PadIDs:    make(map[string]struct{}),
 					})
 				} else {
 					if authorData.ColorId != "" {

@@ -20,7 +20,7 @@ type CreateDtoResponse struct {
 func Init(initStore *lib.InitStore) {
 	var authorManager = author.NewManager(initStore.Store)
 
-	initStore.C.Post("/author", func(c *fiber.Ctx) error {
+	initStore.PrivateAPI.Post("/author", func(c *fiber.Ctx) error {
 		var dto CreateDto
 		err := json.Unmarshal(c.Body(), &dto)
 		if err != nil {
@@ -40,7 +40,7 @@ func Init(initStore *lib.InitStore) {
 		})
 	})
 
-	initStore.C.Get("/author/:authorId", func(c *fiber.Ctx) error {
+	initStore.PrivateAPI.Get("/author/:authorId", func(c *fiber.Ctx) error {
 		var authorId = c.Params("authorId")
 		if authorId == "" {
 			return c.Status(400).JSON(errors.NewInvalidParamError("authorId is required"))
@@ -56,7 +56,7 @@ func Init(initStore *lib.InitStore) {
 
 		return c.JSON(foundAuthor)
 	})
-	initStore.C.Get("/author/:authorId/pads", func(c *fiber.Ctx) error {
+	initStore.PrivateAPI.Get("/author/:authorId/pads", func(c *fiber.Ctx) error {
 		var authorId = c.Params("authorId")
 		if authorId == "" {
 			return c.Status(400).JSON(errors.NewInvalidParamError("authorId is required"))

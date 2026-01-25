@@ -47,7 +47,7 @@ type AttributePoolResponse struct {
 }
 
 func Init(initStore *lib.InitStore) {
-	initStore.C.Get("/pads/:padId/text", func(c *fiber.Ctx) error {
+	initStore.PrivateAPI.Get("/pads/:padId/text", func(c *fiber.Ctx) error {
 		foundPad, err := utils2.GetPadSafe(c.Params("padID", ""), true, nil, nil, initStore.PadManager)
 		if err != nil {
 			return c.Status(404).JSON(errors2.PadNotFoundError)
@@ -83,7 +83,7 @@ func Init(initStore *lib.InitStore) {
 		})
 	})
 
-	initStore.C.Get("/pads/:padId/attributePool", func(ctx *fiber.Ctx) error {
+	initStore.PrivateAPI.Get("/pads/:padId/attributePool", func(ctx *fiber.Ctx) error {
 		var padIdToFind = ctx.Params("padId")
 		var padFound, err = utils2.GetPadSafe(padIdToFind, true, nil, nil, initStore.PadManager)
 		if err != nil {
@@ -94,7 +94,7 @@ func Init(initStore *lib.InitStore) {
 			Pool: padFound.Pool,
 		})
 	})
-	initStore.C.Get("/pads/:padId/:rev/revisionChangeset", func(ctx *fiber.Ctx) error {
+	initStore.PrivateAPI.Get("/pads/:padId/:rev/revisionChangeset", func(ctx *fiber.Ctx) error {
 		var padId = ctx.Params("padId")
 		var rev = ctx.Params("rev")
 
@@ -121,7 +121,7 @@ func Init(initStore *lib.InitStore) {
 		return ctx.JSON(revision.Changeset)
 	})
 
-	initStore.C.Post("/pads/:padId/text", func(ctx *fiber.Ctx) error {
+	initStore.PrivateAPI.Post("/pads/:padId/text", func(ctx *fiber.Ctx) error {
 		type Request struct {
 			Text     string `json:"text"`
 			AuthorId string `json:"authorId"`
