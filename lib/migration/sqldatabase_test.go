@@ -115,7 +115,7 @@ func setupMySQLContainer(t *testing.T) *TestContainerConfig {
 	sharedEnv.mysqlOnce.Do(func() {
 		ctx := context.Background()
 		container, err := testcontainers.Run(
-			ctx, "mysql:lts",
+			ctx, "mysql:9.6",
 			testcontainers.WithExposedPorts("3306/tcp"),
 			testcontainers.WithEnv(map[string]string{
 				"MYSQL_PASSWORD":      testDbPass,
@@ -305,7 +305,8 @@ func TestSQLDatabase_GetNextPads(t *testing.T) {
 
 			db := tc.Setup(t)
 			resetStoreTable(t, db, tc.Driver)
-			sqlDB := NewSQLDatabase(db, tc.Driver)
+			sqlDB, err := NewSQLDatabase(db, tc.Driver)
+			require.NoError(t, err)
 
 			// Test data: Pad objects
 			pads := []struct {
@@ -391,7 +392,8 @@ func TestSQLDatabase_GetPadRevisions(t *testing.T) {
 
 			db := tc.Setup(t)
 			resetStoreTable(t, db, tc.Driver)
-			sqlDB := NewSQLDatabase(db, tc.Driver)
+			sqlDB, err := NewSQLDatabase(db, tc.Driver)
+			require.NoError(t, err)
 
 			// Insert revision data
 			revisions := []struct {
@@ -509,7 +511,8 @@ func TestSQLDatabase_GetNextAuthors(t *testing.T) {
 
 			db := tc.Setup(t)
 			resetStoreTable(t, db, tc.Driver)
-			sqlDB := NewSQLDatabase(db, tc.Driver)
+			sqlDB, err := NewSQLDatabase(db, tc.Driver)
+			require.NoError(t, err)
 
 			authors := []struct {
 				key   string
@@ -598,7 +601,8 @@ func TestSQLDatabase_GetNextReadonly2Pad(t *testing.T) {
 
 			db := tc.Setup(t)
 			resetStoreTable(t, db, tc.Driver)
-			sqlDB := NewSQLDatabase(db, tc.Driver)
+			sqlDB, err := NewSQLDatabase(db, tc.Driver)
+			require.NoError(t, err)
 
 			mappings := []struct {
 				key   string
@@ -650,7 +654,8 @@ func TestSQLDatabase_GetNextPad2Readonly(t *testing.T) {
 
 			db := tc.Setup(t)
 			resetStoreTable(t, db, tc.Driver)
-			sqlDB := NewSQLDatabase(db, tc.Driver)
+			sqlDB, err := NewSQLDatabase(db, tc.Driver)
+			require.NoError(t, err)
 
 			mappings := []struct {
 				key   string
@@ -698,7 +703,8 @@ func TestSQLDatabase_GetNextToken2Author(t *testing.T) {
 
 			db := tc.Setup(t)
 			resetStoreTable(t, db, tc.Driver)
-			sqlDB := NewSQLDatabase(db, tc.Driver)
+			sqlDB, err := NewSQLDatabase(db, tc.Driver)
+			require.NoError(t, err)
 
 			mappings := []struct {
 				key   string
@@ -746,7 +752,8 @@ func TestSQLDatabase_GetPadChatMessages(t *testing.T) {
 
 			db := tc.Setup(t)
 			resetStoreTable(t, db, tc.Driver)
-			sqlDB := NewSQLDatabase(db, tc.Driver)
+			sqlDB, err := NewSQLDatabase(db, tc.Driver)
+			require.NoError(t, err)
 
 			messages := []struct {
 				key   string
@@ -881,7 +888,8 @@ func TestSQLDatabase_GetNextGroups(t *testing.T) {
 
 			db := tc.Setup(t)
 			resetStoreTable(t, db, tc.Driver)
-			sqlDB := NewSQLDatabase(db, tc.Driver)
+			sqlDB, err := NewSQLDatabase(db, tc.Driver)
+			require.NoError(t, err)
 
 			groups := []struct {
 				key   string
@@ -945,7 +953,8 @@ func TestSQLDatabase_GetNextGroup2Sessions(t *testing.T) {
 
 			db := tc.Setup(t)
 			resetStoreTable(t, db, tc.Driver)
-			sqlDB := NewSQLDatabase(db, tc.Driver)
+			sqlDB, err := NewSQLDatabase(db, tc.Driver)
+			require.NoError(t, err)
 
 			mappings := []struct {
 				key   string
@@ -1002,7 +1011,8 @@ func TestSQLDatabase_GetNextAuthor2Sessions(t *testing.T) {
 
 			db := tc.Setup(t)
 			resetStoreTable(t, db, tc.Driver)
-			sqlDB := NewSQLDatabase(db, tc.Driver)
+			sqlDB, err := NewSQLDatabase(db, tc.Driver)
+			require.NoError(t, err)
 
 			mappings := []struct {
 				key   string
@@ -1050,7 +1060,8 @@ func TestSQLDatabase_GetNextSessions(t *testing.T) {
 
 			db := tc.Setup(t)
 			resetStoreTable(t, db, tc.Driver)
-			sqlDB := NewSQLDatabase(db, tc.Driver)
+			sqlDB, err := NewSQLDatabase(db, tc.Driver)
+			require.NoError(t, err)
 
 			sessions := []struct {
 				key   string
@@ -1128,7 +1139,8 @@ func TestSQLDatabase_Close(t *testing.T) {
 	db, err := sql.Open("sqlite", ":memory:")
 	require.NoError(t, err)
 
-	sqlDB := NewSQLDatabase(db, DriverSQLite)
+	sqlDB, err := NewSQLDatabase(db, DriverSQLite)
+	require.NoError(t, err)
 
 	err = sqlDB.Close()
 	require.NoError(t, err)
@@ -1148,21 +1160,24 @@ func TestNewSQLDatabase_PlaceholderStyles(t *testing.T) {
 	defer db.Close()
 
 	t.Run("PostgresPlaceholder", func(t *testing.T) {
-		sqlDB := NewSQLDatabase(db, DriverPostgres)
+		sqlDB, err := NewSQLDatabase(db, DriverPostgres)
+		require.NoError(t, err)
 		assert.Equal(t, "$1", sqlDB.placeholder(1))
 		assert.Equal(t, "$2", sqlDB.placeholder(2))
 		assert.Equal(t, "$10", sqlDB.placeholder(10))
 	})
 
 	t.Run("SQLitePlaceholder", func(t *testing.T) {
-		sqlDB := NewSQLDatabase(db, DriverSQLite)
+		sqlDB, err := NewSQLDatabase(db, DriverSQLite)
+		require.NoError(t, err)
 		assert.Equal(t, "?", sqlDB.placeholder(1))
 		assert.Equal(t, "?", sqlDB.placeholder(2))
 		assert.Equal(t, "?", sqlDB.placeholder(10))
 	})
 
 	t.Run("MySQLPlaceholder", func(t *testing.T) {
-		sqlDB := NewSQLDatabase(db, DriverMySQL)
+		sqlDB, err := NewSQLDatabase(db, DriverMySQL)
+		require.NoError(t, err)
 		assert.Equal(t, "?", sqlDB.placeholder(1))
 		assert.Equal(t, "?", sqlDB.placeholder(2))
 		assert.Equal(t, "?", sqlDB.placeholder(10))
@@ -1183,7 +1198,8 @@ func TestSQLDatabase_EdgeCases(t *testing.T) {
 
 			db := tc.Setup(t)
 			resetStoreTable(t, db, tc.Driver)
-			sqlDB := NewSQLDatabase(db, tc.Driver)
+			sqlDB, err := NewSQLDatabase(db, tc.Driver)
+			require.NoError(t, err)
 
 			t.Run("SpecialCharactersInPadId", func(t *testing.T) {
 				resetStoreTable(t, db, tc.Driver)
@@ -1327,7 +1343,8 @@ func BenchmarkSQLDatabase_GetNextPads(b *testing.B) {
 		}
 	}
 
-	sqlDB := NewSQLDatabase(db, DriverSQLite)
+	sqlDB, err := NewSQLDatabase(db, DriverSQLite)
+	assert.NoError(b, err)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -1364,7 +1381,8 @@ func BenchmarkSQLDatabase_GetPadRevisions(b *testing.B) {
 		}
 	}
 
-	sqlDB := NewSQLDatabase(db, DriverSQLite)
+	sqlDB, err := NewSQLDatabase(db, DriverSQLite)
+	assert.NoError(b, err)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
