@@ -11,13 +11,28 @@ Etherpad is a real-time collaborative editor [scalable to thousands of
 simultaneous real time users](http://scale.etherpad.org/). It provides [full
 data export](https://github.com/ether/etherpad-lite/wiki/Understanding-Etherpad's-Full-Data-Export-capabilities)
 
+## Config
+
+All the configuration already documents in Etherpad-Go itself. You can just run
+
+```bash
+./etherpad-go --help
+```
+
+to find root level options. The sublevel commands e.g. like `./etherpad-go config` also have their own help pages.
+
+## Requirements to run Etherpad-Go
 
 
-## Requirements to get started
+* For a blank app. Just download the binary for your platform from the [releases page](https://github.com/ether/etherpad-go/releases) and run it. It uses an in memory database which should be more than enough. The base path is `var/etherpad.db` but again all the defaults are also shown with `./etherpad-go config show` or for a particular config `./etherpad-go config get <key>`.
 
-* [Go 1.20+](https://golang.org/dl/)
+
+## Requirements to get started (only for building from source)
+
+* [Go 1.25+](https://golang.org/dl/)
 * [NodeJS 22+](https://nodejs.org/en/download/)
 * [Pnpm](https://pnpm.io/installation)
+
 
 ### Installation
 
@@ -71,3 +86,35 @@ docker compose up -d
 ```
 This will start both the Etherpad-Go server and a Postgres database. The server will be accessible at `http://localhost:9001`.
 You can find the docker compose file in [docker-compose.yml](./docker-compose.yml)
+
+
+# Importing things to note
+
+You can import existing pads from Etherpad-Lite into Etherpad-Go. You can do this with the migrate command e.g.
+
+```bash
+migration 192.28.91.4:5432 --type postgres --username myOldEtherpadDBUser --database myoldEtherpadDB
+```
+
+This will connect to the old Etherpad-Lite database and migrate all pads to the new Etherpad-Go database. The new Etherpad database is already specified as expected in the settings.json file or environment variables.
+
+## Plugins
+
+Etherpad-Go supports plugins, but the plugin system is not yet fully fleshed out. Currently, only a few plugins are supported. You can find the list of supported plugins in the [plugins directory](./plugins).
+You can activate them in the settings.json file or via environment variables.
+
+E.g.
+
+```json`
+{
+  "plugins": {
+    "ep_align":{ "enabled": true }
+  }
+}
+```
+
+or ETHERPAD_PLUGINS_EP_ALIGN_ENABLED=true
+
+
+
+

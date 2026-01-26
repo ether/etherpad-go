@@ -3,89 +3,85 @@ package settings
 import (
 	"os"
 	"path/filepath"
-	"regexp"
-	"runtime"
 
 	clientVars2 "github.com/ether/etherpad-go/lib/models/clientVars"
 	"go.uber.org/zap"
 )
 
 type DBSettings struct {
-	Filename   string
-	Host       string
-	Port       string
-	Database   string
-	User       string
-	Password   string
-	Charset    string
-	Collection string
-	Url        string
+	Filename string `mapstructure:"filename"`
+	Host     string `mapstructure:"host"`
+	Port     string `mapstructure:"port"`
+	Database string `mapstructure:"database"`
+	User     string `mapstructure:"user"`
+	Password string `mapstructure:"password"`
+	Charset  string `mapstructure:"charset"`
 }
 
 type TTL struct {
-	AccessToken       int
-	AuthorizationCode int
-	ClientCredentials int
-	IdToken           int
-	RefreshToken      int
+	AccessToken       int `mapstructure:"accessToken"`
+	AuthorizationCode int `mapstructure:"authorizationCode"`
+	ClientCredentials int `mapstructure:"clientCredentials"`
+	IdToken           int `mapstructure:"idToken"`
+	RefreshToken      int `mapstructure:"refreshToken"`
 }
 
 type PadOptions struct {
-	NoColors         bool
-	ShowControls     bool
-	ShowChat         bool
-	ShowLineNumbers  bool
-	UseMonospaceFont bool
-	UserName         *bool
-	UserColor        *bool
-	RTL              bool
-	AlwaysShowChat   bool
-	ChatAndUsers     bool
-	Lang             *string
+	NoColors         bool    `mapstructure:"noColors"`
+	ShowControls     bool    `mapstructure:"showControls"`
+	ShowChat         bool    `mapstructure:"showChat"`
+	ShowLineNumbers  bool    `mapstructure:"showLineNumbers"`
+	UseMonospaceFont bool    `mapstructure:"useMonospaceFont"`
+	UserName         *bool   `mapstructure:"userName"`
+	UserColor        *bool   `mapstructure:"userColor"`
+	RTL              bool    `mapstructure:"rtl"`
+	AlwaysShowChat   bool    `mapstructure:"alwaysShowChat"`
+	ChatAndUsers     bool    `mapstructure:"chatAndUsers"`
+	Lang             *string `mapstructure:"lang"`
 }
 
 type PadShortcutEnabled struct {
-	AltF9     bool `json:"altF9"`
-	AltC      bool `json:"altC"`
-	Delete    bool `json:"delete"`
-	CmdShift2 bool `json:"cmdShift2"`
-	Return    bool `json:"return"`
-	Esc       bool `json:"esc"`
-	CmdS      bool `json:"cmdS"`
-	Tab       bool `json:"tab"`
-	CmdZ      bool `json:"cmdZ"`
-	CmdY      bool `json:"cmdY"`
-	CmdB      bool `json:"cmdB"`
-	CmdI      bool `json:"cmdI"`
-	CmdU      bool `json:"cmdU"`
-	Cmd5      bool `json:"cmd5"`
-	CmdShiftL bool `json:"cmdShiftL"`
-	CmdShiftN bool `json:"cmdShiftN"`
-	CmdShift1 bool `json:"cmdShift1"`
-	CmdShiftC bool `json:"cmdShiftC"`
-	CmdH      bool `json:"cmdH"`
-	CtrlHome  bool `json:"ctrlHome"`
-	PageUp    bool `json:"pageUp"`
-	PageDown  bool `json:"pageDown"`
+	AltF9     bool `json:"altF9" mapstructure:"altF9"`
+	AltC      bool `json:"altC" mapstructure:"altC"`
+	Delete    bool `json:"delete" mapstructure:"delete"`
+	CmdShift2 bool `json:"cmdShift2" mapstructure:"cmdShift2"`
+	Return    bool `json:"return" mapstructure:"return"`
+	Esc       bool `json:"esc" mapstructure:"esc"`
+	CmdS      bool `json:"cmdS" mapstructure:"cmdS"`
+	Tab       bool `json:"tab" mapstructure:"tab"`
+	CmdZ      bool `json:"cmdZ" mapstructure:"cmdZ"`
+	CmdY      bool `json:"cmdY" mapstructure:"cmdY"`
+	CmdB      bool `json:"cmdB" mapstructure:"cmdB"`
+	CmdI      bool `json:"cmdI" mapstructure:"cmdI"`
+	CmdU      bool `json:"cmdU" mapstructure:"cmdU"`
+	Cmd5      bool `json:"cmd5" mapstructure:"cmd5"`
+	CmdShiftL bool `json:"cmdShiftL" mapstructure:"cmdShiftL"`
+	CmdShiftN bool `json:"cmdShiftN" mapstructure:"cmdShiftN"`
+	CmdShift1 bool `json:"cmdShift1" mapstructure:"cmdShift1"`
+	CmdShiftC bool `json:"cmdShiftC" mapstructure:"cmdShiftC"`
+	CmdH      bool `json:"cmdH" mapstructure:"cmdH"`
+	CtrlHome  bool `json:"ctrlHome" mapstructure:"ctrlHome"`
+	PageUp    bool `json:"pageUp" mapstructure:"pageUp"`
+	PageDown  bool `json:"pageDown" mapstructure:"pageDown"`
 }
 
 type Toolbar struct {
-	Left       [][]string
-	Right      [][]string
-	TimeSlider [][]string
+	Left       [][]string `mapstructure:"left"`
+	Right      [][]string `mapstructure:"right"`
+	TimeSlider [][]string `mapstructure:"timeSlider"`
 }
 
 type User struct {
 	Password *string `json:"password" mapstructure:"password"`
 	IsAdmin  *bool   `json:"is_admin" mapstructure:"is_admin"`
-	Username *string `json:"-" mapstructure:"-"`
+	Username *string `json:"username" mapstructure:"username"`
 }
 
 type Cookie struct {
-	KeyRotationInterval    int64  `json:"keyRotationInterval"`
-	SameSite               string `json:"sameSite"`
-	SessionLifetime        int64  `json:"sessionLifetime"`
-	SessionRefreshInterval int64  `json:"sessionRefreshInterval"`
+	KeyRotationInterval    int64  `json:"keyRotationInterval" mapstructure:"keyRotationInterval"`
+	SameSite               string `json:"sameSite" mapstructure:"sameSite"`
+	SessionLifetime        int64  `json:"sessionLifetime" mapstructure:"sessionLifetime"`
+	SessionRefreshInterval int64  `json:"sessionRefreshInterval" mapstructure:"sessionRefreshInterval"`
 }
 
 type SSOClient struct {
@@ -99,8 +95,8 @@ type SSOClient struct {
 }
 
 type SSO struct {
-	Issuer  string      `json:"issuer"`
-	Clients []SSOClient `json:"clients"`
+	Issuer  string      `json:"issuer" mapstructure:"issuer"`
+	Clients []SSOClient `json:"clients" mapstructure:"clients"`
 }
 
 func (s *SSO) GetAdminClient() *SSOClient {
@@ -113,92 +109,118 @@ func (s *SSO) GetAdminClient() *SSOClient {
 }
 
 type Cleanup struct {
-	Enabled       bool `json:"enabled"`
-	KeepRevisions int  `json:"keepRevisions"`
+	Enabled       bool `json:"enabled" mapstructure:"enabled"`
+	KeepRevisions int  `json:"keepRevisions" mapstructure:"keepRevisions"`
 }
 
 type ImportExportRateLimiting struct {
-	WindowMS int `json:"windowMS"`
-	Max      int `json:"max"`
+	WindowMS int `json:"windowMS" mapstructure:"windowMs"`
+	Max      int `json:"max" mapstructure:"max"`
 }
 
 type CommitRateLimiting struct {
-	Duration int  `json:"duration"`
-	Points   int  `json:"points"`
-	LoadTest bool `json:"loadTest"`
+	Duration int  `json:"duration" mapstructure:"duration"`
+	Points   int  `json:"points" mapstructure:"points"`
+	LoadTest bool `json:"loadTest" mapstructure:"loadTest"`
 }
 
 type SSLSettings struct {
-	Key  string   `json:"key"`
-	Cert string   `json:"cert"`
-	Ca   []string `json:"ca"`
+	Key  string   `json:"key" mapstructure:"key"`
+	Cert string   `json:"cert" mapstructure:"cert"`
+	Ca   []string `json:"ca" mapstructure:"ca"`
 }
 
 // PluginSettings definiert die Einstellungen für einzelne Plugins
 type PluginSettings struct {
-	Enabled bool `json:"enabled"`
+	Enabled bool `json:"enabled" mapstructure:"enabled"`
 }
 
 type Settings struct {
-	Root                               string
-	SettingsFilename                   string                                         `json:"settingsFilename"`
-	CredentialsFilename                string                                         `json:"credentialsFilename"`
-	Title                              string                                         `json:"title"`
-	ShowRecentPads                     bool                                           `json:"showRecentPads"`
-	Favicon                            *string                                        `json:"favicon"`
-	TTL                                TTL                                            `json:"ttl"`
-	UpdateServer                       string                                         `json:"updateServer"`
-	EnableDarkMode                     bool                                           `json:"enableDarkMode"`
-	SkinName                           string                                         `json:"skinName"`
-	SkinVariants                       string                                         `json:"skinVariants"`
-	IP                                 string                                         `json:"ip"`
-	Port                               string                                         `json:"port"`
-	SuppressErrorsInPadText            bool                                           `json:"suppressErrorsInPadText"`
-	SSL                                SSLSettings                                    `json:"ssl"`
-	DBType                             IDBType                                        `json:"dbType"`
-	DBSettings                         *DBSettings                                    `json:"dbSettings"`
-	DefaultPadText                     string                                         `json:"defaultPadText"`
-	PadOptions                         PadOptions                                     `json:"padOptions"`
-	EnableMetrics                      bool                                           `json:"enableMetrics"`
-	PadShortCutEnabled                 PadShortcutEnabled                             `json:"padShortCutEnabled"`
-	Toolbar                            Toolbar                                        `json:"toolbar"`
-	RequireSession                     bool                                           `json:"requireSession"`
-	EditOnly                           bool                                           `json:"editOnly"`
-	MaxAge                             int                                            `json:"maxAge"`
-	Minify                             bool                                           `json:"minify"`
-	Abiword                            *string                                        `json:"abiword"`
-	SOffice                            *string                                        `json:"soffice"`
-	AllowUnknownFileEnds               bool                                           `json:"allowUnknownFileEnds"`
-	LogLevel                           string                                         `json:"logLevel"`
-	DisableIPLogging                   bool                                           `json:"disableIPLogging"`
-	AutomaticReconnectionTimeout       int                                            `json:"automaticReconnectionTimeout"`
-	LoadTest                           bool                                           `json:"loadTest"`
-	DumpOnCleanExit                    bool                                           `json:"dumpOnCleanExit"`
-	IndentationOnNewLine               bool                                           `json:"indentationOnNewLine"`
-	SessionKey                         *string                                        `json:"SessionKey"`
-	TrustProxy                         bool                                           `json:"trustProxy"`
-	Cookie                             Cookie                                         `json:"cookie"`
-	RequireAuthentication              bool                                           `json:"requireAuthentication"`
-	RequireAuthorization               bool                                           `json:"requireAuthorization"`
-	Users                              map[string]User                                `json:"users"`
-	ShowSettingsInAdminPage            bool                                           `json:"showSettingsInAdminPage"`
-	ScrollWhenFocusLineIsOutOfViewport clientVars2.ScrollWhenFocusLineIsOutOfViewport `json:"scrollWhenFocusLineIsOutOfViewport"`
-	SocketIo                           SocketIoSettings                               `json:"socketIo"`
-	AuthenticationMethod               string                                         `json:"authenticationMethod"`
-	SSO                                *SSO                                           `json:"sso"`
-	Cleanup                            Cleanup                                        `json:"cleanup"`
-	ExposeVersion                      bool                                           `json:"exposeVersion"`
-	CustomLocaleStrings                map[string]map[string]string                   `json:"customLocaleStrings"`
-	ImportExportRateLimiting           ImportExportRateLimiting                       `json:"importExportRateLimiting"`
-	CommitRateLimiting                 CommitRateLimiting                             `json:"commitRateLimiting"`
-	ImportMaxFileSize                  int64                                          `json:"importMaxFileSize"`
-	EnableAdminUITests                 bool                                           `json:"enableAdminUITests"`
-	LowerCasePadIDs                    bool                                           `json:"lowerCasePadIds"`
-	RandomVersionString                string                                         `json:"randomVersionString"`
-	DevMode                            bool                                           `json:"devMode"`
-	GitVersion                         string                                         `json:"-"`
-	AvailableExports                   []string                                       `json:"availableExports"`
-	Plugins                            map[string]PluginSettings                      `json:"plugins"`
+	Title          string  `json:"title" mapstructure:"title"`
+	ShowRecentPads bool    `json:"showRecentPads" mapstructure:"showRecentPads"`
+	Favicon        *string `json:"favicon" mapstructure:"favicon"`
+
+	TTL            TTL    `json:"ttl" mapstructure:"ttl"`
+	UpdateServer   string `json:"updateServer" mapstructure:"updateServer"`
+	EnableDarkMode bool   `json:"enableDarkMode" mapstructure:"enableDarkMode"`
+
+	SkinName     string `json:"skinName" mapstructure:"skinName"`
+	SkinVariants string `json:"skinVariants" mapstructure:"skinVariants"`
+	IP           string `json:"ip" mapstructure:"ip"`
+	Port         string `json:"port" mapstructure:"port"`
+
+	SuppressErrorsInPadText bool `json:"suppressErrorsInPadText" mapstructure:"suppressErrorsInPadText"`
+
+	SSL        SSLSettings `json:"ssl" mapstructure:"ssl"`
+	DBType     IDBType     `json:"dbType" mapstructure:"dbType"`
+	DBSettings *DBSettings `json:"dbSettings" mapstructure:"dbSettings"`
+
+	DefaultPadText string `json:"defaultPadText" mapstructure:"defaultPadText"`
+
+	PadOptions         PadOptions         `json:"padOptions" mapstructure:"padOptions"`
+	PadShortcutEnabled PadShortcutEnabled `json:"padShortcutEnabled" mapstructure:"padShortcutEnabled"`
+
+	EnableMetrics bool `json:"enableMetrics" mapstructure:"enableMetrics"`
+
+	RequireSession bool `json:"requireSession" mapstructure:"requireSession"`
+	EditOnly       bool `json:"editOnly" mapstructure:"editOnly"`
+	MaxAge         int  `json:"maxAge" mapstructure:"maxAge"`
+	Minify         bool `json:"minify" mapstructure:"minify"`
+
+	AllowUnknownFileEnds bool `json:"allowUnknownFileEnds" mapstructure:"allowUnknownFileEnds"`
+
+	LogLevel                     string `json:"loglevel" mapstructure:"loglevel"`
+	DisableIPLogging             bool   `json:"disableIPLogging" mapstructure:"disableIPLogging"`
+	AutomaticReconnectionTimeout int    `json:"automaticReconnectionTimeout" mapstructure:"automaticReconnectionTimeout"`
+
+	LoadTest        bool `json:"loadTest" mapstructure:"loadTest"`
+	DumpOnCleanExit bool `json:"dumpOnUncleanExit" mapstructure:"dumpOnUncleanExit"`
+
+	TrustProxy bool `json:"trustProxy" mapstructure:"trustProxy"`
+
+	Cookie Cookie `json:"cookie" mapstructure:"cookie"`
+
+	RequireAuthentication bool `json:"requireAuthentication" mapstructure:"requireAuthentication"`
+	RequireAuthorization  bool `json:"requireAuthorization" mapstructure:"requireAuthorization"`
+
+	Users map[string]User `json:"users" mapstructure:"users"`
+
+	ShowSettingsInAdminPage bool `json:"showSettingsInAdminPage" mapstructure:"showSettingsInAdminPage"`
+
+	ScrollWhenFocusLineIsOutOfViewport clientVars2.ScrollWhenFocusLineIsOutOfViewport `json:"scrollWhenFocusLineIsOutOfViewport" mapstructure:"scrollWhenFocusLineIsOutOfViewport"`
+
+	SocketIo SocketIoSettings `json:"socketIo" mapstructure:"socketIo"`
+
+	AuthenticationMethod string `json:"authenticationMethod" mapstructure:"authenticationMethod"`
+
+	SSO *SSO `json:"sso" mapstructure:"sso"`
+
+	Toolbar Toolbar `json:"toolbar" mapstructure:"toolbar"`
+
+	Cleanup Cleanup `json:"cleanup" mapstructure:"cleanup"`
+
+	ExposeVersion bool `json:"exposeVersion" mapstructure:"exposeVersion"`
+
+	CustomLocaleStrings map[string]map[string]string `json:"customLocaleStrings" mapstructure:"customLocaleStrings"`
+
+	ImportExportRateLimiting ImportExportRateLimiting `json:"importExportRateLimiting" mapstructure:"importExportRateLimiting"`
+	CommitRateLimiting       CommitRateLimiting       `json:"commitRateLimiting" mapstructure:"commitRateLimiting"`
+
+	ImportMaxFileSize  int64 `json:"importMaxFileSize" mapstructure:"importMaxFileSize"`
+	EnableAdminUITests bool  `json:"enableAdminUITests" mapstructure:"enableAdminUITests"`
+	LowerCasePadIDs    bool  `json:"lowerCasePadIds" mapstructure:"lowerCasePadIds"`
+
+	DevMode bool `json:"devMode" mapstructure:"devMode"`
+
+	AvailableExports     []string `json:"availableExports" mapstructure:"availableExports"`
+	IndentationOnNewLine bool     `json:"indentationOnNewLine" mapstructure:"indentationOnNewLine"`
+
+	Plugins map[string]PluginSettings `json:"plugins" mapstructure:"plugins"`
+
+	// Untracked fields
+	Root                string `json:"-"`
+	GitVersion          string `json:"-"`
+	RandomVersionString string `json:"-"`
 }
 
 // IsPluginEnabled prüft, ob ein Plugin in den Settings aktiviert ist
@@ -224,201 +246,15 @@ func (s *Settings) GetPublicSettings() PublicSettings {
 	}
 }
 
-func (s *Settings) abiwordAvailable() string {
-	if s.Abiword != nil {
-		if runtime.GOOS == "windows" {
-			return "withoutPDF"
-		}
-		return "yes"
-	}
-	return "no"
-}
-
-func (s *Settings) sofficeAvailable() string {
-	if s.SOffice != nil {
-		if runtime.GOOS == "windows" {
-			return "withoutPDF"
-		}
-		return "yes"
-	}
-	return "no"
-}
-
-func (s *Settings) ExportToExternalToolsAvailable() string {
-	var abiword = s.abiwordAvailable()
-	var soffice = s.sofficeAvailable()
-
-	if abiword == "no" && soffice == "no" {
-		return "no"
-	}
-	return "yes"
-}
-
 type SocketIoSettings struct {
 	MaxHttpBufferSize int64 `json:"maxHttpBufferSize"`
 }
 
 var Displayed Settings
 
-func stripWithoutWhitespace() string {
-	return ""
-}
-
-var rgx = regexp.MustCompile(`\S`)
-
-func stripWithWhitespace(string string, start *int, end *int) string {
-	// slice only if start and end are not nil
-	if start != nil && end != nil {
-		string = string[*start:*end]
-	} else if start != nil {
-		string = string[*start:]
-	}
-
-	return rgx.ReplaceAllString(string, " ")
-}
-
-func isEscaped(jsonString string, quotePosition int) bool {
-	index := quotePosition - 1
-	backslashCount := 0
-
-	for string(jsonString[index]) == "\\" {
-		index -= 1
-		backslashCount += 1
-	}
-
-	return backslashCount%2 == 1
-}
-
 type Options struct {
 	Whitespace     bool
 	TrailingCommas bool
-}
-
-const notInsideComment = 0
-const singleComment = 1
-const multiComment = 2
-
-func StripWithOptions(jsonString string, options *Options) string {
-
-	// if options are not provided, use default options
-	// whitespace: true
-	// trailingCommas: false
-	if options == nil {
-		options = &Options{Whitespace: true, TrailingCommas: false}
-	}
-
-	isInsideString := false
-	isInsideComment := notInsideComment
-	offset := 0
-	buffer := ""
-	result := ""
-	commaIndex := -1
-
-	// shorthand function
-	strip := func(index int) string {
-		if options.Whitespace {
-			return stripWithWhitespace(jsonString, &offset, &index)
-		} else {
-			return stripWithoutWhitespace()
-		}
-	}
-
-	for index := 0; index < len(jsonString); index++ {
-		currentCharacter := string(jsonString[index])
-		nextCharacter := ""
-
-		if index+1 < len(jsonString) {
-			nextCharacter = string(jsonString[index+1])
-		}
-
-		if isInsideComment == notInsideComment && currentCharacter == `"` {
-			// Enter or exit string
-			escaped := isEscaped(jsonString, index)
-			if !escaped {
-				isInsideString = !isInsideString
-			}
-		}
-
-		if isInsideString {
-			continue
-		}
-
-		if isInsideComment == notInsideComment && currentCharacter+nextCharacter == "//" {
-			// Enter single-line comment
-			buffer += jsonString[offset:index]
-			offset = index
-			isInsideComment = singleComment
-			index++
-		} else if isInsideComment == singleComment && currentCharacter+nextCharacter == "\r\n" {
-			// Exit single-line comment via \r\n
-			index++
-			isInsideComment = notInsideComment
-			buffer += strip(index)
-			offset = index
-		} else if isInsideComment == singleComment && currentCharacter == "\n" {
-			// Exit single-line comment via \n
-			isInsideComment = notInsideComment
-			buffer += strip(index)
-			offset = index
-		} else if isInsideComment == notInsideComment && currentCharacter+nextCharacter == "/*" {
-			// Enter multiline comment
-			buffer += jsonString[offset:index]
-			offset = index
-			isInsideComment = multiComment
-			index++
-
-		} else if isInsideComment == multiComment && currentCharacter+nextCharacter == "*/" {
-			// Exit multiline comment
-			index++
-			isInsideComment = notInsideComment
-			buffer += strip(index + 1)
-			offset = index + 1
-
-		} else if options.TrailingCommas && isInsideComment == notInsideComment {
-			if commaIndex != -1 {
-				if currentCharacter == "}" || currentCharacter == "]" {
-					// Strip trailing comma
-					buffer += jsonString[offset:index]
-					if options.Whitespace {
-						s, e := 0, 1
-						result += stripWithWhitespace(jsonString, &s, &e)
-					} else {
-						result += stripWithoutWhitespace()
-					}
-					result += buffer[1:]
-					buffer = ""
-					offset = index
-					commaIndex = -1
-				} else if currentCharacter != " " && currentCharacter != "\t" && currentCharacter != "\r" && currentCharacter != "\n" {
-					// Hit non-whitespace following a comma; comma is not trailing
-					buffer += jsonString[offset:index]
-					offset = index
-					commaIndex = -1
-				}
-			} else if currentCharacter == "," {
-				// Flush buffer prior to this point, and save new comma index
-				result += buffer + jsonString[offset:index]
-				buffer = ""
-				offset = index
-				commaIndex = index
-
-			}
-		}
-	}
-
-	var end string
-	if isInsideComment > notInsideComment {
-		if options.Whitespace {
-			end = stripWithWhitespace(jsonString[offset:], nil, nil)
-		} else {
-			end = stripWithoutWhitespace()
-		}
-
-	} else {
-		end = jsonString[offset:]
-	}
-
-	return result + buffer + end
 }
 
 func InitSettings(logger *zap.SugaredLogger) {
@@ -447,16 +283,9 @@ func InitSettings(logger *zap.SugaredLogger) {
 		}
 	}
 
-	var settingsFilePath = filepath.Join(pathToRoot, "settings.json")
-	settings, err := os.ReadFile(settingsFilePath)
+	setting, err := ReadConfig()
 	if err != nil {
-		logger.Infof("No settings file found. Using default settings.")
-	}
-	settings = []byte(StripWithOptions(string(settings), &Options{Whitespace: true, TrailingCommas: true}))
-
-	setting, err := ReadConfig(string(settings))
-	if err != nil {
-		logger.Errorf("error is " + err.Error())
+		logger.Errorf("Error during reading the config " + err.Error())
 		return
 	}
 

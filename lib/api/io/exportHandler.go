@@ -30,7 +30,7 @@ func GetExport(ctx *fiber.Ctx, exportHandler *io.ExportEtherpad, settings *setti
 		return ctx.Status(400).SendString("Invalid export type")
 	}
 
-	if settings.ExportToExternalToolsAvailable() == "no" && slices.Contains(externalTypes, exportType) {
+	if slices.Contains(externalTypes, exportType) {
 		logger.Warnf("Export to %s requested but exporting is disabled in settings", exportType)
 		return ctx.Status(503).SendString("Exporting to " + exportType + " is not available")
 	}

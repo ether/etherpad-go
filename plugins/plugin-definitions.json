@@ -2,6 +2,7 @@
   "plugins": {
     "ep_etherpad-lite": "1.8.13",
     "ep_align": "0.0.1",
+    "ep_markdown": "0.0.1",
     "ep_spellcheck": "0.0.1"
   },
   "parts": [
@@ -206,6 +207,22 @@
       ],
       "plugin": "ep_align",
       "full_name": "ep_align/ep_align"
+    },
+    {
+      "name": "ep_markdown",
+      "settings_menu_items": [
+        {
+          "key": "markdown",
+          "title": "ep_markdown.showMarkdown",
+          "id": "options-markdown"
+        }
+      ],
+      "client_hooks": {
+        "aceEditorCSS": "ep_markdown/static/js/markdown",
+        "postAceInit": "ep_markdown/static/js/markdown"
+      },
+      "plugin": "ep_markdown",
+      "full_name": "ep_markdown/ep_markdown"
     },
     {
       "name": "ep_spellcheck",

@@ -4,8 +4,6 @@ import {InstalledPlugin, PluginDef, SearchParams} from "./Plugin.ts";
 import {useDebounce} from "../utils/useDebounce.ts";
 import {Trans, useTranslation} from "react-i18next";
 import {SearchField} from "../components/SearchField.tsx";
-import {ArrowUpFromDot, Download, Trash} from "lucide-react";
-import {IconButton} from "../components/IconButton.tsx";
 import {determineSorting} from "../utils/sorting.ts";
 
 
@@ -142,17 +140,6 @@ export const HomePage = () => {
         })
     }, [searchParams]);
 
-    const uninstallPlugin  = (pluginName: string)=>{
-        settingSocket!.emit('uninstall', pluginName);
-        // Remove plugin
-        setInstalledPlugins(installedPlugins.filter(i=>i.name !== pluginName))
-    }
-
-    const installPlugin = (pluginName: string)=>{
-        settingSocket!.emit('install', pluginName);
-        setPlugins(plugins.filter(plugin=>plugin.name !== pluginName))
-    }
-
     useDebounce(()=>{
         setSearchParams({
             ...searchParams,
@@ -172,7 +159,6 @@ export const HomePage = () => {
             <tr>
                 <th><Trans i18nKey="admin_plugins.name"/></th>
                 <th><Trans i18nKey="admin_plugins.version"/></th>
-                <th><Trans i18nKey="ep_admin_pads.ep_adminpads2_action"/></th>
             </tr>
             </thead>
             <tbody style={{overflow: 'auto'}}>
@@ -180,13 +166,6 @@ export const HomePage = () => {
                 return <tr key={index}>
                     <td><a rel="noopener noreferrer" href={`https://npmjs.com/${plugin.name}`} target="_blank">{plugin.name}</a></td>
                     <td>{plugin.version}</td>
-                    <td>
-                    {
-                        plugin.updatable ?
-                            <IconButton onClick={() => installPlugin(plugin.name)} icon={<ArrowUpFromDot/>} title="Update"></IconButton>
-                            : <IconButton disabled={plugin.name == "ep_etherpad-lite"} icon={<Trash/>} title={<Trans i18nKey="admin_plugins.installed_uninstall.value"/>} onClick={() => uninstallPlugin(plugin.name)}/>
-                    }
-                    </td>
                         </tr>
                     })}
             </tbody>
@@ -223,7 +202,6 @@ export const HomePage = () => {
                     sortDir: searchParams.sortDir === "asc"? "desc": "asc"
                   })
                 }}><Trans i18nKey="admin_plugins.last-update"/></th>
-                <th><Trans i18nKey="ep_admin_pads.ep_adminpads2_action"/></th>
             </tr>
             </thead>
             <tbody style={{overflow: 'auto'}}>
@@ -234,9 +212,6 @@ export const HomePage = () => {
                             <td>{plugin.description}</td>
                             <td>{plugin.version}</td>
                             <td>{plugin.time}</td>
-                            <td>
-                                <IconButton icon={<Download/>} onClick={() => installPlugin(plugin.name)} title={<Trans i18nKey="admin_plugins.available_install.value"/>}/>
-                            </td>
                         </tr>
                     })
                 :

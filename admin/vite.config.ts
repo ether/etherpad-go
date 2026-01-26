@@ -6,7 +6,7 @@ function chartingLibrary(): PluginOption {
         enforce: 'pre',
         apply: 'serve',
         transformIndexHtml: async (html, ctx)=>{
-            return html.replace('<div id="loading"></div>', 'div id="loading"></div><span id="config" data-config="{&#34;authority&#34;:&#34;http://localhost:3000/oauth2/&#34;,&#34;clientId&#34;:&#34;admin_client&#34;,&#34;jwksUri&#34;:&#34;http://localhost:3000/oauth2/.well-known/jwks.json&#34;,&#34;redirectUri&#34;:&#34;http://localhost:5173/admin/&#34;,&#34;scope&#34;:[&#34;openid&#34;,&#34;profile&#34;,&#34;email&#34;,&#34;offline&#34;]}"></span>')
+            return html.replace('<div id="loading"></div>', 'div id="loading"></div><span id="config" data-config="{&#34;authority&#34;:&#34;http://localhost:9001/oauth2/&#34;,&#34;clientId&#34;:&#34;admin_client&#34;,&#34;jwksUri&#34;:&#34;http://localhost:9001/oauth2/.well-known/jwks.json&#34;,&#34;redirectUri&#34;:&#34;http://localhost:5173/admin/&#34;,&#34;scope&#34;:[&#34;openid&#34;,&#34;profile&#34;,&#34;email&#34;,&#34;offline&#34;]}"></span>')
         }
     };
 }
@@ -22,46 +22,46 @@ export default defineConfig({
     server: {
         proxy: {
             '/admin/ws': {
-                target: 'http://localhost:3000',
+                target: 'http://localhost:9001',
                 changeOrigin: true,
                 ws: true,
                 configure: (proxy)=> {
                     // @ts-ignore
                     proxy.on('proxyReqWs', (proxyReq: any, req: any, socket: any, options: any, head: any) => {
-                        proxyReq.setHeader('origin', 'http://localhost:3000');
+                        proxyReq.setHeader('origin', 'http://localhost:9001');
                     });
                     // @ts-ignore
                     proxy.on('proxyReq', (proxyReq: any, req: any, res: any, options: any) => {
-                        proxyReq.setHeader('origin', 'http://localhost:3000');
+                        proxyReq.setHeader('origin', 'http://localhost:9001');
                     });
                 }
             },
             '/admin/validate': {
-                target: 'http://localhost:3000',
+                target: 'http://localhost:9001',
                 changeOrigin: true,
             },
             '/admin-auth/': {
-                target: 'http://localhost:3000',
+                target: 'http://localhost:9001',
                 changeOrigin: true,
             },
             '/admin/locales': {
-                target: 'http://localhost:3000',
+                target: 'http://localhost:9001',
                 changeOrigin: true,
             },
             '/p/': {
-                target: 'http://localhost:3000',
+                target: 'http://localhost:9001',
                 changeOrigin: true,
             },
             '/js/pad': {
-                target: 'http://localhost:3000',
+                target: 'http://localhost:9001',
                 changeOrigin: true,
             },
             '/css': {
-                target: 'http://localhost:3000',
+                target: 'http://localhost:9001',
                 changeOrigin: true,
             },
             '/socket.io/': {
-                target: 'http://localhost:3000',
+                target: 'http://localhost:9001',
                 changeOrigin: true,
             }
         }

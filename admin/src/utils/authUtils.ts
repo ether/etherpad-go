@@ -97,7 +97,9 @@ function startRefreshInterval() {
             } else {
                 console.error('Failed to refresh token', resp.statusText);
                 sessionStorage.removeItem('refresh_token');
+                sessionStorage.removeItem('pkce_code_verifier');
                 sessionStorage.removeItem('token');
+                globalThis.location.search = '';
                 globalThis.location.reload();
             }
         } catch (e) {
@@ -151,6 +153,8 @@ export async function initAuth(): Promise<string> {
             // Fehler beim Token-Austausch
             sessionStorage.removeItem('refresh_token');
             sessionStorage.removeItem('token');
+            sessionStorage.removeItem('pkce_code_verifier');
+            globalThis.location.search = '';
             globalThis.location.reload();
         } catch (e) {
             console.error('OIDC token exchange failed', e);
