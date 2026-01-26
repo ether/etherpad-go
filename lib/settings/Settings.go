@@ -212,7 +212,8 @@ type Settings struct {
 
 	DevMode bool `json:"devMode" mapstructure:"devMode"`
 
-	AvailableExports []string `json:"availableExports" mapstructure:"availableExports"`
+	AvailableExports     []string `json:"availableExports" mapstructure:"availableExports"`
+	IndentationOnNewLine bool     `json:"indentationOnNewLine" mapstructure:"indentationOnNewLine"`
 
 	Plugins map[string]PluginSettings `json:"plugins" mapstructure:"plugins"`
 

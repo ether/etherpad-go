@@ -170,7 +170,7 @@ func (f *Factory) NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apoo
 		UserName:                           currentAuthor.Name,
 		UserId:                             sessionInfo.Author,
 		AvailableExports:                   retrievedSettings.AvailableExports,
-		IndentationOnNewLine:               false,
+		IndentationOnNewLine:               retrievedSettings.IndentationOnNewLine,
 		ScrollWhenFocusLineIsOutOfViewport: retrievedSettings.ScrollWhenFocusLineIsOutOfViewport,
 		Plugins:                            rootPlugin,
 		InitialChangesets:                  make([]string, 0),

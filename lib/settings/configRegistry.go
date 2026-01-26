@@ -261,6 +261,11 @@ var Registry = []ConfigKey{
 		Default:     []string{"txt", "pdf", "etherpad", "word", "open", "html", "markdown"},
 		Description: "Available export formats",
 	},
+	{
+		Key:         IndentationOnNewLine,
+		Default:     true,
+		Description: "Enable automatic indentation on new lines",
+	},
 
 	// ---------------------------------------------------------------------
 	// Plugins

@@ -16,6 +16,7 @@ const (
 	AuthenticationMethod                = "authenticationMethod"
 	EnableDarkMode                      = "enableDarkMode"
 	AvailableExports                    = "availableExports"
+	IndentationOnNewLine                = "indentationOnNewLine"
 	UpdateServer                        = "updateServer"
 	DBType                              = "dbType"
 	DBSettingsHost                      = "dbSettings.host"
