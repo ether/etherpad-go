@@ -105,7 +105,7 @@ You can activate them in the settings.json file or via environment variables.
 
 E.g.
 
-```json`
+```json
 {
   "plugins": {
     "ep_align":{ "enabled": true }
