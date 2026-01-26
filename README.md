@@ -54,6 +54,8 @@ to find root level options. The sublevel commands e.g. like `./etherpad-go confi
 
 3. Build the Go server:
     ```bash
+    go install github.com/a-h/templ/cmd/templ@latest
+    templ generate
     go build -o etherpad-go ./main.go
     ```
 4. Copy the binary where you want to run it
