@@ -116,16 +116,6 @@ func (f *Factory) NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apoo
 		etherPadConvertedAttribs[strconv.Itoa(k)] = v.ToStringSlice()
 	}
 
-	var abiwordAvailable = "no"
-	if retrievedSettings.Abiword != nil && *retrievedSettings.Abiword != "" {
-		abiwordAvailable = "yes"
-	}
-
-	var sofficeAvailable = "no"
-	if retrievedSettings.SOffice != nil && *retrievedSettings.SOffice != "" {
-		sofficeAvailable = "yes"
-	}
-
 	var savedRevisions = make([]clientVars.SavedRevisionClient, 0)
 	for _, rev := range pad.SavedRevisions {
 		savedRevisions = append(savedRevisions, clientVars.SavedRevisionClient{
@@ -179,10 +169,8 @@ func (f *Factory) NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apoo
 		SessionRefreshInterval:             86400000,
 		UserName:                           currentAuthor.Name,
 		UserId:                             sessionInfo.Author,
-		AbiwordAvailable:                   abiwordAvailable,
-		SOfficeAvailable:                   sofficeAvailable,
 		AvailableExports:                   retrievedSettings.AvailableExports,
-		IndentationOnNewLine:               retrievedSettings.IndentationOnNewLine,
+		IndentationOnNewLine:               false,
 		ScrollWhenFocusLineIsOutOfViewport: retrievedSettings.ScrollWhenFocusLineIsOutOfViewport,
 		Plugins:                            rootPlugin,
 		InitialChangesets:                  make([]string, 0),

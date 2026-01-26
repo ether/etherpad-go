@@ -165,14 +165,21 @@ func newAuthor(host string, logger *zap.SugaredLogger) {
 		updateMetricsUI(host)
 	})
 
-	pad.OnMessage(func(msg map[string]interface{}) {
-		if msg["type"] == "COLLABROOM" {
-			if data, ok := msg["data"].(map[string]interface{}); ok {
-				if data["type"] == "ACCEPT_COMMIT" {
-					atomic.AddInt64(&stats.AcceptedCommit, 1)
-				}
-			}
-		}
+	pad.OnAcceptCommit(func(rev int) {
+		atomic.AddInt64(&stats.AcceptedCommit, 1)
+		updateMetricsUI(host)
+	})
+
+	pad.On("outOfSync", func(data interface{}) {
+		info, _ := data.(map[string]interface{})
+		logger.Warnf("Client out of sync: %+v - reconnecting", info)
+		atomic.AddInt64(&stats.ErrorCount, 1)
+		atomic.AddInt64(&stats.ClientsConnected, -1)
+		atomic.AddInt64(&stats.AuthorsConnected, -1)
+		pad.Close()
+
+		time.Sleep(500 * time.Millisecond)
+		go newAuthor(host, logger)
 	})
 
 	pad.OnNewContents(func(atext apool.AText) {

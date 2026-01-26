@@ -28,8 +28,6 @@ const (
 	DBSettingsPassword                  = "dbSettings.password"
 	DBSettingsCharset                   = "dbSettings.charset"
 	DBSettingsFilename                  = "dbSettings.filename"
-	DBSettingsCollection                = "dbSettings.collection"
-	DBSettingsURL                       = "dbSettings.url"
 	DefaultPadText                      = "defaultPadText"
 	PadOptionsNoColors                  = "padOptions.noColors"
 	PadOptionsShowControls              = "padOptions.showControls"
@@ -106,11 +104,8 @@ const (
 	SsoIssuer                           = "sso.issuer"
 	SsoClients                          = "sso.clients"
 
-	// ep_align
-	EpAlignEnabled = "epalign.enabled"
-
-	// ep_spellcheck
-	EpSpellcheckEnabled = "epspellcheck.enabled"
-
-	EpMarkdownEnabled = "epmarkdown.enabled"
+	// plugins
+	EpAlignEnabled      = "plugins.ep_align.enabled"
+	EpSpellcheckEnabled = "plugins.ep_spellcheck.enabled"
+	EpMarkdownEnabled   = "plugins.ep_markdown.enabled"
 )

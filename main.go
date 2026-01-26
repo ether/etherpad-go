@@ -59,6 +59,8 @@ func main() {
 		case "multiload":
 			loadtest.RunMultiFromCLI(setupLogger, os.Args[2:])
 			return
+		case "config":
+			settings2.HandleConfigCommand(setupLogger)
 		case "-h", "--help", "help":
 			fmt.Println("Usage: etherpad [command] [options]")
 			fmt.Println("Commands:")
@@ -66,6 +68,7 @@ func main() {
 			fmt.Println("  loadtest   Run a load test on a single pad")
 			fmt.Println("  multiload  Run a multi-pad load test")
 			fmt.Println("  (none)     Start the Etherpad server")
+			fmt.Println(" config     Manage configuration settings")
 			return
 		}
 	}
@@ -153,7 +156,7 @@ func main() {
 		app.Get("/admin/validate", func(c *fiber.Ctx) error {
 			token := c.Query("token")
 			if token == "" {
-				setupLogger.Warn("No token provided for admin validation")
+				setupLogger.Info("No token provided for admin validation")
 				return c.Status(http.StatusUnauthorized).Send([]byte("No token provided"))
 			}
 			ok, err := authenticator.ValidateAdminToken(token, ssoAdminClient)

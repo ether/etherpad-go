@@ -326,7 +326,17 @@ func connect(host string, logger *zap.SugaredLogger) *Pad {
 							}
 							if newRev, ok := data["newRev"].(float64); ok {
 								if int(newRev)-1 != pad.baseRev {
-									logger.Errorf("wrong incoming revision :%v/%v", int(newRev), pad.baseRev)
+									gap := int(newRev) - 1 - pad.baseRev
+									if gap > 0 {
+										logger.Warnf("missed %d revisions (server: %d, local: %d) - requesting resync",
+											gap, int(newRev), pad.baseRev)
+										// Emit event für Resync oder Reconnect
+										pad.emit("outOfSync", map[string]interface{}{
+											"serverRev": int(newRev),
+											"localRev":  pad.baseRev,
+											"gap":       gap,
+										})
+									}
 									continue
 								}
 							}
@@ -409,6 +419,7 @@ func connect(host string, logger *zap.SugaredLogger) *Pad {
 									pad.outgoing.baseRev = int(newRev)
 								}
 								pad.sendMessage(nil)
+								pad.emit("acceptCommit", int(newRev))
 							}
 						}
 					}
@@ -419,10 +430,6 @@ func connect(host string, logger *zap.SugaredLogger) *Pad {
 					if event == "message" {
 						data, ok := obj["data"].(map[string]interface{})
 						if ok {
-							typeStr, _ := data["type"].(string)
-							if typeStr == "CLIENT_READY" {
-								pad.emit("connected", nil)
-							}
 							pad.emit("message", data)
 						}
 					}
@@ -534,6 +541,14 @@ func (p *Pad) OnMessage(callback func(msg map[string]interface{})) {
 	p.On("message", func(data interface{}) {
 		if msg, ok := data.(map[string]interface{}); ok {
 			callback(msg)
+		}
+	})
+}
+
+func (p *Pad) OnAcceptCommit(callback func(rev int)) {
+	p.On("acceptCommit", func(data interface{}) {
+		if rev, ok := data.(int); ok {
+			callback(rev)
 		}
 	})
 }

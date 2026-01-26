@@ -17,6 +17,6 @@ func ServeAdminWs(w http.ResponseWriter, r *http.Request, fiber *fiber.Ctx, conf
 	}
 	client := &Client{Hub: handler.hub, Conn: conn, Send: make(chan []byte, 256), Ctx: fiber, adminHandler: &handler}
 	client.Hub.Register <- client
+	go client.writePump()
 	client.readPumpAdmin(configSettings, logger)
-	client.writePump()
 }
