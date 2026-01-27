@@ -146,7 +146,7 @@ export const PadPage = ()=>{
                 <div className="">
                     <div className=""></div>
                     <div className="">
-                        {t("ep_admin_pads.ep_adminpads2_confirm", {
+                        {t("ep_adminpads2_confirm", {
                         padID: padToDelete,
                         })}
                     </div>
@@ -188,7 +188,7 @@ export const PadPage = ()=>{
               setCreatePadDialogOpen(false);
             }}>x</button>
               <div style={{display: 'grid', gap: '10px', gridTemplateColumns: 'auto auto', marginBottom: '1rem'}}>
-                <label><Trans i18nKey="ep_admin_pads.ep_adminpads2_padname"/></label>
+                <label><Trans i18nKey="ep_adminpads2_padname"/></label>
                 <input {...register('padName', {
                   required: true
                 })}/>
@@ -199,12 +199,12 @@ export const PadPage = ()=>{
       </Dialog.Portal>
       </Dialog.Root>
       <span className="manage-pads-header">
-                <h1><Trans i18nKey="ep_admin_pads.ep_adminpads2_manage-pads"/></h1>
+                <h1><Trans i18nKey="ep_adminpads2_manage-pads"/></h1>
         <span style={{width: '29px', marginBottom: 'auto', marginTop: 'auto', flexGrow: 1}}><IconButton style={{float: 'right'}} icon={<PlusIcon/>} title={<Trans i18nKey="index.newPad"/>} onClick={()=>{
           setCreatePadDialogOpen(true)
         }}/></span>
       </span>
-        <SearchField value={searchTerm} onChange={v=>setSearchTerm(v.target.value)} placeholder={t('ep_admin_pads.ep_adminpads2_search-heading')}/>
+        <SearchField value={searchTerm} onChange={v=>setSearchTerm(v.target.value)} placeholder={t('ep_adminpads2_search-heading')}/>
         <table>
             <thead>
             <tr className="search-pads">
@@ -214,21 +214,21 @@ export const PadPage = ()=>{
                         sortBy: 'padName',
                         ascending: !searchParams.ascending
                     })
-                }}><Trans i18nKey="ep_admin_pads.ep_adminpads2_padname"/></th>
+                }}><Trans i18nKey="ep_adminpads2_padname"/></th>
                 <th className={determineSorting(searchParams.sortBy, searchParams.ascending, 'userCount')} onClick={()=>{
                     setSearchParams({
                         ...searchParams,
                         sortBy: 'userCount',
                         ascending: !searchParams.ascending
                     })
-                }}><Trans i18nKey="ep_admin_pads.ep_adminpads2_pad-user-count"/></th>
+                }}><Trans i18nKey="ep_adminpads2_pad-user-count"/></th>
                 <th className={determineSorting(searchParams.sortBy, searchParams.ascending, 'lastEdited')} onClick={()=>{
                     setSearchParams({
                         ...searchParams,
                         sortBy: 'lastEdited',
                         ascending: !searchParams.ascending
                     })
-                }}><Trans i18nKey="ep_admin_pads.ep_adminpads2_last-edited"/></th>
+                }}><Trans i18nKey="ep_adminpads2_last-edited"/></th>
                 <th className={determineSorting(searchParams.sortBy, searchParams.ascending, 'revisionNumber')} onClick={()=>{
                     setSearchParams({
                         ...searchParams,
@@ -236,7 +236,7 @@ export const PadPage = ()=>{
                         ascending: !searchParams.ascending
                     })
                 }}>Revision number</th>
-                <th><Trans i18nKey="ep_admin_pads.ep_adminpads2_action"/></th>
+                <th><Trans i18nKey="ep_adminpads2_action"/></th>
             </tr>
             </thead>
             <tbody className="search-pads-body">
@@ -249,11 +249,11 @@ export const PadPage = ()=>{
                         <td style={{textAlign: 'center'}}>{pad.revisionNumber}</td>
                         <td>
                             <div className="settings-button-bar">
-                                <IconButton icon={<Trash2/>} title={<Trans i18nKey="ep_admin_pads.ep_adminpads2_delete.value"/>} onClick={()=>{
+                                <IconButton icon={<Trash2/>} title={<Trans i18nKey="ep_adminpads2_delete.value"/>} onClick={()=>{
                                     setPadToDelete(pad.padName)
                                     setDeleteDialog(true)
                                 }}/>
-                                <IconButton icon={<FileStack/>} title={<Trans i18nKey="ep_admin_pads.ep_adminpads2_cleanup"/>} onClick={()=>{
+                                <IconButton icon={<FileStack/>} title={<Trans i18nKey="ep_adminpads2_cleanup"/>} onClick={()=>{
                                   cleanupPad(pad.padName)
                                 }}/>
                                 <IconButton icon={<Eye/>} title={<Trans i18nKey="index.createOpenPad"/>} onClick={()=>window.open(`../../p/${pad.padName}`, '_blank')}/>

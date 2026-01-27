@@ -9,40 +9,93 @@ import (
 	"go.uber.org/zap"
 )
 
-func InitPlugin(hookSystem *hooks.Hook, uiAssets embed.FS, zap *zap.SugaredLogger) {
+type EpAlignPlugin struct {
+	enabled bool
+}
+
+func (p *EpAlignPlugin) Name() string {
+	return "ep_align"
+}
+
+func (p *EpAlignPlugin) SetEnabled(enabled bool) {
+	p.enabled = enabled
+}
+
+func (p *EpAlignPlugin) IsEnabled() bool {
+	return p.enabled
+}
+
+func (p *EpAlignPlugin) Enabled() bool {
+	return true
+}
+
+func (p *EpAlignPlugin) Description() string {
+	return "Adds text alignment support and export handling"
+}
+
+func (p *EpAlignPlugin) Init(
+	hookSystem *hooks.Hook,
+	uiAssets embed.FS,
+	zap *zap.SugaredLogger,
+) {
 	zap.Info("Initializing ep_align plugin")
+
 	// HTML Export hook
-	hookSystem.EnqueueHook("getLineHTMLForExport", func(ctx any) {
-		var event = ctx.(*events.LineHtmlForExportContext)
-		GetLineHTMLForExport(event)
-	})
+	hookSystem.EnqueueHook(
+		"getLineHTMLForExport",
+		func(ctx any) {
+			event := ctx.(*events.LineHtmlForExportContext)
+			GetLineHTMLForExport(event)
+		},
+	)
 
 	// PDF Export hook
-	hookSystem.EnqueueHook("getLinePDFForExport", func(ctx any) {
-		var event = ctx.(*events.LinePDFForExportContext)
-		GetLinePDFForExport(event)
-	})
+	hookSystem.EnqueueHook(
+		"getLinePDFForExport",
+		func(ctx any) {
+			event := ctx.(*events.LinePDFForExportContext)
+			GetLinePDFForExport(event)
+		},
+	)
 
 	// DOCX Export hook
-	hookSystem.EnqueueHook("getLineDocxForExport", func(ctx any) {
-		var event = ctx.(*events.LineDocxForExportContext)
-		GetLineDocxForExport(event)
-	})
+	hookSystem.EnqueueHook(
+		"getLineDocxForExport",
+		func(ctx any) {
+			event := ctx.(*events.LineDocxForExportContext)
+			GetLineDocxForExport(event)
+		},
+	)
 
 	// ODT Export hook
-	hookSystem.EnqueueHook("getLineOdtForExport", func(ctx any) {
-		var event = ctx.(*events.LineOdtForExportContext)
-		GetLineOdtForExport(event)
-	})
+	hookSystem.EnqueueHook(
+		"getLineOdtForExport",
+		func(ctx any) {
+			event := ctx.(*events.LineOdtForExportContext)
+			GetLineOdtForExport(event)
+		},
+	)
 
-	hookSystem.EnqueueGetPluginTranslationHooks(func(ctx *events.LocaleLoadContext) {
-		var loadedTranslations, err = utils.LoadPluginTranslations(ctx.RequestedLocale, uiAssets, "ep_align")
-		if err != nil {
-			return
-		}
-		zap.Debugf("Loading ep_align translations for locale: %s", ctx.RequestedLocale)
-		for k, v := range loadedTranslations {
-			ctx.LoadedTranslations[k] = v
-		}
-	})
+	// Translation hook
+	hookSystem.EnqueueGetPluginTranslationHooks(
+		func(ctx *events.LocaleLoadContext) {
+			loadedTranslations, err := utils.LoadPluginTranslations(
+				ctx.RequestedLocale,
+				uiAssets,
+				"ep_align",
+			)
+			if err != nil {
+				return
+			}
+
+			zap.Debugf(
+				"Loading ep_align translations for locale: %s",
+				ctx.RequestedLocale,
+			)
+
+			for k, v := range loadedTranslations {
+				ctx.LoadedTranslations[k] = v
+			}
+		},
+	)
 }

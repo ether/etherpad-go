@@ -9,10 +9,11 @@ export type PluginDef = {
 
 export type InstalledPlugin = {
     name: string,
-    path: string,
-    realPath: string,
+    description: string,
+    backendPath: string,
+    frontendPath: string,
+    enabled: boolean
     version:string,
-    updatable?: boolean
 }
 
 

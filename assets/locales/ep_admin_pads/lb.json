@@ -1,16 +1,29 @@
 {
-	"@metadata": {
-		"authors": [
-			"Robby",
-			"Volvox"
-		]
-	},
-	"ep_adminpads2_confirm": "Wëllt Dir de Pad {{padID}} wierklech läschen?",
-	"ep_adminpads2_delete.value": "Läschen",
-	"ep_adminpads2_loading": "Lueden...",
-	"ep_adminpads2_no-results": "Keng Resultater",
-	"ep_adminpads2_padname": "Padnumm",
-	"ep_adminpads2_search-box.placeholder": "Sichbegrëff",
-	"ep_adminpads2_search-button.value": "Sichen",
-	"ep_adminpads2_unknown-error": "Onbekannte Feeler"
+  "@metadata": {
+    "authors": [
+      "Robby",
+      "Volvox"
+    ]
+  },
+  "admin_plugins.available_install.value": "Installéieren",
+  "admin_plugins.description": "Beschreiwung",
+  "admin_plugins.installed_uninstall.value": "Desinstalléieren",
+  "admin_plugins.name": "Numm",
+  "admin_plugins.version": "Versioun",
+  "admin_plugins_info.version": "Etherpad-Versioun",
+  "admin_plugins_info.version_latest": "Lescht disponibel Versioun",
+  "admin_plugins_info.version_number": "Versiounsnummer",
+  "admin_settings": "Astellungen",
+  "admin_settings.current_save.value": "Astellunge späicheren",
+  "admin_settings.page-title": "Astellungen - Etherpad",
+  "ep_adminpads2_confirm": "Wëllt Dir de Pad {{padID}} wierklech läschen?",
+  "ep_adminpads2_delete.value": "Läschen",
+  "ep_adminpads2_loading": "Lueden...",
+  "ep_adminpads2_no-results": "Keng Resultater",
+  "ep_adminpads2_padname": "Padnumm",
+  "ep_adminpads2_search-box.placeholder": "Sichbegrëff",
+  "ep_adminpads2_search-button.value": "Sichen",
+  "ep_adminpads2_unknown-error": "Onbekannte Feeler",
+  "index.createOpenPad": "oder maacht ee Pad mat dësem Numm op:",
+  "index.newPad": "Neie Pad"
 }

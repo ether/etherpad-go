@@ -1,8 +1,14 @@
 package ws
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"log"
+	"os"
+	"os/exec"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/ether/etherpad-go/admin/src/utils"
@@ -13,7 +19,9 @@ import (
 	"github.com/ether/etherpad-go/lib/models/revision"
 	"github.com/ether/etherpad-go/lib/models/ws/admin"
 	"github.com/ether/etherpad-go/lib/pad"
+	"github.com/ether/etherpad-go/lib/plugins"
 	"github.com/ether/etherpad-go/lib/settings"
+	"github.com/gofiber/fiber/v2"
 	"go.uber.org/zap"
 )
 
@@ -24,9 +32,10 @@ type AdminMessageHandler struct {
 	padManager        *pad.Manager
 	padMessageHandler *PadMessageHandler
 	Logger            *zap.SugaredLogger
+	App               *fiber.App
 }
 
-func NewAdminMessageHandler(store db.DataStore, h *hooks.Hook, m *pad.Manager, padMessHandler *PadMessageHandler, logger *zap.SugaredLogger, hub *Hub) AdminMessageHandler {
+func NewAdminMessageHandler(store db.DataStore, h *hooks.Hook, m *pad.Manager, padMessHandler *PadMessageHandler, logger *zap.SugaredLogger, hub *Hub, app *fiber.App) AdminMessageHandler {
 	return AdminMessageHandler{
 		store:             store,
 		hook:              h,
@@ -34,6 +43,7 @@ func NewAdminMessageHandler(store db.DataStore, h *hooks.Hook, m *pad.Manager, p
 		padMessageHandler: padMessHandler,
 		Logger:            logger,
 		hub:               hub,
+		App:               app,
 	}
 }
 
@@ -140,15 +150,34 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 		}
 	case "getInstalled":
 		{
+
+			restart(h.App)
 			var epPlugin = []admin.InstalledPluginDefinition{
 				{
-					Name:     "etherpad",
-					Version:  retrievedSettings.GitVersion,
-					Path:     "/etherpad",
-					RealPath: "/etherpad",
+					Name:         "etherpad",
+					Description:  "The core Etherpad application",
+					Version:      retrievedSettings.GitVersion,
+					FrontendPath: "/plugins/etherpad",
+					BackendPath:  "/lib/plugins/etherpad",
+
+					Enabled: true,
 				},
 			}
 
+			for _, plugin := range plugins.RegisteredPlugins {
+				epPlugin = append(epPlugin, admin.InstalledPluginDefinition{
+					Name:         plugin.Name(),
+					Description:  plugin.Description(),
+					Version:      retrievedSettings.GitVersion,
+					Enabled:      plugin.IsEnabled(),
+					FrontendPath: "/plugins/" + plugin.Name(),
+					BackendPath:  "/lib/plugins/" + plugin.Name(),
+				})
+			}
+
+			slices.SortFunc(epPlugin, func(a, b admin.InstalledPluginDefinition) int {
+				return strings.Compare(a.Name, b.Name)
+			})
 			resp := make([]interface{}, 2)
 			resp[0] = "results:installed"
 			resp[1] = map[string]interface{}{
@@ -302,6 +331,42 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 		// Unknown event
 		println("Unknown admin event:", message.Event)
 	}
+}
+
+func shutdownServer(server *fiber.App) error {
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		5*time.Second,
+	)
+	defer cancel()
+
+	return server.ShutdownWithContext(ctx)
+}
+
+func restartSelf() error {
+	exe, err := os.Executable()
+	if err != nil {
+		return err
+	}
+
+	cmd := exec.Command(exe, os.Args[1:]...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+
+	return cmd.Start()
+}
+
+func restart(server *fiber.App) {
+	if err := shutdownServer(server); err != nil {
+		log.Printf("shutdown error: %v", err)
+	}
+
+	if err := restartSelf(); err != nil {
+		log.Fatalf("restart failed: %v", err)
+	}
+
+	os.Exit(2)
 }
 
 func (h AdminMessageHandler) DeleteRevisions(padId string, keepRevisions int) error {

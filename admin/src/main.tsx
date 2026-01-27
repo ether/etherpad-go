@@ -14,6 +14,7 @@ import i18n from "./localization/i18n.ts";
 import {PadPage} from "./pages/PadPage.tsx";
 import {ToastDialog} from "./utils/Toast.tsx";
 import {ShoutPage} from "./pages/ShoutPage.tsx";
+import {SettingsPageNew} from "./tabs/SettingsPageNew.tsx";
 
 const token = await initAuth()
 initSettingsSocket(token)
@@ -23,6 +24,7 @@ const router = createBrowserRouter(createRoutesFromElements(
         <Route index element={<HomePage/>}/>
         <Route path="/plugins" element={<HomePage/>}/>
         <Route path="/settings" element={<SettingsPage/>}/>
+        <Route path="/settings-new" element={<SettingsPageNew/>}/>
         <Route path="/help" element={<HelpPage/>}/>
         <Route path="/pads" element={<PadPage/>}/>
         <Route path="/shout" element={<ShoutPage/>}/>

@@ -1,21 +1,49 @@
 {
-	"@metadata": {
-		"authors": [
-			"Quentí"
-		]
-	},
-	"ep_adminpads2_action": "Accion",
-	"ep_adminpads2_delete.value": "Suprimir",
-	"ep_adminpads2_last-edited": "Darrièra edicion",
-	"ep_adminpads2_loading": "Cargament…",
-	"ep_adminpads2_manage-pads": "Gerir los pads",
-	"ep_adminpads2_no-results": "Pas cap de resultat",
-	"ep_adminpads2_padname": "Nom del pad",
-	"ep_adminpads2_search-box.placeholder": "Tèrme de recèrca",
-	"ep_adminpads2_search-button.value": "Recercar",
-	"ep_adminpads2_search-done": "Recèrca acabada",
-	"ep_adminpads2_search-heading": "Cercar de pads",
-	"ep_adminpads2_title": "Administracion de pad",
-	"ep_adminpads2_unknown-error": "Error desconeguda",
-	"ep_adminpads2_unknown-status": "Estat desconegut"
+  "@metadata": {
+    "authors": [
+      "Quentí"
+    ]
+  },
+  "admin_plugins": "Gestion de las extensions",
+  "admin_plugins.available": "Extensions disponiblas",
+  "admin_plugins.available_fetching": "Recuperacion…",
+  "admin_plugins.available_install.value": "Installar",
+  "admin_plugins.available_not-found": "Cap d’extension pas trobada.",
+  "admin_plugins.available_search.placeholder": "Cercar las extensions d’installar",
+  "admin_plugins.description": "Descripcion",
+  "admin_plugins.installed": "Extensions installadas",
+  "admin_plugins.installed_fetching": "Recuperacion de las extensions installadas...",
+  "admin_plugins.installed_nothing": "Avètz pas installat cap d’extensions pel moment.",
+  "admin_plugins.installed_uninstall.value": "Desinstallar",
+  "admin_plugins.last-update": "Darrièra mesa a jorn",
+  "admin_plugins.name": "Nom",
+  "admin_plugins.page-title": "Gestion de las extensions - Etherpad",
+  "admin_plugins.version": "Version",
+  "admin_plugins_info": "Informacion de resolucion de problèmas",
+  "admin_plugins_info.page-title": "Informacion d’extension - Etherpad",
+  "admin_plugins_info.plugins": "Extensions installadas",
+  "admin_plugins_info.version": "Version d’Etherpad",
+  "admin_plugins_info.version_latest": "Darrièra version disponibla",
+  "admin_plugins_info.version_number": "Numèro de version",
+  "admin_settings": "Paramètres",
+  "admin_settings.current": "Configuracion actuala",
+  "admin_settings.current_restart.value": "Reaviar Etherpad",
+  "admin_settings.current_save.value": "Enregistrar los paramètres",
+  "admin_settings.page-title": "Paramètres - Etherpad",
+  "ep_adminpads2_action": "Accion",
+  "ep_adminpads2_delete.value": "Suprimir",
+  "ep_adminpads2_last-edited": "Darrièra edicion",
+  "ep_adminpads2_loading": "Cargament…",
+  "ep_adminpads2_manage-pads": "Gerir los pads",
+  "ep_adminpads2_no-results": "Pas cap de resultat",
+  "ep_adminpads2_padname": "Nom del pad",
+  "ep_adminpads2_search-box.placeholder": "Tèrme de recèrca",
+  "ep_adminpads2_search-button.value": "Recercar",
+  "ep_adminpads2_search-done": "Recèrca acabada",
+  "ep_adminpads2_search-heading": "Cercar de pads",
+  "ep_adminpads2_title": "Administracion de pad",
+  "ep_adminpads2_unknown-error": "Error desconeguda",
+  "ep_adminpads2_unknown-status": "Estat desconegut",
+  "index.createOpenPad": "o crear/dobrir un Pad intitulat :",
+  "index.newPad": "Pad novèl"
 }

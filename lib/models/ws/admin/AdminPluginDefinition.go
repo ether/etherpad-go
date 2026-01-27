@@ -1,11 +1,13 @@
 package admin
 
 type InstalledPluginDefinition struct {
-	Name      string `json:"name"`
-	Version   string `json:"version"`
-	Path      string `json:"path"`
-	RealPath  string `json:"realPath"`
-	Updatable bool   `json:"updatable"`
+	Name         string `json:"name"`
+	Version      string `json:"version"`
+	Description  string `json:"description"`
+	FrontendPath string `json:"frontendPath"`
+	BackendPath  string `json:"backendPath"`
+	Updatable    bool   `json:"updatable"`
+	Enabled      bool   `json:"enabled"`
 }
 
 type PluginSearchDefinition struct {

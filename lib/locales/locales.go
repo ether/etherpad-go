@@ -49,20 +49,29 @@ type LocaleMap struct {
 func buildLocaleFallbacks(locale string) []string {
 	locale = strings.TrimSuffix(locale, ".json")
 	locale = strings.ReplaceAll(locale, "_", "-")
+	locale = strings.ToLower(locale)
 
+	seen := make(map[string]struct{})
 	var fallbacks []string
 
-	// de-DE → de-DE, de
+	add := func(l string) {
+		if _, ok := seen[l]; ok {
+			return
+		}
+		seen[l] = struct{}{}
+		fallbacks = append(fallbacks, l)
+	}
+
 	parts := strings.Split(locale, "-")
 	if len(parts) > 1 {
-		fallbacks = append(fallbacks, locale)
-		fallbacks = append(fallbacks, parts[0])
-	} else {
-		fallbacks = append(fallbacks, locale)
+		add(locale)
+		add(parts[0])
+	} else if locale != "" {
+		add(locale)
 	}
 
 	if locale != "en" {
-		fallbacks = append(fallbacks, "en")
+		add("en")
 	}
 
 	return fallbacks
@@ -92,11 +101,11 @@ func loadLocaleFile(
 	return out, nil
 }
 
-func HandleLocale(c *fiber.Ctx, uiAssets embed.FS) error {
+func HandleLocale(c *fiber.Ctx, uiAssets embed.FS, prefix string) error {
 	requestedLocale := c.Params("locale")
 
 	fallbacks := buildLocaleFallbacks(requestedLocale)
-	prefixPath := "assets/locales"
+	prefixPath := "assets/locales" + prefix
 
 	finalMap := make(map[string]interface{})
 	foundAny := false
@@ -130,6 +139,7 @@ func HandleLocale(c *fiber.Ctx, uiAssets embed.FS) error {
 			for k, v := range localeMap {
 				target[k] = v
 			}
+			break
 		}
 	}
 

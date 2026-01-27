@@ -12,11 +12,14 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@radix-ui/react-switch": "^1.2.6"
+    "@radix-ui/react-select": "^2.2.6",
+    "@radix-ui/react-switch": "^1.2.6",
+    "clsx": "^2.1.1"
   },
   "devDependencies": {
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-toast": "^1.2.15",
+    "@types/jsoneditor": "^9.9.6",
     "@types/react": "^19.2.10",
     "@types/react-dom": "^19.2.3",
     "@typescript-eslint/eslint-plugin": "^8.54.0",
@@ -29,6 +32,7 @@
     "happy-dom": "^20.4.0",
     "i18next": "^25.8.0",
     "i18next-browser-languagedetector": "^8.2.0",
+    "jsoneditor": "^10.4.2",
     "lucide-react": "^0.563.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",

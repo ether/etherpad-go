@@ -1,14 +1,34 @@
 {
-	"@metadata": {
-		"authors": [
-			"Saederup92"
-		]
-	},
-	"ep_adminpads2_action": "Handling",
-	"ep_adminpads2_delete.value": "Slet",
-	"ep_adminpads2_last-edited": "Sidst redigeret",
-	"ep_adminpads2_loading": "Indlæser...",
-	"ep_adminpads2_no-results": "Ingen resultater",
-	"ep_adminpads2_unknown-error": "Ukendt fejl",
-	"ep_adminpads2_unknown-status": "Ukendt status"
+  "@metadata": {
+    "authors": [
+      "Saederup92"
+    ]
+  },
+  "admin_plugins": "Plugin manager",
+  "admin_plugins.available": "Tilgængelige Plugins",
+  "admin_plugins.available_fetching": "Henter...",
+  "admin_plugins.available_install.value": "Installer",
+  "admin_plugins.available_not-found": "Ingen plugins fundet.",
+  "admin_plugins.available_search.placeholder": "Søg efter plugins der kan installeres",
+  "admin_plugins.description": "Beskrivelse",
+  "admin_plugins.installed": "Installerede plugins",
+  "admin_plugins.installed_fetching": "Henter installerede plugins...",
+  "admin_plugins.installed_nothing": "Du har ikke installeret nogen plugins endnu.",
+  "admin_plugins.installed_uninstall.value": "Afinstaller",
+  "admin_plugins.last-update": "Sidst opdateret",
+  "admin_plugins.name": "Navn",
+  "admin_plugins.page-title": "Plugin manager - Etherpad",
+  "admin_plugins.version": "Version",
+  "admin_plugins_info": "Fejlfindingsoplysninger",
+  "admin_plugins_info.hooks": "Installerede hooks",
+  "admin_settings": "Indstillinger",
+  "ep_adminpads2_action": "Handling",
+  "ep_adminpads2_delete.value": "Slet",
+  "ep_adminpads2_last-edited": "Sidst redigeret",
+  "ep_adminpads2_loading": "Indlæser...",
+  "ep_adminpads2_no-results": "Ingen resultater",
+  "ep_adminpads2_unknown-error": "Ukendt fejl",
+  "ep_adminpads2_unknown-status": "Ukendt status",
+  "index.createOpenPad": "eller opret/åbn en Pad med navnet:",
+  "index.newPad": "Ny Pad"
 }

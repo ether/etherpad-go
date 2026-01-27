@@ -1,57 +1,44 @@
 import i18n from 'i18next'
-import {initReactI18next} from "react-i18next";
+import { initReactI18next } from 'react-i18next'
 import LanguageDetector from 'i18next-browser-languagedetector'
-
-
-import { BackendModule } from 'i18next';
+import type { BackendModule } from 'i18next'
 
 const LazyImportPlugin: BackendModule = {
     type: 'backend',
-    init: function () {
-    },
-    read: async function (language, namespace, callback) {
-
-        let baseURL = import.meta.env.BASE_URL
-        if(namespace === "translation") {
-            // If default we load the translation file
-            baseURL+=`/locales/${language}.json`
-        } else {
-            // Else we load the former plugin translation file
-            baseURL+=`/${namespace}/${language}.json`
-        }
-
-        const localeJSON = await fetch(baseURL, {
-            cache: "force-cache"
-        })
-        let json;
-
+    init() {},
+    read: async (language, namespace, callback) => {
         try {
-            json = JSON.parse(await localeJSON.text())
-        } catch(e) {
-             callback(new Error("Error loading"), null);
+            console.log(language, namespace)
+            const url = `/admin/ep_admin_pads/${language}` + ".json"
+
+            const res = await fetch(url, { cache: 'force-cache' })
+
+            if (!res.ok) {
+                return callback(
+                    new Error(`HTTP ${res.status}: ${url}`),
+                    null
+                )
+            }
+
+            const json = await res.json()
+            callback(null, json)
+        } catch (err) {
+            callback(err as Error, null)
         }
-
-
-        callback(null, json);
     },
-
-    save: function () {
-    },
-
-    create: function () {
-        /* save the missing translation */
-    },
-};
+}
 
 i18n
     .use(LanguageDetector)
     .use(LazyImportPlugin)
     .use(initReactI18next)
-    .init(
-        {
-            ns: ['translation','ep_admin_pads'],
-            fallbackLng: 'en'
-        }
-    )
+    .init({
+        ns: ['translation', 'ep_admin_pads'],
+        defaultNS: 'translation',
+        fallbackLng: 'en',
+        interpolation: {
+            escapeValue: false,
+        },
+    })
 
 export default i18n

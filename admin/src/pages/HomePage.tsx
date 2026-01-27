@@ -1,6 +1,6 @@
 import {useStore} from "../store/store.ts";
 import {useEffect, useMemo, useState} from "react";
-import {InstalledPlugin, PluginDef, SearchParams} from "./Plugin.ts";
+import {InstalledPlugin, SearchParams} from "./Plugin.ts";
 import {useDebounce} from "../utils/useDebounce.ts";
 import {Trans, useTranslation} from "react-i18next";
 import {SearchField} from "../components/SearchField.tsx";
@@ -8,8 +8,6 @@ import {determineSorting} from "../utils/sorting.ts";
 
 
 export const HomePage = () => {
-    const [plugins,setPlugins] = useState<PluginDef[]>([])
-    const [loadedPlugins, setLoadedPlugins] = useState<boolean>(false)
   const installedPlugins = useStore(state=>state.installedPlugins)
   const setInstalledPlugins = useStore(state=>state.setInstalledPlugins)
   const settingSocket = useStore(state=>state.settingSocket)
@@ -20,47 +18,6 @@ export const HomePage = () => {
     sortDir: 'asc',
     searchTerm: ''
   })
-
-  const filteredInstallablePlugins = useMemo(()=>{
-    return plugins.sort((a, b)=>{
-      if(searchParams.sortBy === "version"){
-        if(searchParams.sortDir === "asc"){
-          return a.version.localeCompare(b.version)
-        }
-        return b.version.localeCompare(a.version)
-      }
-
-      if(searchParams.sortBy === "last-updated"){
-        if(searchParams.sortDir === "asc"){
-          return a.time.localeCompare(b.time)
-        }
-        return b.time.localeCompare(a.time)
-      }
-
-
-      if (searchParams.sortBy === "name") {
-        if(searchParams.sortDir === "asc"){
-          return a.name.localeCompare(b.name)
-        }
-        return b.name.localeCompare(a.name)
-      }
-      return 0
-    })
-  }, [plugins, searchParams])
-
-    const sortedInstalledPlugins = useMemo(()=>{
-        return useStore.getState().installedPlugins.sort((a, b)=>{
-
-            if(a.name < b.name){
-                return -1
-            }
-            if(a.name > b.name){
-                return 1
-            }
-            return 0
-        })
-
-    } ,[installedPlugins, searchParams])
 
     const [searchTerm, setSearchTerm] = useState<string>('')
     const {t} = useTranslation()
@@ -124,12 +81,6 @@ export const HomePage = () => {
             return
         }
         settingSocket?.emit('search', searchParams)
-        settingSocket!.on('results:search', (data: {
-            results: PluginDef[]
-        }) => {
-            setPlugins(data.results)
-            setLoadedPlugins(true)
-        })
         settingSocket!.on('results:searcherror', (data: {error: string}) => {
             console.log(data.error)
             useStore.getState().setToastState({
@@ -149,6 +100,15 @@ export const HomePage = () => {
     }, 500, [searchTerm])
 
 
+    const activatedPlugins = useMemo(()=>{
+        return installedPlugins.filter(p=>p.enabled)
+    }, [installedPlugins])
+
+    const deactivatedPlugins = useMemo(()=>{
+        return installedPlugins.filter(p=>!p.enabled)
+    }, [installedPlugins])
+
+
     return <div>
         <h1><Trans i18nKey="admin_plugins"/></h1>
 
@@ -158,13 +118,15 @@ export const HomePage = () => {
             <thead>
             <tr>
                 <th><Trans i18nKey="admin_plugins.name"/></th>
+                <th><Trans i18nKey="admin_plugins.description"/></th>
                 <th><Trans i18nKey="admin_plugins.version"/></th>
             </tr>
             </thead>
             <tbody style={{overflow: 'auto'}}>
-            {sortedInstalledPlugins.map((plugin, index) => {
-                return <tr key={index}>
+            {activatedPlugins.map((plugin) => {
+                return <tr key={plugin.name}>
                     <td><a rel="noopener noreferrer" href={`https://npmjs.com/${plugin.name}`} target="_blank">{plugin.name}</a></td>
+                    <td>{plugin.description}</td>
                     <td>{plugin.version}</td>
                         </tr>
                     })}
@@ -187,7 +149,7 @@ export const HomePage = () => {
                   })
                 }}>
                   <Trans i18nKey="admin_plugins.name" /></th>
-                <th style={{width: '30%'}}><Trans i18nKey="admin_plugins.description"/></th>
+                <th><Trans i18nKey="admin_plugins.description"/></th>
                 <th className={determineSorting(searchParams.sortBy, searchParams.sortDir == "asc", 'version')} onClick={()=>{
                   setSearchParams({
                     ...searchParams,
@@ -195,27 +157,16 @@ export const HomePage = () => {
                     sortDir: searchParams.sortDir === "asc"? "desc": "asc"
                   })
                 }}><Trans i18nKey="admin_plugins.version"/></th>
-                <th className={determineSorting(searchParams.sortBy, searchParams.sortDir == "asc", 'last-updated')} onClick={()=>{
-                  setSearchParams({
-                    ...searchParams,
-                    sortBy: 'last-updated',
-                    sortDir: searchParams.sortDir === "asc"? "desc": "asc"
-                  })
-                }}><Trans i18nKey="admin_plugins.last-update"/></th>
             </tr>
             </thead>
             <tbody style={{overflow: 'auto'}}>
-            {loadedPlugins ?
-              filteredInstallablePlugins.map((plugin) => {
+            {deactivatedPlugins.map((plugin) => {
                         return <tr key={plugin.name}>
                             <td><a rel="noopener noreferrer" href={`https://npmjs.com/${plugin.name}`} target="_blank">{plugin.name}</a></td>
                             <td>{plugin.description}</td>
                             <td>{plugin.version}</td>
-                            <td>{plugin.time}</td>
                         </tr>
                     })
-                :
-                <tr><td colSpan={5}>{searchTerm == '' ? <Trans i18nKey="pad.loading"/>: <Trans i18nKey="admin_plugins.available_not-found"/>}</td></tr>
             }
             </tbody>
         </table>

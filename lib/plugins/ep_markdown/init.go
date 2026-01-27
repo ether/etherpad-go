@@ -9,16 +9,52 @@ import (
 	"go.uber.org/zap"
 )
 
-func InitPlugin(hookSystem *hooks.Hook, uiAssets embed.FS, zap *zap.SugaredLogger) {
+type EpMarkdownPlugin struct {
+	enabled bool
+}
+
+func (p *EpMarkdownPlugin) Name() string {
+	return "ep_markdown"
+}
+
+func (p *EpMarkdownPlugin) SetEnabled(enabled bool) {
+	p.enabled = enabled
+}
+
+func (p *EpMarkdownPlugin) IsEnabled() bool {
+	return p.enabled
+}
+
+func (p *EpMarkdownPlugin) Description() string {
+	return "Adds Markdown support to Etherpad"
+}
+
+func (p *EpMarkdownPlugin) Init(
+	hookSystem *hooks.Hook,
+	uiAssets embed.FS,
+	zap *zap.SugaredLogger,
+) {
 	zap.Info("Initializing ep_markdown plugin")
-	hookSystem.EnqueueGetPluginTranslationHooks(func(ctx *events.LocaleLoadContext) {
-		zap.Infof("Loading ep_markdown translations for locale: %s", ctx.RequestedLocale)
-		var loadedTranslations, err = utils.LoadPluginTranslations(ctx.RequestedLocale, uiAssets, "ep_markdown")
-		if err != nil {
-			return
-		}
-		for k, v := range loadedTranslations {
-			ctx.LoadedTranslations[k] = v
-		}
-	})
+
+	hookSystem.EnqueueGetPluginTranslationHooks(
+		func(ctx *events.LocaleLoadContext) {
+			zap.Infof(
+				"Loading ep_markdown translations for locale: %s",
+				ctx.RequestedLocale,
+			)
+
+			loadedTranslations, err := utils.LoadPluginTranslations(
+				ctx.RequestedLocale,
+				uiAssets,
+				"ep_markdown",
+			)
+			if err != nil {
+				return
+			}
+
+			for k, v := range loadedTranslations {
+				ctx.LoadedTranslations[k] = v
+			}
+		},
+	)
 }

@@ -479,12 +479,13 @@ func (test *TestDBHandler) TestRun(
 		padMessageHandler := ws.NewPadMessageHandler(
 			ds, &hooks, padManager, &sess, hub, loggerPart,
 		)
+		app := fiber.New()
 		adminMessageHandler := ws.NewAdminMessageHandler(
 			ds, &hooks, padManager, padMessageHandler, loggerPart, hub,
+			app,
 		)
 		validatorEvaluator := validator.New(validator.WithRequiredStructEnabled())
 
-		app := fiber.New()
 		privateAPI := app.Group("/admin/api")
 		testRun.Test(t, TestDataStore{
 			DS:                  ds,

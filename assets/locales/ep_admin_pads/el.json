@@ -1,16 +1,50 @@
 {
-	"@metadata": {
-		"authors": [
-			"Norhorn"
-		]
-	},
-	"ep_adminpads2_delete.value": "Διαγραφή",
-	"ep_adminpads2_last-edited": "Τελευταία απεξεργασία",
-	"ep_adminpads2_loading": "Φόρτωση…",
-	"ep_adminpads2_no-results": "Κανένα αποτέλεσμα",
-	"ep_adminpads2_search-box.placeholder": "Αναζήτηση όρων",
-	"ep_adminpads2_search-button.value": "Αναζήτηση",
-	"ep_adminpads2_search-done": "Ολοκλήρωση αναζήτησης",
-	"ep_adminpads2_unknown-error": "Άγνωστο σφάλμα",
-	"ep_adminpads2_unknown-status": "Άγνωστη κατάσταση"
+  "@metadata": {
+    "authors": [
+      "Norhorn"
+    ]
+  },
+  "admin_plugins": "Διαχειριστής πρόσθετων",
+  "admin_plugins.available": "Διαθέσιμα πρόσθετα",
+  "admin_plugins.available_fetching": "Ανακτάται...",
+  "admin_plugins.available_install.value": "Εγκατάσταση",
+  "admin_plugins.available_not-found": "Δεν βρέθηκαν πρόσθετα.",
+  "admin_plugins.available_search.placeholder": "Αναζητήστε πρόσθετα για εγκατάσταση",
+  "admin_plugins.description": "Περιγραφή",
+  "admin_plugins.installed": "Εγκατεστημένα πρόσθετα",
+  "admin_plugins.installed_fetching": "Ανάκτηση εγκατεστημένων προσθηκών…",
+  "admin_plugins.installed_nothing": "Δεν έχετε εγκαταστήσει πρόσθετα ακόμη.",
+  "admin_plugins.installed_uninstall.value": "Απεγκατάσταση",
+  "admin_plugins.last-update": "Τελευταία ενημέρωση",
+  "admin_plugins.name": "Όνομα",
+  "admin_plugins.page-title": "Διαχειριστής πρόσθετων - Etherpad",
+  "admin_plugins.version": "Έκδοση",
+  "admin_plugins_info": "Πληροφορίες αντιμετώπισης προβλημάτων",
+  "admin_plugins_info.hooks": "Εγκατεστημένα άγκιστρα",
+  "admin_plugins_info.hooks_server": "Άγκιστρα από την πλευρά του διακομιστή",
+  "admin_plugins_info.page-title": "Πληροφορίες πρόσθετου - Etherpad",
+  "admin_plugins_info.parts": "Εγκατεστημένα εξαρτήματα",
+  "admin_plugins_info.plugins": "Εγκατεστημένα πρόσθετα",
+  "admin_plugins_info.version": "Έκδοση Etherpad",
+  "admin_plugins_info.version_latest": "Τελευταία διαθέσιμη έκδοση",
+  "admin_plugins_info.version_number": "Αριθμός έκδοσης",
+  "admin_settings": "Ρυθμίσεις",
+  "admin_settings.current": "Τρέχουσα διαμόρφωση",
+  "admin_settings.current_example-devel": "Παράδειγμα προτύπου ρυθμίσεων ανάπτυξης",
+  "admin_settings.current_example-prod": "Παράδειγμα προτύπου ρυθμίσεων παραγωγής",
+  "admin_settings.current_restart.value": "Επανεκκινήστε το Etherpad",
+  "admin_settings.current_save.value": "Αποθήκευση Ρυθμίσεων",
+  "admin_settings.page-title": "Ρυθμίσεις - Etherpad",
+  "ep_adminpads2_delete.value": "Διαγραφή",
+  "ep_adminpads2_last-edited": "Τελευταία απεξεργασία",
+  "ep_adminpads2_loading": "Φόρτωση…",
+  "ep_adminpads2_no-results": "Κανένα αποτέλεσμα",
+  "ep_adminpads2_search-box.placeholder": "Αναζήτηση όρων",
+  "ep_adminpads2_search-button.value": "Αναζήτηση",
+  "ep_adminpads2_search-done": "Ολοκλήρωση αναζήτησης",
+  "ep_adminpads2_unknown-error": "Άγνωστο σφάλμα",
+  "ep_adminpads2_unknown-status": "Άγνωστη κατάσταση",
+  "index.createOpenPad": "ή δημιουργία/άνοιγμα ενός κοινόχρηστου πίνακα με όνομα:",
+  "index.newPad": "Νέος Κοινόχρηστος Πίνακας",
+  "index.openPad": "άνοιγμα υπάρχοντος κοινόχρηστού πίνακα με όνομα:"
 }
