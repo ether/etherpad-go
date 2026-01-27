@@ -28,6 +28,10 @@ type MemoryDataStore struct {
 	refreshTokenRequestIDs map[string]string
 }
 
+func (m *MemoryDataStore) Ping() error {
+	return nil
+}
+
 func (m *MemoryDataStore) GetAuthors(ids []string) (*[]db.AuthorDB, error) {
 	var authors []db.AuthorDB
 	for _, id := range ids {

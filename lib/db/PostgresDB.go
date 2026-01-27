@@ -22,6 +22,11 @@ type PostgresDB struct {
 	pool    *pgxpool.Pool
 }
 
+func (d PostgresDB) Ping() error {
+	ctx := context.Background()
+	return d.pool.Ping(ctx)
+}
+
 var psql = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
 // ============== PAD METHODS ==============

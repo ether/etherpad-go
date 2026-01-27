@@ -11,6 +11,11 @@ type SessionStore struct {
 	sync     sync.RWMutex
 }
 
+type SessionStat struct {
+	ActivePads  int
+	ActiveUsers int
+}
+
 // NewSessionStore
 // @param refresh *int Number of milliseconds to refresh the session
 //
@@ -38,6 +43,21 @@ func (s *SessionStore) addHandleClientInformation(sessionId string, padId string
 	}
 	s.sync.Unlock()
 	return s.sessions[sessionId]
+}
+
+func (s *SessionStore) GetStats() (SessionStat, error) {
+	var stats SessionStat
+	s.sync.RLock()
+	stats.ActiveUsers = len(s.sessions)
+	padSet := make(map[string]struct{})
+	for _, session := range s.sessions {
+		if session.PadId != "" {
+			padSet[session.PadId] = struct{}{}
+		}
+	}
+	stats.ActivePads = len(padSet)
+	s.sync.RUnlock()
+	return stats, nil
 }
 
 func (s *SessionStore) addPadReadOnlyIds(sessionId, padId string, readOnlyPadId string, readOnly bool) {

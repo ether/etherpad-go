@@ -153,7 +153,17 @@ func runAllDataStoreTests(testHandler *testutils.TestDBHandler) {
 			Name: "ReadonlyMappingsAndRemoveRevisions",
 			Test: testReadonlyMappingsAndRemoveRevisions,
 		},
+		testutils.TestRunConfig{
+			Name: "PingDB",
+			Test: testPingDB,
+		},
 	)
+}
+
+func testPingDB(t *testing.T, ds testutils.TestDataStore) {
+	if err := ds.DS.Ping(); err != nil {
+		t.Fatalf("PingDB failed: %v", err)
+	}
 }
 
 func testGetPadIdsOfAuthor(t *testing.T, ds testutils.TestDataStore) {

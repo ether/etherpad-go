@@ -20,6 +20,10 @@ type SQLiteDB struct {
 	sqlDB *sql.DB
 }
 
+func (d SQLiteDB) Ping() error {
+	return d.sqlDB.Ping()
+}
+
 // ============== PAD METHODS ==============
 
 func (d SQLiteDB) CreatePad(padID string, padDB db.PadDB) error {

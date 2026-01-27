@@ -21,6 +21,10 @@ type MysqlDB struct {
 	sqlDB   *sql.DB
 }
 
+func (d MysqlDB) Ping() error {
+	return d.sqlDB.Ping()
+}
+
 func (d MysqlDB) GetPadIdsOfAuthor(authorId string) (*[]string, error) {
 	resultedSQL, args, err := mysql.
 		Select("DISTINCT pr.id").

@@ -59,4 +59,5 @@ type DataStore interface {
 	GroupMethods
 	ChatMethods
 	Close() error
+	Ping() error
 }
