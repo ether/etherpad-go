@@ -46,6 +46,7 @@ type TestDataStore struct {
 
 func (t *TestDataStore) ToInitStore() *lib.InitStore {
 	settings.Displayed.LoadTest = true
+	settings.Displayed.EnableMetrics = true
 	return &lib.InitStore{
 		SecurityManager:   t.SecurityManager,
 		RetrievedSettings: &settings.Displayed,

@@ -11,6 +11,7 @@ import (
 	"github.com/ether/etherpad-go/lib/api/oidc"
 	"github.com/ether/etherpad-go/lib/api/pad"
 	"github.com/ether/etherpad-go/lib/api/static"
+	"github.com/ether/etherpad-go/lib/api/stats"
 	"github.com/ether/etherpad-go/lib/locales"
 	"github.com/gofiber/fiber/v2"
 )
@@ -51,5 +52,6 @@ func InitAPI(store *lib.InitStore) *oidc.Authenticator {
 	groups.Init(store)
 	static.Init(store)
 	io.Init(store)
+	stats.Init(store)
 	return authenticator
 }

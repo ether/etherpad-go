@@ -60,10 +60,37 @@ func GetGitCommit(setting *Settings) string {
 			commit = commit[:7]
 		}
 		return commit
-	} else {
-		return GitVersion()
 	}
 
+	return GitVersion()
+
+}
+
+func BuildInfo() (version, releaseID string) {
+	bi, ok := debug.ReadBuildInfo()
+	if !ok || bi == nil {
+		return "", ""
+	}
+
+	if bi.Main.Version != "" && bi.Main.Version != "(devel)" {
+		version = bi.Main.Version
+	}
+
+	var modified bool
+	for _, s := range bi.Settings {
+		switch s.Key {
+		case "vcs.revision":
+			releaseID = s.Value
+		case "vcs.modified":
+			modified = s.Value == "true"
+		}
+	}
+
+	if releaseID != "" && modified {
+		releaseID += "-dirty"
+	}
+
+	return version, releaseID
 }
 
 func GitVersion() string {
@@ -72,25 +99,32 @@ func GitVersion() string {
 		return ""
 	}
 
+	// Prefer proper module version (e.g. v1.2.3)
 	if bi.Main.Version != "" && bi.Main.Version != "(devel)" {
 		return bi.Main.Version
 	}
 
-	var rev, modified string
+	var (
+		rev      string
+		modified bool
+	)
+
 	for _, s := range bi.Settings {
-		if s.Key == "vcs.revision" {
+		switch s.Key {
+		case "vcs.revision":
 			rev = s.Value
+		case "vcs.modified":
+			modified = s.Value == "true"
 		}
-		if s.Key == "vcs.modified" {
-			modified = s.Value
-		}
-	}
-	if rev != "" {
-		if modified == "true" {
-			return rev + "-dirty"
-		}
-		return rev
 	}
 
-	return ""
+	if rev == "" {
+		return ""
+	}
+
+	if modified {
+		return rev + "-dirty"
+	}
+
+	return rev
 }
