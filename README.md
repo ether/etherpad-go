@@ -4,6 +4,9 @@ Etherpad-Go is a performance focused 1 to 1 rewrite of Etherpad-Lite in Go. The 
 A new implementation in Go allows us to take advantage of Go's concurrency model, static typing, and performance optimizations.
 
 
+| ![Etherpad-Go Logo](doc/public/gopherEtherpad.png "Etherpad-Go Logo") |
+|:-------------------------------------------------------------------:|
+
 ![Demo Etherpad Animated Jif](doc/public/etherpad_demo.gif "Etherpad in action")
 
 
