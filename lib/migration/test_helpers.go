@@ -425,7 +425,7 @@ func startPostgres(t *testing.T) (*sql.DB, func()) {
 		port.Port(),
 	)
 
-	db, err := sql.Open("postgres", dsn)
+	db, err := sql.Open("pgx", dsn)
 	if err != nil {
 		t.Fatalf("failed to open postgres connection: %v", err)
 	}

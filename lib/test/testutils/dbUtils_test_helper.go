@@ -251,7 +251,7 @@ func (test *TestDBHandler) cleanupPostgresTables() error {
 	}
 	dsn := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable",
 		test.testPostgresContainer.Username, test.testPostgresContainer.Password, test.testPostgresContainer.Host, port, test.testPostgresContainer.Database)
-	conn, err := sql.Open("postgres", dsn)
+	conn, err := sql.Open("pgx", dsn)
 	if err != nil {
 		return err
 	}

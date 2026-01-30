@@ -205,7 +205,7 @@ func getTestCases(t *testing.T) []DBTestCase {
 					"postgres://%s:%s@%s:%s/%s?sslmode=disable",
 					testDbUser, testDbPass, cfg.Host, cfg.Port, testDbName,
 				)
-				db, err := sql.Open("postgres", dsn)
+				db, err := sql.Open("pgx", dsn)
 				require.NoError(t, err)
 				t.Cleanup(func() { db.Close() })
 				return db
