@@ -141,7 +141,7 @@ func PreparePostgresDB() (*TestContainerConfiguration, error) {
 		ctx, "postgres:alpine",
 		testcontainers.WithExposedPorts("5432/tcp"),
 		testcontainers.WithWaitStrategy(
-			wait.ForSQL("5432/tcp", "postgres", func(host string, port nat.Port) string {
+			wait.ForSQL("5432/tcp", "pgx", func(host string, port nat.Port) string {
 				return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable", DbUser, DbPass, host, port.Port(), DbName)
 			}).
 				WithStartupTimeout(time.Second*30).
