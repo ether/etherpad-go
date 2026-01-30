@@ -1,7 +1,7 @@
 import * as esbuild from 'esbuild';
 import * as fs from "node:fs";
 import * as path from "node:path";
-import {exec, execSync} from "node:child_process";
+import {execSync} from "node:child_process";
 
 // ========================================
 // Plugin Registry Generator
