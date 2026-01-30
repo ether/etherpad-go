@@ -1,7 +1,7 @@
 import * as esbuild from 'esbuild';
 import * as fs from "node:fs";
 import * as path from "node:path";
-import {exec, execSync} from "node:child_process";
+import {execSync} from "node:child_process";
 
 // ========================================
 // Plugin Registry Generator
@@ -32,7 +32,7 @@ function collectClientHooksModules(parts) {
 
   for (const part of parts) {
     if (part.client_hooks) {
-      for (const [hookName, hookPath] of Object.entries(part.client_hooks)) {
+      for (const [, hookPath] of Object.entries(part.client_hooks)) {
         const modulePath = hookPath.split(':')[0];
         modules.set(modulePath, modulePath);
       }
@@ -258,6 +258,14 @@ for (const [modulePath] of clientHooksModules) {
 }
 
 const absWorkingDir = process.cwd()
+
+execSync("pnpm install", {
+    cwd: '../admin'
+})
+
+execSync("pnpm install", {
+    cwd: '.'
+})
 
 const loaders = {
     '.woff': 'base64',

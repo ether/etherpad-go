@@ -129,35 +129,20 @@ ghcr.io/ether/etherpad-go:<version>
 ### Installation
 
 1. Clone the repository:
+   ```bash
+   git clone https://github.com/ether/etherpad-go.git
+   cd etherpad-go
+   ```
+2. Build etherpad-go:
+   ```bash
+   go run main.go prepare
+   ```
 
-```bash
-git clone https://github.com/ether/etherpad-go.git
-cd etherpad-go
-```
+3. Run the server. The server path is printed after a successful build:
 
-2. Build the UI:
-
-```bash
-cd ui
-pnpm install
-cd ../admin
-pnpm install
-node build.js
-```
-
-3. Build the Go server:
-
-```bash
-go install github.com/a-h/templ/cmd/templ@latest
-templ generate
-go build -o etherpad-go ./main.go
-```
-
-4. Run the server:
-
-```bash
-./etherpad-go
-```
+   ```bash
+   ./<your-built-binary>
+   ```
 
 Etherpad should start in less than a second.
 
