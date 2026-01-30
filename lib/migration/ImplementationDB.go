@@ -33,7 +33,7 @@ func NewSQLiteDatabase(dsn string) (*SQLDatabase, error) {
 
 // NewPostgresDatabase creates a PostgreSQL-backed database
 func NewPostgresDatabase(dsn string) (*SQLDatabase, error) {
-	db, err := sql.Open("postgres", dsn)
+	db, err := sql.Open("pgx", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open postgres database: %w", err)
 	}

@@ -68,7 +68,7 @@ func setupPostgresContainer(t *testing.T) *TestContainerConfig {
 			ctx, "postgres:alpine",
 			testcontainers.WithExposedPorts("5432/tcp"),
 			testcontainers.WithWaitStrategy(
-				wait.ForSQL("5432/tcp", "postgres", func(host string, port nat.Port) string {
+				wait.ForSQL("5432/tcp", "pgx", func(host string, port nat.Port) string {
 					return fmt.Sprintf(
 						"postgres://%s:%s@%s:%s/%s?sslmode=disable",
 						testDbUser, testDbPass, host, port.Port(), testDbName,
@@ -205,7 +205,7 @@ func getTestCases(t *testing.T) []DBTestCase {
 					"postgres://%s:%s@%s:%s/%s?sslmode=disable",
 					testDbUser, testDbPass, cfg.Host, cfg.Port, testDbName,
 				)
-				db, err := sql.Open("postgres", dsn)
+				db, err := sql.Open("pgx", dsn)
 				require.NoError(t, err)
 				t.Cleanup(func() { db.Close() })
 				return db
