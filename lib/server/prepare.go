@@ -3,6 +3,8 @@ package server
 import (
 	"os"
 	"os/exec"
+	"path/filepath"
+	"runtime"
 
 	"go.uber.org/zap"
 )
@@ -42,12 +44,12 @@ func PrepareServer(setupLogger *zap.SugaredLogger) {
 		check(tool)
 	}
 	buildUI(setupLogger)
-	buildServer(setupLogger)
+	serverPath := buildServer(setupLogger)
 
 	setupLogger.Infof("Building the ui completed successfully.")
 	setupLogger.Infof("Next the actual server is compiled with the ui assets embedded.")
 
-	setupLogger.Infof("Build completed successfully. You ")
+	setupLogger.Infof("Build completed successfully. You can find the executable at %s", serverPath)
 }
 
 func buildUI(setupLogger *zap.SugaredLogger) {
@@ -64,14 +66,32 @@ func buildUI(setupLogger *zap.SugaredLogger) {
 	}
 }
 
-func buildServer(setupLogger *zap.SugaredLogger) {
+func buildServer(setupLogger *zap.SugaredLogger) string {
 	exeName := "etherpad"
 
-	if os.Getenv("GOOS") == "windows" {
+	if runtime.GOOS == "windows" {
 		exeName += ".exe"
 	}
+	exePath, err := os.Executable()
 
-	cmd := exec.Command("go", "build", "-o", exeName, ".")
+	etherpadPath := filepath.Join(filepath.Dir(exePath), exeName)
+
+	fileInfo, err := os.Stat(etherpadPath)
+
+	setupLogger.Infof("The binary will be built at %s", etherpadPath)
+	if err != nil && !os.IsNotExist(err) {
+		setupLogger.Infof("Error accessing %s", exePath)
+	}
+
+	if err == nil && fileInfo.Mode().IsRegular() {
+		setupLogger.Info("Old etherpad executable found, removing it before building a new one.")
+		err = os.Remove(etherpadPath)
+		if err != nil {
+			setupLogger.Fatalf("Could not remove old etherpad executable: %v", err)
+		}
+	}
+
+	cmd := exec.Command("go", "build", "-o", etherpadPath, ".")
 
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -80,4 +100,6 @@ func buildServer(setupLogger *zap.SugaredLogger) {
 	if err := cmd.Run(); err != nil {
 		setupLogger.Fatalf("build failed: %v", err)
 	}
+
+	return etherpadPath
 }
