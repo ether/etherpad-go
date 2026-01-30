@@ -13,7 +13,6 @@ import (
 	"github.com/ether/etherpad-go/lib/models/db"
 	session2 "github.com/ether/etherpad-go/lib/models/session"
 	mysql2 "github.com/go-sql-driver/mysql"
-	_ "github.com/lib/pq"
 )
 
 type MysqlDB struct {
