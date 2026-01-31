@@ -281,6 +281,11 @@ var Registry = []ConfigKey{
 		Default:     false,
 		Description: "Enable ep_markdown plugin",
 	},
+	{
+		Key:         EpRSSFeedEnabled,
+		Default:     false,
+		Description: "Enable ep_rss plugin",
+	},
 }
 
 func ApplyRegistryDefaults() {

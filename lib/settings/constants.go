@@ -109,4 +109,5 @@ const (
 	EpAlignEnabled      = "plugins.ep_align.enabled"
 	EpSpellcheckEnabled = "plugins.ep_spellcheck.enabled"
 	EpMarkdownEnabled   = "plugins.ep_markdown.enabled"
+	EpRSSFeedEnabled    = "plugins.ep_rss.enabled"
 )
