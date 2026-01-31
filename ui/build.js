@@ -11,6 +11,10 @@ const PLUGINS_DIR = '../plugins';
 const ASSETS_EP_JSON = '../assets/ep.json';
 const REGISTRY_OUTPUT = './src/js/pluginfw/plugin_registry.ts';
 
+execSync("pnpm install", {
+    cwd: '../admin'
+})
+
 /**
  * Lädt die ep.json eines Plugins
  */
@@ -259,13 +263,7 @@ for (const [modulePath] of clientHooksModules) {
 
 const absWorkingDir = process.cwd()
 
-execSync("pnpm install", {
-    cwd: '../admin'
-})
 
-execSync("pnpm install", {
-    cwd: '.'
-})
 
 const loaders = {
     '.woff': 'base64',

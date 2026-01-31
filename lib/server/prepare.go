@@ -43,6 +43,15 @@ func PrepareServer(setupLogger *zap.SugaredLogger) {
 	for _, tool := range requiredTools {
 		check(tool)
 	}
+
+	execPath, err := os.Getwd()
+	if err != nil {
+		setupLogger.Fatalf("Could not determine executable path: %v", err)
+	}
+
+	installDeps(setupLogger, filepath.Join(execPath, "ui"))
+	installDeps(setupLogger, filepath.Join(execPath, "admin"))
+
 	buildUI(setupLogger)
 	serverPath := buildServer(setupLogger)
 
@@ -50,6 +59,19 @@ func PrepareServer(setupLogger *zap.SugaredLogger) {
 	setupLogger.Infof("Next the actual server is compiled with the ui assets embedded.")
 
 	setupLogger.Infof("Build completed successfully. You can find the executable at %s", serverPath)
+}
+
+func installDeps(setupLogger *zap.SugaredLogger, pathToInstall string) {
+	cmd := exec.Command("pnpm", "install")
+	cmd.Dir = pathToInstall
+
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+
+	if err := cmd.Run(); err != nil {
+		setupLogger.Fatalf("dependency installation failed: %v", err)
+	}
 }
 
 func buildUI(setupLogger *zap.SugaredLogger) {
