@@ -223,7 +223,6 @@ type Settings struct {
 	RandomVersionString string `json:"-"`
 }
 
-// IsPluginEnabled prüft, ob ein Plugin in den Settings aktiviert ist
 func (s *Settings) IsPluginEnabled(pluginName string) bool {
 	if s.Plugins == nil {
 		return false
@@ -232,6 +231,22 @@ func (s *Settings) IsPluginEnabled(pluginName string) bool {
 		return plugin.Enabled
 	}
 	return false
+}
+
+type PluginPublicSettings struct {
+	Enabled bool   `json:"enabled"`
+	Name    string `json:"name"`
+}
+
+func (s *Settings) GetAllPlugins() []PluginPublicSettings {
+	var plugins = make([]PluginPublicSettings, 0)
+	for name, plugin := range s.Plugins {
+		plugins = append(plugins, PluginPublicSettings{
+			Enabled: plugin.Enabled,
+			Name:    name,
+		})
+	}
+	return plugins
 }
 
 func (s *Settings) GetPublicSettings() PublicSettings {

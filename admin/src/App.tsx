@@ -33,7 +33,7 @@ export const App = () => {
           <li><NavLink to={"/settings"}><Wrench/><Trans i18nKey="admin_settings"/></NavLink></li>
           <li><NavLink to={"/help"}> <Construction/> <Trans i18nKey="admin_plugins_info"/></NavLink></li>
           <li><NavLink to={"/pads"}><NotepadText/><Trans
-            i18nKey="ep_admin_pads.ep_adminpads2_manage-pads"/></NavLink></li>
+            i18nKey="ep_adminpads2_manage-pads"/></NavLink></li>
           <li><NavLink to={"/shout"}><PhoneCall/>Communication</NavLink></li>
         </ul>
       </div>

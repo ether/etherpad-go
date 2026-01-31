@@ -44,6 +44,10 @@ export default defineConfig({
                 target: 'http://localhost:9001',
                 changeOrigin: true,
             },
+            '/admin/ep_admin_pads/': {
+                target: 'http://localhost:9001',
+                changeOrigin: true,
+            },
             '/admin/locales': {
                 target: 'http://localhost:9001',
                 changeOrigin: true,

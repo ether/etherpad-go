@@ -16,6 +16,7 @@ import (
 	"github.com/ether/etherpad-go/lib/db"
 	hooks2 "github.com/ether/etherpad-go/lib/hooks"
 	"github.com/ether/etherpad-go/lib/pad"
+	"github.com/ether/etherpad-go/lib/plugins/interfaces"
 	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/ether/etherpad-go/lib/ws"
 	"github.com/go-playground/validator/v10"
@@ -61,6 +62,17 @@ func (t *TestDataStore) ToInitStore() *lib.InitStore {
 		C:                 t.App,
 		PrivateAPI:        t.PrivateAPI,
 		UiAssets:          GetTestAssets(),
+	}
+}
+
+func (t *TestDataStore) ToPluginStore() *interfaces.EpPluginStore {
+	return &interfaces.EpPluginStore{
+		Logger:            t.Logger,
+		HookSystem:        t.Hooks,
+		PadManager:        t.PadManager,
+		App:               t.App,
+		RetrievedSettings: &settings.Displayed,
+		UIAssets:          GetTestAssets(),
 	}
 }
 
@@ -479,12 +491,13 @@ func (test *TestDBHandler) TestRun(
 		padMessageHandler := ws.NewPadMessageHandler(
 			ds, &hooks, padManager, &sess, hub, loggerPart,
 		)
+		app := fiber.New()
 		adminMessageHandler := ws.NewAdminMessageHandler(
 			ds, &hooks, padManager, padMessageHandler, loggerPart, hub,
+			app,
 		)
 		validatorEvaluator := validator.New(validator.WithRequiredStructEnabled())
 
-		app := fiber.New()
 		privateAPI := app.Group("/admin/api")
 		testRun.Test(t, TestDataStore{
 			DS:                  ds,

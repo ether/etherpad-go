@@ -1,13 +1,32 @@
 {
-	"@metadata": {
-		"authors": [
-			"ಮಲ್ನಾಡಾಚ್ ಕೊಂಕ್ಣೊ"
-		]
-	},
-	"ep_adminpads2_action": "ಕ್ರಿಯೆ",
-	"ep_adminpads2_delete.value": "ಅಳಿಸು",
-	"ep_adminpads2_loading": "ತುಂಬಿಸಲಾಗುತ್ತಿದೆ…",
-	"ep_adminpads2_no-results": "ಯಾವ ಫಲಿತಾಂಶಗಳೂ ಇಲ್ಲ",
-	"ep_adminpads2_search-button.value": "ಹುಡುಕು",
-	"ep_adminpads2_unknown-error": "ಅಪರಿಚಿತ ದೋಷ"
+  "@metadata": {
+    "authors": [
+      "ಮಲ್ನಾಡಾಚ್ ಕೊಂಕ್ಣೊ"
+    ]
+  },
+  "admin_plugins.available": "ಲಭ್ಯವಿರುವ ಪ್ಲಗಿನ್‌ಗಳು",
+  "admin_plugins.available_fetching": "ಪಡೆಯಲಾಗುತ್ತಿದೆ...",
+  "admin_plugins.available_install.value": "ಅಳವಡಿಸು",
+  "admin_plugins.available_not-found": "ಯಾವುದೇ ಪ್ಲಗಿನ್‌ಗಳು ಸಿಗಲಿಲ್ಲ",
+  "admin_plugins.available_search.placeholder": "ಅಳವಡಿಸಲು ಪ್ಲಗಿನ್‌ಗಳನ್ನು ಹುಡುಕಿ",
+  "admin_plugins.description": "ವಿವರ",
+  "admin_plugins.installed": "ಅಳವಡಿಸಿದ ಪ್ಲಗಿನ್‌ಗಳು",
+  "admin_plugins.installed_fetching": "ಅಳವಡಿಸಿದ ಪ್ಲಗಿನ್‌ಗಳನ್ನು ಪಡೆಯಲಾಗುತ್ತಿದೆ...",
+  "admin_plugins.installed_nothing": "ನೀವು ಇನ್ನೂ ಯಾವುದೇ ಪ್ಲಗಿನ್‌ಗಳನ್ನು ಅಳವಡಿಸಿಲ್ಲ.",
+  "admin_plugins.name": "ಹೆಸರು",
+  "admin_plugins.version": "ಆವೃತ್ತಿ",
+  "admin_plugins_info.page-title": "ಪ್ಲಗಿನ್ ಮಾಹಿತಿ - ಈಥರ್‌ಪ್ಯಾಡ್",
+  "admin_plugins_info.plugins": "ಅಳವಡಿಸಿದ ಪ್ಲಗಿನ್‌ಗಳು",
+  "admin_plugins_info.version": "ಈಥರ್‌ಪ್ಯಾಡ್ ಆವೃತ್ತಿ",
+  "admin_plugins_info.version_number": "ಆವೃತ್ತಿ ಸಂಖ್ಯೆ",
+  "admin_settings": "ವ್ಯವಸ್ಥೆಗಳು",
+  "admin_settings.page-title": "ವ್ಯವಸ್ಥೆಗಳು - ಈಥರ್‌ಪ್ಯಾಡ್",
+  "ep_adminpads2_action": "ಕ್ರಿಯೆ",
+  "ep_adminpads2_delete.value": "ಅಳಿಸು",
+  "ep_adminpads2_loading": "ತುಂಬಿಸಲಾಗುತ್ತಿದೆ…",
+  "ep_adminpads2_no-results": "ಯಾವ ಫಲಿತಾಂಶಗಳೂ ಇಲ್ಲ",
+  "ep_adminpads2_search-button.value": "ಹುಡುಕು",
+  "ep_adminpads2_unknown-error": "ಅಪರಿಚಿತ ದೋಷ",
+  "index.createOpenPad": "ಅಥವಾ ಈ ಹೆಸರಿನ ಪ್ಯಾಡನ್ನು ಸೃಷ್ಟಿಸು/ತೆರೆ:",
+  "index.newPad": "ಹೊಸ ಪ್ಯಾಡ್"
 }

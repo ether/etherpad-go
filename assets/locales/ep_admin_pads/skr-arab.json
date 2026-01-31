@@ -1,20 +1,36 @@
 {
-	"@metadata": {
-		"authors": [
-			"Saraiki"
-		]
-	},
-	"ep_adminpads2_action": "عمل",
-	"ep_adminpads2_delete.value": "مٹاؤ",
-	"ep_adminpads2_last-edited": "چھیکڑی تبدیلی",
-	"ep_adminpads2_loading": "لوڈ تھین٘دا پئے۔۔۔",
-	"ep_adminpads2_manage-pads": "پیڈ منیج کرو",
-	"ep_adminpads2_no-results": "کوئی نتیجہ کائنی",
-	"ep_adminpads2_padname": "پیڈ ناں",
-	"ep_adminpads2_search-box.placeholder": "ٹرم ڳولو",
-	"ep_adminpads2_search-button.value": "ڳولو",
-	"ep_adminpads2_search-done": "ڳولݨ پورا تھیا",
-	"ep_adminpads2_search-heading": "پیڈاں دی ڳول",
-	"ep_adminpads2_unknown-error": "نامعلوم غلطی",
-	"ep_adminpads2_unknown-status": "نامعلوم حالت"
+  "@metadata": {
+    "authors": [
+      "Saraiki"
+    ]
+  },
+  "admin_plugins": "پلگ ان منیجر",
+  "admin_plugins.available": "دستیاب پلگ ان",
+  "admin_plugins.available_install.value": "انسٹال",
+  "admin_plugins.available_not-found": "کوئی پلگ ان کائنی لبھے۔",
+  "admin_plugins.description": "تفصیل",
+  "admin_plugins.installed_uninstall.value": "ان انسٹال",
+  "admin_plugins.last-update": "چھیکڑی تبدیلی",
+  "admin_plugins.name": "ناں",
+  "admin_plugins.version": "ورژن",
+  "admin_plugins_info.parts": "انسٹال تھئے حصے",
+  "admin_plugins_info.plugins": "انسٹال تھئے پلگ ان",
+  "admin_plugins_info.version_number": "ورشن نمبر",
+  "admin_settings": "ترتیباں",
+  "admin_settings.current_save.value": "ترتیباں محفوظ کرو",
+  "admin_settings.page-title": "ترتیباں ــ ایتھرپیڈ",
+  "ep_adminpads2_action": "عمل",
+  "ep_adminpads2_delete.value": "مٹاؤ",
+  "ep_adminpads2_last-edited": "چھیکڑی تبدیلی",
+  "ep_adminpads2_loading": "لوڈ تھین٘دا پئے۔۔۔",
+  "ep_adminpads2_manage-pads": "پیڈ منیج کرو",
+  "ep_adminpads2_no-results": "کوئی نتیجہ کائنی",
+  "ep_adminpads2_padname": "پیڈ ناں",
+  "ep_adminpads2_search-box.placeholder": "ٹرم ڳولو",
+  "ep_adminpads2_search-button.value": "ڳولو",
+  "ep_adminpads2_search-done": "ڳولݨ پورا تھیا",
+  "ep_adminpads2_search-heading": "پیڈاں دی ڳول",
+  "ep_adminpads2_unknown-error": "نامعلوم غلطی",
+  "ep_adminpads2_unknown-status": "نامعلوم حالت",
+  "index.newPad": "نواں پیڈ"
 }

@@ -16,7 +16,6 @@ import (
 	"github.com/ether/etherpad-go/assets/welcome"
 	"github.com/ether/etherpad-go/lib"
 	pad2 "github.com/ether/etherpad-go/lib/api/pad"
-	"github.com/ether/etherpad-go/lib/locales"
 	"github.com/ether/etherpad-go/lib/plugins"
 	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/ether/etherpad-go/lib/timeslider"
@@ -228,9 +227,7 @@ func Init(store *lib.InitStore) {
 	registerEmbeddedStatic(store.C, "/static/skins/colibris/", "assets/css/skin", store.UiAssets)
 	registerEmbeddedStatic(store.C, "/html/", "assets/html", store.UiAssets)
 	registerEmbeddedStatic(store.C, "/font/", "assets/font", store.UiAssets)
-	store.C.Get("/admin/locales/:locale", func(ctx *fiber.Ctx) error {
-		return locales.HandleLocale(ctx, store.UiAssets)
-	})
+	registerEmbeddedStatic(store.C, "/admin/ep_admin_pads/", "assets/locales/ep_admin_pads", store.UiAssets)
 
 	store.C.Get("/p/:pad", func(ctx *fiber.Ctx) error {
 		return pad2.HandlePadOpen(ctx, store.UiAssets, store.RetrievedSettings, store.Hooks)

@@ -9,8 +9,9 @@ import (
 	_ "github.com/ether/etherpad-go/docs"
 	"github.com/ether/etherpad-go/lib/cli"
 	"github.com/ether/etherpad-go/lib/loadtest"
+	"github.com/ether/etherpad-go/lib/locales"
 	"github.com/ether/etherpad-go/lib/migration"
-	"github.com/ether/etherpad-go/lib/server"
+	server2 "github.com/ether/etherpad-go/lib/server"
 	settings2 "github.com/ether/etherpad-go/lib/settings"
 	"github.com/ether/etherpad-go/lib/utils"
 )
@@ -47,10 +48,12 @@ func main() {
 			loadtest.RunMultiFromCLI(setupLogger, os.Args[2:])
 			return
 		case "prepare":
-			server.PrepareServer(setupLogger)
+			server2.PrepareServer(setupLogger)
 			os.Exit(0)
 		case "config":
 			settings2.HandleConfigCommand(setupLogger)
+		case "locales":
+			locales.Handle()
 		case "-h", "--help", "help":
 			fmt.Println("Usage: etherpad [command] [options]")
 			fmt.Println("Commands:")
@@ -63,6 +66,6 @@ func main() {
 			return
 		}
 	}
-	server.InitServer(setupLogger, uiAssets)
 
+	server2.InitServer(setupLogger, uiAssets)
 }
