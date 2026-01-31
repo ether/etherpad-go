@@ -1,12 +1,8 @@
 package ws
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
-	"log"
-	"os"
-	"os/exec"
 	"slices"
 	"strings"
 	"time"
@@ -151,7 +147,6 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 	case "getInstalled":
 		{
 
-			restart(h.App)
 			var epPlugin = []admin.InstalledPluginDefinition{
 				{
 					Name:         "etherpad",
@@ -331,42 +326,6 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 		// Unknown event
 		println("Unknown admin event:", message.Event)
 	}
-}
-
-func shutdownServer(server *fiber.App) error {
-	ctx, cancel := context.WithTimeout(
-		context.Background(),
-		5*time.Second,
-	)
-	defer cancel()
-
-	return server.ShutdownWithContext(ctx)
-}
-
-func restartSelf() error {
-	exe, err := os.Executable()
-	if err != nil {
-		return err
-	}
-
-	cmd := exec.Command(exe, os.Args[1:]...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Stdin = os.Stdin
-
-	return cmd.Start()
-}
-
-func restart(server *fiber.App) {
-	if err := shutdownServer(server); err != nil {
-		log.Printf("shutdown error: %v", err)
-	}
-
-	if err := restartSelf(); err != nil {
-		log.Fatalf("restart failed: %v", err)
-	}
-
-	os.Exit(2)
 }
 
 func (h AdminMessageHandler) DeleteRevisions(padId string, keepRevisions int) error {

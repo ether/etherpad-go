@@ -48,7 +48,7 @@ func main() {
 			loadtest.RunMultiFromCLI(setupLogger, os.Args[2:])
 			return
 		case "prepare":
-			server.PrepareServer(setupLogger)
+			server2.PrepareServer(setupLogger)
 			os.Exit(0)
 		case "config":
 			settings2.HandleConfigCommand(setupLogger)
@@ -66,7 +66,6 @@ func main() {
 			return
 		}
 	}
-	server := server2.New()
 
-	server.Run(setupLogger, uiAssets)
+	server2.InitServer(setupLogger, uiAssets)
 }

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ether/etherpad-go/lib/pad"
+	"github.com/ether/etherpad-go/lib/plugins/interfaces"
 	"github.com/gofiber/fiber/v2"
 	"go.uber.org/zap"
 	"golang.org/x/net/html"
@@ -19,6 +20,30 @@ type FeedCache struct {
 	Feed       string
 }
 
+type EPRssPlugin struct {
+	enabled bool
+}
+
+func (E *EPRssPlugin) Name() string {
+	return "ep_rss"
+}
+
+func (E *EPRssPlugin) Description() string {
+	return "Adds RSS feed support to Etherpad"
+}
+
+func (E *EPRssPlugin) Init(store *interfaces.EpPluginStore) {
+	registerFeedRoutes(store.App, store.PadManager, store.Logger)
+}
+
+func (E *EPRssPlugin) SetEnabled(enabled bool) {
+	E.enabled = enabled
+}
+
+func (E *EPRssPlugin) IsEnabled() bool {
+	return E.enabled
+}
+
 var (
 	// Global feed cache with mutex for thread safety
 	feeds   = make(map[string]*FeedCache)
@@ -27,7 +52,7 @@ var (
 
 const staleTime = 5 * time.Minute
 
-func RegisterFeedRoutes(app *fiber.App, padManager *pad.Manager, zap *zap.SugaredLogger) {
+func registerFeedRoutes(app *fiber.App, padManager *pad.Manager, zap *zap.SugaredLogger) {
 	// Redirects
 	app.Get("/p/:padID/rss", func(c *fiber.Ctx) error {
 		return c.Redirect(fmt.Sprintf(feedUrl, c.Params("padID")), fiber.StatusMovedPermanently)
@@ -156,3 +181,5 @@ func isAlreadyPublished(padID string, editTime time.Time) bool {
 	}
 	return feed.LastEdited == editTime.UnixMilli()
 }
+
+var _ interfaces.EpPlugin = (*EPRssPlugin)(nil)

@@ -1,12 +1,9 @@
 package ep_markdown
 
 import (
-	"embed"
-
-	"github.com/ether/etherpad-go/lib/hooks"
 	"github.com/ether/etherpad-go/lib/hooks/events"
+	"github.com/ether/etherpad-go/lib/plugins/interfaces"
 	"github.com/ether/etherpad-go/lib/utils"
-	"go.uber.org/zap"
 )
 
 type EpMarkdownPlugin struct {
@@ -29,23 +26,19 @@ func (p *EpMarkdownPlugin) Description() string {
 	return "Adds Markdown support to Etherpad"
 }
 
-func (p *EpMarkdownPlugin) Init(
-	hookSystem *hooks.Hook,
-	uiAssets embed.FS,
-	zap *zap.SugaredLogger,
-) {
-	zap.Info("Initializing ep_markdown plugin")
+func (p *EpMarkdownPlugin) Init(store *interfaces.EpPluginStore) {
+	store.Logger.Info("Initializing ep_markdown plugin")
 
-	hookSystem.EnqueueGetPluginTranslationHooks(
+	store.HookSystem.EnqueueGetPluginTranslationHooks(
 		func(ctx *events.LocaleLoadContext) {
-			zap.Infof(
+			store.Logger.Infof(
 				"Loading ep_markdown translations for locale: %s",
 				ctx.RequestedLocale,
 			)
 
 			loadedTranslations, err := utils.LoadPluginTranslations(
 				ctx.RequestedLocale,
-				uiAssets,
+				store.UIAssets,
 				"ep_markdown",
 			)
 			if err != nil {
@@ -58,3 +51,5 @@ func (p *EpMarkdownPlugin) Init(
 		},
 	)
 }
+
+var _ interfaces.EpPlugin = (*EpMarkdownPlugin)(nil)

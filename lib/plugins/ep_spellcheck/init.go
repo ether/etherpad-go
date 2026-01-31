@@ -1,12 +1,9 @@
 package ep_spellcheck
 
 import (
-	"embed"
-
-	"github.com/ether/etherpad-go/lib/hooks"
 	"github.com/ether/etherpad-go/lib/hooks/events"
+	"github.com/ether/etherpad-go/lib/plugins/interfaces"
 	"github.com/ether/etherpad-go/lib/utils"
-	"go.uber.org/zap"
 )
 
 type EpSpellcheckPlugin struct {
@@ -29,23 +26,19 @@ func (p *EpSpellcheckPlugin) Description() string {
 	return "Adds spellchecking support to Etherpad"
 }
 
-func (p *EpSpellcheckPlugin) Init(
-	hookSystem *hooks.Hook,
-	uiAssets embed.FS,
-	zap *zap.SugaredLogger,
-) {
-	zap.Info("Initializing ep_spellcheck plugin")
+func (p *EpSpellcheckPlugin) Init(store *interfaces.EpPluginStore) {
+	store.Logger.Info("Initializing ep_spellcheck plugin")
 
-	hookSystem.EnqueueGetPluginTranslationHooks(
+	store.HookSystem.EnqueueGetPluginTranslationHooks(
 		func(ctx *events.LocaleLoadContext) {
-			zap.Debugf(
+			store.Logger.Debugf(
 				"Loading ep_spellcheck translations for locale: %s",
 				ctx.RequestedLocale,
 			)
 
 			loadedTranslations, err := utils.LoadPluginTranslations(
 				ctx.RequestedLocale,
-				uiAssets,
+				store.UIAssets,
 				"ep_spellcheck",
 			)
 			if err != nil {
@@ -58,3 +51,5 @@ func (p *EpSpellcheckPlugin) Init(
 		},
 	)
 }
+
+var _ interfaces.EpPlugin = (*EpSpellcheckPlugin)(nil)

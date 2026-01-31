@@ -1,12 +1,9 @@
 package ep_align
 
 import (
-	"embed"
-
-	"github.com/ether/etherpad-go/lib/hooks"
 	"github.com/ether/etherpad-go/lib/hooks/events"
+	"github.com/ether/etherpad-go/lib/plugins/interfaces"
 	"github.com/ether/etherpad-go/lib/utils"
-	"go.uber.org/zap"
 )
 
 type EpAlignPlugin struct {
@@ -33,15 +30,11 @@ func (p *EpAlignPlugin) Description() string {
 	return "Adds text alignment support and export handling"
 }
 
-func (p *EpAlignPlugin) Init(
-	hookSystem *hooks.Hook,
-	uiAssets embed.FS,
-	zap *zap.SugaredLogger,
-) {
-	zap.Info("Initializing ep_align plugin")
+func (p *EpAlignPlugin) Init(epPluginStore *interfaces.EpPluginStore) {
+	epPluginStore.Logger.Info("Initializing ep_align plugin")
 
 	// HTML Export hook
-	hookSystem.EnqueueHook(
+	epPluginStore.HookSystem.EnqueueHook(
 		"getLineHTMLForExport",
 		func(ctx any) {
 			event := ctx.(*events.LineHtmlForExportContext)
@@ -50,7 +43,7 @@ func (p *EpAlignPlugin) Init(
 	)
 
 	// PDF Export hook
-	hookSystem.EnqueueHook(
+	epPluginStore.HookSystem.EnqueueHook(
 		"getLinePDFForExport",
 		func(ctx any) {
 			event := ctx.(*events.LinePDFForExportContext)
@@ -59,7 +52,7 @@ func (p *EpAlignPlugin) Init(
 	)
 
 	// DOCX Export hook
-	hookSystem.EnqueueHook(
+	epPluginStore.HookSystem.EnqueueHook(
 		"getLineDocxForExport",
 		func(ctx any) {
 			event := ctx.(*events.LineDocxForExportContext)
@@ -68,7 +61,7 @@ func (p *EpAlignPlugin) Init(
 	)
 
 	// ODT Export hook
-	hookSystem.EnqueueHook(
+	epPluginStore.HookSystem.EnqueueHook(
 		"getLineOdtForExport",
 		func(ctx any) {
 			event := ctx.(*events.LineOdtForExportContext)
@@ -77,18 +70,18 @@ func (p *EpAlignPlugin) Init(
 	)
 
 	// Translation hook
-	hookSystem.EnqueueGetPluginTranslationHooks(
+	epPluginStore.HookSystem.EnqueueGetPluginTranslationHooks(
 		func(ctx *events.LocaleLoadContext) {
 			loadedTranslations, err := utils.LoadPluginTranslations(
 				ctx.RequestedLocale,
-				uiAssets,
+				epPluginStore.UIAssets,
 				"ep_align",
 			)
 			if err != nil {
 				return
 			}
 
-			zap.Debugf(
+			epPluginStore.Logger.Debugf(
 				"Loading ep_align translations for locale: %s",
 				ctx.RequestedLocale,
 			)
@@ -99,3 +92,5 @@ func (p *EpAlignPlugin) Init(
 		},
 	)
 }
+
+var _ interfaces.EpPlugin = (*EpAlignPlugin)(nil)

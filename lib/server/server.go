@@ -1,13 +1,10 @@
 package server
 
 import (
-	"context"
 	"embed"
 	"fmt"
 	"net/http"
 	"os"
-	"os/exec"
-	"sync"
 	"time"
 
 	"github.com/ether/etherpad-go/lib"
@@ -16,6 +13,7 @@ import (
 	"github.com/ether/etherpad-go/lib/hooks"
 	"github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/plugins"
+	"github.com/ether/etherpad-go/lib/plugins/interfaces"
 	session2 "github.com/ether/etherpad-go/lib/session"
 	settings2 "github.com/ether/etherpad-go/lib/settings"
 	"github.com/ether/etherpad-go/lib/utils"
@@ -36,9 +34,6 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS) {
 
 	retrievedHooks := hooks.NewHook()
 
-	// init plugins
-	plugins.InitPlugins(&settings, &retrievedHooks, setupLogger, uiAssets)
-
 	gitVersion := settings2.GetGitCommit(&settings)
 	setupLogger.Info("Starting Etherpad Go...")
 	setupLogger.Info("Report bugs at https://github.com/ether/etherpad-go/issues")
@@ -57,6 +52,26 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS) {
 		return pad.CheckAccess(c, setupLogger, &settings, readOnlyManager)
 	})
 
+	padManager := pad.NewManager(dataStore, &retrievedHooks)
+	authorManager := author.NewManager(dataStore)
+	globalHub := ws.NewHub()
+	sessionStore := ws.NewSessionStore()
+	padMessageHandler := ws.NewPadMessageHandler(dataStore, &retrievedHooks, padManager, &sessionStore, globalHub, setupLogger)
+	adminMessageHandler := ws.NewAdminMessageHandler(dataStore, &retrievedHooks, padManager, padMessageHandler, setupLogger, globalHub, app)
+	securityManager := pad.NewSecurityManager(dataStore, &retrievedHooks, padManager)
+
+	var epPluginStore = &interfaces.EpPluginStore{
+		Logger:            setupLogger,
+		HookSystem:        &retrievedHooks,
+		UIAssets:          uiAssets,
+		PadManager:        padManager,
+		App:               app,
+		RetrievedSettings: &settings,
+	}
+
+	// init plugins
+	plugins.InitPlugins(epPluginStore)
+
 	var cookieStore = session.New(session.Config{
 		KeyLookup:      "cookie:express_sid",
 		Storage:        db,
@@ -65,22 +80,13 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS) {
 	})
 
 	hooks.ExpressPreSession(app, uiAssets)
-	globalHub := ws.NewHub()
 	go globalHub.Run()
-
-	sessionStore := ws.NewSessionStore()
 
 	if err != nil {
 		setupLogger.Fatal("Error connecting to database: " + err.Error())
 		return
 	}
 
-	padManager := pad.NewManager(dataStore, &retrievedHooks)
-	authorManager := author.NewManager(dataStore)
-
-	padMessageHandler := ws.NewPadMessageHandler(dataStore, &retrievedHooks, padManager, &sessionStore, globalHub, setupLogger)
-	adminMessageHandler := ws.NewAdminMessageHandler(dataStore, &retrievedHooks, padManager, padMessageHandler, setupLogger, globalHub)
-	securityManager := pad.NewSecurityManager(dataStore, &retrievedHooks, padManager)
 	adminAPIRoute := app.Group("/admin/api")
 
 	authenticator := api2.InitAPI(&lib.InitStore{
@@ -117,7 +123,11 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS) {
 			}
 			ok, err := authenticator.ValidateAdminToken(token, ssoAdminClient)
 			if err != nil || !ok {
-				setupLogger.Warn("Invalid token provided for admin validation: " + err.Error())
+				if err != nil {
+					setupLogger.Warn("Invalid token provided for admin validation: " + err.Error())
+				} else {
+					setupLogger.Warn("Invalid token provided for admin validation")
+				}
 				return c.Status(http.StatusUnauthorized).Send([]byte("No token provided"))
 			}
 			return c.SendStatus(http.StatusOK)
