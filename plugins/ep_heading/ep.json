@@ -1,0 +1,68 @@
+{
+  "parts": [
+    {
+      "name": "main",
+      "client_hooks": {
+        "aceEditorCSS": "ep_heading/static/js/index:aceEditorCSS",
+        "aceEditEvent": "ep_heading/static/js/index:aceEditEvent",
+        "aceDomLineProcessLineAttributes": "ep_heading/static/js/index:aceDomLineProcessLineAttributes",
+        "postAceInit": "ep_heading/static/js/index:postAceInit",
+        "aceInitialized": "ep_heading/static/js/index:aceInitialized",
+        "aceAttribsToClasses": "ep_heading/static/js/index:aceAttribsToClasses",
+        "collectContentPre": "ep_heading/static/js/shared:collectContentPre",
+        "aceRegisterBlockElements": "ep_heading/static/js/index:aceRegisterBlockElements"
+      },
+      "toolbar_buttons": [
+        {
+          "key": "normal",
+          "title": "ep_headings.normal",
+          "icon": "1",
+          "group": "normal",
+          "data_align": 0
+        },
+        {
+          "key": "heading1",
+          "title": "ep_headings.h1",
+          "icon": "1",
+          "group": "h1",
+          "data_align": 0
+        },
+        {
+          "key": "heading2",
+          "title": "ep_headings.h2",
+          "icon": "1",
+          "group": "h2",
+          "data_align": 0
+        },
+        {
+          "key": "heading3",
+          "title": "ep_headings.h3",
+          "icon": "1",
+          "group": "h3",
+          "data_align": 0
+        },
+        {
+          "key": "heading4",
+          "title": "ep_headings.h4",
+          "icon": "1",
+          "group": "h4",
+          "data_align": 0
+        },
+        {
+          "key": "heading5",
+          "title": "ep_headings.code",
+          "icon": "1",
+          "group": "h5",
+          "data_align": 0
+        }
+      ],
+      "hooks": {
+        "eejsBlock_editbarMenuLeft": "ep_headings2/index",
+        "collectContentPre": "ep_headings2/static/js/shared",
+        "collectContentPost": "ep_headings2/static/js/shared",
+        "getLineHTMLForExport": "ep_headings2/index",
+        "stylesForExport" : "ep_headings2/index"
+      }
+    }
+  ]
+}

@@ -13,7 +13,7 @@ templ PluginToolbarButtons(translations map[string]string, buttonGroups []plugin
         <li class="separator acl-write"></li>
         for _, btn := range group.Buttons {
             <li data-type="button" data-key={btn.Key} data-l10n-id={btn.Title}>
-                <a class={"grouped-" + btn.Group + " ep_align"} data-align={btn.DataAlign} data-l10n-id={btn.Title} title={getTranslation(translations, btn.Title)} aria-label={getTranslation(translations, btn.Title)}>
+                <a class={"grouped-" + btn.Group + " " + group.PluginName} data-align={btn.DataAlign} data-l10n-id={btn.Title} title={getTranslation(translations, btn.Title)} aria-label={getTranslation(translations, btn.Title)}>
                     <button class={"buttonicon " + btn.Icon} data-align={btn.DataAlign} aria-label={getTranslation(translations, btn.Title)}></button>
                 </a>
             </li>

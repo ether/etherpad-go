@@ -1,0 +1,14 @@
+{
+	"@metadata": {
+		"authors": [
+			"আজিজ"
+		]
+	},
+	"ep_headings.style": "শৈলী",
+	"ep_headings.normal": "সাধারণ",
+	"ep_headings.h1": "শিরনামা ১",
+	"ep_headings.h2": "শিরোনামা ২",
+	"ep_headings.h3": "শিরনামা ৩",
+	"ep_headings.h4": "শিরোনামা ৪",
+	"ep_headings.code": "কোড"
+}

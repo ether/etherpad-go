@@ -1,0 +1,14 @@
+{
+	"@metadata": {
+		"authors": [
+			"Veracious"
+		]
+	},
+	"ep_headings.style": "Gaya",
+	"ep_headings.normal": "Normal",
+	"ep_headings.h1": "Judul tingkat 1",
+	"ep_headings.h2": "Judul tingkat 2",
+	"ep_headings.h3": "Judul tingkat 3",
+	"ep_headings.h4": "Judul tingkat 4",
+	"ep_headings.code": "Kode"
+}

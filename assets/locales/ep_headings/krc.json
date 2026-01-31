@@ -1,0 +1,14 @@
+{
+	"@metadata": {
+		"authors": [
+			"Къарачайлы"
+		]
+	},
+	"ep_headings.style": "Стиль",
+	"ep_headings.normal": "Нормал",
+	"ep_headings.h1": "Башлыкъ 1",
+	"ep_headings.h2": "Башлыкъ 2",
+	"ep_headings.h3": "Башлыкъ 3",
+	"ep_headings.h4": "Башлыкъ 4",
+	"ep_headings.code": "Код"
+}

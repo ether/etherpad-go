@@ -1,0 +1,14 @@
+{
+	"@metadata": {
+		"authors": [
+			"Ibrahima Malal Sarr"
+		]
+	},
+	"ep_headings.style": "Pannol",
+	"ep_headings.normal": "Potɗum",
+	"ep_headings.h1": "Tiitoonde",
+	"ep_headings.h2": "Tiitoonde 2",
+	"ep_headings.h3": "Tiitoonde 3",
+	"ep_headings.h4": "Tiitoonde 4",
+	"ep_headings.code": "Dokkol"
+}
