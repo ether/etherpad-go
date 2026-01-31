@@ -15,8 +15,8 @@ import (
 	"github.com/a-h/templ"
 	"github.com/ether/etherpad-go/assets/welcome"
 	"github.com/ether/etherpad-go/lib"
+	pad2 "github.com/ether/etherpad-go/lib/api/pad"
 	"github.com/ether/etherpad-go/lib/locales"
-	"github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/plugins"
 	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/ether/etherpad-go/lib/timeslider"
@@ -233,7 +233,7 @@ func Init(store *lib.InitStore) {
 	})
 
 	store.C.Get("/p/:pad", func(ctx *fiber.Ctx) error {
-		return pad.HandlePadOpen(ctx, store.UiAssets, store.RetrievedSettings, store.Hooks)
+		return pad2.HandlePadOpen(ctx, store.UiAssets, store.RetrievedSettings, store.Hooks)
 	})
 
 	store.C.Get("/p/:pad/timeslider", func(c *fiber.Ctx) error {

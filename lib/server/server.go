@@ -33,9 +33,6 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS) {
 
 	retrievedHooks := hooks.NewHook()
 
-	// init plugins
-	plugins.InitPlugins(&settings, &retrievedHooks, setupLogger, uiAssets)
-
 	gitVersion := settings2.GetGitCommit(&settings)
 	setupLogger.Info("Starting Etherpad Go...")
 	setupLogger.Info("Report bugs at https://github.com/ether/etherpad-go/issues")
@@ -49,6 +46,8 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS) {
 	app := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
 	})
+
+	// init plugins
 
 	app.Use(func(c *fiber.Ctx) error {
 		return pad.CheckAccess(c, setupLogger, &settings, readOnlyManager)
@@ -74,6 +73,8 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS) {
 
 	padManager := pad.NewManager(dataStore, &retrievedHooks)
 	authorManager := author.NewManager(dataStore)
+
+	plugins.InitPlugins(app, &settings, padManager, &retrievedHooks, setupLogger, uiAssets)
 
 	padMessageHandler := ws.NewPadMessageHandler(dataStore, &retrievedHooks, padManager, &sessionStore, globalHub, setupLogger)
 	adminMessageHandler := ws.NewAdminMessageHandler(dataStore, &retrievedHooks, padManager, padMessageHandler, setupLogger, globalHub)
