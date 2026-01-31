@@ -27,7 +27,8 @@ func TestEPRSS(t *testing.T) {
 }
 
 func testEpRSSFeed(t *testing.T, th testutils.TestDataStore) {
-	ep_rss.RegisterFeedRoutes(th.App, th.PadManager, th.Logger)
+	epRSSInstance := ep_rss.EPRssPlugin{}
+	epRSSInstance.Init(th.ToPluginStore())
 
 	tests := []struct {
 		name     string
@@ -54,7 +55,8 @@ func testEpRSSFeed(t *testing.T, th testutils.TestDataStore) {
 }
 
 func testFeedbuildsNewRSS(t *testing.T, th testutils.TestDataStore) {
-	ep_rss.RegisterFeedRoutes(th.App, th.PadManager, th.Logger)
+	epRSSInstance := ep_rss.EPRssPlugin{}
+	epRSSInstance.Init(th.ToPluginStore())
 	req := httptest.NewRequest(http.MethodGet, "/p/test/feed", nil)
 	var helloWorld = "Hello\nWorld"
 	_, err := th.PadManager.GetPad("test", &helloWorld, nil)
