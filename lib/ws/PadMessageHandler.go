@@ -1409,3 +1409,13 @@ func (p *PadMessageHandler) HandleSavedRevisionMessage(foundPad *pad2.Pad, autho
 	}
 	p.Logger.Infof("Added saved revision:%v by %s", foundPad.Id, author)
 }
+
+// GetPadUsers returns the list of users currently in a pad
+func (p *PadMessageHandler) GetPadUsers(padId string) []PadUserInfo {
+	return p.SessionStore.GetPadSessions(padId)
+}
+
+// GetPadUsersCount returns the number of users currently in a pad
+func (p *PadMessageHandler) GetPadUsersCount(padId string) int {
+	return p.SessionStore.GetPadSessionsCount(padId)
+}

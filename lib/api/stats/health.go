@@ -62,6 +62,14 @@ func (e EtherpadChecker) Check() Check {
 	}
 }
 
+// Handler godoc
+// @Summary Health check endpoint
+// @Description Returns the health status of the service (RFC Health Check Draft)
+// @Tags Health
+// @Produce json
+// @Success 200 {object} HealthResponse "Service is healthy"
+// @Failure 503 {object} HealthResponse "Service is unhealthy"
+// @Router /health [get]
 func Handler(
 	version string,
 	releaseID string,

@@ -19,16 +19,26 @@ import (
 //go:embed assets
 var uiAssets embed.FS
 
-// @title Fiber Example API
+// @title Etherpad Go API
 // @version 1.0
-// @description This is a sample swagger for Fiber
+// @description REST API for Etherpad Go - Collaborative Text Editor
 // @termsOfService http://swagger.io/terms/
-// @contact.name API Support
-// @contact.email fiber@swagger.io
+
+// @contact.name Etherpad Support
+// @contact.url https://github.com/ether/etherpad-go
+// @contact.email support@etherpad.org
+
 // @license.name Apache 2.0
 // @license.url http://www.apache.org/licenses/LICENSE-2.0.html
-// @host localhost:3000
+
+// @host localhost:9001
 // @BasePath /
+
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @description Bearer Token for Admin API authentication
+
 func main() {
 	setupLogger := utils.SetupLogger()
 	defer setupLogger.Sync()

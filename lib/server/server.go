@@ -11,6 +11,7 @@ import (
 	api2 "github.com/ether/etherpad-go/lib/api"
 	"github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/hooks"
+	"github.com/ether/etherpad-go/lib/io"
 	"github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/plugins"
 	"github.com/ether/etherpad-go/lib/plugins/interfaces"
@@ -54,6 +55,7 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS) {
 
 	padManager := pad.NewManager(dataStore, &retrievedHooks)
 	authorManager := author.NewManager(dataStore)
+	importer := io.NewImporter(padManager, authorManager, dataStore, setupLogger)
 	globalHub := ws.NewHub()
 	sessionStore := ws.NewSessionStore()
 	padMessageHandler := ws.NewPadMessageHandler(dataStore, &retrievedHooks, padManager, &sessionStore, globalHub, setupLogger)
@@ -104,6 +106,7 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS) {
 		Handler:           padMessageHandler,
 		Store:             dataStore,
 		ReadOnlyManager:   readOnlyManager,
+		Importer:          importer,
 	})
 
 	app.Get("/socket.io/*", func(c *fiber.Ctx) error {

@@ -35,6 +35,23 @@ func TestAuthor(t *testing.T) {
 			Name: "Get Author Pad IDs",
 			Test: testGetAuthorPadIDS,
 		},
+		// New tests
+		testutils.TestRunConfig{
+			Name: "Create Author If Not Exists For - New Author",
+			Test: testCreateAuthorIfNotExistsForNew,
+		},
+		testutils.TestRunConfig{
+			Name: "Create Author If Not Exists For - Existing Author",
+			Test: testCreateAuthorIfNotExistsForExisting,
+		},
+		testutils.TestRunConfig{
+			Name: "Get Author Name",
+			Test: testGetAuthorName,
+		},
+		testutils.TestRunConfig{
+			Name: "Get Author Name Not Found",
+			Test: testGetAuthorNameNotFound,
+		},
 	)
 	defer testDb.StartTestDBHandler()
 }
@@ -132,4 +149,109 @@ func testGetAuthorPadIDS(t *testing.T, tsStore testutils.TestDataStore) {
 	if len(padsResponse) != 0 {
 		t.Errorf("should return all pad IDs of author, expected %d got %d", 0, len(padsResponse))
 	}
+}
+
+// ========== Create Author If Not Exists For ==========
+
+func testCreateAuthorIfNotExistsForNew(t *testing.T, tsStore testutils.TestDataStore) {
+	initStore := tsStore.ToInitStore()
+	author.Init(initStore)
+
+	reqBody := author.CreateAuthorIfNotExistsForRequest{
+		AuthorMapper: "testMapper123",
+		Name:         "Test Author",
+	}
+	body, _ := json.Marshal(reqBody)
+
+	req := httptest.NewRequest("POST", "/admin/api/author/createIfNotExistsFor", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := initStore.C.Test(req, 100)
+
+	assert.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	var response author.CreateDtoResponse
+	respBody, _ := io.ReadAll(resp.Body)
+	_ = json.Unmarshal(respBody, &response)
+
+	assert.NotEmpty(t, response.AuthorId)
+	assert.True(t, len(response.AuthorId) > 2)
+}
+
+func testCreateAuthorIfNotExistsForExisting(t *testing.T, tsStore testutils.TestDataStore) {
+	initStore := tsStore.ToInitStore()
+	author.Init(initStore)
+
+	// First call - create
+	reqBody := author.CreateAuthorIfNotExistsForRequest{
+		AuthorMapper: "existingMapper456",
+		Name:         "Original Name",
+	}
+	body, _ := json.Marshal(reqBody)
+
+	req := httptest.NewRequest("POST", "/admin/api/author/createIfNotExistsFor", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := initStore.C.Test(req, 100)
+
+	assert.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	var firstResponse author.CreateDtoResponse
+	respBody, _ := io.ReadAll(resp.Body)
+	_ = json.Unmarshal(respBody, &firstResponse)
+
+	// Second call - should return same author
+	reqBody2 := author.CreateAuthorIfNotExistsForRequest{
+		AuthorMapper: "existingMapper456",
+		Name:         "Updated Name",
+	}
+	body2, _ := json.Marshal(reqBody2)
+
+	req2 := httptest.NewRequest("POST", "/admin/api/author/createIfNotExistsFor", bytes.NewBuffer(body2))
+	req2.Header.Set("Content-Type", "application/json")
+	resp2, err := initStore.C.Test(req2, 100)
+
+	assert.NoError(t, err)
+	assert.Equal(t, 200, resp2.StatusCode)
+
+	var secondResponse author.CreateDtoResponse
+	respBody2, _ := io.ReadAll(resp2.Body)
+	_ = json.Unmarshal(respBody2, &secondResponse)
+
+	assert.Equal(t, firstResponse.AuthorId, secondResponse.AuthorId)
+}
+
+// ========== Get Author Name ==========
+
+func testGetAuthorName(t *testing.T, tsStore testutils.TestDataStore) {
+	initStore := tsStore.ToInitStore()
+	author.Init(initStore)
+
+	// Create author with name first
+	testName := "Test Author Name"
+	createdAuthor, err := tsStore.AuthorManager.CreateAuthor(&testName)
+	assert.NoError(t, err)
+
+	req := httptest.NewRequest("GET", "/admin/api/author/"+createdAuthor.Id+"/name", nil)
+	resp, err := initStore.C.Test(req, 100)
+
+	assert.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	var response author.AuthorNameResponse
+	body, _ := io.ReadAll(resp.Body)
+	_ = json.Unmarshal(body, &response)
+
+	assert.Equal(t, testName, response.AuthorName)
+}
+
+func testGetAuthorNameNotFound(t *testing.T, tsStore testutils.TestDataStore) {
+	initStore := tsStore.ToInitStore()
+	author.Init(initStore)
+
+	req := httptest.NewRequest("GET", "/admin/api/author/a.nonexistent12345/name", nil)
+	resp, err := initStore.C.Test(req, 100)
+
+	assert.NoError(t, err)
+	assert.Equal(t, 404, resp.StatusCode)
 }

@@ -6,6 +6,7 @@ import (
 	"github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/db"
 	"github.com/ether/etherpad-go/lib/hooks"
+	"github.com/ether/etherpad-go/lib/io"
 	pad2 "github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/ether/etherpad-go/lib/ws"
@@ -30,4 +31,5 @@ type InitStore struct {
 	ReadOnlyManager   *pad2.ReadOnlyManager
 	SecurityManager   *pad2.SecurityManager
 	AuthorManager     *author.Manager
+	Importer          *io.Importer
 }

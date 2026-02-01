@@ -15,6 +15,7 @@ import (
 	"github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/db"
 	hooks2 "github.com/ether/etherpad-go/lib/hooks"
+	"github.com/ether/etherpad-go/lib/io"
 	"github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/plugins/interfaces"
 	"github.com/ether/etherpad-go/lib/settings"
@@ -43,6 +44,7 @@ type TestDataStore struct {
 	Hub                 *ws.Hub
 	App                 *fiber.App
 	PrivateAPI          fiber.Router
+	Importer            *io.Importer
 }
 
 func (t *TestDataStore) ToInitStore() *lib.InitStore {
@@ -62,6 +64,7 @@ func (t *TestDataStore) ToInitStore() *lib.InitStore {
 		C:                 t.App,
 		PrivateAPI:        t.PrivateAPI,
 		UiAssets:          GetTestAssets(),
+		Importer:          t.Importer,
 	}
 }
 
@@ -488,6 +491,7 @@ func (test *TestDBHandler) TestRun(
 		sess := ws.NewSessionStore()
 		padManager := pad.NewManager(ds, &hooks)
 		loggerPart := zap.NewNop().Sugar()
+		importer := io.NewImporter(padManager, authManager, ds, loggerPart)
 		padMessageHandler := ws.NewPadMessageHandler(
 			ds, &hooks, padManager, &sess, hub, loggerPart,
 		)
@@ -514,6 +518,7 @@ func (test *TestDBHandler) TestRun(
 			PrivateAPI:          privateAPI,
 			Logger:              loggerPart,
 			SecurityManager:     pad.NewSecurityManager(ds, &hooks, padManager),
+			Importer:            importer,
 		})
 		t.Cleanup(func() {
 			switch ds.(type) {

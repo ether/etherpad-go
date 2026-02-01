@@ -10,6 +10,22 @@ import (
 	"go.uber.org/zap"
 )
 
+// GetExport godoc
+// @Summary Export a pad
+// @Description Exports the content of a pad to various formats (pdf, word, txt, html, open, etherpad, markdown)
+// @Tags Export
+// @Produce octet-stream
+// @Param pad path string true "Pad ID"
+// @Param rev path string false "Revision number"
+// @Param type path string true "Export type (pdf, word, txt, html, open, etherpad, markdown)"
+// @Success 200 {file} binary "Exported file"
+// @Failure 400 {string} string "Invalid export type"
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 404 {string} string "Pad not found"
+// @Failure 500 {string} string "Internal server error"
+// @Failure 503 {string} string "Export not available"
+// @Router /p/{pad}/export/{type} [get]
+// @Router /p/{pad}/{rev}/export/{type} [get]
 func GetExport(ctx *fiber.Ctx, exportHandler *io.ExportEtherpad, settings *settings.Settings, logger *zap.SugaredLogger, padManager *pad.Manager, readOnlyManager *pad.ReadOnlyManager, securityManager *pad.SecurityManager) error {
 	padId := ctx.Params("pad")
 	rev := ctx.Params("rev")

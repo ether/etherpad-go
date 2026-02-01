@@ -16,10 +16,7 @@ type SessionStat struct {
 	ActiveUsers int
 }
 
-// NewSessionStore
-// @param refresh *int Number of milliseconds to refresh the session
-//
-// /*
+// NewSessionStore erstellt einen neuen Session-Store
 func NewSessionStore() SessionStore {
 	return SessionStore{
 		sessions: make(map[string]*ws.Session),
@@ -101,6 +98,49 @@ func (s *SessionStore) resetSession(sessionId string) {
 	s.sync.Lock()
 	s.sessions[sessionId] = &ws.Session{}
 	s.sync.Unlock()
+}
+
+// PadUserInfo represents a user in a pad
+type PadUserInfo struct {
+	AuthorId string
+	ColorId  string
+	Name     string
+}
+
+// GetPadSessions returns all sessions for a given pad (only author IDs)
+func (s *SessionStore) GetPadSessions(padId string) []PadUserInfo {
+	s.sync.RLock()
+	defer s.sync.RUnlock()
+
+	users := make([]PadUserInfo, 0)
+	seenAuthors := make(map[string]bool)
+
+	for _, session := range s.sessions {
+		if session.PadId == padId && session.Author != "" {
+			if !seenAuthors[session.Author] {
+				seenAuthors[session.Author] = true
+				users = append(users, PadUserInfo{
+					AuthorId: session.Author,
+					// ColorId and Name will be filled by the caller from AuthorManager
+				})
+			}
+		}
+	}
+	return users
+}
+
+// GetPadSessionsCount returns the count of users in a given pad
+func (s *SessionStore) GetPadSessionsCount(padId string) int {
+	s.sync.RLock()
+	defer s.sync.RUnlock()
+
+	seenAuthors := make(map[string]bool)
+	for _, session := range s.sessions {
+		if session.PadId == padId && session.Author != "" {
+			seenAuthors[session.Author] = true
+		}
+	}
+	return len(seenAuthors)
 }
 
 // Test helper methods - these are exported for testing purposes only
