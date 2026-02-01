@@ -1,7 +1,9 @@
 package pad
 
 import (
+	"cmp"
 	"embed"
+	"slices"
 	"strconv"
 
 	"github.com/a-h/templ"
@@ -39,6 +41,9 @@ func HandlePadOpen(c *fiber.Ctx, uiAssets embed.FS, retrievedSettings *settings.
 
 	jsFilePath := "/js/pad/assets/pad.js?v=" + strconv.Itoa(utils.RandomVersionString)
 	buttonGroups := plugins.GetToolbarButtonGroups()
+	slices.SortFunc(buttonGroups, func(a, b plugins.ToolbarButtonGroup) int {
+		return cmp.Compare(a.PluginName, b.PluginName)
+	})
 	settingsMenuGroups := plugins.GetSettingsMenuGroups()
 
 	padComp := padAsset.PadIndex(pad, jsFilePath, keyValues, retrievedSettings, AvailableFonts, buttonGroups, settingsMenuGroups)

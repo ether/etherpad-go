@@ -44,6 +44,20 @@ type odtParagraph struct {
 	listType  string // "bullet", "number", or ""
 	listLevel int    // 1-based level
 	alignment string // "left", "center", "right", "justify"
+	heading   string // "h1", "h2", "h3", "h4", "h5", "h6" or ""
+}
+
+// 2. Mapping für ODT Heading-Styles
+var headingToOdtStyle = map[string]struct {
+	styleName    string
+	outlineLevel int
+}{
+	"h1": {"Title", 0},        // Titel (kein Outline-Level)
+	"h2": {"Heading_20_1", 1}, // Überschrift 1
+	"h3": {"Heading_20_2", 2}, // Überschrift 2
+	"h4": {"Heading_20_3", 3}, // Überschrift 3
+	"h5": {"Heading_20_4", 4}, // Überschrift 4
+	"h6": {"Heading_20_5", 5}, // Überschrift 5
 }
 
 func (e *ExportOdt) GetPadOdtDocument(padId string, optRevNum *int) ([]byte, error) {
@@ -64,10 +78,7 @@ func (e *ExportOdt) GetPadOdtDocument(padId string, optRevNum *int) ([]byte, err
 		}
 	}
 
-	// Build author color cache
 	authorColors := e.buildAuthorColorCache(&retrievedPad.Pool)
-
-	// Parse all lines
 	textLines := padLib.SplitRemoveLastRune(atext.Text)
 	attribLines, err := changeset.SplitAttributionLines(atext.Attribs, atext.Text)
 	if err != nil {
@@ -87,25 +98,27 @@ func (e *ExportOdt) GetPadOdtDocument(padId string, optRevNum *int) ([]byte, err
 			return nil, err
 		}
 
-		// Call hook to allow plugins to modify the paragraph (e.g., set alignment)
 		hookContext := &events.LineOdtForExportContext{
 			Apool:      &retrievedPad.Pool,
 			AttribLine: &aline,
 			Text:       &lineText,
 			PadId:      &padId,
 			Alignment:  nil,
+			Heading:    nil, // Neues Feld
 		}
 		e.Hooks.ExecuteHooks("getLineOdtForExport", hookContext)
 
-		// Apply alignment from hook if set
 		if hookContext.Alignment != nil {
 			para.alignment = *hookContext.Alignment
+		}
+
+		if hookContext.Heading != nil {
+			para.heading = *hookContext.Heading
 		}
 
 		paragraphs = append(paragraphs, para)
 	}
 
-	// Generate ODT
 	return e.generateOdt(paragraphs)
 }
 
@@ -178,13 +191,11 @@ func (e *ExportOdt) generateContentXML(paragraphs []odtParagraph, authorColors m
 		colorIndex++
 	}
 
-	// Generate styles for formatting
+	// Text formatting styles
 	automaticStyles.WriteString(`<style:style style:name="TBold" style:family="text"><style:text-properties fo:font-weight="bold" style:font-weight-asian="bold" style:font-weight-complex="bold"/></style:style>`)
 	automaticStyles.WriteString(`<style:style style:name="TItalic" style:family="text"><style:text-properties fo:font-style="italic" style:font-style-asian="italic" style:font-style-complex="italic"/></style:style>`)
 	automaticStyles.WriteString(`<style:style style:name="TUnderline" style:family="text"><style:text-properties style:text-underline-style="solid" style:text-underline-width="auto" style:text-underline-color="font-color"/></style:style>`)
 	automaticStyles.WriteString(`<style:style style:name="TStrike" style:family="text"><style:text-properties style:text-line-through-style="solid" style:text-line-through-type="single"/></style:style>`)
-
-	// Generate combined styles for multiple formatting
 	automaticStyles.WriteString(`<style:style style:name="TBoldItalic" style:family="text"><style:text-properties fo:font-weight="bold" fo:font-style="italic" style:font-weight-asian="bold" style:font-style-asian="italic" style:font-weight-complex="bold" style:font-style-complex="italic"/></style:style>`)
 
 	// Alignment paragraph styles
@@ -193,7 +204,7 @@ func (e *ExportOdt) generateContentXML(paragraphs []odtParagraph, authorColors m
 	automaticStyles.WriteString(`<style:style style:name="PRight" style:family="paragraph" style:parent-style-name="Standard"><style:paragraph-properties fo:text-align="end"/></style:style>`)
 	automaticStyles.WriteString(`<style:style style:name="PJustify" style:family="paragraph" style:parent-style-name="Standard"><style:paragraph-properties fo:text-align="justify"/></style:style>`)
 
-	// Bullet list style
+	// List styles
 	automaticStyles.WriteString(`<text:list-style style:name="L1">`)
 	automaticStyles.WriteString(`<text:list-level-style-bullet text:level="1" text:style-name="Bullet_20_Symbols" text:bullet-char="•">`)
 	automaticStyles.WriteString(`<style:list-level-properties text:list-level-position-and-space-mode="label-alignment">`)
@@ -202,7 +213,6 @@ func (e *ExportOdt) generateContentXML(paragraphs []odtParagraph, authorColors m
 	automaticStyles.WriteString(`</text:list-level-style-bullet>`)
 	automaticStyles.WriteString(`</text:list-style>`)
 
-	// Number list style
 	automaticStyles.WriteString(`<text:list-style style:name="L2">`)
 	automaticStyles.WriteString(`<text:list-level-style-number text:level="1" text:style-name="Numbering_20_Symbols" style:num-suffix="." style:num-format="1">`)
 	automaticStyles.WriteString(`<style:list-level-properties text:list-level-position-and-space-mode="label-alignment">`)
@@ -216,6 +226,44 @@ func (e *ExportOdt) generateContentXML(paragraphs []odtParagraph, authorColors m
 	inNumberList := false
 
 	for _, para := range paragraphs {
+		// Close any open lists if this is a heading or non-list paragraph
+		if para.heading != "" || para.listType == "" {
+			if inBulletList {
+				bodyContent.WriteString("</text:list>")
+				inBulletList = false
+			}
+			if inNumberList {
+				bodyContent.WriteString("</text:list>")
+				inNumberList = false
+			}
+		}
+
+		// Handle headings
+		if para.heading != "" {
+			headingInfo, ok := headingToOdtStyle[para.heading]
+			if !ok {
+				headingInfo = headingToOdtStyle["h2"] // Default
+			}
+
+			if headingInfo.outlineLevel == 0 {
+				// Title (kein text:h, sondern text:p mit Title-Style)
+				bodyContent.WriteString(fmt.Sprintf(`<text:p text:style-name="%s">`, headingInfo.styleName))
+			} else {
+				// Heading mit outline-level
+				bodyContent.WriteString(fmt.Sprintf(`<text:h text:style-name="%s" text:outline-level="%d">`,
+					headingInfo.styleName, headingInfo.outlineLevel))
+			}
+
+			e.writeSegments(&bodyContent, para.segments, colorStyleMap)
+
+			if headingInfo.outlineLevel == 0 {
+				bodyContent.WriteString("</text:p>")
+			} else {
+				bodyContent.WriteString("</text:h>")
+			}
+			continue
+		}
+
 		// Determine paragraph style based on alignment
 		paraStyle := "Standard"
 		switch para.alignment {
@@ -253,30 +301,11 @@ func (e *ExportOdt) generateContentXML(paragraphs []odtParagraph, authorColors m
 			bodyContent.WriteString("<text:list-item>")
 			bodyContent.WriteString(fmt.Sprintf(`<text:p text:style-name="%s">`, paraStyle))
 		} else {
-			if inBulletList {
-				bodyContent.WriteString("</text:list>")
-				inBulletList = false
-			}
-			if inNumberList {
-				bodyContent.WriteString("</text:list>")
-				inNumberList = false
-			}
 			bodyContent.WriteString(fmt.Sprintf(`<text:p text:style-name="%s">`, paraStyle))
 		}
 
-		// Write segments
-		for _, seg := range para.segments {
-			styleName := e.getStyleName(seg, colorStyleMap)
-			if styleName != "" {
-				bodyContent.WriteString(fmt.Sprintf(`<text:span text:style-name="%s">`, styleName))
-				bodyContent.WriteString(escapeXMLOdt(seg.text))
-				bodyContent.WriteString("</text:span>")
-			} else {
-				bodyContent.WriteString(escapeXMLOdt(seg.text))
-			}
-		}
+		e.writeSegments(&bodyContent, para.segments, colorStyleMap)
 
-		// Close paragraph
 		bodyContent.WriteString("</text:p>")
 		if para.listType != "" {
 			bodyContent.WriteString("</text:list-item>")
@@ -292,6 +321,19 @@ func (e *ExportOdt) generateContentXML(paragraphs []odtParagraph, authorColors m
 	}
 
 	return fmt.Sprintf(odtContentXMLTemplate, automaticStyles.String(), bodyContent.String())
+}
+
+func (e *ExportOdt) writeSegments(bodyContent *strings.Builder, segments []odtTextSegment, colorStyleMap map[string]string) {
+	for _, seg := range segments {
+		styleName := e.getStyleName(seg, colorStyleMap)
+		if styleName != "" {
+			bodyContent.WriteString(fmt.Sprintf(`<text:span text:style-name="%s">`, styleName))
+			bodyContent.WriteString(escapeXMLOdt(seg.text))
+			bodyContent.WriteString("</text:span>")
+		} else {
+			bodyContent.WriteString(escapeXMLOdt(seg.text))
+		}
+	}
 }
 
 func (e *ExportOdt) getStyleName(seg odtTextSegment, colorStyleMap map[string]string) string {
@@ -507,7 +549,40 @@ const odtStylesXML = `<?xml version="1.0" encoding="UTF-8"?>
     <style:style style:name="Standard" style:family="paragraph"/>
     <style:style style:name="Bullet_20_Symbols" style:display-name="Bullet Symbols" style:family="text"/>
     <style:style style:name="Numbering_20_Symbols" style:display-name="Numbering Symbols" style:family="text"/>
+    <style:style style:name="Title" style:family="paragraph" style:class="chapter">
+      <style:paragraph-properties fo:margin-top="0cm" fo:margin-bottom="0.5cm" fo:text-align="center"/>
+      <style:text-properties fo:font-size="28pt" fo:font-weight="bold" style:font-size-asian="28pt" style:font-weight-asian="bold" style:font-size-complex="28pt" style:font-weight-complex="bold"/>
+    </style:style>
+    <style:style style:name="Heading_20_1" style:display-name="Heading 1" style:family="paragraph" style:parent-style-name="Standard" style:class="text">
+      <style:paragraph-properties fo:margin-top="0.423cm" fo:margin-bottom="0.212cm" fo:keep-with-next="always"/>
+      <style:text-properties fo:font-size="24pt" fo:font-weight="bold" style:font-size-asian="24pt" style:font-weight-asian="bold" style:font-size-complex="24pt" style:font-weight-complex="bold"/>
+    </style:style>
+    <style:style style:name="Heading_20_2" style:display-name="Heading 2" style:family="paragraph" style:parent-style-name="Standard" style:class="text">
+      <style:paragraph-properties fo:margin-top="0.353cm" fo:margin-bottom="0.212cm" fo:keep-with-next="always"/>
+      <style:text-properties fo:font-size="18pt" fo:font-weight="bold" style:font-size-asian="18pt" style:font-weight-asian="bold" style:font-size-complex="18pt" style:font-weight-complex="bold"/>
+    </style:style>
+    <style:style style:name="Heading_20_3" style:display-name="Heading 3" style:family="paragraph" style:parent-style-name="Standard" style:class="text">
+      <style:paragraph-properties fo:margin-top="0.247cm" fo:margin-bottom="0.212cm" fo:keep-with-next="always"/>
+      <style:text-properties fo:font-size="14pt" fo:font-weight="bold" style:font-size-asian="14pt" style:font-weight-asian="bold" style:font-size-complex="14pt" style:font-weight-complex="bold"/>
+    </style:style>
+    <style:style style:name="Heading_20_4" style:display-name="Heading 4" style:family="paragraph" style:parent-style-name="Standard" style:class="text">
+      <style:paragraph-properties fo:margin-top="0.212cm" fo:margin-bottom="0.212cm" fo:keep-with-next="always"/>
+      <style:text-properties fo:font-size="12pt" fo:font-weight="bold" fo:font-style="italic" style:font-size-asian="12pt" style:font-weight-asian="bold" style:font-style-asian="italic" style:font-size-complex="12pt" style:font-weight-complex="bold" style:font-style-complex="italic"/>
+    </style:style>
+    <style:style style:name="Heading_20_5" style:display-name="Heading 5" style:family="paragraph" style:parent-style-name="Standard" style:class="text">
+      <style:paragraph-properties fo:margin-top="0.212cm" fo:margin-bottom="0.212cm" fo:keep-with-next="always"/>
+      <style:text-properties fo:font-size="10pt" fo:font-weight="bold" style:font-size-asian="10pt" style:font-weight-asian="bold" style:font-size-complex="10pt" style:font-weight-complex="bold"/>
+    </style:style>
   </office:styles>
+  <office:outline-styles>
+    <text:outline-style style:name="Outline">
+      <text:outline-level-style text:level="1" style:num-format=""/>
+      <text:outline-level-style text:level="2" style:num-format=""/>
+      <text:outline-level-style text:level="3" style:num-format=""/>
+      <text:outline-level-style text:level="4" style:num-format=""/>
+      <text:outline-level-style text:level="5" style:num-format=""/>
+    </text:outline-style>
+  </office:outline-styles>
 </office:document-styles>`
 
 const odtContentXMLTemplate = `<?xml version="1.0" encoding="UTF-8"?>

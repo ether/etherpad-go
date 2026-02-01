@@ -1,0 +1,14 @@
+{
+	"@metadata": {
+		"authors": [
+			"McDutchie"
+		]
+	},
+	"ep_headings.style": "Stilo",
+	"ep_headings.normal": "Normal",
+	"ep_headings.h1": "Titulo 1",
+	"ep_headings.h2": "Titulo 2",
+	"ep_headings.h3": "Titulo 3",
+	"ep_headings.h4": "Titulo 4",
+	"ep_headings.code": "Codice"
+}

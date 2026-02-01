@@ -2,6 +2,7 @@
   "plugins": {
     "ep_etherpad-lite": "1.8.13",
     "ep_align": "0.0.1",
+    "ep_heading": "0.0.1",
     "ep_markdown": "0.0.1",
     "ep_spellcheck": "0.0.1"
   },
@@ -181,32 +182,108 @@
           "title": "ep_align.toolbar.left.title",
           "icon": "buttonicon-align-left ep_align_left",
           "group": "left",
-          "data_align": "0"
+          "data_align": "0",
+          "type": "button"
         },
         {
           "key": "alignCenter",
           "title": "ep_align.toolbar.center.title",
           "icon": "buttonicon-align-center ep_align_center",
           "group": "middle",
-          "data_align": "1"
+          "data_align": "1",
+          "type": "button"
         },
         {
           "key": "alignRight",
           "title": "ep_align.toolbar.right.title",
           "icon": "buttonicon-align-right ep_align_right",
           "group": "middle",
-          "data_align": "3"
+          "data_align": "3",
+          "type": "button"
         },
         {
           "key": "alignJustify",
           "title": "ep_align.toolbar.justify.title",
           "icon": "buttonicon-align-justify ep_align_justify",
           "group": "right",
-          "data_align": "2"
+          "data_align": "2",
+          "type": "button"
         }
       ],
       "plugin": "ep_align",
       "full_name": "ep_align/ep_align"
+    },
+    {
+      "name": "main",
+      "client_hooks": {
+        "aceEditorCSS": "ep_heading/static/js/index:aceEditorCSS",
+        "aceEditEvent": "ep_heading/static/js/index:aceEditEvent",
+        "aceDomLineProcessLineAttributes": "ep_heading/static/js/index:aceDomLineProcessLineAttributes",
+        "postAceInit": "ep_heading/static/js/index:postAceInit",
+        "aceInitialized": "ep_heading/static/js/index:aceInitialized",
+        "aceAttribsToClasses": "ep_heading/static/js/index:aceAttribsToClasses",
+        "collectContentPre": "ep_heading/static/js/shared:collectContentPre",
+        "aceRegisterBlockElements": "ep_heading/static/js/index:aceRegisterBlockElements"
+      },
+      "toolbar_buttons": [
+        {
+          "key": "normal",
+          "title": "ep_headings.normal",
+          "icon": "-1",
+          "group": "normal",
+          "dataPlugin": "-1",
+          "type": "button"
+        },
+        {
+          "key": "heading1",
+          "title": "ep_headings.h1",
+          "icon": "1",
+          "group": "h1",
+          "dataPlugin": "0",
+          "type": "button"
+        },
+        {
+          "key": "heading2",
+          "title": "ep_headings.h2",
+          "icon": "1",
+          "group": "h2",
+          "dataPlugin": "1",
+          "type": "button"
+        },
+        {
+          "key": "heading3",
+          "title": "ep_headings.h3",
+          "icon": "1",
+          "group": "h3",
+          "dataPlugin": "2",
+          "type": "button"
+        },
+        {
+          "key": "heading4",
+          "title": "ep_headings.h4",
+          "icon": "1",
+          "group": "h4",
+          "dataPlugin": "3",
+          "type": "button"
+        },
+        {
+          "key": "heading5",
+          "title": "ep_headings.code",
+          "icon": "1",
+          "group": "code",
+          "dataPlugin": "4",
+          "type": "button"
+        }
+      ],
+      "hooks": {
+        "eejsBlock_editbarMenuLeft": "ep_headings2/index",
+        "collectContentPre": "ep_headings2/static/js/shared",
+        "collectContentPost": "ep_headings2/static/js/shared",
+        "getLineHTMLForExport": "ep_headings2/index",
+        "stylesForExport": "ep_headings2/index"
+      },
+      "plugin": "ep_heading",
+      "full_name": "ep_heading/main"
     },
     {
       "name": "ep_markdown",

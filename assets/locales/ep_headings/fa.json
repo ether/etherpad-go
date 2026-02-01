@@ -1,0 +1,14 @@
+{
+	"@metadata": {
+		"authors": [
+			"Darafsh"
+		]
+	},
+	"ep_headings.style": "سبک",
+	"ep_headings.normal": "عادی",
+	"ep_headings.h1": "سرعنوان ۱",
+	"ep_headings.h2": "سرعنوان ۲",
+	"ep_headings.h3": "سرعنوان ۳",
+	"ep_headings.h4": "سرعنوان ۴",
+	"ep_headings.code": "کد"
+}

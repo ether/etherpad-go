@@ -14,6 +14,8 @@ const pluginUtils = require('./shared');
 const builtinModules = {
   'ep_etherpad-lite/static/js/messageHandler': require('../messageHandler'),
   'ep_align/static/js/index': require('../../../../plugins/ep_align/static/js/index'),
+  'ep_heading/static/js/index': require('../../../../plugins/ep_heading/static/js/index'),
+  'ep_heading/static/js/shared': require('../../../../plugins/ep_heading/static/js/shared'),
   'ep_markdown/static/js/markdown': require('../../../../plugins/ep_markdown/static/js/markdown'),
   'ep_spellcheck/static/js/index': require('../../../../plugins/ep_spellcheck/static/js/index'),
 };

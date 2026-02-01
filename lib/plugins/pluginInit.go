@@ -4,6 +4,7 @@ import (
 	"slices"
 
 	"github.com/ether/etherpad-go/lib/plugins/ep_align"
+	"github.com/ether/etherpad-go/lib/plugins/ep_heading"
 	"github.com/ether/etherpad-go/lib/plugins/ep_markdown"
 	"github.com/ether/etherpad-go/lib/plugins/ep_rss"
 	"github.com/ether/etherpad-go/lib/plugins/ep_spellcheck"
@@ -15,6 +16,7 @@ var RegisteredPlugins = []interfaces.EpPlugin{
 	&ep_spellcheck.EpSpellcheckPlugin{},
 	&ep_markdown.EpMarkdownPlugin{},
 	&ep_rss.EPRssPlugin{},
+	&ep_heading.EpHeadingsPlugin{},
 }
 
 func InitPlugins(store *interfaces.EpPluginStore) {

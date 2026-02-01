@@ -1,0 +1,14 @@
+{
+	"@metadata": {
+		"authors": [
+			"Adr mm"
+		]
+	},
+	"ep_headings.style": "Istile",
+	"ep_headings.normal": "Normale",
+	"ep_headings.h1": "Intestatzione 1",
+	"ep_headings.h2": "Intestatzione 2",
+	"ep_headings.h3": "Intestatzione 3",
+	"ep_headings.h4": "Intestatzione 4",
+	"ep_headings.code": "Còdighe"
+}

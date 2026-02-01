@@ -8,6 +8,8 @@ import (
 
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/changeset"
+	"github.com/ether/etherpad-go/lib/hooks"
+	"github.com/ether/etherpad-go/lib/hooks/events"
 	pad2 "github.com/ether/etherpad-go/lib/models/pad"
 	"github.com/ether/etherpad-go/lib/pad"
 	"mvdan.cc/xurls/v2"
@@ -15,16 +17,28 @@ import (
 
 type ExportMarkdown struct {
 	PadManager *pad.Manager
+	Hooks      *hooks.Hook
 }
 
-func NewExportMarkdown(padManager *pad.Manager) *ExportMarkdown {
+func NewExportMarkdown(padManager *pad.Manager, hooksSystem *hooks.Hook) *ExportMarkdown {
 	return &ExportMarkdown{
 		PadManager: padManager,
+		Hooks:      hooksSystem,
 	}
 }
 
+// Mapping von Heading zu Markdown-Prefix
+var headingToMarkdown = map[string]string{
+	"h1": "# ",
+	"h2": "## ",
+	"h3": "### ",
+	"h4": "#### ",
+	"h5": "##### ",
+	"h6": "###### ",
+}
+
 // getMarkdownFromAtext übersetzt einen Pad-Inhalt (AText) in Markdown
-func (em *ExportMarkdown) getMarkdownFromAtext(retrievedPad *pad2.Pad, atext apool.AText) string {
+func (em *ExportMarkdown) getMarkdownFromAtext(retrievedPad *pad2.Pad, atext apool.AText, padId string) string {
 	padPool := retrievedPad.Pool
 	textLines := pad.SplitRemoveLastRune(atext.Text)
 	attribLines, _ := changeset.SplitAttributionLines(atext.Attribs, atext.Text)
@@ -39,33 +53,40 @@ func (em *ExportMarkdown) getMarkdownFromAtext(retrievedPad *pad2.Pad, atext apo
 		}
 	}
 
-	headingtags := []string{"# ", "## ", "### ", "#### ", "##### ", "###### ", "    "}
-	headingprops := [][]string{
-		{"heading", "h1"},
-		{"heading", "h2"},
-		{"heading", "h3"},
-		{"heading", "h4"},
-		{"heading", "h5"},
-		{"heading", "h6"},
-		{"heading", "code"},
-	}
-	headinganumMap := map[int]int{}
-	for i, prop := range headingprops {
-		propTrueNum := padPool.PutAttrib(apool.Attribute{Key: prop[0], Value: prop[1]}, &thruthy)
-		if propTrueNum >= 0 {
-			headinganumMap[propTrueNum] = i
-		}
-	}
-
 	var pieces []string
 	var lists [][]interface{}
 
 	for i := 0; i < len(textLines); i++ {
-		line, _ := em.analyzeLine(&textLines[i], &attribLines[i], &padPool)
-		lineContent, err := em.getLineMarkdown(string(line.Text), line.Aline, tags, anumMap, headinganumMap, headingtags)
+		var aline string
+		if i < len(attribLines) {
+			aline = attribLines[i]
+		}
+
+		line, _ := em.analyzeLine(&textLines[i], &aline, &padPool)
+
+		// Call hook to allow plugins to modify the line (e.g., set heading)
+		hookContext := &events.LineMarkdownForExportContext{
+			Apool:      &padPool,
+			AttribLine: &aline,
+			Text:       &textLines[i],
+			PadId:      &padId,
+			Heading:    nil,
+		}
+		em.Hooks.ExecuteHooks("getLineMarkdownForExport", hookContext)
+
+		// Determine heading prefix
+		var headingPrefix string
+		if hookContext.Heading != nil {
+			if prefix, ok := headingToMarkdown[*hookContext.Heading]; ok {
+				headingPrefix = prefix
+			}
+		}
+
+		lineContent, err := em.getLineMarkdown(string(line.Text), line.Aline, tags, anumMap, headingPrefix)
 		if err != nil {
 			return ""
 		}
+
 		if line.ListLevel > 0 {
 			whichList := len(lists)
 			for j := len(lists) - 1; j >= 0; j-- {
@@ -81,6 +102,9 @@ func (em *ExportMarkdown) getMarkdownFromAtext(retrievedPad *pad2.Pad, atext apo
 			} else {
 				pieces = append(pieces, "\n"+spaces(line.ListLevel*4)+"* "+lineContent)
 			}
+		} else if headingPrefix != "" {
+			// Headings get extra newline before for better readability
+			pieces = append(pieces, "\n"+lineContent+"\n")
 		} else {
 			pieces = append(pieces, "\n"+lineContent+"\n")
 		}
@@ -101,11 +125,13 @@ func (em *ExportMarkdown) analyzeLine(text, aline *string, attribPool *apool.APo
 		}
 		for _, op := range *opIter {
 			attribMap := changeset.FromString(op.Attribs, attribPool)
+
+			// Check for list
 			listTypeString := attribMap.Get("list")
 			if listTypeString != nil {
 				lineMarker = 1
 				listType := markdownListTypeRegex.FindStringSubmatch(*listTypeString)
-				if len(listType) == 2 {
+				if len(listType) >= 3 {
 					line.ListTypeName = listType[1]
 					line.ListLevel, err = strconv.Atoi(listType[2])
 					if err != nil {
@@ -113,6 +139,12 @@ func (em *ExportMarkdown) analyzeLine(text, aline *string, attribPool *apool.APo
 						return nil, err
 					}
 				}
+			}
+
+			// Check for heading (also has lineMarker)
+			headingStr := attribMap.Get("heading")
+			if headingStr != nil {
+				lineMarker = 1
 			}
 		}
 	}
@@ -123,7 +155,6 @@ func (em *ExportMarkdown) analyzeLine(text, aline *string, attribPool *apool.APo
 			return nil, err
 		}
 		line.Aline = *subAttribLine
-
 	} else {
 		line.Text = []rune(*text)
 		if aline != nil {
@@ -151,22 +182,17 @@ func findUrlsWithIndex(text string) []FindURLPair {
 	return result
 }
 
-func (em *ExportMarkdown) getLineMarkdown(text string, attribs string, tags []string, anumMap, headinganumMap map[int]int, headingtags []string) (string, error) {
+func (em *ExportMarkdown) getLineMarkdown(text string, attribs string, tags []string, anumMap map[int]int, headingPrefix string) (string, error) {
 	const ENTER = 1
 	const STAY = 2
 	const LEAVE = 0
 	const TRUE = 3
 	const FALSE = 4
-	propVals := make([]int, len(headingtags))
+	propVals := make([]int, len(tags))
 	for i := range propVals {
 		propVals[i] = FALSE
 	}
 
-	// Use order of tags (b/i/u) as order of nesting, for simplicity
-	// and decent nesting.  For example,
-	// <b>Just bold<b> <b><i>Bold and italics</i></b> <i>Just italics</i>
-	// becomes
-	// <b>Just bold <i>Bold and italics</i></b> <i>Just italics</i>
 	taker := changeset.NewStringIterator(text)
 	assem := changeset.NewStringAssembler()
 
@@ -193,32 +219,9 @@ func (em *ExportMarkdown) getLineMarkdown(text string, attribs string, tags []st
 		}
 	}
 
-	var heading *string
-	var deletedAsterisk = false
-	optEnd := 1
-	subAttribs, err := changeset.Subattribution(attribs, 0, &optEnd)
-	if err != nil {
-		return "", err
-	}
-	iter2, err := changeset.DeserializeOps(*subAttribs)
-	if err != nil {
-		return "", err
-	}
-
-	for _, it := range *iter2 {
-		a, err := changeset.DecodeAttribString(it.Attribs)
-		if err != nil {
-			return "", err
-		}
-		for _, attr := range a {
-			i := headinganumMap[attr]
-			headingFound := headingtags[i]
-			heading = &headingFound
-		}
-	}
-
-	if heading != nil {
-		assem.Append(*heading)
+	// Add heading prefix if set
+	if headingPrefix != "" {
+		assem.Append(headingPrefix)
 	}
 
 	urls := findUrlsWithIndex(text)
@@ -307,11 +310,6 @@ func (em *ExportMarkdown) getLineMarkdown(text string, attribs string, tags []st
 			replacedStr := strings.ReplaceAll(*s, string(rune(12)), "")
 			s = &replacedStr
 
-			if heading != nil && !deletedAsterisk {
-				replacedFirstAsterik := (*s)[1:]
-				s = &replacedFirstAsterik
-				deletedAsterisk = true
-			}
 			assem.Append(*s)
 		}
 
@@ -348,7 +346,7 @@ func (em *ExportMarkdown) getLineMarkdown(text string, attribs string, tags []st
 	assemStr := assem.String()
 	assemStr = strings.ReplaceAll(assemStr, "&", "\\&")
 	assemStr = strings.ReplaceAll(assemStr, "_", "\\_")
-	return assem.String(), nil
+	return assemStr, nil
 }
 
 func (em *ExportMarkdown) GetPadMarkdownDocument(padID string, revNum *int) (*string, error) {
@@ -356,14 +354,14 @@ func (em *ExportMarkdown) GetPadMarkdownDocument(padID string, revNum *int) (*st
 	if err != nil {
 		return nil, err
 	}
-	markdown, err := em.getPadMarkdown(*retrievedPad, revNum)
+	markdown, err := em.getPadMarkdown(*retrievedPad, revNum, padID)
 	if err != nil {
 		return nil, err
 	}
 	return &markdown, nil
 }
 
-func (em *ExportMarkdown) getPadMarkdown(pad pad2.Pad, revNum *int) (string, error) {
+func (em *ExportMarkdown) getPadMarkdown(pad pad2.Pad, revNum *int, padId string) (string, error) {
 	var atext apool.AText
 	if revNum != nil {
 		retrievedAtext := pad.GetInternalRevisionAText(*revNum)
@@ -373,7 +371,7 @@ func (em *ExportMarkdown) getPadMarkdown(pad pad2.Pad, revNum *int) (string, err
 	} else {
 		atext = pad.AText
 	}
-	markdown := em.getMarkdownFromAtext(&pad, atext)
+	markdown := em.getMarkdownFromAtext(&pad, atext, padId)
 	return markdown, nil
 }
 

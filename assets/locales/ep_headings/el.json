@@ -1,0 +1,14 @@
+{
+	"@metadata": {
+		"authors": [
+			"Norhorn"
+		]
+	},
+	"ep_headings.style": "Στυλ",
+	"ep_headings.normal": "Κανονικό",
+	"ep_headings.h1": "Επικεφαλίδα 1",
+	"ep_headings.h2": "Επικεφαλίδα 2",
+	"ep_headings.h3": "Επικεφαλίδα 3",
+	"ep_headings.h4": "Επικεφαλίδα 4",
+	"ep_headings.code": "Κώδικας"
+}

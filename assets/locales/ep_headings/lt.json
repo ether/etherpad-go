@@ -1,0 +1,14 @@
+{
+	"@metadata": {
+		"authors": [
+			"Nokeoo"
+		]
+	},
+	"ep_headings.style": "Stilius",
+	"ep_headings.normal": "Paprastas",
+	"ep_headings.h1": "Antraštė 1",
+	"ep_headings.h2": "Antraštė 2",
+	"ep_headings.h3": "Antraštė 3",
+	"ep_headings.h4": "Antraštė 4",
+	"ep_headings.code": "Kodas"
+}

@@ -13,9 +13,19 @@ templ PluginToolbarButtons(translations map[string]string, buttonGroups []plugin
         <li class="separator acl-write"></li>
         for _, btn := range group.Buttons {
             <li data-type="button" data-key={btn.Key} data-l10n-id={btn.Title}>
-                <a class={"grouped-" + btn.Group + " ep_align"} data-align={btn.DataAlign} data-l10n-id={btn.Title} title={getTranslation(translations, btn.Title)} aria-label={getTranslation(translations, btn.Title)}>
-                    <button class={"buttonicon " + btn.Icon} data-align={btn.DataAlign} aria-label={getTranslation(translations, btn.Title)}></button>
-                </a>
+            if btn.Type == "button" {
+                            <a class={"grouped-" + btn.Group + " " + group.PluginName} data-plugin={btn.DataPlugin} data-l10n-id={btn.Title} title={getTranslation(translations, btn.Title)} aria-label={getTranslation(translations, btn.Title)}>
+                                <button class={"buttonicon " + btn.Icon} data-align={btn.DataPlugin} aria-label={getTranslation(translations, btn.Title)}></button>
+                            </a>
+            } else if btn.Type == "select" {
+                            <div class={"grouped-" + btn.Group + " " + group.PluginName} data-align={btn.DataPlugin} title={getTranslation(translations, btn.Title)} aria-label={getTranslation(translations, btn.Title)}>
+                                <select class={"toolbar-select " + btn.SelectClass} data-align={btn.DataPlugin} aria-label={getTranslation(translations, btn.Title)}>
+                                    for _, option := range btn.Options {
+                                        <option value={option.Value} data-l10n-id={option.Title}>{getTranslation(translations, option.Title)}</option>
+                                    }
+                                </select>
+                            </div>
+            }
             </li>
         }
     }

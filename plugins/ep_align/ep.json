@@ -18,28 +18,32 @@
           "title": "ep_align.toolbar.left.title",
           "icon": "buttonicon-align-left ep_align_left",
           "group": "left",
-          "data_align": "0"
+          "data_align": "0",
+          "type": "button"
         },
         {
           "key": "alignCenter",
           "title": "ep_align.toolbar.center.title",
           "icon": "buttonicon-align-center ep_align_center",
           "group": "middle",
-          "data_align": "1"
+          "data_align": "1",
+          "type": "button"
         },
         {
           "key": "alignRight",
           "title": "ep_align.toolbar.right.title",
           "icon": "buttonicon-align-right ep_align_right",
           "group": "middle",
-          "data_align": "3"
+          "data_align": "3",
+          "type": "button"
         },
         {
           "key": "alignJustify",
           "title": "ep_align.toolbar.justify.title",
           "icon": "buttonicon-align-justify ep_align_justify",
           "group": "right",
-          "data_align": "2"
+          "data_align": "2",
+          "type": "button"
         }
       ]
     }
