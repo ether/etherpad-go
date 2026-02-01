@@ -393,7 +393,7 @@ func testGetInstalled(t *testing.T, ds testutils.TestDataStore) {
 	assert.NoError(t, json.Unmarshal(ds.MockWebSocket.Data[0].Data, &resp))
 	assert.Equal(t, "results:installed", resp[0])
 	adminErrorMessage := resp[1].(map[string]interface{})
-	assert.Len(t, adminErrorMessage["installed"], 5)
+	assert.Len(t, adminErrorMessage["installed"], 6)
 }
 
 func testHandleDeletePadNotExisting(t *testing.T, ds testutils.TestDataStore) {
