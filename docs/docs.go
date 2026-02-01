@@ -2053,6 +2053,9 @@ const docTemplate = `{
         },
         "author.CreateAuthorIfNotExistsForRequest": {
             "type": "object",
+            "required": [
+                "authorMapper"
+            ],
             "properties": {
                 "authorMapper": {
                     "type": "string"
@@ -2064,6 +2067,9 @@ const docTemplate = `{
         },
         "author.CreateDto": {
             "type": "object",
+            "required": [
+                "name"
+            ],
             "properties": {
                 "name": {
                     "type": "string",

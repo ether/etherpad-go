@@ -172,7 +172,14 @@ func SetPadText(initStore *lib.InitStore) fiber.Handler {
 		if errPadSafe != nil {
 			return ctx.Status(404).JSON(errors2.PadNotFoundError)
 		}
-		err = retrievedPad.SetText(request.Text, nil)
+
+		// Use authorId from request if provided
+		var authorId *string
+		if request.AuthorId != "" {
+			authorId = &request.AuthorId
+		}
+
+		err = retrievedPad.SetText(request.Text, authorId)
 		if err != nil {
 			return ctx.Status(500).JSON(errors2.InternalServerError)
 		}

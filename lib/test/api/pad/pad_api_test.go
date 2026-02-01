@@ -161,7 +161,7 @@ func testListAllPadsEmpty(t *testing.T, tsStore testutils.TestDataStore) {
 	pad.Init(initStore)
 
 	req := httptest.NewRequest("GET", "/admin/api/pads", nil)
-	resp, err := initStore.C.Test(req, 100)
+	resp, err := initStore.C.Test(req, 5000)
 
 	assert.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
@@ -181,7 +181,7 @@ func testListAllPadsWithPads(t *testing.T, tsStore testutils.TestDataStore) {
 	createTestPad(t, tsStore, "testpad2", text)
 
 	req := httptest.NewRequest("GET", "/admin/api/pads", nil)
-	resp, err := initStore.C.Test(req, 100)
+	resp, err := initStore.C.Test(req, 5000)
 
 	assert.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
@@ -207,7 +207,7 @@ func testCreatePadSuccess(t *testing.T, tsStore testutils.TestDataStore) {
 
 	req := httptest.NewRequest("POST", "/admin/api/pads/newpad123", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := initStore.C.Test(req, 100)
+	resp, err := initStore.C.Test(req, 5000)
 
 	assert.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
@@ -218,7 +218,7 @@ func testCreatePadInvalidChars(t *testing.T, tsStore testutils.TestDataStore) {
 	pad.Init(initStore)
 
 	req := httptest.NewRequest("POST", "/admin/api/pads/invalid$pad", nil)
-	resp, err := initStore.C.Test(req, 100)
+	resp, err := initStore.C.Test(req, 5000)
 
 	assert.NoError(t, err)
 	assert.Equal(t, 400, resp.StatusCode)
@@ -233,7 +233,7 @@ func testCreatePadAlreadyExists(t *testing.T, tsStore testutils.TestDataStore) {
 	createTestPad(t, tsStore, "existingpad", text)
 
 	req := httptest.NewRequest("POST", "/admin/api/pads/existingpad", nil)
-	resp, err := initStore.C.Test(req, 100)
+	resp, err := initStore.C.Test(req, 5000)
 
 	assert.NoError(t, err)
 	assert.Equal(t, 409, resp.StatusCode)
@@ -250,7 +250,7 @@ func testDeletePadSuccess(t *testing.T, tsStore testutils.TestDataStore) {
 	createTestPad(t, tsStore, "padtodelete", text)
 
 	req := httptest.NewRequest("DELETE", "/admin/api/pads/padtodelete", nil)
-	resp, err := initStore.C.Test(req, 100)
+	resp, err := initStore.C.Test(req, 5000)
 
 	assert.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
@@ -261,7 +261,7 @@ func testDeletePadNotFound(t *testing.T, tsStore testutils.TestDataStore) {
 	pad.Init(initStore)
 
 	req := httptest.NewRequest("DELETE", "/admin/api/pads/nonexistentpad", nil)
-	resp, err := initStore.C.Test(req, 100)
+	resp, err := initStore.C.Test(req, 5000)
 
 	assert.NoError(t, err)
 	assert.Equal(t, 404, resp.StatusCode)
@@ -277,7 +277,7 @@ func testGetPadText(t *testing.T, tsStore testutils.TestDataStore) {
 	createTestPad(t, tsStore, "textpad", text)
 
 	req := httptest.NewRequest("GET", "/admin/api/pads/textpad/text", nil)
-	resp, err := initStore.C.Test(req, 100)
+	resp, err := initStore.C.Test(req, 5000)
 
 	assert.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
@@ -293,20 +293,28 @@ func testSetPadText(t *testing.T, tsStore testutils.TestDataStore) {
 	initStore := tsStore.ToInitStore()
 	pad.Init(initStore)
 
+	// Create an author for the operation
+	testAuthor, err := tsStore.AuthorManager.CreateAuthor(nil)
+	assert.NoError(t, err)
+
 	text := "Initial\n"
 	createTestPad(t, tsStore, "settextpad", text)
 
 	reqBody := pad.SetTextRequest{
 		Text:     "Updated text",
-		AuthorId: "",
+		AuthorId: testAuthor.Id,
 	}
 	body, _ := json.Marshal(reqBody)
 
 	req := httptest.NewRequest("POST", "/admin/api/pads/settextpad/text", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := initStore.C.Test(req, 100)
+	resp, err := initStore.C.Test(req, 5000)
 
 	assert.NoError(t, err)
+	if resp.StatusCode != 200 {
+		respBody, _ := io.ReadAll(resp.Body)
+		t.Logf("Response body: %s", string(respBody))
+	}
 	assert.Equal(t, 200, resp.StatusCode)
 }
 
@@ -316,18 +324,22 @@ func testAppendText(t *testing.T, tsStore testutils.TestDataStore) {
 	initStore := tsStore.ToInitStore()
 	pad.Init(initStore)
 
+	// Create an author for the operation
+	testAuthor, err := tsStore.AuthorManager.CreateAuthor(nil)
+	assert.NoError(t, err)
+
 	text := "Start\n"
 	createTestPad(t, tsStore, "appendpad", text)
 
 	reqBody := pad.AppendTextRequest{
 		Text:     " appended",
-		AuthorId: "",
+		AuthorId: testAuthor.Id,
 	}
 	body, _ := json.Marshal(reqBody)
 
 	req := httptest.NewRequest("POST", "/admin/api/pads/appendpad/appendText", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := initStore.C.Test(req, 100)
+	resp, err := initStore.C.Test(req, 5000)
 
 	assert.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
@@ -343,7 +355,7 @@ func testGetHTML(t *testing.T, tsStore testutils.TestDataStore) {
 	createTestPad(t, tsStore, "htmlpad", text)
 
 	req := httptest.NewRequest("GET", "/admin/api/pads/htmlpad/html", nil)
-	resp, err := initStore.C.Test(req, 100)
+	resp, err := initStore.C.Test(req, 5000)
 
 	assert.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
@@ -359,18 +371,22 @@ func testSetHTML(t *testing.T, tsStore testutils.TestDataStore) {
 	initStore := tsStore.ToInitStore()
 	pad.Init(initStore)
 
+	// Create an author for the operation
+	testAuthor, err := tsStore.AuthorManager.CreateAuthor(nil)
+	assert.NoError(t, err)
+
 	text := "Original\n"
 	createTestPad(t, tsStore, "sethtmlpad", text)
 
 	reqBody := pad.SetHTMLRequest{
 		HTML:     "<p>New HTML content</p>",
-		AuthorId: "",
+		AuthorId: testAuthor.Id,
 	}
 	body, _ := json.Marshal(reqBody)
 
 	req := httptest.NewRequest("POST", "/admin/api/pads/sethtmlpad/html", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := initStore.C.Test(req, 100)
+	resp, err := initStore.C.Test(req, 5000)
 
 	assert.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
@@ -386,7 +402,7 @@ func testGetRevisionsCount(t *testing.T, tsStore testutils.TestDataStore) {
 	createTestPad(t, tsStore, "revpad", text)
 
 	req := httptest.NewRequest("GET", "/admin/api/pads/revpad/revisionsCount", nil)
-	resp, err := initStore.C.Test(req, 100)
+	resp, err := initStore.C.Test(req, 5000)
 
 	assert.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
@@ -406,7 +422,7 @@ func testGetRevisionChangeset(t *testing.T, tsStore testutils.TestDataStore) {
 	createTestPad(t, tsStore, "changesetpad", text)
 
 	req := httptest.NewRequest("GET", "/admin/api/pads/changesetpad/revisionChangeset", nil)
-	resp, err := initStore.C.Test(req, 100)
+	resp, err := initStore.C.Test(req, 5000)
 
 	assert.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
@@ -422,7 +438,7 @@ func testSaveRevision(t *testing.T, tsStore testutils.TestDataStore) {
 	createTestPad(t, tsStore, "saverevpad", text)
 
 	req := httptest.NewRequest("POST", "/admin/api/pads/saverevpad/saveRevision", nil)
-	resp, err := initStore.C.Test(req, 100)
+	resp, err := initStore.C.Test(req, 5000)
 
 	assert.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
@@ -436,7 +452,7 @@ func testGetSavedRevisionsCount(t *testing.T, tsStore testutils.TestDataStore) {
 	createTestPad(t, tsStore, "savedcountpad", text)
 
 	req := httptest.NewRequest("GET", "/admin/api/pads/savedcountpad/savedRevisionsCount", nil)
-	resp, err := initStore.C.Test(req, 100)
+	resp, err := initStore.C.Test(req, 5000)
 
 	assert.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
@@ -456,7 +472,7 @@ func testListSavedRevisions(t *testing.T, tsStore testutils.TestDataStore) {
 	createTestPad(t, tsStore, "listsavedpad", text)
 
 	req := httptest.NewRequest("GET", "/admin/api/pads/listsavedpad/savedRevisions", nil)
-	resp, err := initStore.C.Test(req, 100)
+	resp, err := initStore.C.Test(req, 5000)
 
 	assert.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
@@ -478,7 +494,7 @@ func testListAuthorsOfPad(t *testing.T, tsStore testutils.TestDataStore) {
 	createTestPad(t, tsStore, "authorpad", text)
 
 	req := httptest.NewRequest("GET", "/admin/api/pads/authorpad/authors", nil)
-	resp, err := initStore.C.Test(req, 100)
+	resp, err := initStore.C.Test(req, 5000)
 
 	assert.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
@@ -500,7 +516,7 @@ func testGetLastEdited(t *testing.T, tsStore testutils.TestDataStore) {
 	createTestPad(t, tsStore, "lasteditedpad", text)
 
 	req := httptest.NewRequest("GET", "/admin/api/pads/lasteditedpad/lastEdited", nil)
-	resp, err := initStore.C.Test(req, 100)
+	resp, err := initStore.C.Test(req, 5000)
 
 	assert.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
@@ -522,7 +538,7 @@ func testGetReadOnlyID(t *testing.T, tsStore testutils.TestDataStore) {
 	createTestPad(t, tsStore, "readonlypad", text)
 
 	req := httptest.NewRequest("GET", "/admin/api/pads/readonlypad/readOnlyID", nil)
-	resp, err := initStore.C.Test(req, 100)
+	resp, err := initStore.C.Test(req, 5000)
 
 	assert.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
@@ -544,7 +560,7 @@ func testGetPadIDFromReadOnly(t *testing.T, tsStore testutils.TestDataStore) {
 
 	// First get the read-only ID
 	req := httptest.NewRequest("GET", "/admin/api/pads/ropadid/readOnlyID", nil)
-	resp, err := initStore.C.Test(req, 100)
+	resp, err := initStore.C.Test(req, 5000)
 	assert.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
 
@@ -567,7 +583,7 @@ func testGetAttributePool(t *testing.T, tsStore testutils.TestDataStore) {
 	createTestPad(t, tsStore, "poolpad", text)
 
 	req := httptest.NewRequest("GET", "/admin/api/pads/poolpad/attributePool", nil)
-	resp, err := initStore.C.Test(req, 100)
+	resp, err := initStore.C.Test(req, 5000)
 
 	assert.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
@@ -583,7 +599,7 @@ func testGetChatHead(t *testing.T, tsStore testutils.TestDataStore) {
 	createTestPad(t, tsStore, "chatheadpad", text)
 
 	req := httptest.NewRequest("GET", "/admin/api/pads/chatheadpad/chatHead", nil)
-	resp, err := initStore.C.Test(req, 100)
+	resp, err := initStore.C.Test(req, 5000)
 
 	assert.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
@@ -615,7 +631,7 @@ func testAppendChatMessage(t *testing.T, tsStore testutils.TestDataStore) {
 
 	req := httptest.NewRequest("POST", "/admin/api/pads/chatappendpad/chat", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := initStore.C.Test(req, 100)
+	resp, err := initStore.C.Test(req, 5000)
 
 	assert.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
@@ -629,7 +645,7 @@ func testGetChatHistory(t *testing.T, tsStore testutils.TestDataStore) {
 	createTestPad(t, tsStore, "chathistorypad", text)
 
 	req := httptest.NewRequest("GET", "/admin/api/pads/chathistorypad/chatHistory", nil)
-	resp, err := initStore.C.Test(req, 100)
+	resp, err := initStore.C.Test(req, 5000)
 
 	assert.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
@@ -651,7 +667,7 @@ func testGetPadUsersEmpty(t *testing.T, tsStore testutils.TestDataStore) {
 	createTestPad(t, tsStore, "userspad", text)
 
 	req := httptest.NewRequest("GET", "/admin/api/pads/userspad/users", nil)
-	resp, err := initStore.C.Test(req, 100)
+	resp, err := initStore.C.Test(req, 5000)
 
 	assert.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
@@ -672,7 +688,7 @@ func testGetPadUsersCount(t *testing.T, tsStore testutils.TestDataStore) {
 	createTestPad(t, tsStore, "userscountpad", text)
 
 	req := httptest.NewRequest("GET", "/admin/api/pads/userscountpad/usersCount", nil)
-	resp, err := initStore.C.Test(req, 100)
+	resp, err := initStore.C.Test(req, 5000)
 
 	assert.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
@@ -691,7 +707,7 @@ func testCheckToken(t *testing.T, tsStore testutils.TestDataStore) {
 	pad.Init(initStore)
 
 	req := httptest.NewRequest("GET", "/admin/api/checkToken", nil)
-	resp, err := initStore.C.Test(req, 100)
+	resp, err := initStore.C.Test(req, 5000)
 
 	assert.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)

@@ -40,12 +40,16 @@ definitions:
         type: string
       name:
         type: string
+    required:
+    - authorMapper
     type: object
   author.CreateDto:
     properties:
       name:
         example: John Doe
         type: string
+    required:
+    - name
     type: object
   author.CreateDtoResponse:
     properties:
