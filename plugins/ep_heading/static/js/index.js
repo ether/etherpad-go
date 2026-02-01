@@ -7,6 +7,16 @@ export const aceRegisterBlockElements = () => tags;
 
 // Bind the event handler to the toolbar buttons
 export const postAceInit = (hookName, context) => {
+  document.querySelectorAll('.toolbar a.ep_heading').forEach((button) => {
+    let indexOfHeading = button.getAttribute('data-plugin')
+    indexOfHeading = parseInt(indexOfHeading, 10)
+    button.addEventListener('click', (e) => {
+      e.preventDefault();
+      context.ace.callWithAce((ace) => {
+        ace.ace_doInsertHeading(indexOfHeading);
+      }, 'insertheading', true);
+    });
+  });
   const hs = $('#heading-selection');
   hs.on('change', function () {
     const value = $(this).val();
