@@ -19,12 +19,14 @@ func NewManager(db db.DataStore) *Manager {
 	}
 }
 
+// Author represents an Etherpad author
+// @Description An author who can collaborate on pads
 type Author struct {
-	Id        string
-	Name      *string
-	ColorId   string
-	Token     *string
-	Timestamp int64
+	Id        string  `json:"id" example:"a.s8oes9dhwrvt0zif"`
+	Name      *string `json:"name" example:"John Doe"`
+	ColorId   string  `json:"colorId" example:"#ff0000"`
+	Token     *string `json:"token,omitempty"`
+	Timestamp int64   `json:"timestamp" example:"1704067200000"`
 }
 
 func (m *Manager) SetAuthorColor(author string, colorId string) error {

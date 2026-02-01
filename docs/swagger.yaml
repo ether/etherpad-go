@@ -1,15 +1,1584 @@
 basePath: /
-host: localhost:3000
+definitions:
+  apool.APool:
+    properties:
+      nextNum:
+        type: integer
+      numToAttrib:
+        additionalProperties:
+          items:
+            type: string
+          type: array
+        type: object
+    type: object
+  author.Author:
+    description: An author who can collaborate on pads
+    properties:
+      colorId:
+        example: '#ff0000'
+        type: string
+      id:
+        example: a.s8oes9dhwrvt0zif
+        type: string
+      name:
+        example: John Doe
+        type: string
+      timestamp:
+        example: 1704067200000
+        type: integer
+      token:
+        type: string
+    type: object
+  author.AuthorNameResponse:
+    properties:
+      authorName:
+        type: string
+    type: object
+  author.CreateAuthorIfNotExistsForRequest:
+    properties:
+      authorMapper:
+        type: string
+      name:
+        type: string
+    required:
+    - authorMapper
+    type: object
+  author.CreateDto:
+    properties:
+      name:
+        example: John Doe
+        type: string
+    required:
+    - name
+    type: object
+  author.CreateDtoResponse:
+    properties:
+      authorId:
+        example: a.s8oes9dhwrvt0zif
+        type: string
+    type: object
+  errors.Error:
+    description: Standardized API error response
+    properties:
+      error:
+        example: 404
+        type: integer
+      message:
+        example: Pad not found
+        type: string
+    type: object
+  groups.CreateGroupPadRequest:
+    properties:
+      authorId:
+        type: string
+      padName:
+        type: string
+      text:
+        type: string
+    type: object
+  groups.GroupIDResponse:
+    properties:
+      groupID:
+        type: string
+    type: object
+  io.ImportData:
+    properties:
+      directDatabaseAccess:
+        example: true
+        type: boolean
+    type: object
+  io.ImportResponse:
+    description: Response for import operations
+    properties:
+      code:
+        example: 0
+        type: integer
+      data:
+        $ref: '#/definitions/io.ImportData'
+      message:
+        example: ok
+        type: string
+    type: object
+  pad.AllPadsResponse:
+    properties:
+      padIDs:
+        items:
+          type: string
+        type: array
+    type: object
+  pad.AppendChatMessageRequest:
+    properties:
+      authorID:
+        type: string
+      text:
+        type: string
+      time:
+        type: integer
+    type: object
+  pad.AppendTextRequest:
+    properties:
+      authorId:
+        type: string
+      text:
+        type: string
+    type: object
+  pad.AttributePoolResponse:
+    properties:
+      pool:
+        $ref: '#/definitions/apool.APool'
+    type: object
+  pad.AuthorsResponse:
+    properties:
+      authorIDs:
+        items:
+          type: string
+        type: array
+    type: object
+  pad.ChangesetResponse:
+    properties:
+      changeset:
+        type: string
+    type: object
+  pad.ChatHeadResponse:
+    properties:
+      chatHead:
+        type: integer
+    type: object
+  pad.ChatHistoryResponse:
+    properties:
+      messages:
+        items:
+          $ref: '#/definitions/pad.ChatMessageResponse'
+        type: array
+    type: object
+  pad.ChatMessageResponse:
+    properties:
+      authorID:
+        type: string
+      text:
+        type: string
+      time:
+        type: integer
+      userName:
+        type: string
+    type: object
+  pad.CreatePadRequest:
+    properties:
+      authorId:
+        type: string
+      text:
+        type: string
+    type: object
+  pad.PadIDResponse:
+    properties:
+      padID:
+        type: string
+    type: object
+  pad.PadUser:
+    properties:
+      colorId:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+    type: object
+  pad.PadUsersCountResponse:
+    properties:
+      padUsersCount:
+        type: integer
+    type: object
+  pad.PadUsersResponse:
+    properties:
+      padUsers:
+        items:
+          $ref: '#/definitions/pad.PadUser'
+        type: array
+    type: object
+  pad.ReadOnlyIDResponse:
+    properties:
+      readOnlyID:
+        type: string
+    type: object
+  pad.RestoreRevisionRequest:
+    properties:
+      authorId:
+        type: string
+      rev:
+        type: integer
+    type: object
+  pad.SaveRevisionRequest:
+    properties:
+      rev:
+        type: integer
+    type: object
+  pad.SavedRevisionsCountResponse:
+    properties:
+      savedRevisions:
+        type: integer
+    type: object
+  pad.SavedRevisionsListResponse:
+    properties:
+      savedRevisions:
+        items:
+          type: integer
+        type: array
+    type: object
+  pad.SetHTMLRequest:
+    properties:
+      authorId:
+        type: string
+      html:
+        type: string
+    type: object
+  pad.SetTextRequest:
+    properties:
+      authorId:
+        type: string
+      text:
+        type: string
+    type: object
+  pad.TextResponse:
+    properties:
+      text:
+        type: string
+    type: object
+  stats.Check:
+    description: Result of a health check
+    properties:
+      component:
+        example: database
+        type: string
+      observedAt:
+        example: "2024-01-15T10:30:00Z"
+        type: string
+      observedValue: {}
+      output:
+        example: ok
+        type: string
+      status:
+        allOf:
+        - $ref: '#/definitions/stats.HealthStatus'
+        example: pass
+    type: object
+  stats.HealthResponse:
+    description: Complete health check response
+    properties:
+      checks:
+        additionalProperties:
+          items:
+            $ref: '#/definitions/stats.Check'
+          type: array
+        type: object
+      releaseId:
+        example: abc123
+        type: string
+      serviceId:
+        example: etherpad-api
+        type: string
+      status:
+        allOf:
+        - $ref: '#/definitions/stats.HealthStatus'
+        example: pass
+      version:
+        example: 1.0.0
+        type: string
+    type: object
+  stats.HealthStatus:
+    description: Status of a health check (pass, warn, fail)
+    enum:
+    - pass
+    - warn
+    - fail
+    type: string
+    x-enum-varnames:
+    - StatusPass
+    - StatusWarn
+    - StatusFail
+host: localhost:9001
 info:
   contact:
-    email: fiber@swagger.io
-    name: API Support
-  description: This is a sample swagger for Fiber
+    email: support@etherpad.org
+    name: Etherpad Support
+    url: https://github.com/ether/etherpad-go
+  description: REST API for Etherpad Go - Collaborative Text Editor
   license:
     name: Apache 2.0
     url: http://www.apache.org/licenses/LICENSE-2.0.html
   termsOfService: http://swagger.io/terms/
-  title: Fiber Example API
+  title: Etherpad Go API
   version: "1.0"
-paths: {}
+paths:
+  /admin/api/author:
+    post:
+      consumes:
+      - application/json
+      description: Creates a new author with the specified name
+      parameters:
+      - description: Author data
+        in: body
+        name: author
+        required: true
+        schema:
+          $ref: '#/definitions/author.CreateDto'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/author.CreateDtoResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errors.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errors.Error'
+      security:
+      - BearerAuth: []
+      summary: Create a new author
+      tags:
+      - Authors
+  /admin/api/author/{authorId}:
+    get:
+      consumes:
+      - application/json
+      description: Returns the information of an author by their ID
+      parameters:
+      - description: Author ID
+        in: path
+        name: authorId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/author.Author'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errors.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/errors.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errors.Error'
+      security:
+      - BearerAuth: []
+      summary: Get an author
+      tags:
+      - Authors
+  /admin/api/author/{authorId}/name:
+    get:
+      consumes:
+      - application/json
+      description: Returns the name of an author
+      parameters:
+      - description: Author ID
+        in: path
+        name: authorId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/author.AuthorNameResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errors.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/errors.Error'
+      security:
+      - BearerAuth: []
+      summary: Get author name
+      tags:
+      - Authors
+  /admin/api/author/{authorId}/pads:
+    get:
+      consumes:
+      - application/json
+      description: Returns all pad IDs that an author has contributed to
+      parameters:
+      - description: Author ID
+        in: path
+        name: authorId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              type: string
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errors.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/errors.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errors.Error'
+      security:
+      - BearerAuth: []
+      summary: Get all pads of an author
+      tags:
+      - Authors
+  /admin/api/author/createIfNotExistsFor:
+    post:
+      consumes:
+      - application/json
+      description: Creates an author for a mapper if it doesn't exist, otherwise returns
+        existing author ID
+      parameters:
+      - description: Author mapper and name
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/author.CreateAuthorIfNotExistsForRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/author.CreateDtoResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errors.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errors.Error'
+      security:
+      - BearerAuth: []
+      summary: Create an author if not exists for a mapper
+      tags:
+      - Authors
+  /admin/api/checkToken:
+    get:
+      consumes:
+      - application/json
+      description: Returns ok when the current API token is valid
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Check API token
+      tags:
+      - Auth
+  /admin/api/groups:
+    post:
+      consumes:
+      - application/json
+      description: Creates a new group and returns its ID
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/groups.GroupIDResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errors.Error'
+      security:
+      - BearerAuth: []
+      summary: Create a new group
+      tags:
+      - Groups
+  /admin/api/groups/{groupId}:
+    delete:
+      consumes:
+      - application/json
+      description: Deletes a group
+      parameters:
+      - description: Group ID
+        in: path
+        name: groupId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errors.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/errors.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errors.Error'
+      security:
+      - BearerAuth: []
+      summary: Delete a group
+      tags:
+      - Groups
+  /admin/api/groups/{groupId}/pads:
+    post:
+      consumes:
+      - application/json
+      description: Creates a new pad within a group
+      parameters:
+      - description: Group ID
+        in: path
+        name: groupId
+        required: true
+        type: string
+      - description: Pad data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/groups.CreateGroupPadRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errors.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/errors.Error'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/errors.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errors.Error'
+      security:
+      - BearerAuth: []
+      summary: Create a pad in a group
+      tags:
+      - Groups
+  /admin/api/pads:
+    get:
+      consumes:
+      - application/json
+      description: Returns a list of all pad IDs
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/pad.AllPadsResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errors.Error'
+      security:
+      - BearerAuth: []
+      summary: List all pads
+      tags:
+      - Pads
+  /admin/api/pads/{padId}:
+    delete:
+      consumes:
+      - application/json
+      description: Deletes a pad
+      parameters:
+      - description: Pad ID
+        in: path
+        name: padId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/errors.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errors.Error'
+      security:
+      - BearerAuth: []
+      summary: Delete a pad
+      tags:
+      - Pads
+    post:
+      consumes:
+      - application/json
+      description: Creates a new pad with optional initial text
+      parameters:
+      - description: Pad ID
+        in: path
+        name: padId
+        required: true
+        type: string
+      - description: Initial text and author ID
+        in: body
+        name: request
+        schema:
+          $ref: '#/definitions/pad.CreatePadRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errors.Error'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/errors.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errors.Error'
+      security:
+      - BearerAuth: []
+      summary: Create a new pad
+      tags:
+      - Pads
+  /admin/api/pads/{padId}/{rev}/revisionChangeset:
+    get:
+      consumes:
+      - application/json
+      description: Returns the changeset of a specific revision of a pad
+      parameters:
+      - description: Pad ID
+        in: path
+        name: padId
+        required: true
+        type: string
+      - description: Revision number
+        in: path
+        name: rev
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errors.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/errors.Error'
+      security:
+      - BearerAuth: []
+      summary: Get revision changeset
+      tags:
+      - Pads
+  /admin/api/pads/{padId}/appendText:
+    post:
+      consumes:
+      - application/json
+      description: Appends text to the end of a pad
+      parameters:
+      - description: Pad ID
+        in: path
+        name: padId
+        required: true
+        type: string
+      - description: Text to append and Author ID
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/pad.AppendTextRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errors.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/errors.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errors.Error'
+      security:
+      - BearerAuth: []
+      summary: Append text to a pad
+      tags:
+      - Pads
+  /admin/api/pads/{padId}/attributePool:
+    get:
+      consumes:
+      - application/json
+      description: Returns the attribute pool of a pad
+      parameters:
+      - description: Pad ID
+        in: path
+        name: padId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/pad.AttributePoolResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/errors.Error'
+      security:
+      - BearerAuth: []
+      summary: Get attribute pool of a pad
+      tags:
+      - Pads
+  /admin/api/pads/{padId}/authors:
+    get:
+      consumes:
+      - application/json
+      description: Returns an array of author IDs who contributed to this pad
+      parameters:
+      - description: Pad ID
+        in: path
+        name: padId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/pad.AuthorsResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/errors.Error'
+      security:
+      - BearerAuth: []
+      summary: List authors of a pad
+      tags:
+      - Pads
+  /admin/api/pads/{padId}/chat:
+    post:
+      consumes:
+      - application/json
+      description: Creates a chat message for the pad
+      parameters:
+      - description: Pad ID
+        in: path
+        name: padId
+        required: true
+        type: string
+      - description: Chat message data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/pad.AppendChatMessageRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errors.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/errors.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errors.Error'
+      security:
+      - BearerAuth: []
+      summary: Append a chat message
+      tags:
+      - Chat
+  /admin/api/pads/{padId}/chatHead:
+    get:
+      consumes:
+      - application/json
+      description: Returns the chat head (last number of the last chat message) of
+        the pad
+      parameters:
+      - description: Pad ID
+        in: path
+        name: padId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/pad.ChatHeadResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/errors.Error'
+      security:
+      - BearerAuth: []
+      summary: Get chat head
+      tags:
+      - Pads
+  /admin/api/pads/{padId}/chatHistory:
+    get:
+      consumes:
+      - application/json
+      description: Returns a part of or the whole chat history of this pad
+      parameters:
+      - description: Pad ID
+        in: path
+        name: padId
+        required: true
+        type: string
+      - description: Start index
+        in: query
+        name: start
+        type: integer
+      - description: End index
+        in: query
+        name: end
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/pad.ChatHistoryResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errors.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/errors.Error'
+      security:
+      - BearerAuth: []
+      summary: Get chat history
+      tags:
+      - Chat
+  /admin/api/pads/{padId}/html:
+    get:
+      consumes:
+      - application/json
+      description: Returns the pad content as HTML
+      parameters:
+      - description: Pad ID
+        in: path
+        name: padId
+        required: true
+        type: string
+      - description: Revision number
+        in: query
+        name: rev
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errors.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/errors.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errors.Error'
+      security:
+      - BearerAuth: []
+      summary: Get pad HTML
+      tags:
+      - Pads
+    post:
+      consumes:
+      - application/json
+      description: Sets the text of a pad based on HTML
+      parameters:
+      - description: Pad ID
+        in: path
+        name: padId
+        required: true
+        type: string
+      - description: HTML content and Author ID
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/pad.SetHTMLRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errors.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/errors.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errors.Error'
+      security:
+      - BearerAuth: []
+      summary: Set pad HTML
+      tags:
+      - Pads
+  /admin/api/pads/{padId}/lastEdited:
+    get:
+      consumes:
+      - application/json
+      description: Returns the timestamp of when the pad was last edited
+      parameters:
+      - description: Pad ID
+        in: path
+        name: padId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              format: int64
+              type: integer
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/errors.Error'
+      security:
+      - BearerAuth: []
+      summary: Get last edited timestamp
+      tags:
+      - Pads
+  /admin/api/pads/{padId}/readOnlyID:
+    get:
+      consumes:
+      - application/json
+      description: Returns the read-only link ID of a pad
+      parameters:
+      - description: Pad ID
+        in: path
+        name: padId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/pad.ReadOnlyIDResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/errors.Error'
+      security:
+      - BearerAuth: []
+      summary: Get read-only ID
+      tags:
+      - Pads
+  /admin/api/pads/{padId}/restoreRevision:
+    post:
+      consumes:
+      - application/json
+      description: Restores a revision from the past as a new changeset
+      parameters:
+      - description: Pad ID
+        in: path
+        name: padId
+        required: true
+        type: string
+      - description: Revision and Author ID
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/pad.RestoreRevisionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errors.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/errors.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errors.Error'
+      security:
+      - BearerAuth: []
+      summary: Restore a revision
+      tags:
+      - Pads
+  /admin/api/pads/{padId}/revisionChangeset:
+    get:
+      consumes:
+      - application/json
+      description: Returns the changeset at a given revision, or last revision if
+        rev is not provided
+      parameters:
+      - description: Pad ID
+        in: path
+        name: padId
+        required: true
+        type: string
+      - description: Revision number (optional, defaults to head)
+        in: query
+        name: rev
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/pad.ChangesetResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errors.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/errors.Error'
+      security:
+      - BearerAuth: []
+      summary: Get revision changeset (optional rev)
+      tags:
+      - Pads
+  /admin/api/pads/{padId}/revisionsCount:
+    get:
+      consumes:
+      - application/json
+      description: Returns the number of revisions of this pad
+      parameters:
+      - description: Pad ID
+        in: path
+        name: padId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: integer
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/errors.Error'
+      security:
+      - BearerAuth: []
+      summary: Get revisions count
+      tags:
+      - Pads
+  /admin/api/pads/{padId}/saveRevision:
+    post:
+      consumes:
+      - application/json
+      description: Saves the current revision of the pad
+      parameters:
+      - description: Pad ID
+        in: path
+        name: padId
+        required: true
+        type: string
+      - description: Revision number (optional, defaults to head)
+        in: body
+        name: request
+        schema:
+          $ref: '#/definitions/pad.SaveRevisionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errors.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/errors.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errors.Error'
+      security:
+      - BearerAuth: []
+      summary: Save a revision
+      tags:
+      - Pads
+  /admin/api/pads/{padId}/savedRevisions:
+    get:
+      consumes:
+      - application/json
+      description: Returns the list of saved revisions of this pad
+      parameters:
+      - description: Pad ID
+        in: path
+        name: padId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/pad.SavedRevisionsListResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/errors.Error'
+      security:
+      - BearerAuth: []
+      summary: List saved revisions
+      tags:
+      - Pads
+  /admin/api/pads/{padId}/savedRevisionsCount:
+    get:
+      consumes:
+      - application/json
+      description: Returns the number of saved revisions of this pad
+      parameters:
+      - description: Pad ID
+        in: path
+        name: padId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/pad.SavedRevisionsCountResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/errors.Error'
+      security:
+      - BearerAuth: []
+      summary: Get saved revisions count
+      tags:
+      - Pads
+  /admin/api/pads/{padId}/text:
+    get:
+      consumes:
+      - application/json
+      description: Returns the current text of a pad, optionally for a specific revision
+      parameters:
+      - description: Pad ID
+        in: path
+        name: padId
+        required: true
+        type: string
+      - description: Revision number
+        in: query
+        name: rev
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/pad.TextResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errors.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/errors.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errors.Error'
+      security:
+      - BearerAuth: []
+      summary: Get pad text
+      tags:
+      - Pads
+    post:
+      consumes:
+      - application/json
+      description: Updates the text of a pad
+      parameters:
+      - description: Pad ID
+        in: path
+        name: padId
+        required: true
+        type: string
+      - description: Text and Author ID
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/pad.SetTextRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errors.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/errors.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errors.Error'
+      security:
+      - BearerAuth: []
+      summary: Set pad text
+      tags:
+      - Pads
+  /admin/api/pads/{padId}/users:
+    get:
+      consumes:
+      - application/json
+      description: Returns a list of users currently editing a pad
+      parameters:
+      - description: Pad ID
+        in: path
+        name: padId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/pad.PadUsersResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/errors.Error'
+      security:
+      - BearerAuth: []
+      summary: Get users currently in a pad
+      tags:
+      - Pads
+  /admin/api/pads/{padId}/usersCount:
+    get:
+      consumes:
+      - application/json
+      description: Returns the number of users currently editing a pad
+      parameters:
+      - description: Pad ID
+        in: path
+        name: padId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/pad.PadUsersCountResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/errors.Error'
+      security:
+      - BearerAuth: []
+      summary: Get count of users in a pad
+      tags:
+      - Pads
+  /admin/api/pads/readonly/{roId}:
+    get:
+      consumes:
+      - application/json
+      description: Returns the pad ID based on the read-only ID
+      parameters:
+      - description: Read-only ID
+        in: path
+        name: roId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/pad.PadIDResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/errors.Error'
+      security:
+      - BearerAuth: []
+      summary: Get pad ID from read-only ID
+      tags:
+      - Pads
+  /health:
+    get:
+      description: Returns the health status of the service (RFC Health Check Draft)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Service is healthy
+          schema:
+            $ref: '#/definitions/stats.HealthResponse'
+        "503":
+          description: Service is unhealthy
+          schema:
+            $ref: '#/definitions/stats.HealthResponse'
+      summary: Health check endpoint
+      tags:
+      - Health
+  /p/{pad}/{rev}/export/{type}:
+    get:
+      description: Exports the content of a pad to various formats (pdf, word, txt,
+        html, open, etherpad, markdown)
+      parameters:
+      - description: Pad ID
+        in: path
+        name: pad
+        required: true
+        type: string
+      - description: Revision number
+        in: path
+        name: rev
+        type: string
+      - description: Export type (pdf, word, txt, html, open, etherpad, markdown)
+        in: path
+        name: type
+        required: true
+        type: string
+      produces:
+      - application/octet-stream
+      responses:
+        "200":
+          description: Exported file
+          schema:
+            type: file
+        "400":
+          description: Invalid export type
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: Pad not found
+          schema:
+            type: string
+        "500":
+          description: Internal server error
+          schema:
+            type: string
+        "503":
+          description: Export not available
+          schema:
+            type: string
+      summary: Export a pad
+      tags:
+      - Export
+  /p/{pad}/export/{type}:
+    get:
+      description: Exports the content of a pad to various formats (pdf, word, txt,
+        html, open, etherpad, markdown)
+      parameters:
+      - description: Pad ID
+        in: path
+        name: pad
+        required: true
+        type: string
+      - description: Export type (pdf, word, txt, html, open, etherpad, markdown)
+        in: path
+        name: type
+        required: true
+        type: string
+      produces:
+      - application/octet-stream
+      responses:
+        "200":
+          description: Exported file
+          schema:
+            type: file
+        "400":
+          description: Invalid export type
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: Pad not found
+          schema:
+            type: string
+        "500":
+          description: Internal server error
+          schema:
+            type: string
+        "503":
+          description: Export not available
+          schema:
+            type: string
+      summary: Export a pad
+      tags:
+      - Export
+  /p/{pad}/import:
+    post:
+      consumes:
+      - multipart/form-data
+      description: 'Imports the content of a file into an existing or new pad. Supported
+        formats: txt, html, htm, etherpad, docx, doc, odt, rtf, pdf'
+      parameters:
+      - description: Pad ID
+        in: path
+        name: pad
+        required: true
+        type: string
+      - description: File to import
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/io.ImportResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/io.ImportResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/io.ImportResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/io.ImportResponse'
+      summary: Import a file into a pad
+      tags:
+      - Import
+securityDefinitions:
+  BearerAuth:
+    description: Bearer Token for Admin API authentication
+    in: header
+    name: Authorization
+    type: apiKey
 swagger: "2.0"

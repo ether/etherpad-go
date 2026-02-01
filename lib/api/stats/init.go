@@ -36,6 +36,13 @@ func Init(store *lib.InitStore) {
 	}
 
 	version, releaseID := settings.BuildInfo()
+
+	// @Summary Health check
+	// @Description Checks the health status of the service
+	// @Tags Health
+	// @Produce json
+	// @Success 200 {object} HealthResponse
+	// @Router /health [get]
 	store.C.Get("/health", Handler(
 		version,
 		releaseID,
@@ -69,6 +76,13 @@ func Init(store *lib.InitStore) {
 			reg,
 			promhttp.HandlerOpts{},
 		)
+		// GetMetrics godoc
+		// @Summary Prometheus metrics
+		// @Description Returns Prometheus-compatible metrics
+		// @Tags Metrics
+		// @Produce text/plain
+		// @Success 200 {string} string "Prometheus metrics"
+		// @Router /metrics [get]
 		store.C.Get("/metrics", adaptor.HTTPHandler(handler))
 	}
 }

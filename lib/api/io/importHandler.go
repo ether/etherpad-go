@@ -14,8 +14,8 @@ import (
 
 // ImportError represents an import error with a status code
 type ImportError struct {
-	Status  string
-	Message string
+	Status  string `json:"status" example:"uploadFailed"`
+	Message string `json:"message" example:"no file uploaded"`
 }
 
 func (e *ImportError) Error() string {
@@ -26,14 +26,16 @@ func (e *ImportError) Error() string {
 }
 
 // ImportResponse is the JSON response for import operations
+// @Description Response for import operations
 type ImportResponse struct {
-	Code    int        `json:"code"`
-	Message string     `json:"message"`
+	Code    int        `json:"code" example:"0"`
+	Message string     `json:"message" example:"ok"`
 	Data    ImportData `json:"data"`
 }
 
+// ImportData contains additional data for the import response
 type ImportData struct {
-	DirectDatabaseAccess bool `json:"directDatabaseAccess"`
+	DirectDatabaseAccess bool `json:"directDatabaseAccess" example:"true"`
 }
 
 // Known file extensions that can be imported
@@ -68,7 +70,19 @@ func NewImportHandler(
 	}
 }
 
-// ImportPad handles the import request
+// ImportPad godoc
+// @Summary Import a file into a pad
+// @Description Imports the content of a file into an existing or new pad. Supported formats: txt, html, htm, etherpad, docx, doc, odt, rtf, pdf
+// @Tags Import
+// @Accept multipart/form-data
+// @Produce json
+// @Param pad path string true "Pad ID"
+// @Param file formData file true "File to import"
+// @Success 200 {object} ImportResponse
+// @Failure 400 {object} ImportResponse
+// @Failure 403 {object} ImportResponse
+// @Failure 500 {object} ImportResponse
+// @Router /p/{pad}/import [post]
 func (h *ImportHandler) ImportPad(ctx *fiber.Ctx) error {
 	tokenCookie := ctx.Cookies("token")
 	padId := ctx.Params("pad")

@@ -12,6 +12,7 @@ import (
 	"github.com/ether/etherpad-go/lib/api/pad"
 	"github.com/ether/etherpad-go/lib/api/static"
 	"github.com/ether/etherpad-go/lib/api/stats"
+	swagger2 "github.com/ether/etherpad-go/lib/api/swagger"
 	"github.com/ether/etherpad-go/lib/locales"
 	"github.com/gofiber/fiber/v2"
 )
@@ -46,6 +47,7 @@ func InitAPI(store *lib.InitStore) *oidc.Authenticator {
 		return c.Next()
 	})
 
+	swagger2.Init(store.C)
 	locales.Init(store)
 	author.Init(store)
 	pad.Init(store)
