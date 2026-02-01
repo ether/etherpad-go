@@ -37,6 +37,9 @@ func (e *EpHeadingsPlugin) analyzeLine(alineAttrs *string, apool *apool.APool) *
 		for _, op := range *ops {
 			attributeMap := changeset.FromString(op.Attribs, apool)
 			header = attributeMap.Get("heading")
+			if header != nil {
+				return header
+			}
 		}
 	}
 	return header
@@ -65,12 +68,20 @@ func (e *EpHeadingsPlugin) getLineHTMLForExport(ctx *events.LineHtmlForExportCon
 
 	if paragraph != "" {
 		lineContent := strings.Replace(*ctx.LineContent, "<p", fmt.Sprintf("<%s ", *header), 1)
-		lineContent = strings.Replace(*ctx.LineContent, "</p>", fmt.Sprintf("</%s>", *header), 1)
+		lineContent = strings.Replace(lineContent, "</p>", fmt.Sprintf("</%s>", *header), 1)
 		ctx.LineContent = &lineContent
 	} else {
 		lineContent := fmt.Sprintf("<%s>%s</%s>", *header, *ctx.LineContent, *header)
 		ctx.LineContent = &lineContent
 	}
+}
+
+func (e *EpHeadingsPlugin) getLineMarkdownForExport(ctx *events.LineMarkdownForExportContext) {
+	header := e.analyzeLine(ctx.AttribLine, ctx.Apool)
+	if header == nil {
+		return
+	}
+	ctx.Heading = header
 }
 
 func (e *EpHeadingsPlugin) Init(store *interfaces.EpPluginStore) {
@@ -83,6 +94,41 @@ func (e *EpHeadingsPlugin) Init(store *interfaces.EpPluginStore) {
 		func(ctx any) {
 			event := ctx.(*events.LineHtmlForExportContext)
 			e.getLineHTMLForExport(event)
+		},
+	)
+
+	store.HookSystem.EnqueueHook(
+		"getLineMarkdownForExport",
+		func(ctx any) {
+			event := ctx.(*events.LineMarkdownForExportContext)
+			e.getLineMarkdownForExport(event)
+		},
+	)
+
+	// PDF Export hook
+	store.HookSystem.EnqueueHook(
+		"getLinePDFForExport",
+		func(ctx any) {
+			event := ctx.(*events.LinePDFForExportContext)
+			e.getLinePDFForExport(event)
+		},
+	)
+
+	// DOCX Export hook
+	store.HookSystem.EnqueueHook(
+		"getLineDocxForExport",
+		func(ctx any) {
+			event := ctx.(*events.LineDocxForExportContext)
+			e.getLineDocxForExport(event)
+		},
+	)
+
+	// ODT Export hook
+	store.HookSystem.EnqueueHook(
+		"getLineOdtForExport",
+		func(ctx any) {
+			event := ctx.(*events.LineOdtForExportContext)
+			e.getLineOdtForExport(event)
 		},
 	)
 

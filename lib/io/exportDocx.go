@@ -44,6 +44,7 @@ type docxParagraph struct {
 	listType  string // "bullet", "number", or ""
 	listLevel int    // 0-based level
 	alignment string // "left", "center", "right", "justify"
+	heading   string // "h1", "h2", "h3", "h4", "h5", "h6" or ""
 }
 
 func (e *ExportDocx) GetPadDocxDocument(padId string, optRevNum *int) ([]byte, error) {
@@ -87,13 +88,14 @@ func (e *ExportDocx) GetPadDocxDocument(padId string, optRevNum *int) ([]byte, e
 			return nil, err
 		}
 
-		// Call hook to allow plugins to modify the paragraph (e.g., set alignment)
+		// Call hook to allow plugins to modify the paragraph
 		hookContext := &events.LineDocxForExportContext{
 			Apool:      &retrievedPad.Pool,
 			AttribLine: &aline,
 			Text:       &lineText,
 			PadId:      &padId,
 			Alignment:  nil,
+			Heading:    nil,
 		}
 		e.Hooks.ExecuteHooks("getLineDocxForExport", hookContext)
 
@@ -102,11 +104,32 @@ func (e *ExportDocx) GetPadDocxDocument(padId string, optRevNum *int) ([]byte, e
 			para.alignment = *hookContext.Alignment
 		}
 
+		// Apply heading from hook if set
+		if hookContext.Heading != nil {
+			para.heading = *hookContext.Heading
+		}
+
 		paragraphs = append(paragraphs, para)
 	}
 
 	// Generate DOCX
 	return e.generateDocx(paragraphs)
+}
+
+var headingToWordStyle = map[string]string{
+	"Heading1": "Title",
+	"Heading2": "Heading1",
+	"Heading3": "Heading2",
+	"Heading4": "Heading3",
+	"Heading5": "Heading4",
+	"Heading6": "Heading5",
+}
+
+func getWordStyleForHeading(heading string) string {
+	if style, ok := headingToWordStyle[heading]; ok {
+		return style
+	}
+	return "Heading1"
 }
 
 func (e *ExportDocx) generateDocx(paragraphs []docxParagraph) ([]byte, error) {
@@ -147,11 +170,16 @@ func (e *ExportDocx) generateDocumentXML(paragraphs []docxParagraph) string {
 	for _, para := range paragraphs {
 		bodyContent.WriteString("<w:p>")
 
-		// Add paragraph properties for lists and alignment
-		if para.listType != "" || para.alignment != "" {
+		if para.heading != "" || para.listType != "" || para.alignment != "" {
 			bodyContent.WriteString("<w:pPr>")
 
-			// Add alignment if set
+			// Heading Style
+			if para.heading != "" {
+				wordStyle := getWordStyleForHeading(para.heading)
+				bodyContent.WriteString(fmt.Sprintf(`<w:pStyle w:val="%s"/>`, wordStyle))
+			}
+
+			// Alignment
 			if para.alignment != "" {
 				alignVal := "left"
 				switch para.alignment {
@@ -165,9 +193,8 @@ func (e *ExportDocx) generateDocumentXML(paragraphs []docxParagraph) string {
 				bodyContent.WriteString(fmt.Sprintf(`<w:jc w:val="%s"/>`, alignVal))
 			}
 
-			// Add list properties
-			if para.listType != "" {
-				// numId 1 = bullet, numId 2 = numbered
+			// List properties
+			if para.listType != "" && para.heading == "" {
 				numId := 1
 				if para.listType == "number" {
 					numId = 2
@@ -180,7 +207,6 @@ func (e *ExportDocx) generateDocumentXML(paragraphs []docxParagraph) string {
 		for _, seg := range para.segments {
 			bodyContent.WriteString("<w:r>")
 
-			// Run properties
 			if seg.bold || seg.italic || seg.underline || seg.strikethrough || seg.authorColor != "" {
 				bodyContent.WriteString("<w:rPr>")
 				if seg.bold {
@@ -418,6 +444,109 @@ const stylesXML = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
       </w:rPr>
     </w:rPrDefault>
   </w:docDefaults>
+  <w:style w:type="paragraph" w:default="1" w:styleId="Normal">
+    <w:name w:val="Normal"/>
+    <w:qFormat/>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="Title">
+    <w:name w:val="Title"/>
+    <w:basedOn w:val="Normal"/>
+    <w:next w:val="Normal"/>
+    <w:qFormat/>
+    <w:pPr>
+      <w:spacing w:after="300"/>
+    </w:pPr>
+    <w:rPr>
+      <w:b/>
+      <w:sz w:val="56"/>
+      <w:szCs w:val="56"/>
+    </w:rPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="Heading1">
+    <w:name w:val="heading 1"/>
+    <w:basedOn w:val="Normal"/>
+    <w:next w:val="Normal"/>
+    <w:qFormat/>
+    <w:pPr>
+      <w:keepNext/>
+      <w:keepLines/>
+      <w:spacing w:before="480" w:after="120"/>
+      <w:outlineLvl w:val="0"/>
+    </w:pPr>
+    <w:rPr>
+      <w:b/>
+      <w:sz w:val="48"/>
+      <w:szCs w:val="48"/>
+    </w:rPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="Heading2">
+    <w:name w:val="heading 2"/>
+    <w:basedOn w:val="Normal"/>
+    <w:next w:val="Normal"/>
+    <w:qFormat/>
+    <w:pPr>
+      <w:keepNext/>
+      <w:keepLines/>
+      <w:spacing w:before="360" w:after="80"/>
+      <w:outlineLvl w:val="1"/>
+    </w:pPr>
+    <w:rPr>
+      <w:b/>
+      <w:sz w:val="36"/>
+      <w:szCs w:val="36"/>
+    </w:rPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="Heading3">
+    <w:name w:val="heading 3"/>
+    <w:basedOn w:val="Normal"/>
+    <w:next w:val="Normal"/>
+    <w:qFormat/>
+    <w:pPr>
+      <w:keepNext/>
+      <w:keepLines/>
+      <w:spacing w:before="280" w:after="80"/>
+      <w:outlineLvl w:val="2"/>
+    </w:pPr>
+    <w:rPr>
+      <w:b/>
+      <w:sz w:val="28"/>
+      <w:szCs w:val="28"/>
+    </w:rPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="Heading4">
+    <w:name w:val="heading 4"/>
+    <w:basedOn w:val="Normal"/>
+    <w:next w:val="Normal"/>
+    <w:qFormat/>
+    <w:pPr>
+      <w:keepNext/>
+      <w:keepLines/>
+      <w:spacing w:before="240" w:after="60"/>
+      <w:outlineLvl w:val="3"/>
+    </w:pPr>
+    <w:rPr>
+      <w:b/>
+      <w:sz w:val="24"/>
+      <w:szCs w:val="24"/>
+    </w:rPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="Heading5">
+    <w:name w:val="heading 5"/>
+    <w:basedOn w:val="Normal"/>
+    <w:next w:val="Normal"/>
+    <w:qFormat/>
+    <w:pPr>
+      <w:keepNext/>
+      <w:keepLines/>
+      <w:spacing w:before="200" w:after="40"/>
+      <w:outlineLvl w:val="4"/>
+    </w:pPr>
+    <w:rPr>
+      <w:b/>
+      <w:sz w:val="22"/>
+      <w:szCs w:val="22"/>
+    </w:rPr>
+  </w:style>
 </w:styles>`
 
 const numberingXML = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>

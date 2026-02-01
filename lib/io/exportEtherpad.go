@@ -42,7 +42,7 @@ func NewExportEtherpad(hooks *hooks.Hook, padManager *pad.Manager, db db.DataSto
 		exportDocx:     NewExportDocx(padManager, authorMgr, hooks),
 		exportOdt:      NewExportOdt(padManager, authorMgr, hooks),
 		exportHtml:     NewExportHtml(padManager, authorMgr, hooks),
-		exportMarkdown: NewExportMarkdown(padManager),
+		exportMarkdown: NewExportMarkdown(padManager, hooks),
 		logger:         logger,
 	}
 

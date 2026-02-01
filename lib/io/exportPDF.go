@@ -41,6 +41,24 @@ const (
 	lineHeight   = 18.0
 )
 
+// Heading-Konfiguration
+type headingStyle struct {
+	fontSize     float64
+	lineHeight   float64
+	bold         bool
+	marginTop    float64
+	marginBottom float64
+}
+
+var headingStyles = map[string]headingStyle{
+	"Heading1": {fontSize: 28, lineHeight: 36, bold: true, marginTop: 24, marginBottom: 12},
+	"Heading2": {fontSize: 24, lineHeight: 32, bold: true, marginTop: 20, marginBottom: 10},
+	"Heading3": {fontSize: 20, lineHeight: 28, bold: true, marginTop: 16, marginBottom: 8},
+	"Heading4": {fontSize: 16, lineHeight: 24, bold: true, marginTop: 12, marginBottom: 6},
+	"Heading5": {fontSize: 14, lineHeight: 20, bold: true, marginTop: 10, marginBottom: 4},
+	"Heading6": {fontSize: 12, lineHeight: 18, bold: true, marginTop: 8, marginBottom: 4},
+}
+
 type textSegment struct {
 	text          string
 	bold          bool
@@ -50,10 +68,11 @@ type textSegment struct {
 	authorColor   string
 }
 
-type listInfo struct {
+type lineInfo struct {
 	listType  string // "bullet", "number", or ""
 	level     int    // 1-based level for nested lists
 	alignment string // "left", "center", "right", "justify"
+	heading   string // "h1", "h2", "h3", "h4", "h5", "h6" or ""
 }
 
 func (e *ExportPDF) GetPadPdfDocument(padId string, optRevNum *int) ([]byte, error) {
@@ -92,68 +111,55 @@ func (e *ExportPDF) GetPadPdfDocument(padId string, optRevNum *int) ([]byte, err
 		return nil, err
 	}
 
-	// Embed Etherpad JSON data as attachment for lossless import
 	pdfBytes, err := e.embedEtherpadData(buf.Bytes(), padId)
 	if err != nil {
-		// If embedding fails, return the PDF without the attachment
 		return buf.Bytes(), nil
 	}
 
 	return pdfBytes, nil
 }
 
-// embedEtherpadData embeds the Etherpad JSON export as a PDF attachment
-// This allows for lossless import similar to ZUGFeRD format (but with JSON instead of XML)
 func (e *ExportPDF) embedEtherpadData(pdfContent []byte, padId string) ([]byte, error) {
 	if e.exportEtherpad == nil {
 		return pdfContent, nil
 	}
 
-	// Get the Etherpad export data
 	etherpadExport, err := e.exportEtherpad.GetPadRaw(padId, nil)
 	if err != nil {
 		return nil, fmt.Errorf("could not get etherpad export: %w", err)
 	}
 
-	// Convert to JSON
 	jsonData, err := json.Marshal(etherpadExport)
 	if err != nil {
 		return nil, fmt.Errorf("could not marshal etherpad data: %w", err)
 	}
 
-	// Create temporary files for pdfcpu (it requires file paths)
 	tempDir, err := os.MkdirTemp("", "etherpad-pdf-*")
 	if err != nil {
 		return nil, fmt.Errorf("could not create temp dir: %w", err)
 	}
 	defer os.RemoveAll(tempDir)
 
-	// Write JSON to temp file
 	jsonPath := tempDir + "/etherpad.json"
 	if err := os.WriteFile(jsonPath, jsonData, 0644); err != nil {
 		return nil, fmt.Errorf("could not write json temp file: %w", err)
 	}
 
-	// Write input PDF to temp file
 	inputPdfPath := tempDir + "/input.pdf"
 	if err := os.WriteFile(inputPdfPath, pdfContent, 0644); err != nil {
 		return nil, fmt.Errorf("could not write pdf temp file: %w", err)
 	}
 
-	// Output PDF path
 	outputPdfPath := tempDir + "/output.pdf"
 
-	// Configure pdfcpu
 	conf := model.NewDefaultConfiguration()
 	conf.ValidationMode = model.ValidationRelaxed
 
-	// Add the JSON as an embedded file attachment
 	err = api.AddAttachmentsFile(inputPdfPath, outputPdfPath, []string{jsonPath}, false, conf)
 	if err != nil {
 		return nil, fmt.Errorf("could not embed attachment: %w", err)
 	}
 
-	// Read the output PDF
 	outputPdf, err := os.ReadFile(outputPdfPath)
 	if err != nil {
 		return nil, fmt.Errorf("could not read output pdf: %w", err)
@@ -163,7 +169,6 @@ func (e *ExportPDF) embedEtherpadData(pdfContent []byte, padId string) ([]byte, 
 }
 
 func (e *ExportPDF) loadFonts(pdf *gopdf.GoPdf) error {
-	// Try multiple paths to support both production and test environments
 	regularPaths := []string{
 		"assets/font/Roboto-Regular.ttf",
 		"test_assets/assets/font/Roboto-Regular.ttf",
@@ -216,13 +221,11 @@ func (e *ExportPDF) renderFormattedText(pdf *gopdf.GoPdf, retrievedPad *pad.Pad,
 		return err
 	}
 
-	// Build author color cache
 	authorColors := e.buildAuthorColorCache(&padPool)
 
 	pdf.SetX(marginLeft)
 	pdf.SetY(marginTop)
 
-	// Track numbered list counters for different levels
 	listCounters := make(map[int]int)
 	lastListType := ""
 	lastListLevel := 0
@@ -233,12 +236,12 @@ func (e *ExportPDF) renderFormattedText(pdf *gopdf.GoPdf, retrievedPad *pad.Pad,
 			aline = attribLines[i]
 		}
 
-		segments, listInfo, err := e.parseLineSegments(lineText, aline, &padPool, authorColors)
+		segments, info, err := e.parseLineSegments(lineText, aline, &padPool, authorColors)
 		if err != nil {
 			return err
 		}
 
-		// Call hook to allow plugins to modify the line (e.g., set alignment)
+		// Call hook to allow plugins to modify the line
 		padId := retrievedPad.Id
 		hookContext := &events.LinePDFForExportContext{
 			Apool:      &padPool,
@@ -246,62 +249,60 @@ func (e *ExportPDF) renderFormattedText(pdf *gopdf.GoPdf, retrievedPad *pad.Pad,
 			Text:       &lineText,
 			PadId:      &padId,
 			Alignment:  nil,
+			Heading:    nil,
 		}
 		e.Hooks.ExecuteHooks("getLinePDFForExport", hookContext)
 
-		// Apply alignment from hook if set
 		if hookContext.Alignment != nil {
-			listInfo.alignment = *hookContext.Alignment
+			info.alignment = *hookContext.Alignment
+		}
+
+		if hookContext.Heading != nil {
+			info.heading = *hookContext.Heading
+		}
+
+		// Handle heading
+		if info.heading != "" {
+			if err := e.renderHeading(pdf, segments, info); err != nil {
+				return err
+			}
+			continue
 		}
 
 		// Handle list prefix with proper numbering
-		if listInfo.listType != "" {
-			// Calculate indentation based on list level
-			indent := marginLeft + float64(listInfo.level-1)*20.0
+		if info.listType != "" {
+			indent := marginLeft + float64(info.level-1)*20.0
 			pdf.SetX(indent)
 
 			if err := pdf.SetFont("Roboto", "", fontSize); err != nil {
 				return err
 			}
 
-			// Reset counter if list type or level changed
-			if listInfo.listType != lastListType || listInfo.level != lastListLevel {
-				if listInfo.listType == "number" {
-					// Reset counter for new numbered lists at this level
-					if lastListType != "number" || listInfo.level != lastListLevel {
-						listCounters[listInfo.level] = 0
+			if info.listType != lastListType || info.level != lastListLevel {
+				if info.listType == "number" {
+					if lastListType != "number" || info.level != lastListLevel {
+						listCounters[info.level] = 0
 					}
 				}
 			}
 
-			if listInfo.listType == "bullet" {
+			if info.listType == "bullet" {
 				pdf.Cell(nil, "• ")
-			} else if listInfo.listType == "number" {
-				listCounters[listInfo.level]++
-				pdf.Cell(nil, fmt.Sprintf("%d. ", listCounters[listInfo.level]))
+			} else if info.listType == "number" {
+				listCounters[info.level]++
+				pdf.Cell(nil, fmt.Sprintf("%d. ", listCounters[info.level]))
 			}
 
-			lastListType = listInfo.listType
-			lastListLevel = listInfo.level
+			lastListType = info.listType
+			lastListLevel = info.level
 		} else {
-			// Reset list tracking when not in a list
 			lastListType = ""
 			lastListLevel = 0
 
-			// Apply alignment for non-list content
-			if listInfo.alignment != "" && listInfo.alignment != "left" {
-				// Calculate total text width
-				totalWidth := 0.0
-				for _, seg := range segments {
-					if err := pdf.SetFont("Roboto", "", fontSize); err != nil {
-						return err
-					}
-					w, _ := pdf.MeasureTextWidth(seg.text)
-					totalWidth += w
-				}
-
+			if info.alignment != "" && info.alignment != "left" {
+				totalWidth := e.calculateTotalWidth(pdf, segments, fontSize)
 				availableWidth := pageWidth - marginLeft - marginRight
-				switch listInfo.alignment {
+				switch info.alignment {
 				case "center":
 					pdf.SetX(marginLeft + (availableWidth-totalWidth)/2)
 				case "right":
@@ -315,7 +316,7 @@ func (e *ExportPDF) renderFormattedText(pdf *gopdf.GoPdf, retrievedPad *pad.Pad,
 		}
 
 		for _, seg := range segments {
-			if err := e.renderSegment(pdf, seg); err != nil {
+			if err := e.renderSegment(pdf, seg, fontSize, lineHeight); err != nil {
 				return err
 			}
 		}
@@ -333,6 +334,67 @@ func (e *ExportPDF) renderFormattedText(pdf *gopdf.GoPdf, retrievedPad *pad.Pad,
 	return nil
 }
 
+func (e *ExportPDF) renderHeading(pdf *gopdf.GoPdf, segments []textSegment, info lineInfo) error {
+	style, ok := headingStyles[info.heading]
+	if !ok {
+		style = headingStyles["h1"]
+	}
+
+	// Add top margin
+	pdf.SetY(pdf.GetY() + style.marginTop)
+
+	// Check for page break
+	if pdf.GetY() > pageHeight-marginBottom-style.lineHeight {
+		pdf.AddPage()
+		pdf.SetX(marginLeft)
+		pdf.SetY(marginTop)
+	}
+
+	// Calculate alignment
+	if info.alignment != "" && info.alignment != "left" {
+		totalWidth := e.calculateTotalWidth(pdf, segments, style.fontSize)
+		availableWidth := pageWidth - marginLeft - marginRight
+		switch info.alignment {
+		case "center":
+			pdf.SetX(marginLeft + (availableWidth-totalWidth)/2)
+		case "right":
+			pdf.SetX(marginLeft + availableWidth - totalWidth)
+		default:
+			pdf.SetX(marginLeft)
+		}
+	} else {
+		pdf.SetX(marginLeft)
+	}
+
+	// Render segments with heading style
+	for _, seg := range segments {
+		// Force bold for headings
+		seg.bold = style.bold || seg.bold
+		if err := e.renderSegment(pdf, seg, style.fontSize, style.lineHeight); err != nil {
+			return err
+		}
+	}
+
+	pdf.Br(style.lineHeight + style.marginBottom)
+	pdf.SetX(marginLeft)
+
+	return nil
+}
+
+func (e *ExportPDF) calculateTotalWidth(pdf *gopdf.GoPdf, segments []textSegment, size float64) float64 {
+	totalWidth := 0.0
+	for _, seg := range segments {
+		fontName := "Roboto"
+		if seg.bold {
+			fontName = "Roboto-Bold"
+		}
+		pdf.SetFont(fontName, "", size)
+		w, _ := pdf.MeasureTextWidth(seg.text)
+		totalWidth += w
+	}
+	return totalWidth
+}
+
 func (e *ExportPDF) buildAuthorColorCache(padPool *apool.APool) map[string]string {
 	authorColors := make(map[string]string)
 
@@ -340,7 +402,6 @@ func (e *ExportPDF) buildAuthorColorCache(padPool *apool.APool) map[string]strin
 		if attr.Key == "author" && attr.Value != "" {
 			authorId := attr.Value
 			if _, exists := authorColors[authorId]; !exists {
-				// Try to get author color from database
 				if authorData, err := e.authorManager.GetAuthor(authorId); err == nil {
 					authorColors[authorId] = authorData.ColorId
 				}
@@ -351,9 +412,9 @@ func (e *ExportPDF) buildAuthorColorCache(padPool *apool.APool) map[string]strin
 	return authorColors
 }
 
-func (e *ExportPDF) parseLineSegments(text string, aline string, padPool *apool.APool, authorColors map[string]string) ([]textSegment, listInfo, error) {
+func (e *ExportPDF) parseLineSegments(text string, aline string, padPool *apool.APool, authorColors map[string]string) ([]textSegment, lineInfo, error) {
 	var segments []textSegment
-	info := listInfo{}
+	info := lineInfo{}
 
 	if text == "" {
 		return segments, info, nil
@@ -368,11 +429,9 @@ func (e *ExportPDF) parseLineSegments(text string, aline string, padPool *apool.
 			op := (*ops)[0]
 			attribs := changeset.FromString(op.Attribs, padPool)
 
-			// Check for align attribute and remove leading * marker
 			alignStr := attribs.Get("align")
 			if alignStr != nil {
 				info.alignment = *alignStr
-				// Remove the leading * marker for aligned lines
 				if len(text) > 0 && text[0] == '*' {
 					text = text[1:]
 					newAline, err := changeset.Subattribution(aline, 1, nil)
@@ -385,11 +444,9 @@ func (e *ExportPDF) parseLineSegments(text string, aline string, padPool *apool.
 
 			listTypeStr := attribs.Get("list")
 			if listTypeStr != nil {
-				// Parse list type and level (e.g., "bullet1", "number2")
 				listVal := *listTypeStr
 				if strings.HasPrefix(listVal, "bullet") {
 					info.listType = "bullet"
-					// Extract level from suffix (e.g., "bullet2" -> level 2)
 					levelStr := strings.TrimPrefix(listVal, "bullet")
 					if level, err := strconv.Atoi(levelStr); err == nil && level > 0 {
 						info.level = level
@@ -406,7 +463,6 @@ func (e *ExportPDF) parseLineSegments(text string, aline string, padPool *apool.
 					}
 				}
 
-				// Remove the leading * marker from list items (if not already removed by align)
 				if len(text) > 0 && text[0] == '*' {
 					text = text[1:]
 					newAline, err := changeset.Subattribution(aline, 1, nil)
@@ -455,7 +511,6 @@ func (e *ExportPDF) parseLineSegments(text string, aline string, padPool *apool.
 		segText := string(textRunes[pos:endPos])
 		seg := textSegment{text: segText}
 
-		// Parse attributes
 		attribs := changeset.FromString(op.Attribs, padPool)
 		if attribs.Get("bold") != nil {
 			seg.bold = true
@@ -487,7 +542,6 @@ func (e *ExportPDF) parseLineSegments(text string, aline string, padPool *apool.
 	return segments, info, nil
 }
 
-// parseHexColor converts a hex color string to RGB values
 func parseHexColor(hex string) (r, g, b uint8, err error) {
 	hex = strings.TrimPrefix(hex, "#")
 	if len(hex) != 6 {
@@ -510,13 +564,13 @@ func parseHexColor(hex string) (r, g, b uint8, err error) {
 	return uint8(rVal), uint8(gVal), uint8(bVal), nil
 }
 
-func (e *ExportPDF) renderSegment(pdf *gopdf.GoPdf, seg textSegment) error {
+func (e *ExportPDF) renderSegment(pdf *gopdf.GoPdf, seg textSegment, size float64, height float64) error {
 	fontName := "Roboto"
 	if seg.bold {
 		fontName = "Roboto-Bold"
 	}
 
-	if err := pdf.SetFont(fontName, "", fontSize); err != nil {
+	if err := pdf.SetFont(fontName, "", size); err != nil {
 		return err
 	}
 
@@ -530,7 +584,7 @@ func (e *ExportPDF) renderSegment(pdf *gopdf.GoPdf, seg textSegment) error {
 		r, g, b, err := parseHexColor(seg.authorColor)
 		if err == nil {
 			pdf.SetFillColor(r, g, b)
-			pdf.Rectangle(startX, startY, endX, startY+lineHeight-4, "F", 0, 0)
+			pdf.Rectangle(startX, startY, endX, startY+height-4, "F", 0, 0)
 		}
 	}
 
@@ -540,11 +594,11 @@ func (e *ExportPDF) renderSegment(pdf *gopdf.GoPdf, seg textSegment) error {
 	pdf.Cell(nil, seg.text)
 
 	if seg.underline {
-		pdf.Line(startX, startY+fontSize-1, endX, startY+fontSize-1)
+		pdf.Line(startX, startY+size-1, endX, startY+size-1)
 	}
 
 	if seg.strikethrough {
-		pdf.Line(startX, startY+fontSize/2-1, endX, startY+fontSize/2-1)
+		pdf.Line(startX, startY+size/2-1, endX, startY+size/2-1)
 	}
 
 	return nil
