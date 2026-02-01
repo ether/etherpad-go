@@ -149,6 +149,7 @@ func tryLoadExistingContainers() bool {
 
 	var config ContainerConfig
 	if err := json.Unmarshal(data, &config); err != nil {
+		os.Remove(containerConfigFile)
 		return false
 	}
 
@@ -158,22 +159,29 @@ func tryLoadExistingContainers() bool {
 		return false
 	}
 
-	// Verify Postgres is still running
+	// Verify Postgres is still running with retries
 	postgresDSN := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",
 		config.Username, config.Password, config.PostgresHost, config.PostgresPort, config.Database)
-	postgresConn, err := sql.Open("pgx", postgresDSN)
-	if err != nil {
-		os.Remove(containerConfigFile)
-		return false
-	}
-	if err := postgresConn.Ping(); err != nil {
-		postgresConn.Close()
-		os.Remove(containerConfigFile)
-		return false
-	}
-	postgresConn.Close()
 
-	// Verify MySQL is still running
+	postgresOK := false
+	for i := 0; i < 3; i++ {
+		postgresConn, err := sql.Open("pgx", postgresDSN)
+		if err == nil {
+			err = postgresConn.Ping()
+			postgresConn.Close()
+			if err == nil {
+				postgresOK = true
+				break
+			}
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	if !postgresOK {
+		os.Remove(containerConfigFile)
+		return false
+	}
+
+	// Verify MySQL is still running with retries
 	mySQLConf := mysql2.NewConfig()
 	mySQLConf.User = config.Username
 	mySQLConf.Passwd = config.Password
@@ -183,17 +191,23 @@ func tryLoadExistingContainers() bool {
 	mySQLConf.ParseTime = true
 	mysqlDSN := mySQLConf.FormatDSN()
 
-	mysqlConn, err := sql.Open("mysql", mysqlDSN)
-	if err != nil {
+	mysqlOK := false
+	for i := 0; i < 3; i++ {
+		mysqlConn, err := sql.Open("mysql", mysqlDSN)
+		if err == nil {
+			err = mysqlConn.Ping()
+			mysqlConn.Close()
+			if err == nil {
+				mysqlOK = true
+				break
+			}
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	if !mysqlOK {
 		os.Remove(containerConfigFile)
 		return false
 	}
-	if err := mysqlConn.Ping(); err != nil {
-		mysqlConn.Close()
-		os.Remove(containerConfigFile)
-		return false
-	}
-	mysqlConn.Close()
 
 	// Containers are valid - use them
 	globalPostgresContainer = &TestContainerConfiguration{
@@ -241,6 +255,9 @@ func saveContainerConfig() error {
 // initGlobalContainers initializes the global containers once
 func initGlobalContainers(t *testing.T) {
 	t.Helper()
+
+	// Enable testcontainers reuse feature
+	os.Setenv("TESTCONTAINERS_RYUK_DISABLED", "true")
 
 	containersMutex.Lock()
 	defer containersMutex.Unlock()
@@ -362,18 +379,22 @@ func PreparePostgresDB() (*TestContainerConfiguration, error) {
 		"POSTGRES_DB":       DbName,
 	}
 	ctx := context.Background()
-	postgresContainer, err := testcontainers.Run(
-		ctx, "postgres:alpine",
-		testcontainers.WithExposedPorts("5432/tcp"),
-		testcontainers.WithWaitStrategy(
-			wait.ForSQL("5432/tcp", "pgx", func(host string, port nat.Port) string {
+
+	req := testcontainers.GenericContainerRequest{
+		ContainerRequest: testcontainers.ContainerRequest{
+			Name:         "etherpad-test-postgres",
+			Image:        "postgres:alpine",
+			ExposedPorts: []string{"5432/tcp"},
+			Env:          env,
+			WaitingFor: wait.ForSQL("5432/tcp", "pgx", func(host string, port nat.Port) string {
 				return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable", DbUser, DbPass, host, port.Port(), DbName)
-			}).
-				WithStartupTimeout(time.Second*30).
-				WithQuery("SELECT 10"),
-		),
-		testcontainers.WithEnv(env),
-	)
+			}).WithStartupTimeout(time.Second * 60).WithQuery("SELECT 10"),
+		},
+		Started: true,
+		Reuse:   true, // Enable container reuse
+	}
+
+	postgresContainer, err := testcontainers.GenericContainer(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -390,8 +411,9 @@ func PreparePostgresDB() (*TestContainerConfiguration, error) {
 
 	fmt.Printf("Postgres test container started at %s:%s\n", host, p.Port())
 
+	dockerContainer, _ := postgresContainer.(*testcontainers.DockerContainer)
 	tcfg := TestContainerConfiguration{
-		Container: postgresContainer,
+		Container: dockerContainer,
 		Host:      host,
 		Port:      p.Port(),
 		Username:  DbUser,
@@ -410,11 +432,19 @@ func PrepareMySQLDB() (*TestContainerConfiguration, error) {
 		"MYSQL_DATABASE":      DbName,
 	}
 	ctx := context.Background()
-	mysqlContainer, err := testcontainers.Run(
-		ctx, "mysql:9.6",
-		testcontainers.WithExposedPorts("3306/tcp"),
-		testcontainers.WithEnv(env),
-	)
+
+	req := testcontainers.GenericContainerRequest{
+		ContainerRequest: testcontainers.ContainerRequest{
+			Name:         "etherpad-test-mysql",
+			Image:        "mysql:9.6",
+			ExposedPorts: []string{"3306/tcp"},
+			Env:          env,
+		},
+		Started: true,
+		Reuse:   true, // Enable container reuse
+	}
+
+	mysqlContainer, err := testcontainers.GenericContainer(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -454,8 +484,9 @@ func PrepareMySQLDB() (*TestContainerConfiguration, error) {
 
 	fmt.Printf("MySQL test container started at %s:%s\n", host, p.Port())
 
+	dockerContainer, _ := mysqlContainer.(*testcontainers.DockerContainer)
 	tcfg := TestContainerConfiguration{
-		Container: mysqlContainer,
+		Container: dockerContainer,
 		Host:      host,
 		Port:      p.Port(),
 		Username:  DbUser,

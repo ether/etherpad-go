@@ -76,6 +76,8 @@ jobs:
           path: built-assets/
           retention-days: 1
       - name: Run tests with coverage
+        env:
+          TESTCONTAINERS_RYUK_DISABLED: "true"
         run: |
           go test -p 1 -v -coverpkg=./... -coverprofile=coverage.out ./...
           go tool cover -html=coverage.out -o coverage.html
