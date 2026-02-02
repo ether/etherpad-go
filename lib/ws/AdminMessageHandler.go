@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ether/etherpad-go/admin/src/utils"
+	adminutils "github.com/ether/etherpad-go/admin/src/utils"
 	"github.com/ether/etherpad-go/lib/changeset"
 	"github.com/ether/etherpad-go/lib/db"
 	"github.com/ether/etherpad-go/lib/hooks"
@@ -17,6 +17,7 @@ import (
 	"github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/plugins"
 	"github.com/ether/etherpad-go/lib/settings"
+	libutils "github.com/ether/etherpad-go/lib/utils"
 	"github.com/gofiber/fiber/v2"
 	"go.uber.org/zap"
 )
@@ -54,6 +55,34 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 			}
 			responseBytes, err := json.Marshal(resp)
 			if err != nil {
+				return
+			}
+			c.SafeSend(responseBytes)
+		}
+	case "checkUpdates":
+		{
+			latestVersion, err := h.store.GetServerVersion()
+			if err != nil {
+				h.Logger.Errorf("Error getting server version from database: %s", err.Error())
+				return
+			}
+
+			currentVersion := retrievedSettings.GitVersion
+			updateAvailable := libutils.IsUpdateAvailable(currentVersion, latestVersion)
+
+			result := admin.UpdateCheckResult{
+				CurrentVersion:  currentVersion,
+				LatestVersion:   latestVersion,
+				UpdateAvailable: updateAvailable,
+			}
+
+			resp := make([]interface{}, 2)
+			resp[0] = "results:checkUpdates"
+			resp[1] = result
+
+			responseBytes, err := json.Marshal(resp)
+			if err != nil {
+				h.Logger.Errorf("Error marshalling update check response: %s", err.Error())
 				return
 			}
 			c.SafeSend(responseBytes)
@@ -399,7 +428,7 @@ func (h AdminMessageHandler) DeleteRevisions(padId string, keepRevisions int) er
 	}
 	newAtext = *optNewAtext
 
-	createdRevision := utils.CreateRevision(compressedChangeset, currentRevsToKeep[cleanupUntilRevision].Timestamp, true, currentRevsToKeep[cleanupUntilRevision].AuthorId, newAtext, pool)
+	createdRevision := adminutils.CreateRevision(compressedChangeset, currentRevsToKeep[cleanupUntilRevision].Timestamp, true, currentRevsToKeep[cleanupUntilRevision].AuthorId, newAtext, pool)
 
 	if err := h.store.SaveRevision(padContent.Id, 0, createdRevision.Changeset, newAtext.ToDBAText(), pool.ToRevDB(), createdRevision.Meta.Author, createdRevision.Meta.Timestamp); err != nil {
 		println("Error saving compressed revision:", err.Error())
@@ -421,7 +450,7 @@ func (h AdminMessageHandler) DeleteRevisions(padId string, keepRevisions int) er
 		}
 		newAtext = *optNewAtext
 
-		createdRevision = utils.CreateRevision(currentRevisionDb.Changeset, currentRevisionDb.Timestamp, true, currentRevisionDb.AuthorId, newAtext, pool)
+		createdRevision = adminutils.CreateRevision(currentRevisionDb.Changeset, currentRevisionDb.Timestamp, true, currentRevisionDb.AuthorId, newAtext, pool)
 		if err := h.store.SaveRevision(padContent.Id, newRev, createdRevision.Changeset, newAtext.ToDBAText(), pool.ToRevDB(), createdRevision.Meta.Author, createdRevision.Meta.Timestamp); err != nil {
 			println("Error saving revision after deleting:", err.Error())
 			return err

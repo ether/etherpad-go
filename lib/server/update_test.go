@@ -6,11 +6,13 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/ether/etherpad-go/lib/db"
 	"go.uber.org/zap"
 )
 
 func TestUpdateChecker_CheckForUpdates(t *testing.T) {
 	logger := zap.NewNop().Sugar()
+	ds := &db.MemoryDataStore{}
 
 	tests := []struct {
 		name           string
@@ -54,10 +56,18 @@ func TestUpdateChecker_CheckForUpdates(t *testing.T) {
 			}))
 			defer server.Close()
 
-			uc := NewUpdateChecker(logger)
+			uc := NewUpdateChecker(logger, ds)
 			uc.apiURL = server.URL
 
 			updateAvailable, err := uc.CheckForUpdates(tt.currentVersion)
+
+			// Trigger performUpdateCheck to test persistence
+			uc.performUpdateCheck(tt.currentVersion)
+
+			persistedVersion, _ := ds.GetServerVersion()
+			if persistedVersion != tt.currentVersion {
+				t.Errorf("expected persisted version %s, got %s", tt.currentVersion, persistedVersion)
+			}
 			if tt.statusCode != http.StatusOK {
 				if err != nil {
 					// Error is expected for non-200 status codes in some cases,

@@ -1010,6 +1010,20 @@ func (d MysqlDB) QueryPad(
 	}, nil
 }
 
+func (d MysqlDB) GetServerVersion() (string, error) {
+	var version string
+	err := d.sqlDB.QueryRow("SELECT version FROM server_version ORDER BY updated_at DESC LIMIT 1").Scan(&version)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	return version, err
+}
+
+func (d MysqlDB) SaveServerVersion(version string) error {
+	_, err := d.sqlDB.Exec("INSERT INTO server_version (version, updated_at) VALUES (?, NOW(6)) ON DUPLICATE KEY UPDATE updated_at = VALUES(updated_at)", version)
+	return err
+}
+
 // ============== LIFECYCLE ==============
 
 func (d MysqlDB) Close() error {

@@ -40,9 +40,15 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS) {
 	setupLogger.Info("Report bugs at https://github.com/ether/etherpad-go/issues")
 	setupLogger.Info("Your Etherpad Go version is " + gitVersion)
 	settings.GitVersion = gitVersion
-	StartUpdateRoutine(setupLogger, gitVersion)
 
 	dataStore, err := utils.GetDB(settings, setupLogger)
+	if err != nil {
+		setupLogger.Fatal("Error connecting to database: " + err.Error())
+		return
+	}
+
+	StartUpdateRoutine(setupLogger, dataStore, gitVersion)
+
 	readOnlyManager := pad.NewReadOnlyManager(dataStore)
 
 	var db = session2.NewSessionDatabase(nil)
@@ -84,11 +90,6 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS) {
 
 	hooks.ExpressPreSession(app, uiAssets)
 	go globalHub.Run()
-
-	if err != nil {
-		setupLogger.Fatal("Error connecting to database: " + err.Error())
-		return
-	}
 
 	adminAPIRoute := app.Group("/admin/api")
 

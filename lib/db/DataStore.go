@@ -52,12 +52,18 @@ type ChatMethods interface {
 	GetAuthorIdsOfPadChats(id string) (*[]string, error)
 }
 
+type ServerMethods interface {
+	GetServerVersion() (string, error)
+	SaveServerVersion(version string) error
+}
+
 type DataStore interface {
 	PadMethods
 	AuthorMethods
 	SessionMethods
 	GroupMethods
 	ChatMethods
+	ServerMethods
 	Close() error
 	Ping() error
 }

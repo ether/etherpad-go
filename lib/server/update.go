@@ -5,19 +5,23 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/ether/etherpad-go/lib/db"
+	"github.com/ether/etherpad-go/lib/utils"
 	"go.uber.org/zap"
 )
 
 type UpdateChecker struct {
 	httpClient *http.Client
 	logger     *zap.SugaredLogger
+	db         db.DataStore
 	apiURL     string
 }
 
-func NewUpdateChecker(logger *zap.SugaredLogger) *UpdateChecker {
+func NewUpdateChecker(logger *zap.SugaredLogger, db db.DataStore) *UpdateChecker {
 	return &UpdateChecker{
 		httpClient: &http.Client{},
 		logger:     logger,
+		db:         db,
 		apiURL:     "https://api.github.com/repos/ether/etherpad-go/releases/latest",
 	}
 }
@@ -26,8 +30,8 @@ type GitHubRelease struct {
 	TagName string `json:"tag_name"`
 }
 
-func StartUpdateRoutine(logger *zap.SugaredLogger, currentVersion string) {
-	uc := NewUpdateChecker(logger)
+func StartUpdateRoutine(logger *zap.SugaredLogger, db db.DataStore, currentVersion string) {
+	uc := NewUpdateChecker(logger, db)
 	go func() {
 		ticker := time.NewTicker(24 * time.Hour)
 		defer ticker.Stop()
@@ -51,6 +55,10 @@ func (uc *UpdateChecker) performUpdateCheck(currentVersion string) {
 	if updateAvailable != nil && *updateAvailable {
 		uc.logger.Info("A new version of Etherpad Go is available! Please update to the latest version.")
 	}
+
+	if err := uc.db.SaveServerVersion(currentVersion); err != nil {
+		uc.logger.Warnf("Failed to persist current version to database: %v", err)
+	}
 }
 
 func (uc *UpdateChecker) CheckForUpdates(currentVersion string) (*bool, error) {
@@ -71,10 +79,6 @@ func (uc *UpdateChecker) CheckForUpdates(currentVersion string) (*bool, error) {
 		return nil, err
 	}
 
-	if release.TagName != currentVersion {
-		updateAvailable := true
-		return &updateAvailable, nil
-	}
-	updateAvailable := false
-	return &updateAvailable, nil
+	update := utils.IsUpdateAvailable(currentVersion, release.TagName)
+	return &update, nil
 }

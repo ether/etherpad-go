@@ -14,12 +14,13 @@ import (
 )
 
 type MemoryDataStore struct {
-	padStore     map[string]db.PadDB
-	padRevisions map[string]map[int]db.PadSingleRevision
-	authorStore  map[string]db.AuthorDB
-	chatPads     map[string]db.ChatMessageDB
-	sessionStore map[string]session2.Session
-	groupStore   map[string]string
+	padStore      map[string]db.PadDB
+	padRevisions  map[string]map[int]db.PadSingleRevision
+	authorStore   map[string]db.AuthorDB
+	chatPads      map[string]db.ChatMessageDB
+	sessionStore  map[string]session2.Session
+	groupStore    map[string]string
+	serverVersion string
 
 	// oidc
 	accessTokens           map[string]fosite.Requester
@@ -601,6 +602,15 @@ func (m *MemoryDataStore) QueryPad(
 		TotalPads: len(padKeys),
 		Pads:      padSearch,
 	}, nil
+}
+
+func (m *MemoryDataStore) GetServerVersion() (string, error) {
+	return m.serverVersion, nil
+}
+
+func (m *MemoryDataStore) SaveServerVersion(version string) error {
+	m.serverVersion = version
+	return nil
 }
 
 // ============== OIDC METHODS ==============

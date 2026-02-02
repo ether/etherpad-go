@@ -1026,6 +1026,21 @@ func (d SQLiteDB) QueryPad(
 	}, nil
 }
 
+func (d SQLiteDB) GetServerVersion() (string, error) {
+	var version string
+	err := d.sqlDB.QueryRow("SELECT version FROM server_version ORDER BY updated_at DESC LIMIT 1").Scan(&version)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	return version, err
+}
+
+func (d SQLiteDB) SaveServerVersion(version string) error {
+	_, err := d.sqlDB.Exec(`INSERT INTO server_version (version, updated_at) VALUES (?, datetime('now', 'localtime'))
+		ON CONFLICT(version) DO UPDATE SET updated_at = excluded.updated_at`, version)
+	return err
+}
+
 // ============== LIFECYCLE ==============
 
 func (d SQLiteDB) Close() error {
