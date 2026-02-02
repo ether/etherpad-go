@@ -40,6 +40,7 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS) {
 	setupLogger.Info("Report bugs at https://github.com/ether/etherpad-go/issues")
 	setupLogger.Info("Your Etherpad Go version is " + gitVersion)
 	settings.GitVersion = gitVersion
+	StartUpdateRoutine(setupLogger, gitVersion)
 
 	dataStore, err := utils.GetDB(settings, setupLogger)
 	readOnlyManager := pad.NewReadOnlyManager(dataStore)
