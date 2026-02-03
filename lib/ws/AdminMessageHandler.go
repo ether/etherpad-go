@@ -67,6 +67,11 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 				return
 			}
 
+			if latestVersion == nil {
+				h.Logger.Errorf("No server version found in database")
+				return
+			}
+
 			currentVersion := retrievedSettings.GitVersion
 			updateAvailable := libutils.IsUpdateAvailable(currentVersion, latestVersion.Version)
 

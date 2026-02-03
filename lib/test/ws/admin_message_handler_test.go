@@ -461,10 +461,6 @@ func testHandleDeletePad(t *testing.T, ds testutils.TestDataStore) {
 	assert.Equal(t, "existingPad", resp[1])
 }
 
-func testHandleCleanupRevisions(t *testing.T, ds testutils.TestDataStore) {
-
-}
-
 func testHandleCheckUpdates(t *testing.T, ds testutils.TestDataStore) {
 	hub := ws.NewHub()
 	settingsToLoad := settings.Displayed
@@ -489,22 +485,22 @@ func testHandleCheckUpdates(t *testing.T, ds testutils.TestDataStore) {
 	ds.AdminMessageHandler.HandleMessage(checkUpdatesMessage, &settingsToLoad, client)
 	wg.Wait()
 
-	assert.Len(t, ds.MockWebSocket.Data, 1)
-	var resp []interface{}
-	assert.NoError(t, json.Unmarshal(ds.MockWebSocket.Data[0].Data, &resp))
-	assert.Equal(t, "results:checkUpdates", resp[0])
-	result := resp[1].(map[string]interface{})
-	assert.Equal(t, "v1.0.0", result["currentVersion"])
-	assert.Equal(t, "", result["latestVersion"])
-	assert.Equal(t, false, result["updateAvailable"])
+	assert.Len(t, ds.MockWebSocket.Data, 0)
 
 	// Case 2: Newer version in DB
-	ds.DS.SaveServerVersion("v1.1.0")
+	assert.NoError(t, ds.DS.SaveServerVersion("v1.1.0"))
 	ds.MockWebSocket.Data = nil // clear data
 
 	wg = startMockWritePump(client, ds.MockWebSocket)
 	ds.AdminMessageHandler.HandleMessage(checkUpdatesMessage, &settingsToLoad, client)
 	wg.Wait()
+	var resp []interface{}
+	assert.NoError(t, json.Unmarshal(ds.MockWebSocket.Data[0].Data, &resp))
+	assert.Equal(t, "results:checkUpdates", resp[0])
+	result := resp[1].(map[string]interface{})
+	assert.Equal(t, "v1.0.0", result["currentVersion"])
+	assert.Equal(t, "v1.1.0", result["latestVersion"])
+	assert.Equal(t, true, result["updateAvailable"])
 
 	assert.Len(t, ds.MockWebSocket.Data, 1)
 	assert.NoError(t, json.Unmarshal(ds.MockWebSocket.Data[0].Data, &resp))
