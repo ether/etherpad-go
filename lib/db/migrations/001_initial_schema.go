@@ -8,8 +8,8 @@ import (
 func GetMigrations() []Migration {
 	return []Migration{
 		migration001InitialSchema(),
-		migration002FiberSessions(),
 		migration002ServerVersion(),
+		migration003FiberSessions(),
 	}
 }
 

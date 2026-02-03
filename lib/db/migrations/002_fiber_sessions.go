@@ -4,10 +4,10 @@ import (
 	"database/sql"
 )
 
-// migration002FiberSessions creates the fiber_sessions table for Fiber session storage
-func migration002FiberSessions() Migration {
+// migration003FiberSessions creates the fiber_sessions table for Fiber session storage
+func migration003FiberSessions() Migration {
 	return Migration{
-		Version:     2,
+		Version:     3,
 		Description: "Create fiber_sessions table for Fiber session storage",
 		Up: func(db *sql.DB, dialect Dialect) error {
 			var query string
