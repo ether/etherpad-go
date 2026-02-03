@@ -14,7 +14,7 @@ import (
 	"github.com/ether/etherpad-go/lib/api/stats"
 	swagger2 "github.com/ether/etherpad-go/lib/api/swagger"
 	"github.com/ether/etherpad-go/lib/locales"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 func InitAPI(store *lib.InitStore) *oidc.Authenticator {
@@ -23,7 +23,7 @@ func InitAPI(store *lib.InitStore) *oidc.Authenticator {
 		store.Logger.Warnf("SSO admin client is not configured, cannot start admin API")
 	}
 	authenticator := oidc.Init(store)
-	store.PrivateAPI.Use(func(c *fiber.Ctx) error {
+	store.PrivateAPI.Use(func(c fiber.Ctx) error {
 		if ssoAdminClient == nil {
 			store.Logger.Warnf("SSO admin client is not configured, cannot validate admin token")
 			return c.Status(http.StatusUnauthorized).Send([]byte("No Authorization header provided"))

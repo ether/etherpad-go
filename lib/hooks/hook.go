@@ -2,7 +2,7 @@ package hooks
 
 import (
 	"github.com/ether/etherpad-go/lib/hooks/events"
-	"github.com/gofiber/fiber/v2/utils"
+	"github.com/gofiber/utils/v2"
 )
 
 type Hook struct {

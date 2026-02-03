@@ -9,7 +9,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 type LanguageContainer struct {
@@ -515,7 +515,7 @@ func ExpressPreSession(app *fiber.App, uiAssets embed.FS) {
 		localeIndex["en"].(map[string]string)[key] = value
 	}
 
-	app.Get("/locales/:lang", func(c *fiber.Ctx) error {
+	app.Get("/locales/:lang", func(c fiber.Ctx) error {
 		var localesToSend = make(Locales)
 		var lang = c.Params("lang")
 		lang = strings.Replace(lang, ".json", "", -1)
@@ -529,7 +529,7 @@ func ExpressPreSession(app *fiber.App, uiAssets embed.FS) {
 		return c.SendStatus(404)
 	})
 
-	app.Get("/locales.json", func(c *fiber.Ctx) error {
+	app.Get("/locales.json", func(c fiber.Ctx) error {
 		var respHeader = c.GetRespHeaders()
 		respHeader["Content-Type"] = []string{"application/json"}
 		respHeader["Cache-Control"] = []string{"public, max-age=86400"}

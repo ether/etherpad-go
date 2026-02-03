@@ -161,6 +161,34 @@ func runAllDataStoreTests(testHandler *testutils.TestDBHandler) {
 			Name: "PingDB",
 			Test: testPingDB,
 		},
+		testutils.TestRunConfig{
+			Name: "FiberSessionSetAndGet",
+			Test: testFiberSessionSetAndGet,
+		},
+		testutils.TestRunConfig{
+			Name: "FiberSessionGetNonExisting",
+			Test: testFiberSessionGetNonExisting,
+		},
+		testutils.TestRunConfig{
+			Name: "FiberSessionDelete",
+			Test: testFiberSessionDelete,
+		},
+		testutils.TestRunConfig{
+			Name: "FiberSessionReset",
+			Test: testFiberSessionReset,
+		},
+		testutils.TestRunConfig{
+			Name: "FiberSessionExpiration",
+			Test: testFiberSessionExpiration,
+		},
+		testutils.TestRunConfig{
+			Name: "FiberSessionCleanupExpired",
+			Test: testFiberSessionCleanupExpired,
+		},
+		testutils.TestRunConfig{
+			Name: "FiberSessionUpdate",
+			Test: testFiberSessionUpdate,
+		},
 	)
 }
 
@@ -789,4 +817,171 @@ func testServerVersion(t *testing.T, ds testutils.TestDataStore) {
 	version, err = ds.DS.GetServerVersion()
 	assert.NoError(t, err)
 	assert.Equal(t, version2, version.Version)
+}
+
+// ============== FIBER SESSION TESTS ==============
+
+func testFiberSessionSetAndGet(t *testing.T, ds testutils.TestDataStore) {
+	sessionKey := "fiber_session_1"
+	sessionData := []byte(`{"user_id": "123", "logged_in": true}`)
+	expiresAt := int64(0) // No expiration
+
+	// Set session
+	err := ds.DS.SetFiberSession(sessionKey, sessionData, expiresAt)
+	if err != nil {
+		t.Fatalf("SetFiberSession failed: %v", err)
+	}
+
+	// Get session
+	got, err := ds.DS.GetFiberSession(sessionKey)
+	if err != nil {
+		t.Fatalf("GetFiberSession failed: %v", err)
+	}
+	if got == nil {
+		t.Fatalf("GetFiberSession returned nil for existing session")
+	}
+	if string(got) != string(sessionData) {
+		t.Fatalf("GetFiberSession data mismatch: expected %s, got %s", string(sessionData), string(got))
+	}
+}
+
+func testFiberSessionGetNonExisting(t *testing.T, ds testutils.TestDataStore) {
+	got, err := ds.DS.GetFiberSession("nonexistent_session")
+	if err != nil {
+		t.Fatalf("GetFiberSession should not return error for nonexistent session: %v", err)
+	}
+	if got != nil {
+		t.Fatalf("GetFiberSession should return nil for nonexistent session")
+	}
+}
+
+func testFiberSessionDelete(t *testing.T, ds testutils.TestDataStore) {
+	sessionKey := "fiber_session_to_delete"
+	sessionData := []byte(`{"delete": "me"}`)
+
+	// Set session
+	err := ds.DS.SetFiberSession(sessionKey, sessionData, 0)
+	if err != nil {
+		t.Fatalf("SetFiberSession failed: %v", err)
+	}
+
+	// Verify session exists
+	got, err := ds.DS.GetFiberSession(sessionKey)
+	if err != nil || got == nil {
+		t.Fatalf("Session should exist before deletion")
+	}
+
+	// Delete session
+	err = ds.DS.DeleteFiberSession(sessionKey)
+	if err != nil {
+		t.Fatalf("DeleteFiberSession failed: %v", err)
+	}
+
+	// Verify session is deleted
+	got, err = ds.DS.GetFiberSession(sessionKey)
+	if err != nil {
+		t.Fatalf("GetFiberSession should not return error after deletion: %v", err)
+	}
+	if got != nil {
+		t.Fatalf("GetFiberSession should return nil after deletion")
+	}
+}
+
+func testFiberSessionReset(t *testing.T, ds testutils.TestDataStore) {
+	// Create multiple sessions
+	err := ds.DS.SetFiberSession("reset_session_1", []byte("data1"), 0)
+	if err != nil {
+		t.Fatalf("SetFiberSession failed: %v", err)
+	}
+	err = ds.DS.SetFiberSession("reset_session_2", []byte("data2"), 0)
+	if err != nil {
+		t.Fatalf("SetFiberSession failed: %v", err)
+	}
+
+	// Reset all sessions
+	err = ds.DS.ResetFiberSessions()
+	if err != nil {
+		t.Fatalf("ResetFiberSessions failed: %v", err)
+	}
+
+	// Verify all sessions are deleted
+	got1, _ := ds.DS.GetFiberSession("reset_session_1")
+	got2, _ := ds.DS.GetFiberSession("reset_session_2")
+	if got1 != nil || got2 != nil {
+		t.Fatalf("ResetFiberSessions should delete all sessions")
+	}
+}
+
+func testFiberSessionExpiration(t *testing.T, ds testutils.TestDataStore) {
+	sessionKey := "expired_session"
+	sessionData := []byte(`{"expired": true}`)
+	// Set session with expiration in the past (already expired)
+	expiredAt := int64(1) // Unix timestamp 1 (Jan 1, 1970)
+
+	err := ds.DS.SetFiberSession(sessionKey, sessionData, expiredAt)
+	if err != nil {
+		t.Fatalf("SetFiberSession failed: %v", err)
+	}
+
+	// Get session - should return nil because it's expired
+	got, err := ds.DS.GetFiberSession(sessionKey)
+	if err != nil {
+		t.Fatalf("GetFiberSession should not return error for expired session: %v", err)
+	}
+	if got != nil {
+		t.Fatalf("GetFiberSession should return nil for expired session")
+	}
+}
+
+func testFiberSessionCleanupExpired(t *testing.T, ds testutils.TestDataStore) {
+	// Create an expired session
+	err := ds.DS.SetFiberSession("cleanup_expired", []byte("expired"), 1)
+	if err != nil {
+		t.Fatalf("SetFiberSession failed: %v", err)
+	}
+
+	// Create a valid session (no expiration)
+	err = ds.DS.SetFiberSession("cleanup_valid", []byte("valid"), 0)
+	if err != nil {
+		t.Fatalf("SetFiberSession failed: %v", err)
+	}
+
+	// Cleanup expired sessions
+	err = ds.DS.CleanupExpiredFiberSessions()
+	if err != nil {
+		t.Fatalf("CleanupExpiredFiberSessions failed: %v", err)
+	}
+
+	// Valid session should still exist
+	got, err := ds.DS.GetFiberSession("cleanup_valid")
+	if err != nil || got == nil {
+		t.Fatalf("Valid session should still exist after cleanup")
+	}
+}
+
+func testFiberSessionUpdate(t *testing.T, ds testutils.TestDataStore) {
+	sessionKey := "update_session"
+	initialData := []byte(`{"version": 1}`)
+	updatedData := []byte(`{"version": 2}`)
+
+	// Set initial session
+	err := ds.DS.SetFiberSession(sessionKey, initialData, 0)
+	if err != nil {
+		t.Fatalf("SetFiberSession failed: %v", err)
+	}
+
+	// Update session
+	err = ds.DS.SetFiberSession(sessionKey, updatedData, 0)
+	if err != nil {
+		t.Fatalf("SetFiberSession (update) failed: %v", err)
+	}
+
+	// Verify updated data
+	got, err := ds.DS.GetFiberSession(sessionKey)
+	if err != nil {
+		t.Fatalf("GetFiberSession failed: %v", err)
+	}
+	if string(got) != string(updatedData) {
+		t.Fatalf("Session data should be updated: expected %s, got %s", string(updatedData), string(got))
+	}
 }

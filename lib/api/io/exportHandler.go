@@ -6,7 +6,7 @@ import (
 	"github.com/ether/etherpad-go/lib/io"
 	"github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/settings"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"go.uber.org/zap"
 )
 
@@ -26,7 +26,7 @@ import (
 // @Failure 503 {string} string "Export not available"
 // @Router /p/{pad}/export/{type} [get]
 // @Router /p/{pad}/{rev}/export/{type} [get]
-func GetExport(ctx *fiber.Ctx, exportHandler *io.ExportEtherpad, settings *settings.Settings, logger *zap.SugaredLogger, padManager *pad.Manager, readOnlyManager *pad.ReadOnlyManager, securityManager *pad.SecurityManager) error {
+func GetExport(ctx fiber.Ctx, exportHandler *io.ExportEtherpad, settings *settings.Settings, logger *zap.SugaredLogger, padManager *pad.Manager, readOnlyManager *pad.ReadOnlyManager, securityManager *pad.SecurityManager) error {
 	padId := ctx.Params("pad")
 	rev := ctx.Params("rev")
 	exportType := ctx.Params("type")

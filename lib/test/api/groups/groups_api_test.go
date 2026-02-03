@@ -9,6 +9,7 @@ import (
 
 	"github.com/ether/etherpad-go/lib/api/groups"
 	"github.com/ether/etherpad-go/lib/test/testutils"
+	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -62,7 +63,7 @@ func testCreateGroupSuccess(t *testing.T, tsStore testutils.TestDataStore) {
 	groups.Init(initStore)
 
 	req := httptest.NewRequest("POST", "/admin/api/groups", nil)
-	resp, err := initStore.C.Test(req, 5000)
+	resp, err := initStore.C.Test(req, fiber.TestConfig{Timeout: 5000})
 
 	assert.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
@@ -86,7 +87,7 @@ func testDeleteGroupSuccess(t *testing.T, tsStore testutils.TestDataStore) {
 	groupId := createTestGroup(t, tsStore)
 
 	req := httptest.NewRequest("DELETE", "/admin/api/groups/"+groupId, nil)
-	resp, err := initStore.C.Test(req, 5000)
+	resp, err := initStore.C.Test(req, fiber.TestConfig{Timeout: 5000})
 
 	assert.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
@@ -97,7 +98,7 @@ func testDeleteGroupNotFound(t *testing.T, tsStore testutils.TestDataStore) {
 	groups.Init(initStore)
 
 	req := httptest.NewRequest("DELETE", "/admin/api/groups/g.nonexistent1234", nil)
-	resp, err := initStore.C.Test(req, 5000)
+	resp, err := initStore.C.Test(req, fiber.TestConfig{Timeout: 5000})
 
 	assert.NoError(t, err)
 	assert.Equal(t, 404, resp.StatusCode)
@@ -121,7 +122,7 @@ func testCreateGroupPadSuccess(t *testing.T, tsStore testutils.TestDataStore) {
 
 	req := httptest.NewRequest("POST", "/admin/api/groups/"+groupId+"/pads", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := initStore.C.Test(req, 5000)
+	resp, err := initStore.C.Test(req, fiber.TestConfig{Timeout: 5000})
 
 	assert.NoError(t, err)
 	// Note: The current PadManager regex does not allow $ in pad IDs
@@ -149,7 +150,7 @@ func testCreateGroupPadInvalidName(t *testing.T, tsStore testutils.TestDataStore
 
 	req := httptest.NewRequest("POST", "/admin/api/groups/"+groupId+"/pads", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := initStore.C.Test(req, 5000)
+	resp, err := initStore.C.Test(req, fiber.TestConfig{Timeout: 5000})
 
 	assert.NoError(t, err)
 	assert.Equal(t, 400, resp.StatusCode)
@@ -166,7 +167,7 @@ func testCreateGroupPadGroupNotFound(t *testing.T, tsStore testutils.TestDataSto
 
 	req := httptest.NewRequest("POST", "/admin/api/groups/g.nonexistent1234/pads", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := initStore.C.Test(req, 5000)
+	resp, err := initStore.C.Test(req, fiber.TestConfig{Timeout: 5000})
 
 	assert.NoError(t, err)
 	assert.Equal(t, 404, resp.StatusCode)

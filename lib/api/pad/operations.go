@@ -10,7 +10,7 @@ import (
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/changeset"
 	"github.com/ether/etherpad-go/lib/utils"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 // RestoreRevisionRequest represents the request to restore a revision
@@ -100,10 +100,10 @@ type DiffHTMLResponse struct {
 // @Security BearerAuth
 // @Router /admin/api/pads/{padId}/restoreRevision [post]
 func RestoreRevision(initStore *lib.InitStore) fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		padId := c.Params("padId")
 		var request RestoreRevisionRequest
-		if err := c.BodyParser(&request); err != nil {
+		if err := c.Bind().Body(&request); err != nil {
 			return c.Status(400).JSON(errors2.InvalidRequestError)
 		}
 
@@ -187,7 +187,7 @@ func RestoreRevision(initStore *lib.InitStore) fiber.Handler {
 // @Security BearerAuth
 // @Router /admin/api/pads/{padId}/readOnlyID [get]
 func GetReadOnlyID(initStore *lib.InitStore) fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		padId := c.Params("padId")
 
 		// Verify pad exists
@@ -217,7 +217,7 @@ func GetReadOnlyID(initStore *lib.InitStore) fiber.Handler {
 // @Security BearerAuth
 // @Router /admin/api/pads/readonly/{roId} [get]
 func GetPadID(initStore *lib.InitStore) fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		roId := c.Params("roId")
 
 		// Get the pad ID
@@ -244,7 +244,7 @@ func GetPadID(initStore *lib.InitStore) fiber.Handler {
 // @Security BearerAuth
 // @Router /admin/api/pads/{padId}/authors [get]
 func ListAuthorsOfPad(initStore *lib.InitStore) fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		padId := c.Params("padId")
 
 		// Get the pad
@@ -289,7 +289,7 @@ func ListAuthorsOfPad(initStore *lib.InitStore) fiber.Handler {
 // @Security BearerAuth
 // @Router /admin/api/pads/{padId}/chatHead [get]
 func GetChatHead(initStore *lib.InitStore) fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		padId := c.Params("padId")
 
 		// Get the pad
@@ -316,7 +316,7 @@ func GetChatHead(initStore *lib.InitStore) fiber.Handler {
 // @Security BearerAuth
 // @Router /admin/api/pads/{padId}/revisionsCount [get]
 func GetRevisionsCount(initStore *lib.InitStore) fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		padId := c.Params("padId")
 
 		// Get the pad
@@ -343,7 +343,7 @@ func GetRevisionsCount(initStore *lib.InitStore) fiber.Handler {
 // @Security BearerAuth
 // @Router /admin/api/pads/{padId}/lastEdited [get]
 func GetLastEdited(initStore *lib.InitStore) fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		padId := c.Params("padId")
 
 		// Get the pad
@@ -376,7 +376,7 @@ func GetLastEdited(initStore *lib.InitStore) fiber.Handler {
 // @Security BearerAuth
 // @Router /admin/api/pads/{padId} [delete]
 func DeletePad(initStore *lib.InitStore) fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		padId := c.Params("padId")
 
 		// Verify pad exists
@@ -410,7 +410,7 @@ func DeletePad(initStore *lib.InitStore) fiber.Handler {
 // @Security BearerAuth
 // @Router /admin/api/pads/{padId}/html [get]
 func GetHTML(initStore *lib.InitStore) fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		padId := c.Params("padId")
 
 		// Get the pad
@@ -463,7 +463,7 @@ func GetHTML(initStore *lib.InitStore) fiber.Handler {
 // @Security BearerAuth
 // @Router /admin/api/checkToken [get]
 func CheckToken() fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		// If we reach here, the token is valid (middleware already validated it)
 		return c.SendStatus(200)
 	}
@@ -490,10 +490,10 @@ type SetHTMLRequest struct {
 // @Security BearerAuth
 // @Router /admin/api/pads/{padId}/html [post]
 func SetHTML(initStore *lib.InitStore) fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		padId := c.Params("padId")
 		var request SetHTMLRequest
-		if err := c.BodyParser(&request); err != nil {
+		if err := c.Bind().Body(&request); err != nil {
 			return c.Status(400).JSON(errors2.InvalidRequestError)
 		}
 
@@ -547,7 +547,7 @@ type ChatHistoryResponse struct {
 // @Security BearerAuth
 // @Router /admin/api/pads/{padId}/chatHistory [get]
 func GetChatHistory(initStore *lib.InitStore) fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		padId := c.Params("padId")
 
 		// Get the pad
@@ -649,10 +649,10 @@ type AppendChatMessageRequest struct {
 // @Security BearerAuth
 // @Router /admin/api/pads/{padId}/chat [post]
 func AppendChatMessage(initStore *lib.InitStore) fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		padId := c.Params("padId")
 		var request AppendChatMessageRequest
-		if err := c.BodyParser(&request); err != nil {
+		if err := c.Bind().Body(&request); err != nil {
 			return c.Status(400).JSON(errors2.InvalidRequestError)
 		}
 
@@ -698,7 +698,7 @@ type SavedRevisionsCountResponse struct {
 // @Security BearerAuth
 // @Router /admin/api/pads/{padId}/savedRevisionsCount [get]
 func GetSavedRevisionsCount(initStore *lib.InitStore) fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		padId := c.Params("padId")
 
 		// Get the pad
@@ -730,7 +730,7 @@ type SavedRevisionsListResponse struct {
 // @Security BearerAuth
 // @Router /admin/api/pads/{padId}/savedRevisions [get]
 func ListSavedRevisions(initStore *lib.InitStore) fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		padId := c.Params("padId")
 
 		// Get the pad
@@ -771,11 +771,11 @@ type SaveRevisionRequest struct {
 // @Security BearerAuth
 // @Router /admin/api/pads/{padId}/saveRevision [post]
 func SaveRevision(initStore *lib.InitStore) fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		padId := c.Params("padId")
 		var request SaveRevisionRequest
 		// Body is optional
-		c.BodyParser(&request)
+		c.Bind().Body(&request)
 
 		// Get the pad
 		pad, err := utils2.GetPadSafe(padId, true, nil, nil, initStore.PadManager)
@@ -824,11 +824,11 @@ type CreatePadRequest struct {
 // @Security BearerAuth
 // @Router /admin/api/pads/{padId} [post]
 func CreatePad(initStore *lib.InitStore) fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		padId := c.Params("padId")
 		var request CreatePadRequest
 		// Body is optional
-		c.BodyParser(&request)
+		c.Bind().Body(&request)
 
 		// Check for invalid characters
 		if strings.Contains(padId, "$") {
@@ -887,10 +887,10 @@ type AppendTextRequest struct {
 // @Security BearerAuth
 // @Router /admin/api/pads/{padId}/appendText [post]
 func AppendText(initStore *lib.InitStore) fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		padId := c.Params("padId")
 		var request AppendTextRequest
-		if err := c.BodyParser(&request); err != nil {
+		if err := c.Bind().Body(&request); err != nil {
 			return c.Status(400).JSON(errors2.InvalidRequestError)
 		}
 
@@ -948,7 +948,7 @@ type ChangesetResponse struct {
 // @Security BearerAuth
 // @Router /admin/api/pads/{padId}/revisionChangeset [get]
 func GetRevisionChangesetOptional(initStore *lib.InitStore) fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		padId := c.Params("padId")
 
 		// Get the pad
@@ -1003,7 +1003,7 @@ type AllPadsResponse struct {
 // @Security BearerAuth
 // @Router /admin/api/pads [get]
 func ListAllPads(initStore *lib.InitStore) fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		pads, err := initStore.Store.GetPadIds()
 		if err != nil {
 			return c.Status(500).JSON(errors2.InternalServerError)
@@ -1046,7 +1046,7 @@ type PadUsersCountResponse struct {
 // @Security BearerAuth
 // @Router /admin/api/pads/{padId}/users [get]
 func GetPadUsers(initStore *lib.InitStore) fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		padId := c.Params("padId")
 
 		// Verify pad exists
@@ -1095,7 +1095,7 @@ func GetPadUsers(initStore *lib.InitStore) fiber.Handler {
 // @Security BearerAuth
 // @Router /admin/api/pads/{padId}/usersCount [get]
 func GetPadUsersCount(initStore *lib.InitStore) fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		padId := c.Params("padId")
 
 		// Verify pad exists

@@ -27,7 +27,7 @@ import (
 	"github.com/ether/etherpad-go/lib/settings/clientVars"
 	"github.com/ether/etherpad-go/lib/utils"
 	"github.com/ether/etherpad-go/lib/ws/constants"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"go.uber.org/zap"
 )
 
@@ -300,7 +300,7 @@ func (p *PadMessageHandler) ComposePadChangesets(retrievedPad *pad2.Pad, startNu
 	return startChangeset, nil
 }
 
-func (p *PadMessageHandler) HandleMessage(message any, client *Client, ctx *fiber.Ctx, retrievedSettings *settings.Settings, logger *zap.SugaredLogger) {
+func (p *PadMessageHandler) HandleMessage(message any, client *Client, ctx fiber.Ctx, retrievedSettings *settings.Settings, logger *zap.SugaredLogger) {
 	var isSessionInfo = p.SessionStore.hasSession(client.SessionId)
 
 	if !isSessionInfo {

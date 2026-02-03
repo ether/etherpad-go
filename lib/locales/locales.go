@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/ether/etherpad-go/lib"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 var Locales map[string]interface{}
@@ -101,7 +101,7 @@ func loadLocaleFile(
 	return out, nil
 }
 
-func HandleLocale(c *fiber.Ctx, uiAssets embed.FS, prefix string) error {
+func HandleLocale(c fiber.Ctx, uiAssets embed.FS, prefix string) error {
 	requestedLocale := c.Params("locale")
 
 	fallbacks := buildLocaleFallbacks(requestedLocale)
