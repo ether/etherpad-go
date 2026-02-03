@@ -20,7 +20,7 @@ type MemoryDataStore struct {
 	chatPads      map[string]db.ChatMessageDB
 	sessionStore  map[string]session2.Session
 	groupStore    map[string]string
-	serverVersion string
+	serverVersion *db.ServerVersion
 
 	// oidc
 	accessTokens           map[string]fosite.Requester
@@ -604,12 +604,15 @@ func (m *MemoryDataStore) QueryPad(
 	}, nil
 }
 
-func (m *MemoryDataStore) GetServerVersion() (string, error) {
+func (m *MemoryDataStore) GetServerVersion() (*db.ServerVersion, error) {
 	return m.serverVersion, nil
 }
 
 func (m *MemoryDataStore) SaveServerVersion(version string) error {
-	m.serverVersion = version
+	m.serverVersion = &db.ServerVersion{
+		Version:   version,
+		UpdatedAt: time.Now(),
+	}
 	return nil
 }
 

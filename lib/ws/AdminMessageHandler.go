@@ -68,11 +68,11 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 			}
 
 			currentVersion := retrievedSettings.GitVersion
-			updateAvailable := libutils.IsUpdateAvailable(currentVersion, latestVersion)
+			updateAvailable := libutils.IsUpdateAvailable(currentVersion, latestVersion.Version)
 
 			result := admin.UpdateCheckResult{
 				CurrentVersion:  currentVersion,
-				LatestVersion:   latestVersion,
+				LatestVersion:   latestVersion.Version,
 				UpdateAvailable: updateAvailable,
 			}
 

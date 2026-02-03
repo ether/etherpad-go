@@ -36,8 +36,15 @@ func StartUpdateRoutine(logger *zap.SugaredLogger, db db.DataStore, currentVersi
 		ticker := time.NewTicker(24 * time.Hour)
 		defer ticker.Stop()
 
-		// Initial check
-		uc.performUpdateCheck(currentVersion)
+		serverVers, err := db.GetServerVersion()
+		if err != nil {
+			uc.logger.Warnf("Failed to get server version from database: %v", err)
+		}
+
+		// Only check for updates if we haven't checked in the last 24 hours
+		if serverVers == nil || serverVers.UpdatedAt.Add(24*time.Hour).Before(time.Now()) {
+			uc.performUpdateCheck(currentVersion)
+		}
 
 		for range ticker.C {
 			uc.performUpdateCheck(currentVersion)

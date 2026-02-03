@@ -1026,13 +1026,18 @@ func (d SQLiteDB) QueryPad(
 	}, nil
 }
 
-func (d SQLiteDB) GetServerVersion() (string, error) {
+func (d SQLiteDB) GetServerVersion() (*db.ServerVersion, error) {
 	var version string
-	err := d.sqlDB.QueryRow("SELECT version FROM server_version ORDER BY updated_at DESC LIMIT 1").Scan(&version)
-	if err == sql.ErrNoRows {
-		return "", nil
+	var updatedAt time.Time
+	err := d.sqlDB.QueryRow("SELECT version, updated_at FROM server_version ORDER BY updated_at DESC LIMIT 1").Scan(&version, &updatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
 	}
-	return version, err
+
+	return &db.ServerVersion{
+		Version:   version,
+		UpdatedAt: updatedAt,
+	}, err
 }
 
 func (d SQLiteDB) SaveServerVersion(version string) error {

@@ -53,7 +53,7 @@ type ChatMethods interface {
 }
 
 type ServerMethods interface {
-	GetServerVersion() (string, error)
+	GetServerVersion() (*db.ServerVersion, error)
 	SaveServerVersion(version string) error
 }
 

@@ -752,18 +752,17 @@ func testReadonlyMappingsAndRemoveRevisions(t *testing.T, ds testutils.TestDataS
 	if err := ds.DS.RemoveRevisionsOfPad("padRem"); err != nil {
 		t.Fatalf("RemoveRevisionsOfPad failed: %v", err)
 	}
-	// TODO fix this inconsistency. SQL uses separate revisions table, memory store keeps revisions in pad struct
-	/*gotPad, _ := ds.GetPad("padRem")
-	if len(gotPad.SavedRevisions) != 0 || gotPad.RevNum != -1 {
-		t.Fatalf("RemoveRevisionsOfPad did not clear revisions: %#v", gotPad)
-	}*/
+	gotPad, _ := ds.DS.GetPad("padRem")
+
+	_, err = ds.DS.GetRevisions("padRem", 0, gotPad.Head)
+	assert.Error(t, err)
 }
 
 func testServerVersion(t *testing.T, ds testutils.TestDataStore) {
 	// Test initial state (empty)
 	version, err := ds.DS.GetServerVersion()
 	assert.NoError(t, err)
-	assert.Equal(t, "", version)
+	assert.Nil(t, version)
 
 	// Test saving version 1
 	version1 := "v1.2.3"
@@ -772,7 +771,7 @@ func testServerVersion(t *testing.T, ds testutils.TestDataStore) {
 
 	version, err = ds.DS.GetServerVersion()
 	assert.NoError(t, err)
-	assert.Equal(t, version1, version)
+	assert.Equal(t, version1, version.Version)
 
 	// Test saving version 2 (should be the latest because of updated_at)
 	version2 := "v1.2.4"
@@ -789,5 +788,5 @@ func testServerVersion(t *testing.T, ds testutils.TestDataStore) {
 
 	version, err = ds.DS.GetServerVersion()
 	assert.NoError(t, err)
-	assert.Equal(t, version2, version)
+	assert.Equal(t, version2, version.Version)
 }

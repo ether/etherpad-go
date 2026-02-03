@@ -804,14 +804,18 @@ func (d PostgresDB) QueryPad(
 
 // ============== LIFECYCLE ==============
 
-func (d PostgresDB) GetServerVersion() (string, error) {
+func (d PostgresDB) GetServerVersion() (*db.ServerVersion, error) {
 	ctx := context.Background()
 	var version string
-	err := d.pool.QueryRow(ctx, "SELECT version FROM server_version ORDER BY updated_at DESC LIMIT 1").Scan(&version)
-	if err == pgx.ErrNoRows {
-		return "", nil
+	var updatedAt time.Time
+	err := d.pool.QueryRow(ctx, "SELECT version, updated_at FROM server_version ORDER BY updated_at DESC LIMIT 1").Scan(&version, &updatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
 	}
-	return version, err
+	return &db.ServerVersion{
+		Version:   version,
+		UpdatedAt: updatedAt,
+	}, err
 }
 
 func (d PostgresDB) SaveServerVersion(version string) error {
