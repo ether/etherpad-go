@@ -829,7 +829,7 @@ func testFiberSessionSetAndGet(t *testing.T, ds testutils.TestDataStore) {
 	// Set session
 	err := ds.DS.SetFiberSession(sessionKey, sessionData, expiresAt)
 	if err != nil {
-		t.Fatalf("SetFiberSession failed: %v", err)
+		t.Fatalf("SetFiberSession failed:%v", err)
 	}
 
 	// Get session
