@@ -75,6 +75,16 @@ type StoreState = {
     setInstalledPlugins: (plugins: InstalledPlugin[])=>void
     settingSocket: SocketIoWrapper|undefined,
     updateSetting: (path: string, value: SettingValue) => void,
+    updateCheckResult: {
+        currentVersion: string,
+        latestVersion: string,
+        updateAvailable: boolean
+    } | undefined,
+    setUpdateCheckResult: (result: {
+        currentVersion: string,
+        latestVersion: string,
+        updateAvailable: boolean
+    }) => void
 }
 
 
@@ -95,6 +105,8 @@ export const useStore = create<StoreState>()((set) => ({
     setPads: (pads)=>set({pads}),
     installedPlugins: [],
     setInstalledPlugins: (plugins)=>set({installedPlugins: plugins}),
+    updateCheckResult: undefined,
+    setUpdateCheckResult: (result) => set({updateCheckResult: result}),
     updateSetting: (path: string, value: SettingValue) =>
         set(state => {
             if (!state.settings) return state;

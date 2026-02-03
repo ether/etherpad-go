@@ -3,8 +3,8 @@ package db
 import (
 	"reflect"
 	"sort"
-
 	"testing"
+	"time"
 
 	"github.com/ether/etherpad-go/lib/apool"
 	author2 "github.com/ether/etherpad-go/lib/author"
@@ -152,6 +152,10 @@ func runAllDataStoreTests(testHandler *testutils.TestDBHandler) {
 		testutils.TestRunConfig{
 			Name: "ReadonlyMappingsAndRemoveRevisions",
 			Test: testReadonlyMappingsAndRemoveRevisions,
+		},
+		testutils.TestRunConfig{
+			Name: "ServerVersion",
+			Test: testServerVersion,
 		},
 		testutils.TestRunConfig{
 			Name: "PingDB",
@@ -748,9 +752,41 @@ func testReadonlyMappingsAndRemoveRevisions(t *testing.T, ds testutils.TestDataS
 	if err := ds.DS.RemoveRevisionsOfPad("padRem"); err != nil {
 		t.Fatalf("RemoveRevisionsOfPad failed: %v", err)
 	}
-	// TODO fix this inconsistency. SQL uses separate revisions table, memory store keeps revisions in pad struct
-	/*gotPad, _ := ds.GetPad("padRem")
-	if len(gotPad.SavedRevisions) != 0 || gotPad.RevNum != -1 {
-		t.Fatalf("RemoveRevisionsOfPad did not clear revisions: %#v", gotPad)
-	}*/
+	gotPad, _ := ds.DS.GetPad("padRem")
+
+	_, err = ds.DS.GetRevisions("padRem", 0, gotPad.Head)
+	assert.Error(t, err)
+}
+
+func testServerVersion(t *testing.T, ds testutils.TestDataStore) {
+	// Test initial state (empty)
+	version, err := ds.DS.GetServerVersion()
+	assert.NoError(t, err)
+	assert.Nil(t, version)
+
+	// Test saving version 1
+	version1 := "v1.2.3"
+	err = ds.DS.SaveServerVersion(version1)
+	assert.NoError(t, err)
+
+	version, err = ds.DS.GetServerVersion()
+	assert.NoError(t, err)
+	assert.Equal(t, version1, version.Version)
+
+	// Test saving version 2 (should be the latest because of updated_at)
+	version2 := "v1.2.4"
+	time.Sleep(1 * time.Second) // Ensure updated_at is different (MySQL might only have second precision)
+	err = ds.DS.SaveServerVersion(version2)
+	assert.NoError(t, err)
+
+	// Ensure some time has passed if needed, but usually time.Now() is enough
+	// for different versions. However, our schema uses version as PK in some DBs.
+
+	// Test saving the SAME version again (upsert check)
+	err = ds.DS.SaveServerVersion(version2)
+	assert.NoError(t, err)
+
+	version, err = ds.DS.GetServerVersion()
+	assert.NoError(t, err)
+	assert.Equal(t, version2, version.Version)
 }

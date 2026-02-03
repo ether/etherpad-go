@@ -42,6 +42,13 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS) {
 	settings.GitVersion = gitVersion
 
 	dataStore, err := utils.GetDB(settings, setupLogger)
+	if err != nil {
+		setupLogger.Fatal("Error connecting to database: " + err.Error())
+		return
+	}
+
+	StartUpdateRoutine(setupLogger, dataStore, gitVersion)
+
 	readOnlyManager := pad.NewReadOnlyManager(dataStore)
 
 	var db = session2.NewSessionDatabase(nil)
@@ -83,11 +90,6 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS) {
 
 	hooks.ExpressPreSession(app, uiAssets)
 	go globalHub.Run()
-
-	if err != nil {
-		setupLogger.Fatal("Error connecting to database: " + err.Error())
-		return
-	}
 
 	adminAPIRoute := app.Group("/admin/api")
 

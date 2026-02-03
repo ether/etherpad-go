@@ -11,6 +11,8 @@ export const HomePage = () => {
   const installedPlugins = useStore(state=>state.installedPlugins)
   const setInstalledPlugins = useStore(state=>state.setInstalledPlugins)
   const settingSocket = useStore(state=>state.settingSocket)
+  const updateCheckResult = useStore(state=>state.updateCheckResult)
+  const setUpdateCheckResult = useStore(state=>state.setUpdateCheckResult)
   const [searchParams, setSearchParams] = useState<SearchParams>({
     offset: 0,
     limit: 99999,
@@ -56,16 +58,25 @@ export const HomePage = () => {
         })
 
 
+        settingSocket.on('results:checkUpdates', (data: {
+            currentVersion: string,
+            latestVersion: string,
+            updateAvailable: boolean
+        }) => {
+            setUpdateCheckResult(data)
+        })
+
         // Reload on reconnect
         settingSocket.on('connect', ()=>{
             // Initial retrieval of installed plugins
             settingSocket.emit('getInstalled');
             settingSocket.emit('search', searchParams)
+            settingSocket.emit('checkUpdates')
         })
 
         settingSocket.emit('getInstalled');
+        settingSocket.emit('checkUpdates')
 
-        // check for updates every 5mins
         const interval = setInterval(() => {
             settingSocket.emit('checkUpdates');
         }, 1000 * 60 * 5);
@@ -111,6 +122,25 @@ export const HomePage = () => {
 
     return <div>
         <h1><Trans i18nKey="admin_plugins"/></h1>
+
+        {updateCheckResult?.updateAvailable && (
+            <div className="update-banner" style={{
+                backgroundColor: '#fff3cd',
+                color: '#856404',
+                padding: '1rem',
+                marginBottom: '1rem',
+                borderRadius: '4px',
+                border: '1px solid #ffeeba'
+            }}>
+                <Trans 
+                    i18nKey="admin_update_available" 
+                    values={{ latest: updateCheckResult.latestVersion, current: updateCheckResult.currentVersion }}
+                    components={{ bold: <strong /> }}
+                >
+                    A new version of Etherpad Go is available: <strong /> (current version: <strong />)
+                </Trans>
+            </div>
+        )}
 
         <h2><Trans i18nKey="admin_plugins.installed"/></h2>
 
