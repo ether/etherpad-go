@@ -65,7 +65,7 @@ func TestUpdateChecker_CheckForUpdates(t *testing.T) {
 			uc.performUpdateCheck(tt.currentVersion)
 
 			persistedVersion, _ := ds.GetServerVersion()
-			if persistedVersion != tt.currentVersion {
+			if persistedVersion.Version != tt.currentVersion {
 				t.Errorf("expected persisted version %s, got %s", tt.currentVersion, persistedVersion)
 			}
 			if tt.statusCode != http.StatusOK {
