@@ -3,6 +3,7 @@ module github.com/ether/etherpad-go
 go 1.25.0
 
 require (
+	github.com/Masterminds/semver/v3 v3.1.1
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/a-h/templ v0.3.977
 	github.com/brianvoe/gofakeit/v7 v7.14.0
@@ -12,6 +13,7 @@ require (
 	github.com/go-playground/validator/v10 v10.30.1
 	github.com/go-sql-driver/mysql v1.9.3
 	github.com/gofiber/contrib/v3/swaggo v1.0.0-rc.1
+	github.com/gofiber/fiber/v2 v2.52.10
 	github.com/gofiber/fiber/v3 v3.0.0
 	github.com/gofiber/utils/v2 v2.0.0
 	github.com/google/go-cmp v0.7.0
@@ -40,7 +42,6 @@ require (
 	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20230124172434-306776ec8161 // indirect
 	github.com/KyleBanks/depth v1.2.1 // indirect
-	github.com/Masterminds/semver/v3 v3.1.1 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/andybalholm/brotli v1.2.0 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
@@ -75,7 +76,6 @@ require (
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
 	github.com/gobuffalo/pop/v6 v6.1.1 // indirect
-	github.com/gofiber/fiber/v2 v2.52.10 // indirect
 	github.com/gofiber/schema v1.6.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/mock v1.6.0 // indirect
