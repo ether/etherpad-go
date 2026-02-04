@@ -64,7 +64,8 @@ func testCreateAuthorNoName(t *testing.T, tsStore testutils.TestDataStore) {
 	marshall, _ := json.Marshal(dto)
 	req := httptest.NewRequest("POST", "/admin/api/author", bytes.NewBuffer(marshall))
 
-	resp, _ := initStore.C.Test(req, fiber.TestConfig{Timeout: 10})
+	resp, err := initStore.C.Test(req, fiber.TestConfig{Timeout: 1000})
+	assert.NoError(t, err)
 	if resp.StatusCode != 400 {
 		t.Errorf("should deny creation of author without required fields, got %d", resp.StatusCode)
 	}
@@ -74,7 +75,8 @@ func testCreateAuthorNoBody(t *testing.T, tsStore testutils.TestDataStore) {
 	author.Init(tsStore.ToInitStore())
 	req := httptest.NewRequest("POST", "/admin/api/author", nil)
 
-	resp, _ := tsStore.App.Test(req, fiber.TestConfig{Timeout: 10})
+	resp, err := tsStore.App.Test(req, fiber.TestConfig{Timeout: 1000})
+	assert.NoError(t, err)
 	if resp.StatusCode != 400 {
 		t.Errorf("should deny creation of author with nil body, got %d", resp.StatusCode)
 	}
