@@ -269,7 +269,7 @@ func (a *Authenticator) AuthEndpoint(rw http.ResponseWriter, req *http.Request, 
 
 	ar, err := a.provider.NewAuthorizeRequest(ctx, req)
 	if err != nil {
-		setupLogger.Error("Error occurred in NewAuthorizeRequest: ", err)
+		setupLogger.Error("Error occurred in NewAuthorizeRequest: ", err.Error())
 		a.provider.WriteAuthorizeError(ctx, rw, ar, err)
 		return
 	}
