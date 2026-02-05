@@ -2,8 +2,8 @@ package swagger
 
 import (
 	_ "github.com/ether/etherpad-go/docs"
-	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/swagger"
+	swagger "github.com/gofiber/contrib/v3/swaggo"
+	"github.com/gofiber/fiber/v3"
 )
 
 // Init registers the Swagger UI route

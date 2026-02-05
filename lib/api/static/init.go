@@ -12,6 +12,9 @@ import (
 	"path"
 	"strings"
 
+	"github.com/gofiber/fiber/v3/middleware/adaptor"
+	"github.com/gofiber/fiber/v3/middleware/static"
+
 	"github.com/a-h/templ"
 	"github.com/ether/etherpad-go/assets/welcome"
 	"github.com/ether/etherpad-go/lib"
@@ -21,8 +24,7 @@ import (
 	"github.com/ether/etherpad-go/lib/timeslider"
 	"github.com/ether/etherpad-go/lib/utils"
 	"github.com/evanw/esbuild/pkg/api"
-	"github.com/gofiber/adaptor/v2"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"golang.org/x/net/html"
 )
 
@@ -158,12 +160,12 @@ func buildCssInDev(retrievedSettings *settings.Settings) {
 func Init(store *lib.InitStore) {
 	buildCssInDev(store.RetrievedSettings)
 
-	store.C.Use("/p/", func(c *fiber.Ctx) error {
+	store.C.Use("/p/", func(c fiber.Ctx) error {
 		c.Path()
 
 		var _, err = store.CookieStore.Get(c)
 		if err != nil {
-			println("Error with session")
+			println("Error with session " + err.Error())
 		}
 
 		return c.Next()
@@ -171,22 +173,22 @@ func Init(store *lib.InitStore) {
 
 	store.C.Get("/pluginfw/plugin-definitions.json", plugins.ReturnPluginResponse)
 
-	store.C.Static("/static/plugins/", "./plugins")
+	store.C.Get("/static/plugins/*", static.New("./plugins"))
 
 	adminHtml, err := getAdminBody(store.UiAssets, store.RetrievedSettings)
 
 	if err != nil {
 		store.Logger.Errorf("Error setting up admin page: %v", err)
 	} else {
-		store.C.Get("/admin/index.html", func(c *fiber.Ctx) error {
+		store.C.Get("/admin/index.html", func(c fiber.Ctx) error {
 			return c.Type("html").SendString(*adminHtml)
 		})
-		store.C.Get("/admin/", func(c *fiber.Ctx) error {
+		store.C.Get("/admin/", func(c fiber.Ctx) error {
 			return c.Type("html").SendString(*adminHtml)
 		})
 	}
 
-	store.C.Get("/css/static/pad.css", func(ctx *fiber.Ctx) error {
+	store.C.Get("/css/static/pad.css", func(ctx fiber.Ctx) error {
 		if utils.IsDevModeEnabled() {
 			fileContent, err := os.ReadFile("assets/css/build/static/pad.css")
 			if err != nil {
@@ -202,7 +204,7 @@ func Init(store *lib.InitStore) {
 		}
 	})
 
-	store.C.Get("/css/skin/colibris/pad.css", func(ctx *fiber.Ctx) error {
+	store.C.Get("/css/skin/colibris/pad.css", func(ctx fiber.Ctx) error {
 		if utils.IsDevModeEnabled() {
 			fileContent, err := os.ReadFile("assets/css/build/skin/colibris/pad.css")
 			if err != nil {
@@ -229,19 +231,19 @@ func Init(store *lib.InitStore) {
 	registerEmbeddedStatic(store.C, "/font/", "assets/font", store.UiAssets)
 	registerEmbeddedStatic(store.C, "/admin/ep_admin_pads/", "assets/locales/ep_admin_pads", store.UiAssets)
 
-	store.C.Get("/p/:pad", func(ctx *fiber.Ctx) error {
+	store.C.Get("/p/:pad", func(ctx fiber.Ctx) error {
 		return pad2.HandlePadOpen(ctx, store.UiAssets, store.RetrievedSettings, store.Hooks)
 	})
 
-	store.C.Get("/p/:pad/timeslider", func(c *fiber.Ctx) error {
+	store.C.Get("/p/:pad/timeslider", func(c fiber.Ctx) error {
 		return timeslider.HandleTimesliderOpen(c, store.UiAssets, store.RetrievedSettings, store.Hooks)
 	})
 
-	store.C.Get("/favicon.ico", func(c *fiber.Ctx) error {
-		return c.Redirect("/images/favicon.ico", fiber.StatusMovedPermanently)
+	store.C.Get("/favicon.ico", func(c fiber.Ctx) error {
+		return c.Redirect().Status(fiber.StatusMovedPermanently).To("/images/favicon.ico")
 	})
 
-	store.C.Get("/", func(c *fiber.Ctx) error {
+	store.C.Get("/", func(c fiber.Ctx) error {
 		var language = c.Cookies("language", "en")
 		var keyValues, err = utils.LoadTranslations(language, store.UiAssets, store.Hooks)
 		if err != nil {
@@ -257,7 +259,7 @@ func Init(store *lib.InitStore) {
 		registerEmbeddedStatic(store.C, "/admin/assets", "assets/js/admin/assets", store.UiAssets)
 		registerEmbeddedStatic(store.C, "/js/timeslider/assets/", "assets/js/timeslider/assets", store.UiAssets)
 	} else {
-		store.C.Get("/js/*", func(c *fiber.Ctx) error {
+		store.C.Get("/js/*", func(c fiber.Ctx) error {
 			var entrypoint string
 
 			if strings.Contains(c.Path(), "welcome") {

@@ -52,6 +52,14 @@ type ChatMethods interface {
 	GetAuthorIdsOfPadChats(id string) (*[]string, error)
 }
 
+type FiberSessionMethods interface {
+	GetFiberSession(key string) ([]byte, error)
+	SetFiberSession(key string, value []byte, expiresAt int64) error
+	DeleteFiberSession(key string) error
+	ResetFiberSessions() error
+	CleanupExpiredFiberSessions() error
+}
+
 type ServerMethods interface {
 	GetServerVersion() (*db.ServerVersion, error)
 	SaveServerVersion(version string) error
@@ -63,6 +71,7 @@ type DataStore interface {
 	SessionMethods
 	GroupMethods
 	ChatMethods
+	FiberSessionMethods
 	ServerMethods
 	Close() error
 	Ping() error

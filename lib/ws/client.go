@@ -16,8 +16,8 @@ import (
 	"github.com/ether/etherpad-go/lib/models/ws/admin"
 	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/ether/etherpad-go/lib/ws/ratelimiter"
-	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/session"
+	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/session"
 	"go.uber.org/zap"
 
 	"github.com/gorilla/websocket"
@@ -45,7 +45,7 @@ type Client struct {
 	Send         chan []byte
 	Room         string
 	SessionId    string
-	Ctx          *fiber.Ctx
+	Ctx          fiber.Ctx
 	Handler      *PadMessageHandler
 	adminHandler *AdminMessageHandler
 }
@@ -94,7 +94,7 @@ func (c *Client) writePump() {
 		case message, ok := <-c.Send:
 			c.Conn.SetWriteDeadline(time.Now().Add(writeWait))
 			if !ok {
-				// Hub hat den Channel geschlossen
+				// Hub hat den Channel geschlossen, Verbindung sauber beenden
 				c.Conn.WriteMessage(websocket.CloseMessage, []byte{})
 				return
 			}
@@ -117,19 +117,18 @@ func (c *Client) writePump() {
 // ensures that there is at most one reader on a connection by executing all
 // reads from this goroutine.
 func (c *Client) readPump(retrievedSettings *settings.Settings, logger *zap.SugaredLogger) {
-	c.Hub.Register <- c
 	defer func() {
 		c.Hub.Unregister <- c
 		c.Conn.Close()
 	}()
 	c.Conn.SetReadLimit(retrievedSettings.SocketIo.MaxHttpBufferSize)
+	c.Conn.SetReadDeadline(time.Now().Add(pongWait))
+	c.Conn.SetPongHandler(func(string) error {
+		c.Conn.SetReadDeadline(time.Now().Add(pongWait))
+		return nil
+	})
 	for {
 		_, message, err := c.Conn.ReadMessage()
-		c.Conn.SetReadDeadline(time.Now().Add(pongWait))
-		c.Conn.SetPongHandler(func(string) error {
-			c.Conn.SetReadDeadline(time.Now().Add(pongWait))
-			return nil
-		})
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 				log.Printf("error: %v", err)
@@ -137,6 +136,7 @@ func (c *Client) readPump(retrievedSettings *settings.Settings, logger *zap.Suga
 			c.Handler.HandleDisconnectOfPadClient(c, retrievedSettings, logger)
 			break
 		}
+		c.Conn.SetReadDeadline(time.Now().Add(pongWait))
 		retrievedSettings.CommitRateLimiting.LoadTest = retrievedSettings.LoadTest
 		if err := ratelimiter.CheckRateLimit(ratelimiter.IPAddress(c.Ctx.IP()), retrievedSettings.CommitRateLimiting); err != nil {
 			println("Rate limit exceeded:", err.Error())
@@ -255,17 +255,20 @@ func (c *Client) SendPadDelete() {
 
 // ServeWs handles websocket requests from the peer.
 func ServeWs(w http.ResponseWriter, r *http.Request, sessionStore *session.Store,
-	fiber *fiber.Ctx, configSettings *settings.Settings,
-	logger *zap.SugaredLogger, handler *PadMessageHandler) {
+	fiber fiber.Ctx, configSettings *settings.Settings,
+	logger *zap.SugaredLogger, handler *PadMessageHandler, done chan struct{}) {
 	store, err := sessionStore.Get(fiber)
 
 	if err != nil {
-		fiber.SendString("Error estabilishing socket conn")
+		fiber.WriteString("Error estabilishing socket conn")
+		close(done)
+		return
 	}
 
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println(err)
+		close(done)
 		return
 	}
 	client := &Client{Hub: handler.hub, Conn: conn, Send: make(chan []byte, 256), SessionId: store.ID(), Ctx: fiber, Handler: handler}
@@ -273,4 +276,5 @@ func ServeWs(w http.ResponseWriter, r *http.Request, sessionStore *session.Store
 	client.Hub.Register <- client
 	go client.writePump()
 	client.readPump(configSettings, logger)
+	close(done)
 }

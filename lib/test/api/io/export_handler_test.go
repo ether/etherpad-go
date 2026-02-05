@@ -11,7 +11,7 @@ import (
 	apiio "github.com/ether/etherpad-go/lib/api/io"
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/test/testutils"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -249,7 +249,7 @@ func testExportPlainTextPadAsEtherpad(t *testing.T, tsStore testutils.TestDataSt
 
 	req := httptest.NewRequest("GET", "/p/"+padId+"/export/etherpad", nil)
 	req.AddCookie(&http.Cookie{Name: "token", Value: token})
-	resp, err := app.Test(req, 5000)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 5000})
 	assert.NoError(t, err)
 
 	body, err := io.ReadAll(resp.Body)
@@ -275,7 +275,7 @@ func testExportPlainTextPadAsTxt(t *testing.T, tsStore testutils.TestDataStore) 
 
 	req := httptest.NewRequest("GET", "/p/"+padId+"/export/txt", nil)
 	req.AddCookie(&http.Cookie{Name: "token", Value: token})
-	resp, err := app.Test(req, 5000)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 5000})
 	assert.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
 
@@ -294,7 +294,7 @@ func testExportBoldTextPadAsEtherpad(t *testing.T, tsStore testutils.TestDataSto
 	createPadWithBoldText(t, tsStore, padId, testText)
 
 	req := httptest.NewRequest("GET", "/p/"+padId+"/export/etherpad", nil)
-	resp, err := app.Test(req, 5000)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 5000})
 	assert.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
 
@@ -315,7 +315,7 @@ func testExportBoldTextPadAsTxt(t *testing.T, tsStore testutils.TestDataStore) {
 	createPadWithBoldText(t, tsStore, padId, testText)
 
 	req := httptest.NewRequest("GET", "/p/"+padId+"/export/txt", nil)
-	resp, err := app.Test(req, 5000)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 5000})
 	assert.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
 
@@ -334,7 +334,7 @@ func testExportItalicTextPadAsEtherpad(t *testing.T, tsStore testutils.TestDataS
 	createPadWithItalicText(t, tsStore, padId, testText)
 
 	req := httptest.NewRequest("GET", "/p/"+padId+"/export/etherpad", nil)
-	resp, err := app.Test(req, 5000)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 5000})
 	assert.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
 
@@ -355,7 +355,7 @@ func testExportItalicTextPadAsTxt(t *testing.T, tsStore testutils.TestDataStore)
 	createPadWithItalicText(t, tsStore, padId, testText)
 
 	req := httptest.NewRequest("GET", "/p/"+padId+"/export/txt", nil)
-	resp, err := app.Test(req, 5000)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 5000})
 	assert.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
 
@@ -374,7 +374,7 @@ func testExportIndentedTextPadAsEtherpad(t *testing.T, tsStore testutils.TestDat
 	createPadWithIndentation(t, tsStore, padId, testText)
 
 	req := httptest.NewRequest("GET", "/p/"+padId+"/export/etherpad", nil)
-	resp, err := app.Test(req, 5000)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 5000})
 	assert.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
 
@@ -395,7 +395,7 @@ func testExportIndentedTextPadAsTxt(t *testing.T, tsStore testutils.TestDataStor
 	createPadWithIndentation(t, tsStore, padId, testText)
 
 	req := httptest.NewRequest("GET", "/p/"+padId+"/export/txt", nil)
-	resp, err := app.Test(req, 5000)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 5000})
 	assert.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
 
@@ -414,7 +414,7 @@ func testExportMixedFormattingPadAsEtherpad(t *testing.T, tsStore testutils.Test
 	createPadWithMixedFormatting(t, tsStore, padId, testText)
 
 	req := httptest.NewRequest("GET", "/p/"+padId+"/export/etherpad", nil)
-	resp, err := app.Test(req, 5000)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 5000})
 	assert.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
 
@@ -435,7 +435,7 @@ func testExportMixedFormattingPadAsTxt(t *testing.T, tsStore testutils.TestDataS
 	createPadWithMixedFormatting(t, tsStore, padId, testText)
 
 	req := httptest.NewRequest("GET", "/p/"+padId+"/export/txt", nil)
-	resp, err := app.Test(req, 5000)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 5000})
 	assert.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
 
@@ -450,7 +450,7 @@ func testExportNonExistingPadReturns404(t *testing.T, tsStore testutils.TestData
 	app := setupExportApp(tsStore)
 
 	req := httptest.NewRequest("GET", "/p/nonExistingPadId/export/etherpad", nil)
-	resp, err := app.Test(req, 5000)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 5000})
 	assert.NoError(t, err)
 
 	// Should return 401 (Unauthorized) or 404 depending on SecurityManager behavior
@@ -465,7 +465,7 @@ func testExportInvalidTypeReturns400(t *testing.T, tsStore testutils.TestDataSto
 	createPadWithPlainText(t, tsStore, padId, testText)
 
 	req := httptest.NewRequest("GET", "/p/"+padId+"/export/invalidType", nil)
-	resp, err := app.Test(req, 5000)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 5000})
 	assert.NoError(t, err)
 	assert.Equal(t, 400, resp.StatusCode)
 }
@@ -480,7 +480,7 @@ func testExportPlainTextPadAsPdf(t *testing.T, tsStore testutils.TestDataStore) 
 
 	req := httptest.NewRequest("GET", "/p/"+padId+"/export/pdf", nil)
 	req.AddCookie(&http.Cookie{Name: "token", Value: token})
-	resp, err := app.Test(req, 5000)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 5000})
 	assert.NoError(t, err)
 
 	body, err := io.ReadAll(resp.Body)
@@ -510,7 +510,7 @@ func testExportBoldTextPadAsPdf(t *testing.T, tsStore testutils.TestDataStore) {
 
 	req := httptest.NewRequest("GET", "/p/"+padId+"/export/pdf", nil)
 	req.AddCookie(&http.Cookie{Name: "token", Value: token})
-	resp, err := app.Test(req, 5000)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 5000})
 	assert.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
 
@@ -533,7 +533,7 @@ func testExportItalicTextPadAsPdf(t *testing.T, tsStore testutils.TestDataStore)
 
 	req := httptest.NewRequest("GET", "/p/"+padId+"/export/pdf", nil)
 	req.AddCookie(&http.Cookie{Name: "token", Value: token})
-	resp, err := app.Test(req, 5000)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 5000})
 	assert.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
 
@@ -556,7 +556,7 @@ func testExportIndentedTextPadAsPdf(t *testing.T, tsStore testutils.TestDataStor
 
 	req := httptest.NewRequest("GET", "/p/"+padId+"/export/pdf", nil)
 	req.AddCookie(&http.Cookie{Name: "token", Value: token})
-	resp, err := app.Test(req, 5000)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 5000})
 	assert.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
 
@@ -579,7 +579,7 @@ func testExportMixedFormattingPadAsPdf(t *testing.T, tsStore testutils.TestDataS
 
 	req := httptest.NewRequest("GET", "/p/"+padId+"/export/pdf", nil)
 	req.AddCookie(&http.Cookie{Name: "token", Value: token})
-	resp, err := app.Test(req, 5000)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 5000})
 	assert.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
 
@@ -603,7 +603,7 @@ func testExportPlainTextPadAsDocx(t *testing.T, tsStore testutils.TestDataStore)
 
 	req := httptest.NewRequest("GET", "/p/"+padId+"/export/word", nil)
 	req.AddCookie(&http.Cookie{Name: "token", Value: token})
-	resp, err := app.Test(req, 5000)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 5000})
 	assert.NoError(t, err)
 
 	body, err := io.ReadAll(resp.Body)
@@ -633,7 +633,7 @@ func testExportBoldTextPadAsDocx(t *testing.T, tsStore testutils.TestDataStore) 
 
 	req := httptest.NewRequest("GET", "/p/"+padId+"/export/word", nil)
 	req.AddCookie(&http.Cookie{Name: "token", Value: token})
-	resp, err := app.Test(req, 5000)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 5000})
 	assert.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
 
@@ -656,7 +656,7 @@ func testExportItalicTextPadAsDocx(t *testing.T, tsStore testutils.TestDataStore
 
 	req := httptest.NewRequest("GET", "/p/"+padId+"/export/word", nil)
 	req.AddCookie(&http.Cookie{Name: "token", Value: token})
-	resp, err := app.Test(req, 5000)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 5000})
 	assert.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
 
@@ -679,7 +679,7 @@ func testExportIndentedTextPadAsDocx(t *testing.T, tsStore testutils.TestDataSto
 
 	req := httptest.NewRequest("GET", "/p/"+padId+"/export/word", nil)
 	req.AddCookie(&http.Cookie{Name: "token", Value: token})
-	resp, err := app.Test(req, 5000)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 5000})
 	assert.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
 
@@ -702,7 +702,7 @@ func testExportMixedFormattingPadAsDocx(t *testing.T, tsStore testutils.TestData
 
 	req := httptest.NewRequest("GET", "/p/"+padId+"/export/word", nil)
 	req.AddCookie(&http.Cookie{Name: "token", Value: token})
-	resp, err := app.Test(req, 5000)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 5000})
 	assert.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
 
@@ -726,7 +726,7 @@ func testExportPlainTextPadAsOdt(t *testing.T, tsStore testutils.TestDataStore) 
 
 	req := httptest.NewRequest("GET", "/p/"+padId+"/export/open", nil)
 	req.AddCookie(&http.Cookie{Name: "token", Value: token})
-	resp, err := app.Test(req, 5000)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 5000})
 	assert.NoError(t, err)
 
 	body, err := io.ReadAll(resp.Body)
@@ -756,7 +756,7 @@ func testExportBoldTextPadAsOdt(t *testing.T, tsStore testutils.TestDataStore) {
 
 	req := httptest.NewRequest("GET", "/p/"+padId+"/export/open", nil)
 	req.AddCookie(&http.Cookie{Name: "token", Value: token})
-	resp, err := app.Test(req, 5000)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 5000})
 	assert.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
 
@@ -779,7 +779,7 @@ func testExportItalicTextPadAsOdt(t *testing.T, tsStore testutils.TestDataStore)
 
 	req := httptest.NewRequest("GET", "/p/"+padId+"/export/open", nil)
 	req.AddCookie(&http.Cookie{Name: "token", Value: token})
-	resp, err := app.Test(req, 5000)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 5000})
 	assert.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
 
@@ -802,7 +802,7 @@ func testExportIndentedTextPadAsOdt(t *testing.T, tsStore testutils.TestDataStor
 
 	req := httptest.NewRequest("GET", "/p/"+padId+"/export/open", nil)
 	req.AddCookie(&http.Cookie{Name: "token", Value: token})
-	resp, err := app.Test(req, 5000)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 5000})
 	assert.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
 
@@ -825,7 +825,7 @@ func testExportMixedFormattingPadAsOdt(t *testing.T, tsStore testutils.TestDataS
 
 	req := httptest.NewRequest("GET", "/p/"+padId+"/export/open", nil)
 	req.AddCookie(&http.Cookie{Name: "token", Value: token})
-	resp, err := app.Test(req, 5000)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 5000})
 	assert.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
 

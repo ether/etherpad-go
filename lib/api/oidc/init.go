@@ -9,8 +9,8 @@ import (
 	"strings"
 
 	"github.com/ether/etherpad-go/lib"
-	"github.com/gofiber/adaptor/v2"
-	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/fiber/v3/middleware/adaptor"
+	"github.com/gofiber/fiber/v3/middleware/cors"
 )
 
 func GenerateAuthCodeURL(issuer, clientID, redirectURI string, scopes []string) (string, string, string, error) {

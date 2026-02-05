@@ -879,4 +879,55 @@ func NewPostgresDB(options PostgresOptions) (*PostgresDB, error) {
 	}, nil
 }
 
+// ============== FIBER SESSION METHODS ==============
+
+func (d PostgresDB) GetFiberSession(key string) ([]byte, error) {
+	ctx := context.Background()
+	var data []byte
+	err := d.pool.QueryRow(ctx,
+		`SELECT session_data FROM fiber_sessions 
+         WHERE session_key = $1 AND (expires_at = 0 OR expires_at > $2)`,
+		key, time.Now().Unix()).Scan(&data)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return data, nil
+}
+
+func (d PostgresDB) SetFiberSession(key string, value []byte, expiresAt int64) error {
+	ctx := context.Background()
+	_, err := d.pool.Exec(ctx,
+		`INSERT INTO fiber_sessions (session_key, session_data, expires_at, created_at, updated_at)
+         VALUES ($1, $2, $3, NOW(), NOW())
+         ON CONFLICT (session_key) DO UPDATE SET
+             session_data = EXCLUDED.session_data,
+             expires_at = EXCLUDED.expires_at,
+             updated_at = NOW()`,
+		key, value, expiresAt)
+	return err
+}
+
+func (d PostgresDB) DeleteFiberSession(key string) error {
+	ctx := context.Background()
+	_, err := d.pool.Exec(ctx, `DELETE FROM fiber_sessions WHERE session_key = $1`, key)
+	return err
+}
+
+func (d PostgresDB) ResetFiberSessions() error {
+	ctx := context.Background()
+	_, err := d.pool.Exec(ctx, `DELETE FROM fiber_sessions`)
+	return err
+}
+
+func (d PostgresDB) CleanupExpiredFiberSessions() error {
+	ctx := context.Background()
+	_, err := d.pool.Exec(ctx,
+		`DELETE FROM fiber_sessions WHERE expires_at != 0 AND expires_at <= $1`,
+		time.Now().Unix())
+	return err
+}
+
 var _ DataStore = (*PostgresDB)(nil)

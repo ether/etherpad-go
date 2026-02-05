@@ -9,6 +9,7 @@ func GetMigrations() []Migration {
 	return []Migration{
 		migration001InitialSchema(),
 		migration002ServerVersion(),
+		migration003FiberSessions(),
 	}
 }
 

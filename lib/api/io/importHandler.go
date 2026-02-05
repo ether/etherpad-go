@@ -8,7 +8,7 @@ import (
 	"github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/ether/etherpad-go/lib/ws"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"go.uber.org/zap"
 )
 
@@ -83,7 +83,7 @@ func NewImportHandler(
 // @Failure 403 {object} ImportResponse
 // @Failure 500 {object} ImportResponse
 // @Router /p/{pad}/import [post]
-func (h *ImportHandler) ImportPad(ctx *fiber.Ctx) error {
+func (h *ImportHandler) ImportPad(ctx fiber.Ctx) error {
 	tokenCookie := ctx.Cookies("token")
 	padId := ctx.Params("pad")
 
@@ -126,7 +126,7 @@ func (h *ImportHandler) ImportPad(ctx *fiber.Ctx) error {
 }
 
 // doImport performs the actual import
-func (h *ImportHandler) doImport(ctx *fiber.Ctx, padId string, authorId string) (bool, *ImportError) {
+func (h *ImportHandler) doImport(ctx fiber.Ctx, padId string, authorId string) (bool, *ImportError) {
 	// Get uploaded file
 	fileHeader, err := ctx.FormFile("file")
 	if err != nil {
@@ -402,7 +402,7 @@ func isValidText(content string) bool {
 }
 
 // Legacy function for backward compatibility
-func ImportPad(ctx *fiber.Ctx, securityManager *pad.SecurityManager) error {
+func ImportPad(ctx fiber.Ctx, securityManager *pad.SecurityManager) error {
 	tokenCookie := ctx.Cookies("token")
 	padId := ctx.Params("pad")
 	grantedAccess, err := securityManager.CheckAccess(&padId, nil, &tokenCookie, nil)

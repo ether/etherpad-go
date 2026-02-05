@@ -1092,4 +1092,88 @@ func NewSQLiteDB(path string) (*SQLiteDB, error) {
 	}, nil
 }
 
+// ============== FIBER SESSION METHODS ==============
+
+func (d SQLiteDB) GetFiberSession(key string) ([]byte, error) {
+	resultedSQL, args, err := sq.
+		Select("session_data").
+		From("fiber_sessions").
+		Where(sq.Eq{"session_key": key}).
+		Where(sq.Or{
+			sq.Eq{"expires_at": 0},
+			sq.Gt{"expires_at": time.Now().Unix()},
+		}).
+		ToSql()
+
+	if err != nil {
+		return nil, err
+	}
+
+	var data []byte
+	err = d.sqlDB.QueryRow(resultedSQL, args...).Scan(&data)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	return data, nil
+}
+
+func (d SQLiteDB) SetFiberSession(key string, value []byte, expiresAt int64) error {
+	resultedSQL, args, err := sq.
+		Insert("fiber_sessions").
+		Columns("session_key", "session_data", "expires_at").
+		Values(key, value, expiresAt).
+		Suffix(`ON CONFLICT(session_key) DO UPDATE SET
+			session_data = excluded.session_data,
+			expires_at = excluded.expires_at,
+			updated_at = CURRENT_TIMESTAMP`).
+		ToSql()
+
+	if err != nil {
+		return err
+	}
+
+	_, err = d.sqlDB.Exec(resultedSQL, args...)
+	return err
+}
+
+func (d SQLiteDB) DeleteFiberSession(key string) error {
+	resultedSQL, args, err := sq.
+		Delete("fiber_sessions").
+		Where(sq.Eq{"session_key": key}).
+		ToSql()
+
+	if err != nil {
+		return err
+	}
+
+	_, err = d.sqlDB.Exec(resultedSQL, args...)
+	return err
+}
+
+func (d SQLiteDB) ResetFiberSessions() error {
+	_, err := d.sqlDB.Exec("DELETE FROM fiber_sessions")
+	return err
+}
+
+func (d SQLiteDB) CleanupExpiredFiberSessions() error {
+	resultedSQL, args, err := sq.
+		Delete("fiber_sessions").
+		Where(sq.And{
+			sq.NotEq{"expires_at": 0},
+			sq.LtOrEq{"expires_at": time.Now().Unix()},
+		}).
+		ToSql()
+
+	if err != nil {
+		return err
+	}
+
+	_, err = d.sqlDB.Exec(resultedSQL, args...)
+	return err
+}
+
 var _ DataStore = (*SQLiteDB)(nil)

@@ -9,6 +9,7 @@ import (
 
 	"github.com/ether/etherpad-go/lib/api/author"
 	"github.com/ether/etherpad-go/lib/test/testutils"
+	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -63,7 +64,8 @@ func testCreateAuthorNoName(t *testing.T, tsStore testutils.TestDataStore) {
 	marshall, _ := json.Marshal(dto)
 	req := httptest.NewRequest("POST", "/admin/api/author", bytes.NewBuffer(marshall))
 
-	resp, _ := initStore.C.Test(req, 10)
+	resp, err := initStore.C.Test(req, fiber.TestConfig{Timeout: 1000})
+	assert.NoError(t, err)
 	if resp.StatusCode != 400 {
 		t.Errorf("should deny creation of author without required fields, got %d", resp.StatusCode)
 	}
@@ -73,7 +75,8 @@ func testCreateAuthorNoBody(t *testing.T, tsStore testutils.TestDataStore) {
 	author.Init(tsStore.ToInitStore())
 	req := httptest.NewRequest("POST", "/admin/api/author", nil)
 
-	resp, _ := tsStore.App.Test(req, 10)
+	resp, err := tsStore.App.Test(req, fiber.TestConfig{Timeout: 1000})
+	assert.NoError(t, err)
 	if resp.StatusCode != 400 {
 		t.Errorf("should deny creation of author with nil body, got %d", resp.StatusCode)
 	}
@@ -84,7 +87,7 @@ func testGetNotExistingAuthor(t *testing.T, tsStore testutils.TestDataStore) {
 	author.Init(initStore)
 	req := httptest.NewRequest("GET", "/admin/api/author/unknownAuthorId", nil)
 
-	resp, err := initStore.C.Test(req, 5000)
+	resp, err := initStore.C.Test(req, fiber.TestConfig{Timeout: 5000})
 	if err != nil {
 		t.Errorf("error getting not existing author: %v", err)
 	}
@@ -103,7 +106,7 @@ func testGetExistingAuthor(t *testing.T, tsStore testutils.TestDataStore) {
 	}
 	marshall, _ := json.Marshal(dto)
 	req := httptest.NewRequest("POST", "/admin/api/author", bytes.NewBuffer(marshall))
-	resp, err := initStore.C.Test(req, 5000)
+	resp, err := initStore.C.Test(req, fiber.TestConfig{Timeout: 5000})
 	if err != nil {
 		t.Errorf("error creating author: %v", err)
 	}
@@ -117,7 +120,7 @@ func testGetExistingAuthor(t *testing.T, tsStore testutils.TestDataStore) {
 
 	req = httptest.NewRequest("GET", "/admin/api/author/"+createdAuthor.AuthorId, nil)
 
-	resp, err = initStore.C.Test(req, 5000)
+	resp, err = initStore.C.Test(req, fiber.TestConfig{Timeout: 5000})
 	if err != nil {
 		t.Errorf("error getting author: %v", err)
 	}
@@ -135,7 +138,7 @@ func testGetAuthorPadIDS(t *testing.T, tsStore testutils.TestDataStore) {
 	assert.NoError(t, err)
 	req := httptest.NewRequest("GET", "/admin/api/author/"+dbAuthorToSave.ID+"/pads", nil)
 
-	resp, err := tsStore.App.Test(req, 5000)
+	resp, err := tsStore.App.Test(req, fiber.TestConfig{Timeout: 5000})
 	if err != nil {
 		t.Errorf("error getting author pads: %v", err)
 	}
@@ -165,7 +168,7 @@ func testCreateAuthorIfNotExistsForNew(t *testing.T, tsStore testutils.TestDataS
 
 	req := httptest.NewRequest("POST", "/admin/api/author/createIfNotExistsFor", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := initStore.C.Test(req, 5000)
+	resp, err := initStore.C.Test(req, fiber.TestConfig{Timeout: 5000})
 
 	if !assert.NoError(t, err) {
 		return
@@ -193,7 +196,7 @@ func testCreateAuthorIfNotExistsForExisting(t *testing.T, tsStore testutils.Test
 
 	req := httptest.NewRequest("POST", "/admin/api/author/createIfNotExistsFor", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := initStore.C.Test(req, 5000)
+	resp, err := initStore.C.Test(req, fiber.TestConfig{Timeout: 5000})
 
 	assert.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
@@ -211,7 +214,7 @@ func testCreateAuthorIfNotExistsForExisting(t *testing.T, tsStore testutils.Test
 
 	req2 := httptest.NewRequest("POST", "/admin/api/author/createIfNotExistsFor", bytes.NewBuffer(body2))
 	req2.Header.Set("Content-Type", "application/json")
-	resp2, err := initStore.C.Test(req2, 100)
+	resp2, err := initStore.C.Test(req2, fiber.TestConfig{Timeout: 100})
 
 	assert.NoError(t, err)
 	assert.Equal(t, 200, resp2.StatusCode)
@@ -235,7 +238,7 @@ func testGetAuthorName(t *testing.T, tsStore testutils.TestDataStore) {
 	assert.NoError(t, err)
 
 	req := httptest.NewRequest("GET", "/admin/api/author/"+createdAuthor.Id+"/name", nil)
-	resp, err := initStore.C.Test(req, 5000)
+	resp, err := initStore.C.Test(req, fiber.TestConfig{Timeout: 5000})
 
 	assert.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
@@ -252,7 +255,7 @@ func testGetAuthorNameNotFound(t *testing.T, tsStore testutils.TestDataStore) {
 	author.Init(initStore)
 
 	req := httptest.NewRequest("GET", "/admin/api/author/a.nonexistent12345/name", nil)
-	resp, err := initStore.C.Test(req, 5000)
+	resp, err := initStore.C.Test(req, fiber.TestConfig{Timeout: 5000})
 
 	assert.NoError(t, err)
 	assert.Equal(t, 404, resp.StatusCode)
