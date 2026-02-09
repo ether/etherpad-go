@@ -26,9 +26,10 @@ import (
 	"go.uber.org/zap"
 )
 
-func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS) {
+func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets embed.FS) {
 
 	settings2.InitSettings(setupLogger)
+	plugins.Init(uiAssets, pluginAssets)
 
 	var settings = settings2.Displayed
 	validatorEvaluator := validator.New(validator.WithRequiredStructEnabled())
@@ -65,7 +66,7 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS) {
 	importer := io.NewImporter(padManager, authorManager, dataStore, setupLogger)
 	globalHub := ws.NewHub()
 	sessionStore := ws.NewSessionStore()
-	padMessageHandler := ws.NewPadMessageHandler(dataStore, &retrievedHooks, padManager, &sessionStore, globalHub, setupLogger)
+	padMessageHandler := ws.NewPadMessageHandler(dataStore, &retrievedHooks, padManager, &sessionStore, globalHub, setupLogger, uiAssets)
 	adminMessageHandler := ws.NewAdminMessageHandler(dataStore, &retrievedHooks, padManager, padMessageHandler, setupLogger, globalHub, app)
 	securityManager := pad.NewSecurityManager(dataStore, &retrievedHooks, padManager)
 

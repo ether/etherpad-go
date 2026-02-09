@@ -169,7 +169,9 @@ func Init(store *lib.InitStore) {
 		return c.Next()
 	})
 
-	store.C.Get("/pluginfw/plugin-definitions.json", plugins.ReturnPluginResponse)
+	store.C.Get("/pluginfw/plugin-definitions.json", func(ctx *fiber.Ctx) error {
+		return plugins.ReturnPluginResponse(ctx)
+	})
 
 	store.C.Static("/static/plugins/", "./plugins")
 

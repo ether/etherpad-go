@@ -1,6 +1,7 @@
 package clientVars
 
 import (
+	"embed"
 	"strconv"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 type Factory struct {
 	ReadOnlyManager *pad2.ReadOnlyManager
 	AuthorManager   *author2.Manager
+	UiAssets        embed.FS
 }
 
 func (f *Factory) NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apool2.APool, translatedAttribs string, historicalAuthorData map[string]author2.Author, retrievedSettings *settings.Settings) (*clientVars.ClientVars, error) {
