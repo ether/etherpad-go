@@ -23,7 +23,7 @@ require (
 	github.com/ory/fosite v0.49.0
 	github.com/pdfcpu/pdfcpu v0.11.1
 	github.com/prometheus/client_golang v1.23.2
-	github.com/signintech/gopdf v0.35.0
+	github.com/signintech/gopdf v0.36.0
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.11.1
 	github.com/swaggo/swag v1.16.6
