@@ -733,7 +733,7 @@ func (test *TestDBHandler) TestRun(
 		loggerPart := zap.NewNop().Sugar()
 		importer := io.NewImporter(padManager, authManager, ds, loggerPart)
 		padMessageHandler := ws.NewPadMessageHandler(
-			ds, &hooks, padManager, &sess, hub, loggerPart,
+			ds, &hooks, padManager, &sess, hub, loggerPart, TestAssets,
 		)
 		app := fiber.New()
 		adminMessageHandler := ws.NewAdminMessageHandler(

@@ -1,6 +1,7 @@
 package ws
 
 import (
+	"embed"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -97,7 +98,7 @@ type PadMessageHandler struct {
 	Logger          *zap.SugaredLogger
 }
 
-func NewPadMessageHandler(db db2.DataStore, hooks *hooks.Hook, padManager *pad.Manager, sessionStore *SessionStore, hub *Hub, logger *zap.SugaredLogger) *PadMessageHandler {
+func NewPadMessageHandler(db db2.DataStore, hooks *hooks.Hook, padManager *pad.Manager, sessionStore *SessionStore, hub *Hub, logger *zap.SugaredLogger, uiAssets embed.FS) *PadMessageHandler {
 	var padMessageHandler = PadMessageHandler{
 		padManager:      padManager,
 		readOnlyManager: pad.NewReadOnlyManager(db),
@@ -106,6 +107,7 @@ func NewPadMessageHandler(db db2.DataStore, hooks *hooks.Hook, padManager *pad.M
 		factory: clientVars.Factory{
 			ReadOnlyManager: pad.NewReadOnlyManager(db),
 			AuthorManager:   author.NewManager(db),
+			UiAssets:        uiAssets,
 		},
 		SessionStore: sessionStore,
 		hub:          hub,

@@ -19,6 +19,9 @@ import (
 //go:embed assets
 var uiAssets embed.FS
 
+//go:embed plugins
+var pluginAssets embed.FS
+
 // @title Etherpad Go API
 // @version 1.0
 // @description REST API for Etherpad Go - Collaborative Text Editor
@@ -77,5 +80,5 @@ func main() {
 		}
 	}
 
-	server2.InitServer(setupLogger, uiAssets)
+	server2.InitServer(setupLogger, uiAssets, pluginAssets)
 }

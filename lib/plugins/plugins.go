@@ -1,9 +1,8 @@
 package plugins
 
 import (
+	"embed"
 	"encoding/json"
-	"os"
-	"path"
 
 	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/gofiber/fiber/v2"
@@ -18,29 +17,34 @@ type Plugin struct {
 
 const corePluginName = "ep_etherpad-lite"
 
+// Stored assets for plugin loading
+var storedUIAssets embed.FS
+var storedPluginAssets embed.FS
+
 // GetPackages gibt alle installierten Plugins zurück
 func GetPackages() map[string]Plugin {
 	var mappedPlugins = make(map[string]Plugin)
-	root, _ := os.Getwd()
+
+	// Core plugin from uiAssets
 	mappedPlugins[corePluginName] = Plugin{
 		Name:     corePluginName,
 		Version:  "1.8.13",
 		Path:     "node_modules/" + corePluginName,
-		RealPath: path.Join(root, "assets", "ep.json"),
+		RealPath: "assets/ep.json",
 	}
 
-	pluginsDir := path.Join(root, "plugins")
-	entries, err := os.ReadDir(pluginsDir)
+	// Read plugins from embedded pluginAssets
+	entries, err := storedPluginAssets.ReadDir("plugins")
 	if err == nil {
 		for _, entry := range entries {
 			if entry.IsDir() {
 				pluginName := entry.Name()
-				pluginPath := path.Join(pluginsDir, pluginName)
-				epJsonPath := path.Join(pluginPath, "ep.json")
-				if _, err := os.Stat(epJsonPath); err == nil {
+				epJsonPath := "plugins/" + pluginName + "/ep.json"
+				// Check if ep.json exists in this plugin directory
+				if _, err := storedPluginAssets.ReadFile(epJsonPath); err == nil {
 					mappedPlugins[pluginName] = Plugin{
 						Name:     pluginName,
-						Version:  "0.0.1", // Standardversion, falls keine package.json vorhanden
+						Version:  "0.0.1",
 						Path:     "node_modules/" + pluginName,
 						RealPath: epJsonPath,
 					}
@@ -86,17 +90,26 @@ func Update() (map[string]Plugin, map[string]Part, map[string]Plugin) {
 }
 
 func LoadPlugin(plugin Plugin, plugins map[string]Plugin, parts map[string]Part) {
-	var pluginPath = path.Join(plugin.RealPath)
+	var bytes []byte
+	var err error
 
-	bytes, err := os.ReadFile(pluginPath)
+	// Core plugin (ep_etherpad-lite) is embedded in uiAssets, others in pluginAssets
+	if plugin.Name == corePluginName {
+		bytes, err = storedUIAssets.ReadFile(plugin.RealPath)
+	} else {
+		bytes, err = storedPluginAssets.ReadFile(plugin.RealPath)
+	}
+
 	if err != nil {
-		println("Error reading plugin file")
+		println("Error reading plugin file " + plugin.RealPath + ": " + err.Error())
 		return
 	}
+
 	var pluginDef PluginDef
 	err = json.Unmarshal(bytes, &pluginDef)
 	if err != nil {
-		panic(err)
+		println("Error parsing plugin file " + plugin.RealPath + ": " + err.Error())
+		return
 	}
 
 	plugins[plugin.Name] = plugin
@@ -194,7 +207,9 @@ var cachedPlugins = map[string]Plugin{}
 var cachedParts = map[string]Part{}
 var cachedPackages = map[string]Plugin{}
 
-func init() {
+func Init(uiAssets embed.FS, pluginAssets embed.FS) {
+	storedUIAssets = uiAssets
+	storedPluginAssets = pluginAssets
 	GetCachedPlugins()
 }
 
@@ -220,4 +235,14 @@ func GetCachedPackages() map[string]Plugin {
 		cachedPackages, cachedParts, cachedPlugins = Update()
 	}
 	return cachedPackages
+}
+
+// GetStoredPluginAssets returns the stored plugin assets for use by other packages
+func GetStoredPluginAssets() embed.FS {
+	return storedPluginAssets
+}
+
+// GetStoredUIAssets returns the stored UI assets for use by other packages
+func GetStoredUIAssets() embed.FS {
+	return storedUIAssets
 }
