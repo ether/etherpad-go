@@ -10,7 +10,7 @@ import (
 	"github.com/ether/etherpad-go/lib/hooks"
 	"github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/utils"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"go.uber.org/zap"
 )
 
@@ -169,7 +169,7 @@ func (e *ExportEtherpad) GetPadRaw(padId string, readOnlyId *string) (*EtherpadE
 	return export, nil
 }
 
-func (e *ExportEtherpad) DoExport(ctx *fiber.Ctx, id string, readOnlyId *string, fileExportType string) error {
+func (e *ExportEtherpad) DoExport(ctx fiber.Ctx, id string, readOnlyId *string, fileExportType string) error {
 	fileName := id
 	if readOnlyId != nil {
 		fileName = *readOnlyId

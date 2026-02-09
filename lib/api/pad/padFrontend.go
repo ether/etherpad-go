@@ -12,10 +12,11 @@ import (
 	"github.com/ether/etherpad-go/lib/plugins"
 	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/ether/etherpad-go/lib/utils"
-	"github.com/gofiber/adaptor/v2"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/adaptor"
+
+	padAsset "github.com/ether/etherpad-go/assets/pad"
 )
-import padAsset "github.com/ether/etherpad-go/assets/pad"
 
 var AvailableFonts = []string{
 	"Quicksand",
@@ -27,7 +28,7 @@ var AvailableFonts = []string{
 	"RobotoMono",
 }
 
-func HandlePadOpen(c *fiber.Ctx, uiAssets embed.FS, retrievedSettings *settings.Settings, hooks *hooks.Hook) error {
+func HandlePadOpen(c fiber.Ctx, uiAssets embed.FS, retrievedSettings *settings.Settings, hooks *hooks.Hook) error {
 	pad := models.Model{
 		Name: "test",
 	}

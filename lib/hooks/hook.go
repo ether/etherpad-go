@@ -2,7 +2,7 @@ package hooks
 
 import (
 	"github.com/ether/etherpad-go/lib/hooks/events"
-	"github.com/gofiber/fiber/v2/utils"
+	uuid2 "github.com/google/uuid"
 )
 
 type Hook struct {
@@ -36,16 +36,16 @@ func (h *Hook) ExecuteGetLineHtmlForExportHooks(ctx any) {
 }
 
 func (h *Hook) EnqueueHook(key string, ctx func(ctx any)) string {
-	var uuid = utils.UUID()
+	var uuid = uuid2.New()
 	var _, ok = h.hooks[key]
 
 	if !ok {
 		h.hooks[key] = make(map[string]func(ctx any))
 	}
 
-	h.hooks[key][uuid] = ctx
+	h.hooks[key][uuid.String()] = ctx
 
-	return uuid
+	return uuid.String()
 }
 
 func (h *Hook) DequeueHook(key, id string) {

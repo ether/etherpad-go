@@ -8,7 +8,7 @@ import (
 
 	"github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/plugins/interfaces"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"go.uber.org/zap"
 	"golang.org/x/net/html"
 )
@@ -54,18 +54,18 @@ const staleTime = 5 * time.Minute
 
 func registerFeedRoutes(app *fiber.App, padManager *pad.Manager, zap *zap.SugaredLogger) {
 	// Redirects
-	app.Get("/p/:padID/rss", func(c *fiber.Ctx) error {
-		return c.Redirect(fmt.Sprintf(feedUrl, c.Params("padID")), fiber.StatusMovedPermanently)
+	app.Get("/p/:padID/rss", func(c fiber.Ctx) error {
+		return c.Redirect().Status(fiber.StatusMovedPermanently).To(fmt.Sprintf(feedUrl, c.Params("padID")))
 	})
-	app.Get("/p/:padID/feed.rss", func(c *fiber.Ctx) error {
-		return c.Redirect(fmt.Sprintf(feedUrl, c.Params("padID")), fiber.StatusMovedPermanently)
+	app.Get("/p/:padID/feed.rss", func(c fiber.Ctx) error {
+		return c.Redirect().Status(fiber.StatusMovedPermanently).To(fmt.Sprintf(feedUrl, c.Params("padID")))
 	})
-	app.Get("/p/:padID/atom.xml", func(c *fiber.Ctx) error {
-		return c.Redirect(fmt.Sprintf(feedUrl, c.Params("padID")), fiber.StatusMovedPermanently)
+	app.Get("/p/:padID/atom.xml", func(c fiber.Ctx) error {
+		return c.Redirect().Status(fiber.StatusMovedPermanently).To(fmt.Sprintf(feedUrl, c.Params("padID")))
 	})
 
 	// Main feed handler
-	app.Get("/p/:padID/feed", func(c *fiber.Ctx) error {
+	app.Get("/p/:padID/feed", func(c fiber.Ctx) error {
 		return handleFeed(c, padManager, zap)
 	})
 }
@@ -77,7 +77,7 @@ func safeTags(str string) string {
 	return str
 }
 
-func handleFeed(c *fiber.Ctx, padManager *pad.Manager, zap *zap.SugaredLogger) error {
+func handleFeed(c fiber.Ctx, padManager *pad.Manager, zap *zap.SugaredLogger) error {
 	padID := c.Params("padID")
 	fullURL := c.BaseURL() + c.OriginalURL()
 	padURL := fmt.Sprintf("%s://%s/p/%s", c.Protocol(), c.Hostname(), padID)

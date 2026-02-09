@@ -13,7 +13,7 @@ import (
 	"github.com/ether/etherpad-go/lib/models/clientVars"
 	"github.com/ether/etherpad-go/lib/models/webaccess"
 	"github.com/ether/etherpad-go/lib/settings"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"go.uber.org/zap"
 )
 
@@ -41,7 +41,7 @@ func UserCanModify(padId *string, req *webaccess.SocketClientRequest, readOnlyMa
 	return level != nil && *level != "readOnly"
 }
 
-func CheckAccess(ctx *fiber.Ctx, logger *zap.SugaredLogger, retrievedSettings *settings.Settings, readOnlyManager *ReadOnlyManager) error {
+func CheckAccess(ctx fiber.Ctx, logger *zap.SugaredLogger, retrievedSettings *settings.Settings, readOnlyManager *ReadOnlyManager) error {
 	var requireAdmin = strings.HasPrefix(strings.ToLower(ctx.Path()), "/admin-auth")
 	//FIXME this needs to be set
 	// ///////////////////////////////////////////////////////////////////////////////////////////////

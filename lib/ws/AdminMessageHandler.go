@@ -18,7 +18,7 @@ import (
 	"github.com/ether/etherpad-go/lib/plugins"
 	"github.com/ether/etherpad-go/lib/settings"
 	libutils "github.com/ether/etherpad-go/lib/utils"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"go.uber.org/zap"
 )
 

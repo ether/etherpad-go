@@ -32,6 +32,9 @@ func (h *Hub) Run() {
 	for {
 		select {
 		case client := <-h.Register:
+			if client == nil {
+				continue
+			}
 			h.ClientsRWMutex.Lock()
 			h.Clients[client] = true
 			h.ClientsRWMutex.Unlock()
@@ -46,7 +49,7 @@ func (h *Hub) Run() {
 			}
 			h.ClientsRWMutex.Unlock()
 		case message := <-h.Broadcast:
-			h.ClientsRWMutex.RLock()
+			h.ClientsRWMutex.Lock()
 			for client := range h.Clients {
 				if client == nil {
 					continue
@@ -54,11 +57,13 @@ func (h *Hub) Run() {
 				select {
 				case client.Send <- message:
 				default:
-					close(client.Send)
+					// Channel ist voll, Client entfernen
+					println("Removing client due to full channel")
 					delete(h.Clients, client)
+					close(client.Send)
 				}
 			}
-			h.ClientsRWMutex.RUnlock()
+			h.ClientsRWMutex.Unlock()
 		}
 	}
 }

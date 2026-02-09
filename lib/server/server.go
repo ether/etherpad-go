@@ -7,6 +7,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/gofiber/fiber/v3/extractors"
+
 	"github.com/ether/etherpad-go/lib"
 	api2 "github.com/ether/etherpad-go/lib/api"
 	"github.com/ether/etherpad-go/lib/author"
@@ -20,9 +22,9 @@ import (
 	"github.com/ether/etherpad-go/lib/utils"
 	"github.com/ether/etherpad-go/lib/ws"
 	"github.com/go-playground/validator/v10"
-	"github.com/gofiber/adaptor/v2"
-	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/session"
+	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/adaptor"
+	"github.com/gofiber/fiber/v3/middleware/session"
 	"go.uber.org/zap"
 )
 
@@ -52,12 +54,10 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 
 	readOnlyManager := pad.NewReadOnlyManager(dataStore)
 
-	var db = session2.NewSessionDatabase(nil)
-	app := fiber.New(fiber.Config{
-		DisableStartupMessage: true,
-	})
+	var db = session2.NewSessionDatabase(dataStore)
+	app := fiber.New(fiber.Config{})
 
-	app.Use(func(c *fiber.Ctx) error {
+	app.Use(func(c fiber.Ctx) error {
 		return pad.CheckAccess(c, setupLogger, &settings, readOnlyManager)
 	})
 
@@ -82,11 +82,11 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 	// init plugins
 	plugins.InitPlugins(epPluginStore)
 
-	var cookieStore = session.New(session.Config{
-		KeyLookup:      "cookie:express_sid",
+	var cookieStore = session.NewStore(session.Config{
+		Extractor:      extractors.FromCookie("express_sid"),
 		Storage:        db,
 		CookieSameSite: settings.Cookie.SameSite,
-		Expiration:     time.Duration(settings.Cookie.SessionLifetime),
+		IdleTimeout:    time.Duration(settings.Cookie.SessionLifetime),
 	})
 
 	hooks.ExpressPreSession(app, uiAssets)
@@ -112,16 +112,19 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 		Importer:          importer,
 	})
 
-	app.Get("/socket.io/*", func(c *fiber.Ctx) error {
-		return adaptor.HTTPHandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-			ws.ServeWs(writer, request, cookieStore, c, &settings, setupLogger, padMessageHandler)
+	app.Get("/socket.io/*", func(c fiber.Ctx) error {
+		done := make(chan struct{})
+		adaptor.HTTPHandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+			ws.ServeWs(writer, request, cookieStore, c, &settings, setupLogger, padMessageHandler, done)
 		})(c)
+		<-done
+		return nil
 	})
 
 	ssoAdminClient := settings.SSO.GetAdminClient()
 
 	if ssoAdminClient != nil {
-		app.Get("/admin/validate", func(c *fiber.Ctx) error {
+		app.Get("/admin/validate", func(c fiber.Ctx) error {
 			token := c.Query("token")
 			if token == "" {
 				setupLogger.Info("No token provided for admin validation")
@@ -139,7 +142,7 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 			return c.SendStatus(http.StatusOK)
 		})
 
-		app.Get("/admin/ws", func(c *fiber.Ctx) error {
+		app.Get("/admin/ws", func(c fiber.Ctx) error {
 			token := c.Query("token")
 			if token == "" {
 				setupLogger.Warn("No token provided for websocket connection")
@@ -150,15 +153,18 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 				setupLogger.Warn("Invalid token provided for websocket connection: " + err.Error())
 				return c.Status(http.StatusUnauthorized).Send([]byte("No token provided"))
 			}
-			return adaptor.HTTPHandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-				ws.ServeAdminWs(writer, request, c, &settings, setupLogger, adminMessageHandler)
+			done := make(chan struct{})
+			adaptor.HTTPHandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+				ws.ServeAdminWs(writer, request, c, &settings, setupLogger, adminMessageHandler, done)
 			})(c)
+			<-done
+			return nil
 		})
 	}
 
 	fiberString := fmt.Sprintf("%s:%s", settings.IP, settings.Port)
 	setupLogger.Info("Starting Web UI on " + fiberString)
-	err = app.Listen(fiberString)
+	err = app.Listen(fiberString, fiber.ListenConfig{DisableStartupMessage: true})
 	if err != nil {
 		setupLogger.Error("Error starting web UI: " + err.Error())
 		os.Exit(1)

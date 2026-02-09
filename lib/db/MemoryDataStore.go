@@ -22,11 +22,19 @@ type MemoryDataStore struct {
 	groupStore    map[string]string
 	serverVersion *db.ServerVersion
 
+	// fiber sessions
+	fiberSessionStore map[string]fiberSessionEntry
+
 	// oidc
 	accessTokens           map[string]fosite.Requester
 	accessTokenRequestIDs  map[string]string
 	refreshTokens          map[string]db.StoreRefreshToken
 	refreshTokenRequestIDs map[string]string
+}
+
+type fiberSessionEntry struct {
+	data      []byte
+	expiresAt int64
 }
 
 func (m *MemoryDataStore) Ping() error {
@@ -637,6 +645,51 @@ func (m *MemoryDataStore) Close() error {
 	return nil
 }
 
+// ============== FIBER SESSION METHODS ==============
+
+func (m *MemoryDataStore) GetFiberSession(key string) ([]byte, error) {
+	entry, ok := m.fiberSessionStore[key]
+	if !ok {
+		return nil, nil
+	}
+
+	// Check if session is expired
+	if entry.expiresAt != 0 && entry.expiresAt <= time.Now().Unix() {
+		delete(m.fiberSessionStore, key)
+		return nil, nil
+	}
+
+	return entry.data, nil
+}
+
+func (m *MemoryDataStore) SetFiberSession(key string, value []byte, expiresAt int64) error {
+	m.fiberSessionStore[key] = fiberSessionEntry{
+		data:      value,
+		expiresAt: expiresAt,
+	}
+	return nil
+}
+
+func (m *MemoryDataStore) DeleteFiberSession(key string) error {
+	delete(m.fiberSessionStore, key)
+	return nil
+}
+
+func (m *MemoryDataStore) ResetFiberSessions() error {
+	m.fiberSessionStore = make(map[string]fiberSessionEntry)
+	return nil
+}
+
+func (m *MemoryDataStore) CleanupExpiredFiberSessions() error {
+	now := time.Now().Unix()
+	for key, entry := range m.fiberSessionStore {
+		if entry.expiresAt != 0 && entry.expiresAt <= now {
+			delete(m.fiberSessionStore, key)
+		}
+	}
+	return nil
+}
+
 func NewMemoryDataStore() *MemoryDataStore {
 	return &MemoryDataStore{
 		padStore:               make(map[string]db.PadDB),
@@ -645,6 +698,7 @@ func NewMemoryDataStore() *MemoryDataStore {
 		chatPads:               make(map[string]db.ChatMessageDB),
 		sessionStore:           make(map[string]session2.Session),
 		groupStore:             make(map[string]string),
+		fiberSessionStore:      make(map[string]fiberSessionEntry),
 		accessTokens:           make(map[string]fosite.Requester),
 		accessTokenRequestIDs:  make(map[string]string),
 		refreshTokens:          make(map[string]db.StoreRefreshToken),

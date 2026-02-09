@@ -10,7 +10,7 @@ import (
 	"github.com/ether/etherpad-go/lib/models/webaccess"
 	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/ether/etherpad-go/lib/utils"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 type SecurityManager struct {
@@ -149,7 +149,7 @@ func (s *SecurityManager) CheckAccess(padId *string, sessionCookie *string, toke
 	return &grantedAccess, nil
 }
 
-func (s *SecurityManager) HasPadAccess(ctx *fiber.Ctx) bool {
+func (s *SecurityManager) HasPadAccess(ctx fiber.Ctx) bool {
 	tokenCookie := ctx.Cookies("token")
 	padId := ctx.Params("pad")
 	accessStatus, err := s.CheckAccess(&padId, nil, &tokenCookie, nil)
