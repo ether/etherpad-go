@@ -3,6 +3,7 @@ module github.com/ether/etherpad-go
 go 1.25.0
 
 require (
+	github.com/Masterminds/semver/v3 v3.1.1
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/a-h/templ v0.3.977
 	github.com/brianvoe/gofakeit/v7 v7.14.0
@@ -22,7 +23,7 @@ require (
 	github.com/ory/fosite v0.49.0
 	github.com/pdfcpu/pdfcpu v0.11.1
 	github.com/prometheus/client_golang v1.23.2
-	github.com/signintech/gopdf v0.35.0
+	github.com/signintech/gopdf v0.36.0
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.11.1
 	github.com/swaggo/swag v1.16.6
@@ -40,7 +41,6 @@ require (
 	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20230124172434-306776ec8161 // indirect
 	github.com/KyleBanks/depth v1.2.1 // indirect
-	github.com/Masterminds/semver/v3 v3.1.1 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/andybalholm/brotli v1.1.0 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
