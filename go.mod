@@ -3,7 +3,7 @@ module github.com/ether/etherpad-go
 go 1.25.0
 
 require (
-	github.com/Masterminds/semver/v3 v3.1.1
+	github.com/Masterminds/semver/v3 v3.4.0
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/a-h/templ v0.3.977
 	github.com/brianvoe/gofakeit/v7 v7.14.0
