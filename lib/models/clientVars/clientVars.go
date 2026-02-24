@@ -24,6 +24,7 @@ type CollabClientVars struct {
 	ClientIP              string                  `json:"clientIp"`
 	PadId                 string                  `json:"padId"`
 	HistoricalAuthorData  map[string]CollabAuthor `json:"historicalAuthorData"`
+	IsInitialAuthor       bool                    `json:"isInitialAuthor"`
 	Apool                 APool                   `json:"apool"`
 	Rev                   int                     `json:"rev"`
 	Time                  int64                   `json:"time"`

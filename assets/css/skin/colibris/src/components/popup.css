@@ -52,6 +52,9 @@
 
 #delete-pad {
   background-color: #ff7b72;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 @media (prefers-reduced-motion) {

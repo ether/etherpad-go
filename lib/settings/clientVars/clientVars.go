@@ -129,6 +129,15 @@ func (f *Factory) NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apoo
 		})
 	}
 
+	rev, err := pad.GetRevision(0)
+
+	var initialAuthor = false
+	if rev != nil && err == nil {
+		if rev.AuthorId != nil && *rev.AuthorId == sessionInfo.Author {
+			initialAuthor = true
+		}
+	}
+
 	return &clientVars.ClientVars{
 		SkinName:            retrievedSettings.SkinName,
 		SkinVariants:        retrievedSettings.SkinVariants,
@@ -152,8 +161,9 @@ func (f *Factory) NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apoo
 				NumToAttrib: etherPadConvertedAttribs,
 				NextNum:     apool.NextNum,
 			},
-			Rev:  pad.Head,
-			Time: *currentTime,
+			IsInitialAuthor: initialAuthor,
+			Rev:             pad.Head,
+			Time:            *currentTime,
 		},
 		ColorPalette:                       utils.ColorPalette,
 		ClientIP:                           "127.0.0.1",
