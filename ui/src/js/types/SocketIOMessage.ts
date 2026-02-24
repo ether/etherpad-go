@@ -47,6 +47,7 @@ export type ServerVar = {
     attribs: string
     text: string
   },
+  isInitialAuthor: boolean,
   apool: AttributePoolWire
   time: number
 }

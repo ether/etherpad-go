@@ -323,6 +323,15 @@ const handshake = async () => {
                     });
                 setInterval(ping, window.clientVars.sessionRefreshInterval);
             }
+
+            if (!window.clientVars.collab_client_vars.isInitialAuthor) {
+                const padDeleteButton = document.getElementById('delete-pad')
+                if (padDeleteButton) {
+                    padDeleteButton.remove()
+                }
+            }
+
+
             if (window.clientVars.mode === "development") {
                 console.warn('Enabling development mode with live update')
                 socket.on('liveupdate', () => {
