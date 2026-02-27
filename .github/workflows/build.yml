@@ -70,7 +70,7 @@ jobs:
           cp -r assets/css/build/* built-assets/css/build/
       - name: Upload assets
         if: matrix.arch == 'amd64'
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: built-assets
           path: built-assets/
@@ -171,7 +171,7 @@ jobs:
         timeout-minutes: 30
       - name: Upload Playwright report
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report-${{ matrix.os }}-${{ matrix.arch }}
           path: playwright/playwright-report/
@@ -248,7 +248,7 @@ jobs:
 
       - name: Upload digest
         if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: digests-${{ env.PLATFORM_PAIR }}
           path: ${{ runner.temp }}/digests/*
@@ -429,7 +429,7 @@ jobs:
           go build -ldflags="-s -w" -o etherpad-go-${{ matrix.suffix }}
 
       - name: Upload binary artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: binary-${{ matrix.suffix }}
           path: etherpad-go-${{ matrix.suffix }}
