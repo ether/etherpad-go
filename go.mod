@@ -6,7 +6,7 @@ require (
 	github.com/Masterminds/semver/v3 v3.4.0
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/a-h/templ v0.3.977
-	github.com/brianvoe/gofakeit/v7 v7.14.0
+	github.com/brianvoe/gofakeit/v7 v7.14.1
 	github.com/docker/go-connections v0.6.0
 	github.com/evanw/esbuild v0.27.3
 	github.com/go-jose/go-jose/v3 v3.0.4
