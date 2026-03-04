@@ -10,6 +10,7 @@ import (
 	"github.com/ether/etherpad-go/lib/api/author"
 	"github.com/ether/etherpad-go/lib/test/testutils"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestAuthor(t *testing.T) {
@@ -64,6 +65,7 @@ func testCreateAuthorNoName(t *testing.T, tsStore testutils.TestDataStore) {
 	req := httptest.NewRequest("POST", "/admin/api/author", bytes.NewBuffer(marshall))
 
 	resp, _ := initStore.C.Test(req, 10)
+	require.NotNil(t, resp)
 	if resp.StatusCode != 400 {
 		t.Errorf("should deny creation of author without required fields, got %d", resp.StatusCode)
 	}
@@ -74,6 +76,7 @@ func testCreateAuthorNoBody(t *testing.T, tsStore testutils.TestDataStore) {
 	req := httptest.NewRequest("POST", "/admin/api/author", nil)
 
 	resp, _ := tsStore.App.Test(req, 10)
+	require.NotNil(t, resp)
 	if resp.StatusCode != 400 {
 		t.Errorf("should deny creation of author with nil body, got %d", resp.StatusCode)
 	}
@@ -88,6 +91,7 @@ func testGetNotExistingAuthor(t *testing.T, tsStore testutils.TestDataStore) {
 	if err != nil {
 		t.Errorf("error getting not existing author: %v", err)
 	}
+	require.NotNil(t, resp)
 	if resp.StatusCode != 404 {
 		t.Errorf("should return 404 for not existing author, got %d", resp.StatusCode)
 	}
@@ -104,9 +108,8 @@ func testGetExistingAuthor(t *testing.T, tsStore testutils.TestDataStore) {
 	marshall, _ := json.Marshal(dto)
 	req := httptest.NewRequest("POST", "/admin/api/author", bytes.NewBuffer(marshall))
 	resp, err := initStore.C.Test(req, 5000)
-	if err != nil {
-		t.Errorf("error creating author: %v", err)
-	}
+	require.NoError(t, err)
+	require.NotNil(t, resp)
 	if resp.StatusCode != 200 {
 		t.Errorf("should create author, got %d", resp.StatusCode)
 	}
@@ -118,9 +121,8 @@ func testGetExistingAuthor(t *testing.T, tsStore testutils.TestDataStore) {
 	req = httptest.NewRequest("GET", "/admin/api/author/"+createdAuthor.AuthorId, nil)
 
 	resp, err = initStore.C.Test(req, 5000)
-	if err != nil {
-		t.Errorf("error getting author: %v", err)
-	}
+	require.NoError(t, err)
+	require.NotNil(t, resp)
 	if resp.StatusCode != 200 {
 		t.Errorf("should return the created author, got %d", resp.StatusCode)
 	}
@@ -136,18 +138,17 @@ func testGetAuthorPadIDS(t *testing.T, tsStore testutils.TestDataStore) {
 	req := httptest.NewRequest("GET", "/admin/api/author/"+dbAuthorToSave.ID+"/pads", nil)
 
 	resp, err := tsStore.App.Test(req, 5000)
-	if err != nil {
-		t.Errorf("error getting author pads: %v", err)
-	}
+	require.NoError(t, err)
+	require.NotNil(t, resp)
 	if resp.StatusCode != 200 {
 		t.Errorf("should return 200 for existing author pads, got %d", resp.StatusCode)
 	}
 
-	var padsResponse map[string]struct{}
+	var padsResponse []string
 	bytesOfResponse, _ := io.ReadAll(resp.Body)
 	_ = json.Unmarshal(bytesOfResponse, &padsResponse)
-	if len(padsResponse) != 0 {
-		t.Errorf("should return all pad IDs of author, expected %d got %d", 0, len(padsResponse))
+	if len(padsResponse) == 0 {
+		t.Errorf("expected at least one pad ID for author, got %d", len(padsResponse))
 	}
 }
 
@@ -195,7 +196,8 @@ func testCreateAuthorIfNotExistsForExisting(t *testing.T, tsStore testutils.Test
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := initStore.C.Test(req, 5000)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
+	require.NotNil(t, resp)
 	assert.Equal(t, 200, resp.StatusCode)
 
 	var firstResponse author.CreateDtoResponse
@@ -211,9 +213,10 @@ func testCreateAuthorIfNotExistsForExisting(t *testing.T, tsStore testutils.Test
 
 	req2 := httptest.NewRequest("POST", "/admin/api/author/createIfNotExistsFor", bytes.NewBuffer(body2))
 	req2.Header.Set("Content-Type", "application/json")
-	resp2, err := initStore.C.Test(req2, 100)
+	resp2, err := initStore.C.Test(req2, 5000)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
+	require.NotNil(t, resp2)
 	assert.Equal(t, 200, resp2.StatusCode)
 
 	var secondResponse author.CreateDtoResponse
@@ -237,7 +240,8 @@ func testGetAuthorName(t *testing.T, tsStore testutils.TestDataStore) {
 	req := httptest.NewRequest("GET", "/admin/api/author/"+createdAuthor.Id+"/name", nil)
 	resp, err := initStore.C.Test(req, 5000)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
+	require.NotNil(t, resp)
 	assert.Equal(t, 200, resp.StatusCode)
 
 	var response author.AuthorNameResponse
@@ -254,6 +258,7 @@ func testGetAuthorNameNotFound(t *testing.T, tsStore testutils.TestDataStore) {
 	req := httptest.NewRequest("GET", "/admin/api/author/a.nonexistent12345/name", nil)
 	resp, err := initStore.C.Test(req, 5000)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
+	require.NotNil(t, resp)
 	assert.Equal(t, 404, resp.StatusCode)
 }

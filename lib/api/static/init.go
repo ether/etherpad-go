@@ -103,7 +103,10 @@ func getAdminBody(uiAssets embed.FS, retrievedSettings *settings.Settings) (*str
 var loaderConfig = map[string]api.Loader{".css": api.LoaderCSS, ".svg": api.LoaderDataURL, ".woff2": api.LoaderDataURL, ".woff": api.LoaderDataURL, ".ttf": api.LoaderDataURL, ".eot": api.LoaderDataURL, ".otf": api.LoaderDataURL}
 
 func isDevEnabled(retrievedSettings *settings.Settings) bool {
-	return utils.IsDevModeEnabled() || (retrievedSettings != nil && retrievedSettings.DevMode)
+	if retrievedSettings != nil {
+		return retrievedSettings.DevMode
+	}
+	return utils.IsDevModeEnabled()
 }
 
 func buildColibrisCssInDev(retrievedSettings *settings.Settings) {

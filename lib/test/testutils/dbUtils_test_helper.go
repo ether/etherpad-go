@@ -37,6 +37,8 @@ import (
 // With parallel package execution, containers may be started per package.
 var containerConfigFile = filepath.Join(os.TempDir(), "etherpad_test_containers.json")
 var containerLockFile = filepath.Join(os.TempDir(), "etherpad_test_containers.lock")
+var mysqlTestRunLockFile = filepath.Join(os.TempDir(), "etherpad_test_mysql.lock")
+var postgresTestRunLockFile = filepath.Join(os.TempDir(), "etherpad_test_postgres.lock")
 
 // Global container instances - started once per test run
 var (
@@ -705,9 +707,19 @@ func (test *TestDBHandler) TestRun(
 		case "MySQL":
 			mysqlTestLock.Lock()
 			defer mysqlTestLock.Unlock()
+			release, err := acquireTestRunLock(mysqlTestRunLockFile, 2*time.Minute)
+			if err != nil {
+				t.Fatalf("failed to acquire MySQL test lock: %v", err)
+			}
+			defer release()
 		case "Postgres":
 			postgresTestLock.Lock()
 			defer postgresTestLock.Unlock()
+			release, err := acquireTestRunLock(postgresTestRunLockFile, 2*time.Minute)
+			if err != nil {
+				t.Fatalf("failed to acquire Postgres test lock: %v", err)
+			}
+			defer release()
 		}
 
 		ds := newDS()
@@ -767,4 +779,31 @@ func (test *TestDBHandler) TestRun(
 			t.Errorf("Failed to close DataStore: %v", err)
 		}
 	})
+}
+
+func acquireTestRunLock(lockPath string, timeout time.Duration) (func(), error) {
+	start := time.Now()
+	for {
+		file, err := os.OpenFile(lockPath, os.O_CREATE|os.O_EXCL|os.O_RDWR, 0600)
+		if err == nil {
+			_, _ = fmt.Fprintf(file, "%d\n", os.Getpid())
+			_ = file.Close()
+			return func() {
+				_ = os.Remove(lockPath)
+			}, nil
+		}
+		if !os.IsExist(err) {
+			return nil, err
+		}
+
+		if info, statErr := os.Stat(lockPath); statErr == nil && time.Since(info.ModTime()) > timeout {
+			_ = os.Remove(lockPath)
+			continue
+		}
+
+		if time.Since(start) > timeout {
+			return nil, fmt.Errorf("timeout waiting for lock file %s", lockPath)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
 }
