@@ -1,4 +1,6 @@
 .idea
+node_modules/
+pnpm-debug.log*
 
 settings.json
 *.db

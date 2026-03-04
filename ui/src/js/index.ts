@@ -1,5 +1,3 @@
-'use strict';
-
 /* eslint-disable-next-line max-len */
 // @license magnet:?xt=urn:btih:8e4f440f4c65981c5bf93c76d35135ba5064d8b7&dn=apache-2.0.txt Apache-2.0
 /**
@@ -40,24 +38,41 @@ const randomPadName = () => {
   return randomstring;
 };
 
-$(() => {
-  $('#go2Name').on('submit', () => {
-    const padname = $('#padname').val() as string;
+const byId = <T extends HTMLElement>(id: string): T => {
+  const element = document.getElementById(id);
+  if (element == null) {
+    throw new Error(`Element #${id} not found`);
+  }
+  return element as T;
+};
+
+const initWelcomeScreen = (): void => {
+  const goToNameForm = byId<HTMLFormElement>('go2Name');
+  const padNameInput = byId<HTMLInputElement>('padname');
+  const randomButton = byId<HTMLButtonElement>('button');
+
+  goToNameForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const padname = padNameInput.value.trim();
     if (padname.length > 0) {
-      window.location.href = `p/${encodeURIComponent(padname.trim())}`;
-    } else {
-      alert('Please enter a name');
+      window.location.href = `p/${encodeURIComponent(padname)}`;
+      return;
     }
-    return false;
+    alert('Please enter a name');
   });
 
-  $('#button').on('click', () => {
+  randomButton.addEventListener('click', () => {
     window.location.href = `p/${randomPadName()}`;
   });
 
   // start the custom js
-  // @ts-ignore
   if (typeof window.customStart === 'function') window.customStart();
-});
+};
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initWelcomeScreen, {once: true});
+} else {
+  initWelcomeScreen();
+}
 
 // @license-end

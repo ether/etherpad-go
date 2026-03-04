@@ -1,5 +1,4 @@
 // @ts-nocheck
-'use strict';
 
 /**
  * Copyright 2009 Google Inc.
@@ -18,14 +17,23 @@
  */
 
 import padutils from './pad_utils'
-const hooks = require('./pluginfw/hooks');
-import html10n from './vendors/html10n';
+import * as hooks from './pluginfw/hooks';
+import html10n from './i18n';
 let myUserInfo = {};
 
 let colorPickerOpen = false;
 let colorPickerSetup = false;
+const q = (selector) => document.querySelector(selector);
+const qa = (selector) => Array.from(document.querySelectorAll(selector));
+const toHexColor = (color: string): string => {
+  if (/^#[0-9a-f]{6}$/i.test(color)) return color;
+  const match = color.match(/^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/i);
+  if (!match) return '#000000';
+  const parts = match.slice(1).map((part) => Number.parseInt(part, 10).toString(16).padStart(2, '0'));
+  return `#${parts.join('')}`;
+};
 
-const paduserlist = (() => {
+export const paduserlist = (() => {
   const rowManager = (() => {
     // The row manager handles rendering rows of the user list and animating
     // their insertion, removal, and reordering.  It manipulates TD height
@@ -47,19 +55,23 @@ const paduserlist = (() => {
         const step = ++row.animationStep;
         const animHeight = getAnimationHeight(step, row.animationPower);
         const node = rowNode(row);
+        if (!node) continue;
         const baseOpacity = (row.opacity === undefined ? 1 : row.opacity);
         if (step <= -OPACITY_STEPS) {
-          node.find('td').height(animHeight);
+          setTdHeight(node, animHeight);
         } else if (step === -OPACITY_STEPS + 1) {
-          node.empty().append(createUserRowTds(animHeight, row.data))
-              .find('td').css('opacity', baseOpacity * 1 / OPACITY_STEPS);
+          node.innerHTML = '';
+          node.append(...createUserRowTds(animHeight, row.data));
+          setTdOpacity(node, baseOpacity * 1 / OPACITY_STEPS);
         } else if (step < 0) {
-          node.find('td').css('opacity', baseOpacity * (OPACITY_STEPS - (-step)) / OPACITY_STEPS)
-              .height(animHeight);
+          setTdOpacity(node, baseOpacity * (OPACITY_STEPS - (-step)) / OPACITY_STEPS);
+          setTdHeight(node, animHeight);
         } else if (step === 0) {
           // set HTML in case modified during animation
-          node.empty().append(createUserRowTds(animHeight, row.data))
-              .find('td').css('opacity', baseOpacity * 1).height(animHeight);
+          node.innerHTML = '';
+          node.append(...createUserRowTds(animHeight, row.data));
+          setTdOpacity(node, baseOpacity * 1);
+          setTdHeight(node, animHeight);
           rowsFadingIn.splice(i, 1); // remove from set
         }
       }
@@ -67,15 +79,17 @@ const paduserlist = (() => {
         const row = rowsFadingOut[i];
         const step = ++row.animationStep;
         const node = rowNode(row);
+        if (!node) continue;
         const animHeight = getAnimationHeight(step, row.animationPower);
         const baseOpacity = (row.opacity === undefined ? 1 : row.opacity);
         if (step < OPACITY_STEPS) {
-          node.find('td').css('opacity', baseOpacity * (OPACITY_STEPS - step) / OPACITY_STEPS)
-              .height(animHeight);
+          setTdOpacity(node, baseOpacity * (OPACITY_STEPS - step) / OPACITY_STEPS);
+          setTdHeight(node, animHeight);
         } else if (step === OPACITY_STEPS) {
-          node.empty().append(createEmptyRowTds(animHeight));
+          node.innerHTML = '';
+          node.append(...createEmptyRowTds(animHeight));
         } else if (step <= ANIMATION_END) {
-          node.find('td').height(animHeight);
+          setTdHeight(node, animHeight);
         } else {
           rowsFadingOut.splice(i, 1); // remove from set
           node.remove();
@@ -107,28 +121,39 @@ const paduserlist = (() => {
     // we do lots of manipulation of table rows and stuff that JQuery makes ok, despite
     // IE's poor handling when manipulating the DOM directly.
 
-    const createEmptyRowTds = (height) => $('<td>')
-        .attr('colspan', NUMCOLS)
-        .css('border', 0)
-        .css('height', `${height}px`);
+    const setTdHeight = (tr, height) => {
+      tr.querySelectorAll('td').forEach((td) => {
+        td.style.height = `${height}px`;
+      });
+    };
+
+    const setTdOpacity = (tr, opacity) => {
+      tr.querySelectorAll('td').forEach((td) => {
+        td.style.opacity = `${opacity}`;
+      });
+    };
+
+    const createEmptyRowTds = (height) => {
+      const td = document.createElement('td');
+      td.colSpan = NUMCOLS;
+      td.style.border = '0';
+      td.style.height = `${height}px`;
+      return [td];
+    };
 
     const isNameEditable = (data) => (!data.name) && (data.status !== 'Disconnected');
 
     const replaceUserRowContents = (tr, height, data) => {
       const tds = createUserRowTds(height, data);
-      if (isNameEditable(data) && tr.find('td.usertdname input:enabled').length > 0) {
+      if (isNameEditable(data) && tr.querySelector('td.usertdname input:enabled')) {
         // preserve input field node
-        tds.each((i, td) => {
-          const oldTd = $(tr.find('td').get(i));
-          if (!oldTd.hasClass('usertdname')) {
-            oldTd.replaceWith(td);
-          } else {
-            // Prevent leak. I'm not 100% confident that this is necessary, but it shouldn't hurt.
-            $(td).remove();
-          }
+        tds.forEach((td, i) => {
+          const oldTd = tr.querySelectorAll('td')[i];
+          if (!oldTd?.classList.contains('usertdname')) oldTd?.replaceWith(td);
         });
       } else {
-        tr.empty().append(tds);
+        tr.innerHTML = '';
+        tr.append(...tds);
       }
       return tr;
     };
@@ -138,38 +163,46 @@ const paduserlist = (() => {
       if (data.name) {
         name = document.createTextNode(data.name);
       } else {
-        name = $('<input>')
-            .attr('data-l10n-id', 'pad.userlist.unnamed')
-            .attr('type', 'text')
-            .addClass('editempty')
-            .addClass('newinput')
-            .attr('value', html10n.get('pad.userlist.unnamed'));
-        if (isNameEditable(data)) name.attr('disabled', 'disabled');
+        const input = document.createElement('input');
+        input.setAttribute('data-l10n-id', 'pad.userlist.unnamed');
+        input.type = 'text';
+        input.classList.add('editempty', 'newinput');
+        input.value = html10n.get('pad.userlist.unnamed');
+        if (isNameEditable(data)) input.disabled = true;
+        name = input;
       }
-      return $()
-          .add($('<td>')
-              .css('height', `${height}px`)
-              .addClass('usertdswatch')
-              .append($('<div>')
-                  .addClass('swatch')
-                  .css('background', padutils.escapeHtml(data.color))
-                  .html('&nbsp;')))
-          .add($('<td>')
-              .css('height', `${height}px`)
-              .addClass('usertdname')
-              .append(name))
-          .add($('<td>')
-              .css('height', `${height}px`)
-              .addClass('activity')
-              .text(data.activity));
+
+      const tdSwatch = document.createElement('td');
+      tdSwatch.style.height = `${height}px`;
+      tdSwatch.className = 'usertdswatch';
+      const swatch = document.createElement('div');
+      swatch.className = 'swatch';
+      swatch.style.background = padutils.escapeHtml(data.color);
+      swatch.innerHTML = '&nbsp;';
+      tdSwatch.appendChild(swatch);
+
+      const tdName = document.createElement('td');
+      tdName.style.height = `${height}px`;
+      tdName.className = 'usertdname';
+      tdName.append(name);
+
+      const tdActivity = document.createElement('td');
+      tdActivity.style.height = `${height}px`;
+      tdActivity.className = 'activity';
+      tdActivity.textContent = data.activity;
+
+      return [tdSwatch, tdName, tdActivity];
     };
 
-    const createRow = (id, contents, authorId) => $('<tr>')
-        .attr('data-authorId', authorId)
-        .attr('id', id)
-        .append(contents);
+    const createRow = (id, contents, authorId) => {
+      const tr = document.createElement('tr');
+      tr.setAttribute('data-authorId', authorId);
+      tr.id = id;
+      tr.append(...contents);
+      return tr;
+    };
 
-    const rowNode = (row) => $(`#${row.domId}`);
+    const rowNode = (row) => document.getElementById(row.domId);
 
     const handleRowData = (row) => {
       if (row.data && row.data.status === 'Disconnected') {
@@ -181,17 +214,19 @@ const paduserlist = (() => {
 
     const handleOtherUserInputs = () => {
       // handle 'INPUT' elements for naming other unnamed users
-      $('#otheruserstable input.newinput').each(function () {
-        const input = $(this);
+      qa('#otheruserstable input.newinput').forEach((input) => {
+        if (!(input instanceof HTMLInputElement)) return;
         const tr = input.closest('tr');
-        if (tr.length > 0) {
-          const index = tr.parent().children().index(tr);
+        if (tr) {
+          const rows = Array.from(tr.parentElement?.children || []);
+          const index = rows.indexOf(tr);
           if (index >= 0 && rowsPresent.length > index) {
             const userId = rowsPresent[index].data.id;
-            rowManagerMakeNameEditor($(this), userId);
+            rowManagerMakeNameEditor(input, userId);
           }
         }
-      }).removeClass('newinput');
+        input.classList.remove('newinput');
+      });
     };
 
     // animationPower is 0 to skip animation, 1 for linear, 2 for quadratic, etc.
@@ -220,11 +255,12 @@ const paduserlist = (() => {
         rowsFadingIn.push(row);
         tr = createRow(domId, createEmptyRowTds(getAnimationHeight(ANIMATION_START)), authorId);
       }
-      $('table#otheruserstable').show();
+      const otherUserTable = q('table#otheruserstable');
+      if (otherUserTable) otherUserTable.style.display = '';
       if (position === 0) {
-        $('table#otheruserstable').prepend(tr);
+        otherUserTable?.prepend(tr);
       } else {
-        rowNode(rowsPresent[position - 1]).after(tr);
+        rowNode(rowsPresent[position - 1])?.after(tr);
       }
 
       if (animationPower !== 0) {
@@ -244,9 +280,9 @@ const paduserlist = (() => {
         if (row.animationStep === 0) {
           // not currently animating
           const tr = rowNode(row);
-          replaceUserRowContents(tr, getAnimationHeight(0), row.data)
-              .find('td')
-              .css('opacity', (row.opacity === undefined ? 1 : row.opacity));
+          if (!tr) return;
+          replaceUserRowContents(tr, getAnimationHeight(0), row.data);
+          setTdOpacity(tr, (row.opacity === undefined ? 1 : row.opacity));
           handleOtherUserInputs();
         }
       }
@@ -258,7 +294,7 @@ const paduserlist = (() => {
       if (row) {
         rowsPresent.splice(position, 1); // remove
         if (animationPower === 0) {
-          rowNode(row).remove();
+          rowNode(row)?.remove();
         } else {
           row.animationStep = -row.animationStep; // use symmetry
           row.animationPower = animationPower;
@@ -267,7 +303,8 @@ const paduserlist = (() => {
         }
       }
       if (rowsPresent.length === 0) {
-        $('table#otheruserstable').hide();
+        const otherUserTable = q('table#otheruserstable');
+        if (otherUserTable) otherUserTable.style.display = 'none';
       }
     };
 
@@ -295,8 +332,19 @@ const paduserlist = (() => {
   const otherUsersInfo = [];
   const otherUsersData = [];
 
+  const asInput = (node) => {
+    if (node instanceof HTMLInputElement) return node;
+    if (node && typeof node.get === 'function') {
+      const el = node.get(0);
+      if (el instanceof HTMLInputElement) return el;
+    }
+    return null;
+  };
+
   const rowManagerMakeNameEditor = (jnode, userId) => {
-    setUpEditable(jnode, () => {
+    const inputNode = asInput(jnode);
+    if (!(inputNode instanceof HTMLInputElement)) return;
+    setUpEditable(inputNode, () => {
       const existingIndex = findExistingIndex(userId);
       if (existingIndex >= 0) {
         return otherUsersInfo[existingIndex].name || '';
@@ -305,10 +353,10 @@ const paduserlist = (() => {
       }
     }, (newName) => {
       if (!newName) {
-        jnode.addClass('editempty');
-        jnode.val(html10n.get('pad.userlist.unnamed'));
+        inputNode.classList.add('editempty');
+        inputNode.value = html10n.get('pad.userlist.unnamed');
       } else {
-        jnode.attr('disabled', 'disabled');
+        inputNode.disabled = true;
         pad.suggestUserName(userId, newName);
       }
     });
@@ -326,23 +374,28 @@ const paduserlist = (() => {
   };
 
   const setUpEditable = (jqueryNode, valueGetter, valueSetter) => {
-    jqueryNode.on('focus', (evt) => {
+    if (!(jqueryNode instanceof HTMLInputElement)) return;
+    jqueryNode.addEventListener('focus', () => {
       const oldValue = valueGetter();
-      if (jqueryNode.val() !== oldValue) {
-        jqueryNode.val(oldValue);
+      if (jqueryNode.value !== oldValue) {
+        jqueryNode.value = oldValue;
       }
-      jqueryNode.addClass('editactive').removeClass('editempty');
+      jqueryNode.classList.add('editactive');
+      jqueryNode.classList.remove('editempty');
     });
-    jqueryNode.on('blur', (evt) => {
-      const newValue = jqueryNode.removeClass('editactive').val();
+    jqueryNode.addEventListener('blur', () => {
+      jqueryNode.classList.remove('editactive');
+      const newValue = jqueryNode.value;
       valueSetter(newValue);
     });
     padutils.bindEnterAndEscape(jqueryNode, () => {
-      jqueryNode.trigger('blur');
+      jqueryNode.blur();
     }, () => {
-      jqueryNode.val(valueGetter()).trigger('blur');
+      jqueryNode.value = valueGetter();
+      jqueryNode.blur();
     });
-    jqueryNode.prop('disabled', false).addClass('editable');
+    jqueryNode.disabled = false;
+    jqueryNode.classList.add('editable');
   };
 
   let pad = undefined;
@@ -351,14 +404,21 @@ const paduserlist = (() => {
       pad = _pad;
       self.setMyUserInfo(myInitialUserInfo);
 
-      if ($('#online_count').length === 0) {
-        $('#editbar [data-key=showusers] > a').append('<span id="online_count">1</span>');
+      if (q('#online_count') == null) {
+        const target = q('#editbar [data-key=showusers] > a');
+        if (target) {
+          const onlineCount = document.createElement('span');
+          onlineCount.id = 'online_count';
+          onlineCount.textContent = '1';
+          target.append(onlineCount);
+        }
       }
 
-      $('#otheruserstable tr').remove();
+      qa('#otheruserstable tr').forEach((tr) => tr.remove());
 
-      $('#myusernameedit').addClass('myusernameedithoverable');
-      setUpEditable($('#myusernameedit'), () => myUserInfo.name || '', (newValue) => {
+      const myUsernameEdit = q('#myusernameedit');
+      myUsernameEdit?.classList.add('myusernameedithoverable');
+      setUpEditable(myUsernameEdit, () => myUserInfo.name || '', (newValue) => {
         myUserInfo.name = newValue;
         pad.notifyChangeName(newValue);
         // wrap with setTimeout to do later because we get
@@ -369,15 +429,18 @@ const paduserlist = (() => {
       });
 
       // color picker
-      $('#myswatchbox').on('click', showColorPicker);
-      $('#mycolorpicker .pickerswatchouter').on('click', function () {
-        $('#mycolorpicker .pickerswatchouter').removeClass('picked');
-        $(this).addClass('picked');
+      q('#myswatchbox')?.addEventListener('click', showColorPicker);
+      q('#mycolorpicker')?.addEventListener('click', (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) return;
+        if (!target.classList.contains('pickerswatchouter')) return;
+        qa('#mycolorpicker .pickerswatchouter').forEach((el) => el.classList.remove('picked'));
+        target.classList.add('picked');
       });
-      $('#mycolorpickersave').on('click', () => {
+      q('#mycolorpickersave')?.addEventListener('click', () => {
         closeColorPicker(true);
       });
-      $('#mycolorpickercancel').on('click', () => {
+      q('#mycolorpickercancel')?.addEventListener('click', () => {
         closeColorPicker(false);
       });
       //
@@ -417,8 +480,7 @@ const paduserlist = (() => {
         info.colorId = clientVars.colorPalette[info.colorId];
       }
 
-      myUserInfo = $.extend(
-          {}, info);
+      myUserInfo = Object.assign({}, info);
 
       self.renderMyUserInfo();
     },
@@ -500,7 +562,8 @@ const paduserlist = (() => {
         localStorage.setItem('recentPads', JSON.stringify(recentPadsList));
       }
 
-      $('#online_count').text(online);
+      const onlineCount = q('#online_count');
+      if (onlineCount) onlineCount.textContent = `${online}`;
 
       return online;
     },
@@ -539,28 +602,48 @@ const paduserlist = (() => {
     },
     renderMyUserInfo: () => {
       if (myUserInfo.name) {
-        $('#myusernameedit').removeClass('editempty').val(myUserInfo.name);
+        const myUsernameEdit = q('#myusernameedit');
+        if (myUsernameEdit instanceof HTMLInputElement) {
+          myUsernameEdit.classList.remove('editempty');
+          myUsernameEdit.value = myUserInfo.name;
+        }
       } else {
-        $('#myusernameedit').attr('placeholder', html10n.get('pad.userlist.entername'));
+        const myUsernameEdit = q('#myusernameedit');
+        if (myUsernameEdit instanceof HTMLInputElement) {
+          myUsernameEdit.setAttribute('placeholder', html10n.get('pad.userlist.entername'));
+        }
       }
       if (colorPickerOpen) {
-        $('#myswatchbox').addClass('myswatchboxunhoverable').removeClass('myswatchboxhoverable');
+        const mySwatchBox = q('#myswatchbox');
+        mySwatchBox?.classList.add('myswatchboxunhoverable');
+        mySwatchBox?.classList.remove('myswatchboxhoverable');
       } else {
-        $('#myswatchbox').addClass('myswatchboxhoverable').removeClass('myswatchboxunhoverable');
+        const mySwatchBox = q('#myswatchbox');
+        mySwatchBox?.classList.add('myswatchboxhoverable');
+        mySwatchBox?.classList.remove('myswatchboxunhoverable');
       }
 
-      $('#myswatch').css({'background-color': myUserInfo.colorId});
-      $('li[data-key=showusers] > a').css({'box-shadow': `inset 0 0 30px ${myUserInfo.colorId}`});
+      const mySwatch = q('#myswatch');
+      if (mySwatch instanceof HTMLElement) mySwatch.style.backgroundColor = myUserInfo.colorId;
+      const showUsersAnchor = q('li[data-key=showusers] > a');
+      if (showUsersAnchor instanceof HTMLElement) {
+        showUsersAnchor.style.boxShadow = `inset 0 0 30px ${myUserInfo.colorId}`;
+      }
     },
   };
   return self;
 })();
 
-const getColorPickerSwatchIndex = (jnode) => $('#colorpickerswatches li').index(jnode);
+const getColorPickerSwatchIndex = (jnode) => {
+  if (!(jnode instanceof HTMLElement)) return -1;
+  const swatches = qa('#colorpickerswatches li');
+  return swatches.indexOf(jnode);
+};
 
 const closeColorPicker = (accept) => {
   if (accept) {
-    let newColor = $('#mycolorpickerpreview').css('background-color');
+    const preview = q('#mycolorpickerpreview');
+    let newColor = preview instanceof HTMLElement ? getComputedStyle(preview).backgroundColor : '';
     const parts = newColor.match(/^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/);
     // parts now should be ["rgb(0, 70, 255", "0", "70", "255"]
     if (parts) {
@@ -580,29 +663,56 @@ const closeColorPicker = (accept) => {
   }
 
   colorPickerOpen = false;
-  $('#mycolorpicker').removeClass('popup-show');
+  q('#mycolorpicker')?.classList.remove('popup-show');
+};
+
+const ensureNativeColorPicker = () => {
+  const colorPickerHost = q('#colorpicker');
+  if (!(colorPickerHost instanceof HTMLElement)) return null;
+
+  let input = colorPickerHost.querySelector<HTMLInputElement>('input[type="color"][data-native-color-picker="true"]');
+  if (!input) {
+    input = document.createElement('input');
+    input.type = 'color';
+    input.setAttribute('data-native-color-picker', 'true');
+    input.className = 'native-colorpicker-input';
+    colorPickerHost.replaceChildren(input);
+  }
+
+  const preview = q('#mycolorpickerpreview');
+  if (!input.dataset.listenerAttached) {
+    input.addEventListener('input', () => {
+      const color = input?.value ?? '#000000';
+      if (preview instanceof HTMLElement) preview.style.backgroundColor = color;
+      pad.notifyChangeColor(color);
+    });
+    input.dataset.listenerAttached = 'true';
+  }
+  return input;
 };
 
 const showColorPicker = () => {
-  $.farbtastic('#colorpicker').setColor(myUserInfo.colorId);
+  const colorInput = ensureNativeColorPicker();
+  if (colorInput instanceof HTMLInputElement) {
+    colorInput.value = toHexColor(String(myUserInfo.colorId ?? '#000000'));
+    const preview = q('#mycolorpickerpreview');
+    if (preview instanceof HTMLElement) preview.style.backgroundColor = colorInput.value;
+  }
 
   if (!colorPickerOpen) {
     const palette = pad.getColorPalette();
 
     if (!colorPickerSetup) {
-      const colorsList = $('#colorpickerswatches');
+      const colorsList = q('#colorpickerswatches');
       for (let i = 0; i < palette.length; i++) {
-        const li = $('<li>', {
-          style: `background: ${palette[i]};`,
-        });
+        const li = document.createElement('li');
+        li.style.background = palette[i];
+        colorsList?.appendChild(li);
 
-        li.appendTo(colorsList);
-
-        li.on('click', (event) => {
-          $('#colorpickerswatches li').removeClass('picked');
-          $(event.target).addClass('picked');
-
-          const newColorId = getColorPickerSwatchIndex($('#colorpickerswatches .picked'));
+        li.addEventListener('click', (event) => {
+          qa('#colorpickerswatches li').forEach((el) => el.classList.remove('picked'));
+          if (event.target instanceof HTMLElement) event.target.classList.add('picked');
+          const newColorId = getColorPickerSwatchIndex(q('#colorpickerswatches .picked'));
           pad.notifyChangeColor(newColorId);
         });
       }
@@ -610,12 +720,11 @@ const showColorPicker = () => {
       colorPickerSetup = true;
     }
 
-    $('#mycolorpicker').addClass('popup-show');
+    q('#mycolorpicker')?.classList.add('popup-show');
     colorPickerOpen = true;
 
-    $('#colorpickerswatches li').removeClass('picked');
-    $($('#colorpickerswatches li')[myUserInfo.colorId]).addClass('picked'); // seems weird
+    qa('#colorpickerswatches li').forEach((el) => el.classList.remove('picked'));
+    const current = qa('#colorpickerswatches li')[myUserInfo.colorId];
+    current?.classList.add('picked');
   }
 };
-
-exports.paduserlist = paduserlist;

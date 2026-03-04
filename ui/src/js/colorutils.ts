@@ -1,5 +1,4 @@
 // @ts-nocheck
-'use strict';
 
 /**
  * This code is mostly from the old Etherpad. Please help us to comment this code.
@@ -25,7 +24,7 @@
  * limitations under the License.
  */
 
-const colorutils = {};
+export const colorutils = {};
 
 // Check that a given value is a css hex color value, e.g.
 // "#ffffff" or "#fff"
@@ -118,5 +117,3 @@ colorutils.textColorFromBackgroundColor = (bgcolor, skinName) => {
 
   return colorutils.luminosity(colorutils.css2triple(bgcolor)) < 0.5 ? white : black;
 };
-
-exports.colorutils = colorutils;

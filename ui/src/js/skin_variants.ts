@@ -1,11 +1,10 @@
 // @ts-nocheck
-'use strict';
 
 const containers = ['editor', 'background', 'toolbar'];
 const colors = ['super-light', 'light', 'dark', 'super-dark'];
 
 // add corresponding classes when config change
-const updateSkinVariantsClasses = (newClasses) => {
+export const updateSkinVariantsClasses = (newClasses) => {
   const domsToUpdate = [
     $('html'),
     $('iframe[name=ace_outer]').contents().find('html'),
@@ -24,20 +23,20 @@ const updateSkinVariantsClasses = (newClasses) => {
 };
 
 
-const isDarkMode = ()=>{
+export const isDarkMode = ()=>{
   return $('html').hasClass('super-dark-editor')
 }
 
 
-const setDarkModeInLocalStorage = (isDark)=>{
+export const setDarkModeInLocalStorage = (isDark)=>{
   localStorage.setItem('ep_darkMode', isDark?'true':'false');
 }
 
-const isDarkModeEnabledInLocalStorage = ()=>{
+export const isDarkModeEnabledInLocalStorage = ()=>{
   return localStorage.getItem('ep_darkMode')==='true';
 }
 
-const isWhiteModeEnabledInLocalStorage = ()=>{
+export const isWhiteModeEnabledInLocalStorage = ()=>{
   return localStorage.getItem('ep_darkMode')==='false';
 }
 
@@ -77,9 +76,3 @@ if (window.location.hash.toLowerCase() === '#skinvariantsbuilder') {
   updateCheckboxFromSkinClasses();
   updateSkinVariantsClasses(getNewClasses());
 }
-
-exports.isDarkMode = isDarkMode;
-exports.setDarkModeInLocalStorage = setDarkModeInLocalStorage
-exports.isWhiteModeEnabledInLocalStorage = isWhiteModeEnabledInLocalStorage
-exports.isDarkModeEnabledInLocalStorage = isDarkModeEnabledInLocalStorage
-exports.updateSkinVariantsClasses = updateSkinVariantsClasses;

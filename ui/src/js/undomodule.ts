@@ -1,5 +1,4 @@
 // @ts-nocheck
-'use strict';
 
 /**
  * This code is mostly from the old Etherpad. Please help us to comment this code.
@@ -24,9 +23,9 @@
  */
 
 import {characterRangeFollow, compose, follow, isIdentity, unpack} from './Changeset';
-const _ = require('./underscore');
+import * as _ from 'underscore';
 
-const undoModule = (() => {
+export const undoModule = (() => {
   const stack = (() => {
     const stackElements = [];
     // two types of stackElements:
@@ -282,5 +281,3 @@ const undoModule = (() => {
     apool: null,
   }; // apool is filled in by caller
 })();
-
-exports.undoModule = undoModule;

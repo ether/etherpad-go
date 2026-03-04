@@ -1,19 +1,18 @@
 // @ts-nocheck
-'use strict';
 
 /**
  * Handler for the shoutMessage client message.
  * This is part of the ep_message_all functionality.
  */
 
-const chat = require('./chat');
+import {chat} from './chat';
 
 /**
  * Handles the shoutMessage event - displays a message to all users in the pad.
  * @param hookName - The name of the hook being called
  * @param context - The context object containing the message payload
  */
-exports.handleClientMessage_shoutMessage = (hookName: string, context: any) => {
+export const handleClientMessage_shoutMessage = (hookName: string, context: any) => {
   const { payload } = context;
 
   if (!payload) {
@@ -24,8 +23,8 @@ exports.handleClientMessage_shoutMessage = (hookName: string, context: any) => {
   // Display the shout message - could be shown in chat or as a notification
   if (payload.message) {
     // Option 1: Show in chat
-    if (chat.chat && typeof chat.chat.addMessage === 'function') {
-      chat.chat.addMessage({
+    if (chat && typeof chat.addMessage === 'function') {
+      chat.addMessage({
         text: payload.message,
         userId: payload.userId || 'system',
         time: Date.now(),

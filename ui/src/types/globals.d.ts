@@ -1,0 +1,25 @@
+export {};
+
+declare global {
+  interface Window {
+    BroadcastSlider?: unknown;
+    browser?: unknown;
+    chat?: unknown;
+    clientVars: {
+      randomVersionString: string;
+      [key: string]: unknown;
+    };
+    customStart?: () => void;
+    pad?: unknown;
+    padeditbar?: unknown;
+    padimpexp?: unknown;
+    pluginDefs?: unknown;
+    plugins?: {
+      setBaseURL: (value: string) => void;
+      update: (modules?: Map<string, unknown>) => Promise<void>;
+    };
+    require?: (moduleName: string) => unknown;
+    _postPluginUpdateForTesting?: () => void;
+    _postPluginUpdateForTestingDone?: boolean;
+  }
+}

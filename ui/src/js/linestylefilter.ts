@@ -1,5 +1,4 @@
 // @ts-nocheck
-'use strict';
 
 /**
  * This code is mostly from the old Etherpad. Please help us to comment this code.
@@ -33,9 +32,9 @@
 
 import {deserializeOps} from './Changeset';
 import attributes from './attributes';
-const hooks = require('./pluginfw/hooks');
-const linestylefilter = {};
-const AttributeManager = require('./AttributeManager');
+import * as hooks from './pluginfw/hooks';
+export const linestylefilter = {};
+import AttributeManager from './AttributeManager';
 import padutils from './pad_utils'
 import Op from "./Op";
 
@@ -46,8 +45,7 @@ linestylefilter.ATTRIB_CLASSES = {
   strikethrough: 'tag:s',
 };
 
-const lineAttributeMarker = 'lineAttribMarker';
-exports.lineAttributeMarker = lineAttributeMarker;
+export const lineAttributeMarker = 'lineAttribMarker';
 
 linestylefilter.getAuthorClassName = (author) => `author-${author.replace(/[^a-y0-9]/g, (c) => {
   if (c === '.') return '-';
@@ -289,5 +287,3 @@ linestylefilter.populateDomLine = (textLine, aline, apool, domLineObj) => {
   func = linestylefilter.getLineStyleFilter(text.length, aline, func, apool);
   func(text, '');
 };
-
-exports.linestylefilter = linestylefilter;

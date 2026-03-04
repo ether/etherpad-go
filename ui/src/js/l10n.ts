@@ -1,4 +1,4 @@
-import html10n from '../js/vendors/html10n';
+import html10n from './i18n';
 
 
 // Set language for l10n

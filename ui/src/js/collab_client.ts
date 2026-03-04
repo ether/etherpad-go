@@ -1,5 +1,4 @@
 // @ts-nocheck
-'use strict';
 
 /**
  * This code is mostly from the old Etherpad. Please help us to comment this code.
@@ -23,9 +22,9 @@
  * limitations under the License.
  */
 
-const chat = require('./chat').chat;
-const hooks = require('./pluginfw/hooks');
-const browser = require('./vendors/browser');
+import {chat} from './chat';
+import * as hooks from './pluginfw/hooks';
+import {browserFlags as browser} from './browser_flags';
 
 // Dependency fill on init. This exists for `pad.socket` only.
 // TODO: bind directly to the socket.
@@ -35,7 +34,7 @@ const getSocket = () => pad && pad.socket;
 /** Call this when the document is ready, and a new Ace2Editor() has been created and inited.
     ACE's ready callback does not need to have fired yet.
     "serverVars" are from calling doc.getCollabClientVars() on the server. */
-const getCollabClient = (ace2editor, serverVars, initialUserInfo, options, _pad) => {
+export const getCollabClient = (ace2editor, serverVars, initialUserInfo, options, _pad) => {
   const editor = ace2editor;
   pad = _pad; // Inject pad to avoid a circular dependency.
 
@@ -67,8 +66,8 @@ const getCollabClient = (ace2editor, serverVars, initialUserInfo, options, _pad)
   if (browser.firefox) {
     // Prevent "escape" from taking effect and canceling a comet connection;
     // doesn't work if focus is on an iframe.
-    $(window).on('keydown', (evt) => {
-      if (evt.which === 27) {
+    window.addEventListener('keydown', (evt) => {
+      if (evt.key === 'Escape') {
         evt.preventDefault();
       }
     });
@@ -296,14 +295,16 @@ const getCollabClient = (ace2editor, serverVars, initialUserInfo, options, _pad)
       }
 
       // messages are loaded, so hide the loading-ball
-      $('#chatloadmessagesball').css('display', 'none');
+      const chatLoadMessagesBall = document.getElementById('chatloadmessagesball');
+      if (chatLoadMessagesBall) chatLoadMessagesBall.style.display = 'none';
 
       // there are less than 100 messages or we reached the top
+      const chatLoadMessagesButton = document.getElementById('chatloadmessagesbutton');
       if (chat.historyPointer <= 0) {
-        $('#chatloadmessagesbutton').css('display', 'none');
+        if (chatLoadMessagesButton) chatLoadMessagesButton.style.display = 'none';
       } else {
         // there are still more messages, re-show the load-button
-        $('#chatloadmessagesbutton').css('display', 'block');
+        if (chatLoadMessagesButton) chatLoadMessagesButton.style.display = 'block';
       }
     }
 
@@ -377,7 +378,7 @@ const getCollabClient = (ace2editor, serverVars, initialUserInfo, options, _pad)
 
   const valuesArray = (obj) => {
     const array = [];
-    $.each(obj, (k, v) => {
+    Object.entries(obj).forEach(([k, v]) => {
       array.push(v);
     });
     return array;
@@ -516,4 +517,3 @@ const getCollabClient = (ace2editor, serverVars, initialUserInfo, options, _pad)
   return self;
 };
 
-exports.getCollabClient = getCollabClient;

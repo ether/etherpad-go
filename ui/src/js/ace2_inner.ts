@@ -20,33 +20,33 @@ import {Builder} from "./Builder";
 let documentAttributeManager;
 
 import AttributeMap from './AttributeMap';
-const browser = require('./vendors/browser');
+import {browserFlags as browser} from './browser_flags';
 import padutils from './pad_utils'
-const Ace2Common = require('./ace2_common');
-const $ = require('./rjquery').$;
+import * as Ace2Common from './ace2_common';
 import {characterRangeFollow, checkRep, cloneAText, compose, deserializeOps, filterAttribNumbers, inverse, isIdentity, makeAText, makeAttribution, mapAttribNumbers, moveOpsToNewPool, mutateAttributionLines, mutateTextLines, oldLen, opsFromAText, pack, splitAttributionLines} from './Changeset'
+import {colorutils} from './colorutils';
+import {makeContentCollector} from './contentcollector';
+import {domline} from './domline';
+import {linestylefilter} from './linestylefilter';
+import {undoModule} from './undomodule';
+import {makeChangesetTracker} from './changesettracker';
+import AttributeManager from './AttributeManager';
 
 
 const isNodeText = Ace2Common.isNodeText;
 const getAssoc = Ace2Common.getAssoc;
 const setAssoc = Ace2Common.setAssoc;
 const noop = Ace2Common.noop;
-const hooks = require('./pluginfw/hooks');
+import * as hooks from './pluginfw/hooks';
 import SkipList from "./skiplist";
 import Scroll from './scroll'
 import AttribPool from './AttributePool'
 import {SmartOpAssembler} from "./SmartOpAssembler";
 import Op from "./Op";
 import {buildKeepRange, buildKeepToStartOfRange, buildRemoveRange} from './ChangesetUtils'
+import notifications from './notifications';
 
 function Ace2Inner(editorInfo, cssManagers) {
-  const makeChangesetTracker = require('./changesettracker').makeChangesetTracker;
-  const colorutils = require('./colorutils').colorutils;
-  const makeContentCollector = require('./contentcollector').makeContentCollector;
-  const domline = require('./domline').domline;
-  const linestylefilter = require('./linestylefilter').linestylefilter;
-  const undoModule = require('./undomodule').undoModule;
-  const AttributeManager = require('./AttributeManager');
   const DEBUG = false;
 
   const THE_TAB = '    '; // 4
@@ -1132,9 +1132,7 @@ function Ace2Inner(editorInfo, cssManagers) {
     for (const n of toDeleteAtEnd) n.remove();
 
     // needed to stop chrome from breaking the ui when long strings without spaces are pasted
-    if (scrollToTheLeftNeeded) {
-      $('#innerdocbody').scrollLeft(0);
-    }
+    if (scrollToTheLeftNeeded) targetBody.scrollLeft = 0;
 
     // if the nodes that define the selection weren't encountered during
     // content collection, figure out where those nodes are now.
@@ -2023,8 +2021,8 @@ function Ace2Inner(editorInfo, cssManagers) {
   const isPadLoading = (t) => t === 'setup' || t === 'setBaseText' || t === 'importText';
 
   const updateStyleButtonState = (attribName, hasStyleOnRepSelection) => {
-    const $formattingButton = window.$(`[data-key="${attribName}"]`).find('a');
-    $formattingButton.toggleClass(SELECT_BUTTON_CLASS, hasStyleOnRepSelection);
+    const formattingButton = document.querySelector(`[data-key="${attribName}"] a`);
+    formattingButton?.classList.toggle(SELECT_BUTTON_CLASS, hasStyleOnRepSelection);
   };
 
   const attribIsFormattingStyle = (attribName) => FORMATTING_STYLES.indexOf(attribName) !== -1;
@@ -2532,8 +2530,8 @@ function Ace2Inner(editorInfo, cssManagers) {
     // allows keyboard layouts with special meaning for right-alt-char to
     // continue working on Firefox / macOS.
     let altKey = evt.altKey;
-    if (evt.originalEvent.location !== undefined) {
-        altKey = altKey && evt.originalEvent.location === evt.originalEvent.DOM_KEY_LOCATION_LEFT;
+    if (typeof evt.location === 'number') {
+      altKey = altKey && evt.location === KeyboardEvent.DOM_KEY_LOCATION_LEFT;
     }
 
     // Don't take action based on modifier keys going up and down.
@@ -2599,20 +2597,18 @@ function Ace2Inner(editorInfo, cssManagers) {
           // As ubuntu cannot use Alt F10....
           // Focus on the editbar.
           // -- TODO: Move Focus back to previous state (we know it so we can use it)
-          const firstEditbarElement = window.$('#editbar')
-              .children('ul').first().children().first()
-              .children().first().children().first();
-          $(this).trigger('blur');
-          firstEditbarElement.trigger('focus');
+          if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+          const firstEditbarElement = document.querySelector<HTMLElement>('#editbar ul li a button');
+          firstEditbarElement?.focus();
           evt.preventDefault();
         }
         if (!specialHandled && type === 'keydown' &&
             altKey && keyCode === 67 &&
             padShortcutEnabled.altC) {
           // Alt c focuses on the Chat window
-          $(this).trigger('blur');
+          if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
           window.chat.show();
-          window.$('#chatinput').trigger('focus');
+          document.getElementById('chatinput')?.focus();
           evt.preventDefault();
         }
         if (!specialHandled && type === 'keydown' &&
@@ -2639,7 +2635,7 @@ function Ace2Inner(editorInfo, cssManagers) {
           const authors =
               [...authorIds].map((id) => id === myId ? 'me' : idToName.get(id) || 'unknown');
 
-          window.$.gritter.add({
+          notifications.add({
             title: 'Line Authors',
             text:
                 authors.length === 0 ? 'No author information is available'
@@ -2688,7 +2684,7 @@ function Ace2Inner(editorInfo, cssManagers) {
           specialHandled = true;
 
           // close all gritters when the user hits escape key
-          window.$.gritter.removeAll();
+          notifications.removeAll();
         }
         if (!specialHandled && isTypeForCmdKey &&
             /* Do a saved revision on ctrl S */
@@ -2696,10 +2692,11 @@ function Ace2Inner(editorInfo, cssManagers) {
             !evt.altKey &&
             padShortcutEnabled.cmdS) {
           evt.preventDefault();
-          const originalBackground = window.$('#revisionlink').css('background');
-          window.$('#revisionlink').css({background: 'lightyellow'});
+          const revisionLink = document.getElementById('revisionlink');
+          const originalBackground = revisionLink instanceof HTMLElement ? revisionLink.style.background : '';
+          if (revisionLink instanceof HTMLElement) revisionLink.style.background = 'lightyellow';
           scheduler.setTimeout(() => {
-            window.$('#revisionlink').css({background: originalBackground});
+            if (revisionLink instanceof HTMLElement) revisionLink.style.background = originalBackground;
           }, 1000);
 
           window.pad.collabClient.sendMessage({type: 'SAVE_REVISION'});
@@ -3186,7 +3183,7 @@ function Ace2Inner(editorInfo, cssManagers) {
 
     enforceEditability();
 
-    $(sideDiv).addClass('sidedivdelayed');
+    sideDiv.classList.add('sidedivdelayed');
   };
 
   const _teardownActions = [];
@@ -3196,19 +3193,22 @@ function Ace2Inner(editorInfo, cssManagers) {
   let inInternationalComposition = null;
   editorInfo.ace_getInInternationalComposition = () => inInternationalComposition;
 
+  const isLinkTarget = (target) =>
+    target instanceof Element && (target.localName === 'a' || target.closest('a') != null);
+
   const bindTheEventHandlers = () => {
-    $(targetDoc).on('keydown', handleKeyEvent);
-    $(targetDoc).on('keypress', handleKeyEvent);
-    $(targetDoc).on('keyup', handleKeyEvent);
-    $(targetDoc).on('click', handleClick);
+    targetDoc.addEventListener('keydown', handleKeyEvent);
+    targetDoc.addEventListener('keypress', handleKeyEvent);
+    targetDoc.addEventListener('keyup', handleKeyEvent);
+    targetDoc.addEventListener('click', handleClick);
     // dropdowns on edit bar need to be closed on clicks on both pad inner and pad outer
-    $(outerDoc).on('click', hideEditBarDropdowns);
+    outerDoc.addEventListener('click', hideEditBarDropdowns);
 
     // If non-nullish, pasting on a link should be suppressed.
     let suppressPasteOnLink = null;
 
-    $(targetBody).on('auxclick', (e) => {
-      if (e.originalEvent.button === 1 && (e.target.a || e.target.localName === 'a')) {
+    targetBody.addEventListener('auxclick', (e) => {
+      if (e.button === 1 && isLinkTarget(e.target)) {
         // The user middle-clicked on a link. Usually users do this to open a link in a new tab, but
         // in X11 (Linux) this will instead paste the contents of the primary selection at the mouse
         // cursor. Users almost certainly do not want to paste when middle-clicking on a link, so
@@ -3229,8 +3229,8 @@ function Ace2Inner(editorInfo, cssManagers) {
       }
     });
 
-    $(targetBody).on('paste', (e) => {
-      if (suppressPasteOnLink != null && (e.target.a || e.target.localName === 'a')) {
+    targetBody.addEventListener('paste', (e) => {
+      if (suppressPasteOnLink != null && isLinkTarget(e.target)) {
         scheduler.clearTimeout(suppressPasteOnLink);
         suppressPasteOnLink = null;
         e.preventDefault();
@@ -3249,8 +3249,8 @@ function Ace2Inner(editorInfo, cssManagers) {
     // We reference document here, this is because if we don't this will expose a bug
     // in Google Chrome.  This bug will cause the last character on the last line to
     // not fire an event when dropped into..
-    $(targetBody).on('drop', (e) => {
-      if (e.target.a || e.target.localName === 'a') {
+    targetBody.addEventListener('drop', (e) => {
+      if (isLinkTarget(e.target)) {
         e.preventDefault();
       }
 
@@ -3279,13 +3279,13 @@ function Ace2Inner(editorInfo, cssManagers) {
       });
     });
 
-    $(targetDoc.documentElement).on('compositionstart', () => {
+    targetDoc.documentElement.addEventListener('compositionstart', () => {
       if (inInternationalComposition) return;
       inInternationalComposition = new Promise((resolve) => {
-        $(targetDoc.documentElement).one('compositionend', () => {
+        targetDoc.documentElement.addEventListener('compositionend', () => {
           inInternationalComposition = null;
           resolve();
-        });
+        }, {once: true});
       });
     });
   };
@@ -3510,10 +3510,9 @@ function Ace2Inner(editorInfo, cssManagers) {
       (...args) => documentAttributeManager.setAttributesOnRange(...args);
 
   this.init = async () => {
-    await $.ready;
     inCallStack('setup', () => {
-      if (browser.firefox) $(targetBody).addClass('mozilla');
-      if (browser.safari) $(targetBody).addClass('safari');
+      if (browser.firefox) targetBody.classList.add('mozilla');
+      if (browser.safari) targetBody.classList.add('safari');
       targetBody.classList.toggle('authorColors', true);
       targetBody.classList.toggle('doesWrap', doesWrap);
 
@@ -3538,7 +3537,7 @@ function Ace2Inner(editorInfo, cssManagers) {
   };
 }
 
-exports.init = async (editorInfo, cssManagers) => {
+export const init = async (editorInfo, cssManagers) => {
   const editor = new Ace2Inner(editorInfo, cssManagers);
   await editor.init();
 };

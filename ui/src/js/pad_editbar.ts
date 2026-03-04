@@ -1,5 +1,4 @@
 // @ts-nocheck
-'use strict';
 
 /**
  * This code is mostly from the old Etherpad. Please help us to comment this code.
@@ -23,37 +22,48 @@
  * limitations under the License.
  */
 
-const browser = require('./vendors/browser');
-const hooks = require('./pluginfw/hooks');
+import {browserFlags as browser} from './browser_flags';
+import * as hooks from './pluginfw/hooks';
 import padutils from "./pad_utils";
-const padeditor = require('./pad_editor').padeditor;
-const padsavedrevs = require('./pad_savedrevs');
-const _ = require('underscore');
-require('./vendors/nice-select');
+import {padeditor} from './pad_editor';
+import * as padsavedrevs from './pad_savedrevs';
+import * as _ from 'underscore';
+
+const q = (selector) => document.querySelector(selector);
+const qa = (selector) => Array.from(document.querySelectorAll(selector));
+const hide = (selector) => {
+  const el = q(selector);
+  if (el) el.style.display = 'none';
+};
+const show = (selector, display = 'block') => {
+  const el = q(selector);
+  if (el) el.style.display = display;
+};
 
 class ToolbarItem {
   constructor(element) {
-    this.$el = element;
+    this.el = element;
   }
 
   getCommand() {
-    return this.$el.attr('data-key');
+    return this.el.getAttribute('data-key');
   }
 
   getValue() {
     if (this.isSelect()) {
-      return this.$el.find('select').val();
+      return this.el.querySelector('select')?.value;
     }
   }
 
   setValue(val) {
     if (this.isSelect()) {
-      return this.$el.find('select').val(val);
+      const select = this.el.querySelector('select');
+      if (select) select.value = val;
     }
   }
 
   getType() {
-    return this.$el.attr('data-type');
+    return this.el.getAttribute('data-type');
   }
 
   isSelect() {
@@ -66,13 +76,13 @@ class ToolbarItem {
 
   bind(callback) {
     if (this.isButton()) {
-      this.$el.on('click', (event) => {
-        $(':focus').trigger('blur');
+      this.el.addEventListener('click', (event) => {
+        if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
         callback(this.getCommand(), this);
         event.preventDefault();
       });
     } else if (this.isSelect()) {
-      this.$el.find('select').on('change', () => {
+      this.el.querySelector('select')?.addEventListener('change', () => {
         callback(this.getCommand(), this);
       });
     }
@@ -93,20 +103,23 @@ const syncAnimation = (() => {
       return false;
     } else if (state >= T_GONE) {
       state = DONE;
-      $('#syncstatussyncing').css('display', 'none');
-      $('#syncstatusdone').css('display', 'none');
+      hide('#syncstatussyncing');
+      hide('#syncstatusdone');
       return false;
     } else if (state < 0) {
       state += step;
       if (state >= 0) {
-        $('#syncstatussyncing').css('display', 'none');
-        $('#syncstatusdone').css('display', 'block').css('opacity', 1);
+        hide('#syncstatussyncing');
+        show('#syncstatusdone');
+        const done = q('#syncstatusdone');
+        if (done) done.style.opacity = '1';
       }
       return true;
     } else {
       state += step;
       if (state >= T_FADE) {
-        $('#syncstatusdone').css('opacity', (T_GONE - state) / (T_GONE - T_FADE));
+        const done = q('#syncstatusdone');
+        if (done) done.style.opacity = `${(T_GONE - state) / (T_GONE - T_FADE)}`;
       }
       return true;
     }
@@ -114,8 +127,8 @@ const syncAnimation = (() => {
   return {
     syncing: () => {
       state = SYNCING;
-      $('#syncstatussyncing').css('display', 'block');
-      $('#syncstatusdone').css('display', 'none');
+      show('#syncstatussyncing');
+      hide('#syncstatusdone');
     },
     done: () => {
       state = T_START;
@@ -124,7 +137,7 @@ const syncAnimation = (() => {
   };
 })();
 
-exports.padeditbar = new class {
+export const padeditbar = new class {
   constructor() {
     this._editbarPosition = 0;
     this.commands = {};
@@ -132,24 +145,25 @@ exports.padeditbar = new class {
   }
 
   init() {
-    $('#editbar .editbarbutton').attr('unselectable', 'on'); // for IE
+    for (const button of qa('#editbar .editbarbutton')) button.setAttribute('unselectable', 'on');
     this.enable();
-    $('#editbar [data-key]').each((i, elt) => {
-      $(elt).off('click');
-      new ToolbarItem($(elt)).bind((command, item) => {
+    for (const elt of qa('#editbar [data-key]')) {
+      new ToolbarItem(elt).bind((command, item) => {
         this.triggerCommand(command, item);
       });
-    });
+    }
 
-    $('body:not(#editorcontainerbox)').on('keydown', (evt) => {
+    document.body.addEventListener('keydown', (evt) => {
       this._bodyKeyEvent(evt);
     });
 
-    $('.show-more-icon-btn').on('click', () => {
-      $('.toolbar').toggleClass('full-icons');
-    });
+    for (const btn of qa('.show-more-icon-btn')) {
+      btn.addEventListener('click', () => {
+        q('.toolbar')?.classList.toggle('full-icons');
+      });
+    }
     this.checkAllIconsAreDisplayedInToolbar();
-    $(window).on('resize', _.debounce(() => this.checkAllIconsAreDisplayedInToolbar(), 100));
+    window.addEventListener('resize', _.debounce(() => this.checkAllIconsAreDisplayedInToolbar(), 100));
 
     this._registerDefaultCommands();
 
@@ -164,21 +178,28 @@ exports.padeditbar = new class {
      * position:fixed (like the dropdown) should be displayed no matter
      * overflow:hidden on parent
      */
-    if (!browser.safari) {
-      $('select').niceSelect();
-    }
-
     // When editor is scrolled, we add a class to style the editbar differently
-    $('iframe[name="ace_outer"]').contents().on('scroll', (ev) => {
-      $('#editbar').toggleClass('editor-scrolled', $(ev.currentTarget).scrollTop() > 2);
-    });
+    const frame = q('iframe[name="ace_outer"]');
+    const innerDoc = frame?.contentDocument;
+    if (innerDoc) {
+      innerDoc.addEventListener('scroll', (ev) => {
+        const target = ev.target?.documentElement ?? innerDoc.documentElement;
+        q('#editbar')?.classList.toggle('editor-scrolled', (target?.scrollTop ?? 0) > 2);
+      });
+    }
   }
   isEnabled() { return true; }
   disable() {
-    $('#editbar').addClass('disabledtoolbar').removeClass('enabledtoolbar');
+    const editbar = q('#editbar');
+    if (!editbar) return;
+    editbar.classList.add('disabledtoolbar');
+    editbar.classList.remove('enabledtoolbar');
   }
   enable() {
-    $('#editbar').addClass('enabledtoolbar').removeClass('disabledtoolbar');
+    const editbar = q('#editbar');
+    if (!editbar) return;
+    editbar.classList.add('enabledtoolbar');
+    editbar.classList.remove('disabledtoolbar');
   }
   registerCommand(cmd, callback) {
     this.commands[cmd] = callback;
@@ -210,12 +231,11 @@ exports.padeditbar = new class {
     let cbErr = null;
     try {
       // do nothing if users are sticked
-      if (moduleName === 'users' && $('#users').hasClass('stickyUsers')) {
+      if (moduleName === 'users' && q('#users')?.classList.contains('stickyUsers')) {
         return;
       }
 
-      $('.nice-select').removeClass('open');
-      $('.toolbar-popup').removeClass('popup-show');
+      for (const el of qa('.toolbar-popup')) el.classList.remove('popup-show');
 
       // hide all modules and remove highlighting of all buttons
       if (moduleName === 'none') {
@@ -223,28 +243,30 @@ exports.padeditbar = new class {
           // skip the userlist
           if (thisModuleName === 'users') continue;
 
-          const module = $(`#${thisModuleName}`);
+          const module = q(`#${thisModuleName}`);
 
           // skip any "force reconnect" message
-          const isAForceReconnectMessage = module.find('button#forcereconnect:visible').length > 0;
+          const reconnectButton = module?.querySelector('button#forcereconnect');
+          const isAForceReconnectMessage = reconnectButton != null &&
+            getComputedStyle(reconnectButton).display !== 'none';
           if (isAForceReconnectMessage) continue;
-          if (module.hasClass('popup-show')) {
-            $(`li[data-key=${thisModuleName}] > a`).removeClass('selected');
-            module.removeClass('popup-show');
+          if (module?.classList.contains('popup-show')) {
+            q(`li[data-key=${thisModuleName}] > a`)?.classList.remove('selected');
+            module.classList.remove('popup-show');
           }
         }
       } else {
         // hide all modules that are not selected and remove highlighting
         // respectively add highlighting to the corresponding button
         for (const thisModuleName of this.dropdowns) {
-          const module = $(`#${thisModuleName}`);
+          const module = q(`#${thisModuleName}`);
 
-          if (module.hasClass('popup-show')) {
-            $(`li[data-key=${thisModuleName}] > a`).removeClass('selected');
-            module.removeClass('popup-show');
+          if (module?.classList.contains('popup-show')) {
+            q(`li[data-key=${thisModuleName}] > a`)?.classList.remove('selected');
+            module.classList.remove('popup-show');
           } else if (thisModuleName === moduleName) {
-            $(`li[data-key=${thisModuleName}] > a`).addClass('selected');
-            module.addClass('popup-show');
+            q(`li[data-key=${thisModuleName}] > a`)?.classList.add('selected');
+            module?.classList.add('popup-show');
           }
         }
       }
@@ -266,34 +288,39 @@ exports.padeditbar = new class {
     const params = '?showControls=true&showChat=true&showLineNumbers=true&useMonospaceFont=false';
     const props = 'width="100%" height="600" frameborder="0"';
 
-    if ($('#readonlyinput').is(':checked')) {
+    const readonlyInput = q('#readonlyinput');
+    const embedInput = q('#embedinput');
+    const linkInput = q('#linkinput');
+    if (!embedInput || !linkInput) return;
+    const isReadonly = Boolean(readonlyInput?.checked);
+    if (isReadonly) {
       const urlParts = padUrl.split('/');
       urlParts.pop();
       const readonlyLink = `${urlParts.join('/')}/${clientVars.readOnlyId}`;
-      $('#embedinput')
-          .val(`<iframe name="embed_readonly" src="${readonlyLink}${params}" ${props}></iframe>`);
-      $('#linkinput').val(readonlyLink);
+      embedInput.value = `<iframe name="embed_readonly" src="${readonlyLink}${params}" ${props}></iframe>`;
+      linkInput.value = readonlyLink;
     } else {
-      $('#embedinput')
-          .val(`<iframe name="embed_readwrite" src="${padUrl}${params}" ${props}></iframe>`);
-      $('#linkinput').val(padUrl);
+      embedInput.value = `<iframe name="embed_readwrite" src="${padUrl}${params}" ${props}></iframe>`;
+      linkInput.value = padUrl;
     }
   }
   checkAllIconsAreDisplayedInToolbar() {
     // reset style
-    $('.toolbar').removeClass('cropped');
-    $('body').removeClass('mobile-layout');
-    const menuLeft = $('.toolbar .menu_left')[0];
+    const toolbar = q('.toolbar');
+    if (toolbar) toolbar.classList.remove('cropped');
+    document.body.classList.remove('mobile-layout');
+    const menuLeft = q('.toolbar .menu_left');
 
     // this is approximate, we cannot measure it because on mobile
     // Layout it takes the full width on the bottom of the page
     const menuRightWidth = 280;
-    if (menuLeft && menuLeft.scrollWidth > $('.toolbar').width() - menuRightWidth ||
-        $('.toolbar').width() < 1000) {
-      $('body').addClass('mobile-layout');
+    const toolbarWidth = toolbar?.clientWidth ?? 0;
+    if (menuLeft && menuLeft.scrollWidth > toolbarWidth - menuRightWidth ||
+        toolbarWidth < 1000) {
+      document.body.classList.add('mobile-layout');
     }
-    if (menuLeft && menuLeft.scrollWidth > $('.toolbar').width()) {
-      $('.toolbar').addClass('cropped');
+    if (menuLeft && menuLeft.scrollWidth > toolbarWidth && toolbar) {
+      toolbar.classList.add('cropped');
     }
   }
 
@@ -301,17 +328,18 @@ exports.padeditbar = new class {
     // If the event is Alt F9 or Escape & we're already in the editbar menu
     // Send the users focus back to the pad
     if ((evt.keyCode === 120 && evt.altKey) || evt.keyCode === 27) {
-      if ($(':focus').parents('.toolbar').length === 1) {
+      const active = document.activeElement;
+      if (active && active.closest('.toolbar')) {
         // If we're in the editbar already..
         // Close any dropdowns we have open..
         this.toggleDropDown('none');
         // Shift focus away from any drop downs
-        $(':focus').trigger('blur'); // required to do not try to remove!
+        if (active instanceof HTMLElement) active.blur();
         // Check we're on a pad and not on the timeslider
         // Or some other window I haven't thought about!
         if (typeof pad === 'undefined') {
           // Timeslider probably..
-          $('#editorcontainerbox').trigger('focus'); // Focus back onto the pad
+          q('#editorcontainerbox')?.focus(); // Focus back onto the pad
         } else {
           padeditor.ace.focus(); // Sends focus back to pad
           // The above focus doesn't always work in FF, you have to hit enter afterwards
@@ -319,41 +347,42 @@ exports.padeditbar = new class {
         }
       } else {
         // Focus on the editbar :)
-        const firstEditbarElement = $('#editbar button').first();
-
-        $(evt.currentTarget).trigger('blur');
-        firstEditbarElement.trigger('focus');
+        const firstEditbarElement = q('#editbar button');
+        if (evt.currentTarget instanceof HTMLElement) evt.currentTarget.blur();
+        firstEditbarElement?.focus();
         evt.preventDefault();
       }
     }
     // Are we in the toolbar??
-    if ($(':focus').parents('.toolbar').length === 1) {
+    if (document.activeElement && document.activeElement.closest('.toolbar')) {
       // On arrow keys go to next/previous button item in editbar
       if (evt.keyCode !== 39 && evt.keyCode !== 37) return;
 
       // Get all the focusable items in the editbar
-      const focusItems = $('#editbar').find('button, select');
+      const focusItems = qa('#editbar button, #editbar select');
 
       // On left arrow move to next button in editbar
       if (evt.keyCode === 37) {
         // If a dropdown is visible or we're in an input don't move to the next button
-        if ($('.popup').is(':visible') || evt.target.localName === 'input') return;
+        const hasVisiblePopup = qa('.popup').some((el) => getComputedStyle(el).display !== 'none');
+        if (hasVisiblePopup || evt.target.localName === 'input') return;
 
         this._editbarPosition--;
         // Allow focus to shift back to end of row and start of row
         if (this._editbarPosition === -1) this._editbarPosition = focusItems.length - 1;
-        $(focusItems[this._editbarPosition]).trigger('focus');
+        focusItems[this._editbarPosition]?.focus();
       }
 
       // On right arrow move to next button in editbar
       if (evt.keyCode === 39) {
         // If a dropdown is visible or we're in an input don't move to the next button
-        if ($('.popup').is(':visible') || evt.target.localName === 'input') return;
+        const hasVisiblePopup = qa('.popup').some((el) => getComputedStyle(el).display !== 'none');
+        if (hasVisiblePopup || evt.target.localName === 'input') return;
 
         this._editbarPosition++;
         // Allow focus to shift back to end of row and start of row
         if (this._editbarPosition >= focusItems.length) this._editbarPosition = 0;
-        $(focusItems[this._editbarPosition]).trigger('focus');
+        focusItems[this._editbarPosition]?.focus();
       }
     }
   }
@@ -370,24 +399,24 @@ exports.padeditbar = new class {
 
     this.registerCommand('settings', () => {
       this.toggleDropDown('settings');
-      $('#options-stickychat').trigger('focus');
+      q('#options-stickychat')?.focus();
     });
 
     this.registerCommand('import_export', () => {
       this.toggleDropDown('import_export');
       // If Import file input exists then focus on it..
-      if ($('#importfileinput').length !== 0) {
+      if (q('#importfileinput') != null) {
         setTimeout(() => {
-          $('#importfileinput').trigger('focus');
+          q('#importfileinput')?.focus();
         }, 100);
       } else {
-        $('.exportlink').first().trigger('focus');
+        q('.exportlink')?.focus();
       }
     });
 
     this.registerCommand('showusers', () => {
       this.toggleDropDown('users');
-      $('#myusernameedit').trigger('focus');
+      q('#myusernameedit')?.focus();
     });
     this.registerCommand('home', ()=>{
       globalThis.location.href = globalThis.location.href + "/../.."
@@ -396,7 +425,9 @@ exports.padeditbar = new class {
     this.registerCommand('embed', () => {
       this.setEmbedLinks();
       this.toggleDropDown('embed');
-      $('#linkinput').trigger('focus').trigger('select');
+      const linkInput = q('#linkinput');
+      linkInput?.focus();
+      linkInput?.select?.();
     });
 
     this.registerCommand('savedRevision', () => {

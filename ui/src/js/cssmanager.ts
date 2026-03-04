@@ -1,5 +1,4 @@
 // @ts-nocheck
-'use strict';
 
 /**
  * This code is mostly from the old Etherpad. Please help us to comment this code.
@@ -23,7 +22,7 @@
  * limitations under the License.
  */
 
-exports.makeCSSManager = (browserSheet) => {
+export const makeCSSManager = (browserSheet) => {
   const browserRules = () => (browserSheet.cssRules || browserSheet.rules);
 
   const browserDeleteRule = (i) => {

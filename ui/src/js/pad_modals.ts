@@ -1,56 +1,40 @@
-// @ts-nocheck
-'use strict';
+import {showCountDownTimerToReconnectOnModal} from './pad_automatic_reconnect';
+import {padeditbar} from './pad_editbar';
 
-/**
- * This code is mostly from the old Etherpad. Please help us to comment this code.
- * This helps other people to understand this code better and helps them to improve it.
- * TL;DR COMMENTS ON THIS FILE ARE HIGHLY APPRECIATED
- */
-
-/**
- * Copyright 2009 Google Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS-IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
-const padeditbar = require('./pad_editbar').padeditbar;
-const automaticReconnect = require('./pad_automatic_reconnect');
-
-const padmodals = (() => {
-  let pad = undefined;
-  const self = {
-    init: (_pad) => {
-      pad = _pad;
-    },
-    showModal: (messageId) => {
-      padeditbar.toggleDropDown('none');
-      $('#connectivity .visible').removeClass('visible');
-      $(`#connectivity .${messageId}`).addClass('visible');
-
-      const $modal = $(`#connectivity .${messageId}`);
-      automaticReconnect.showCountDownTimerToReconnectOnModal($modal, pad);
-
-      padeditbar.toggleDropDown('connectivity');
-    },
-    showOverlay: () => {
-      // Prevent the user to interact with the toolbar. Useful when user is disconnected for example
-      $('#toolbar-overlay').show();
-    },
-    hideOverlay: () => {
-      $('#toolbar-overlay').hide();
-    },
+export type PadLike = {
+  socket?: {
+    connect: () => void;
+    once: (event: string, cb: () => void) => void;
   };
-  return self;
-})();
+};
 
-exports.padmodals = padmodals;
+let currentPad: PadLike | undefined;
+
+const getConnectivityMessage = (messageId: string): HTMLElement | null =>
+  document.querySelector<HTMLElement>(`#connectivity .${messageId}`);
+
+export const padmodals = {
+  init: (pad: PadLike): void => {
+    currentPad = pad;
+  },
+  showModal: (messageId: string): void => {
+    padeditbar.toggleDropDown('none');
+    for (const element of document.querySelectorAll('#connectivity .visible')) {
+      element.classList.remove('visible');
+    }
+
+    const modal = getConnectivityMessage(messageId);
+    if (modal == null) return;
+    modal.classList.add('visible');
+    showCountDownTimerToReconnectOnModal(modal, currentPad);
+    padeditbar.toggleDropDown('connectivity');
+  },
+  showOverlay: (): void => {
+    const overlay = document.getElementById('toolbar-overlay');
+    if (overlay != null) overlay.style.display = '';
+  },
+  hideOverlay: (): void => {
+    const overlay = document.getElementById('toolbar-overlay');
+    if (overlay != null) overlay.style.display = 'none';
+  },
+};

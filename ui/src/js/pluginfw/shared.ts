@@ -1,7 +1,5 @@
 // @ts-nocheck
-'use strict';
-
-const defs = require('./plugin_defs');
+import defs from './plugin_defs';
 
 const disabledHookReasons = {
   hooks: {
@@ -14,7 +12,7 @@ const disabledHookReasons = {
 const loadedPluginModules = new Map();
 
 // Prüft, ob ein Modul bereits registriert ist
-exports.isModuleRegistered = (path) => {
+export const isModuleRegistered = (path) => {
   return loadedPluginModules.has(path);
 };
 
@@ -63,7 +61,7 @@ const loadFn = (path, hookName, modules) => {
 };
 
 // Registriert ein Plugin-Modul für den späteren Zugriff
-exports.registerPluginModule = (path, module) => {
+export const registerPluginModule = (path, module) => {
   loadedPluginModules.set(path, module);
 };
 
@@ -72,7 +70,7 @@ const extractHooks = (parts, hookSetName, normalizer, modules) => {
   for (const part of parts) {
     for (const [hookName, regHookFnName] of Object.entries(part[hookSetName] || {})) {
       /* On the server side, you can't just
-       * require("pluginname/whatever") if the plugin is installed as
+       * load "pluginname/whatever" if the plugin is installed as
        * a dependency of another plugin! Bah, pesky little details of
        * npm... */
       const hookFnName = normalizer ? normalizer(part, regHookFnName, hookName) : regHookFnName;
@@ -83,7 +81,7 @@ const extractHooks = (parts, hookSetName, normalizer, modules) => {
         console.error(`The hook function ${hookFnName} from plugin ${part.plugin} ` +
                       'will never be called, which may cause the plugin to fail');
         console.error(`Please update the ${part.plugin} plugin to not use the ${hookName} hook`);
-        return;
+        return {};
       }
       let hookFn;
       try {
@@ -108,8 +106,6 @@ const extractHooks = (parts, hookSetName, normalizer, modules) => {
   return hooks;
 };
 
-exports.extractHooks = extractHooks;
-
 /*
  * Returns an array containing the names of the installed client-side plugins
  *
@@ -122,9 +118,11 @@ exports.extractHooks = extractHooks;
  *   No plugins:   []
  *   Some plugins: [ 'ep_adminpads', 'ep_add_buttons', 'ep_activepads' ]
  */
-exports.clientPluginNames = () => {
+export const clientPluginNames = () => {
   const clientPluginNames = defs.parts
       .filter((part) => Object.prototype.hasOwnProperty.call(part, 'client_hooks'))
       .map((part) => `plugin-${part.plugin}`);
   return [...new Set(clientPluginNames)];
 };
+
+export {extractHooks};

@@ -7,6 +7,8 @@
  */
 
 import {binarySearch} from "./ace2_common";
+import {escapeHtml, escapeHtmlAttribute} from './html_escape';
+import notifications from './notifications';
 
 /**
  * Copyright 2009 Google Inc.
@@ -23,9 +25,6 @@ import {binarySearch} from "./ace2_common";
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-const Security = require('security');
-import jsCookie from 'js-cookie'
 
 /**
  * Generates a random String with the given length. Is needed to generate the Author, Group,
@@ -95,6 +94,8 @@ const urlRegex = (() => {
 const base64url = /^(?=(?:.{4})*$)[A-Za-z0-9_-]*(?:[AQgw]==|[AEIMQUYcgkosw048]=)?$/;
 
 type JQueryNode = JQuery<HTMLElement>
+const getJq = () => (typeof window !== 'undefined' ? (window as any).$ : undefined);
+const getPadRef = () => (globalThis as any).pad;
 
 class PadUtils {
   public urlRegex: RegExp
@@ -154,14 +155,14 @@ class PadUtils {
     if (err.stack) args.push(err.stack);
     (this.warnDeprecatedFlags.logger || console).warn(...args);
   }
-  escapeHtml = (x: string) => Security.escapeHTML(String(x))
+  escapeHtml = (x: string) => escapeHtml(String(x))
   uniqueId = () => {
-    const pad = require('./pad').pad; // Sidestep circular dependency
+    const pad = getPadRef();
     // returns string that is exactly 'width' chars, padding with zeros and taking rightmost digits
     const encodeNum =
       (n: number, width: number) => (Array(width + 1).join('0') + Number(n).toString(35)).slice(-width);
     return [
-      pad.getClientIp(),
+      typeof pad?.getClientIp === 'function' ? pad.getClientIp() : '0.0.0.0',
       encodeNum(+new Date(), 7),
       encodeNum(Math.floor(Math.random() * 1e9), 4),
     ].join('.');
@@ -214,7 +215,7 @@ class PadUtils {
 
     const advanceTo = (i: number) => {
         if (i > idx) {
-          pieces.push(Security.escapeHTML(text.substring(idx, i)));
+          pieces.push(escapeHtml(text.substring(idx, i)));
           idx = i;
         }
       }
@@ -233,9 +234,9 @@ class PadUtils {
         // https://github.com/ether/etherpad-lite/pull/3636
         pieces.push(
           '<a ',
-          (target ? `target="${Security.escapeHTMLAttribute(target)}" ` : ''),
+          (target ? `target="${escapeHtmlAttribute(target)}" ` : ''),
           'href="',
-          Security.escapeHTMLAttribute(href),
+          escapeHtmlAttribute(href),
           '" rel="noreferrer noopener">');
         advanceTo(startIndex + href.length);
         pieces.push('</a>');
@@ -244,13 +245,38 @@ class PadUtils {
     advanceTo(text.length);
     return pieces.join('');
   }
-  bindEnterAndEscape = (node: JQueryNode, onEnter: Function, onEscape: Function) => {
+  bindEnterAndEscape = (
+      node: string | HTMLElement | JQueryNode,
+      onEnter: Function,
+      onEscape: Function,
+  ) => {
+    const element = (() => {
+      if (typeof node === 'string') return document.querySelector(node);
+      if (node instanceof HTMLElement) return node;
+      return null;
+    })();
+    if (element instanceof HTMLElement) {
+      if (onEnter) {
+        element.addEventListener('keypress', (evt) => {
+          if (evt instanceof KeyboardEvent && evt.key === 'Enter') onEnter(evt);
+        });
+      }
+      if (onEscape) {
+        element.addEventListener('keydown', (evt) => {
+          if (evt instanceof KeyboardEvent && evt.key === 'Escape') onEscape(evt);
+        });
+      }
+      return;
+    }
     // Use keypress instead of keyup in bindEnterAndEscape. Keyup event is fired on enter in IME
     // (Input Method Editor), But keypress is not. So, I changed to use keypress instead of keyup.
     // It is work on Windows (IE8, Chrome 6.0.472), CentOs (Firefox 3.0) and Mac OSX (Firefox
     // 3.6.10, Chrome 6.0.472, Safari 5.0).
+    const jqNode = node as JQueryNode;
+    const jq = getJq();
+    if (jq == null) return;
     if (onEnter) {
-      node.on('keypress', (evt: { which: number; }) => {
+      jqNode.on('keypress', (evt: { which: number; }) => {
         if (evt.which === 13) {
           onEnter(evt);
         }
@@ -258,7 +284,7 @@ class PadUtils {
     }
 
     if (onEscape) {
-      node.on('keydown', (evt) => {
+      jqNode.on('keydown', (evt: { which: number }) => {
         if (evt.which === 27) {
           onEscape(evt);
         }
@@ -267,13 +293,13 @@ class PadUtils {
   }
 
   timediff = (d: number) => {
-    const pad = require('./pad').pad; // Sidestep circular dependency
+    const pad = getPadRef();
     const format = (n: number, word: string) => {
         n = Math.round(n);
         return (`${n} ${word}${n !== 1 ? 's' : ''} ago`);
       }
     ;
-    d = Math.max(0, (+(new Date()) - (+d) - pad.clientTimeOffset) / 1000);
+    d = Math.max(0, (+(new Date()) - (+d) - Number(pad?.clientTimeOffset || 0)) / 1000);
     if (d < 60) {
       return format(d, 'second');
     }
@@ -318,42 +344,82 @@ class PadUtils {
 
   makeFieldLabeledWhenEmpty
     =
-    (field: JQueryNode, labelText: string) => {
-      field = $(field);
-
+    (field: string | HTMLElement | JQueryNode, labelText: string) => {
+      const element = (() => {
+        if (typeof field === 'string') return document.querySelector(field);
+        if (field instanceof HTMLElement) return field;
+        return null;
+      })();
+      if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
+        const clear = () => {
+          element.classList.add('editempty');
+          element.value = labelText;
+        };
+        element.addEventListener('focus', () => {
+          if (element.classList.contains('editempty')) element.value = '';
+          element.classList.remove('editempty');
+        });
+        element.addEventListener('blur', () => {
+          if (!element.value) clear();
+        });
+        return {clear};
+      }
+      const jq = getJq();
+      if (jq == null) return {clear: () => {}};
+      const jqField = jq(field as JQueryNode);
       const clear = () => {
-          field.addClass('editempty');
-          field.val(labelText);
-        }
-      ;
-      field.focus(() => {
-        if (field.hasClass('editempty')) {
-          field.val('');
-        }
-        field.removeClass('editempty');
+        jqField.addClass('editempty');
+        jqField.val(labelText);
+      };
+      jqField.focus(() => {
+        if (jqField.hasClass('editempty')) jqField.val('');
+        jqField.removeClass('editempty');
       });
-      field.on('blur', () => {
-        if (!field.val()) {
-          clear();
-        }
+      jqField.on('blur', () => {
+        if (!jqField.val()) clear();
       });
       return {
         clear,
       };
     }
-  getCheckbox = (node: string) => $(node).is(':checked')
+  getCheckbox = (node: string | HTMLElement | JQueryNode) => {
+    if (typeof node === 'string') {
+      const el = document.querySelector(node);
+      return el instanceof HTMLInputElement ? el.checked : false;
+    }
+    if (node instanceof HTMLElement) {
+      return node instanceof HTMLInputElement ? node.checked : false;
+    }
+    const jq = getJq();
+    return jq?.(node)?.is(':checked') ?? false;
+  }
   setCheckbox =
-    (node: JQueryNode, value: boolean) => {
-      if (value) {
-        $(node).attr('checked', 'checked');
-      } else {
-        $(node).prop('checked', false);
+    (node: string | HTMLElement | JQueryNode, value: boolean) => {
+      if (typeof node === 'string') {
+        const el = document.querySelector(node);
+        if (el instanceof HTMLInputElement) el.checked = value;
+        return;
       }
+      if (node instanceof HTMLElement) {
+        if (node instanceof HTMLInputElement) node.checked = value;
+        return;
+      }
+      const jq = getJq();
+      if (value) jq?.(node).attr('checked', 'checked');
+      else jq?.(node).prop('checked', false);
     }
   bindCheckboxChange =
-    (node: JQueryNode, func: Function) => {
-      // @ts-ignore
-      $(node).on("change", func);
+    (node: string | HTMLElement | JQueryNode, func: Function) => {
+      if (typeof node === 'string') {
+        document.querySelector(node)?.addEventListener('change', () => func());
+        return;
+      }
+      if (node instanceof HTMLElement) {
+        node.addEventListener('change', () => func());
+        return;
+      }
+      const jq = getJq();
+      jq?.(node).on('change', func as any);
     }
   encodeUserId =
     (userId: string) => userId.replace(/[^a-y0-9]/g, (c) => {
@@ -413,33 +479,35 @@ class PadUtils {
         }
         const errorId = randomString(20);
 
-        let msgAlreadyVisible = false;
-        $('.gritter-item .error-msg').each(function () {
-          if ($(this).text() === msg) {
-            msgAlreadyVisible = true;
-          }
-        });
+        const msgAlreadyVisible = Array.from(document.querySelectorAll('.gritter-item .error-msg'))
+            .some((el) => (el.textContent ?? '') === msg);
 
         if (!msgAlreadyVisible) {
-          const txt = document.createTextNode.bind(document); // Convenience shorthand.
-          const errorMsg = [
-            $('<p>')
-              .append($('<b>').text('Please press and hold Ctrl and press F5 to reload this page')),
-            $('<p>')
-              .text('If the problem persists, please send this error message to your webmaster:'),
-            $('<div>').css('text-align', 'left').css('font-size', '.8em').css('margin-top', '1em')
-              .append($('<b>').addClass('error-msg').text(msg)).append($('<br>'))
-              .append(txt(`at ${url} at line ${linenumber}`)).append($('<br>'))
-              .append(txt(`ErrorId: ${errorId}`)).append($('<br>'))
-              .append(txt(type)).append($('<br>'))
-              .append(txt(`URL: ${window.location.href}`)).append($('<br>'))
-              .append(txt(`UserAgent: ${navigator.userAgent}`)).append($('<br>')),
-          ];
+          const errorBox = document.createElement('div');
+          const p1 = document.createElement('p');
+          const p1b = document.createElement('b');
+          p1b.textContent = 'Please press and hold Ctrl and press F5 to reload this page';
+          p1.append(p1b);
+          const p2 = document.createElement('p');
+          p2.textContent = 'If the problem persists, please send this error message to your webmaster:';
+          const details = document.createElement('div');
+          details.style.textAlign = 'left';
+          details.style.fontSize = '.8em';
+          details.style.marginTop = '1em';
+          const headline = document.createElement('b');
+          headline.className = 'error-msg';
+          headline.textContent = msg;
+          details.append(headline, document.createElement('br'));
+          details.append(`at ${url} at line ${linenumber}`, document.createElement('br'));
+          details.append(`ErrorId: ${errorId}`, document.createElement('br'));
+          details.append(type, document.createElement('br'));
+          details.append(`URL: ${window.location.href}`, document.createElement('br'));
+          details.append(`UserAgent: ${navigator.userAgent}`, document.createElement('br'));
+          errorBox.append(p1, p2, details);
 
-          // @ts-ignore
-          $.gritter.add({
+          notifications.add({
             title: 'An error occurred',
-            text: errorMsg,
+            text: errorBox,
             class_name: 'error',
             position: 'bottom',
             sticky: true,
@@ -447,16 +515,20 @@ class PadUtils {
         }
 
         // send javascript errors to the server
-        $.post('../jserror', {
-          errorInfo: JSON.stringify({
-            errorId,
-            type,
-            msg,
-            url: window.location.href,
-            source: url,
-            linenumber,
-            userAgent: navigator.userAgent,
-            stack: err.stack,
+        void fetch('../jserror', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'},
+          body: new URLSearchParams({
+            errorInfo: JSON.stringify({
+              errorId,
+              type,
+              msg,
+              url: window.location.href,
+              source: url,
+              linenumber,
+              userAgent: navigator.userAgent,
+              stack: err.stack,
+            }),
           }),
         });
       };
@@ -477,22 +549,51 @@ const inThirdPartyIframe = () => {
   }
 };
 
-export let Cookies: any
-// This file is included from Node so that it can reuse randomString, but Node doesn't have a global
-// window object.
-if (typeof window !== 'undefined') {
-  Cookies = jsCookie.withAttributes({
-    // Use `SameSite=Lax`, unless Etherpad is embedded in an iframe from another site in which case
-    // use `SameSite=None`. For iframes from another site, only `None` has a chance of working
-    // because the cookies are third-party (not same-site). Many browsers/users block third-party
-    // cookies, but maybe blocked is better than definitely blocked (which would happen with `Lax`
-    // or `Strict`). Note: `None` will not work unless secure is true.
-    //
-    // `Strict` is not used because it has few security benefits but significant usability drawbacks
-    // vs. `Lax`. See https://stackoverflow.com/q/41841880 for discussion.
-    sameSite: inThirdPartyIframe() ? 'None' : 'Lax',
-    secure: window.location.protocol === 'https:',
-  });
-}
+type CookieSetOptions = {
+  expires?: number;
+  sameSite?: 'Lax' | 'None' | 'Strict';
+  secure?: boolean;
+  path?: string;
+};
+
+const defaultCookieOptions: CookieSetOptions = typeof window !== 'undefined' ? {
+  // Use `SameSite=Lax`, unless Etherpad is embedded in an iframe from another site in which case
+  // use `SameSite=None`. For iframes from another site, only `None` has a chance of working
+  // because the cookies are third-party (not same-site). Many browsers/users block third-party
+  // cookies, but maybe blocked is better than definitely blocked (which would happen with `Lax`
+  // or `Strict`). Note: `None` will not work unless secure is true.
+  //
+  // `Strict` is not used because it has few security benefits but significant usability drawbacks
+  // vs. `Lax`. See https://stackoverflow.com/q/41841880 for discussion.
+  sameSite: inThirdPartyIframe() ? 'None' : 'Lax',
+  secure: window.location.protocol === 'https:',
+  path: '/',
+} : {};
+
+export const Cookies = {
+  get(name: string): string | undefined {
+    if (typeof document === 'undefined') return undefined;
+    const needle = `${encodeURIComponent(name)}=`;
+    const entries = document.cookie ? document.cookie.split('; ') : [];
+    for (const entry of entries) {
+      if (!entry.startsWith(needle)) continue;
+      return decodeURIComponent(entry.slice(needle.length));
+    }
+    return undefined;
+  },
+  set(name: string, value: string, options: CookieSetOptions = {}): void {
+    if (typeof document === 'undefined') return;
+    const opts = {...defaultCookieOptions, ...options};
+    let cookie = `${encodeURIComponent(name)}=${encodeURIComponent(value)}`;
+    if (typeof opts.expires === 'number') {
+      const expiresAt = new Date(Date.now() + (opts.expires * 24 * 60 * 60 * 1000));
+      cookie += `; Expires=${expiresAt.toUTCString()}`;
+    }
+    if (opts.path) cookie += `; Path=${opts.path}`;
+    if (opts.sameSite) cookie += `; SameSite=${opts.sameSite}`;
+    if (opts.secure) cookie += '; Secure';
+    document.cookie = cookie;
+  },
+};
 
 export default new PadUtils()

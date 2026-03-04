@@ -119,8 +119,10 @@ class Scroll {
 
   _getPaddingTopAddedWhenPageViewIsEnable() {
     const aceOuter = this.rootDocument.getElementsByName('ace_outer');
-    const aceOuterPaddingTop = parseInt($(aceOuter).css('padding-top'));
-    return aceOuterPaddingTop;
+    const first = aceOuter[0];
+    if (!(first instanceof HTMLElement)) return 0;
+    const aceOuterPaddingTop = parseInt(getComputedStyle(first).paddingTop || '0', 10);
+    return Number.isNaN(aceOuterPaddingTop) ? 0 : aceOuterPaddingTop;
   };
 
   _getScrollXY() {
@@ -232,29 +234,9 @@ class Scroll {
     this.outerWin.scrollBy(0, pixelsToScroll);
   };
 
-  _scrollYPageWithAnimation(pixelsToScroll: number, durationOfAnimationToShowFocusline: number) {
-      const outerDocBody = this.doc.getElementById('outerdocbody');
-
-      // it works on later versions of Chrome
-      const $outerDocBody = $(outerDocBody!);
-      this._triggerScrollWithAnimation(
-        $outerDocBody, pixelsToScroll, durationOfAnimationToShowFocusline);
-
-      // it works on Firefox and earlier versions of Chrome
-      const $outerDocBodyParent = $outerDocBody.parent();
-      this._triggerScrollWithAnimation(
-        $outerDocBodyParent, pixelsToScroll, durationOfAnimationToShowFocusline);
-    };
-
-  _triggerScrollWithAnimation($elem:any, pixelsToScroll: number, durationOfAnimationToShowFocusline: number) {
-      // clear the queue of animation
-      $elem.stop('scrollanimation');
-      $elem.animate({
-        scrollTop: `+=${pixelsToScroll}`,
-      }, {
-        duration: durationOfAnimationToShowFocusline,
-        queue: 'scrollanimation',
-      }).dequeue('scrollanimation');
+  _scrollYPageWithAnimation(pixelsToScroll: number, _durationOfAnimationToShowFocusline: number) {
+      // Native smooth scrolling replaces the old jQuery animate() logic.
+      this.outerWin.scrollBy({top: pixelsToScroll, behavior: 'smooth'});
     };
 
 

@@ -5,7 +5,6 @@ import (
 	"embed"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io/fs"
 	"net/http"
 	"os"
@@ -103,6 +102,10 @@ func getAdminBody(uiAssets embed.FS, retrievedSettings *settings.Settings) (*str
 
 var loaderConfig = map[string]api.Loader{".css": api.LoaderCSS, ".svg": api.LoaderDataURL, ".woff2": api.LoaderDataURL, ".woff": api.LoaderDataURL, ".ttf": api.LoaderDataURL, ".eot": api.LoaderDataURL, ".otf": api.LoaderDataURL}
 
+func isDevEnabled(retrievedSettings *settings.Settings) bool {
+	return utils.IsDevModeEnabled() || (retrievedSettings != nil && retrievedSettings.DevMode)
+}
+
 func buildColibrisCssInDev(retrievedSettings *settings.Settings) {
 	pathToBuild := path.Join(retrievedSettings.Root, "assets")
 	entryPoints := []string{"./css/skin/colibris/pad.css"}
@@ -147,7 +150,7 @@ func buildStaticPadCSSInDev(retrievedSettings *settings.Settings) {
 }
 
 func buildCssInDev(retrievedSettings *settings.Settings) {
-	if !utils.IsDevModeEnabled() {
+	if !isDevEnabled(retrievedSettings) {
 		return
 	}
 
@@ -157,6 +160,14 @@ func buildCssInDev(retrievedSettings *settings.Settings) {
 
 func Init(store *lib.InitStore) {
 	buildCssInDev(store.RetrievedSettings)
+	var devHMR *esbuildDevHMR
+	if isDevEnabled(store.RetrievedSettings) {
+		var err error
+		devHMR, err = startEsbuildDevHMR(store)
+		if err != nil {
+			store.Logger.Warnf("Could not initialize esbuild dev HMR: %v", err)
+		}
+	}
 
 	store.C.Use("/p/", func(c *fiber.Ctx) error {
 		c.Path()
@@ -171,6 +182,10 @@ func Init(store *lib.InitStore) {
 
 	store.C.Get("/pluginfw/plugin-definitions.json", func(ctx *fiber.Ctx) error {
 		return plugins.ReturnPluginResponse(ctx)
+	})
+	store.C.Post("/jserror", func(ctx *fiber.Ctx) error {
+		store.Logger.Warnf("Frontend error report: %s", string(ctx.Body()))
+		return ctx.SendStatus(fiber.StatusNoContent)
 	})
 
 	store.C.Static("/static/plugins/", "./plugins")
@@ -189,7 +204,7 @@ func Init(store *lib.InitStore) {
 	}
 
 	store.C.Get("/css/static/pad.css", func(ctx *fiber.Ctx) error {
-		if utils.IsDevModeEnabled() {
+		if isDevEnabled(store.RetrievedSettings) {
 			fileContent, err := os.ReadFile("assets/css/build/static/pad.css")
 			if err != nil {
 				store.Logger.Errorf("Error setting up build page: %v. Did you forget to run the build script in ui directory?", err)
@@ -205,7 +220,7 @@ func Init(store *lib.InitStore) {
 	})
 
 	store.C.Get("/css/skin/colibris/pad.css", func(ctx *fiber.Ctx) error {
-		if utils.IsDevModeEnabled() {
+		if isDevEnabled(store.RetrievedSettings) {
 			fileContent, err := os.ReadFile("assets/css/build/skin/colibris/pad.css")
 			if err != nil {
 				store.Logger.Errorf("Error setting up build page: %v. Did you forget to run the build script in ui directory?", err)
@@ -253,54 +268,17 @@ func Init(store *lib.InitStore) {
 		return adaptor.HTTPHandler(templ.Handler(component))(c)
 	})
 
-	if !utils.IsDevModeEnabled() {
+	if !isDevEnabled(store.RetrievedSettings) {
 		registerEmbeddedStatic(store.C, "/js/pad/assets/", "assets/js/pad/assets", store.UiAssets)
 		registerEmbeddedStatic(store.C, "/js/welcome/assets/", "assets/js/welcome/assets", store.UiAssets)
 		registerEmbeddedStatic(store.C, "/admin/assets", "assets/js/admin/assets", store.UiAssets)
 		registerEmbeddedStatic(store.C, "/js/timeslider/assets/", "assets/js/timeslider/assets", store.UiAssets)
 	} else {
 		store.C.Get("/js/*", func(c *fiber.Ctx) error {
-			var entrypoint string
-
-			if strings.Contains(c.Path(), "welcome") {
-				entrypoint = "./src/welcome.js"
-			} else if strings.Contains(c.Path(), "pad") {
-				entrypoint = "./src/pad.js"
-			} else if strings.Contains(c.Path(), "timeslider") {
-				entrypoint = "./src/timeslider.js"
+			if devHMR == nil {
+				return c.Status(fiber.StatusServiceUnavailable).SendString("Dev bundler unavailable")
 			}
-
-			relativePath := "./src/js"
-			var alias = make(map[string]string)
-			alias["ep_etherpad-lite/static/js/ace2_inner"] = relativePath + "/ace2_inner"
-			alias["ep_etherpad-lite/static/js/ace2_common"] = relativePath + "/ace2_common"
-			alias["ep_etherpad-lite/static/js/pad_cookie"] = relativePath + "/pad_cookie"
-			alias["ep_etherpad-lite/static/js/pluginfw/client_plugins"] = relativePath + "/pluginfw/client_plugins"
-			alias["ep_etherpad-lite/static/js/rjquery"] = relativePath + "/rjquery"
-			alias["ep_etherpad-lite/static/js/nice-select"] = "ep_etherpad-lite/static/js/vendors/nice-select"
-
-			var pathToBuild = path.Join(store.RetrievedSettings.Root, "ui")
-
-			result := api.Build(api.BuildOptions{
-				EntryPoints:   []string{entrypoint},
-				AbsWorkingDir: pathToBuild,
-				Bundle:        true,
-				Write:         false,
-				LogLevel:      api.LogLevelInfo,
-				Metafile:      true,
-				Target:        api.ES2020,
-				Alias:         alias,
-				Sourcemap:     api.SourceMapInline,
-			})
-
-			if len(result.Errors) > 0 {
-				fmt.Println("Build failed with errors:", result.Errors)
-				return c.SendString("Build failed")
-			}
-
-			c.Set("Content-Type", "application/javascript")
-
-			return c.Send(result.OutputFiles[0].Contents)
+			return devHMR.serveBundle(c)
 		})
 	}
 

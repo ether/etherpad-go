@@ -13,7 +13,7 @@ declare global {
  *     https://socket.io/docs/v2/client-api/#new-Manager-url-options
  * @return socket.io Socket object
  */
-const connect = (_etherpadBaseUrl: string | URL, _namespace = '/', _options = {}) => {
+export const connect = (_etherpadBaseUrl: string | URL, _namespace = '/', _options = {}) => {
   // The API for socket.io's io() function is awkward. The documentation says that the first
   // argument is a URL, but it is not the URL of the socket.io endpoint. The URL's path part is used
   // as the name of the socket.io namespace to join, and the rest of the URL (including query
@@ -35,8 +35,4 @@ const connect = (_etherpadBaseUrl: string | URL, _namespace = '/', _options = {}
   return window.socket;
 };
 
-if (typeof exports === 'object') {
-  exports.connect = connect;
-} else {
-  window.socketio = {connect};
-}
+window.socketio = {connect};

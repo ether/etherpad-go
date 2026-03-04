@@ -1,39 +1,40 @@
-let BroadcastSlider;
+import './js/l10n';
+import {browserFlags} from './js/browser_flags';
+import * as padEditbarModule from './js/pad_editbar';
+import './js/pad_impexp';
+import * as pluginClientModule from './js/pluginfw/client_plugins';
+import * as pluginRegistryModule from './js/pluginfw/plugin_registry';
+import * as timeSliderModule from './js/timeslider';
 
-
-window.clientVars = {
-    // This is needed to fetch /pluginfw/plugin-definitions.json, which happens before the server
-    // sends the CLIENT_VARS message.
-    randomVersionString: Date.now().toString(),
+const unwrapModule = (moduleValue) => {
+  if (moduleValue && typeof moduleValue === 'object' && 'default' in moduleValue) {
+    return moduleValue.default;
+  }
+  return moduleValue;
 };
 
-(function () {
-    const timeSlider = require('./js/timeslider')
-    const pathComponents = location.pathname.split('/');
+const bootstrap = async () => {
+  window.clientVars = {
+    randomVersionString: Date.now().toString(),
+  };
 
-    // Strip 'p', the padname and 'timeslider' from the pathname and set as baseURL
-    const baseURL = pathComponents.slice(0,pathComponents.length-3).join('/') + '/';
-    require('./js/l10n')
-    window.$ = window.jQuery = require('./js/rjquery').jQuery; // Expose jQuery #HACK
-    require('./js/vendors/gritter')
+  const pathComponents = location.pathname.split('/');
+  const baseURL = `${pathComponents.slice(0, pathComponents.length - 3).join('/')}/`;
 
-    window.browser = require('./js/vendors/browser');
+  window.browser = browserFlags;
+  const timeSlider = unwrapModule(timeSliderModule);
+  const pluginRegistry = unwrapModule(pluginRegistryModule);
+  window.plugins = unwrapModule(pluginClientModule);
 
-    const pluginRegistry = require('./js/pluginfw/plugin_registry');
+  window.plugins.setBaseURL(baseURL);
+  await window.plugins.update(pluginRegistry.getModuleMap());
 
-    window.plugins = require('./js/pluginfw/client_plugins');
-    const socket = timeSlider.socket;
-    BroadcastSlider = timeSlider.BroadcastSlider;
-    plugins.baseURL = baseURL;
-    plugins.update(function () {
+  const padeditbar = unwrapModule(padEditbarModule).padeditbar;
+  timeSlider.setBaseURL(baseURL);
+  await timeSlider.init();
+  window.socket = timeSlider.socket;
+  window.BroadcastSlider = timeSlider.BroadcastSlider;
+  padeditbar.init();
+};
 
-
-        /* TODO: These globals shouldn't exist. */
-
-    });
-    const padeditbar = require('./js/pad_editbar').padeditbar;
-    const padimpexp = require('./js/pad_impexp').padimpexp;
-    timeSlider.baseURL = baseURL;
-    timeSlider.init();
-    padeditbar.init()
-})();
+void bootstrap();

@@ -1,5 +1,4 @@
 // @ts-nocheck
-'use strict';
 
 // THIS FILE IS ALSO AN APPJET MODULE: etherpad.collab.ace.domline
 // %APPJET%: import("etherpad.admin.plugins");
@@ -23,14 +22,14 @@
 // requires: plugins
 // requires: undefined
 
-const Security = require('./security');
-const hooks = require('./pluginfw/hooks');
-const _ = require('./underscore');
-const lineAttributeMarker = require('./linestylefilter').lineAttributeMarker;
+import {escapeHtml, escapeHtmlAttribute} from './html_escape';
+import * as hooks from './pluginfw/hooks';
+import * as _ from 'underscore';
+import {lineAttributeMarker} from './linestylefilter';
 const noop = () => {};
 
 
-const domline = {};
+export const domline = {};
 
 domline.addToLineClass = (lineClass, cls) => {
   // an "empty span" at any point can be used to add classes to
@@ -100,7 +99,7 @@ domline.createDomLine = (nonEmpty, doesWrap, optBrowser, optDocument) => {
         listType = listType[1];
         if (listType) {
           if (listType.indexOf('number') < 0) {
-            preHtml += `<ul class="list-${Security.escapeHTMLAttribute(listType)}"><li>`;
+            preHtml += `<ul class="list-${escapeHtmlAttribute(listType)}"><li>`;
             postHtml = `</li></ul>${postHtml}`;
           } else {
             if (start) { // is it a start of a list with more than one item in?
@@ -109,10 +108,10 @@ domline.createDomLine = (nonEmpty, doesWrap, optBrowser, optDocument) => {
                 lineClass = `${lineClass} ` + `list-start-${listType}`;
               }
               preHtml +=
-                `<ol start=${start[1]} class="list-${Security.escapeHTMLAttribute(listType)}"><li>`;
+                `<ol start=${start[1]} class="list-${escapeHtmlAttribute(listType)}"><li>`;
             } else {
               // Handles pasted contents into existing lists
-              preHtml += `<ol class="list-${Security.escapeHTMLAttribute(listType)}"><li>`;
+              preHtml += `<ol class="list-${escapeHtmlAttribute(listType)}"><li>`;
             }
             postHtml += '</li></ol>';
           }
@@ -177,7 +176,7 @@ domline.createDomLine = (nonEmpty, doesWrap, optBrowser, optDocument) => {
         // https://html.spec.whatwg.org/multipage/links.html#link-type-noopener
         // https://mathiasbynens.github.io/rel-noopener/
         // https://github.com/ether/etherpad-lite/pull/3636
-        const escapedHref = Security.escapeHTMLAttribute(href);
+        const escapedHref = escapeHtmlAttribute(href);
         extraOpenTags = `${extraOpenTags}<a href="${escapedHref}" rel="noreferrer noopener">`;
         extraCloseTags = `</a>${extraCloseTags}`;
       }
@@ -188,10 +187,10 @@ domline.createDomLine = (nonEmpty, doesWrap, optBrowser, optDocument) => {
         extraCloseTags = `</${simpleTags.join('></')}>${extraCloseTags}`;
       }
       html.push(
-          '<span class="', Security.escapeHTMLAttribute(cls || ''),
+          '<span class="', escapeHtmlAttribute(cls || ''),
           '">',
           extraOpenTags,
-          perTextNodeProcess(Security.escapeHTML(txt)),
+          perTextNodeProcess(escapeHtml(txt)),
           extraCloseTags,
           '</span>');
     }
@@ -275,5 +274,3 @@ domline.processSpaces = (s, doesWrap) => {
   }
   return parts.join('');
 };
-
-exports.domline = domline;

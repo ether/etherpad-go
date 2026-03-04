@@ -1,49 +1,62 @@
+import './js/basic_error_handler';
+import './js/l10n';
+import './js/skin_variants';
+import {browserFlags} from './js/browser_flags';
+import * as chatModule from './js/chat';
+import * as hooksModule from './js/pluginfw/hooks';
+import * as padModule from './js/pad';
+import * as padEditbarModule from './js/pad_editbar';
+import * as padImpexpModule from './js/pad_impexp';
+import * as pluginClientModule from './js/pluginfw/client_plugins';
+import * as pluginDefsModule from './js/pluginfw/plugin_defs';
+import * as pluginRegistryModule from './js/pluginfw/plugin_registry';
 
-(async () => {
-
-    require('./js/l10n')
-
-    window.clientVars = {
-        // This is needed to fetch /pluginfw/plugin-definitions.json, which happens before the server
-        // sends the CLIENT_VARS message.
-        randomVersionString: Date.now().toString(),
+const unwrapModule = (moduleValue) => {
+  if (moduleValue && typeof moduleValue === 'object' && 'default' in moduleValue) {
+    return moduleValue.default;
+  }
+  return moduleValue;
 };
 
-    // Allow other frames to access this frame's modules.
-    //window.require.resolveTmp = require.resolve('ep_etherpad-lite/static/js/pad_cookie');
+const waitForDocumentReady = async () => {
+  if (document.readyState !== 'loading') return;
+  await new Promise((resolve) => {
+    document.addEventListener('DOMContentLoaded', resolve, {once: true});
+  });
+};
 
-    const basePath = new URL('..', window.location.href).pathname;
-    window.$ = window.jQuery = require('./js/rjquery').jQuery;
-    window.browser = require('./js/vendors/browser');
-    const pad = require('./js/pad');
-    pad.baseURL = basePath;
+const bootstrap = async () => {
+  window.clientVars = {
+    randomVersionString: Date.now().toString(),
+  };
 
-    // Plugin Registry laden - registriert alle eingebauten client_hooks Module
-    const pluginRegistry = require('./js/pluginfw/plugin_registry');
+  const basePath = new URL('..', window.location.href).pathname;
 
-    window.plugins = require('./js/pluginfw/client_plugins');
-    const hooks = require('./js/pluginfw/hooks');
+  window.browser = browserFlags;
+  const pad = unwrapModule(padModule);
+  if (typeof pad.setBaseURL === 'function') pad.setBaseURL(basePath);
+  else pad.baseURL = basePath;
 
-    // TODO: These globals shouldn't exist.
-    window.pad = pad.pad;
-    window.chat = require('./js/chat').chat;
-    window.padeditbar = require('./js/pad_editbar').padeditbar;
-    window.padimpexp = require('./js/pad_impexp').padimpexp;
-    require('./js/skin_variants');
-    require('./js/basic_error_handler')
+  const pluginRegistry = unwrapModule(pluginRegistryModule);
+  window.plugins = unwrapModule(pluginClientModule);
+  const hooks = unwrapModule(hooksModule);
 
-    window.plugins.baseURL = basePath;
+  window.pad = pad.pad;
+  window.chat = unwrapModule(chatModule).chat;
+  window.padeditbar = unwrapModule(padEditbarModule).padeditbar;
+  window.padimpexp = unwrapModule(padImpexpModule).padimpexp;
 
-    // Lade Plugin-Definitionen und extrahiere Hooks
-    // Übergebe die Module-Map damit die Hooks korrekt geladen werden
-    await window.plugins.update(pluginRegistry.getModuleMap());
+  window.plugins.setBaseURL(basePath);
+  await window.plugins.update(pluginRegistry.getModuleMap());
 
-    // Mechanism for tests to register hook functions (install fake plugins).
-    window._postPluginUpdateForTestingDone = false;
-    if (window._postPluginUpdateForTesting != null) window._postPluginUpdateForTesting();
-    window._postPluginUpdateForTestingDone = true;
-    window.pluginDefs = require('./js/pluginfw/plugin_defs');
-    pad.init();
-    await new Promise((resolve) => $(resolve));
-    await hooks.aCallAll('documentReady');
-})();
+  window._postPluginUpdateForTestingDone = false;
+  if (window._postPluginUpdateForTesting != null) window._postPluginUpdateForTesting();
+  window._postPluginUpdateForTestingDone = true;
+  window.pluginDefs = unwrapModule(pluginDefsModule);
+
+  pad.init();
+  await waitForDocumentReady();
+  await hooks.aCallAll('documentReady');
+};
+
+void bootstrap();

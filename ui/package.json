@@ -9,18 +9,14 @@
   },
   "devDependencies": {
     "@types/jquery": "^4.0.0",
-    "@types/js-cookie": "^3.0.6",
-    "@types/node": "^25.3.5",
+    "@types/node": "^25.3.3",
     "esbuild": "0.27.3",
     "typescript": "^5.6.3",
     "vite": "^7.3.1"
   },
   "dependencies": {
     "@rollup/plugin-commonjs": "^29.0.0",
-    "js-cookie": "^3.0.5",
-    "security": "^1.0.0",
     "socket.io-client": "^4.8.3",
-    "tinycon": "^0.6.8",
     "underscore": "^1.13.8",
     "unorm": "^1.6.0"
   }

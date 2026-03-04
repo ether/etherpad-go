@@ -1,65 +1,57 @@
 import type { PostAceInitHook } from '../../../typings/etherpad';
-declare var require: any;
-const padcookie = require('ep_etherpad-lite/static/js/pad_cookie');
 
+const COOKIE_NAME = 'prefs';
 
+type Prefs = {
+  spellcheck?: boolean;
+};
 
-export const postAceInit: PostAceInitHook = (_hookName, context) => {
+const parsePrefs = (): Prefs => {
+  const cookie = document.cookie
+    .split(';')
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(`${COOKIE_NAME}=`));
 
+  if (!cookie) return {};
 
-    const $ = (globalThis as any).jQuery || (globalThis as any).$;
+  try {
+    const value = decodeURIComponent(cookie.slice(`${COOKIE_NAME}=`.length));
+    return JSON.parse(value) as Prefs;
+  } catch {
+    return {};
+  }
+};
 
-    const $outer = $('iframe[name="ace_outer"]').contents().find('iframe');
-    const $inner = $outer.contents().find('#innerdocbody');
+const writePrefs = (prefs: Prefs): void => {
+  const encoded = encodeURIComponent(JSON.stringify(prefs));
+  document.cookie = `${COOKIE_NAME}=${encoded}; path=/; SameSite=Lax`;
+};
 
-    const enableSpellcheck = ()=>{
-        $inner.attr('spellcheck', 'true');
-        $inner.find('div').each(function () {
-            $(this).attr('spellcheck', 'true');
-            $(this).find('div').each(function () {
-                $(this).attr('spellcheck', 'true');
-            });
-        });
-    }
+const setSpellcheck = (enabled: boolean): void => {
+  const outerFrame = document.querySelector<HTMLIFrameElement>('iframe[name="ace_outer"]');
+  const outerDocument = outerFrame?.contentDocument;
+  const innerFrame = outerDocument?.querySelector<HTMLIFrameElement>('iframe');
+  const innerBody = innerFrame?.contentDocument?.querySelector<HTMLElement>('#innerdocbody');
+  if (!innerBody) return;
 
-    const disableSpellcheck = ()=>{
-        $inner.attr('spellcheck', 'false');
-        $inner.find('div').each(function () {
-            $(this).attr('spellcheck', 'false');
-            $(this).find('span').each(function () {
-                $(this).attr('spellcheck', 'false');
-            });
-        });
-    }
+  innerBody.setAttribute('spellcheck', String(enabled));
+  innerBody.querySelectorAll<HTMLElement>('div, span').forEach((node) => {
+    node.setAttribute('spellcheck', String(enabled));
+  });
+};
 
-    const padcookieObj = padcookie.padcookie || padcookie;
+export const postAceInit: PostAceInitHook = () => {
+  const optionsSpellcheck = document.querySelector<HTMLInputElement>('#options-spellcheck');
+  if (!optionsSpellcheck) return;
 
-    if (typeof padcookieObj.getPref !== 'function') {
-        console.error('padcookie.getPref is not a function. padcookieObj:', padcookieObj);
-    }
+  const prefs = parsePrefs();
+  optionsSpellcheck.checked = prefs.spellcheck !== false;
+  setSpellcheck(optionsSpellcheck.checked);
 
-    if (padcookieObj.getPref('spellcheck') === false) {
-        $('#options-spellcheck').val();
-        $('#options-spellcheck').attr('checked', 'unchecked');
-        $('#options-spellcheck').attr('checked', false);
-    } else {
-        $('#options-spellcheck').attr('checked', 'checked');
-    }
-
-    if ($('#options-spellcheck').is(':checked')) {
-        enableSpellcheck();
-    } else {
-        disableSpellcheck();
-    }
-
-    $('#options-spellcheck').on('click', () => {
-        if ($('#options-spellcheck').is(':checked')) {
-            padcookieObj.setPref('spellcheck', true);
-            enableSpellcheck();
-        } else {
-            padcookieObj.setPref('spellcheck', false);
-            disableSpellcheck();
-        }
-        window.location.reload()
-    });
+  optionsSpellcheck.addEventListener('click', () => {
+    const enabled = optionsSpellcheck.checked;
+    writePrefs({...prefs, spellcheck: enabled});
+    setSpellcheck(enabled);
+    window.location.reload();
+  });
 };

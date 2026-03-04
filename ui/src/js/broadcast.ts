@@ -1,5 +1,4 @@
 // @ts-nocheck
-'use strict';
 
 /**
  * This code is mostly from the old Etherpad. Please help us to comment this code.
@@ -23,22 +22,22 @@
  * limitations under the License.
  */
 
-const makeCSSManager = require('./cssmanager').makeCSSManager;
-const domline = require('./domline').domline;
+import {makeCSSManager} from './cssmanager';
+import {domline} from './domline';
 import AttribPool from './AttributePool';
 import {compose, deserializeOps, inverse, moveOpsToNewPool, mutateAttributionLines, mutateTextLines, splitAttributionLines, splitTextLines, unpack} from './Changeset';
-const attributes = require('./attributes');
-const linestylefilter = require('./linestylefilter').linestylefilter;
-const colorutils = require('./colorutils').colorutils;
-const _ = require('./underscore');
-const hooks = require('./pluginfw/hooks');
+import attributes from './attributes';
+import {linestylefilter} from './linestylefilter';
+import {colorutils} from './colorutils';
+import * as _ from 'underscore';
+import * as hooks from './pluginfw/hooks';
 
-import html10n from './vendors/html10n';
+import html10n from './i18n';
 
 
 // These parameters were global, now they are injected. A reference to the
 // Timeslider controller would probably be more appropriate.
-const loadBroadcastJS = (socket, sendSocketMsg, fireWhenAllScriptsAreLoaded, BroadcastSlider) => {
+export const loadBroadcastJS = (socket, sendSocketMsg, fireWhenAllScriptsAreLoaded, BroadcastSlider) => {
   let goToRevisionIfEnabledCount = 0;
   let changesetLoader = undefined;
 
@@ -62,7 +61,7 @@ const loadBroadcastJS = (socket, sendSocketMsg, fireWhenAllScriptsAreLoaded, Bro
         clientVars.collab_client_vars.initialAttributedText.attribs,
         clientVars.collab_client_vars.initialAttributedText.text),
 
-    // generates a jquery element containing HTML for a line
+    // generates an element containing HTML for a line
     lineToElement(line, aline) {
       const element = document.createElement('div');
       const emptyLine = (line === '\n');
@@ -72,7 +71,7 @@ const loadBroadcastJS = (socket, sendSocketMsg, fireWhenAllScriptsAreLoaded, Bro
       element.className = domInfo.node.className;
       element.innerHTML = domInfo.node.innerHTML;
       element.id = Math.random();
-      return $(element);
+      return element;
     },
 
     // splice the lines
@@ -98,7 +97,7 @@ const loadBroadcastJS = (socket, sendSocketMsg, fireWhenAllScriptsAreLoaded, Bro
         if (startDiv) {
           startDiv.after(newDivs[i]);
         } else {
-          $('#innerdocbody').prepend(newDivs[i]);
+          document.getElementById('innerdocbody')?.prepend(newDivs[i]);
         }
         startDiv = newDivs[i];
       }
@@ -148,8 +147,8 @@ const loadBroadcastJS = (socket, sendSocketMsg, fireWhenAllScriptsAreLoaded, Bro
     }
 
     // scroll to the area that is changed before the lines are mutated
-    if ($('#options-followContents').is(':checked') ||
-        $('#options-followContents').prop('checked')) {
+    const followContents = document.getElementById('options-followContents');
+    if (followContents instanceof HTMLInputElement && followContents.checked) {
       // get the index of the first line that has mutated attributes
       // the last line in `oldAlines` should always equal to "|1+1", ie newline without attributes
       // so it should be safe to assume this line has changed attributes when inserting content at
@@ -170,14 +169,15 @@ const loadBroadcastJS = (socket, sendSocketMsg, fireWhenAllScriptsAreLoaded, Bro
 
       const goToLineNumber = (lineNumber) => {
         // Sets the Y scrolling of the browser to go to this line
-        const line = $('#innerdocbody').find(`div:nth-child(${lineNumber + 1})`);
-        const newY = $(line)[0].offsetTop;
+        const line = document.querySelector(`#innerdocbody div:nth-child(${lineNumber + 1})`);
+        if (!(line instanceof HTMLElement)) return;
+        const newY = line.offsetTop;
         const ecb = document.getElementById('editorcontainerbox');
         // Chrome 55 - 59 bugfix
         if (ecb.scrollTo) {
           ecb.scrollTo({top: newY, behavior: 'auto'});
         } else {
-          $('#editorcontainerbox').scrollTop(newY);
+          ecb.scrollTop = newY;
         }
       };
 
@@ -236,7 +236,8 @@ const loadBroadcastJS = (socket, sendSocketMsg, fireWhenAllScriptsAreLoaded, Bro
     };
 
 
-    $('#timer').html(dateFormat());
+    const timer = document.getElementById('timer');
+    if (timer) timer.textContent = dateFormat();
     const revisionDate = html10n.get('timeslider.saved', {
       day: date.getDate(),
       month: [
@@ -255,7 +256,8 @@ const loadBroadcastJS = (socket, sendSocketMsg, fireWhenAllScriptsAreLoaded, Bro
       ][date.getMonth()],
       year: date.getFullYear(),
     });
-    $('#revision_date').html(revisionDate);
+    const revisionDateEl = document.getElementById('revision_date');
+    if (revisionDateEl) revisionDateEl.textContent = revisionDate;
   };
 
   updateTimer();
@@ -446,11 +448,12 @@ const loadBroadcastJS = (socket, sendSocketMsg, fireWhenAllScriptsAreLoaded, Bro
   fireWhenAllScriptsAreLoaded.push(() => {
     // set up the currentDivs and DOM
     padContents.currentDivs = [];
-    $('#innerdocbody').html('');
+    const innerDocBody = document.getElementById('innerdocbody');
+    if (innerDocBody) innerDocBody.innerHTML = '';
     for (let i = 0; i < padContents.currentLines.length; i++) {
       const div = padContents.lineToElement(padContents.currentLines[i], padContents.alines[i]);
       padContents.currentDivs.push(div);
-      $('#innerdocbody').append(div);
+      innerDocBody?.append(div);
     }
   });
 
@@ -487,5 +490,3 @@ const loadBroadcastJS = (socket, sendSocketMsg, fireWhenAllScriptsAreLoaded, Bro
 
   return changesetLoader;
 };
-
-exports.loadBroadcastJS = loadBroadcastJS;

@@ -1,5 +1,6 @@
 // @ts-nocheck
-'use strict';
+import html10n from './i18n';
+import notifications from './notifications';
 
 /**
  * Copyright 2012 Peter 'Pita' Martischka
@@ -19,21 +20,22 @@
 
 let pad;
 
-exports.saveNow = () => {
+export const saveNow = () => {
   pad.collabClient.sendMessage({type: 'SAVE_REVISION'});
-  window.$.gritter.add({
-    // (string | mandatory) the heading of the notification
+  notifications.add({
     title: html10n.get('pad.savedrevs.marked'),
-    // (string | mandatory) the text inside the notification
     text: html10n.get('pad.savedrevs.timeslider') ||
         'You can view saved revisions in the timeslider',
-    // (bool | optional) if you want it to fade out on its own or just sit there
     sticky: false,
     time: 3000,
     class_name: 'saved-revision',
   });
 };
 
-exports.init = (_pad) => {
+export const init = (_pad) => {
   pad = _pad;
+};
+
+export const newRevisionList = (_revisionList) => {
+  // Timeslider/saved revisions UI handling is currently legacy/no-op in this frontend branch.
 };

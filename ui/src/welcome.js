@@ -1,5 +1,2 @@
-(async () => {
-    window.$ = window.jQuery = require('./js/rjquery').jQuery;
-    require('./js/l10n')
-    require('./js/index')
-})()
+import './js/l10n';
+import './js/index';

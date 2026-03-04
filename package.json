@@ -1,0 +1,13 @@
+{
+  "name": "etherpad-go-workspace",
+  "private": true,
+  "packageManager": "pnpm@10.17.1",
+  "scripts": {
+    "typecheck": "pnpm run typecheck:ui && pnpm run typecheck:plugins",
+    "typecheck:ui": "pnpm --filter ./ui exec tsc --noEmit",
+    "typecheck:plugins": "pnpm -r --filter ./plugins/* exec tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  }
+}

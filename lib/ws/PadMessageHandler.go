@@ -1405,6 +1405,26 @@ func (p *PadMessageHandler) KickSessionsFromPad(padID string) {
 	p.hub.ClientsRWMutex.RUnlock()
 }
 
+func (p *PadMessageHandler) BroadcastSocketEvent(event string, payload interface{}) {
+	arr := make([]interface{}, 2)
+	arr[0] = event
+	arr[1] = payload
+	marshalled, err := json.Marshal(arr)
+	if err != nil {
+		p.Logger.Warnf("Could not marshal socket event %s: %v", event, err)
+		return
+	}
+
+	p.hub.ClientsRWMutex.RLock()
+	for client := range p.hub.Clients {
+		if client == nil {
+			continue
+		}
+		client.SafeSend(marshalled)
+	}
+	p.hub.ClientsRWMutex.RUnlock()
+}
+
 func (p *PadMessageHandler) HandleSavedRevisionMessage(foundPad *pad2.Pad, author string) {
 	if err := foundPad.AddSavedRevision(author); err != nil {
 		p.Logger.Warnf("Error adding saved revision:%s", err)

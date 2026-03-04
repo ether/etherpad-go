@@ -1,5 +1,4 @@
 // @ts-nocheck
-'use strict';
 
 /**
  * This code is mostly from the old Etherpad. Please help us to comment this code.
@@ -26,7 +25,7 @@
 // of the document.  These revisions are connected together by various
 // changesets,  or deltas, between any two revisions.
 
-const loadBroadcastRevisionsJS = () => {
+export const loadBroadcastRevisionsJS = () => {
   function Revision(revNum) {
     this.rev = revNum;
     this.changesets = [];
@@ -112,5 +111,3 @@ const loadBroadcastRevisionsJS = () => {
   };
   window.revisionInfo = revisionInfo;
 };
-
-exports.loadBroadcastRevisionsJS = loadBroadcastRevisionsJS;

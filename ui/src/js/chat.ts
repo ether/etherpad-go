@@ -1,280 +1,345 @@
-// @ts-nocheck
-'use strict';
-/**
- * Copyright 2009 Google Inc., 2011 Peter 'Pita' Martischka (Primary Technology Ltd)
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS-IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 import ChatMessage from './ChatMessage';
-import padutils from './pad_utils'
-const padcookie = require('./pad_cookie').padcookie;
-const Tinycon = require('tinycon/tinycon');
-const hooks = require('./pluginfw/hooks');
-const padeditor = require('./pad_editor').padeditor;
-import html10n from './vendors/html10n';
+import {padcookie} from './pad_cookie';
+import padutils from './pad_utils';
+import html10n from './i18n';
+import notifications from './notifications';
 
-// Removes diacritics and lower-cases letters. https://stackoverflow.com/a/37511463
-const normalize = (s) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-
-
-exports.chat = (() => {
-  let isStuck = false;
-  let userAndChat = false;
-  let chatMentions = 0;
+import * as hooks from './pluginfw/hooks';
+import {padeditor} from './pad_editor';
+const titleBadge = (() => {
+  let baseTitle: string | null = null;
   return {
-    show() {
-      $('#chaticon').removeClass('visible');
-      $('#chatbox').addClass('visible');
-      this.scrollDown(true);
-      chatMentions = 0;
-      Tinycon.setBubble(0);
-      $('.chat-gritter-msg').each(function () {
-        $.gritter.remove(this.id);
-      });
-    },
-    focus: () => {
-      setTimeout(() => {
-        $('#chatinput').trigger('focus');
-      }, 100);
-    },
-    // Make chat stick to right hand side of screen
-    stickToScreen(fromInitialCall) {
-      if ($('#options-stickychat').prop('checked')) {
-        $('#options-stickychat').prop('checked', false);
-      }
-      if (pad.settings.hideChat) {
-        return;
-      }
-      this.show();
-      isStuck = (!isStuck || fromInitialCall);
-      $('#chatbox').hide();
-      // Add timeout to disable the chatbox animations
-      setTimeout(() => {
-        $('#chatbox, .sticky-container').toggleClass('stickyChat', isStuck);
-        $('#chatbox').css('display', 'flex');
-      }, 0);
-
-      padcookie.setPref('chatAlwaysVisible', isStuck);
-      $('#options-stickychat').prop('checked', isStuck);
-    },
-    chatAndUsers(fromInitialCall) {
-      const toEnable = $('#options-chatandusers').is(':checked');
-      if (toEnable || !userAndChat || fromInitialCall) {
-        this.stickToScreen(true);
-        $('#options-stickychat').prop('checked', true);
-        $('#options-chatandusers').prop('checked', true);
-        $('#options-stickychat').prop('disabled', true);
-        userAndChat = true;
-      } else {
-        $('#options-stickychat').prop('disabled', false);
-        userAndChat = false;
-      }
-      padcookie.setPref('chatAndUsers', userAndChat);
-      $('#users, .sticky-container')
-          .toggleClass('chatAndUsers popup-show stickyUsers', userAndChat);
-      $('#chatbox').toggleClass('chatAndUsersChat', userAndChat);
-    },
-    hide() {
-      // decide on hide logic based on chat window being maximized or not
-      if ($('#options-stickychat').prop('checked')) {
-        this.stickToScreen();
-        $('#options-stickychat').prop('checked', false);
-      } else {
-        $('#chatcounter').text('0');
-        $('#chaticon').addClass('visible');
-        $('#chatbox').removeClass('visible');
-      }
-    },
-    scrollDown(force) {
-      if ($('#chatbox').hasClass('visible')) {
-        if (force || !this.lastMessage || !this.lastMessage.position() ||
-            this.lastMessage.position().top < ($('#chattext').outerHeight() + 20)) {
-          // if we use a slow animate here we can have a race condition
-          // when a users focus can not be moved away from the last message recieved.
-          $('#chattext').animate(
-              {scrollTop: $('#chattext')[0].scrollHeight},
-              {duration: 400, queue: false});
-          this.lastMessage = $('#chattext > p').eq(-1);
-        }
-      }
-    },
-    async send() {
-      const text = $('#chatinput').val();
-      if (text.replace(/\s+/, '').length === 0) return;
-      const message = new ChatMessage(text);
-      await hooks.aCallAll('chatSendMessage', Object.freeze({message}));
-      this._pad.collabClient.sendMessage({type: 'CHAT_MESSAGE', message});
-      $('#chatinput').val('');
-    },
-    async addMessage(msg, increment, isHistoryAdd) {
-      msg = ChatMessage.fromObject(msg);
-      // correct the time
-      msg.time += this._pad.clientTimeOffset;
-
-      if (!msg.authorId) {
-        /*
-         * If, for a bug or a database corruption, the message coming from the
-         * server does not contain the authorId field (see for example #3731),
-         * let's be defensive and replace it with "unknown".
-         */
-        msg.authorId = 'unknown';
-        console.warn(
-            'The "authorId" field of a chat message coming from the server was not present. ' +
-            'Replacing with "unknown". This may be a bug or a database corruption.');
-      }
-
-      const authorClass = (authorId) => `author-${authorId.replace(/[^a-y0-9]/g, (c) => {
-        if (c === '.') return '-';
-        return `z${c.charCodeAt(0)}z`;
-      })}`;
-
-      // the hook args
-      const ctx = {
-        authorName: msg.displayName != null ? msg.displayName : html10n.get('pad.userlist.unnamed'),
-        author: msg.authorId,
-        text: padutils.escapeHtmlWithClickableLinks(msg.text, '_blank'),
-        message: msg,
-        rendered: null,
-        sticky: false,
-        timestamp: msg.time,
-        timeStr: (() => {
-          let minutes = `${new Date(msg.time).getMinutes()}`;
-          let hours = `${new Date(msg.time).getHours()}`;
-          if (minutes.length === 1) minutes = `0${minutes}`;
-          if (hours.length === 1) hours = `0${hours}`;
-          return `${hours}:${minutes}`;
-        })(),
-        duration: 4000,
-      };
-
-      // is the users focus already in the chatbox?
-      const alreadyFocused = $('#chatinput').is(':focus');
-
-      // does the user already have the chatbox open?
-      const chatOpen = $('#chatbox').hasClass('visible');
-
-      // does this message contain this user's name? (is the current user mentioned?)
-      const wasMentioned =
-          msg.authorId !== window.clientVars.userId &&
-          ctx.authorName !== html10n.get('pad.userlist.unnamed') &&
-          normalize(ctx.text).includes(normalize(ctx.authorName));
-
-      // If the user was mentioned, make the message sticky
-      if (wasMentioned && !alreadyFocused && !isHistoryAdd && !chatOpen) {
-        chatMentions++;
-        Tinycon.setBubble(chatMentions);
-        ctx.sticky = true;
-      }
-
-      await hooks.aCallAll('chatNewMessage', ctx);
-      const cls = authorClass(ctx.author);
-      const chatMsg = ctx.rendered != null ? $(ctx.rendered) : $('<p>')
-          .attr('data-authorId', ctx.author)
-          .addClass(cls)
-          .append($('<b>').text(`${ctx.authorName}:`))
-          .append($('<span>')
-              .addClass('time')
-              .addClass(cls)
-              // Hook functions are trusted to not introduce an XSS vulnerability by adding
-              // unescaped user input to ctx.timeStr.
-              .html(ctx.timeStr))
-          .append(' ')
-          // ctx.text was HTML-escaped before calling the hook. Hook functions are trusted to not
-          // introduce an XSS vulnerability by adding unescaped user input.
-          .append($('<div>').html(ctx.text).contents());
-      if (isHistoryAdd) chatMsg.insertAfter('#chatloadmessagesbutton');
-      else $('#chattext').append(chatMsg);
-      chatMsg.each((i, e) => html10n.translateElement(html10n.translations, e));
-
-      // should we increment the counter??
-      if (increment && !isHistoryAdd) {
-        // Update the counter of unread messages
-        let count = Number($('#chatcounter').text());
-        count++;
-        $('#chatcounter').text(count);
-
-        if (!chatOpen && ctx.duration > 0) {
-          const text = $('<p>')
-              .append($('<span>').addClass('author-name').text(ctx.authorName))
-              // ctx.text was HTML-escaped before calling the hook. Hook functions are trusted
-              // to not introduce an XSS vulnerability by adding unescaped user input.
-              .append($('<div>').html(ctx.text).contents());
-          text.each((i, e) => html10n.translateElement(html10n.translations, e));
-          $.gritter.add({
-            text,
-            sticky: ctx.sticky,
-            time: ctx.duration,
-            position: 'bottom',
-            class_name: 'chat-gritter-msg',
-          });
-        }
-      }
-      if (!isHistoryAdd) this.scrollDown();
-    },
-    init(pad) {
-      this._pad = pad;
-      $('#chatinput').on('keydown', (evt) => {
-        // If the event is Alt C or Escape & we're already in the chat menu
-        // Send the users focus back to the pad
-        if ((evt.altKey === true && evt.which === 67) || evt.which === 27) {
-          // If we're in chat already..
-          $(':focus').trigger('blur'); // required to do not try to remove!
-          padeditor.ace.focus(); // Sends focus back to pad
-          evt.preventDefault();
-          return false;
-        }
-      });
-      // Clear the chat mentions when the user clicks on the chat input box
-      $('#chatinput').on('click', () => {
-        chatMentions = 0;
-        Tinycon.setBubble(0);
-      });
-
-      const self = this;
-      $('body:not(#chatinput)').on('keypress', function (evt) {
-        if (evt.altKey && evt.which === 67) {
-          // Alt c focuses on the Chat window
-          $(this).trigger('blur');
-          self.show();
-          $('#chatinput').trigger('focus');
-          evt.preventDefault();
-        }
-      });
-
-      $('#chatinput').on('keypress', (evt) => {
-        // if the user typed enter, fire the send
-        if (evt.key === 'Enter' && !evt.shiftKey) {
-          evt.preventDefault();
-          this.send();
-        }
-      });
-
-      // initial messages are loaded in pad.js' _afterHandshake
-
-      $('#chatcounter').text(0);
-      $('#chatloadmessagesbutton').on('click', () => {
-        const start = Math.max(this.historyPointer - 20, 0);
-        const end = this.historyPointer;
-
-        if (start === end) return; // nothing to load
-
-        $('#chatloadmessagesbutton').css('display', 'none');
-        $('#chatloadmessagesball').css('display', 'block');
-
-        pad.collabClient.sendMessage({type: 'GET_CHAT_MESSAGES', start, end});
-        this.historyPointer = start;
-      });
+    setBubble(count: number): void {
+      if (typeof document === 'undefined') return;
+      const current = document.title.replace(/^\(\d+\)\s*/, '');
+      if (baseTitle == null) baseTitle = current;
+      document.title = count > 0 ? `(${count}) ${baseTitle}` : baseTitle;
     },
   };
 })();
+
+type CollabClientLike = {
+  sendMessage: (message: unknown) => void;
+};
+
+type PadLike = {
+  clientTimeOffset: number;
+  collabClient: CollabClientLike;
+  settings?: {
+    hideChat?: boolean;
+  };
+};
+
+type ChatContext = {
+  authorName: string;
+  author: string;
+  text: string;
+  message: ChatMessage;
+  rendered: unknown;
+  sticky: boolean;
+  timestamp: number;
+  timeStr: string;
+  duration: number;
+};
+
+const normalize = (s: string): string => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
+const byId = <T extends HTMLElement>(id: string): T | null => document.getElementById(id) as T | null;
+
+const asHtmlElement = (value: EventTarget | null): HTMLElement | null =>
+  value instanceof HTMLElement ? value : null;
+
+const parseHtmlFragment = (html: string): DocumentFragment => {
+  const template = document.createElement('template');
+  template.innerHTML = html;
+  return template.content;
+};
+
+const getRenderedElement = (rendered: unknown): HTMLElement | null => {
+  if (rendered instanceof HTMLElement) return rendered;
+  if (typeof rendered === 'string') {
+    const fragment = parseHtmlFragment(rendered);
+    return fragment.firstElementChild instanceof HTMLElement ? fragment.firstElementChild : null;
+  }
+  if (rendered != null && typeof rendered === 'object' && 'get' in rendered) {
+    const getFn = (rendered as {get: (i: number) => unknown}).get;
+    const element = getFn(0);
+    return element instanceof HTMLElement ? element : null;
+  }
+  return null;
+};
+
+class ChatController {
+  private isStuck = false;
+  private userAndChat = false;
+  private chatMentions = 0;
+  private lastMessage: HTMLElement | null = null;
+  private historyPointer = 0;
+  private pad!: PadLike;
+
+  private get chatBox(): HTMLElement | null { return byId('chatbox'); }
+  private get chatIcon(): HTMLElement | null { return byId('chaticon'); }
+  private get chatInput(): HTMLTextAreaElement | HTMLInputElement | null {
+    const input = byId('chatinput');
+    return input instanceof HTMLTextAreaElement || input instanceof HTMLInputElement ? input : null;
+  }
+  private get chatText(): HTMLElement | null { return byId('chattext'); }
+  private get chatCounter(): HTMLElement | null { return byId('chatcounter'); }
+
+  show(): void {
+    this.chatIcon?.classList.remove('visible');
+    this.chatBox?.classList.add('visible');
+    this.scrollDown(true);
+    this.chatMentions = 0;
+    titleBadge.setBubble(0);
+    for (const msg of document.querySelectorAll('.chat-gritter-msg[id]')) {
+      const id = (msg as HTMLElement).id;
+      if (id) notifications.remove(id);
+    }
+  }
+
+  focus = (): void => {
+    window.setTimeout(() => this.chatInput?.focus(), 100);
+  };
+
+  stickToScreen(fromInitialCall?: boolean): void {
+    const stickyOption = byId<HTMLInputElement>('options-stickychat');
+    if (stickyOption?.checked) stickyOption.checked = false;
+    if (this.pad.settings?.hideChat) return;
+
+    this.show();
+    this.isStuck = (!this.isStuck || fromInitialCall === true);
+    if (this.chatBox != null) this.chatBox.style.display = 'none';
+
+    window.setTimeout(() => {
+      for (const element of document.querySelectorAll('#chatbox, .sticky-container')) {
+        element.classList.toggle('stickyChat', this.isStuck);
+      }
+      if (this.chatBox != null) this.chatBox.style.display = 'flex';
+    }, 0);
+
+    padcookie.setPref('chatAlwaysVisible', this.isStuck);
+    if (stickyOption != null) stickyOption.checked = this.isStuck;
+  }
+
+  chatAndUsers(fromInitialCall?: boolean): void {
+    const chatAndUsersOption = byId<HTMLInputElement>('options-chatandusers');
+    const stickyOption = byId<HTMLInputElement>('options-stickychat');
+    const toEnable = Boolean(chatAndUsersOption?.checked);
+
+    if (toEnable || !this.userAndChat || fromInitialCall === true) {
+      this.stickToScreen(true);
+      if (stickyOption != null) {
+        stickyOption.checked = true;
+        stickyOption.disabled = true;
+      }
+      if (chatAndUsersOption != null) chatAndUsersOption.checked = true;
+      this.userAndChat = true;
+    } else {
+      if (stickyOption != null) stickyOption.disabled = false;
+      this.userAndChat = false;
+    }
+
+    padcookie.setPref('chatAndUsers', this.userAndChat);
+    for (const element of document.querySelectorAll('#users, .sticky-container')) {
+      element.classList.toggle('chatAndUsers', this.userAndChat);
+      element.classList.toggle('popup-show', this.userAndChat);
+      element.classList.toggle('stickyUsers', this.userAndChat);
+    }
+    this.chatBox?.classList.toggle('chatAndUsersChat', this.userAndChat);
+  }
+
+  hide(): void {
+    const stickyOption = byId<HTMLInputElement>('options-stickychat');
+    if (stickyOption?.checked) {
+      this.stickToScreen();
+      stickyOption.checked = false;
+      return;
+    }
+    if (this.chatCounter != null) this.chatCounter.textContent = '0';
+    this.chatIcon?.classList.add('visible');
+    this.chatBox?.classList.remove('visible');
+  }
+
+  scrollDown(force?: boolean): void {
+    const chatBox = this.chatBox;
+    const chatText = this.chatText;
+    if (chatBox == null || chatText == null || !chatBox.classList.contains('visible')) return;
+
+    const shouldScroll = (() => {
+      if (force) return true;
+      if (this.lastMessage == null) return true;
+      const top = this.lastMessage.getBoundingClientRect().top - chatText.getBoundingClientRect().top;
+      return top < (chatText.clientHeight + 20);
+    })();
+    if (!shouldScroll) return;
+
+    chatText.scrollTo({top: chatText.scrollHeight, behavior: 'smooth'});
+    const paragraphs = chatText.querySelectorAll('p');
+    this.lastMessage = paragraphs.length > 0 ? paragraphs[paragraphs.length - 1] as HTMLElement : null;
+  }
+
+  async send(): Promise<void> {
+    const input = this.chatInput;
+    if (input == null) return;
+    const text = input.value;
+    if (text.replace(/\s+/, '').length === 0) return;
+
+    const message = new ChatMessage(text);
+    await hooks.aCallAll('chatSendMessage', Object.freeze({message}));
+    this.pad.collabClient.sendMessage({type: 'CHAT_MESSAGE', message});
+    input.value = '';
+  }
+
+  async addMessage(msg: unknown, increment: boolean, isHistoryAdd: boolean): Promise<void> {
+    const message = ChatMessage.fromObject(msg as ChatMessage);
+    if (message.time == null) message.time = Date.now();
+    message.time += this.pad.clientTimeOffset;
+
+    if (!message.authorId) {
+      message.authorId = 'unknown';
+      console.warn('Missing "authorId" in chat message from server. Replaced with "unknown".');
+    }
+    if (message.text == null) message.text = '';
+
+    const authorClass = (authorId: string): string => `author-${authorId.replace(/[^a-y0-9]/g, (c) => {
+      if (c === '.') return '-';
+      return `z${c.charCodeAt(0)}z`;
+    })}`;
+
+    const ctx: ChatContext = {
+      authorName: message.displayName ?? html10n.get('pad.userlist.unnamed'),
+      author: message.authorId,
+      text: padutils.escapeHtmlWithClickableLinks(message.text, '_blank'),
+      message,
+      rendered: null,
+      sticky: false,
+      timestamp: message.time,
+      timeStr: (() => {
+        const date = new Date(message.time);
+        const minutes = `${date.getMinutes()}`.padStart(2, '0');
+        const hours = `${date.getHours()}`.padStart(2, '0');
+        return `${hours}:${minutes}`;
+      })(),
+      duration: 4000,
+    };
+
+    const alreadyFocused = document.activeElement === this.chatInput;
+    const chatOpen = this.chatBox?.classList.contains('visible') === true;
+
+    const wasMentioned =
+      message.authorId !== String(window.clientVars.userId ?? '') &&
+      ctx.authorName !== html10n.get('pad.userlist.unnamed') &&
+      normalize(ctx.text).includes(normalize(ctx.authorName));
+
+    if (wasMentioned && !alreadyFocused && !isHistoryAdd && !chatOpen) {
+      this.chatMentions++;
+      titleBadge.setBubble(this.chatMentions);
+      ctx.sticky = true;
+    }
+
+    await hooks.aCallAll('chatNewMessage', ctx);
+
+    const cls = authorClass(ctx.author);
+    const rendered = getRenderedElement(ctx.rendered);
+    const chatMsg = rendered ?? document.createElement('p');
+    if (rendered == null) {
+      chatMsg.setAttribute('data-authorId', ctx.author);
+      chatMsg.classList.add(cls);
+      const author = document.createElement('b');
+      author.textContent = `${ctx.authorName}:`;
+      const time = document.createElement('span');
+      time.classList.add('time', cls);
+      time.innerHTML = ctx.timeStr;
+      chatMsg.append(author, time, ' ');
+      const textContainer = document.createElement('div');
+      textContainer.innerHTML = ctx.text;
+      chatMsg.append(...Array.from(textContainer.childNodes));
+    }
+
+    if (isHistoryAdd) {
+      const loadButton = byId('chatloadmessagesbutton');
+      loadButton?.insertAdjacentElement('afterend', chatMsg);
+    } else {
+      this.chatText?.appendChild(chatMsg);
+    }
+    html10n.translateElement(html10n.translations, chatMsg);
+
+    if (increment && !isHistoryAdd) {
+      const currentCount = Number(this.chatCounter?.textContent ?? '0');
+      if (this.chatCounter != null) this.chatCounter.textContent = `${currentCount + 1}`;
+
+      if (!chatOpen && ctx.duration > 0) {
+        const text = document.createElement('p');
+        const authorName = document.createElement('span');
+        authorName.classList.add('author-name');
+        authorName.textContent = ctx.authorName;
+        const textContainer = document.createElement('div');
+        textContainer.innerHTML = ctx.text;
+        text.append(authorName, ...Array.from(textContainer.childNodes));
+        html10n.translateElement(html10n.translations, text);
+        notifications.add({
+          text,
+          sticky: ctx.sticky,
+          time: ctx.duration,
+          position: 'bottom',
+          class_name: 'chat-gritter-msg',
+        });
+      }
+    }
+    if (!isHistoryAdd) this.scrollDown();
+  }
+
+  init(pad: PadLike): void {
+    this.pad = pad;
+    const input = this.chatInput;
+    const chatCounter = this.chatCounter;
+    if (input == null) return;
+
+    input.addEventListener('keydown', (evt) => {
+      if (!(evt instanceof KeyboardEvent)) return;
+      if ((evt.altKey && evt.key.toLowerCase() === 'c') || evt.key === 'Escape') {
+        asHtmlElement(document.activeElement)?.blur();
+        (padeditor as any).ace?.focus();
+        evt.preventDefault();
+      }
+    });
+
+    input.addEventListener('click', () => {
+      this.chatMentions = 0;
+      titleBadge.setBubble(0);
+    });
+
+    document.body.addEventListener('keypress', (evt) => {
+      if (!(evt instanceof KeyboardEvent)) return;
+      if (!(evt.altKey && evt.key.toLowerCase() === 'c')) return;
+      asHtmlElement(evt.currentTarget)?.blur();
+      this.show();
+      this.chatInput?.focus();
+      evt.preventDefault();
+    });
+
+    input.addEventListener('keypress', (evt) => {
+      if (!(evt instanceof KeyboardEvent)) return;
+      if (evt.key === 'Enter' && !evt.shiftKey) {
+        evt.preventDefault();
+        void this.send();
+      }
+    });
+
+    if (chatCounter != null) chatCounter.textContent = '0';
+    const loadButton = byId<HTMLButtonElement>('chatloadmessagesbutton');
+    const loadBall = byId<HTMLElement>('chatloadmessagesball');
+    loadButton?.addEventListener('click', () => {
+      const start = Math.max(this.historyPointer - 20, 0);
+      const end = this.historyPointer;
+      if (start === end) return;
+      if (loadButton != null) loadButton.style.display = 'none';
+      if (loadBall != null) loadBall.style.display = 'block';
+      this.pad.collabClient.sendMessage({type: 'GET_CHAT_MESSAGES', start, end});
+      this.historyPointer = start;
+    });
+  }
+}
+
+export const chat = new ChatController();

@@ -1,6 +1,4 @@
 // @ts-nocheck
-
-'use strict';
 /**
  * This code is mostly from the old Etherpad. Please help us to comment this code.
  * This helps other people to understand this code better and helps them to improve it.
@@ -31,15 +29,15 @@ import Op from "./Op";
 const _MAX_LIST_LEVEL = 16;
 
 import AttributeMap from './AttributeMap';
-import UNorm from 'unorm';
+const UNorm = require('unorm');
 import {subattribution} from './Changeset';
 import {SmartOpAssembler} from "./SmartOpAssembler";
-const hooks = require('./pluginfw/hooks');
+import * as hooks from './pluginfw/hooks';
 
-const sanitizeUnicode = (s) => UNorm.nfc(s);
+export const sanitizeUnicode = (s) => UNorm.nfc(s);
 const tagName = (n) => n.tagName && n.tagName.toLowerCase();
 // supportedElems are Supported natively within Etherpad and don't require a plugin
-const supportedElems = new Set([
+export const supportedElems = new Set([
   'author',
   'b',
   'bold',
@@ -61,7 +59,7 @@ const supportedElems = new Set([
   'ul',
 ]);
 
-const makeContentCollector = (collectStyles, abrowser, apool, className2Author) => {
+export const makeContentCollector = (collectStyles, abrowser, apool, className2Author) => {
   const _blockElems = {
     div: 1,
     p: 1,
@@ -710,7 +708,3 @@ const makeContentCollector = (collectStyles, abrowser, apool, className2Author) 
 
   return cc;
 };
-
-exports.sanitizeUnicode = sanitizeUnicode;
-exports.makeContentCollector = makeContentCollector;
-exports.supportedElems = supportedElems;

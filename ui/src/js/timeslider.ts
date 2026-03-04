@@ -1,102 +1,57 @@
-// @ts-nocheck
-'use strict';
+import {Cookies, randomString} from './pad_utils';
+import padutils from './pad_utils';
+import {padimpexp} from './pad_impexp';
+import html10n from './i18n';
+import * as socketio from './socketio';
+import * as hooks from './pluginfw/hooks';
 
-/**
- * This code is mostly from the old Etherpad. Please help us to comment this code.
- * This helps other people to understand this code better and helps them to improve it.
- * TL;DR COMMENTS ON THIS FILE ARE HIGHLY APPRECIATED
- */
+type ServerMessage = {
+  type?: string;
+  accessStatus?: string;
+  data?: Record<string, unknown>;
+};
 
-/**
- * Copyright 2009 Google Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS-IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+type SocketLike = {
+  on: (event: string, cb: (arg: any) => void) => void;
+  emit: (event: string, payload: unknown) => void;
+  connect: () => void;
+};
 
-// These jQuery things should create local references, but for now `require()`
-// assigns to the global `$` and augments it with plugins.
-require('./vendors/jquery');
+type BroadcastSliderLike = {
+  showReconnectUI: () => void;
+  onSlider: (cb: (rev: number) => void) => void;
+};
 
-import {randomString, Cookies} from "./pad_utils";
-const hooks = require('./pluginfw/hooks');
-import padutils from './pad_utils'
-const socketio = require('./socketio');
-import html10n from '../js/vendors/html10n'
-let token, padId, exportLinks, socket, changesetLoader, BroadcastSlider;
+let token = '';
+let padId = '';
+let exportLinks: HTMLAnchorElement[] = [];
+export let socket: SocketLike | undefined;
+export let BroadcastSlider: BroadcastSliderLike | undefined;
+let changesetLoader: {handleMessageFromServer: (msg: ServerMessage) => void} | undefined;
 
-const init = () => {
-  padutils.setupGlobalExceptionHandler();
-  $(document).ready(() => {
-    // start the custom js
-    if (typeof customStart === 'function') customStart(); // eslint-disable-line no-undef
+export let baseURL = '';
+export const setBaseURL = (url: string): void => {
+  baseURL = url;
+};
 
-    // get the padId out of the url
-    const urlParts = document.location.pathname.split('/');
-    padId = decodeURIComponent(urlParts[urlParts.length - 2]);
-
-    // set the title
-    document.title = `${padId.replace(/_+/g, ' ')} | ${document.title.replace('{{appTitle}}', '')}`;
-
-    // ensure we have a token
-    token = Cookies.get('token');
-    if (token == null) {
-      token = `t.${randomString()}`;
-      Cookies.set('token', token, {expires: 60});
-    }
-
-    socket = socketio.connect(exports.baseURL, '/', {query: {padId}});
-
-    // send the ready message once we're connected
-    socket.on('connect', () => {
-      sendSocketMsg('CLIENT_READY', {});
-    });
-
-    socket.on('disconnect', (reason) => {
-      BroadcastSlider.showReconnectUI();
-      // The socket.io client will automatically try to reconnect for all reasons other than "io
-      // server disconnect".
-      if (reason === 'io server disconnect') socket.connect();
-    });
-
-    // route the incoming messages
-    socket.on('message', (message) => {
-      if (message.type === 'CLIENT_VARS') {
-        handleClientVars(message);
-      } else if (message.accessStatus) {
-        $('body').html('<h2>You have no permission to access this pad</h2>');
-      } else if (message.type === 'CHANGESET_REQ' || message.type === 'COLLABROOM') {
-        changesetLoader.handleMessageFromServer(message);
-      }
-    });
-
-    // get all the export links
-    exportLinks = $('#export > .exportlink');
-
-    $('button#forcereconnect').on('click', () => {
-      window.location.reload();
-    });
-
-    exports.socket = socket; // make the socket available
-    exports.BroadcastSlider = BroadcastSlider; // Make the slider available
-
-    hooks.aCallAll('postTimesliderInit');
+const waitForDocumentReady = async (): Promise<void> => {
+  if (document.readyState !== 'loading') return;
+  await new Promise<void>((resolve) => {
+    document.addEventListener('DOMContentLoaded', () => resolve(), {once: true});
   });
 };
 
-// sends a message over the socket
-const sendSocketMsg = (type, data) => {
-  socket.emit("message", {
-    component: 'pad', // FIXME: Remove this stupidity!
+const refreshSessionLifetime = async (): Promise<void> => {
+  try {
+    await fetch('../../_extendExpressSessionLifetime', {method: 'PUT'});
+  } catch {
+    // ignore keepalive failures
+  }
+};
+
+const sendSocketMsg = (type: string, data: Record<string, unknown>): void => {
+  socket?.emit('message', {
+    component: 'pad',
     type,
     data,
     padId,
@@ -105,72 +60,110 @@ const sendSocketMsg = (type, data) => {
   });
 };
 
-const fireWhenAllScriptsAreLoaded = [];
+const fireWhenAllScriptsAreLoaded: Array<() => void> = [];
 
-const handleClientVars = (message) => {
-  // save the client Vars
-  window.clientVars = message.data;
+const handleClientVars = async (message: ServerMessage): Promise<void> => {
+  window.clientVars = (message.data ?? {}) as typeof window.clientVars;
 
   if (window.clientVars.sessionRefreshInterval) {
-    const ping =
-        () => $.ajax('../../_extendExpressSessionLifetime', {method: 'PUT'}).catch(() => {});
-    setInterval(ping, window.clientVars.sessionRefreshInterval);
+    window.setInterval(refreshSessionLifetime, Number(window.clientVars.sessionRefreshInterval));
   }
 
-  if(window.clientVars.mode === "development") {
-    console.warn('Enabling development mode with live update')
-    socket.on('liveupdate', ()=>{
-      console.log('Doing live reload')
-      location.reload()
-    })
-  }
-
-  // load all script that doesn't work without the clientVars
-  BroadcastSlider = require('./broadcast_slider')
-      .loadBroadcastSliderJS(fireWhenAllScriptsAreLoaded);
-
-  require('./broadcast_revisions').loadBroadcastRevisionsJS();
-  changesetLoader = require('./broadcast')
-      .loadBroadcastJS(socket, sendSocketMsg, fireWhenAllScriptsAreLoaded, BroadcastSlider);
-
-  // initialize export ui
-  require('./pad_impexp').padimpexp.init();
-
-  // Create a base URI used for timeslider exports
-  const baseURI = document.location.pathname;
-
-  // change export urls when the slider moves
-  BroadcastSlider.onSlider((revno) => {
-    // exportLinks is a jQuery Array, so .each is allowed.
-    exportLinks.each(function () {
-      // Modified from regular expression to fix:
-      // https://github.com/ether/etherpad-lite/issues/4071
-      // Where a padId that was numeric would create the wrong export link
-      if (this.href) {
-        const type = this.href.split('export/')[1];
-        let href = baseURI.split('timeslider')[0];
-        href += `${revno}/export/${type}`;
-        this.setAttribute('href', href);
-      }
+  if (window.clientVars.mode === 'development') {
+    console.warn('Enabling development mode with live update');
+    socket?.on('liveupdate', () => {
+      console.log('Doing live reload');
+      location.reload();
     });
+  }
+
+  const [{loadBroadcastSliderJS}, {loadBroadcastRevisionsJS}, {loadBroadcastJS}] = await Promise.all([
+    import('./broadcast_slider'),
+    import('./broadcast_revisions'),
+    import('./broadcast'),
+  ]);
+  BroadcastSlider = loadBroadcastSliderJS(fireWhenAllScriptsAreLoaded) as BroadcastSliderLike;
+  loadBroadcastRevisionsJS();
+  changesetLoader = loadBroadcastJS(socket, sendSocketMsg, fireWhenAllScriptsAreLoaded, BroadcastSlider);
+
+  padimpexp.init(undefined);
+
+  const pathName = document.location.pathname;
+  BroadcastSlider.onSlider((revno) => {
+    for (const link of exportLinks) {
+      if (!link.href) continue;
+      const type = link.href.split('export/')[1];
+      let href = pathName.split('timeslider')[0];
+      href += `${revno}/export/${type}`;
+      link.setAttribute('href', href);
+    }
   });
 
-  // fire all start functions of these scripts, formerly fired with window.load
-  for (let i = 0; i < fireWhenAllScriptsAreLoaded.length; i++) {
-    fireWhenAllScriptsAreLoaded[i]();
+  for (const startFn of fireWhenAllScriptsAreLoaded) startFn();
+
+  const sliderHandle = document.getElementById('ui-slider-handle');
+  const sliderBar = document.getElementById('ui-slider-bar');
+  if (sliderHandle != null && sliderBar != null) {
+    const width = sliderBar.getBoundingClientRect().width;
+    sliderHandle.setAttribute('style', `left:${width - 2}px`);
   }
-  $('#ui-slider-handle').css('left', $('#ui-slider-bar').width() - 2);
 
-  // Translate some strings where we only want to set the title not the actual values
-  $('#playpause_button_icon').attr('title', html10n.get('timeslider.playPause'));
-  $('#leftstep').attr('title', html10n.get('timeslider.backRevision'));
-  $('#rightstep').attr('title', html10n.get('timeslider.forwardRevision'));
+  const playPause = document.getElementById('playpause_button_icon');
+  const leftStep = document.getElementById('leftstep');
+  const rightStep = document.getElementById('rightstep');
+  playPause?.setAttribute('title', html10n.get('timeslider.playPause'));
+  leftStep?.setAttribute('title', html10n.get('timeslider.backRevision'));
+  rightStep?.setAttribute('title', html10n.get('timeslider.forwardRevision'));
 
-  // font family change
-  $('#viewfontmenu').on('change', function () {
-    $('#innerdocbody').css('font-family', $(this).val() || '');
+  const viewFontMenu = document.getElementById('viewfontmenu');
+  viewFontMenu?.addEventListener('change', () => {
+    const menu = viewFontMenu as HTMLSelectElement;
+    const innerDocBody = document.getElementById('innerdocbody');
+    if (innerDocBody instanceof HTMLElement) {
+      innerDocBody.style.fontFamily = menu.value || '';
+    }
   });
 };
 
-exports.baseURL = '';
-exports.init = init;
+export const init = async (): Promise<void> => {
+  padutils.setupGlobalExceptionHandler();
+  await waitForDocumentReady();
+
+  if (typeof window.customStart === 'function') window.customStart();
+
+  const urlParts = document.location.pathname.split('/');
+  padId = decodeURIComponent(urlParts[urlParts.length - 2]);
+  document.title = `${padId.replace(/_+/g, ' ')} | ${document.title.replace('{{appTitle}}', '')}`;
+
+  token = Cookies.get('token') ?? '';
+  if (!token) {
+    token = `t.${randomString()}`;
+    Cookies.set('token', token, {expires: 60});
+  }
+
+  const currentSocket = socketio.connect(baseURL, '/', {query: {padId}}) as SocketLike;
+  socket = currentSocket;
+  currentSocket.on('connect', () => sendSocketMsg('CLIENT_READY', {}));
+  currentSocket.on('disconnect', (reason: string) => {
+    BroadcastSlider?.showReconnectUI();
+    if (reason === 'io server disconnect') currentSocket.connect();
+  });
+
+  currentSocket.on('message', (message: ServerMessage) => {
+    if (message.type === 'CLIENT_VARS') {
+      void handleClientVars(message);
+    } else if (message.accessStatus) {
+      document.body.innerHTML = '<h2>You have no permission to access this pad</h2>';
+    } else if (message.type === 'CHANGESET_REQ' || message.type === 'COLLABROOM') {
+      changesetLoader?.handleMessageFromServer(message);
+    }
+  });
+
+  exportLinks = Array.from(document.querySelectorAll<HTMLAnchorElement>('#export > .exportlink'));
+  const forceReconnectButton = document.querySelector<HTMLButtonElement>('button#forcereconnect');
+  forceReconnectButton?.addEventListener('click', () => {
+    window.location.reload();
+  });
+
+  await hooks.aCallAll('postTimesliderInit', {});
+};

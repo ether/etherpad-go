@@ -7,13 +7,13 @@ export default defineConfig(({ mode }) => {
     let outDir = '';
 
     if (mode === 'pad') {
-        entry = path.resolve(__dirname, 'src/pad.js')
+        entry = path.resolve(__dirname, 'src/pad.entry.ts')
         outDir = '../assets/js/pad';
     } else if (mode === 'welcome') {
-        entry = path.resolve(__dirname, 'src/welcome.js')
+        entry = path.resolve(__dirname, 'src/welcome.entry.ts')
         outDir = '../assets/js/welcome';
     } else if (mode === 'timeslider') {
-        entry = path.resolve(__dirname, 'src/timeslider.js')
+        entry = path.resolve(__dirname, 'src/timeslider.entry.ts')
         outDir = '../assets/js/timeslider';
     }
 

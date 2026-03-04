@@ -1,107 +1,63 @@
-// @ts-nocheck
-'use strict';
+import {padmodals} from './pad_modals';
 
-/**
- * This code is mostly from the old Etherpad. Please help us to comment this code.
- * This helps other people to understand this code better and helps them to improve it.
- * TL;DR COMMENTS ON THIS FILE ARE HIGHLY APPRECIATED
- */
+type ConnectionState =
+  | {what: 'connecting'}
+  | {what: 'connected'}
+  | {what: 'reconnecting'}
+  | {what: 'disconnected'; why: unknown};
 
-/**
- * Copyright 2009 Google Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS-IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+type ReconnectableSocket = {
+  forceReconnect?: () => void;
+};
 
-const padmodals = require('./pad_modals').padmodals;
+let status: ConnectionState = {what: 'connecting'};
+let socketReference: ReconnectableSocket | null = null;
 
-const padconnectionstatus = (() => {
-  let status = {
-    what: 'connecting',
-  };
-
-  let socketReference = null;
-
-  const self = {
-    init: (socket) => {
-      // Store socket reference for force reconnect
-      socketReference = socket;
-
-      $('button#forcereconnect').on('click', () => {
-        if (socketReference && typeof socketReference.forceReconnect === 'function') {
-          // Use socket's forceReconnect method
-          socketReference.forceReconnect();
-          // Update status to reconnecting
-          self.reconnecting();
-        } else {
-          // Fallback to page reload if socket not available
-          window.location.reload();
-        }
-      });
-    },
-    connected: () => {
-      status = {
-        what: 'connected',
-      };
-      padmodals.showModal('connected');
-      padmodals.hideOverlay();
-    },
-    reconnecting: () => {
-      status = {
-        what: 'reconnecting',
-      };
-
-      padmodals.showModal('reconnecting');
-      padmodals.showOverlay();
-    },
-    disconnected: (msg) => {
-      if (status.what === 'disconnected') return;
-
-      status = {
-        what: 'disconnected',
-        why: msg,
-      };
-
-      // These message IDs correspond to localized strings that are presented to the user. If a new
-      // message ID is added here then a new div must be added to src/templates/pad.html and the
-      // corresponding l10n IDs must be added to the language files in src/locales.
-      const knownReasons = [
-        'badChangeset',
-        'corruptPad',
-        'deleted',
-        'disconnected',
-        'initsocketfail',
-        'looping',
-        'rateLimited',
-        'rejected',
-        'reconnect_timeout',
-        'slowcommit',
-        'unauth',
-        'userdup',
-      ];
-      let k = String(msg);
-      if (knownReasons.indexOf(k) === -1) {
-        // Fall back to a generic message.
-        k = 'disconnected';
+export const padconnectionstatus = {
+  init: (socket: ReconnectableSocket): void => {
+    socketReference = socket;
+    const reconnectButton = document.querySelector<HTMLButtonElement>('button#forcereconnect');
+    reconnectButton?.addEventListener('click', () => {
+      if (socketReference?.forceReconnect != null) {
+        socketReference.forceReconnect();
+        padconnectionstatus.reconnecting();
+      } else {
+        window.location.reload();
       }
+    });
+  },
+  connected: (): void => {
+    status = {what: 'connected'};
+    padmodals.showModal('connected');
+    padmodals.hideOverlay();
+  },
+  reconnecting: (): void => {
+    status = {what: 'reconnecting'};
+    padmodals.showModal('reconnecting');
+    padmodals.showOverlay();
+  },
+  disconnected: (msg: unknown): void => {
+    if (status.what === 'disconnected') return;
+    status = {what: 'disconnected', why: msg};
 
-      padmodals.showModal(k);
-      padmodals.showOverlay();
-    },
-    isFullyConnected: () => status.what === 'connected',
-    getStatus: () => status,
-  };
-  return self;
-})();
-
-exports.padconnectionstatus = padconnectionstatus;
+    const knownReasons = new Set([
+      'badChangeset',
+      'corruptPad',
+      'deleted',
+      'disconnected',
+      'initsocketfail',
+      'looping',
+      'rateLimited',
+      'rejected',
+      'reconnect_timeout',
+      'slowcommit',
+      'unauth',
+      'userdup',
+    ]);
+    const reason = String(msg);
+    padmodals.showModal(knownReasons.has(reason) ? reason : 'disconnected');
+    padmodals.showOverlay();
+  },
+  isFullyConnected: (): boolean => status.what === 'connected',
+  getStatus: (): ConnectionState => status,
+};

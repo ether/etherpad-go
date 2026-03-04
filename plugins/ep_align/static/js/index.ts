@@ -1,164 +1,115 @@
-/**
- * ep_align - Text Alignment Plugin for Etherpad
- *
- * Ermöglicht Text-Ausrichtung: links, zentriert, rechts, Blocksatz
- */
-
-
-
-import {
+import type {
+  AceAttribsToClassesHook,
   AceContext,
-  AceEditor,
-  AttribContext,
-  EditEventCall,
-  LineContext,
-  ToolbarContext
-} from "../../../typings/etherpad";
+  AceDomLineProcessLineAttributesHook,
+  AceEditEventHook,
+  ToolbarContext,
+} from '../../../typings/etherpad';
 
-
-// All our tags are block elements, so we just return them.
-const tags: string[] = ['left', 'center', 'justify', 'right'];
+const tags = ['left', 'center', 'justify', 'right'] as const;
 
 const range = (start: number, end: number): number[] => {
   const length = Math.abs(end - start) + 1;
-  const result: number[] = [];
-  for (let i = 0; i < length; i++) {
-    result.push(start + i);
-  }
-  return result;
+  return Array.from({length}, (_, index) => start + index);
 };
 
-// Returns the block elements for alignment
-export const aceRegisterBlockElements = (): string[] => tags;
+const getAlignValue = (target: EventTarget | null): number | null => {
+  if (!(target instanceof Element)) return null;
+  const button = target.closest<HTMLElement>('.ep_align');
+  if (!button) return null;
+  const value = Number.parseInt(button.dataset.align ?? '', 10);
+  return Number.isNaN(value) ? null : value;
+};
 
-// Bind the event handler to the toolbar buttons
+export const aceRegisterBlockElements = (): string[] => [...tags];
+
 export const postAceInit = (_hookName: string, context: AceContext): void => {
-  const $ = (globalThis as any).jQuery || (globalThis as any).$;
+  document.body.addEventListener('click', (event) => {
+    const alignValue = getAlignValue(event.target);
+    if (alignValue === null) return;
 
-  $('body').on('click', '.ep_align', function (this: HTMLElement) {
-    const value = $(this).data('align');
-    const intValue = parseInt(value, 10);
-    if (!isNaN(intValue)) {
-      context.ace.callWithAce((ace: AceEditor) => {
-        ace.ace_doInsertAlign(intValue);
-      }, 'insertalign', true);
-    }
+    context.ace.callWithAce((ace) => {
+      ace.ace_doInsertAlign(alignValue);
+    }, 'insertalign', true);
   });
 };
 
-// On caret position change show the current align
-export const aceEditEvent = (_hook: string, call: EditEventCall): false | ReturnType<typeof setTimeout> => {
-  // If it's not a click or a key event and the text hasn't changed then do nothing
+export const aceEditEvent: AceEditEventHook = (_hookName, call) => {
   const cs = call.callstack;
-  if (cs.type !== 'handleClick' && cs.type !== 'handleKeyEvent' && !cs.docTextChanged) {
-    return false;
-  }
-  // If it's an initial setup event then do nothing..
+  if (cs.type !== 'handleClick' && cs.type !== 'handleKeyEvent' && !cs.docTextChanged) return false;
   if (cs.type === 'setBaseText' || cs.type === 'setup') return false;
 
-  // It looks like we should check to see if this section has this attribute
   return setTimeout(() => {
-    const attributeManager = call.documentAttributeManager;
     const rep = call.rep;
-    const activeAttributes: Record<string, { count: number }> = {};
-
     if (!rep.selStart || !rep.selEnd) return;
 
+    const attributeManager = call.documentAttributeManager;
     const firstLine = rep.selStart[0];
-    const lastLine = Math.max(firstLine, rep.selEnd[0] - ((rep.selEnd[1] === 0) ? 1 : 0));
+    const lastLine = Math.max(firstLine, rep.selEnd[0] - (rep.selEnd[1] === 0 ? 1 : 0));
+    const activeAttributes: Record<string, number> = {};
     let totalNumberOfLines = 0;
 
     range(firstLine, lastLine + 1).forEach((line) => {
-      totalNumberOfLines++;
+      totalNumberOfLines += 1;
       const attr = attributeManager.getAttributeOnLine(line, 'align');
-      if (attr) {
-        if (activeAttributes[attr]) {
-          activeAttributes[attr].count++;
-        } else {
-          activeAttributes[attr] = { count: 1 };
-        }
-      }
+      if (!attr) return;
+      activeAttributes[attr] = (activeAttributes[attr] ?? 0) + 1;
     });
 
-    // Check which alignment is active on all lines
-    for (const key in activeAttributes) {
-      if (Object.prototype.hasOwnProperty.call(activeAttributes, key)) {
-        const attr = activeAttributes[key];
-        if (attr.count === totalNumberOfLines) {
-          // All lines have the same alignment - could be used to highlight button
-        }
+    Object.entries(activeAttributes).forEach(([key, count]) => {
+      if (count === totalNumberOfLines) {
+        void key;
       }
-    }
+    });
   }, 250);
 };
 
-// Our align attribute will result in a align:left class
-export const aceAttribsToClasses = (_hook: string, context: AttribContext): string[] | undefined => {
-  if (context.key === 'align') {
-    return [`align:${context.value}`];
-  }
+export const aceAttribsToClasses: AceAttribsToClassesHook = (_hook, context) => {
+  if (context.key === 'align') return [`align:${context.value}`];
   return undefined;
 };
 
-// Here we convert the class align:left into a tag
-export const aceDomLineProcessLineAttributes = (_name: string, context: LineContext): Array<{
-  preHtml: string;
-  postHtml: string;
-  processedMarker: boolean;
-}> => {
-  const cls = context.cls;
-  const alignType = /(?:^| )align:([A-Za-z0-9]*)/.exec(cls);
-  let tagIndex: number | undefined;
-  if (alignType) tagIndex = tags.indexOf(alignType[1]);
-  if (tagIndex !== undefined && tagIndex >= 0) {
-    const tag = tags[tagIndex];
-    const styles =
-      `width:100%;margin:0 auto;list-style-position:inside;display:block;text-align:${tag}`;
-    const modifier = {
-      preHtml: `<${tag} style="${styles}">`,
-      postHtml: `</${tag}>`,
-      processedMarker: true,
-    };
-    return [modifier];
-  }
-  return [];
+export const aceDomLineProcessLineAttributes: AceDomLineProcessLineAttributesHook = (_hookName, context) => {
+  const alignType = /(?:^| )align:([A-Za-z0-9]*)/.exec(context.cls);
+  if (!alignType) return [];
+
+  const tag = alignType[1];
+  if (!tags.includes(tag as (typeof tags)[number])) return [];
+
+  const styles =
+    'width:100%;margin:0 auto;list-style-position:inside;display:block;text-align:' + tag;
+
+  return [{
+    preHtml: `<${tag} style="${styles}">`,
+    postHtml: `</${tag}>`,
+    processedMarker: true,
+  }];
 };
 
-/**
- * Adds CSS to the editor for alignment styles
- */
-export const aceEditorCSS = (): string[] => {
-  return ['ep_align/static/css/align.css'];
-};
+export const aceEditorCSS = (): string[] => ['ep_align/static/css/align.css'];
 
-// Once ace is initialized, we set ace_doInsertAlign and bind it to the context
-export const aceInitialized = (_hook: string, context: AceContext): void => {
-  // Passing a level >= 0 will set a alignment on the selected lines, level < 0
-  // will remove it
+export const aceInitialized = (_hookName: string, context: AceContext): void => {
   const doInsertAlign = function (this: AceContext, level: number): void {
-    const rep = this.rep;
-    const documentAttributeManager = this.documentAttributeManager;
-    if (!(rep.selStart && rep.selEnd) || (level >= 0 && tags[level] === undefined)) {
-      return;
-    }
+    const {rep, documentAttributeManager} = this;
+    if (!(rep.selStart && rep.selEnd)) return;
+    if (level >= 0 && tags[level] === undefined) return;
 
     const firstLine = rep.selStart[0];
-    const lastLine = Math.max(firstLine, rep.selEnd[0] - ((rep.selEnd[1] === 0) ? 1 : 0));
-    range(firstLine, lastLine).forEach((i) => {
+    const lastLine = Math.max(firstLine, rep.selEnd[0] - (rep.selEnd[1] === 0 ? 1 : 0));
+    range(firstLine, lastLine).forEach((line) => {
       if (level >= 0) {
-        documentAttributeManager.setAttributeOnLine(i, 'align', tags[level]);
+        documentAttributeManager.setAttributeOnLine(line, 'align', tags[level]);
       } else {
-        documentAttributeManager.removeAttributeOnLine(i, 'align');
+        documentAttributeManager.removeAttributeOnLine(line, 'align');
       }
     });
   };
 
-  const editorInfo = context.editorInfo;
-  editorInfo.ace_doInsertAlign = doInsertAlign.bind(context);
+  context.editorInfo.ace_doInsertAlign = doInsertAlign.bind(context);
 };
 
 const align = (context: ToolbarContext, alignment: number): void => {
-  context.ace.callWithAce((ace: AceEditor) => {
+  context.ace.callWithAce((ace) => {
     ace.ace_doInsertAlign(alignment);
     ace.ace_focus();
   }, 'insertalign', true);
@@ -166,22 +117,9 @@ const align = (context: ToolbarContext, alignment: number): void => {
 
 export const postToolbarInit = (_hookName: string, context: ToolbarContext): boolean => {
   const editbar = context.toolbar;
-
-  editbar.registerCommand('alignLeft', () => {
-    align(context, 0);
-  });
-
-  editbar.registerCommand('alignCenter', () => {
-    align(context, 1);
-  });
-
-  editbar.registerCommand('alignJustify', () => {
-    align(context, 2);
-  });
-
-  editbar.registerCommand('alignRight', () => {
-    align(context, 3);
-  });
-
+  editbar.registerCommand('alignLeft', () => align(context, 0));
+  editbar.registerCommand('alignCenter', () => align(context, 1));
+  editbar.registerCommand('alignJustify', () => align(context, 2));
+  editbar.registerCommand('alignRight', () => align(context, 3));
   return true;
 };

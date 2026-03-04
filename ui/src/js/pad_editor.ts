@@ -1,5 +1,4 @@
 // @ts-nocheck
-'use strict';
 /**
  * This code is mostly from the old Etherpad. Please help us to comment this code.
  * This helps other people to understand this code better and helps them to improve it.
@@ -23,12 +22,15 @@
  */
 
 import padutils,{Cookies} from "./pad_utils";
-const padcookie = require('./pad_cookie').padcookie;
-const Ace2Editor = require('./ace').Ace2Editor;
-import html10n from '../js/vendors/html10n'
-const skinVariants = require('./skin_variants');
+import {padcookie} from './pad_cookie';
+import {Ace2Editor} from './ace';
+import html10n from './i18n'
+import * as skinVariants from './skin_variants';
 
-const padeditor = (() => {
+const q = (selector) => document.querySelector(selector);
+const qa = (selector) => Array.from(document.querySelectorAll(selector));
+
+export const padeditor = (() => {
   let pad = undefined;
   let settings = undefined;
 
@@ -41,59 +43,67 @@ const padeditor = (() => {
       settings = pad.settings;
       self.ace = new Ace2Editor();
       await self.ace.init('editorcontainer', '');
-      $('#editorloadingbox').hide();
+      const editorLoading = q('#editorloadingbox');
+      if (editorLoading) editorLoading.style.display = 'none';
       // Listen for clicks on sidediv items
-      const $outerdoc = $('iframe[name="ace_outer"]').contents().find('#outerdocbody');
-      $outerdoc.find('#sidedivinner').on('click', 'div', function () {
-        const targetLineNumber = $(this).index() + 1;
+      const outerFrame = q('iframe[name="ace_outer"]');
+      const outerDoc = outerFrame?.contentDocument;
+      const sideDivInner = outerDoc?.querySelector('#sidedivinner');
+      sideDivInner?.addEventListener('click', (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement) || target.tagName.toLowerCase() !== 'div') return;
+        const siblings = Array.from(target.parentElement?.children ?? []);
+        const targetLineNumber = siblings.indexOf(target) + 1;
         window.location.hash = `L${targetLineNumber}`;
       });
-      exports.focusOnLine(self.ace);
+      focusOnLine(self.ace);
       self.ace.setProperty('wraps', true);
       self.initViewOptions();
       self.setViewOptions(initialViewOptions);
       // view bar
-      $('#viewbarcontents').show();
+      const viewbar = q('#viewbarcontents');
+      if (viewbar) viewbar.style.display = '';
     },
     initViewOptions: () => {
       // Line numbers
-      padutils.bindCheckboxChange($('#options-linenoscheck'), () => {
-        pad.changeViewOption('showLineNumbers', padutils.getCheckbox($('#options-linenoscheck')));
+      padutils.bindCheckboxChange('#options-linenoscheck', () => {
+        pad.changeViewOption('showLineNumbers', padutils.getCheckbox('#options-linenoscheck'));
       });
 
       // Author colors
-      padutils.bindCheckboxChange($('#options-colorscheck'), () => {
+      padutils.bindCheckboxChange('#options-colorscheck', () => {
         padcookie.setPref('showAuthorshipColors', padutils.getCheckbox('#options-colorscheck'));
         pad.changeViewOption('showAuthorColors', padutils.getCheckbox('#options-colorscheck'));
       });
 
       // Right to left
-      padutils.bindCheckboxChange($('#options-rtlcheck'), () => {
-        pad.changeViewOption('rtlIsTrue', padutils.getCheckbox($('#options-rtlcheck')));
+      padutils.bindCheckboxChange('#options-rtlcheck', () => {
+        pad.changeViewOption('rtlIsTrue', padutils.getCheckbox('#options-rtlcheck'));
       });
       html10n.bind('localized', () => {
         pad.changeViewOption('rtlIsTrue', ('rtl' === html10n.getDirection()));
-        padutils.setCheckbox($('#options-rtlcheck'), ('rtl' === html10n.getDirection()));
+        padutils.setCheckbox('#options-rtlcheck', ('rtl' === html10n.getDirection()));
       });
 
 
 
       // font family change
-      $('#viewfontmenu').on('change', () => {
-        pad.changeViewOption('padFontFamily', $('#viewfontmenu').val());
+      q('#viewfontmenu')?.addEventListener('change', () => {
+        const menu = q('#viewfontmenu');
+        pad.changeViewOption('padFontFamily', menu?.value);
       });
 
       // delete pad
-      $('#delete-pad').on('click', () => {
+      q('#delete-pad')?.addEventListener('click', () => {
         if (window.confirm(html10n.get('pad.delete.confirm'))) {
           pad.collabClient.sendMessage({type: 'PAD_DELETE', data:{padId: pad.getPadId()}});
           // redirect to home page after deletion
           window.location.href = '/';
         }
-      })
+      });
 
       // theme switch
-      $('#theme-switcher').on('click',()=>{
+      q('#theme-switcher')?.addEventListener('click', () => {
           if (skinVariants.isDarkMode()) {
             skinVariants.setDarkModeInLocalStorage(false);
             skinVariants.updateSkinVariantsClasses(['super-light-toolbar super-light-editor light-background']);
@@ -101,32 +111,33 @@ const padeditor = (() => {
             skinVariants.setDarkModeInLocalStorage(true);
             skinVariants.updateSkinVariantsClasses(['super-dark-editor', 'dark-background', 'super-dark-toolbar']);
           }
-      })
+      });
 
       // Language
       html10n.bind('localized', () => {
-        $('#languagemenu').val(html10n.getLanguage());
+        const menu = q('#languagemenu');
+        if (menu) menu.value = html10n.getLanguage();
         // translate the value of 'unnamed' and 'Enter your name' textboxes in the userlist
 
         // this does not interfere with html10n's normal value-setting because
         // html10n just ingores <input>s
         // also, a value which has been set by the user will be not overwritten
         // since a user-edited <input> does *not* have the editempty-class
-        $('input[data-l10n-id]').each((key, input) => {
-          input = $(input);
-          if (input.hasClass('editempty')) {
-            input.val(html10n.get(input.attr('data-l10n-id')));
+        qa('input[data-l10n-id]').forEach((input) => {
+          if (!(input instanceof HTMLInputElement)) return;
+          if (input.classList.contains('editempty')) {
+            const id = input.getAttribute('data-l10n-id');
+            if (id) input.value = html10n.get(id);
           }
         });
       });
-      $('#languagemenu').val(html10n.getLanguage());
-      $('#languagemenu').on('change', () => {
-        Cookies.set('language', $('#languagemenu').val(), { expires: 36500 });
-        location.reload()
-        html10n.localize([$('#languagemenu').val(), 'en']);
-        if ($('select').niceSelect) {
-          $('select').niceSelect('update');
-        }
+      const languageMenu = q('#languagemenu');
+      if (languageMenu) languageMenu.value = html10n.getLanguage();
+      languageMenu?.addEventListener('change', () => {
+        const value = languageMenu.value;
+        Cookies.set('language', value, { expires: 36500 });
+        location.reload();
+        html10n.localize([value, 'en']);
       });
     },
     setViewOptions: (newOptions) => {
@@ -141,17 +152,18 @@ const padeditor = (() => {
 
       v = getOption('rtlIsTrue', ('rtl' === html10n.getDirection()));
       self.ace.setProperty('rtlIsTrue', v);
-      padutils.setCheckbox($('#options-rtlcheck'), v);
+      padutils.setCheckbox('#options-rtlcheck', v);
 
       v = getOption('showLineNumbers', true);
       self.ace.setProperty('showslinenumbers', v);
-      padutils.setCheckbox($('#options-linenoscheck'), v);
+      padutils.setCheckbox('#options-linenoscheck', v);
 
       v = getOption('showAuthorColors', true);
       self.ace.setProperty('showsauthorcolors', v);
-      $('#chattext').toggleClass('authorColors', v);
-      $('iframe[name="ace_outer"]').contents().find('#sidedivinner').toggleClass('authorColors', v);
-      padutils.setCheckbox($('#options-colorscheck'), v);
+      q('#chattext')?.classList.toggle('authorColors', v);
+      const sideDivInner = q('iframe[name="ace_outer"]')?.contentDocument?.querySelector('#sidedivinner');
+      sideDivInner?.classList.toggle('authorColors', v);
+      padutils.setCheckbox('#options-colorscheck', v);
 
       // Override from parameters if true
       if (settings.noColors !== false) {
@@ -184,31 +196,29 @@ const padeditor = (() => {
   return self;
 })();
 
-exports.padeditor = padeditor;
-
-exports.focusOnLine = (ace) => {
+export const focusOnLine = (ace) => {
   // If a number is in the URI IE #L124 go to that line number
   const lineNumber = window.location.hash.substr(1);
   if (lineNumber) {
     if (lineNumber[0] === 'L') {
-      const $outerdoc = $('iframe[name="ace_outer"]').contents().find('#outerdocbody');
       const lineNumberInt = parseInt(lineNumber.substr(1));
       if (lineNumberInt) {
-        const $inner = $('iframe[name="ace_outer"]').contents().find('iframe')
-            .contents().find('#innerdocbody');
-        const line = $inner.find(`div:nth-child(${lineNumberInt})`);
-        if (line.length !== 0) {
-          let offsetTop = line.offset().top;
-          offsetTop += parseInt($outerdoc.css('padding-top').replace('px', ''));
-          const hasMobileLayout = $('body').hasClass('mobile-layout');
+        const outerFrame = q('iframe[name="ace_outer"]');
+        const outerDoc = outerFrame?.contentDocument;
+        const outerDocBody = outerDoc?.querySelector('#outerdocbody');
+        const innerFrame = outerDoc?.querySelector('iframe');
+        const innerDocBody = innerFrame?.contentDocument?.querySelector('#innerdocbody');
+        const line = innerDocBody?.querySelector(`div:nth-child(${lineNumberInt})`);
+        if (line && outerDocBody && innerDocBody) {
+          let offsetTop = line.getBoundingClientRect().top - innerDocBody.getBoundingClientRect().top;
+          offsetTop += parseInt(getComputedStyle(outerDocBody).paddingTop.replace('px', ''));
+          const hasMobileLayout = document.body.classList.contains('mobile-layout');
           if (!hasMobileLayout) {
-            offsetTop += parseInt($inner.css('padding-top').replace('px', ''));
+            offsetTop += parseInt(getComputedStyle(innerDocBody).paddingTop.replace('px', ''));
           }
-          const $outerdocHTML = $('iframe[name="ace_outer"]').contents()
-              .find('#outerdocbody').parent();
-          $outerdoc.css({top: `${offsetTop}px`}); // Chrome
-          $outerdocHTML.animate({scrollTop: offsetTop}); // needed for FF
-          const node = line[0];
+          (outerDocBody).style.top = `${offsetTop}px`; // Chrome
+          outerDoc?.documentElement?.scrollTo({top: offsetTop}); // needed for FF
+          const node = line;
           ace.callWithAce((ace) => {
             const selection = {
               startPoint: {

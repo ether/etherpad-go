@@ -1,71 +1,57 @@
-// @ts-nocheck
-'use strict';
+import html10n from './i18n';
+import {Cookies} from './pad_utils';
 
-/**
- * Copyright 2009 Google Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS-IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+type PadPrefs = Record<string, unknown>;
 
-import {Cookies} from "./pad_utils";
+class PadCookie {
+  private readonly cookieName_: string;
 
-exports.padcookie = new class {
   constructor() {
     this.cookieName_ = window.location.protocol === 'https:' ? 'prefs' : 'prefsHttp';
   }
 
-  init() {
-    const prefs = this.readPrefs_() || {};
+  init(): void {
+    const prefs = this.readPrefs_() ?? {};
     delete prefs.userId;
     delete prefs.name;
     delete prefs.colorId;
     this.writePrefs_(prefs);
-    // Re-read the saved cookie to test if cookies are enabled.
+
     if (this.readPrefs_() == null) {
-      $.gritter.add({
-        title: 'Error',
-        text: html10n.get('pad.noCookie'),
-        sticky: true,
-        class_name: 'error',
-      });
+      const msg = html10n.get('pad.noCookie');
+      console.error(msg);
+      alert(msg);
     }
   }
 
-  readPrefs_() {
+  private readPrefs_(): PadPrefs | null {
     try {
       const json = Cookies.get(this.cookieName_);
       if (json == null) return null;
-      return JSON.parse(json);
-    } catch (e) {
+      return JSON.parse(json) as PadPrefs;
+    } catch {
       return null;
     }
   }
 
-  writePrefs_(prefs) {
+  private writePrefs_(prefs: PadPrefs): void {
     Cookies.set(this.cookieName_, JSON.stringify(prefs), {expires: 365 * 100});
   }
 
-  getPref(prefName) {
-    return this.readPrefs_()[prefName];
+  getPref(prefName: string): unknown {
+    const prefs = this.readPrefs_() ?? {};
+    return prefs[prefName];
   }
 
-  setPref(prefName, value) {
-    const prefs = this.readPrefs_();
+  setPref(prefName: string, value: unknown): void {
+    const prefs = this.readPrefs_() ?? {};
     prefs[prefName] = value;
     this.writePrefs_(prefs);
   }
 
-  clear() {
+  clear(): void {
     this.writePrefs_({});
   }
-}();
+}
+
+export const padcookie = new PadCookie();

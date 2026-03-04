@@ -1,5 +1,4 @@
 // @ts-nocheck
-'use strict';
 /**
  * This code is mostly from the old Etherpad. Please help us to comment this code.
  * This helps other people to understand this code better and helps them to improve it.
@@ -25,13 +24,10 @@
 // requires: top
 // requires: undefined
 
-const hooks = require('./pluginfw/hooks');
-const makeCSSManager = require('./cssmanager').makeCSSManager;
-const pluginUtils = require('./pluginfw/shared');
-const ace2_inner = require('ep_etherpad-lite/static/js/ace2_inner')
+import * as hooks from './pluginfw/hooks';
+import {makeCSSManager} from './cssmanager';
+import * as pluginUtils from './pluginfw/shared';
 const debugLog = (...args) => {};
-const cl_plugins = require('ep_etherpad-lite/static/js/pluginfw/client_plugins')
-const rJQuery = require('ep_etherpad-lite/static/js/rjquery')
 // The inner and outer iframe's locations are about:blank, so relative URLs are relative to that.
 // Firefox and Chrome seem to do what the developer intends if given a relative URL, but Safari
 // errors out unless given an absolute URL for a JavaScript-created element.
@@ -88,7 +84,7 @@ const frameReady = async (frame) => {
   }
 };
 
-const Ace2Editor = function () {
+export const Ace2Editor = function () {
   let info = {editor: this};
   let loaded = false;
 
@@ -295,11 +291,13 @@ const Ace2Editor = function () {
     require.setLibraryURI(absUrl('../javascripts/lib'));
     require.setGlobalKeyPath('require');
 */
-    // intentially moved before requiring client_plugins to save a 307
-    innerWindow.Ace2Inner = ace2_inner;
-    innerWindow.plugins = cl_plugins;
-
-    innerWindow.$ = innerWindow.jQuery = rJQuery.jQuery;
+    // intentionally moved before requiring client_plugins to save a 307
+    const [ace2Inner, clPlugins] = await Promise.all([
+      import('./ace2_inner'),
+      import('./pluginfw/client_plugins'),
+    ]);
+    innerWindow.Ace2Inner = ace2Inner;
+    innerWindow.plugins = clPlugins;
 
     debugLog('Ace2Editor.init() waiting for plugins');
     /*await new Promise((resolve, reject) => innerWindow.plugins.ensure(
@@ -317,4 +315,3 @@ const Ace2Editor = function () {
   };
 };
 
-exports.Ace2Editor = Ace2Editor;

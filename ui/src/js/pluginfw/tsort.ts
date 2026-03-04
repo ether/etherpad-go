@@ -1,5 +1,4 @@
 // @ts-nocheck
-'use strict';
 
 /**
  * general topological sort
@@ -106,8 +105,4 @@ const tsortTest = () => {
   }
 };
 
-// for node.js
-if (typeof exports === 'object' && exports === this) {
-  module.exports = tsort;
-  if (process.argv[1] === __filename) tsortTest();
-}
+export default tsort;

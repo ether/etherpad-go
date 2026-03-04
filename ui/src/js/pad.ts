@@ -1,6 +1,5 @@
 // @ts-nocheck
-'use strict';
-const skinVariants = require('./skin_variants');
+import * as skinVariants from './skin_variants';
 
 /**
  * This code is mostly from the old Etherpad. Please help us to comment this code.
@@ -26,33 +25,35 @@ const skinVariants = require('./skin_variants');
 
 let socket;
 
-
-// These jQuery things should create local references, but for now `require()`
-// assigns to the global `$` and augments it with plugins.
-require('./vendors/jquery');
-require('./vendors/farbtastic');
-require('./vendors/gritter');
-
-import html10n from './vendors/html10n'
+import html10n from './i18n'
+import notifications from './notifications';
 
 import padutils, {Cookies, randomString} from "./pad_utils";
+import {chat} from './chat';
+import {getCollabClient} from './collab_client';
+import {padconnectionstatus} from './pad_connectionstatus';
+import {padcookie} from './pad_cookie';
+import {padeditbar} from './pad_editbar';
+import {padeditor} from './pad_editor';
+import {padimpexp} from './pad_impexp';
+import {padmodals} from './pad_modals';
+import * as padsavedrevs from './pad_savedrevs';
+import {paduserlist} from './pad_userlist';
+import * as socketio from './socketio';
+import {colorutils} from './colorutils';
+import * as hooks from './pluginfw/hooks';
 
-const chat = require('./chat').chat;
-const getCollabClient = require('./collab_client').getCollabClient;
-const padconnectionstatus = require('./pad_connectionstatus').padconnectionstatus;
-const padcookie = require('./pad_cookie').padcookie;
-const padeditbar = require('./pad_editbar').padeditbar;
-const padeditor = require('./pad_editor').padeditor;
-const padimpexp = require('./pad_impexp').padimpexp;
-const padmodals = require('./pad_modals').padmodals;
-const padsavedrevs = require('./pad_savedrevs');
-const paduserlist = require('./pad_userlist').paduserlist;
-
-const colorutils = require('./colorutils').colorutils;
-
-const socketio = require('./socketio');
-
-const hooks = require('./pluginfw/hooks');
+const byId = (id: string) => document.getElementById(id);
+const setDisplay = (id: string, value: string) => {
+    const el = byId(id);
+    if (el) el.style.display = value;
+};
+const hideById = (id: string) => setDisplay(id, 'none');
+const showById = (id: string, display = 'block') => setDisplay(id, display);
+const setCheckedById = (id: string, value: boolean) => {
+    const el = byId(id);
+    if (el instanceof HTMLInputElement) el.checked = value;
+};
 
 // This array represents all GET-parameters which can be used to change a setting.
 //   name:     the parameter-name, eg  `?noColors=true`  =>  `noColors`
@@ -66,14 +67,14 @@ const getParameters = [
         checkVal: 'true',
         callback: (val) => {
             settings.noColors = true;
-            $('#clearAuthorship').hide();
+            hideById('clearAuthorship');
         },
     },
     {
         name: 'showControls',
         checkVal: 'true',
         callback: (val) => {
-            $('#editbar').css('display', 'flex');
+            showById('editbar', 'flex');
         },
     },
     {
@@ -83,7 +84,7 @@ const getParameters = [
             if (val === 'false') {
                 settings.hideChat = true;
                 chat.hide();
-                $('#chaticon').hide();
+                hideById('chaticon');
             }
         },
     },
@@ -225,7 +226,7 @@ const handshake = async () => {
 
     // padId is used here for sharding / scaling.  We prefix the padId with padId: so it's clear
     // to the proxy/gateway/whatever that this is a pad connection and should be treated as such
-    socket = pad.socket = socketio.connect(exports.baseURL, '/', {
+    socket = pad.socket = socketio.connect(baseURL, '/', {
         query: {padId},
         reconnectionAttempts: 5,
         reconnection: true,
@@ -267,13 +268,10 @@ const handshake = async () => {
     socket.on('shout', (obj) => {
         if (obj.type === "COLLABROOM") {
             let date = new Date(obj.data.payload.timestamp);
-            $.gritter.add({
-                // (string | mandatory) the heading of the notification
+            notifications.add({
                 title: 'Admin message',
-                // (string | mandatory) the text inside the notification
                 text: '[' + date.toLocaleTimeString() + ']: ' + obj.data.payload.message.message,
-                // (bool | optional) if you want it to fade out on its own or just sit there
-                sticky: obj.data.payload.message.sticky
+                sticky: obj.data.payload.message.sticky,
             });
         }
     })
@@ -305,22 +303,20 @@ const handshake = async () => {
         // the access was not granted, give the user a message
         if (obj.accessStatus) {
             if (obj.accessStatus === 'deny') {
-                $('#loading').hide();
-                $('#permissionDenied').show();
+                hideById('loading');
+                showById('permissionDenied');
 
                 if (receivedClientVars) {
                     // got kicked
-                    $('#editorcontainer').hide();
-                    $('#editorloadingbox').show();
+                    hideById('editorcontainer');
+                    showById('editorloadingbox');
                 }
             }
         } else if (!receivedClientVars && obj.type === 'CLIENT_VARS') {
             receivedClientVars = true;
             window.clientVars = obj.data;
             if (window.clientVars.sessionRefreshInterval) {
-                const ping =
-                    () => $.ajax('../_extendExpressSessionLifetime', {method: 'PUT'}).catch(() => {
-                    });
+                const ping = () => fetch('../_extendExpressSessionLifetime', {method: 'PUT'}).catch(() => {});
                 setInterval(ping, window.clientVars.sessionRefreshInterval);
             }
 
@@ -420,20 +416,18 @@ const pad = {
 
     init() {
         padutils.setupGlobalExceptionHandler();
-
-        // $(handler), $().ready(handler), $.wait($.ready).then(handler), etc. don't work if handler is
-        // an async function for some bizarre reason, so the async function is wrapped in a non-async
-        // function.
-        $(() => (async () => {
+        const onReady = async () => {
             if (window.customStart != null) window.customStart();
-            $('#colorpicker').farbtastic({callback: '#mycolorpickerpreview', width: 220});
-            $('#readonlyinput').on('click', () => {
-                padeditbar.setEmbedLinks();
-            });
+            byId('readonlyinput')?.addEventListener('click', () => padeditbar.setEmbedLinks());
             padcookie.init();
             await handshake();
             this._afterHandshake();
-        })());
+        };
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => void onReady(), {once: true});
+        } else {
+            void onReady();
+        }
     },
     _afterHandshake() {
         pad.clientTimeOffset = Date.now() - clientVars.serverTimestamp;
@@ -457,19 +451,16 @@ const pad = {
             setTimeout(() => {
                 padeditor.ace.focus();
             }, 0);
-            const optionsStickyChat = $('#options-stickychat');
-            optionsStickyChat.on('click', () => {
-                chat.stickToScreen();
-            });
+            byId('options-stickychat')?.addEventListener('click', () => chat.stickToScreen());
             // if we have a cookie for always showing chat then show it
             if (padcookie.getPref('chatAlwaysVisible')) {
                 chat.stickToScreen(true); // stick it to the screen
-                optionsStickyChat.prop('checked', true); // set the checkbox to on
+                setCheckedById('options-stickychat', true);
             }
             // if we have a cookie for always showing chat then show it
             if (padcookie.getPref('chatAndUsers')) {
                 chat.chatAndUsers(true); // stick it to the screen
-                $('#options-chatandusers').prop('checked', true); // set the checkbox to on
+                setCheckedById('options-chatandusers', true);
             }
             if (padcookie.getPref('showAuthorshipColors') === false) {
                 pad.changeViewOption('showAuthorColors', false);
@@ -481,25 +472,34 @@ const pad = {
                 pad.changeViewOption('rtlIsTrue', true);
             }
             pad.changeViewOption('padFontFamily', padcookie.getPref('padFontFamily'));
-            $('#viewfontmenu').val(padcookie.getPref('padFontFamily')).niceSelect('update');
+            const viewFontMenu = byId('viewfontmenu');
+            if (viewFontMenu instanceof HTMLSelectElement) {
+                viewFontMenu.value = String(padcookie.getPref('padFontFamily') ?? '');
+            }
 
             // Prevent sticky chat or chat and users to be checked for mobiles
             const checkChatAndUsersVisibility = (x) => {
                 if (x.matches) { // If media query matches
-                    $('#options-chatandusers:checked').trigger('click');
-                    $('#options-stickychat:checked').trigger('click');
+                    const chatAndUsers = byId('options-chatandusers');
+                    if (chatAndUsers instanceof HTMLInputElement && chatAndUsers.checked) {
+                        chatAndUsers.click();
+                    }
+                    const stickyChat = byId('options-stickychat');
+                    if (stickyChat instanceof HTMLInputElement && stickyChat.checked) {
+                        stickyChat.click();
+                    }
                 }
             };
             const mobileMatch = window.matchMedia('(max-width: 800px)');
-            mobileMatch.addListener(checkChatAndUsersVisibility); // check if window resized
+            mobileMatch.addEventListener('change', checkChatAndUsersVisibility); // check if window resized
             setTimeout(() => {
                 checkChatAndUsersVisibility(mobileMatch);
             }, 0); // check now after load
 
-            $('#editorcontainer').addClass('initialized');
+            byId('editorcontainer')?.classList.add('initialized');
 
             if (window.clientVars.enableDarkMode) {
-                $('#theme-switcher').attr('style', 'display: flex;');
+                showById('theme-switcher', 'flex');
             }
 
             if (window.location.hash.toLowerCase() !== '#skinvariantsbuilder' && window.clientVars.enableDarkMode && (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) && !skinVariants.isWhiteModeEnabledInLocalStorage()) {
@@ -535,21 +535,23 @@ const pad = {
             pad.collabClient.sendMessage({type: 'GET_CHAT_MESSAGES', start, end: chatHead});
         } else {
             // there are no messages
-            $('#chatloadmessagesbutton').css('display', 'none');
+            hideById('chatloadmessagesbutton');
         }
 
         if (window.clientVars.readonly) {
             chat.hide();
-            $('#myusernameedit').attr('disabled', true);
-            $('#chatinput').attr('disabled', true);
-            $('#chaticon').hide();
-            $('#options-chatandusers').parent().hide();
-            $('#options-stickychat').parent().hide();
+            const myusernameedit = byId('myusernameedit');
+            if (myusernameedit instanceof HTMLInputElement) myusernameedit.disabled = true;
+            const chatinput = byId('chatinput');
+            if (chatinput instanceof HTMLInputElement) chatinput.disabled = true;
+            hideById('chaticon');
+            byId('options-chatandusers')?.parentElement?.setAttribute('style', 'display: none;');
+            byId('options-stickychat')?.parentElement?.setAttribute('style', 'display: none;');
         } else if (!settings.hideChat) {
-            $('#chaticon').show();
+            showById('chaticon');
         }
 
-        $('body').addClass(window.clientVars.readonly ? 'readonly' : 'readwrite');
+        document.body.classList.add(window.clientVars.readonly ? 'readonly' : 'readwrite');
 
         padeditor.ace.callWithAce((ace) => {
             ace.ace_setEditable(!window.clientVars.readonly);
@@ -587,7 +589,8 @@ const pad = {
             console.error("NOTIFY change!! " + settings.globalUserName);
             this.notifyChangeName(settings.globalUserName); // Notifies the server
             this.myUserInfo.name = settings.globalUserName;
-            $('#myusernameedit').val(settings.globalUserName); // Updates the current users UI
+            const myusernameedit = byId('myusernameedit');
+            if (myusernameedit instanceof HTMLInputElement) myusernameedit.value = String(settings.globalUserName);
         }
 
         const mayBeGlobalUserColor = Boolean(settings.globalUserColor);
@@ -734,27 +737,27 @@ const pad = {
         const chatVisCookie = padcookie.getPref('chatAlwaysVisible');
         if (chatVisCookie) { // if the cookie is set for chat always visible
             chat.stickToScreen(true); // stick it to the screen
-            $('#options-stickychat').prop('checked', true); // set the checkbox to on
+            setCheckedById('options-stickychat', true);
         } else {
-            $('#options-stickychat').prop('checked', false); // set the checkbox for off
+            setCheckedById('options-stickychat', false);
         }
     },
     determineChatAndUsersVisibility: (asNowConnectedFeedback) => {
         const chatAUVisCookie = padcookie.getPref('chatAndUsersVisible');
         if (chatAUVisCookie) { // if the cookie is set for chat always visible
             chat.chatAndUsers(true); // stick it to the screen
-            $('#options-chatandusers').prop('checked', true); // set the checkbox to on
+            setCheckedById('options-chatandusers', true);
         } else {
-            $('#options-chatandusers').prop('checked', false); // set the checkbox for off
+            setCheckedById('options-chatandusers', false);
         }
     },
     determineAuthorshipColorsVisibility: () => {
         const authColCookie = padcookie.getPref('showAuthorshipColors');
         if (authColCookie) {
             pad.changeViewOption('showAuthorColors', true);
-            $('#options-colorscheck').prop('checked', true);
+            setCheckedById('options-colorscheck', true);
         } else {
-            $('#options-colorscheck').prop('checked', false);
+            setCheckedById('options-colorscheck', false);
         }
     },
     handleCollabAction: (action) => {
@@ -779,12 +782,21 @@ const pad = {
         })
     },
     forceReconnect: () => {
-        $('form#reconnectform input.padId').val(pad.getPadId());
+        const reconnectForm = document.querySelector('form#reconnectform');
+        const padIdInput = reconnectForm?.querySelector('input.padId');
+        if (padIdInput instanceof HTMLInputElement) {
+            padIdInput.value = pad.getPadId();
+        }
         pad.diagnosticInfo.collabDiagnosticInfo = pad.collabClient.getDiagnosticInfo();
-        $('form#reconnectform input.diagnosticInfo').val(JSON.stringify(pad.diagnosticInfo));
-        $('form#reconnectform input.missedChanges')
-            .val(JSON.stringify(pad.collabClient.getMissedChanges()));
-        $('form#reconnectform').trigger('submit');
+        const diagnosticInfoInput = reconnectForm?.querySelector('input.diagnosticInfo');
+        if (diagnosticInfoInput instanceof HTMLInputElement) {
+            diagnosticInfoInput.value = JSON.stringify(pad.diagnosticInfo);
+        }
+        const missedChangesInput = reconnectForm?.querySelector('input.missedChanges');
+        if (missedChangesInput instanceof HTMLInputElement) {
+            missedChangesInput.value = JSON.stringify(pad.collabClient.getMissedChanges());
+        }
+        if (reconnectForm instanceof HTMLFormElement) reconnectForm.requestSubmit();
     },
     callWhenNotCommitting: (f) => {
         pad.collabClient.callWhenNotCommitting(f);
@@ -815,9 +827,8 @@ const settings = {
 
 pad.settings = settings;
 
-exports.baseURL = '';
-exports.settings = settings;
-exports.randomString = randomString;
-exports.getParams = getParams;
-exports.pad = pad;
-exports.init = init;
+export let baseURL = '';
+export const setBaseURL = (url: string) => {
+    baseURL = url;
+};
+export {settings, randomString, getParams, pad, init};
