@@ -18,8 +18,6 @@ const PLUGINS_DIR = '../plugins';
 const ASSETS_EP_JSON = '../assets/ep.json';
 const REGISTRY_OUTPUT = './src/js/pluginfw/plugin_registry.ts';
 
-run("pnpm install", "../admin");
-
 /**
  * Lädt die ep.json eines Plugins
  */
