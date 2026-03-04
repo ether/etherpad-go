@@ -1,35 +1,50 @@
+// @ts-nocheck
 /**
- * Plugin Registry - registriert eingebaute client_hooks Module zur Build-Zeit.
+ * Plugin Registry - Registriert alle client_hooks Module zur Build-Zeit
  *
  * AUTOMATISCH GENERIERT - NICHT MANUELL BEARBEITEN
  * Generiert von: build.js
  */
 
 import * as pluginUtils from './shared';
+import * as pluginModule0 from '../messageHandler';
+import * as pluginModule1 from '../../../../plugins/ep_align/static/js/index';
+import * as pluginModule2 from '../../../../plugins/ep_heading/static/js/index';
+import * as pluginModule3 from '../../../../plugins/ep_heading/static/js/shared';
+import * as pluginModule4 from '../../../../plugins/ep_markdown/static/js/markdown';
+import * as pluginModule5 from '../../../../plugins/ep_spellcheck/static/js/index';
 
-const builtinModules: Record<string, unknown> = {
-  'ep_etherpad-lite/static/js/messageHandler': require('../messageHandler'),
-  'ep_align/static/js/index': require('../../../../plugins/ep_align/static/js/index'),
-  'ep_heading/static/js/index': require('../../../../plugins/ep_heading/static/js/index'),
-  'ep_heading/static/js/shared': require('../../../../plugins/ep_heading/static/js/shared'),
-  'ep_markdown/static/js/markdown': require('../../../../plugins/ep_markdown/static/js/markdown'),
-  'ep_spellcheck/static/js/index': require('../../../../plugins/ep_spellcheck/static/js/index'),
+// Mapping von Modul-Pfaden zu ihren Implementierungen
+const builtinModules = {
+  'ep_etherpad-lite/static/js/messageHandler': pluginModule0,
+  'ep_align/static/js/index': pluginModule1,
+  'ep_heading/static/js/index': pluginModule2,
+  'ep_heading/static/js/shared': pluginModule3,
+  'ep_markdown/static/js/markdown': pluginModule4,
+  'ep_spellcheck/static/js/index': pluginModule5,
 };
 
-export const registerBuiltinPlugins = (): void => {
+/**
+ * Registriert alle eingebauten Plugin-Module
+ */
+const registerBuiltinPlugins = () => {
   for (const [path, module] of Object.entries(builtinModules)) {
     pluginUtils.registerPluginModule(path, module);
   }
 };
 
-export const getModuleMap = (): Map<string, unknown> => {
-  const map = new Map<string, unknown>();
+/**
+ * Gibt eine Map aller verfügbaren Module zurück
+ */
+const getModuleMap = () => {
+  const map = new Map();
   for (const [path, module] of Object.entries(builtinModules)) {
     map.set(path, module);
   }
   return map;
 };
 
-export {builtinModules};
-
+// Automatisch beim Import registrieren
 registerBuiltinPlugins();
+
+export { registerBuiltinPlugins, getModuleMap, builtinModules };

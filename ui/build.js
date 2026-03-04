@@ -3,6 +3,13 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import {execSync} from "node:child_process";
 
+const run = (command, cwd) => {
+  execSync(command, {
+    cwd,
+    stdio: "inherit",
+  });
+};
+
 // ========================================
 // Plugin Registry Generator
 // ========================================
@@ -11,9 +18,7 @@ const PLUGINS_DIR = '../plugins';
 const ASSETS_EP_JSON = '../assets/ep.json';
 const REGISTRY_OUTPUT = './src/js/pluginfw/plugin_registry.ts';
 
-execSync("pnpm install", {
-    cwd: '../admin'
-})
+run("pnpm install", "../admin");
 
 /**
  * Lädt die ep.json eines Plugins
@@ -71,18 +76,20 @@ function modulePathToRequirePath(modulePath) {
  * Generiert die plugin_registry.ts Datei
  */
 function generatePluginRegistry(modules) {
+  const moduleImports = [];
   const builtinModules = [];
+  let importIndex = 0;
 
   for (const [modulePath] of modules) {
     const requirePath = modulePathToRequirePath(modulePath);
     if (requirePath) {
-      builtinModules.push(`  '${modulePath}': require('${requirePath}'),`);
+      const importName = `pluginModule${importIndex++}`;
+      moduleImports.push(`import * as ${importName} from '${requirePath}';`);
+      builtinModules.push(`  '${modulePath}': ${importName},`);
     }
   }
 
   return `// @ts-nocheck
-'use strict';
-
 /**
  * Plugin Registry - Registriert alle client_hooks Module zur Build-Zeit
  *
@@ -90,7 +97,8 @@ function generatePluginRegistry(modules) {
  * Generiert von: build.js
  */
 
-const pluginUtils = require('./shared');
+import * as pluginUtils from './shared';
+${moduleImports.join('\n')}
 
 // Mapping von Modul-Pfaden zu ihren Implementierungen
 const builtinModules = {
@@ -120,9 +128,7 @@ const getModuleMap = () => {
 // Automatisch beim Import registrieren
 registerBuiltinPlugins();
 
-exports.registerBuiltinPlugins = registerBuiltinPlugins;
-exports.getModuleMap = getModuleMap;
-exports.builtinModules = builtinModules;
+export { registerBuiltinPlugins, getModuleMap, builtinModules };
 `;
 }
 
@@ -337,9 +343,7 @@ await esbuild.buildSync({
     loader:loaders,
 })
 
-execSync("pnpm run build-admin", {
-    cwd: '../admin'
-})
+run("pnpm run build-admin", "../admin");
 
 await esbuild.buildSync({
     entryPoints: ['../assets/css/static/pad.css'],

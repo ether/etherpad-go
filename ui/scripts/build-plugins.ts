@@ -81,18 +81,20 @@ function modulePathToRequirePath(modulePath: string): string {
  * Generiert die plugin_registry.ts Datei
  */
 function generatePluginRegistry(modules: Map<string, string>): string {
+  const moduleImports: string[] = [];
   const builtinModules: string[] = [];
+  let importIndex = 0;
 
   Array.from(modules.entries()).forEach(([modulePath]) => {
     const requirePath = modulePathToRequirePath(modulePath);
     if (requirePath) {
-      builtinModules.push(`  '${modulePath}': require('${requirePath}'),`);
+      const importName = `pluginModule${importIndex++}`;
+      moduleImports.push(`import * as ${importName} from '${requirePath}';`);
+      builtinModules.push(`  '${modulePath}': ${importName},`);
     }
   });
 
   return `// @ts-nocheck
-'use strict';
-
 /**
  * Plugin Registry - Registriert alle client_hooks Module zur Build-Zeit
  *
@@ -100,7 +102,8 @@ function generatePluginRegistry(modules: Map<string, string>): string {
  * Generiert von: scripts/build-plugins.js
  */
 
-const pluginUtils = require('./shared');
+import * as pluginUtils from './shared';
+${moduleImports.join('\n')}
 
 // Mapping von Modul-Pfaden zu ihren Implementierungen
 // Dieser Block wird zur Build-Zeit aufgelöst
@@ -131,9 +134,7 @@ const getModuleMap = () => {
 // Automatisch beim Import registrieren
 registerBuiltinPlugins();
 
-exports.registerBuiltinPlugins = registerBuiltinPlugins;
-exports.getModuleMap = getModuleMap;
-exports.builtinModules = builtinModules;
+export { registerBuiltinPlugins, getModuleMap, builtinModules };
 `;
 }
 
