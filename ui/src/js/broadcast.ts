@@ -29,7 +29,6 @@ import {compose, deserializeOps, inverse, moveOpsToNewPool, mutateAttributionLin
 import attributes from './attributes';
 import {linestylefilter} from './linestylefilter';
 import {colorutils} from './colorutils';
-import * as _ from 'underscore';
 import * as hooks from './pluginfw/hooks';
 
 import html10n from './i18n';
@@ -154,11 +153,12 @@ export const loadBroadcastJS = (socket, sendSocketMsg, fireWhenAllScriptsAreLoad
       // so it should be safe to assume this line has changed attributes when inserting content at
       // the bottom of a pad
       let lineChanged;
-      _.some(oldAlines, (line, index) => {
+      oldAlines.some((line, index) => {
         if (line !== padContents.alines[index]) {
           lineChanged = index;
           return true; // break
         }
+        return false;
       });
       // some chars are replaced (no attributes change and no length change)
       // test if there are keep ops at the start of the cs
@@ -190,7 +190,7 @@ export const loadBroadcastJS = (socket, sendSocketMsg, fireWhenAllScriptsAreLoad
 
     updateTimer();
 
-    const authors = _.map(padContents.getActiveAuthors(), (name) => authorData[name]);
+    const authors = padContents.getActiveAuthors().map((name) => authorData[name]);
 
     BroadcastSlider.setAuthors(authors);
   };
@@ -304,7 +304,7 @@ export const loadBroadcastJS = (socket, sendSocketMsg, fireWhenAllScriptsAreLoad
       loadChangesetsForRevision(padContents.currentRevision);
     }
 
-    const authors = _.map(padContents.getActiveAuthors(), (name) => authorData[name]);
+    const authors = padContents.getActiveAuthors().map((name) => authorData[name]);
     BroadcastSlider.setAuthors(authors);
   };
 
@@ -426,7 +426,7 @@ export const loadBroadcastJS = (socket, sendSocketMsg, fireWhenAllScriptsAreLoad
           authorMap[obj.author] = obj.data;
           receiveAuthorData(authorMap);
 
-          const authors = _.map(padContents.getActiveAuthors(), (name) => authorData[name]);
+          const authors = padContents.getActiveAuthors().map((name) => authorData[name]);
 
           BroadcastSlider.setAuthors(authors);
         } else if (obj.type === 'NEW_SAVEDREV') {

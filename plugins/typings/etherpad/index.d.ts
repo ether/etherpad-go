@@ -81,9 +81,17 @@ export type ContentCollectorHook = (
 ) => unknown;
 
 declare global {
+  interface EtherpadClientVars {
+    automaticReconnectionTimeout?: number | string;
+    mode?: string;
+    padId?: string;
+    randomVersionString: string;
+    sessionRefreshInterval?: number | string;
+    userId?: string | number;
+    [key: string]: unknown;
+  }
+
   interface Window {
-    clientVars?: {
-      padId?: string;
-    };
+    clientVars: EtherpadClientVars;
   }
 }

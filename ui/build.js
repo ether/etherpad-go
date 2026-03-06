@@ -251,7 +251,6 @@ const alias = {
     [`${relativePath}/ace`]: `${moduleResolutionPath}/ace`,
     [`${relativePath}/timeslider`]: `${moduleResolutionPath}/timeslider`,
     [`${relativePath}/socketio`]: `${moduleResolutionPath}/socketio`,
-    [`${relativePath}/underscore`]: `${moduleResolutionPath}/underscore`,
     [`${relativePath}/skin_variants`]: `${moduleResolutionPath}/skin_variants`,
 };
 

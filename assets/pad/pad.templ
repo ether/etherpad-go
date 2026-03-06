@@ -61,7 +61,8 @@ templ EditBar(translations map[string]string, buttonGroups []pluginTypes.Toolbar
                     <li data-type="button" data-key="import_export"><a class="grouped-left" title={translations["pad.toolbar.import_export.title"]} aria-label={translations["pad.toolbar.import_export.title"]}><button class=" buttonicon buttonicon-import_export" title={translations["pad.toolbar.import_export.title"]} aria-label={translations["pad.toolbar.import_export.title"]}></button></a></li>
           <li data-type="button" data-key="showTimeSlider"><a class="grouped-middle" title={translations["pad.toolbar.timeslider.title"]} aria-label={translations["pad.toolbar.timeslider.title"]}><button class=" buttonicon buttonicon-history" title={translations["pad.toolbar.timeslider.title"]} aria-label={translations["pad.toolbar.timeslider.title"]}></button></a></li>
           <li data-type="button" data-key="savedRevision"><a class="grouped-right" title={translations["pad.toolbar.savedRevision.title"]} aria-label={translations["pad.toolbar.savedRevision.title"]}><button class=" buttonicon buttonicon-savedRevision" title={translations["pad.toolbar.savedRevision.title"]} aria-label={translations["pad.toolbar.savedRevision.title"]}></button></a></li><li class="separator"></li><li data-type="button" data-key="settings"><a class="grouped-left" title={translations["pad.toolbar.settings.title"]} aria-label={translations["pad.toolbar.settings.title"]}><button class=" buttonicon buttonicon-settings" title={translations["pad.toolbar.settings.title"]} aria-label={translations["pad.toolbar.settings.title"]}></button></a></li>
-          <li data-type="button" data-key="embed"><a class="grouped-right" title={translations["pad.toolbar.embed.title"]} aria-label={translations["pad.toolbar.embed.title"]}><button class=" buttonicon buttonicon-embed" title={translations["pad.toolbar.embed.title"]} aria-label={translations["pad.toolbar.embed.title"]}></button></a></li><li class="separator"></li>
+          <li data-type="button" data-key="embed"><a class="grouped-middle" title={translations["pad.toolbar.embed.title"]} aria-label={translations["pad.toolbar.embed.title"]}><button class=" buttonicon buttonicon-embed" title={translations["pad.toolbar.embed.title"]} aria-label={translations["pad.toolbar.embed.title"]}></button></a></li>
+          <li data-type="button" data-key="share_qr"><a class="grouped-right" title={translations["pad.share"]} aria-label={translations["pad.share"]}><button class=" buttonicon buttonicon-qrcode" title={translations["pad.share"]} aria-label={translations["pad.share"]}></button></a></li><li class="separator"></li>
                     <li data-type="button" data-key="home"><a class="grouped-right" data-l10n-id="pad.toolbar.home.title" title="Zurück zur Startseite" aria-label="Zurück zur Startseite"><button class=" buttonicon buttonicon-home" data-l10n-id="pad.toolbar.home.title" title="Zurück zur Startseite" aria-label="Zurück zur Startseite"></button></a></li>
           <li data-type="button" data-key="showusers"><a class="" title={translations["pad.toolbar.showusers.title"]} aria-label={translations["pad.toolbar.showusers.title"]} style="box-shadow: rgb(207, 255, 158) 0px 0px 30px inset;"><button class=" buttonicon buttonicon-showusers" title={translations["pad.toolbar.showusers.title"]} aria-label={translations["pad.toolbar.showusers.title"]}></button><span id="online_count">1</span></a></li>
           </ul>
@@ -177,6 +178,24 @@ templ EmbedPopup(translations map[string]string) {
               <div id="embedcode">
                   <h2>{translations["pad.share.emebdcode"]}</h2>
                   <input id="embedinput" type="text" value="" onclick="this.select()"/>
+              </div>
+          </div></div>
+}
+
+templ QrPopup(translations map[string]string) {
+          <div id="share_qr" class="popup"><div class="popup-content">
+              <button id="qrcodeclose" class="buttonicon buttonicon-times" aria-label="Close QR code"></button>
+              <div id="qrcodeheader">
+                  <h1>{translations["pad.share"]}</h1>
+                  <div id="qrreadonly" class="acl-write">
+                  <input type="checkbox" id="qrreadonlyinput"/>
+                  <label for="qrreadonlyinput">{translations["pad.share.readonly"]}</label>
+                  </div>
+              </div>
+              <img id="qrcodeimg" alt="QR code for sharing this pad"/>
+              <div id="qrcodefooter">
+                  <label for="qrcodelinkinput">{translations["pad.share.link"]}</label>
+                  <input id="qrcodelinkinput" type="text" readonly="readonly" onclick="this.select()"/>
               </div>
           </div></div>
 }
@@ -390,6 +409,7 @@ availableFonts []string, buttonGroups []pluginTypes.ToolbarButtonGroup, settings
             @ImportExportPopup(translations)
             @ConnectivityPopup(translations)
             @EmbedPopup(translations)
+            @QrPopup(translations)
       <div class="sticky-container">
             @UserPopup(translations)
             @ChatPopup(translations)

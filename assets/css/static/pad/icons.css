@@ -65,6 +65,20 @@
 .buttonicon-embed:before {
   content: "\e853";
 }
+.buttonicon-qrcode:before {
+  content: "";
+  width: 16px;
+  height: 16px;
+  background-color: currentColor;
+  -webkit-mask-image: url("../../../images/icons/qrcode.svg");
+  mask-image: url("../../../images/icons/qrcode.svg");
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+}
 .buttonicon-history:before {
   content: "\e837";
 }

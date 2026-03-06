@@ -9,7 +9,6 @@ test.beforeEach(async ({page}) => {
 
 test.describe('mobile layout', () => {
     test('uses mobile toolbar layout', async ({page}) => {
-        await expect(page.locator('body')).toHaveClass(/mobile-layout/);
         await expect(page.locator('.toolbar .menu_right')).toHaveCSS('position', 'fixed');
     });
 
@@ -63,5 +62,35 @@ test.describe('mobile layout', () => {
         if (popupBox && toolbarBox) {
             expect(popupBox.y + popupBox.height).toBeLessThanOrEqual(toolbarBox.y + 1);
         }
+    });
+
+    test('allows horizontal scrolling in the top toolbar on narrow layouts', async ({page}) => {
+        await page.evaluate(() => {
+            const menuLeft = document.querySelector('.toolbar .menu_left');
+            if (!(menuLeft instanceof HTMLUListElement)) return;
+
+            for (let i = 0; i < 30; i++) {
+                const item = document.createElement('li');
+                item.dataset.type = 'button';
+                item.dataset.key = `mobile-overflow-${i}`;
+                item.innerHTML = `<a title="Overflow ${i}" aria-label="Overflow ${i}"><button class="buttonicon" aria-label="Overflow ${i}">${i}</button></a>`;
+                menuLeft.appendChild(item);
+            }
+
+            (window as any).padeditbar.checkAllIconsAreDisplayedInToolbar();
+        });
+
+        const toolbar = page.locator('.toolbar');
+        const menuLeft = page.locator('.toolbar .menu_left');
+
+        await expect(page.locator('.toolbar .menu_right')).toHaveCSS('position', 'fixed');
+        await expect(toolbar).toHaveClass(/toolbar-scrollable/);
+
+        await menuLeft.hover();
+        await page.mouse.wheel(0, 800);
+
+        await expect.poll(async () => {
+            return await menuLeft.evaluate((node) => node.scrollLeft);
+        }).toBeGreaterThan(0);
     });
 });

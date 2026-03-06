@@ -2,17 +2,21 @@
   position: absolute;
   top: 10px;
   right: 30px;
+  opacity: 0;
+  transform: scale(0.7);
+  visibility: hidden;
+  pointer-events: none;
   /* visibility must transition immediately so that input elements inside the popup can get focus */
   transition: all 0.3s cubic-bezier(0.74, -0.05, 0.27, 1.75), visibility 0s;
   z-index: 500;
 }
 
-.popup:not(.popup-show):not(#users.chatAndUsers) {
-  opacity: 0;
-  transform: scale(0.7);
-  /* visibility must not change to hidden until the end of the transition */
-  transition: all 0.3s cubic-bezier(0.74, -0.05, 0.27, 1.75);
-  visibility: hidden;
+.popup.popup-show,
+#users.popup.chatAndUsers {
+  opacity: 1;
+  transform: none;
+  visibility: visible;
+  pointer-events: auto;
 }
 
 #mycolorpicker {
@@ -53,6 +57,97 @@
   margin: 5px 0;
 }
 
+#share_qr {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+#share_qr::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background: rgba(0, 0, 0, .72);
+}
+#share_qr:not(.popup-show) {
+  pointer-events: none;
+}
+#share_qr .popup-content {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  flex-direction: column;
+  gap: 14px;
+  width: min(92vw, 960px);
+  max-width: 960px;
+  max-height: 92vh;
+  background: #fff;
+  border-radius: 12px;
+  padding: 18px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+#share_qr #qrcodeclose {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  font-size: 20px;
+  line-height: 1;
+  z-index: 1;
+}
+#share_qr #qrcodeheader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding-inline: 48px;
+  text-align: center;
+}
+#share_qr #qrcodeheader h1 {
+  margin: 0;
+}
+#share_qr #qrreadonly {
+  margin: 0;
+}
+#share_qr #qrcodeimg {
+  align-self: center;
+  width: min(76vw, 76vh, 780px);
+  max-width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: contain;
+  background: #fff;
+  border: 1px solid #d9d9d9;
+  border-radius: 8px;
+  padding: 12px;
+}
+#share_qr #qrcodefooter {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  max-width: min(100%, 800px);
+  align-self: center;
+  box-sizing: border-box;
+}
+#share_qr #qrcodefooter label {
+  font-size: .95rem;
+  font-weight: 600;
+}
+#share_qr #qrcodelinkinput {
+  width: 100%;
+  margin-top: 0;
+  box-sizing: border-box;
+}
+
 /* Mobile devices */
 @media only screen and (max-width: 800px) {
   .popup {
@@ -72,13 +167,34 @@
   .popup#users .popup-content {
     overflow: visible;
   }
+  #share_qr {
+    top: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    padding: .75rem;
+  }
+  #share_qr .popup-content {
+    width: 100%;
+    max-height: calc(100dvh - 1.5rem);
+    padding: 16px;
+    gap: 12px;
+  }
+  #share_qr #qrcodeimg {
+    width: min(90vw, 70vh);
+  }
+  #share_qr #qrcodeheader {
+    padding-inline: 40px;
+  }
 }
-/* Move popup to the bottom, except popup linked to left toolbar, like hyperklink popup */
-.mobile-layout .popup:not(.toolbar-popup) {
-  top: auto;
-  left: .75rem;
-  right: auto;
-  bottom: calc(.75rem + var(--mobile-toolbar-height) + var(--mobile-safe-bottom));
+/* Move popup to the bottom, except popup linked to left toolbar, like hyperlink popup */
+@media only screen and (max-width: 1000px) {
+  .popup:not(.toolbar-popup):not(#share_qr) {
+    top: auto;
+    left: .75rem;
+    right: auto;
+    bottom: calc(.75rem + var(--mobile-toolbar-height) + var(--mobile-safe-bottom));
+  }
 }
 
 @media only screen and (max-width: 360px) {
@@ -86,12 +202,18 @@
     left: .5rem !important;
     right: .5rem !important;
   }
-  .mobile-layout .popup:not(.toolbar-popup) {
+  .popup:not(.toolbar-popup):not(#share_qr) {
     left: .5rem;
     bottom: calc(.5rem + var(--mobile-toolbar-height) + var(--mobile-safe-bottom));
   }
   .popup h1 {
     font-size: 1.4rem;
+  }
+  #share_qr #qrcodeheader {
+    padding-inline: 32px;
+  }
+  #share_qr #qrcodefooter label {
+    font-size: .85rem;
   }
 }
 
@@ -99,7 +221,7 @@
   .popup-content {
     max-height: calc(100dvh - var(--mobile-toolbar-height) - var(--mobile-safe-bottom) - 1.25rem);
   }
-  .mobile-layout .popup:not(.toolbar-popup) {
+  .popup:not(.toolbar-popup):not(#share_qr) {
     bottom: calc(.5rem + var(--mobile-toolbar-height) + var(--mobile-safe-bottom));
   }
 }

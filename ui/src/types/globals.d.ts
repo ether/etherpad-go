@@ -1,14 +1,21 @@
 export {};
 
 declare global {
+  interface EtherpadClientVars {
+    automaticReconnectionTimeout?: number | string;
+    mode?: string;
+    padId?: string;
+    randomVersionString: string;
+    sessionRefreshInterval?: number | string;
+    userId?: string | number;
+    [key: string]: unknown;
+  }
+
   interface Window {
     BroadcastSlider?: unknown;
     browser?: unknown;
     chat?: unknown;
-    clientVars: {
-      randomVersionString: string;
-      [key: string]: unknown;
-    };
+    clientVars: EtherpadClientVars;
     customStart?: () => void;
     pad?: unknown;
     padeditbar?: unknown;

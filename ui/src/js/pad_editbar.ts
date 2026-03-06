@@ -27,10 +27,16 @@ import * as hooks from './pluginfw/hooks';
 import padutils from "./pad_utils";
 import {padeditor} from './pad_editor';
 import * as padsavedrevs from './pad_savedrevs';
-import * as _ from 'underscore';
 
 const q = (selector) => document.querySelector(selector);
 const qa = (selector) => Array.from(document.querySelectorAll(selector));
+const debounce = (fn, wait) => {
+  let timer = null;
+  return (...args) => {
+    if (timer != null) window.clearTimeout(timer);
+    timer = window.setTimeout(() => fn(...args), wait);
+  };
+};
 const hide = (selector) => {
   const el = q(selector);
   if (el) el.style.display = 'none';
@@ -142,6 +148,7 @@ export const padeditbar = new class {
     this._editbarPosition = 0;
     this.commands = {};
     this.dropdowns = [];
+    this._boundToolbarScrollSync = null;
   }
 
   init() {
@@ -157,13 +164,8 @@ export const padeditbar = new class {
       this._bodyKeyEvent(evt);
     });
 
-    for (const btn of qa('.show-more-icon-btn')) {
-      btn.addEventListener('click', () => {
-        q('.toolbar')?.classList.toggle('full-icons');
-      });
-    }
     this.checkAllIconsAreDisplayedInToolbar();
-    window.addEventListener('resize', _.debounce(() => this.checkAllIconsAreDisplayedInToolbar(), 100));
+    window.addEventListener('resize', debounce(() => this.checkAllIconsAreDisplayedInToolbar(), 100));
 
     this._registerDefaultCommands();
 
@@ -284,44 +286,98 @@ export const padeditbar = new class {
     }
   }
   setEmbedLinks() {
-    const padUrl = window.location.href.split('?')[0];
-    const params = '?showControls=true&showChat=true&showLineNumbers=true&useMonospaceFont=false';
-    const props = 'width="100%" height="600" frameborder="0"';
-
     const readonlyInput = q('#readonlyinput');
     const embedInput = q('#embedinput');
     const linkInput = q('#linkinput');
     if (!embedInput || !linkInput) return;
-    const isReadonly = Boolean(readonlyInput?.checked);
+    const {link, embed} = this.getShareLinks(Boolean(readonlyInput?.checked));
+    embedInput.value = embed;
+    linkInput.value = link;
+  }
+
+  getShareLinks(isReadonly = false) {
+    const padUrl = window.location.href.split('?')[0];
+    const params = '?showControls=true&showChat=true&showLineNumbers=true&useMonospaceFont=false';
+    const props = 'width="100%" height="600" frameborder="0"';
     if (isReadonly) {
       const urlParts = padUrl.split('/');
       urlParts.pop();
       const readonlyLink = `${urlParts.join('/')}/${clientVars.readOnlyId}`;
-      embedInput.value = `<iframe name="embed_readonly" src="${readonlyLink}${params}" ${props}></iframe>`;
-      linkInput.value = readonlyLink;
+      return {
+        link: readonlyLink,
+        embed: `<iframe name="embed_readonly" src="${readonlyLink}${params}" ${props}></iframe>`,
+      };
+    }
+    return {
+      link: padUrl,
+      embed: `<iframe name="embed_readwrite" src="${padUrl}${params}" ${props}></iframe>`,
+    };
+  }
+
+  getQrCodeSrc(isReadonly = false) {
+    const qrUrl = new URL(`${window.location.pathname.replace(/\/$/, '')}/qr`, window.location.origin);
+    qrUrl.searchParams.set('readonly', isReadonly ? 'true' : 'false');
+    return qrUrl.toString();
+  }
+
+  async setQrCode() {
+    const readonlyInput = q('#qrreadonlyinput');
+    const qrImage = q('#qrcodeimg');
+    const qrLinkInput = q('#qrcodelinkinput');
+    if (!(qrImage instanceof HTMLImageElement) || !(qrLinkInput instanceof HTMLInputElement)) return;
+    const {link} = this.getShareLinks(Boolean(readonlyInput instanceof HTMLInputElement && readonlyInput.checked));
+    qrLinkInput.value = link;
+    qrImage.src = this.getQrCodeSrc(Boolean(readonlyInput instanceof HTMLInputElement && readonlyInput.checked));
+  }
+
+  _syncToolbarScrollState() {
+    const toolbar = q('.toolbar');
+    const menuLeft = q('.toolbar .menu_left');
+    if (!(toolbar instanceof HTMLElement) || !(menuLeft instanceof HTMLElement)) return;
+    const maxScrollLeft = Math.max(0, menuLeft.scrollWidth - menuLeft.clientWidth);
+    const scrollLeft = Math.round(menuLeft.scrollLeft);
+    toolbar.classList.toggle('toolbar-can-scroll-left', scrollLeft > 0);
+    toolbar.classList.toggle('toolbar-can-scroll-right', scrollLeft < maxScrollLeft - 1);
+  }
+
+  _ensureToolbarScrollBehavior(enabled) {
+    const menuLeft = q('.toolbar .menu_left');
+    if (!(menuLeft instanceof HTMLElement)) return;
+    if (!this._boundToolbarScrollSync) {
+      this._boundToolbarScrollSync = () => this._syncToolbarScrollState();
+      menuLeft.addEventListener('scroll', this._boundToolbarScrollSync, {passive: true});
+      menuLeft.addEventListener('wheel', (event) => {
+        if (!q('.toolbar')?.classList.contains('toolbar-scrollable')) return;
+        if (Math.abs(event.deltaX) <= Math.abs(event.deltaY) && event.deltaY !== 0) {
+          menuLeft.scrollLeft += event.deltaY;
+          event.preventDefault();
+        }
+      }, {passive: false});
+    }
+
+    if (enabled) {
+      this._syncToolbarScrollState();
     } else {
-      embedInput.value = `<iframe name="embed_readwrite" src="${padUrl}${params}" ${props}></iframe>`;
-      linkInput.value = padUrl;
+      menuLeft.scrollLeft = 0;
     }
   }
   checkAllIconsAreDisplayedInToolbar() {
-    // reset style
     const toolbar = q('.toolbar');
-    if (toolbar) toolbar.classList.remove('cropped');
-    document.body.classList.remove('mobile-layout');
     const menuLeft = q('.toolbar .menu_left');
+    const menuRight = q('.toolbar .menu_right');
+    if (!(toolbar instanceof HTMLElement) || !(menuLeft instanceof HTMLElement)) return;
 
-    // this is approximate, we cannot measure it because on mobile
-    // Layout it takes the full width on the bottom of the page
-    const menuRightWidth = 280;
-    const toolbarWidth = toolbar?.clientWidth ?? 0;
-    if (menuLeft && menuLeft.scrollWidth > toolbarWidth - menuRightWidth ||
-        toolbarWidth < 1000) {
-      document.body.classList.add('mobile-layout');
-    }
-    if (menuLeft && menuLeft.scrollWidth > toolbarWidth && toolbar) {
-      toolbar.classList.add('cropped');
-    }
+    const toolbarWidth = toolbar.clientWidth;
+    const menuRightWidth = menuRight instanceof HTMLElement ? menuRight.offsetWidth : 0;
+    const isCompactLayout = window.matchMedia('(max-width: 1000px)').matches;
+    const availableLeftWidth = isCompactLayout
+      ? toolbarWidth
+      : Math.max(0, toolbarWidth - menuRightWidth - 10);
+    const canUseScrollableToolbar = menuLeft.scrollWidth > availableLeftWidth;
+    toolbar.style.setProperty('--toolbar-right-width', `${menuRightWidth}px`);
+    toolbar.classList.toggle('toolbar-scrollable', canUseScrollableToolbar);
+    toolbar.classList.remove('toolbar-can-scroll-left', 'toolbar-can-scroll-right');
+    this._ensureToolbarScrollBehavior(canUseScrollableToolbar);
   }
 
   _bodyKeyEvent(evt) {
@@ -371,6 +427,7 @@ export const padeditbar = new class {
         // Allow focus to shift back to end of row and start of row
         if (this._editbarPosition === -1) this._editbarPosition = focusItems.length - 1;
         focusItems[this._editbarPosition]?.focus();
+        focusItems[this._editbarPosition]?.scrollIntoView?.({block: 'nearest', inline: 'nearest'});
       }
 
       // On right arrow move to next button in editbar
@@ -383,6 +440,7 @@ export const padeditbar = new class {
         // Allow focus to shift back to end of row and start of row
         if (this._editbarPosition >= focusItems.length) this._editbarPosition = 0;
         focusItems[this._editbarPosition]?.focus();
+        focusItems[this._editbarPosition]?.scrollIntoView?.({block: 'nearest', inline: 'nearest'});
       }
     }
   }
@@ -393,6 +451,7 @@ export const padeditbar = new class {
     this.registerDropdownCommand('connectivity');
     this.registerDropdownCommand('import_export');
     this.registerDropdownCommand('embed');
+    this.registerDropdownCommand('share_qr');
     this.registerCommand('home', ()=>{
       window.location.href = window.location.href + "/../.."
     })
@@ -428,6 +487,14 @@ export const padeditbar = new class {
       const linkInput = q('#linkinput');
       linkInput?.focus();
       linkInput?.select?.();
+    });
+
+    this.registerCommand('share_qr', () => {
+      this.toggleDropDown('share_qr');
+      void this.setQrCode();
+      const qrLinkInput = q('#qrcodelinkinput');
+      qrLinkInput?.focus();
+      qrLinkInput?.select?.();
     });
 
     this.registerCommand('savedRevision', () => {

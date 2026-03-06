@@ -59,7 +59,9 @@ body {
   width: 0; /* hide when the container is empty */
 }
 
-.mobile-layout #editorcontainerbox {
-  margin-bottom: calc(var(--mobile-toolbar-height) + var(--mobile-safe-bottom));
-  min-height: 0; /* Prevent iframe overflow in compact viewports */
+@media only screen and (max-width: 1000px) {
+  #editorcontainerbox {
+    margin-bottom: calc(var(--mobile-toolbar-height) + var(--mobile-safe-bottom));
+    min-height: 0; /* Prevent iframe overflow in compact viewports */
+  }
 }

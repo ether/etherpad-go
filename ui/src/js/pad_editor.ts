@@ -212,7 +212,7 @@ export const focusOnLine = (ace) => {
         if (line && outerDocBody && innerDocBody) {
           let offsetTop = line.getBoundingClientRect().top - innerDocBody.getBoundingClientRect().top;
           offsetTop += parseInt(getComputedStyle(outerDocBody).paddingTop.replace('px', ''));
-          const hasMobileLayout = document.body.classList.contains('mobile-layout');
+          const hasMobileLayout = window.matchMedia('(max-width: 1000px)').matches;
           if (!hasMobileLayout) {
             offsetTop += parseInt(getComputedStyle(innerDocBody).paddingTop.replace('px', ''));
           }

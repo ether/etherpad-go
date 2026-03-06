@@ -419,6 +419,14 @@ const pad = {
         const onReady = async () => {
             if (window.customStart != null) window.customStart();
             byId('readonlyinput')?.addEventListener('click', () => padeditbar.setEmbedLinks());
+            byId('qrreadonlyinput')?.addEventListener('click', () => {
+                void padeditbar.setQrCode();
+            });
+            byId('qrcodeclose')?.addEventListener('click', () => padeditbar.toggleDropDown('share_qr'));
+            const qrPopup = byId('share_qr');
+            qrPopup?.addEventListener('click', (event) => {
+                if (event.target === qrPopup) padeditbar.toggleDropDown('share_qr');
+            });
             padcookie.init();
             await handshake();
             this._afterHandshake();

@@ -9,6 +9,7 @@ const isCI = !!process.env.CI;
 
 process.env['NODE_ENV'] = 'production';
 process.env['ETHERPAD_LOADTEST'] = 'true'
+process.env['ETHERPAD_DEVMODE'] = 'false'
 
 export default defineConfig({
   fullyParallel: true,

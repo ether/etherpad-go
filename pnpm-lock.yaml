@@ -131,16 +131,7 @@ importers:
       socket.io-client:
         specifier: ^4.8.3
         version: 4.8.3
-      underscore:
-        specifier: ^1.13.8
-        version: 1.13.8
-      unorm:
-        specifier: ^1.6.0
-        version: 1.6.0
     devDependencies:
-      '@types/jquery':
-        specifier: ^4.0.0
-        version: 4.0.0
       '@types/node':
         specifier: ^25.3.3
         version: 25.3.3
@@ -1060,9 +1051,6 @@ packages:
   '@types/estree@1.0.8':
     resolution: {integrity: sha512-dWHzHa2WqEXI/O1E9OjrocMTKJl2mSrEolh1Iomrv6U+JuNwaHXsXx9bLu5gG7BUWFIN0skIQJQ/L1rIex4X6w==}
 
-  '@types/jquery@4.0.0':
-    resolution: {integrity: sha512-Z+to+A2VkaHq1DfI2oSwsoCdhCHMpTSgjWzNcbNlRGYzksDBpPUgEcAL+RQjOBJRaLoEAOHXxqDGBVP+BblBwg==}
-
   '@types/json-schema@7.0.15':
     resolution: {integrity: sha512-5+fP8P8MFNC+AyZCDxrB2pkZFPGzqQWUzpSeuuVLvm8VMcorNYavBqoFcxK8bQz4Qsbn4oUEEem4wDLfcysGHA==}
 
@@ -1813,15 +1801,8 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
-  underscore@1.13.8:
-    resolution: {integrity: sha512-DXtD3ZtEQzc7M8m4cXotyHR+FAS18C64asBYY5vqZexfYryNNnDc02W4hKg3rdQuqOYas1jkseX0+nZXjTXnvQ==}
-
   undici-types@7.18.2:
     resolution: {integrity: sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w==}
-
-  unorm@1.6.0:
-    resolution: {integrity: sha512-b2/KCUlYZUeA7JFUuRJZPUtr4gZvBh7tavtv4fvk4+KV9pfGiR6CQAQAWl49ZpR3ts2dk4FYkP7EIgDJoiOLDA==}
-    engines: {node: '>= 0.4.0'}
 
   update-browserslist-db@1.2.3:
     resolution: {integrity: sha512-Js0m9cx+qOgDxo0eMiFGEueWztz+d4+M3rGlmKPT+T4IS/jP4ylw3Nwpu6cpTTP8R1MAC1kF4VbdLt3ARf209w==}
@@ -2736,8 +2717,6 @@ snapshots:
 
   '@types/estree@1.0.8': {}
 
-  '@types/jquery@4.0.0': {}
-
   '@types/json-schema@7.0.15': {}
 
   '@types/jsoneditor@9.9.6':
@@ -3497,11 +3476,7 @@ snapshots:
 
   typescript@5.9.3: {}
 
-  underscore@1.13.8: {}
-
   undici-types@7.18.2: {}
-
-  unorm@1.6.0: {}
 
   update-browserslist-db@1.2.3(browserslist@4.28.1):
     dependencies:

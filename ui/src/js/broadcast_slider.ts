@@ -1,7 +1,5 @@
 // @ts-nocheck
 'use strict';
-
-import * as _ from 'underscore';
 import {padmodals} from './pad_modals';
 import {colorutils} from './colorutils';
 import html10n from './i18n';
@@ -104,7 +102,7 @@ export const loadBroadcastSliderJS = (fireWhenAllScriptsAreLoaded) => {
       let numNamed = 0;
       const colorsAnonymous = [];
 
-      _.each(authors, (author) => {
+      authors.forEach((author) => {
         if (!author) return;
         const authorColor = clientVars.colorPalette[author.colorId] || author.colorId;
         if (author.name) {
@@ -128,7 +126,7 @@ export const loadBroadcastSliderJS = (fireWhenAllScriptsAreLoaded) => {
         authorsList.append(numNamed !== 0 ? ` + ${anonymousAuthorString}` : anonymousAuthorString);
         if (colorsAnonymous.length > 0) {
           authorsList.append(' (');
-          _.each(colorsAnonymous, (color, i) => {
+          colorsAnonymous.forEach((color, i) => {
             if (i > 0) authorsList.append(' ');
             const span = document.createElement('span');
             span.innerHTML = '&nbsp;';
@@ -290,7 +288,7 @@ export const loadBroadcastSliderJS = (fireWhenAllScriptsAreLoaded) => {
 
         setSliderLength(clientVars.collab_client_vars.rev);
         setSliderPosition(clientVars.collab_client_vars.rev);
-        _.each(clientVars.savedRevisions, (revision) => addSavedRevision(revision.revNum, revision));
+        clientVars.savedRevisions.forEach((revision) => addSavedRevision(revision.revNum, revision));
       }
     });
   })();

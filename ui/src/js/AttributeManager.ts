@@ -4,7 +4,6 @@ import {compose, deserializeOps, isIdentity} from './Changeset';
 import {Builder} from "./Builder";
 import {buildKeepRange, buildKeepToStartOfRange, buildRemoveRange} from './ChangesetUtils';
 import attributes from './attributes';
-import underscore from "underscore";
 
 const lineMarkerAttribute = 'lmkr';
 
@@ -45,7 +44,7 @@ const AttributeManager = function (rep, applyChangesetCallback) {
 AttributeManager.DEFAULT_LINE_ATTRIBUTES = DEFAULT_LINE_ATTRIBUTES;
 AttributeManager.lineAttributes = lineAttributes;
 
-AttributeManager.prototype = underscore.default(AttributeManager.prototype).extend({
+Object.assign(AttributeManager.prototype, {
 
   applyChangeset(changeset) {
     if (!this.applyChangesetCallback) return changeset;
@@ -335,8 +334,11 @@ AttributeManager.prototype = underscore.default(AttributeManager.prototype).exte
 
     buildKeepToStartOfRange(this.rep, builder, [lineNum, 0]);
 
-    const countAttribsWithMarker = underscore.chain(attribs).filter((a) => !!a[1])
-        .map((a) => a[0]).difference(DEFAULT_LINE_ATTRIBUTES).size().value();
+    const countAttribsWithMarker = attribs
+        .filter((a) => !!a[1])
+        .map((a) => a[0])
+        .filter((a) => !DEFAULT_LINE_ATTRIBUTES.includes(a))
+        .length;
 
     // if we have marker and any of attributes don't need to have marker. we need delete it
     if (hasMarker && !countAttribsWithMarker) {

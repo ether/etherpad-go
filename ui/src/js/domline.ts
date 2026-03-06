@@ -24,9 +24,9 @@
 
 import {escapeHtml, escapeHtmlAttribute} from './html_escape';
 import * as hooks from './pluginfw/hooks';
-import * as _ from 'underscore';
 import {lineAttributeMarker} from './linestylefilter';
 const noop = () => {};
+const identity = (value) => value;
 
 
 export const domline = {};
@@ -76,8 +76,8 @@ domline.createDomLine = (nonEmpty, doesWrap, optBrowser, optDocument) => {
   let curHTML = null;
 
   const processSpaces = (s) => domline.processSpaces(s, doesWrap);
-  const perTextNodeProcess = (doesWrap ? _.identity : processSpaces);
-  const perHtmlLineProcess = (doesWrap ? processSpaces : _.identity);
+  const perTextNodeProcess = (doesWrap ? identity : processSpaces);
+  const perHtmlLineProcess = (doesWrap ? processSpaces : identity);
   let lineClass = 'ace-line';
 
   result.appendSpan = (txt, cls) => {
@@ -87,10 +87,10 @@ domline.createDomLine = (nonEmpty, doesWrap, optBrowser, optDocument) => {
       let listType = /(?:^| )list:(\S+)/.exec(cls);
       const start = /(?:^| )start:(\S+)/.exec(cls);
 
-      _.map(hooks.callAll('aceDomLinePreProcessLineAttributes', {
+      hooks.callAll('aceDomLinePreProcessLineAttributes', {
         domline,
         cls,
-      }), (modifier) => {
+      }).forEach((modifier) => {
         preHtml += modifier.preHtml;
         postHtml += modifier.postHtml;
         processedMarker |= modifier.processedMarker;
@@ -118,10 +118,10 @@ domline.createDomLine = (nonEmpty, doesWrap, optBrowser, optDocument) => {
         }
         processedMarker = true;
       }
-      _.map(hooks.callAll('aceDomLineProcessLineAttributes', {
+      hooks.callAll('aceDomLineProcessLineAttributes', {
         domline,
         cls,
-      }), (modifier) => {
+      }).forEach((modifier) => {
         preHtml += modifier.preHtml;
         postHtml += modifier.postHtml;
         processedMarker |= modifier.processedMarker;
@@ -150,10 +150,10 @@ domline.createDomLine = (nonEmpty, doesWrap, optBrowser, optDocument) => {
     let extraOpenTags = '';
     let extraCloseTags = '';
 
-    _.map(hooks.callAll('aceCreateDomLine', {
+    hooks.callAll('aceCreateDomLine', {
       domline,
       cls,
-    }), (modifier) => {
+    }).forEach((modifier) => {
       cls = modifier.cls;
       extraOpenTags += modifier.extraOpenTags;
       extraCloseTags = modifier.extraCloseTags + extraCloseTags;

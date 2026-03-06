@@ -175,9 +175,11 @@ func Init(store *lib.InitStore) {
 	store.C.Use("/p/", func(c *fiber.Ctx) error {
 		c.Path()
 
-		var _, err = store.CookieStore.Get(c)
-		if err != nil {
-			println("Error with session")
+		if store.CookieStore != nil {
+			var _, err = store.CookieStore.Get(c)
+			if err != nil {
+				println("Error with session")
+			}
 		}
 
 		return c.Next()
@@ -251,6 +253,10 @@ func Init(store *lib.InitStore) {
 
 	store.C.Get("/p/:pad", func(ctx *fiber.Ctx) error {
 		return pad2.HandlePadOpen(ctx, store.UiAssets, store.RetrievedSettings, store.Hooks)
+	})
+
+	store.C.Get("/p/:pad/qr", func(ctx *fiber.Ctx) error {
+		return pad2.HandlePadQr(ctx, store)
 	})
 
 	store.C.Get("/p/:pad/timeslider", func(c *fiber.Ctx) error {

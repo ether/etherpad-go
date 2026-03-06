@@ -23,7 +23,6 @@
  */
 
 import {characterRangeFollow, compose, follow, isIdentity, unpack} from './Changeset';
-import * as _ from 'underscore';
 
 export const undoModule = (() => {
   const stack = (() => {
@@ -50,8 +49,9 @@ export const undoModule = (() => {
     clearStack();
 
     const pushEvent = (event) => {
-      const e = _.extend(
-          {}, event);
+      const e = {
+        ...event,
+      };
       e.elementType = UNDOABLE_EVENT;
       stackElements.push(e);
       numUndoableEvents++;

@@ -29,12 +29,11 @@ import Op from "./Op";
 const _MAX_LIST_LEVEL = 16;
 
 import AttributeMap from './AttributeMap';
-const UNorm = require('unorm');
 import {subattribution} from './Changeset';
 import {SmartOpAssembler} from "./SmartOpAssembler";
 import * as hooks from './pluginfw/hooks';
 
-export const sanitizeUnicode = (s) => UNorm.nfc(s);
+export const sanitizeUnicode = (s) => s.normalize('NFC');
 const tagName = (n) => n.tagName && n.tagName.toLowerCase();
 // supportedElems are Supported natively within Etherpad and don't require a plugin
 export const supportedElems = new Set([
