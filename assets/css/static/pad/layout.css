@@ -10,6 +10,15 @@ html.pad, html.pad body {
   overflow: hidden;
   height: 100%;
 }
+html.pad body {
+  --mobile-toolbar-height: 48px;
+  --mobile-safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+@media only screen and (max-width: 800px) and (orientation: landscape) {
+  html.pad body {
+    --mobile-toolbar-height: 44px;
+  }
+}
 body {
   display: flex;
   flex-direction: column;
@@ -51,5 +60,6 @@ body {
 }
 
 .mobile-layout #editorcontainerbox {
-  margin-bottom: 39px; /* Leave space for the bottom toolbar on mobile */
+  margin-bottom: calc(var(--mobile-toolbar-height) + var(--mobile-safe-bottom));
+  min-height: 0; /* Prevent iframe overflow in compact viewports */
 }

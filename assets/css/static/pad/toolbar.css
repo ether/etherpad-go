@@ -44,6 +44,7 @@
   overflow: hidden;
   text-decoration: none;
   transition: background-color .1s;
+  touch-action: manipulation;
 }
 .toolbar ul li a.pressed button:active, .toolbar ul li a.pressed button:focus {
   outline: 0;
@@ -149,10 +150,12 @@
   left: 0;
   border-top: 1px solid #ccc;
   background-color: #f4f4f4;
-  padding: 0 5px 5px 5px;
+  min-height: var(--mobile-toolbar-height);
+  align-items: center;
+  padding: 4px 8px calc(4px + var(--mobile-safe-bottom)) 8px;
 }
 .mobile-layout .toolbar ul.menu_right > li {
-  margin-right: 8px;
+  margin-right: 6px;
 }
 .mobile-layout .toolbar ul.menu_right > li[data-key="showusers"] {
   position: absolute;
@@ -163,7 +166,7 @@
 }
 .mobile-layout .toolbar ul.menu_right > li[data-key="showusers"] a {
   height: 100%;
-  width: 40px;
+  width: 44px;
   border-radius: 0;
 }
 .mobile-layout .toolbar ul.menu_right > li.separator {
@@ -171,8 +174,36 @@
 }
 .mobile-layout .toolbar ul.menu_right > li a {
   border: none;
-  margin-left: 5px;
+  min-width: 40px;
+  height: 40px;
+  margin-left: 2px;
+  border-radius: 8px;
 }
 .mobile-layout .toolbar ul.menu_right > li a:not(.selected) {
   background-color: transparent;
+}
+
+@media only screen and (max-width: 360px) {
+  .mobile-layout .toolbar .menu_right {
+    padding-left: 4px;
+    padding-right: 4px;
+  }
+  .mobile-layout .toolbar ul.menu_right > li {
+    margin-right: 2px;
+  }
+  .mobile-layout .toolbar ul.menu_right > li a {
+    min-width: 36px;
+    height: 36px;
+    margin-left: 0;
+  }
+  .mobile-layout .toolbar ul.menu_right > li[data-key="showusers"] a {
+    width: 40px;
+  }
+}
+
+@media only screen and (max-width: 800px) and (orientation: landscape) {
+  .mobile-layout .toolbar ul.menu_right > li a {
+    min-width: 36px;
+    height: 36px;
+  }
 }

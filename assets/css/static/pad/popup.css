@@ -57,15 +57,17 @@
 @media only screen and (max-width: 800px) {
   .popup {
     border-radius: 0;
-    top: 1rem;
+    top: .75rem;
     margin: 0 !important;
-    right: 1rem !important;
-    left: 1rem !important;
+    right: .75rem !important;
+    left: .75rem !important;
     max-width: none !important;
   }
   .popup-content {
-    max-height: 80vh;
+    min-width: 0;
+    max-height: calc(100dvh - var(--mobile-toolbar-height) - var(--mobile-safe-bottom) - 2.5rem);
     overflow: auto;
+    overscroll-behavior: contain;
   }
   .popup#users .popup-content {
     overflow: visible;
@@ -74,7 +76,30 @@
 /* Move popup to the bottom, except popup linked to left toolbar, like hyperklink popup */
 .mobile-layout .popup:not(.toolbar-popup) {
   top: auto;
-  left: 1rem;
+  left: .75rem;
   right: auto;
-  bottom: 1rem;
+  bottom: calc(.75rem + var(--mobile-toolbar-height) + var(--mobile-safe-bottom));
+}
+
+@media only screen and (max-width: 360px) {
+  .popup {
+    left: .5rem !important;
+    right: .5rem !important;
+  }
+  .mobile-layout .popup:not(.toolbar-popup) {
+    left: .5rem;
+    bottom: calc(.5rem + var(--mobile-toolbar-height) + var(--mobile-safe-bottom));
+  }
+  .popup h1 {
+    font-size: 1.4rem;
+  }
+}
+
+@media only screen and (max-width: 800px) and (orientation: landscape) {
+  .popup-content {
+    max-height: calc(100dvh - var(--mobile-toolbar-height) - var(--mobile-safe-bottom) - 1.25rem);
+  }
+  .mobile-layout .popup:not(.toolbar-popup) {
+    bottom: calc(.5rem + var(--mobile-toolbar-height) + var(--mobile-safe-bottom));
+  }
 }
