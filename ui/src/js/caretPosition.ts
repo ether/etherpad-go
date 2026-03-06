@@ -7,17 +7,20 @@ import {Position, RepModel, RepNode} from "./types/RepModel";
 
 export const getPosition = () => {
   const range = getSelectionRange();
-  // @ts-ignore
-  if (!range || $(range.endContainer).closest('body')[0].id !== 'innerdocbody') return null;
+  const endContainer = range?.endContainer;
+  const endElement = endContainer?.nodeType === Node.ELEMENT_NODE
+    ? endContainer as Element
+    : endContainer?.parentElement ?? null;
+  if (!range || endElement?.closest('body')?.id !== 'innerdocbody') return null;
   // When there's a <br> or any element that has no height, we can't get the dimension of the
   // element where the caret is. As we can't get the element height, we create a text node to get
   // the dimensions on the position.
   const clonedRange = createSelectionRange(range);
-  const shadowCaret = $(document.createTextNode('|'));
-  clonedRange.insertNode(shadowCaret[0]);
-  clonedRange.selectNode(shadowCaret[0]);
+  const shadowCaret = document.createTextNode('|');
+  clonedRange.insertNode(shadowCaret);
+  clonedRange.selectNode(shadowCaret);
   const line = getPositionOfElementOrSelection(clonedRange);
-  shadowCaret.remove();
+  shadowCaret.parentNode?.removeChild(shadowCaret);
   return line;
 };
 
