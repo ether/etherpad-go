@@ -24,6 +24,7 @@
 
 import {browserFlags as browser} from './browser_flags';
 import * as hooks from './pluginfw/hooks';
+import html10n from './i18n';
 import padutils from "./pad_utils";
 import {padeditor} from './pad_editor';
 import * as padsavedrevs from './pad_savedrevs';
