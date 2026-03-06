@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	adminutils "github.com/ether/etherpad-go/admin/src/utils"
+	adminutils "github.com/ether/etherpad-go/lib/adminutils"
 	"github.com/ether/etherpad-go/lib/changeset"
 	"github.com/ether/etherpad-go/lib/db"
 	"github.com/ether/etherpad-go/lib/hooks"

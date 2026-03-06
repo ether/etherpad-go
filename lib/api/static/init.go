@@ -1,10 +1,7 @@
 package static
 
 import (
-	"bytes"
 	"embed"
-	"encoding/json"
-	"errors"
 	"io/fs"
 	"net/http"
 	"os"
@@ -22,7 +19,6 @@ import (
 	"github.com/evanw/esbuild/pkg/api"
 	"github.com/gofiber/adaptor/v2"
 	"github.com/gofiber/fiber/v2"
-	"golang.org/x/net/html"
 )
 
 func registerEmbeddedStatic(app *fiber.App, route string, subPath string, uiAssets embed.FS) {
@@ -36,68 +32,33 @@ func registerEmbeddedStatic(app *fiber.App, route string, subPath string, uiAsse
 	app.Get(prefix+"/*", adaptor.HTTPHandler(handler))
 }
 
-func getAdminBody(uiAssets embed.FS, retrievedSettings *settings.Settings) (*string, error) {
-
-	calcDataConfig := func() string {
-		for _, client := range retrievedSettings.SSO.Clients {
-			if client.Type == "admin" {
-				selectedClient := client
-				oidcConfig := settings.OidcConfig{
-					ClientId:    selectedClient.ClientId,
-					Authority:   retrievedSettings.SSO.Issuer,
-					JwksUri:     retrievedSettings.SSO.Issuer + ".well-known/jwks.json",
-					RedirectUri: selectedClient.RedirectUris[0],
-					Scope:       []string{"openid", "profile", "email", "offline"},
-				}
-				conf, _ := json.Marshal(oidcConfig)
-				return string(conf)
-			}
-		}
-		return ""
+func shouldServeAdminSPA(requestPath string) bool {
+	switch {
+	case requestPath == "/admin/ws":
+		return false
+	case requestPath == "/admin/validate":
+		return false
+	case strings.HasPrefix(requestPath, "/admin/api"):
+		return false
+	case requestPath == "/admin/admin.wasm":
+		return false
+	case requestPath == "/admin/loader.js":
+		return false
+	case requestPath == "/admin/wasm_exec.js":
+		return false
+	case requestPath == "/admin/admin.css":
+		return false
+	case strings.HasPrefix(requestPath, "/admin/locales/"):
+		return false
+	case strings.HasPrefix(requestPath, "/admin/assets"):
+		return false
+	case strings.HasPrefix(requestPath, "/admin/static"):
+		return false
+	case strings.HasPrefix(requestPath, "/admin/ep_admin_pads"):
+		return false
+	default:
+		return true
 	}
-
-	fileContent, err := uiAssets.ReadFile("assets/js/admin/index.html")
-	if err != nil {
-		return nil, errors.New("error reading admin page HTML: %v" + err.Error())
-	}
-
-	stringContent := string(fileContent)
-	node, err := html.Parse(strings.NewReader(stringContent))
-
-	if err != nil {
-		return nil, errors.New("Error parsing admin page HTML: " + err.Error())
-	}
-
-	spanNode := &html.Node{
-		Type: html.ElementNode,
-		Data: "span",
-		Attr: []html.Attribute{
-			{Key: "id", Val: "config"},
-			{Key: "data-config", Val: calcDataConfig()},
-		},
-	}
-
-	var body *html.Node
-	var findBody func(*html.Node)
-	findBody = func(n *html.Node) {
-		if n.Type == html.ElementNode && n.Data == "body" {
-			body = n
-			return
-		}
-		for child := n.FirstChild; child != nil; child = child.NextSibling {
-			findBody(child)
-		}
-	}
-	findBody(node)
-
-	if body != nil {
-		body.AppendChild(spanNode)
-	}
-
-	var buf bytes.Buffer
-	html.Render(&buf, node)
-	result := buf.String()
-	return &result, nil
 }
 
 var loaderConfig = map[string]api.Loader{".css": api.LoaderCSS, ".svg": api.LoaderDataURL, ".woff2": api.LoaderDataURL, ".woff": api.LoaderDataURL, ".ttf": api.LoaderDataURL, ".eot": api.LoaderDataURL, ".otf": api.LoaderDataURL}
@@ -170,6 +131,10 @@ func Init(store *lib.InitStore) {
 		if err != nil {
 			store.Logger.Warnf("Could not initialize esbuild dev HMR: %v", err)
 		}
+		_, err = startAdminWASMDevBuilder(store)
+		if err != nil {
+			store.Logger.Warnf("Could not initialize admin wasm dev builder: %v", err)
+		}
 	}
 
 	store.C.Use("/p/", func(c *fiber.Ctx) error {
@@ -207,6 +172,51 @@ func Init(store *lib.InitStore) {
 			return c.Type("html").SendString(*adminHtml)
 		})
 	}
+
+	store.C.Get("/admin/admin.wasm", func(c *fiber.Ctx) error {
+		err := serveAdminAsset(c, store.UiAssets, store.RetrievedSettings, "admin.wasm", "application/wasm")
+		if err != nil {
+			store.Logger.Errorf("Error serving admin.wasm: %v", err)
+			return c.SendStatus(fiber.StatusNotFound)
+		}
+		return nil
+	})
+
+	store.C.Get("/admin/loader.js", func(c *fiber.Ctx) error {
+		err := serveAdminAsset(c, store.UiAssets, store.RetrievedSettings, "loader.js", "application/javascript")
+		if err != nil {
+			store.Logger.Errorf("Error serving admin loader: %v", err)
+			return c.SendStatus(fiber.StatusNotFound)
+		}
+		return nil
+	})
+
+	store.C.Get("/admin/wasm_exec.js", func(c *fiber.Ctx) error {
+		err := serveAdminAsset(c, store.UiAssets, store.RetrievedSettings, "wasm_exec.js", "application/javascript")
+		if err != nil {
+			store.Logger.Errorf("Error serving wasm_exec.js: %v", err)
+			return c.SendStatus(fiber.StatusNotFound)
+		}
+		return nil
+	})
+
+	store.C.Get("/admin/admin.css", func(c *fiber.Ctx) error {
+		err := serveAdminAsset(c, store.UiAssets, store.RetrievedSettings, "admin.css", "text/css; charset=utf-8")
+		if err != nil {
+			store.Logger.Errorf("Error serving admin.css: %v", err)
+			return c.SendStatus(fiber.StatusNotFound)
+		}
+		return nil
+	})
+
+	store.C.Get("/admin/locales/:file", func(c *fiber.Ctx) error {
+		err := serveAdminAsset(c, store.UiAssets, store.RetrievedSettings, path.Join("locales", c.Params("file")), "application/json; charset=utf-8")
+		if err != nil {
+			store.Logger.Errorf("Error serving admin locale: %v", err)
+			return c.SendStatus(fiber.StatusNotFound)
+		}
+		return nil
+	})
 
 	store.C.Get("/css/static/pad.css", func(ctx *fiber.Ctx) error {
 		if isDevEnabled(store.RetrievedSettings) {
@@ -294,4 +304,13 @@ func Init(store *lib.InitStore) {
 	registerEmbeddedStatic(store.C, "/images", "assets/images", store.UiAssets)
 	registerEmbeddedStatic(store.C, "/static/", "assets/html", store.UiAssets)
 	registerEmbeddedStatic(store.C, "/pluginfw", "assets/plugin", store.UiAssets)
+
+	if adminHtml != nil {
+		store.C.Get("/admin/*", func(c *fiber.Ctx) error {
+			if !shouldServeAdminSPA(c.Path()) {
+				return c.Next()
+			}
+			return c.Type("html").SendString(*adminHtml)
+		})
+	}
 }

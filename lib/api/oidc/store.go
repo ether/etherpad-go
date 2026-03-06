@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	db2 "github.com/ether/etherpad-go/lib/db"
 	"github.com/go-jose/go-jose/v3"
 	"github.com/google/uuid"
 	"github.com/ory/fosite"
@@ -60,9 +61,10 @@ type MemoryStore struct {
 	refreshTokenRequestIDsMutex sync.RWMutex
 	issuerPublicKeysMutex       sync.RWMutex
 	parSessionsMutex            sync.RWMutex
+	persistence                 db2.DataStore
 }
 
-func NewMemoryStore() *MemoryStore {
+func NewMemoryStore(persistence db2.DataStore) *MemoryStore {
 	return &MemoryStore{
 		Clients:                make(map[string]fosite.Client),
 		AuthorizeCodes:         make(map[string]StoreAuthorizeCode),
@@ -76,6 +78,7 @@ func NewMemoryStore() *MemoryStore {
 		BlacklistedJTIs:        make(map[string]time.Time),
 		IssuerPublicKeys:       make(map[string]IssuerPublicKeys),
 		PARSessions:            make(map[string]fosite.AuthorizeRequester),
+		persistence:            persistence,
 	}
 }
 
@@ -95,7 +98,7 @@ func (s *MemoryStore) CreateOpenIDConnectSession(_ context.Context, authorizeCod
 	defer s.idSessionsMutex.Unlock()
 
 	s.IDSessions[authorizeCode] = requester
-	return nil
+	return s.saveSnapshot()
 }
 
 func (s *MemoryStore) GetOpenIDConnectSession(_ context.Context, authorizeCode string, requester fosite.Requester) (fosite.Requester, error) {
@@ -114,7 +117,7 @@ func (s *MemoryStore) DeleteOpenIDConnectSession(_ context.Context, authorizeCod
 	defer s.idSessionsMutex.Unlock()
 
 	delete(s.IDSessions, authorizeCode)
-	return nil
+	return s.saveSnapshot()
 }
 
 func (s *MemoryStore) GetClient(_ context.Context, id string) (fosite.Client, error) {
@@ -174,7 +177,7 @@ func (s *MemoryStore) CreateAuthorizeCodeSession(_ context.Context, code string,
 	defer s.authorizeCodesMutex.Unlock()
 
 	s.AuthorizeCodes[code] = StoreAuthorizeCode{active: true, Requester: req}
-	return nil
+	return s.saveSnapshot()
 }
 
 func (s *MemoryStore) GetAuthorizeCodeSession(_ context.Context, code string, _ fosite.Session) (fosite.Requester, error) {
@@ -202,7 +205,7 @@ func (s *MemoryStore) InvalidateAuthorizeCodeSession(ctx context.Context, code s
 	}
 	rel.active = false
 	s.AuthorizeCodes[code] = rel
-	return nil
+	return s.saveSnapshot()
 }
 
 func (s *MemoryStore) CreatePKCERequestSession(_ context.Context, code string, req fosite.Requester) error {
@@ -210,7 +213,7 @@ func (s *MemoryStore) CreatePKCERequestSession(_ context.Context, code string, r
 	defer s.pkcesMutex.Unlock()
 
 	s.PKCES[code] = req
-	return nil
+	return s.saveSnapshot()
 }
 
 func (s *MemoryStore) GetPKCERequestSession(_ context.Context, code string, _ fosite.Session) (fosite.Requester, error) {
@@ -229,7 +232,7 @@ func (s *MemoryStore) DeletePKCERequestSession(_ context.Context, code string) e
 	defer s.pkcesMutex.Unlock()
 
 	delete(s.PKCES, code)
-	return nil
+	return s.saveSnapshot()
 }
 
 func (s *MemoryStore) CreateAccessTokenSession(_ context.Context, signature string, req fosite.Requester) error {
@@ -242,7 +245,7 @@ func (s *MemoryStore) CreateAccessTokenSession(_ context.Context, signature stri
 
 	s.AccessTokens[signature] = req
 	s.AccessTokenRequestIDs[req.GetID()] = signature
-	return nil
+	return s.saveSnapshot()
 }
 
 func (s *MemoryStore) GetAccessTokenSession(_ context.Context, signature string, _ fosite.Session) (fosite.Requester, error) {
@@ -261,7 +264,7 @@ func (s *MemoryStore) DeleteAccessTokenSession(_ context.Context, signature stri
 	defer s.accessTokensMutex.Unlock()
 
 	delete(s.AccessTokens, signature)
-	return nil
+	return s.saveSnapshot()
 }
 
 func (s *MemoryStore) CreateRefreshTokenSession(_ context.Context, signature, accessTokenSignature string, req fosite.Requester) error {
@@ -274,7 +277,7 @@ func (s *MemoryStore) CreateRefreshTokenSession(_ context.Context, signature, ac
 
 	s.RefreshTokens[signature] = StoreRefreshToken{active: true, Requester: req, accessTokenSignature: accessTokenSignature}
 	s.RefreshTokenRequestIDs[req.GetID()] = signature
-	return nil
+	return s.saveSnapshot()
 }
 
 func (s *MemoryStore) GetRefreshTokenSession(_ context.Context, signature string, _ fosite.Session) (fosite.Requester, error) {
@@ -296,7 +299,7 @@ func (s *MemoryStore) DeleteRefreshTokenSession(_ context.Context, signature str
 	defer s.refreshTokensMutex.Unlock()
 
 	delete(s.RefreshTokens, signature)
-	return nil
+	return s.saveSnapshot()
 }
 
 func (s *MemoryStore) Authenticate(_ context.Context, name string, secret string) (subject string, err error) {
@@ -325,7 +328,7 @@ func (s *MemoryStore) RevokeRefreshToken(ctx context.Context, requestID string) 
 		rel.active = false
 		s.RefreshTokens[signature] = rel
 	}
-	return nil
+	return s.saveSnapshot()
 }
 
 func (s *MemoryStore) RevokeAccessToken(ctx context.Context, requestID string) error {
@@ -410,7 +413,7 @@ func (s *MemoryStore) CreatePARSession(ctx context.Context, requestURI string, r
 	defer s.parSessionsMutex.Unlock()
 
 	s.PARSessions[requestURI] = request
-	return nil
+	return s.saveSnapshot()
 }
 
 // GetPARSession gets the push authorization request context. If the request is nil, a new request object
@@ -433,7 +436,7 @@ func (s *MemoryStore) DeletePARSession(ctx context.Context, requestURI string) (
 	defer s.parSessionsMutex.Unlock()
 
 	delete(s.PARSessions, requestURI)
-	return nil
+	return s.saveSnapshot()
 }
 
 func (s *MemoryStore) RotateRefreshToken(ctx context.Context, requestID string, refreshTokenSignature string) (err error) {
