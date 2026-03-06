@@ -235,7 +235,6 @@ class Scroll {
   };
 
   _scrollYPageWithAnimation(pixelsToScroll: number, _durationOfAnimationToShowFocusline: number) {
-      // Native smooth scrolling replaces the old jQuery animate() logic.
       this.outerWin.scrollBy({top: pixelsToScroll, behavior: 'smooth'});
     };
 
