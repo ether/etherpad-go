@@ -15,7 +15,7 @@
     "vite": "^7.3.1"
   },
   "dependencies": {
-    "@rollup/plugin-commonjs": "^29.0.0",
+    "@rollup/plugin-commonjs": "^29.0.2",
     "socket.io-client": "^4.8.3"
   }
 }
