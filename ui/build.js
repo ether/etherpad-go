@@ -340,8 +340,6 @@ await esbuild.buildSync({
     loader:loaders,
 })
 
-run("pnpm run build-admin", "../admin");
-
 await esbuild.buildSync({
     entryPoints: ['../assets/css/static/pad.css'],
     absWorkingDir: absWorkingDir,

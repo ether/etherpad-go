@@ -39,7 +39,7 @@ jobs:
         run: npm install -g pnpm@latest
       - name: Install pnpm dependencies
         run: pnpm install --frozen-lockfile
-      - name: Build
+      - name: Build UI
         run:  node build.js
         working-directory: ./ui
       - name: Install dependencies
@@ -48,11 +48,19 @@ jobs:
         run: go install github.com/a-h/templ/cmd/templ@latest
       - name: Generate templ
         run: templ generate
+      - name: Build admin WASM
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path assets/js/admin | Out-Null
+          $goroot = go env GOROOT
+          Copy-Item (Join-Path $goroot 'lib/wasm/wasm_exec.js') 'assets/js/admin/wasm_exec.js' -Force
+          $env:GOOS = 'js'
+          $env:GOARCH = 'wasm'
+          go build -o assets/js/admin/admin.wasm ./admin/wasm
+          Remove-Item Env:GOOS -ErrorAction SilentlyContinue
+          Remove-Item Env:GOARCH -ErrorAction SilentlyContinue
       - name: Build app
         run: go build -o etherpad-go
-      - name: Build admin
-        run: pnpm run build
-        working-directory: ./admin
       - name: Prepare built assets
         run: |
           mkdir -p built-assets/js/admin
@@ -145,11 +153,19 @@ jobs:
         run: go install github.com/a-h/templ/cmd/templ@latest
       - name: Generate templ
         run: templ generate
+      - name: Build admin WASM
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path assets/js/admin | Out-Null
+          $goroot = go env GOROOT
+          Copy-Item (Join-Path $goroot 'lib/wasm/wasm_exec.js') 'assets/js/admin/wasm_exec.js' -Force
+          $env:GOOS = 'js'
+          $env:GOARCH = 'wasm'
+          go build -o assets/js/admin/admin.wasm ./admin/wasm
+          Remove-Item Env:GOOS -ErrorAction SilentlyContinue
+          Remove-Item Env:GOARCH -ErrorAction SilentlyContinue
       - name: Build app
         run: go build -o etherpad-go
-      - name: Build admin
-        run: pnpm run build
-        working-directory: ./admin
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps
         working-directory: ./playwright
