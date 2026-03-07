@@ -11,17 +11,13 @@ import (
 
 func (a *app) connectSocket() {
 	if a.state.Token == "" {
-		a.state.Error = a.t("socket.noToken", "No admin token available.")
-		a.state.Loading = false
-		a.render()
+		a.failSocket(a.t("socket.noToken", "No admin token available."), false)
 		return
 	}
 
 	valid, err := a.validateToken(a.state.Token)
 	if err != nil {
-		a.state.Error = a.t("socket.validateFailed", "Token validation failed.")
-		a.state.Loading = false
-		a.render()
+		a.failSocket(a.t("socket.validateFailed", "Token validation failed."), true)
 		return
 	}
 	if !valid {
@@ -30,9 +26,7 @@ func (a *app) connectSocket() {
 		a.render()
 		newToken, err := a.reauth()
 		if err != nil || newToken == "" {
-			a.state.Error = a.t("socket.reauthFailed", "Could not refresh session.")
-			a.state.Loading = false
-			a.render()
+			a.failSocket(a.t("socket.reauthFailed", "Could not refresh session."), true)
 			return
 		}
 		a.state.Token = newToken
@@ -73,19 +67,7 @@ func (a *app) connectSocket() {
 	socket.Set("onmessage", onMessage)
 
 	onClose := js.FuncOf(func(this js.Value, args []js.Value) any {
-		a.state.Connected = false
-		a.state.Loading = true
-		a.state.LoadingMessage = a.t("socket.reconnecting", "Reconnecting...")
-		a.render()
-		if !a.reconnecting {
-			a.reconnecting = true
-			cb := js.FuncOf(func(this js.Value, args []js.Value) any {
-				a.connectSocket()
-				return nil
-			})
-			a.funcs = append(a.funcs, cb)
-			a.window.Call("setTimeout", cb, 1000)
-		}
+		a.scheduleReconnect(1000)
 		return nil
 	})
 	a.funcs = append(a.funcs, onClose)
@@ -93,11 +75,44 @@ func (a *app) connectSocket() {
 
 	onError := js.FuncOf(func(this js.Value, args []js.Value) any {
 		a.state.Error = a.t("socket.error", "Admin connection error.")
+		a.state.Connected = false
 		a.render()
+		a.scheduleReconnect(1000)
 		return nil
 	})
 	a.funcs = append(a.funcs, onError)
 	socket.Set("onerror", onError)
+}
+
+func (a *app) failSocket(message string, retry bool) {
+	a.state.Connected = false
+	a.state.Error = message
+	a.state.Loading = retry
+	if retry {
+		a.state.LoadingMessage = a.t("socket.reconnecting", "Reconnecting...")
+		a.scheduleReconnect(1500)
+	} else {
+		a.reconnecting = false
+	}
+	a.render()
+}
+
+func (a *app) scheduleReconnect(delay int) {
+	if !a.mounted || a.reconnecting {
+		return
+	}
+	a.reconnecting = true
+	a.state.Connected = false
+	a.state.Loading = true
+	a.state.LoadingMessage = a.t("socket.reconnecting", "Reconnecting...")
+	a.render()
+	cb := js.FuncOf(func(this js.Value, args []js.Value) any {
+		a.reconnecting = false
+		go a.connectSocket()
+		return nil
+	})
+	a.funcs = append(a.funcs, cb)
+	a.window.Call("setTimeout", cb, delay)
 }
 
 func (a *app) emit(event string, data any) {

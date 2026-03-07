@@ -2,9 +2,11 @@
 
 package main
 
+import goapp "github.com/maxence-charriere/go-app/v10/pkg/app"
+
 func main() {
-	a := newApp()
-	a.connectSocket()
-	a.render()
-	select {}
+	goapp.RouteWithRegexp(`^/admin(?:/.*)?$`, func() goapp.Composer {
+		return newAdminPage()
+	})
+	goapp.RunWhenOnBrowser()
 }

@@ -18,9 +18,9 @@ templ Admin(retrievedSettings settings.Settings, dataConfig string) {
             <p class="eyebrow">Etherpad</p>
             <h1 style="margin-top: 0;">Admin</h1>
             if retrievedSettings.DevMode {
-              <p id="boot-status" class="muted">Booting... development watcher active.</p>
+              <p id="app-wasm-loader-label" class="muted">Booting... development watcher active.</p>
             } else {
-              <p id="boot-status" class="muted">Booting...</p>
+              <p id="app-wasm-loader-label" class="muted">Booting...</p>
             }
           </div>
         </div>

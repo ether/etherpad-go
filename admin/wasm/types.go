@@ -6,6 +6,8 @@ import (
 	"sort"
 	"syscall/js"
 	"time"
+
+	goapp "github.com/maxence-charriere/go-app/v10/pkg/app"
 )
 
 type updateCheckResult struct {
@@ -97,6 +99,10 @@ type app struct {
 	socket       js.Value
 	funcs        []js.Func
 	reconnecting bool
+	started      bool
+	mounted      bool
+	pageCtx      goapp.Context
+	page         *adminPage
 }
 
 func newApp() *app {
