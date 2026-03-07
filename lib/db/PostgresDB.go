@@ -824,6 +824,31 @@ func (d PostgresDB) SaveServerVersion(version string) error {
 	return err
 }
 
+func (d PostgresDB) GetOIDCStorageValue(key string) (*string, error) {
+	ctx := context.Background()
+	var payload string
+	err := d.pool.QueryRow(ctx, "SELECT payload FROM oidc_storage WHERE id = $1", key).Scan(&payload)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &payload, nil
+}
+
+func (d PostgresDB) SetOIDCStorageValue(key string, payload string) error {
+	ctx := context.Background()
+	_, err := d.pool.Exec(ctx, "INSERT INTO oidc_storage (id, payload, updated_at) VALUES ($1, $2, NOW()) ON CONFLICT (id) DO UPDATE SET payload = EXCLUDED.payload, updated_at = NOW()", key, payload)
+	return err
+}
+
+func (d PostgresDB) DeleteOIDCStorageValue(key string) error {
+	ctx := context.Background()
+	_, err := d.pool.Exec(ctx, "DELETE FROM oidc_storage WHERE id = $1", key)
+	return err
+}
+
 func (d PostgresDB) Close() error {
 	d.pool.Close()
 	return nil

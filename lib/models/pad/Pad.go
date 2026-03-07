@@ -10,7 +10,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	utils2 "github.com/ether/etherpad-go/admin/src/utils"
+	utils2 "github.com/ether/etherpad-go/lib/adminutils"
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/changeset"

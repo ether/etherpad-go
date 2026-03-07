@@ -9,6 +9,39 @@ func GetMigrations() []Migration {
 	return []Migration{
 		migration001InitialSchema(),
 		migration002ServerVersion(),
+		migration003OIDCStorage(),
+	}
+}
+
+func migration003OIDCStorage() Migration {
+	return Migration{
+		Version:     3,
+		Description: "OIDC storage - create key/value table for persisted oidc state",
+		Up: func(db *sql.DB, dialect Dialect) error {
+			var query string
+			switch dialect {
+			case DialectMySQL:
+				query = `CREATE TABLE IF NOT EXISTS oidc_storage (
+					id VARCHAR(255) PRIMARY KEY,
+					payload LONGTEXT NOT NULL,
+					updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+				)`
+			case DialectPostgres:
+				query = `CREATE TABLE IF NOT EXISTS oidc_storage (
+					id TEXT PRIMARY KEY,
+					payload TEXT NOT NULL,
+					updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+				)`
+			default:
+				query = `CREATE TABLE IF NOT EXISTS oidc_storage (
+					id TEXT PRIMARY KEY,
+					payload TEXT NOT NULL,
+					updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+				)`
+			}
+			_, err := db.Exec(query)
+			return err
+		},
 	}
 }
 

@@ -1028,6 +1028,28 @@ func (d MysqlDB) SaveServerVersion(version string) error {
 	return err
 }
 
+func (d MysqlDB) GetOIDCStorageValue(key string) (*string, error) {
+	var payload string
+	err := d.sqlDB.QueryRow("SELECT payload FROM oidc_storage WHERE id = ?", key).Scan(&payload)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &payload, nil
+}
+
+func (d MysqlDB) SetOIDCStorageValue(key string, payload string) error {
+	_, err := d.sqlDB.Exec("INSERT INTO oidc_storage (id, payload, updated_at) VALUES (?, ?, NOW(6)) ON DUPLICATE KEY UPDATE payload = VALUES(payload), updated_at = VALUES(updated_at)", key, payload)
+	return err
+}
+
+func (d MysqlDB) DeleteOIDCStorageValue(key string) error {
+	_, err := d.sqlDB.Exec("DELETE FROM oidc_storage WHERE id = ?", key)
+	return err
+}
+
 // ============== LIFECYCLE ==============
 
 func (d MysqlDB) Close() error {

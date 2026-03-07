@@ -60,7 +60,7 @@ func pkceS256(verifier string) string {
 }
 
 func Init(store *lib.InitStore) *Authenticator {
-	authenticator := NewAuthenticator(store.RetrievedSettings)
+	authenticator := NewAuthenticator(store.RetrievedSettings, store.Store)
 	allowedUrls := make([]string, 0)
 	for _, sso := range store.RetrievedSettings.SSO.Clients {
 		for _, redirectUri := range sso.RedirectUris {

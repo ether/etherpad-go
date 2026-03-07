@@ -8,16 +8,25 @@ templ Admin(retrievedSettings settings.Settings, dataConfig string) {
       <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Etherpad Admin Dashboard</title>
-        <link rel="icon" href="/favicon.ico">
+        <title>Etherpad Admin</title>
+        <link rel="icon" href="/favicon.ico" />
+        <link rel="stylesheet" href="/admin/admin.css" />
       </head>
       <body>
-        <div id="root"></div>
-        <div id="loading"></div>
-        if retrievedSettings.DevMode {
-            <script type="module" src="http://localhost:5173/admin/src/main.tsx"></script>
-        }
+        <div id="root">
+          <div class="loading-card" style="max-width: 420px; margin: 10vh auto;">
+            <p class="eyebrow">Etherpad</p>
+            <h1 style="margin-top: 0;">Admin</h1>
+            if retrievedSettings.DevMode {
+              <p id="app-wasm-loader-label" class="muted">Booting... development watcher active.</p>
+            } else {
+              <p id="app-wasm-loader-label" class="muted">Booting...</p>
+            }
+          </div>
+        </div>
         <span id="config" data-config={dataConfig}></span>
+        <script src="/admin/wasm_exec.js"></script>
+        <script src="/admin/loader.js"></script>
       </body>
     </html>
 }

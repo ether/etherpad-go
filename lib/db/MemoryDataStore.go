@@ -21,6 +21,7 @@ type MemoryDataStore struct {
 	sessionStore  map[string]session2.Session
 	groupStore    map[string]string
 	serverVersion *db.ServerVersion
+	oidcStorage   map[string]string
 
 	// oidc
 	accessTokens           map[string]fosite.Requester
@@ -616,6 +617,24 @@ func (m *MemoryDataStore) SaveServerVersion(version string) error {
 	return nil
 }
 
+func (m *MemoryDataStore) GetOIDCStorageValue(key string) (*string, error) {
+	value, ok := m.oidcStorage[key]
+	if !ok {
+		return nil, nil
+	}
+	return &value, nil
+}
+
+func (m *MemoryDataStore) SetOIDCStorageValue(key string, payload string) error {
+	m.oidcStorage[key] = payload
+	return nil
+}
+
+func (m *MemoryDataStore) DeleteOIDCStorageValue(key string) error {
+	delete(m.oidcStorage, key)
+	return nil
+}
+
 // ============== OIDC METHODS ==============
 
 func (m *MemoryDataStore) GetAccessTokenRequestID(requestID string) (*string, error) {
@@ -645,6 +664,7 @@ func NewMemoryDataStore() *MemoryDataStore {
 		chatPads:               make(map[string]db.ChatMessageDB),
 		sessionStore:           make(map[string]session2.Session),
 		groupStore:             make(map[string]string),
+		oidcStorage:            make(map[string]string),
 		accessTokens:           make(map[string]fosite.Requester),
 		accessTokenRequestIDs:  make(map[string]string),
 		refreshTokens:          make(map[string]db.StoreRefreshToken),

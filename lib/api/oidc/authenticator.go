@@ -9,11 +9,13 @@ import (
 	"log"
 	"math/big"
 	"net/http"
+	"net/url"
 	"slices"
 	"time"
 
 	"github.com/ether/etherpad-go/assets/login"
 	"github.com/ether/etherpad-go/lib/api/constants"
+	db "github.com/ether/etherpad-go/lib/db"
 	"github.com/ether/etherpad-go/lib/models/oidc"
 	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/ory/fosite"
@@ -31,8 +33,8 @@ type Authenticator struct {
 	retrievedSettings *settings.Settings
 }
 
-func NewAuthenticator(retrievedSettings *settings.Settings) *Authenticator {
-	store := NewMemoryStore()
+func NewAuthenticator(retrievedSettings *settings.Settings, persistence db.DataStore) *Authenticator {
+	store := NewMemoryStore(persistence)
 	for _, sso := range retrievedSettings.SSO.Clients {
 		isPublic := false
 
@@ -83,6 +85,13 @@ func NewAuthenticator(retrievedSettings *settings.Settings) *Authenticator {
 		GlobalSecret:        secret,
 	}
 	privateKey, _ := rsa.GenerateKey(rand.Reader, 2048)
+	privateKey, err := loadOrCreatePrivateKey(persistence, privateKey)
+	if err != nil {
+		log.Fatalf("Error loading oidc signing key: %v", err)
+	}
+	if err := store.loadSnapshot(); err != nil {
+		log.Fatalf("Error loading oidc store snapshot: %v", err)
+	}
 
 	var oauth2 = compose.ComposeAllEnabled(config, store, privateKey)
 
@@ -245,8 +254,53 @@ func (a *Authenticator) OicWellKnown(rw http.ResponseWriter, req *http.Request, 
 	rw.Write(byteResponse)
 }
 
+func collectAuthorizeParams(req *http.Request) url.Values {
+	params := url.Values{}
+	for key, values := range req.Form {
+		for _, value := range values {
+			params.Add(key, value)
+		}
+	}
+	for key, values := range req.URL.Query() {
+		if _, exists := params[key]; exists {
+			continue
+		}
+		for _, value := range values {
+			params.Add(key, value)
+		}
+	}
+	return params
+}
+
+func hydrateAuthorizeRequestForm(req *http.Request, ar fosite.AuthorizeRequester) {
+	if ar == nil {
+		return
+	}
+	form := ar.GetRequestForm()
+	if form == nil {
+		return
+	}
+	for _, key := range []string{
+		"client_id",
+		"redirect_uri",
+		"response_type",
+		"scope",
+		"state",
+		"nonce",
+		"code_challenge",
+		"code_challenge_method",
+	} {
+		if value := req.FormValue(key); value != "" {
+			form.Set(key, value)
+		}
+	}
+}
+
 func renderLoginPage(rw http.ResponseWriter, req *http.Request, clients []settings.SSOClient, ar fosite.AuthorizeRequester, errorMessage *string) {
 	clientId := req.URL.Query().Get("client_id")
+	if clientId == "" {
+		clientId = req.FormValue("client_id")
+	}
 	var clientFound settings.SSOClient
 
 	for _, sso := range clients {
@@ -259,13 +313,14 @@ func renderLoginPage(rw http.ResponseWriter, req *http.Request, clients []settin
 	for _, scope := range ar.GetRequestedScopes() {
 		scopes = append(scopes, scope)
 	}
-	loginComp := login.Login(clientFound, scopes, errorMessage)
+	loginComp := login.Login(clientFound, scopes, collectAuthorizeParams(req), req.Method == http.MethodPost, errorMessage)
 	req.Header.Set("Content-Type", constants.ContentTypeHTML)
 	loginComp.Render(req.Context(), rw)
 }
 
 func (a *Authenticator) AuthEndpoint(rw http.ResponseWriter, req *http.Request, setupLogger *zap.SugaredLogger, retrievedSettings *settings.Settings) {
 	ctx := req.Context()
+	req.ParseForm()
 
 	ar, err := a.provider.NewAuthorizeRequest(ctx, req)
 	if err != nil {
@@ -273,8 +328,7 @@ func (a *Authenticator) AuthEndpoint(rw http.ResponseWriter, req *http.Request, 
 		a.provider.WriteAuthorizeError(ctx, rw, ar, err)
 		return
 	}
-
-	req.ParseForm()
+	hydrateAuthorizeRequestForm(req, ar)
 	if req.Method == "GET" {
 		renderLoginPage(rw, req, retrievedSettings.SSO.Clients, ar, nil)
 		return

@@ -22,6 +22,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/adaptor/v2"
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/compress"
 	"github.com/gofiber/fiber/v2/middleware/session"
 	"go.uber.org/zap"
 )
@@ -56,6 +57,9 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 	app := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
 	})
+	app.Use(compress.New(compress.Config{
+		Level: compress.LevelBestSpeed,
+	}))
 
 	app.Use(func(c *fiber.Ctx) error {
 		return pad.CheckAccess(c, setupLogger, &settings, readOnlyManager)

@@ -57,6 +57,12 @@ type ServerMethods interface {
 	SaveServerVersion(version string) error
 }
 
+type OIDCMethods interface {
+	GetOIDCStorageValue(key string) (*string, error)
+	SetOIDCStorageValue(key string, payload string) error
+	DeleteOIDCStorageValue(key string) error
+}
+
 type DataStore interface {
 	PadMethods
 	AuthorMethods
@@ -64,6 +70,7 @@ type DataStore interface {
 	GroupMethods
 	ChatMethods
 	ServerMethods
+	OIDCMethods
 	Close() error
 	Ping() error
 }

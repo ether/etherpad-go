@@ -1046,6 +1046,29 @@ func (d SQLiteDB) SaveServerVersion(version string) error {
 	return err
 }
 
+func (d SQLiteDB) GetOIDCStorageValue(key string) (*string, error) {
+	var payload string
+	err := d.sqlDB.QueryRow("SELECT payload FROM oidc_storage WHERE id = ?", key).Scan(&payload)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &payload, nil
+}
+
+func (d SQLiteDB) SetOIDCStorageValue(key string, payload string) error {
+	_, err := d.sqlDB.Exec(`INSERT INTO oidc_storage (id, payload, updated_at) VALUES (?, ?, datetime('now', 'localtime'))
+		ON CONFLICT(id) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at`, key, payload)
+	return err
+}
+
+func (d SQLiteDB) DeleteOIDCStorageValue(key string) error {
+	_, err := d.sqlDB.Exec("DELETE FROM oidc_storage WHERE id = ?", key)
+	return err
+}
+
 // ============== LIFECYCLE ==============
 
 func (d SQLiteDB) Close() error {
