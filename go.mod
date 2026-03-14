@@ -8,7 +8,7 @@ require (
 	github.com/a-h/templ v0.3.1001
 	github.com/brianvoe/gofakeit/v7 v7.14.1
 	github.com/docker/go-connections v0.6.0
-	github.com/evanw/esbuild v0.27.3
+	github.com/evanw/esbuild v0.27.4
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/go-jose/go-jose/v3 v3.0.4
 	github.com/go-playground/validator/v10 v10.30.1
