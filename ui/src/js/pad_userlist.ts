@@ -25,12 +25,102 @@ let colorPickerOpen = false;
 let colorPickerSetup = false;
 const q = (selector) => document.querySelector(selector);
 const qa = (selector) => Array.from(document.querySelectorAll(selector));
+const RECENT_PADS_STORAGE_KEY = 'recentPads';
+const MAX_RECENT_PADS = 8;
 const toHexColor = (color: string): string => {
   if (/^#[0-9a-f]{6}$/i.test(color)) return color;
   const match = color.match(/^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/i);
   if (!match) return '#000000';
   const parts = match.slice(1).map((part) => Number.parseInt(part, 10).toString(16).padStart(2, '0'));
   return `#${parts.join('')}`;
+};
+
+const getCurrentPadName = (): string => {
+  const pathSegments = window.location.pathname.split('/');
+  return decodeURIComponent(pathSegments[pathSegments.length - 1] || '');
+};
+
+const normalizeRecentPad = (entry) => {
+  if (typeof entry === 'string') {
+    const name = entry.trim();
+    if (!name) return null;
+    return {
+      name,
+      url: `/p/${encodeURIComponent(name)}`,
+      lastVisited: 0,
+      members: 0,
+    };
+  }
+
+  if (!entry || typeof entry !== 'object') return null;
+  const name = typeof entry.name === 'string' ? entry.name.trim() : '';
+  if (!name) return null;
+
+  const lastVisited = Number.parseInt(`${entry.lastVisited ?? entry.updatedAt ?? 0}`, 10);
+  const members = Number.parseInt(`${entry.members ?? 0}`, 10);
+
+  return {
+    name,
+    url: typeof entry.url === 'string' && entry.url.length > 0 ? entry.url : `/p/${encodeURIComponent(name)}`,
+    lastVisited: Number.isFinite(lastVisited) ? lastVisited : 0,
+    members: Number.isFinite(members) && members > 0 ? members : 0,
+  };
+};
+
+const loadRecentPads = () => {
+  try {
+    const raw = localStorage.getItem(RECENT_PADS_STORAGE_KEY);
+    if (raw == null) return [];
+
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+
+    const deduped = new Map();
+    parsed.forEach((entry) => {
+      const normalized = normalizeRecentPad(entry);
+      if (!normalized) return;
+
+      const existing = deduped.get(normalized.name);
+      if (!existing || existing.lastVisited < normalized.lastVisited) {
+        deduped.set(normalized.name, normalized);
+      }
+    });
+
+    return Array.from(deduped.values())
+        .sort((left, right) => right.lastVisited - left.lastVisited)
+        .slice(0, MAX_RECENT_PADS);
+  } catch {
+    return [];
+  }
+};
+
+const saveRecentPads = (recentPads) => {
+  try {
+    localStorage.setItem(RECENT_PADS_STORAGE_KEY, JSON.stringify(recentPads.slice(0, MAX_RECENT_PADS)));
+  } catch {
+    // Ignore storage failures so editing still works in restricted browsers.
+  }
+};
+
+const syncRecentPad = (members: number): void => {
+  const padName = getCurrentPadName();
+  if (!padName) return;
+
+  const recentPads = loadRecentPads();
+  const padRecord = {
+    name: padName,
+    url: `/p/${encodeURIComponent(padName)}`,
+    lastVisited: Date.now(),
+    members,
+  };
+
+  const existingIndex = recentPads.findIndex((pad) => pad.name === padName);
+  if (existingIndex >= 0) {
+    recentPads.splice(existingIndex, 1);
+  }
+
+  recentPads.unshift(padRecord);
+  saveRecentPads(recentPads);
 };
 
 export const paduserlist = (() => {
@@ -551,16 +641,7 @@ export const paduserlist = (() => {
         }
       }
 
-      if (localStorage.getItem('recentPads') != null) {
-        const recentPadsList = JSON.parse(localStorage.getItem('recentPads'));
-        const pathSegments = window.location.pathname.split('/');
-        const padName = pathSegments[pathSegments.length - 1];
-        const existingPad = recentPadsList.find((pad) => pad.name === padName);
-        if (existingPad) {
-          existingPad.members = online;
-        }
-        localStorage.setItem('recentPads', JSON.stringify(recentPadsList));
-      }
+      syncRecentPad(online);
 
       const onlineCount = q('#online_count');
       if (onlineCount) onlineCount.textContent = `${online}`;

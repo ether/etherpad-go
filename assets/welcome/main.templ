@@ -9,24 +9,109 @@ import (
 templ Page(settings *settings.Settings, translations map[string]string) {
 	<html lang="en">
 		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
 			<script>
                     window.customStart=()=>{};
             </script>
-			<link rel="stylesheet" href="/css/welcome/main.css"/>
 			<link rel="stylesheet" href={"/css/skin/"+ settings.SkinName + "/index.css"}/>
-			<link rel="localizations" type="application/l10n+json" href="locales.json"/>
+			<link rel="stylesheet" href="/css/welcome/main.css"/>
 			<title>{settings.Title}</title>
 		</head>
-		<body>
-			<div id="wrapper">
-				<div id="inner">
-				<button id="button">{translations["index.newPad"]}</button>
-					<label id="label" for="padname">{translations["index.createOpenPad"]}</label>
-					<form action="#" id="go2Name">
-						<input type="text" id="padname" maxlength="50" autofocus/>
-						<button type="submit">OK</button>
-					</form>
-				</div>
+		<body
+			data-show-recent-pads={strconv.FormatBool(settings.ShowRecentPads)}
+			data-form-hint={translations["index.formHint"]}
+			data-form-hint-error={translations["index.formHintError"]}
+			data-resume-pad={translations["index.resumePad"]}
+			data-members-online-template={translations["index.membersOnline"]}
+			data-last-seen-here={translations["index.lastSeenHere"]}
+			data-opened-before={translations["index.openedBefore"]}
+		>
+			<div class="welcome-page">
+				<div class="ambient ambient-a"></div>
+				<div class="ambient ambient-b"></div>
+				<div class="ambient ambient-c"></div>
+				<main class="welcome-layout">
+					<section class="hero-panel">
+						<div class="hero-topbar">
+							<p class="brand-kicker">{settings.Title}</p>
+							<p class="hero-badge">{translations["index.heroBadge"]}</p>
+						</div>
+						<div class="hero-copy">
+							<div class="signal-stage" aria-hidden="true">
+								<span class="signal-bar signal-bar-lg"></span>
+								<span class="signal-bar signal-bar-md"></span>
+								<span class="signal-bar signal-bar-sm"></span>
+							</div>
+							<p class="eyebrow">{translations["index.heroEyebrow"]}</p>
+							<h1>{translations["index.createAndShareDocuments"]}</h1>
+							<p class="hero-description">{translations["index.createAndShareDocumentsDescription"]}</p>
+						</div>
+						<div class="action-stack">
+							<button id="button" class="primary-action" type="button">{translations["index.generateNewPad"]}</button>
+							<form action="#" id="go2Name" class="named-pad-form">
+								<label id="label" class="field-label" for="padname">{translations["index.labelPad"]}</label>
+								<div class="input-shell">
+									<input type="text" id="padname" maxlength="50" autofocus autocomplete="off" placeholder={translations["index.placeholderPadEnter"]}/>
+									<button type="submit" id="openPadButton" class="secondary-action">{translations["index.createOpenPad"]}</button>
+								</div>
+							</form>
+							<p id="formHint" class="form-hint">{translations["index.formHint"]}</p>
+							<div class="suggestion-strip" aria-label={translations["index.suggestedPads"]}>
+								<button type="button" class="suggestion-chip" data-pad-suggestion="weekly-sync">weekly-sync</button>
+								<button type="button" class="suggestion-chip" data-pad-suggestion="product-notes">product-notes</button>
+								<button type="button" class="suggestion-chip" data-pad-suggestion="launch-brief">launch-brief</button>
+							</div>
+						</div>
+						<div class="hero-summary" aria-label={translations["index.workspaceHighlights"]}>
+							<div class="summary-chip">
+								<span class="summary-value" id="historyCount">0</span>
+								<span class="summary-label">{translations["index.summaryRecentPads"]}</span>
+							</div>
+							<div class="summary-chip">
+								<span class="summary-value" id="historyMembers">0</span>
+								<span class="summary-label">{translations["index.summaryActivePeople"]}</span>
+							</div>
+							<div class="summary-chip summary-copy">{translations["index.summaryCopy"]}</div>
+						</div>
+					</section>
+					<aside class="workspace-panel">
+						<section class="panel-section">
+							<p class="section-kicker">{translations["index.resumeFlow"]}</p>
+							<div class="section-head">
+								<h2>{translations["index.recentPads"]}</h2>
+								if settings.ShowRecentPads {
+									<button type="button" id="clearHistory" class="text-action">{translations["index.clearHistory"]}</button>
+								}
+							</div>
+							if settings.ShowRecentPads {
+								<p class="panel-copy">{translations["index.recentPadsDescription"]}</p>
+								<div class="recent-pad-scroll">
+									<div id="recentPadsList" class="recent-pad-list" aria-live="polite"></div>
+								</div>
+								<div id="recentPadsEmpty" class="recent-empty" hidden>
+									<strong>{translations["index.recentPadsEmpty"]}</strong>
+									<p>{translations["index.recentPadsEmptyDescription"]}</p>
+								</div>
+							} else {
+								<div class="recent-empty static-empty">
+									<strong>{translations["index.recentPadsDisabled"]}</strong>
+									<p>{translations["index.recentPadsDisabledDescription"]}</p>
+								</div>
+							}
+						</section>
+						<section class="panel-section guidance-strip">
+							<div class="guidance-item">
+								<span class="guidance-title">{translations["index.guidanceNamedTitle"]}</span>
+								<span class="guidance-text">{translations["index.guidanceNamedText"]}</span>
+							</div>
+							<div class="guidance-item">
+								<span class="guidance-title">{translations["index.guidanceRandomTitle"]}</span>
+								<span class="guidance-text">{translations["index.guidanceRandomText"]}</span>
+							</div>
+						</section>
+					</aside>
+				</main>
 			</div>
 			<script type="module" src={"/js/welcome/assets/welcome.js?v="+strconv.Itoa(utils.RandomVersionString)}></script>
 		</body>
