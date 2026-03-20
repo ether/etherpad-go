@@ -35,7 +35,7 @@ require (
 	go.uber.org/zap v1.27.1
 	golang.org/x/crypto v0.49.0
 	golang.org/x/net v0.52.0
-	modernc.org/sqlite v1.46.2
+	modernc.org/sqlite v1.47.0
 	mvdan.cc/xurls/v2 v2.6.0
 )
 
