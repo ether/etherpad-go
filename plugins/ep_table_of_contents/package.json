@@ -1,0 +1,8 @@
+{
+  "name": "@etherpad/plugin-ep_table_of_contents",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --project tsconfig.json --noEmit"
+  }
+}

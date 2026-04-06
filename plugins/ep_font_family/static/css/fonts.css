@@ -1,0 +1,17 @@
+.fontarial { font-family: Arial, sans-serif; }
+.fontavant-garde { font-family: "Avant Garde", sans-serif; }
+.fontbookman { font-family: "Bookman Old Style", Bookman, serif; }
+.fontcalibri { font-family: Calibri, "Gill Sans", "Gill Sans MT", sans-serif; }
+.fontcourier { font-family: "Courier New", Courier, monospace; }
+.fontgaramond { font-family: Garamond, "Hoefler Text", serif; }
+.fonthelvetica { font-family: Helvetica, Arial, sans-serif; }
+.fontmonospace { font-family: "Courier New", Courier, monospace; }
+.fontpalatino { font-family: "Palatino Linotype", Palatino, "Book Antiqua", serif; }
+.fonttimes-new-roman { font-family: "Times New Roman", Times, serif; }
+
+.ep_font_family_icon::before {
+  content: "F";
+  font-family: serif;
+  font-size: 14px;
+  font-weight: bold;
+}

@@ -152,10 +152,19 @@
     "ep_font_color": {
       "enabled": false
     },
+    "ep_font_family": {
+      "enabled": false
+    },
+    "ep_font_size": {
+      "enabled": false
+    },
     "ep_spellcheck": {
       "enabled": false
     },
     "ep_markdown": {
+      "enabled": false
+    },
+    "ep_table_of_contents": {
       "enabled": false
     }
   }
