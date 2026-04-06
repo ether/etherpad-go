@@ -229,11 +229,13 @@ func (c *Client) SafeSend(message []byte) (sent bool) {
 }
 
 func (c *Client) SendUserDupMessage() {
-	c.SafeSend([]byte(`{"disconnect":"userdup"}`))
+	msg, _ := json.Marshal([]interface{}{"message", map[string]string{"disconnect": "userdup"}})
+	c.SafeSend(msg)
 }
 
 func (c *Client) SendPadDelete() {
-	c.SafeSend([]byte(`{"disconnect":"deleted"}`))
+	msg, _ := json.Marshal([]interface{}{"message", map[string]string{"disconnect": "deleted"}})
+	c.SafeSend(msg)
 }
 
 // ServeWs handles websocket requests from the peer using Fiber's websocket middleware.

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/ether/etherpad-go/lib"
@@ -25,6 +26,12 @@ import (
 	"github.com/gofiber/fiber/v3/middleware/session"
 	"go.uber.org/zap"
 )
+
+type wsUpgradeData struct {
+	SessionID     string
+	ClientIP      string
+	WebAccessUser any
+}
 
 func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets embed.FS) {
 
@@ -110,25 +117,35 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 		Importer:          importer,
 	})
 
+	// Pre-upgrade data is stored in a sync.Map keyed by a unique connection token,
+	// because gofiber/contrib/v3/websocket does not propagate Locals from the
+	// Fiber context to the websocket Conn.
+	var wsPreUpgrade sync.Map // map[string]wsUpgradeData
 	app.Use("/socket.io", func(c fiber.Ctx) error {
 		if fiberws.IsWebSocketUpgrade(c) {
 			sess, err := cookieStore.Get(c)
 			if err != nil {
 				return c.Status(fiber.StatusInternalServerError).SendString("session error")
 			}
-			c.Locals("sessionID", sess.ID())
-			c.Locals("clientIP", c.IP())
-			// Preserve web access user info set by CheckAccess middleware
-			c.Locals("webAccessUser", c.Locals("sessionUser"))
+			connID := sess.ID()
+			wsPreUpgrade.Store(connID, wsUpgradeData{
+				SessionID:     sess.ID(),
+				ClientIP:      c.IP(),
+				WebAccessUser: c.Locals("sessionUser"),
+			})
+			c.Locals("wsConnID", connID)
 			return c.Next()
 		}
 		return fiber.ErrUpgradeRequired
 	})
 	app.Get("/socket.io/*", fiberws.New(func(conn *fiberws.Conn) {
-		sessionID, _ := conn.Locals("sessionID").(string)
-		clientIP, _ := conn.Locals("clientIP").(string)
-		webAccessUser := conn.Locals("webAccessUser")
-		ws.ServeWs(conn, sessionID, clientIP, webAccessUser, &settings, setupLogger, padMessageHandler)
+		connID, _ := conn.Locals("wsConnID").(string)
+		data := wsUpgradeData{}
+		if v, ok := wsPreUpgrade.LoadAndDelete(connID); ok {
+			data = v.(wsUpgradeData)
+		}
+		setupLogger.Debugf("[WS] New connection sessionID=%s clientIP=%s", data.SessionID, data.ClientIP)
+		ws.ServeWs(conn, data.SessionID, data.ClientIP, data.WebAccessUser, &settings, setupLogger, padMessageHandler)
 	}, fiberws.Config{
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { X, CheckCircle, AlertCircle } from 'lucide-react'
+import { X } from 'lucide-react'
 import { useAdminStore } from '@/store'
 
 export function Toast() {
@@ -23,29 +23,24 @@ export function Toast() {
 
   if (!toast) return null
 
-  const isSuccess = toast.kind === 'success'
+  const isError = toast.kind !== 'success'
 
   return (
-    <div className="fixed top-4 right-4 z-50 animate-[slideIn_0.2s_ease-out]">
+    <div className="fixed bottom-4 right-4 z-50 animate-[slideIn_0.15s_ease-out]">
       <div
-        className={`flex items-center gap-3 rounded-lg px-4 py-3 shadow-lg ${
-          isSuccess
-            ? 'bg-green-600 text-white'
-            : 'bg-red-600 text-white'
+        className={`flex items-center gap-3 rounded-lg px-4 py-2.5 text-sm ${
+          isError
+            ? 'border border-red-200 dark:border-red-800 bg-red-600 text-white'
+            : 'bg-black dark:bg-white text-white dark:text-black'
         }`}
       >
-        {isSuccess ? (
-          <CheckCircle className="h-5 w-5 shrink-0" />
-        ) : (
-          <AlertCircle className="h-5 w-5 shrink-0" />
-        )}
-        <span className="text-sm font-medium">{toast.message}</span>
+        <span className="font-medium">{toast.message}</span>
         <button
           type="button"
           onClick={() => setToast(null)}
-          className="ml-2 rounded p-0.5 hover:bg-white/20 transition-colors"
+          className="ml-1 rounded p-0.5 transition-colors hover:bg-white/20"
         >
-          <X className="h-4 w-4" />
+          <X className="h-3.5 w-3.5" strokeWidth={1.5} />
         </button>
       </div>
     </div>

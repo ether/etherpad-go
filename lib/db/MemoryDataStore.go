@@ -28,6 +28,13 @@ type MemoryDataStore struct {
 	accessTokenRequestIDs  map[string]string
 	refreshTokens          map[string]db.StoreRefreshToken
 	refreshTokenRequestIDs map[string]string
+
+	// oauth token tables
+	oauthAccessTokens  map[string]OAuthTokenRow
+	oauthRefreshTokens map[string]OAuthRefreshTokenRow
+	oauthAuthCodes     map[string]OAuthTokenRow
+	oauthPKCE          map[string]OAuthTokenRow
+	oauthOIDCSessions  map[string]OAuthTokenRow
 }
 
 func (m *MemoryDataStore) Ping() error {
@@ -635,6 +642,197 @@ func (m *MemoryDataStore) DeleteOIDCStorageValue(key string) error {
 	return nil
 }
 
+// ============== OAUTH TOKEN TABLE METHODS ==============
+
+// Access tokens
+
+func (m *MemoryDataStore) CreateAccessToken(signature, clientID, requestID, scopes, grantedScopes, formData, sessionData string, requestedAt, expiresAt time.Time) error {
+	m.oauthAccessTokens[signature] = OAuthTokenRow{
+		Signature:     signature,
+		ClientID:      clientID,
+		RequestID:     requestID,
+		Scopes:        scopes,
+		GrantedScopes: grantedScopes,
+		FormData:      formData,
+		SessionData:   sessionData,
+		RequestedAt:   requestedAt,
+		ExpiresAt:     expiresAt,
+	}
+	return nil
+}
+
+func (m *MemoryDataStore) GetAccessToken(signature string) (*OAuthTokenRow, error) {
+	row, ok := m.oauthAccessTokens[signature]
+	if !ok {
+		return nil, errors.New("access token not found")
+	}
+	return &row, nil
+}
+
+func (m *MemoryDataStore) DeleteAccessToken(signature string) error {
+	delete(m.oauthAccessTokens, signature)
+	return nil
+}
+
+func (m *MemoryDataStore) DeleteAccessTokensByRequestID(requestID string) error {
+	for sig, row := range m.oauthAccessTokens {
+		if row.RequestID == requestID {
+			delete(m.oauthAccessTokens, sig)
+		}
+	}
+	return nil
+}
+
+// Refresh tokens
+
+func (m *MemoryDataStore) CreateRefreshToken(signature, clientID, requestID, scopes, grantedScopes, formData, sessionData string, active bool, accessTokenSignature string, requestedAt, expiresAt time.Time) error {
+	m.oauthRefreshTokens[signature] = OAuthRefreshTokenRow{
+		OAuthTokenRow: OAuthTokenRow{
+			Signature:     signature,
+			ClientID:      clientID,
+			RequestID:     requestID,
+			Scopes:        scopes,
+			GrantedScopes: grantedScopes,
+			FormData:      formData,
+			SessionData:   sessionData,
+			Active:        active,
+			RequestedAt:   requestedAt,
+			ExpiresAt:     expiresAt,
+		},
+		AccessTokenSignature: accessTokenSignature,
+	}
+	return nil
+}
+
+func (m *MemoryDataStore) GetRefreshToken(signature string) (*OAuthRefreshTokenRow, error) {
+	row, ok := m.oauthRefreshTokens[signature]
+	if !ok {
+		return nil, errors.New("refresh token not found")
+	}
+	return &row, nil
+}
+
+func (m *MemoryDataStore) DeleteRefreshToken(signature string) error {
+	delete(m.oauthRefreshTokens, signature)
+	return nil
+}
+
+func (m *MemoryDataStore) RevokeRefreshToken(signature string) error {
+	row, ok := m.oauthRefreshTokens[signature]
+	if !ok {
+		return errors.New("refresh token not found")
+	}
+	row.Active = false
+	m.oauthRefreshTokens[signature] = row
+	return nil
+}
+
+func (m *MemoryDataStore) RevokeRefreshTokensByRequestID(requestID string) error {
+	for sig, row := range m.oauthRefreshTokens {
+		if row.RequestID == requestID {
+			row.Active = false
+			m.oauthRefreshTokens[sig] = row
+		}
+	}
+	return nil
+}
+
+// Auth codes
+
+func (m *MemoryDataStore) CreateAuthCode(signature, clientID, requestID, scopes, grantedScopes, formData, sessionData string, requestedAt, expiresAt time.Time) error {
+	m.oauthAuthCodes[signature] = OAuthTokenRow{
+		Signature:     signature,
+		ClientID:      clientID,
+		RequestID:     requestID,
+		Scopes:        scopes,
+		GrantedScopes: grantedScopes,
+		FormData:      formData,
+		SessionData:   sessionData,
+		Active:        true,
+		RequestedAt:   requestedAt,
+		ExpiresAt:     expiresAt,
+	}
+	return nil
+}
+
+func (m *MemoryDataStore) GetAuthCode(signature string) (*OAuthTokenRow, error) {
+	row, ok := m.oauthAuthCodes[signature]
+	if !ok {
+		return nil, errors.New("auth code not found")
+	}
+	return &row, nil
+}
+
+func (m *MemoryDataStore) InvalidateAuthCode(signature string) error {
+	row, ok := m.oauthAuthCodes[signature]
+	if !ok {
+		return errors.New("auth code not found")
+	}
+	row.Active = false
+	m.oauthAuthCodes[signature] = row
+	return nil
+}
+
+// PKCE
+
+func (m *MemoryDataStore) CreatePKCE(signature, clientID, requestID, scopes, grantedScopes, formData, sessionData string, requestedAt, expiresAt time.Time) error {
+	m.oauthPKCE[signature] = OAuthTokenRow{
+		Signature:     signature,
+		ClientID:      clientID,
+		RequestID:     requestID,
+		Scopes:        scopes,
+		GrantedScopes: grantedScopes,
+		FormData:      formData,
+		SessionData:   sessionData,
+		RequestedAt:   requestedAt,
+		ExpiresAt:     expiresAt,
+	}
+	return nil
+}
+
+func (m *MemoryDataStore) GetPKCE(signature string) (*OAuthTokenRow, error) {
+	row, ok := m.oauthPKCE[signature]
+	if !ok {
+		return nil, errors.New("PKCE not found")
+	}
+	return &row, nil
+}
+
+func (m *MemoryDataStore) DeletePKCE(signature string) error {
+	delete(m.oauthPKCE, signature)
+	return nil
+}
+
+// OIDC Sessions
+
+func (m *MemoryDataStore) CreateOIDCSession(signature, clientID, requestID, scopes, grantedScopes, formData, sessionData string, requestedAt, expiresAt time.Time) error {
+	m.oauthOIDCSessions[signature] = OAuthTokenRow{
+		Signature:     signature,
+		ClientID:      clientID,
+		RequestID:     requestID,
+		Scopes:        scopes,
+		GrantedScopes: grantedScopes,
+		FormData:      formData,
+		SessionData:   sessionData,
+		RequestedAt:   requestedAt,
+		ExpiresAt:     expiresAt,
+	}
+	return nil
+}
+
+func (m *MemoryDataStore) GetOIDCSession(signature string) (*OAuthTokenRow, error) {
+	row, ok := m.oauthOIDCSessions[signature]
+	if !ok {
+		return nil, errors.New("OIDC session not found")
+	}
+	return &row, nil
+}
+
+func (m *MemoryDataStore) DeleteOIDCSession(signature string) error {
+	delete(m.oauthOIDCSessions, signature)
+	return nil
+}
+
 // ============== OIDC METHODS ==============
 
 func (m *MemoryDataStore) GetAccessTokenRequestID(requestID string) (*string, error) {
@@ -669,6 +867,11 @@ func NewMemoryDataStore() *MemoryDataStore {
 		accessTokenRequestIDs:  make(map[string]string),
 		refreshTokens:          make(map[string]db.StoreRefreshToken),
 		refreshTokenRequestIDs: make(map[string]string),
+		oauthAccessTokens:      make(map[string]OAuthTokenRow),
+		oauthRefreshTokens:     make(map[string]OAuthRefreshTokenRow),
+		oauthAuthCodes:         make(map[string]OAuthTokenRow),
+		oauthPKCE:              make(map[string]OAuthTokenRow),
+		oauthOIDCSessions:      make(map[string]OAuthTokenRow),
 	}
 }
 

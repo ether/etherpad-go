@@ -22,12 +22,10 @@ export function useEmit(): EmitFn {
 
 // ── Provider ───────────────────────────────────────────────────────────────
 
-export function AdminSocketProvider({ children }: { children: ReactNode }) {
+export function AdminSocketProvider({ children, token }: { children: ReactNode; token: string }) {
   const ws = useRef<WebSocket | null>(null)
   const store = useAdminStore()
 
-  // Keep a stable ref to handleMessage so the onmessage callback never
-  // goes stale without needing to re-create the WebSocket.
   const handleMessageRef = useRef(store.handleMessage)
   handleMessageRef.current = store.handleMessage
 
@@ -36,18 +34,16 @@ export function AdminSocketProvider({ children }: { children: ReactNode }) {
 
   const emit = useCallback<EmitFn>((event, data = null) => {
     if (ws.current?.readyState === WebSocket.OPEN) {
-      ws.current.send(JSON.stringify({ event, data: data ? JSON.stringify(data) : '{}' }))
+      ws.current.send(JSON.stringify({ event, data: data ?? {} }))
     }
   }, [])
 
-  // Keep a stable ref to emit so connect() never needs to change.
   const emitRef = useRef(emit)
   emitRef.current = emit
 
   const connect = useCallback(() => {
-    const token = new URLSearchParams(window.location.search).get('token') || ''
     const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const socket = new WebSocket(`${proto}//${window.location.host}/admin/ws?token=${token}`)
+    const socket = new WebSocket(`${proto}//${window.location.host}/admin/ws?token=${encodeURIComponent(token)}`)
 
     socket.onopen = () => {
       setConnectedRef.current(true)

@@ -3,6 +3,8 @@ package ws
 import (
 	"encoding/json"
 	"errors"
+	"os"
+	"runtime"
 	"slices"
 	"strings"
 	"time"
@@ -356,8 +358,247 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 			}
 			c.SafeSend(responseBytes)
 		}
+	case "saveSettings":
+		{
+			var settingsJSON string
+			if err := json.Unmarshal(message.Data, &settingsJSON); err != nil {
+				settingsJSON = string(message.Data)
+			}
+			settingsPath := "settings.json"
+			if retrievedSettings.Root != "" {
+				settingsPath = retrievedSettings.Root + "/settings.json"
+			}
+			if err := os.WriteFile(settingsPath, []byte(settingsJSON), 0644); err != nil {
+				h.Logger.Errorf("Error saving settings: %v", err)
+				resp := make([]interface{}, 2)
+				resp[0] = "results:saveSettings"
+				resp[1] = map[string]interface{}{"error": err.Error()}
+				responseBytes, _ := json.Marshal(resp)
+				c.SafeSend(responseBytes)
+				return
+			}
+			h.Logger.Info("Settings saved to " + settingsPath)
+			resp := make([]interface{}, 2)
+			resp[0] = "results:saveSettings"
+			resp[1] = map[string]interface{}{"success": true}
+			responseBytes, _ := json.Marshal(resp)
+			c.SafeSend(responseBytes)
+		}
+	case "restartServer":
+		{
+			h.Logger.Info("Restart requested via admin UI")
+			resp := make([]interface{}, 2)
+			resp[0] = "results:restartServer"
+			resp[1] = map[string]interface{}{"success": true}
+			responseBytes, _ := json.Marshal(resp)
+			c.SafeSend(responseBytes)
+			go func() {
+				time.Sleep(500 * time.Millisecond)
+				os.Exit(0)
+			}()
+		}
+	case "getConnections":
+		{
+			type connectionInfo struct {
+				SessionID string `json:"sessionId"`
+				PadID     string `json:"padId"`
+				IP        string `json:"ip"`
+				Type      string `json:"type"`
+			}
+			var connections []connectionInfo
+			h.hub.ClientsRWMutex.RLock()
+			for client := range h.hub.Clients {
+				padId := ""
+				ip := client.ClientIP
+				connType := "admin"
+				sess := h.padMessageHandler.SessionStore.getSession(client.SessionId)
+				if sess != nil && sess.PadId != "" {
+					padId = sess.PadId
+					connType = "pad"
+				}
+				connections = append(connections, connectionInfo{
+					SessionID: client.SessionId,
+					PadID:     padId,
+					IP:        ip,
+					Type:      connType,
+				})
+			}
+			h.hub.ClientsRWMutex.RUnlock()
+			resp := make([]interface{}, 2)
+			resp[0] = "results:getConnections"
+			resp[1] = map[string]interface{}{"connections": connections}
+			responseBytes, _ := json.Marshal(resp)
+			c.SafeSend(responseBytes)
+		}
+	case "getSystemInfo":
+		{
+			var memStats runtime.MemStats
+			runtime.ReadMemStats(&memStats)
+			resp := make([]interface{}, 2)
+			resp[0] = "results:getSystemInfo"
+			resp[1] = map[string]interface{}{
+				"memAlloc":      memStats.Alloc,
+				"memTotalAlloc": memStats.TotalAlloc,
+				"memSys":        memStats.Sys,
+				"numGoroutine":  runtime.NumGoroutine(),
+				"numGC":         memStats.NumGC,
+				"goVersion":     runtime.Version(),
+				"numCPU":        runtime.NumCPU(),
+				"dbType":        h.padMessageHandler.Logger.Desugar().Name(), // placeholder
+			}
+			responseBytes, _ := json.Marshal(resp)
+			c.SafeSend(responseBytes)
+		}
+	case "kickUser":
+		{
+			var kickData struct {
+				SessionID string `json:"sessionId"`
+			}
+			if err := json.Unmarshal(message.Data, &kickData); err != nil {
+				println("Error unmarshalling kickUser data:", err.Error())
+				return
+			}
+			h.hub.ClientsRWMutex.RLock()
+			var toKick []*Client
+			for client := range h.hub.Clients {
+				if client.SessionId == kickData.SessionID {
+					toKick = append(toKick, client)
+				}
+			}
+			h.hub.ClientsRWMutex.RUnlock()
+			for _, client := range toKick {
+				// Send disconnect message in the wire format ["message", {...}] and close
+				kickMsg, _ := json.Marshal([]interface{}{"message", map[string]string{"disconnect": "kicked"}})
+				client.SafeSend(kickMsg)
+				client.Conn.Close()
+			}
+			resp := make([]interface{}, 2)
+			resp[0] = "results:kickUser"
+			resp[1] = map[string]interface{}{"success": true}
+			responseBytes, _ := json.Marshal(resp)
+			c.SafeSend(responseBytes)
+		}
+	case "searchPadContent":
+		{
+			var searchData struct {
+				Query string `json:"query"`
+				Limit int    `json:"limit"`
+			}
+			if err := json.Unmarshal(message.Data, &searchData); err != nil {
+				println("Error unmarshalling searchPadContent:", err.Error())
+				return
+			}
+			if searchData.Limit <= 0 || searchData.Limit > 50 {
+				searchData.Limit = 20
+			}
+			padIds, err := h.store.GetPadIds()
+			if err != nil || padIds == nil {
+				resp := make([]interface{}, 2)
+				resp[0] = "results:searchPadContent"
+				resp[1] = map[string]interface{}{"results": []interface{}{}}
+				responseBytes, _ := json.Marshal(resp)
+				c.SafeSend(responseBytes)
+				return
+			}
+			type searchResult struct {
+				PadID   string `json:"padId"`
+				Snippet string `json:"snippet"`
+			}
+			var results []searchResult
+			query := strings.ToLower(searchData.Query)
+			for _, padId := range *padIds {
+				if len(results) >= searchData.Limit {
+					break
+				}
+				pad, err := h.padManager.GetPad(padId, nil, nil)
+				if err != nil || pad == nil {
+					continue
+				}
+				text := pad.Text()
+				if strings.Contains(strings.ToLower(text), query) {
+					// Extract snippet around match
+					idx := strings.Index(strings.ToLower(text), query)
+					start := idx - 50
+					if start < 0 {
+						start = 0
+					}
+					end := idx + len(searchData.Query) + 50
+					if end > len(text) {
+						end = len(text)
+					}
+					snippet := text[start:end]
+					results = append(results, searchResult{PadID: padId, Snippet: snippet})
+				}
+			}
+			if results == nil {
+				results = []searchResult{}
+			}
+			resp := make([]interface{}, 2)
+			resp[0] = "results:searchPadContent"
+			resp[1] = map[string]interface{}{"results": results}
+			responseBytes, _ := json.Marshal(resp)
+			c.SafeSend(responseBytes)
+		}
+	case "getPadContent":
+		{
+			var padName string
+			if err := json.Unmarshal(message.Data, &padName); err != nil {
+				padName = string(message.Data)
+			}
+			padName = strings.Trim(padName, "\"")
+			pad, err := h.padManager.GetPad(padName, nil, nil)
+			if err != nil || pad == nil {
+				resp := make([]interface{}, 2)
+				resp[0] = "results:getPadContent"
+				resp[1] = map[string]interface{}{"padId": padName, "content": "", "error": "Pad not found"}
+				responseBytes, _ := json.Marshal(resp)
+				c.SafeSend(responseBytes)
+				return
+			}
+			text := pad.Text()
+			if len(text) > 2000 {
+				text = text[:2000] + "..."
+			}
+			resp := make([]interface{}, 2)
+			resp[0] = "results:getPadContent"
+			resp[1] = map[string]interface{}{"padId": padName, "content": text}
+			responseBytes, _ := json.Marshal(resp)
+			c.SafeSend(responseBytes)
+		}
+	case "bulkDeletePads":
+		{
+			var bulkData struct {
+				PadNames []string `json:"padNames"`
+			}
+			if err := json.Unmarshal(message.Data, &bulkData); err != nil {
+				println("Error unmarshalling bulkDeletePads:", err.Error())
+				return
+			}
+			deleted := 0
+			for _, padName := range bulkData.PadNames {
+				// Kick users first
+				h.hub.ClientsRWMutex.RLock()
+				for client := range h.hub.Clients {
+					sess := h.padMessageHandler.SessionStore.getSession(client.SessionId)
+					if sess != nil && sess.PadId == padName {
+						client.SendPadDelete()
+					}
+				}
+				h.hub.ClientsRWMutex.RUnlock()
+
+				retrievedPad, err := h.padManager.GetPad(padName, nil, nil)
+				if err == nil && retrievedPad != nil {
+					retrievedPad.Remove()
+					deleted++
+				}
+			}
+			resp := make([]interface{}, 2)
+			resp[0] = "results:bulkDeletePads"
+			resp[1] = map[string]interface{}{"deleted": deleted}
+			responseBytes, _ := json.Marshal(resp)
+			c.SafeSend(responseBytes)
+		}
 	default:
-		// Unknown event
 		println("Unknown admin event:", message.Event)
 	}
 }

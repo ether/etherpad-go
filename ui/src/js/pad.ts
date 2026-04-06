@@ -257,10 +257,9 @@ const handshake = async () => {
     };
 
     socket.on('disconnect', (reason: CloseEvent) => {
-        // The socket.io client will automatically try to reconnect for all reasons other than "io
-        // server disconnect".
         console.log(`Socket disconnected: ${reason.reason}`)
-        //if (reason !== 'io server disconnect' || reason !== 'ping timeout') return;
+        // Don't attempt reconnect if the user was deliberately disconnected (kicked, deleted, userdup)
+        if (padconnectionstatus.getStatus().what === 'disconnected') return;
         socketReconnecting();
     });
 

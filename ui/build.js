@@ -1,7 +1,7 @@
 import * as esbuild from 'esbuild';
 import * as fs from "node:fs";
 import * as path from "node:path";
-import {execSync} from "node:child_process";
+import {execSync, spawn} from "node:child_process";
 
 const run = (command, cwd) => {
   execSync(command, {
@@ -281,77 +281,45 @@ const loaders = {
     '.otf': 'base64',
 }
 
-await esbuild.buildSync({
-    entryPoints: ["./src/pad.js"],
-    absWorkingDir: absWorkingDir,
-    bundle: true,
-    write: true,
-    minify: true,
-    outdir: '../assets/js/pad/assets',
-    logLevel: 'info',
-    metafile: true,
-    target: 'es2020',
-    alias,
-    loader:loaders,
-    sourcemap: true,
+// ========================================
+// Build Admin (React/Vite) — runs in parallel with esbuild
+// ========================================
+
+const buildAdmin = () => new Promise((resolve, reject) => {
+  const isWindows = process.platform === 'win32';
+  const cmd = isWindows ? 'pnpm.cmd' : 'pnpm';
+  const adminDir = path.resolve(absWorkingDir, '..', 'admin');
+
+  console.log('Building admin (React)...');
+  const child = spawn(cmd, ['build'], { cwd: adminDir, stdio: 'inherit', shell: true });
+  child.on('close', (code) => {
+    if (code !== 0) reject(new Error(`Admin build failed with exit code ${code}`));
+    else { console.log('Admin build complete.'); resolve(); }
+  });
+  child.on('error', reject);
 });
 
-await esbuild.buildSync({
-    entryPoints: ["./src/welcome.js"],
-    absWorkingDir: absWorkingDir,
-    bundle: true,
-    write: true,
-    minify: true,
-    outdir: '../assets/js/welcome/assets',
-    logLevel: 'info',
-    metafile: true,
-    target: 'es2020',
-    alias,
-    loader:loaders,
-    sourcemap: true,
-});
+// ========================================
+// Run all builds in parallel
+// ========================================
 
-await esbuild.buildSync({
-    entryPoints: ["./src/timeslider.js"],
-    absWorkingDir: absWorkingDir,
-    bundle: true,
-    write: true,
-    minify: true,
-    outdir: '../assets/js/timeslider/assets',
-    logLevel: 'info',
-    metafile: true,
-    target: 'es2020',
-    alias,
-    loader: loaders,
-    sourcemap: true,
-});
+const esbuildOpts = { absWorkingDir, bundle: true, write: true, minify: true, metafile: true, target: 'es2020', sourcemap: true };
 
-await esbuild.buildSync({
-    entryPoints: ['../assets/css/skin/colibris/pad.css'],
-    absWorkingDir: absWorkingDir,
-    bundle: true,
-    write: true,
-    minify: true,
-    outdir: '../assets/css/build/skin/colibris',
-    logLevel: 'info',
-    metafile: true,
-    target: 'es2020',
-    external: ['*.woff', '*.woff2', '*.ttf', '*.eot', '*.svg', '*.png', '*.jpg', '*.gif'],
-    sourcemap: true,
-    loader:loaders,
-})
+const results = await Promise.allSettled([
+  // JS bundles
+  esbuild.build({ ...esbuildOpts, entryPoints: ["./src/pad.js"], outdir: '../assets/js/pad/assets', alias, loader: loaders, logLevel: 'info' }),
+  esbuild.build({ ...esbuildOpts, entryPoints: ["./src/welcome.js"], outdir: '../assets/js/welcome/assets', alias, loader: loaders, logLevel: 'info' }),
+  esbuild.build({ ...esbuildOpts, entryPoints: ["./src/timeslider.js"], outdir: '../assets/js/timeslider/assets', alias, loader: loaders, logLevel: 'info' }),
+  // CSS bundles
+  esbuild.build({ ...esbuildOpts, entryPoints: ['../assets/css/skin/colibris/pad.css'], outdir: '../assets/css/build/skin/colibris', external: ['*.woff', '*.woff2', '*.ttf', '*.eot', '*.svg', '*.png', '*.jpg', '*.gif'], loader: loaders, logLevel: 'info' }),
+  esbuild.build({ ...esbuildOpts, entryPoints: ['../assets/css/static/pad.css'], outdir: '../assets/css/build/static', external: ['*.woff', '*.woff2', '*.ttf', '*.eot', '*.svg', '*.png', '*.jpg', '*.gif', '/font/*', 'font/*'], loader: loaders, logLevel: 'info' }),
+  // Admin React app (Vite)
+  buildAdmin(),
+]);
 
-await esbuild.buildSync({
-    entryPoints: ['../assets/css/static/pad.css'],
-    absWorkingDir: absWorkingDir,
-    bundle: true,
-    write: true,
-    minify: true,
-    outdir: '../assets/css/build/static',
-    logLevel: 'info',
-    external: ['*.woff', '*.woff2', '*.ttf', '*.eot', '*.svg', '*.png', '*.jpg', '*.gif', '/font/*', 'font/*'],
-    loader: loaders,
-    metafile: true,
-    target: 'es2020',
-    sourcemap: true,
-})
+// Report failures
+const failed = results.filter(r => r.status === 'rejected');
+if (failed.length > 0) {
+  for (const f of failed) console.error('Build error:', f.reason);
+  process.exit(1);
+}

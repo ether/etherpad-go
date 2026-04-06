@@ -38,6 +38,8 @@ func shouldServeAdminSPA(requestPath string) bool {
 		return false
 	case requestPath == "/admin/validate":
 		return false
+	case requestPath == "/admin/config":
+		return false
 	case strings.HasPrefix(requestPath, "/admin/api"):
 		return false
 	case strings.HasPrefix(requestPath, "/admin/assets"):
@@ -162,6 +164,30 @@ func Init(store *lib.InitStore) {
 			return c.Type("html").SendString(adminHTML)
 		})
 	}
+
+	// Serve OIDC config for the admin SPA (public, no auth needed)
+	store.C.Get("/admin/config", func(c fiber.Ctx) error {
+		sso := store.RetrievedSettings.SSO
+		if sso == nil {
+			return c.JSON(map[string]any{"oidc": nil})
+		}
+		for _, client := range sso.Clients {
+			if client.Type == "admin" {
+				if sso.Issuer == "" || len(client.RedirectUris) == 0 {
+					break
+				}
+				return c.JSON(map[string]any{
+					"oidc": map[string]any{
+						"authority":   sso.Issuer,
+						"clientId":    client.ClientId,
+						"redirectUri": client.RedirectUris[0],
+						"scope":       "openid profile email offline",
+					},
+				})
+			}
+		}
+		return c.JSON(map[string]any{"oidc": nil})
+	})
 
 	store.C.Get("/admin/locales/:file", func(c fiber.Ctx) error {
 		err := serveAdminAsset(c, store.UiAssets, store.RetrievedSettings, path.Join("locales", c.Params("file")), "application/json; charset=utf-8")

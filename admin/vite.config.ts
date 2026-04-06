@@ -10,6 +10,7 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  base: '/admin/',
   build: {
     outDir: '../assets/js/admin',
     emptyOutDir: true,

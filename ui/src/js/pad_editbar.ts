@@ -248,11 +248,15 @@ export const padeditbar = new class {
 
           const module = q(`#${thisModuleName}`);
 
-          // skip any "force reconnect" message
-          const reconnectButton = module?.querySelector('button#forcereconnect');
-          const isAForceReconnectMessage = reconnectButton != null &&
-            getComputedStyle(reconnectButton).display !== 'none';
-          if (isAForceReconnectMessage) continue;
+          // skip connectivity module if showing a permanent disconnect message (kicked, deleted, etc.)
+          if (thisModuleName === 'connectivity') {
+            const hasVisibleMessage = module?.querySelector('.kicked.visible, .deleted.visible, .corruptPad.visible, .userdup.visible');
+            if (hasVisibleMessage) continue;
+            const reconnectButton = module?.querySelector('button#forcereconnect');
+            const isAForceReconnectMessage = reconnectButton != null &&
+              getComputedStyle(reconnectButton).display !== 'none';
+            if (isAForceReconnectMessage) continue;
+          }
           if (module?.classList.contains('popup-show')) {
             q(`li[data-key=${thisModuleName}] > a`)?.classList.remove('selected');
             module.classList.remove('popup-show');

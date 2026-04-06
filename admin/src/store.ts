@@ -1,4 +1,4 @@
-import { createContext, useContext, useReducer, useCallback, useMemo, type Dispatch, type ReactNode } from 'react'
+import { createContext, useContext, useReducer, useCallback, type Dispatch, type ReactNode } from 'react'
 import React from 'react'
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -50,6 +50,10 @@ export interface AdminState {
   settings: string
   plugins: PluginRecord[]
   lastUpdated: Date | null
+  connections: { sessionId: string; padId: string; ip: string }[]
+  systemInfo: { memAlloc: number; memTotalAlloc: number; memSys: number; numGoroutine: number; numGC: number; goVersion: string; numCPU: number } | null
+  searchResults: { padId: string; snippet: string }[]
+  padPreview: { padId: string; content: string } | null
 }
 
 // ── Actions ────────────────────────────────────────────────────────────────
@@ -73,6 +77,10 @@ type Action =
   | { type: 'SET_PAD_OFFSET'; payload: number }
   | { type: 'SET_PAD_LIMIT'; payload: number }
   | { type: 'SET_LAST_UPDATED'; payload: Date }
+  | { type: 'SET_CONNECTIONS'; payload: any[] }
+  | { type: 'SET_SYSTEM_INFO'; payload: any }
+  | { type: 'SET_SEARCH_RESULTS'; payload: any[] }
+  | { type: 'SET_PAD_PREVIEW'; payload: any }
 
 // ── Initial state ──────────────────────────────────────────────────────────
 
@@ -96,6 +104,10 @@ const initialState: AdminState = {
   settings: '',
   plugins: [],
   lastUpdated: null,
+  connections: [],
+  systemInfo: null,
+  searchResults: [],
+  padPreview: null,
 }
 
 // ── Reducer ────────────────────────────────────────────────────────────────
@@ -142,6 +154,14 @@ function adminReducer(state: AdminState, action: Action): AdminState {
       return { ...state, padLimit: action.payload }
     case 'SET_LAST_UPDATED':
       return { ...state, lastUpdated: action.payload }
+    case 'SET_CONNECTIONS':
+      return { ...state, connections: action.payload }
+    case 'SET_SYSTEM_INFO':
+      return { ...state, systemInfo: action.payload }
+    case 'SET_SEARCH_RESULTS':
+      return { ...state, searchResults: action.payload }
+    case 'SET_PAD_PREVIEW':
+      return { ...state, padPreview: action.payload }
     default:
       return state
   }
@@ -220,13 +240,15 @@ export function AdminProvider({ children }: { children: ReactNode }) {
   const handleMessage = useCallback((event: string, payload: any) => {
     switch (event) {
       case 'settings': {
+        // Server wraps settings in { results: ... }
+        const settings = payload?.results ?? payload
         let formatted: string
         try {
-          formatted = typeof payload === 'string'
-            ? JSON.stringify(JSON.parse(payload), null, 2)
-            : JSON.stringify(payload, null, 2)
+          formatted = typeof settings === 'string'
+            ? JSON.stringify(JSON.parse(settings), null, 2)
+            : JSON.stringify(settings, null, 2)
         } catch {
-          formatted = String(payload)
+          formatted = String(settings)
         }
         dispatch({ type: 'SET_SETTINGS', payload: formatted })
         dispatch({ type: 'SET_LAST_UPDATED', payload: new Date() })
@@ -247,7 +269,8 @@ export function AdminProvider({ children }: { children: ReactNode }) {
         dispatch({ type: 'SET_LAST_UPDATED', payload: new Date() })
         break
       case 'results:installed': {
-        const plugins = (payload as PluginRecord[]).slice().sort((a, b) =>
+        const raw = Array.isArray(payload) ? payload : (payload?.installed ?? [])
+        const plugins = (raw as PluginRecord[]).slice().sort((a, b) =>
           (a.name ?? '').localeCompare(b.name ?? ''),
         )
         dispatch({ type: 'SET_PLUGINS', payload: plugins })
@@ -258,17 +281,21 @@ export function AdminProvider({ children }: { children: ReactNode }) {
         dispatch({ type: 'SET_TOTAL_USERS', payload: payload.totalUsers ?? payload ?? 0 })
         dispatch({ type: 'SET_LAST_UPDATED', payload: new Date() })
         break
-      case 'result:shout':
+      case 'result:shout': {
+        // Server sends: { type: "COLLABROOM", data: { payload: { timestamp, message: { message, sticky } } } }
+        const shoutData = payload?.data?.payload ?? payload
+        const shoutMsg = shoutData?.message
         dispatch({
           type: 'ADD_SHOUT',
           payload: {
-            message: payload.message ?? '',
-            sticky: payload.sticky ?? false,
-            timestamp: new Date(),
+            message: typeof shoutMsg === 'object' ? shoutMsg.message ?? '' : shoutMsg ?? '',
+            sticky: typeof shoutMsg === 'object' ? shoutMsg.sticky ?? false : false,
+            timestamp: new Date(shoutData?.timestamp ?? Date.now()),
           },
         })
         dispatch({ type: 'SET_TOAST', payload: { kind: 'success', message: 'Broadcast sent successfully' } })
         break
+      }
       case 'results:deletePad':
         dispatch({ type: 'SET_TOAST', payload: { kind: 'success', message: 'Pad deleted successfully' } })
         dispatch({ type: 'SET_LAST_UPDATED', payload: new Date() })
@@ -289,44 +316,51 @@ export function AdminProvider({ children }: { children: ReactNode }) {
         dispatch({ type: 'SET_TOAST', payload: { kind: 'success', message: 'Pad revisions cleaned up successfully' } })
         dispatch({ type: 'SET_LAST_UPDATED', payload: new Date() })
         break
+      case 'results:getConnections':
+        dispatch({ type: 'SET_CONNECTIONS', payload: payload.connections ?? [] })
+        break
+      case 'results:getSystemInfo':
+        dispatch({ type: 'SET_SYSTEM_INFO', payload: payload })
+        break
+      case 'results:searchPadContent':
+        dispatch({ type: 'SET_SEARCH_RESULTS', payload: payload.results ?? [] })
+        dispatch({ type: 'SET_LAST_UPDATED', payload: new Date() })
+        break
+      case 'results:getPadContent':
+        dispatch({ type: 'SET_PAD_PREVIEW', payload: payload })
+        dispatch({ type: 'SET_LAST_UPDATED', payload: new Date() })
+        break
+      case 'results:kickUser':
+        dispatch({ type: 'SET_TOAST', payload: { kind: 'success', message: 'User kicked successfully' } })
+        dispatch({ type: 'SET_LAST_UPDATED', payload: new Date() })
+        break
+      case 'results:bulkDeletePads': {
+        const deletedCount = payload.deleted ?? payload.count ?? 0
+        dispatch({ type: 'SET_TOAST', payload: { kind: 'success', message: `Successfully deleted ${deletedCount} pad(s)` } })
+        dispatch({ type: 'SET_LAST_UPDATED', payload: new Date() })
+        break
+      }
       default:
         console.warn('Unhandled admin event:', event, payload)
     }
   }, [])
 
-  const value = useMemo<AdminStore>(
-    () => ({
-      ...state,
-      dispatch,
-      setConnected,
-      setLoading,
-      setToast,
-      setCurrentPage,
-      setShoutMessage,
-      setShoutSticky,
-      setPadSearch,
-      setPadSort,
-      setPadAscending,
-      setPadOffset,
-      setPadLimit,
-      handleMessage,
-    }),
-    [
-      state,
-      setConnected,
-      setLoading,
-      setToast,
-      setCurrentPage,
-      setShoutMessage,
-      setShoutSticky,
-      setPadSearch,
-      setPadSort,
-      setPadAscending,
-      setPadOffset,
-      setPadLimit,
-      handleMessage,
-    ],
-  )
+  const value: AdminStore = {
+    ...state,
+    dispatch,
+    setConnected,
+    setLoading,
+    setToast,
+    setCurrentPage,
+    setShoutMessage,
+    setShoutSticky,
+    setPadSearch,
+    setPadSort,
+    setPadAscending,
+    setPadOffset,
+    setPadLimit,
+    handleMessage,
+  }
 
   return React.createElement(AdminContext.Provider, { value }, children)
 }
