@@ -142,6 +142,9 @@
   "pad.modals.deleted": "Deleted.",
   "pad.modals.deleted.explanation": "This pad has been removed.",
 
+  "pad.modals.kicked": "Disconnected by admin.",
+  "pad.modals.kicked.explanation": "An administrator has removed you from this pad.",
+
   "pad.modals.rateLimited": "Rate Limited.",
   "pad.modals.rateLimited.explanation": "You sent too many messages to this pad so it disconnected you.",
 

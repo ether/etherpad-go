@@ -849,6 +849,191 @@ func (d PostgresDB) DeleteOIDCStorageValue(key string) error {
 	return err
 }
 
+// ============== OAUTH TOKEN TABLE METHODS ==============
+
+// Access tokens
+
+func (d PostgresDB) CreateAccessToken(signature, clientID, requestID, scopes, grantedScopes, formData, sessionData string, requestedAt, expiresAt time.Time) error {
+	ctx := context.Background()
+	_, err := d.pool.Exec(ctx,
+		`INSERT INTO oauth_access_tokens (signature, client_id, request_id, scopes, granted_scopes, form_data, session_data, requested_at, expires_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+		signature, clientID, requestID, scopes, grantedScopes, formData, sessionData, requestedAt, expiresAt)
+	return err
+}
+
+func (d PostgresDB) GetAccessToken(signature string) (*OAuthTokenRow, error) {
+	ctx := context.Background()
+	row := d.pool.QueryRow(ctx,
+		`SELECT signature, client_id, request_id, scopes, granted_scopes, form_data, session_data, requested_at, expires_at
+		 FROM oauth_access_tokens WHERE signature = $1`, signature)
+	var t OAuthTokenRow
+	err := row.Scan(&t.Signature, &t.ClientID, &t.RequestID, &t.Scopes, &t.GrantedScopes, &t.FormData, &t.SessionData, &t.RequestedAt, &t.ExpiresAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &t, nil
+}
+
+func (d PostgresDB) DeleteAccessToken(signature string) error {
+	ctx := context.Background()
+	_, err := d.pool.Exec(ctx, "DELETE FROM oauth_access_tokens WHERE signature = $1", signature)
+	return err
+}
+
+func (d PostgresDB) DeleteAccessTokensByRequestID(requestID string) error {
+	ctx := context.Background()
+	_, err := d.pool.Exec(ctx, "DELETE FROM oauth_access_tokens WHERE request_id = $1", requestID)
+	return err
+}
+
+// Refresh tokens
+
+func (d PostgresDB) CreateRefreshToken(signature, clientID, requestID, scopes, grantedScopes, formData, sessionData string, active bool, accessTokenSignature string, requestedAt, expiresAt time.Time) error {
+	ctx := context.Background()
+	_, err := d.pool.Exec(ctx,
+		`INSERT INTO oauth_refresh_tokens (signature, client_id, request_id, scopes, granted_scopes, form_data, session_data, active, access_token_signature, requested_at, expires_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+		signature, clientID, requestID, scopes, grantedScopes, formData, sessionData, active, accessTokenSignature, requestedAt, expiresAt)
+	return err
+}
+
+func (d PostgresDB) GetRefreshToken(signature string) (*OAuthRefreshTokenRow, error) {
+	ctx := context.Background()
+	row := d.pool.QueryRow(ctx,
+		`SELECT signature, client_id, request_id, scopes, granted_scopes, form_data, session_data, active, access_token_signature, requested_at, expires_at
+		 FROM oauth_refresh_tokens WHERE signature = $1`, signature)
+	var t OAuthRefreshTokenRow
+	err := row.Scan(&t.Signature, &t.ClientID, &t.RequestID, &t.Scopes, &t.GrantedScopes, &t.FormData, &t.SessionData, &t.Active, &t.AccessTokenSignature, &t.RequestedAt, &t.ExpiresAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &t, nil
+}
+
+func (d PostgresDB) DeleteRefreshToken(signature string) error {
+	ctx := context.Background()
+	_, err := d.pool.Exec(ctx, "DELETE FROM oauth_refresh_tokens WHERE signature = $1", signature)
+	return err
+}
+
+func (d PostgresDB) RevokeRefreshToken(signature string) error {
+	ctx := context.Background()
+	_, err := d.pool.Exec(ctx, "UPDATE oauth_refresh_tokens SET active = false WHERE signature = $1", signature)
+	return err
+}
+
+func (d PostgresDB) RevokeRefreshTokensByRequestID(requestID string) error {
+	ctx := context.Background()
+	_, err := d.pool.Exec(ctx, "UPDATE oauth_refresh_tokens SET active = false WHERE request_id = $1", requestID)
+	return err
+}
+
+// Auth codes
+
+func (d PostgresDB) CreateAuthCode(signature, clientID, requestID, scopes, grantedScopes, formData, sessionData string, requestedAt, expiresAt time.Time) error {
+	ctx := context.Background()
+	_, err := d.pool.Exec(ctx,
+		`INSERT INTO oauth_auth_codes (signature, client_id, request_id, scopes, granted_scopes, form_data, session_data, requested_at, expires_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+		signature, clientID, requestID, scopes, grantedScopes, formData, sessionData, requestedAt, expiresAt)
+	return err
+}
+
+func (d PostgresDB) GetAuthCode(signature string) (*OAuthTokenRow, error) {
+	ctx := context.Background()
+	row := d.pool.QueryRow(ctx,
+		`SELECT signature, client_id, request_id, scopes, granted_scopes, form_data, session_data, active, requested_at, expires_at
+		 FROM oauth_auth_codes WHERE signature = $1`, signature)
+	var t OAuthTokenRow
+	err := row.Scan(&t.Signature, &t.ClientID, &t.RequestID, &t.Scopes, &t.GrantedScopes, &t.FormData, &t.SessionData, &t.Active, &t.RequestedAt, &t.ExpiresAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &t, nil
+}
+
+func (d PostgresDB) InvalidateAuthCode(signature string) error {
+	ctx := context.Background()
+	_, err := d.pool.Exec(ctx, "UPDATE oauth_auth_codes SET active = false WHERE signature = $1", signature)
+	return err
+}
+
+// PKCE
+
+func (d PostgresDB) CreatePKCE(signature, clientID, requestID, scopes, grantedScopes, formData, sessionData string, requestedAt, expiresAt time.Time) error {
+	ctx := context.Background()
+	_, err := d.pool.Exec(ctx,
+		`INSERT INTO oauth_pkce (signature, client_id, request_id, scopes, granted_scopes, form_data, session_data, requested_at, expires_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+		signature, clientID, requestID, scopes, grantedScopes, formData, sessionData, requestedAt, expiresAt)
+	return err
+}
+
+func (d PostgresDB) GetPKCE(signature string) (*OAuthTokenRow, error) {
+	ctx := context.Background()
+	row := d.pool.QueryRow(ctx,
+		`SELECT signature, client_id, request_id, scopes, granted_scopes, form_data, session_data, requested_at, expires_at
+		 FROM oauth_pkce WHERE signature = $1`, signature)
+	var t OAuthTokenRow
+	err := row.Scan(&t.Signature, &t.ClientID, &t.RequestID, &t.Scopes, &t.GrantedScopes, &t.FormData, &t.SessionData, &t.RequestedAt, &t.ExpiresAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &t, nil
+}
+
+func (d PostgresDB) DeletePKCE(signature string) error {
+	ctx := context.Background()
+	_, err := d.pool.Exec(ctx, "DELETE FROM oauth_pkce WHERE signature = $1", signature)
+	return err
+}
+
+// OIDC Sessions
+
+func (d PostgresDB) CreateOIDCSession(signature, clientID, requestID, scopes, grantedScopes, formData, sessionData string, requestedAt, expiresAt time.Time) error {
+	ctx := context.Background()
+	_, err := d.pool.Exec(ctx,
+		`INSERT INTO oauth_oidc_sessions (signature, client_id, request_id, scopes, granted_scopes, form_data, session_data, requested_at, expires_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+		signature, clientID, requestID, scopes, grantedScopes, formData, sessionData, requestedAt, expiresAt)
+	return err
+}
+
+func (d PostgresDB) GetOIDCSession(signature string) (*OAuthTokenRow, error) {
+	ctx := context.Background()
+	row := d.pool.QueryRow(ctx,
+		`SELECT signature, client_id, request_id, scopes, granted_scopes, form_data, session_data, requested_at, expires_at
+		 FROM oauth_oidc_sessions WHERE signature = $1`, signature)
+	var t OAuthTokenRow
+	err := row.Scan(&t.Signature, &t.ClientID, &t.RequestID, &t.Scopes, &t.GrantedScopes, &t.FormData, &t.SessionData, &t.RequestedAt, &t.ExpiresAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &t, nil
+}
+
+func (d PostgresDB) DeleteOIDCSession(signature string) error {
+	ctx := context.Background()
+	_, err := d.pool.Exec(ctx, "DELETE FROM oauth_oidc_sessions WHERE signature = $1", signature)
+	return err
+}
+
 func (d PostgresDB) Close() error {
 	d.pool.Close()
 	return nil

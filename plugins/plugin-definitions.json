@@ -2,10 +2,18 @@
   "plugins": {
     "ep_etherpad-lite": "1.8.13",
     "ep_align": "0.0.1",
+    "ep_author_hover": "0.0.1",
     "ep_chat_log_join_leave": "0.0.1",
+    "ep_clear_formatting": "0.0.1",
+    "ep_cursortrace": "0.0.1",
+    "ep_font_color": "0.0.1",
+    "ep_font_family": "0.0.1",
+    "ep_font_size": "0.0.1",
     "ep_heading": "0.0.1",
     "ep_markdown": "0.0.1",
-    "ep_spellcheck": "0.0.1"
+    "ep_print": "0.0.1",
+    "ep_spellcheck": "0.0.1",
+    "ep_table_of_contents": "0.0.1"
   },
   "parts": [
     {
@@ -215,12 +223,262 @@
       "full_name": "ep_align/ep_align"
     },
     {
+      "name": "ep_author_hover",
+      "settings_menu_items": [
+        {
+          "key": "author-hover",
+          "title": "ep_author_hover.showHoverLabel",
+          "id": "options-author-hover"
+        }
+      ],
+      "client_hooks": {
+        "postAceInit": "ep_author_hover/static/js/index:postAceInit"
+      },
+      "plugin": "ep_author_hover",
+      "full_name": "ep_author_hover/ep_author_hover"
+    },
+    {
       "name": "ep_chat_log_join_leave",
       "client_hooks": {
         "chatNewMessage": "ep_chat_log_join_leave/static/js/index:chatNewMessage"
       },
       "plugin": "ep_chat_log_join_leave",
       "full_name": "ep_chat_log_join_leave/ep_chat_log_join_leave"
+    },
+    {
+      "name": "ep_clear_formatting",
+      "client_hooks": {
+        "postAceInit": "ep_clear_formatting/static/js/index:postAceInit",
+        "aceInitialized": "ep_clear_formatting/static/js/index:aceInitialized"
+      },
+      "toolbar_buttons": [
+        {
+          "key": "clearFormatting",
+          "title": "ep_clear_formatting.title",
+          "icon": "buttonicon-clearauthorship",
+          "group": "right",
+          "type": "button"
+        }
+      ],
+      "plugin": "ep_clear_formatting",
+      "full_name": "ep_clear_formatting/ep_clear_formatting"
+    },
+    {
+      "name": "ep_cursortrace",
+      "client_hooks": {
+        "aceEditorCSS": "ep_cursortrace/static/js/index:aceEditorCSS",
+        "aceInitInnerdocbodyHead": "ep_cursortrace/static/js/index:aceInitInnerdocbodyHead",
+        "postAceInit": "ep_cursortrace/static/js/index:postAceInit",
+        "aceEditEvent": "ep_cursortrace/static/js/index:aceEditEvent",
+        "handleClientMessage_CUSTOM": "ep_cursortrace/static/js/index:handleClientMessage_CUSTOM"
+      },
+      "plugin": "ep_cursortrace",
+      "full_name": "ep_cursortrace/ep_cursortrace"
+    },
+    {
+      "name": "ep_font_color",
+      "client_hooks": {
+        "postAceInit": "ep_font_color/static/js/index:postAceInit",
+        "aceInitialized": "ep_font_color/static/js/index:aceInitialized",
+        "aceEditEvent": "ep_font_color/static/js/index:aceEditEvent",
+        "aceEditorCSS": "ep_font_color/static/js/index:aceEditorCSS",
+        "aceCreateDomLine": "ep_font_color/static/js/index:aceCreateDomLine",
+        "postToolbarInit": "ep_font_color/static/js/index:postToolbarInit",
+        "aceAttribsToClasses": "ep_font_color/static/js/index:aceAttribsToClasses",
+        "collectContentPre": "ep_font_color/static/js/index:collectContentPre"
+      },
+      "toolbar_buttons": [
+        {
+          "key": "fontColor",
+          "title": "ep_font_color.color",
+          "icon": "buttonicon ep_font_color_icon",
+          "group": "left",
+          "type": "select",
+          "selectClass": "color-selection",
+          "options": [
+            {
+              "title": "ep_font_color.black",
+              "value": "0"
+            },
+            {
+              "title": "ep_font_color.red",
+              "value": "1"
+            },
+            {
+              "title": "ep_font_color.green",
+              "value": "2"
+            },
+            {
+              "title": "ep_font_color.blue",
+              "value": "3"
+            },
+            {
+              "title": "ep_font_color.yellow",
+              "value": "4"
+            },
+            {
+              "title": "ep_font_color.orange",
+              "value": "5"
+            }
+          ]
+        }
+      ],
+      "plugin": "ep_font_color",
+      "full_name": "ep_font_color/ep_font_color"
+    },
+    {
+      "name": "ep_font_family",
+      "client_hooks": {
+        "postAceInit": "ep_font_family/static/js/index:postAceInit",
+        "aceInitialized": "ep_font_family/static/js/index:aceInitialized",
+        "aceEditEvent": "ep_font_family/static/js/index:aceEditEvent",
+        "aceEditorCSS": "ep_font_family/static/js/index:aceEditorCSS",
+        "aceCreateDomLine": "ep_font_family/static/js/index:aceCreateDomLine",
+        "postToolbarInit": "ep_font_family/static/js/index:postToolbarInit",
+        "aceAttribsToClasses": "ep_font_family/static/js/index:aceAttribsToClasses",
+        "collectContentPre": "ep_font_family/static/js/index:collectContentPre"
+      },
+      "toolbar_buttons": [
+        {
+          "key": "fontFamily",
+          "title": "ep_font_family.family",
+          "icon": "buttonicon ep_font_family_icon",
+          "group": "left",
+          "type": "select",
+          "selectClass": "font-family-selection",
+          "options": [
+            {
+              "title": "Arial",
+              "value": "0"
+            },
+            {
+              "title": "Avant Garde",
+              "value": "1"
+            },
+            {
+              "title": "Bookman",
+              "value": "2"
+            },
+            {
+              "title": "Calibri",
+              "value": "3"
+            },
+            {
+              "title": "Courier",
+              "value": "4"
+            },
+            {
+              "title": "Garamond",
+              "value": "5"
+            },
+            {
+              "title": "Helvetica",
+              "value": "6"
+            },
+            {
+              "title": "Monospace",
+              "value": "7"
+            },
+            {
+              "title": "Palatino",
+              "value": "8"
+            },
+            {
+              "title": "Times New Roman",
+              "value": "9"
+            }
+          ]
+        }
+      ],
+      "plugin": "ep_font_family",
+      "full_name": "ep_font_family/ep_font_family"
+    },
+    {
+      "name": "ep_font_size",
+      "client_hooks": {
+        "postAceInit": "ep_font_size/static/js/index:postAceInit",
+        "aceInitialized": "ep_font_size/static/js/index:aceInitialized",
+        "aceEditEvent": "ep_font_size/static/js/index:aceEditEvent",
+        "aceEditorCSS": "ep_font_size/static/js/index:aceEditorCSS",
+        "aceCreateDomLine": "ep_font_size/static/js/index:aceCreateDomLine",
+        "postToolbarInit": "ep_font_size/static/js/index:postToolbarInit",
+        "aceAttribsToClasses": "ep_font_size/static/js/index:aceAttribsToClasses",
+        "collectContentPre": "ep_font_size/static/js/index:collectContentPre"
+      },
+      "toolbar_buttons": [
+        {
+          "key": "fontSize",
+          "title": "ep_font_size.size",
+          "icon": "buttonicon ep_font_size_icon",
+          "group": "left",
+          "type": "select",
+          "selectClass": "size-selection",
+          "options": [
+            {
+              "title": "8",
+              "value": "0"
+            },
+            {
+              "title": "9",
+              "value": "1"
+            },
+            {
+              "title": "10",
+              "value": "2"
+            },
+            {
+              "title": "11",
+              "value": "3"
+            },
+            {
+              "title": "12",
+              "value": "4"
+            },
+            {
+              "title": "13",
+              "value": "5"
+            },
+            {
+              "title": "14",
+              "value": "6"
+            },
+            {
+              "title": "16",
+              "value": "7"
+            },
+            {
+              "title": "18",
+              "value": "8"
+            },
+            {
+              "title": "20",
+              "value": "9"
+            },
+            {
+              "title": "24",
+              "value": "10"
+            },
+            {
+              "title": "28",
+              "value": "11"
+            },
+            {
+              "title": "36",
+              "value": "12"
+            },
+            {
+              "title": "48",
+              "value": "13"
+            },
+            {
+              "title": "60",
+              "value": "14"
+            }
+          ]
+        }
+      ],
+      "plugin": "ep_font_size",
+      "full_name": "ep_font_size/ep_font_size"
     },
     {
       "name": "main",
@@ -311,6 +569,23 @@
       "full_name": "ep_markdown/ep_markdown"
     },
     {
+      "name": "ep_print",
+      "client_hooks": {
+        "postToolbarInit": "ep_print/static/js/index:postToolbarInit"
+      },
+      "toolbar_buttons": [
+        {
+          "key": "print",
+          "title": "ep_print.title",
+          "icon": "buttonicon-print",
+          "group": "right",
+          "type": "button"
+        }
+      ],
+      "plugin": "ep_print",
+      "full_name": "ep_print/ep_print"
+    },
+    {
       "name": "ep_spellcheck",
       "settings_menu_items": [
         {
@@ -324,6 +599,22 @@
       },
       "plugin": "ep_spellcheck",
       "full_name": "ep_spellcheck/ep_spellcheck"
+    },
+    {
+      "name": "ep_table_of_contents",
+      "client_hooks": {
+        "postAceInit": "ep_table_of_contents/static/js/index:postAceInit",
+        "aceEditEvent": "ep_table_of_contents/static/js/index:aceEditEvent"
+      },
+      "settings_menu_items": [
+        {
+          "key": "toc",
+          "title": "ep_table_of_contents.toc.title",
+          "id": "options-toc"
+        }
+      ],
+      "plugin": "ep_table_of_contents",
+      "full_name": "ep_table_of_contents/ep_table_of_contents"
     }
   ]
 }

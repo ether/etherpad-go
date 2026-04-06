@@ -1,9 +1,29 @@
 package db
 
 import (
+	"time"
+
 	"github.com/ether/etherpad-go/lib/models/db"
 	session2 "github.com/ether/etherpad-go/lib/models/session"
 )
+
+type OAuthTokenRow struct {
+	Signature     string
+	ClientID      string
+	RequestID     string
+	Scopes        string
+	GrantedScopes string
+	FormData      string
+	SessionData   string
+	Active        bool
+	RequestedAt   time.Time
+	ExpiresAt     time.Time
+}
+
+type OAuthRefreshTokenRow struct {
+	OAuthTokenRow
+	AccessTokenSignature string
+}
 
 type PadMethods interface {
 	DoesPadExist(padID string) (*bool, error)
@@ -58,9 +78,38 @@ type ServerMethods interface {
 }
 
 type OIDCMethods interface {
+	// Existing key-value methods (keep for signing key storage)
 	GetOIDCStorageValue(key string) (*string, error)
 	SetOIDCStorageValue(key string, payload string) error
 	DeleteOIDCStorageValue(key string) error
+
+	// Access tokens
+	CreateAccessToken(signature, clientID, requestID, scopes, grantedScopes, formData, sessionData string, requestedAt, expiresAt time.Time) error
+	GetAccessToken(signature string) (*OAuthTokenRow, error)
+	DeleteAccessToken(signature string) error
+	DeleteAccessTokensByRequestID(requestID string) error
+
+	// Refresh tokens
+	CreateRefreshToken(signature, clientID, requestID, scopes, grantedScopes, formData, sessionData string, active bool, accessTokenSignature string, requestedAt, expiresAt time.Time) error
+	GetRefreshToken(signature string) (*OAuthRefreshTokenRow, error)
+	DeleteRefreshToken(signature string) error
+	RevokeRefreshToken(signature string) error
+	RevokeRefreshTokensByRequestID(requestID string) error
+
+	// Auth codes
+	CreateAuthCode(signature, clientID, requestID, scopes, grantedScopes, formData, sessionData string, requestedAt, expiresAt time.Time) error
+	GetAuthCode(signature string) (*OAuthTokenRow, error)
+	InvalidateAuthCode(signature string) error
+
+	// PKCE
+	CreatePKCE(signature, clientID, requestID, scopes, grantedScopes, formData, sessionData string, requestedAt, expiresAt time.Time) error
+	GetPKCE(signature string) (*OAuthTokenRow, error)
+	DeletePKCE(signature string) error
+
+	// OIDC Sessions
+	CreateOIDCSession(signature, clientID, requestID, scopes, grantedScopes, formData, sessionData string, requestedAt, expiresAt time.Time) error
+	GetOIDCSession(signature string) (*OAuthTokenRow, error)
+	DeleteOIDCSession(signature string) error
 }
 
 type DataStore interface {

@@ -46,6 +46,7 @@ export const padconnectionstatus = {
       'deleted',
       'disconnected',
       'initsocketfail',
+      'kicked',
       'looping',
       'rateLimited',
       'rejected',

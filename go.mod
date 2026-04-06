@@ -22,7 +22,6 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/jackc/pgx/v5 v5.9.1
 	github.com/ledongthuc/pdf v0.0.0-20250511090121-5959a4027728
-	github.com/maxence-charriere/go-app/v10 v10.1.11
 	github.com/ory/fosite v0.49.0
 	github.com/pdfcpu/pdfcpu v0.11.1
 	github.com/prometheus/client_golang v1.23.2

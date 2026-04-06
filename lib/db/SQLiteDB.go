@@ -1069,6 +1069,173 @@ func (d SQLiteDB) DeleteOIDCStorageValue(key string) error {
 	return err
 }
 
+// ============== OAUTH TOKEN TABLE METHODS ==============
+
+// Access tokens
+
+func (d SQLiteDB) CreateAccessToken(signature, clientID, requestID, scopes, grantedScopes, formData, sessionData string, requestedAt, expiresAt time.Time) error {
+	_, err := d.sqlDB.Exec(
+		`INSERT INTO oauth_access_tokens (signature, client_id, request_id, scopes, granted_scopes, form_data, session_data, requested_at, expires_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		signature, clientID, requestID, scopes, grantedScopes, formData, sessionData, requestedAt, expiresAt)
+	return err
+}
+
+func (d SQLiteDB) GetAccessToken(signature string) (*OAuthTokenRow, error) {
+	row := d.sqlDB.QueryRow(
+		`SELECT signature, client_id, request_id, scopes, granted_scopes, form_data, session_data, requested_at, expires_at
+		 FROM oauth_access_tokens WHERE signature = ?`, signature)
+	var t OAuthTokenRow
+	err := row.Scan(&t.Signature, &t.ClientID, &t.RequestID, &t.Scopes, &t.GrantedScopes, &t.FormData, &t.SessionData, &t.RequestedAt, &t.ExpiresAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &t, nil
+}
+
+func (d SQLiteDB) DeleteAccessToken(signature string) error {
+	_, err := d.sqlDB.Exec("DELETE FROM oauth_access_tokens WHERE signature = ?", signature)
+	return err
+}
+
+func (d SQLiteDB) DeleteAccessTokensByRequestID(requestID string) error {
+	_, err := d.sqlDB.Exec("DELETE FROM oauth_access_tokens WHERE request_id = ?", requestID)
+	return err
+}
+
+// Refresh tokens
+
+func (d SQLiteDB) CreateRefreshToken(signature, clientID, requestID, scopes, grantedScopes, formData, sessionData string, active bool, accessTokenSignature string, requestedAt, expiresAt time.Time) error {
+	_, err := d.sqlDB.Exec(
+		`INSERT INTO oauth_refresh_tokens (signature, client_id, request_id, scopes, granted_scopes, form_data, session_data, active, access_token_signature, requested_at, expires_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		signature, clientID, requestID, scopes, grantedScopes, formData, sessionData, active, accessTokenSignature, requestedAt, expiresAt)
+	return err
+}
+
+func (d SQLiteDB) GetRefreshToken(signature string) (*OAuthRefreshTokenRow, error) {
+	row := d.sqlDB.QueryRow(
+		`SELECT signature, client_id, request_id, scopes, granted_scopes, form_data, session_data, active, access_token_signature, requested_at, expires_at
+		 FROM oauth_refresh_tokens WHERE signature = ?`, signature)
+	var t OAuthRefreshTokenRow
+	err := row.Scan(&t.Signature, &t.ClientID, &t.RequestID, &t.Scopes, &t.GrantedScopes, &t.FormData, &t.SessionData, &t.Active, &t.AccessTokenSignature, &t.RequestedAt, &t.ExpiresAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &t, nil
+}
+
+func (d SQLiteDB) DeleteRefreshToken(signature string) error {
+	_, err := d.sqlDB.Exec("DELETE FROM oauth_refresh_tokens WHERE signature = ?", signature)
+	return err
+}
+
+func (d SQLiteDB) RevokeRefreshToken(signature string) error {
+	_, err := d.sqlDB.Exec("UPDATE oauth_refresh_tokens SET active = false WHERE signature = ?", signature)
+	return err
+}
+
+func (d SQLiteDB) RevokeRefreshTokensByRequestID(requestID string) error {
+	_, err := d.sqlDB.Exec("UPDATE oauth_refresh_tokens SET active = false WHERE request_id = ?", requestID)
+	return err
+}
+
+// Auth codes
+
+func (d SQLiteDB) CreateAuthCode(signature, clientID, requestID, scopes, grantedScopes, formData, sessionData string, requestedAt, expiresAt time.Time) error {
+	_, err := d.sqlDB.Exec(
+		`INSERT INTO oauth_auth_codes (signature, client_id, request_id, scopes, granted_scopes, form_data, session_data, requested_at, expires_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		signature, clientID, requestID, scopes, grantedScopes, formData, sessionData, requestedAt, expiresAt)
+	return err
+}
+
+func (d SQLiteDB) GetAuthCode(signature string) (*OAuthTokenRow, error) {
+	row := d.sqlDB.QueryRow(
+		`SELECT signature, client_id, request_id, scopes, granted_scopes, form_data, session_data, active, requested_at, expires_at
+		 FROM oauth_auth_codes WHERE signature = ?`, signature)
+	var t OAuthTokenRow
+	err := row.Scan(&t.Signature, &t.ClientID, &t.RequestID, &t.Scopes, &t.GrantedScopes, &t.FormData, &t.SessionData, &t.Active, &t.RequestedAt, &t.ExpiresAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &t, nil
+}
+
+func (d SQLiteDB) InvalidateAuthCode(signature string) error {
+	_, err := d.sqlDB.Exec("UPDATE oauth_auth_codes SET active = false WHERE signature = ?", signature)
+	return err
+}
+
+// PKCE
+
+func (d SQLiteDB) CreatePKCE(signature, clientID, requestID, scopes, grantedScopes, formData, sessionData string, requestedAt, expiresAt time.Time) error {
+	_, err := d.sqlDB.Exec(
+		`INSERT INTO oauth_pkce (signature, client_id, request_id, scopes, granted_scopes, form_data, session_data, requested_at, expires_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		signature, clientID, requestID, scopes, grantedScopes, formData, sessionData, requestedAt, expiresAt)
+	return err
+}
+
+func (d SQLiteDB) GetPKCE(signature string) (*OAuthTokenRow, error) {
+	row := d.sqlDB.QueryRow(
+		`SELECT signature, client_id, request_id, scopes, granted_scopes, form_data, session_data, requested_at, expires_at
+		 FROM oauth_pkce WHERE signature = ?`, signature)
+	var t OAuthTokenRow
+	err := row.Scan(&t.Signature, &t.ClientID, &t.RequestID, &t.Scopes, &t.GrantedScopes, &t.FormData, &t.SessionData, &t.RequestedAt, &t.ExpiresAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &t, nil
+}
+
+func (d SQLiteDB) DeletePKCE(signature string) error {
+	_, err := d.sqlDB.Exec("DELETE FROM oauth_pkce WHERE signature = ?", signature)
+	return err
+}
+
+// OIDC Sessions
+
+func (d SQLiteDB) CreateOIDCSession(signature, clientID, requestID, scopes, grantedScopes, formData, sessionData string, requestedAt, expiresAt time.Time) error {
+	_, err := d.sqlDB.Exec(
+		`INSERT INTO oauth_oidc_sessions (signature, client_id, request_id, scopes, granted_scopes, form_data, session_data, requested_at, expires_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		signature, clientID, requestID, scopes, grantedScopes, formData, sessionData, requestedAt, expiresAt)
+	return err
+}
+
+func (d SQLiteDB) GetOIDCSession(signature string) (*OAuthTokenRow, error) {
+	row := d.sqlDB.QueryRow(
+		`SELECT signature, client_id, request_id, scopes, granted_scopes, form_data, session_data, requested_at, expires_at
+		 FROM oauth_oidc_sessions WHERE signature = ?`, signature)
+	var t OAuthTokenRow
+	err := row.Scan(&t.Signature, &t.ClientID, &t.RequestID, &t.Scopes, &t.GrantedScopes, &t.FormData, &t.SessionData, &t.RequestedAt, &t.ExpiresAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &t, nil
+}
+
+func (d SQLiteDB) DeleteOIDCSession(signature string) error {
+	_, err := d.sqlDB.Exec("DELETE FROM oauth_oidc_sessions WHERE signature = ?", signature)
+	return err
+}
+
 // ============== LIFECYCLE ==============
 
 func (d SQLiteDB) Close() error {

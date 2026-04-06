@@ -48,17 +48,9 @@ jobs:
         run: go install github.com/a-h/templ/cmd/templ@latest
       - name: Generate templ
         run: templ generate
-      - name: Build admin WASM
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path assets/js/admin | Out-Null
-          $goroot = go env GOROOT
-          Copy-Item (Join-Path $goroot 'lib/wasm/wasm_exec.js') 'assets/js/admin/wasm_exec.js' -Force
-          $env:GOOS = 'js'
-          $env:GOARCH = 'wasm'
-          go build -o assets/js/admin/admin.wasm ./admin/wasm
-          Remove-Item Env:GOOS -ErrorAction SilentlyContinue
-          Remove-Item Env:GOARCH -ErrorAction SilentlyContinue
+      - name: Build admin
+        run: pnpm build
+        working-directory: ./admin
       - name: Build app
         run: go build -o etherpad-go
       - name: Prepare built assets
@@ -153,17 +145,9 @@ jobs:
         run: go install github.com/a-h/templ/cmd/templ@latest
       - name: Generate templ
         run: templ generate
-      - name: Build admin WASM
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path assets/js/admin | Out-Null
-          $goroot = go env GOROOT
-          Copy-Item (Join-Path $goroot 'lib/wasm/wasm_exec.js') 'assets/js/admin/wasm_exec.js' -Force
-          $env:GOOS = 'js'
-          $env:GOARCH = 'wasm'
-          go build -o assets/js/admin/admin.wasm ./admin/wasm
-          Remove-Item Env:GOOS -ErrorAction SilentlyContinue
-          Remove-Item Env:GOARCH -ErrorAction SilentlyContinue
+      - name: Build admin
+        run: pnpm build
+        working-directory: ./admin
       - name: Build app
         run: go build -o etherpad-go
       - name: Install Playwright browsers

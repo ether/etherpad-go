@@ -2,6 +2,7 @@ package ws
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/ether/etherpad-go/lib/db"
@@ -59,6 +60,34 @@ func TestAdminMessageHandler_AllMethods(t *testing.T) {
 		testutils.TestRunConfig{
 			Name: "Handle checkUpdates message",
 			Test: testHandleCheckUpdates,
+		},
+		testutils.TestRunConfig{
+			Name: "Handle getConnections",
+			Test: testGetConnections,
+		},
+		testutils.TestRunConfig{
+			Name: "Handle getSystemInfo",
+			Test: testGetSystemInfo,
+		},
+		testutils.TestRunConfig{
+			Name: "Handle getPadContent",
+			Test: testGetPadContent,
+		},
+		testutils.TestRunConfig{
+			Name: "Handle searchPadContent",
+			Test: testSearchPadContent,
+		},
+		testutils.TestRunConfig{
+			Name: "Handle bulkDeletePads",
+			Test: testBulkDeletePads,
+		},
+		testutils.TestRunConfig{
+			Name: "Handle kickUser",
+			Test: testKickUser,
+		},
+		testutils.TestRunConfig{
+			Name: "Handle saveSettings",
+			Test: testSaveSettings,
 		},
 	)
 	testDb.StartTestDBHandler()
@@ -449,6 +478,250 @@ func testHandleDeletePad(t *testing.T, ds testutils.TestDataStore) {
 	assert.NoError(t, json.Unmarshal(ds.MockWebSocket.Data[0].Data, &resp))
 	assert.Equal(t, "results:deletePad", resp[0])
 	assert.Equal(t, "existingPad", resp[1])
+}
+
+func testGetConnections(t *testing.T, ds testutils.TestDataStore) {
+	hub := ws.NewHub()
+	settingsToLoad := settings.Displayed
+	client := &ws.Client{
+		Hub:       hub,
+		Conn:      ds.MockWebSocket,
+		Send:      make(chan []byte, 256),
+		Room:      "test-pad",
+		SessionId: "session123",
+		Handler:   nil,
+	}
+
+	wg := startMockWritePump(client, ds.MockWebSocket)
+
+	getConnectionsMessage := admin.EventMessage{
+		Event: "getConnections",
+		Data:  json.RawMessage(`{}`),
+	}
+	ds.AdminMessageHandler.HandleMessage(getConnectionsMessage, &settingsToLoad, client)
+	wg.Wait()
+
+	assert.Len(t, ds.MockWebSocket.Data, 1)
+	var resp = make([]interface{}, 2)
+	assert.NoError(t, json.Unmarshal(ds.MockWebSocket.Data[0].Data, &resp))
+	assert.Equal(t, "results:getConnections", resp[0])
+	resultMap := resp[1].(map[string]interface{})
+	_, hasConnections := resultMap["connections"]
+	assert.True(t, hasConnections)
+}
+
+func testGetSystemInfo(t *testing.T, ds testutils.TestDataStore) {
+	hub := ws.NewHub()
+	settingsToLoad := settings.Displayed
+	client := &ws.Client{
+		Hub:       hub,
+		Conn:      ds.MockWebSocket,
+		Send:      make(chan []byte, 256),
+		Room:      "test-pad",
+		SessionId: "session123",
+		Handler:   nil,
+	}
+
+	wg := startMockWritePump(client, ds.MockWebSocket)
+
+	getSystemInfoMessage := admin.EventMessage{
+		Event: "getSystemInfo",
+		Data:  json.RawMessage(`{}`),
+	}
+	ds.AdminMessageHandler.HandleMessage(getSystemInfoMessage, &settingsToLoad, client)
+	wg.Wait()
+
+	assert.Len(t, ds.MockWebSocket.Data, 1)
+	var resp = make([]interface{}, 2)
+	assert.NoError(t, json.Unmarshal(ds.MockWebSocket.Data[0].Data, &resp))
+	assert.Equal(t, "results:getSystemInfo", resp[0])
+	resultMap := resp[1].(map[string]interface{})
+	_, hasMemAlloc := resultMap["memAlloc"]
+	assert.True(t, hasMemAlloc)
+	_, hasNumGoroutine := resultMap["numGoroutine"]
+	assert.True(t, hasNumGoroutine)
+	_, hasGoVersion := resultMap["goVersion"]
+	assert.True(t, hasGoVersion)
+	_, hasNumCPU := resultMap["numCPU"]
+	assert.True(t, hasNumCPU)
+	assert.Greater(t, resultMap["numGoroutine"].(float64), float64(0))
+	assert.NotEmpty(t, resultMap["goVersion"])
+}
+
+func testGetPadContent(t *testing.T, ds testutils.TestDataStore) {
+	padText := "This is the content of testpad123"
+	_, err := ds.PadManager.GetPad("testpad123", &padText, nil)
+	assert.NoError(t, err)
+
+	hub := ws.NewHub()
+	settingsToLoad := settings.Displayed
+	client := &ws.Client{
+		Hub:       hub,
+		Conn:      ds.MockWebSocket,
+		Send:      make(chan []byte, 256),
+		Room:      "test-pad",
+		SessionId: "session123",
+		Handler:   nil,
+	}
+
+	wg := startMockWritePump(client, ds.MockWebSocket)
+
+	padNameData, err := json.Marshal("testpad123")
+	assert.NoError(t, err)
+	getPadContentMessage := admin.EventMessage{
+		Event: "getPadContent",
+		Data:  padNameData,
+	}
+	ds.AdminMessageHandler.HandleMessage(getPadContentMessage, &settingsToLoad, client)
+	wg.Wait()
+
+	assert.Len(t, ds.MockWebSocket.Data, 1)
+	var resp = make([]interface{}, 2)
+	assert.NoError(t, json.Unmarshal(ds.MockWebSocket.Data[0].Data, &resp))
+	assert.Equal(t, "results:getPadContent", resp[0])
+	resultMap := resp[1].(map[string]interface{})
+	assert.Equal(t, "testpad123", resultMap["padId"])
+	assert.Contains(t, resultMap["content"], padText)
+}
+
+func testSearchPadContent(t *testing.T, ds testutils.TestDataStore) {
+	padText := "Hello unique search term World"
+	_, err := ds.PadManager.GetPad("searchpad1", &padText, nil)
+	assert.NoError(t, err)
+
+	hub := ws.NewHub()
+	settingsToLoad := settings.Displayed
+	client := &ws.Client{
+		Hub:       hub,
+		Conn:      ds.MockWebSocket,
+		Send:      make(chan []byte, 256),
+		Room:      "test-pad",
+		SessionId: "session123",
+		Handler:   nil,
+	}
+
+	wg := startMockWritePump(client, ds.MockWebSocket)
+
+	searchMessage := admin.EventMessage{
+		Event: "searchPadContent",
+		Data:  json.RawMessage(`{"query":"unique search term","limit":10}`),
+	}
+	ds.AdminMessageHandler.HandleMessage(searchMessage, &settingsToLoad, client)
+	wg.Wait()
+
+	assert.Len(t, ds.MockWebSocket.Data, 1)
+	var resp = make([]interface{}, 2)
+	assert.NoError(t, json.Unmarshal(ds.MockWebSocket.Data[0].Data, &resp))
+	assert.Equal(t, "results:searchPadContent", resp[0])
+	resultMap := resp[1].(map[string]interface{})
+	results := resultMap["results"].([]interface{})
+	assert.GreaterOrEqual(t, len(results), 1)
+	firstResult := results[0].(map[string]interface{})
+	assert.NotEmpty(t, firstResult["padId"])
+	assert.True(t, strings.Contains(firstResult["snippet"].(string), "unique search term"))
+}
+
+func testBulkDeletePads(t *testing.T, ds testutils.TestDataStore) {
+	padText1 := "bulk delete pad 1"
+	_, err := ds.PadManager.GetPad("bulkdelete1", &padText1, nil)
+	assert.NoError(t, err)
+	padText2 := "bulk delete pad 2"
+	_, err = ds.PadManager.GetPad("bulkdelete2", &padText2, nil)
+	assert.NoError(t, err)
+
+	hub := ws.NewHub()
+	settingsToLoad := settings.Displayed
+	client := &ws.Client{
+		Hub:       hub,
+		Conn:      ds.MockWebSocket,
+		Send:      make(chan []byte, 256),
+		Room:      "test-pad",
+		SessionId: "session123",
+		Handler:   nil,
+	}
+
+	wg := startMockWritePump(client, ds.MockWebSocket)
+
+	bulkDeleteMessage := admin.EventMessage{
+		Event: "bulkDeletePads",
+		Data:  json.RawMessage(`{"padNames":["bulkdelete1","bulkdelete2"]}`),
+	}
+	ds.AdminMessageHandler.HandleMessage(bulkDeleteMessage, &settingsToLoad, client)
+	wg.Wait()
+
+	assert.Len(t, ds.MockWebSocket.Data, 1)
+	var resp = make([]interface{}, 2)
+	assert.NoError(t, json.Unmarshal(ds.MockWebSocket.Data[0].Data, &resp))
+	assert.Equal(t, "results:bulkDeletePads", resp[0])
+	resultMap := resp[1].(map[string]interface{})
+	assert.Equal(t, float64(2), resultMap["deleted"])
+
+	// Verify pads no longer exist in the data store
+	_, err = ds.DS.GetPad("bulkdelete1")
+	assert.Error(t, err)
+	_, err = ds.DS.GetPad("bulkdelete2")
+	assert.Error(t, err)
+}
+
+func testKickUser(t *testing.T, ds testutils.TestDataStore) {
+	hub := ws.NewHub()
+	settingsToLoad := settings.Displayed
+	client := &ws.Client{
+		Hub:       hub,
+		Conn:      ds.MockWebSocket,
+		Send:      make(chan []byte, 256),
+		Room:      "test-pad",
+		SessionId: "session123",
+		Handler:   nil,
+	}
+
+	wg := startMockWritePump(client, ds.MockWebSocket)
+
+	kickMessage := admin.EventMessage{
+		Event: "kickUser",
+		Data:  json.RawMessage(`{"sessionId":"nonexistent"}`),
+	}
+	ds.AdminMessageHandler.HandleMessage(kickMessage, &settingsToLoad, client)
+	wg.Wait()
+
+	assert.Len(t, ds.MockWebSocket.Data, 1)
+	var resp = make([]interface{}, 2)
+	assert.NoError(t, json.Unmarshal(ds.MockWebSocket.Data[0].Data, &resp))
+	assert.Equal(t, "results:kickUser", resp[0])
+	resultMap := resp[1].(map[string]interface{})
+	assert.Equal(t, true, resultMap["success"])
+}
+
+func testSaveSettings(t *testing.T, ds testutils.TestDataStore) {
+	hub := ws.NewHub()
+	settingsToLoad := settings.Displayed
+	client := &ws.Client{
+		Hub:       hub,
+		Conn:      ds.MockWebSocket,
+		Send:      make(chan []byte, 256),
+		Room:      "test-pad",
+		SessionId: "session123",
+		Handler:   nil,
+	}
+
+	wg := startMockWritePump(client, ds.MockWebSocket)
+
+	settingsJSON := `{"title":"Test"}`
+	data, err := json.Marshal(settingsJSON)
+	assert.NoError(t, err)
+	saveSettingsMessage := admin.EventMessage{
+		Event: "saveSettings",
+		Data:  data,
+	}
+	ds.AdminMessageHandler.HandleMessage(saveSettingsMessage, &settingsToLoad, client)
+	wg.Wait()
+
+	assert.Len(t, ds.MockWebSocket.Data, 1)
+	var resp = make([]interface{}, 2)
+	assert.NoError(t, json.Unmarshal(ds.MockWebSocket.Data[0].Data, &resp))
+	assert.Equal(t, "results:saveSettings", resp[0])
+	resultMap := resp[1].(map[string]interface{})
+	assert.Equal(t, true, resultMap["success"])
 }
 
 func testHandleCheckUpdates(t *testing.T, ds testutils.TestDataStore) {

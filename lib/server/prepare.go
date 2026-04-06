@@ -5,7 +5,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strings"
 
 	"go.uber.org/zap"
 )
@@ -50,13 +49,14 @@ func PrepareServer(setupLogger *zap.SugaredLogger) {
 		setupLogger.Fatalf("Could not determine executable path: %v", err)
 	}
 
-	installDeps(setupLogger, filepath.Join(execPath, "ui"))
+	// Install dependencies for the entire workspace (ui + admin + plugins)
+	installDeps(setupLogger, execPath)
 
 	buildUI(setupLogger)
-	buildAdminWASM(setupLogger, execPath)
+	buildAdmin(setupLogger, execPath)
 	serverPath := buildServer(setupLogger)
 
-	setupLogger.Infof("Building the ui completed successfully.")
+	setupLogger.Infof("Building the ui and admin completed successfully.")
 	setupLogger.Infof("Next the actual server is compiled with the ui assets embedded.")
 
 	setupLogger.Infof("Build completed successfully. You can find the executable at %s", serverPath)
@@ -89,36 +89,16 @@ func buildUI(setupLogger *zap.SugaredLogger) {
 	}
 }
 
-func buildAdminWASM(setupLogger *zap.SugaredLogger, root string) {
-	cmd := exec.Command("go", "build", "-o", filepath.Join(root, "assets", "js", "admin", "admin.wasm"), "./admin/wasm")
-	cmd.Dir = root
-	cmd.Env = append(os.Environ(), "GOOS=js", "GOARCH=wasm")
+func buildAdmin(setupLogger *zap.SugaredLogger, root string) {
+	adminDir := filepath.Join(root, "admin")
+	cmd := exec.Command("pnpm", "build")
+	cmd.Dir = adminDir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
 
-	if err := os.MkdirAll(filepath.Join(root, "assets", "js", "admin"), 0o755); err != nil {
-		setupLogger.Fatalf("failed to create admin wasm output dir: %v", err)
-	}
-
-	goroot := os.Getenv("GOROOT")
-	if goroot == "" {
-		out, err := exec.Command("go", "env", "GOROOT").Output()
-		if err != nil {
-			setupLogger.Fatalf("failed to resolve GOROOT: %v", err)
-		}
-		goroot = strings.TrimSpace(string(out))
-	}
-	wasmExecBytes, err := os.ReadFile(filepath.Join(goroot, "lib", "wasm", "wasm_exec.js"))
-	if err != nil {
-		setupLogger.Fatalf("failed to read wasm_exec.js: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(root, "assets", "js", "admin", "wasm_exec.js"), wasmExecBytes, 0o644); err != nil {
-		setupLogger.Fatalf("failed to write wasm_exec.js: %v", err)
-	}
-
 	if err := cmd.Run(); err != nil {
-		setupLogger.Fatalf("admin wasm build failed: %v", err)
+		setupLogger.Fatalf("admin build failed: %v", err)
 	}
 }
 

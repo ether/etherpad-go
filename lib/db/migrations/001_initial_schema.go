@@ -10,6 +10,7 @@ func GetMigrations() []Migration {
 		migration001InitialSchema(),
 		migration002ServerVersion(),
 		migration003OIDCStorage(),
+		migration004OAuthTokens(),
 	}
 }
 
