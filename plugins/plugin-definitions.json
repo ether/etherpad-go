@@ -2,6 +2,7 @@
   "plugins": {
     "ep_etherpad-lite": "1.8.13",
     "ep_align": "0.0.1",
+    "ep_chat_log_join_leave": "0.0.1",
     "ep_heading": "0.0.1",
     "ep_markdown": "0.0.1",
     "ep_spellcheck": "0.0.1"
@@ -212,6 +213,14 @@
       ],
       "plugin": "ep_align",
       "full_name": "ep_align/ep_align"
+    },
+    {
+      "name": "ep_chat_log_join_leave",
+      "client_hooks": {
+        "chatNewMessage": "ep_chat_log_join_leave/static/js/index:chatNewMessage"
+      },
+      "plugin": "ep_chat_log_join_leave",
+      "full_name": "ep_chat_log_join_leave/ep_chat_log_join_leave"
     },
     {
       "name": "main",

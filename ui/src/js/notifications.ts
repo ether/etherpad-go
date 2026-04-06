@@ -70,7 +70,8 @@ export const notifications = {
     close.innerHTML = '<button class="buttonicon buttonicon-cancel" aria-label="Close notification"></button>';
     close.addEventListener('click', () => removeById(id));
 
-    item.append(content, body, close);
+    content.append(body, close);
+    item.append(content);
     container.appendChild(item);
 
     // Allow CSS transitions to pick up popup-show.

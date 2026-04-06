@@ -252,6 +252,7 @@ const alias = {
     [`${relativePath}/timeslider`]: `${moduleResolutionPath}/timeslider`,
     [`${relativePath}/socketio`]: `${moduleResolutionPath}/socketio`,
     [`${relativePath}/skin_variants`]: `${moduleResolutionPath}/skin_variants`,
+    [`${relativePath}/notifications`]: `${moduleResolutionPath}/notifications`
 };
 
 // Dynamisch Aliase für externe Plugins hinzufügen
@@ -292,7 +293,7 @@ await esbuild.buildSync({
     target: 'es2020',
     alias,
     loader:loaders,
-    sourcemap: 'inline',
+    sourcemap: true,
 });
 
 await esbuild.buildSync({
@@ -307,7 +308,7 @@ await esbuild.buildSync({
     target: 'es2020',
     alias,
     loader:loaders,
-    sourcemap: 'inline',
+    sourcemap: true,
 });
 
 await esbuild.buildSync({
@@ -322,7 +323,7 @@ await esbuild.buildSync({
     target: 'es2020',
     alias,
     loader: loaders,
-    sourcemap: 'inline',
+    sourcemap: true,
 });
 
 await esbuild.buildSync({
@@ -336,7 +337,7 @@ await esbuild.buildSync({
     metafile: true,
     target: 'es2020',
     external: ['*.woff', '*.woff2', '*.ttf', '*.eot', '*.svg', '*.png', '*.jpg', '*.gif'],
-    sourcemap: 'inline',
+    sourcemap: true,
     loader:loaders,
 })
 
@@ -352,5 +353,5 @@ await esbuild.buildSync({
     loader: loaders,
     metafile: true,
     target: 'es2020',
-    sourcemap: 'inline',
+    sourcemap: true,
 })

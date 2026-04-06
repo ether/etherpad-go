@@ -93,7 +93,7 @@ const urlRegex = (() => {
 // https://stackoverflow.com/a/68957976
 const base64url = /^(?=(?:.{4})*$)[A-Za-z0-9_-]*(?:[AQgw]==|[AEIMQUYcgkosw048]=)?$/;
 
-type JQueryNode = JQuery<HTMLElement>
+type JQueryNode = any
 const getJq = () => (typeof window !== 'undefined' ? (window as any).$ : undefined);
 const getPadRef = () => (globalThis as any).pad;
 
@@ -138,7 +138,7 @@ class PadUtils {
   warnDeprecated = (...args: any[]) => {
     if (this.warnDeprecatedFlags.disabledForTestingOnly) return;
     const err = new Error();
-    if (Error.captureStackTrace) Error.captureStackTrace(err, this.warnDeprecated);
+    if ((Error as any).captureStackTrace) (Error as any).captureStackTrace(err, this.warnDeprecated);
     err.name = '';
     // Rate limit identical deprecation warnings (as determined by the stack) to avoid log spam.
     if (typeof err.stack === 'string') {

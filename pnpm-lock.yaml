@@ -26,6 +26,8 @@ importers:
 
   plugins/ep_align: {}
 
+  plugins/ep_chat_log_join_leave: {}
+
   plugins/ep_heading: {}
 
   plugins/ep_markdown: {}

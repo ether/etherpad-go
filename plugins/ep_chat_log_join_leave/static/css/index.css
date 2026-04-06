@@ -1,0 +1,9 @@
+#chattext .ep_chat_log_join_leave-join,
+#chattext .ep_chat_log_join_leave-leave {
+  font-size: smaller;
+  font-style: italic;
+}
+
+#chattext .ep_chat_log_join_leave-name {
+  font-weight: bold;
+}

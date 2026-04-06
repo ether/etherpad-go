@@ -4,6 +4,7 @@ import (
 	"slices"
 
 	"github.com/ether/etherpad-go/lib/plugins/ep_align"
+	"github.com/ether/etherpad-go/lib/plugins/ep_chat_log_join_leave"
 	"github.com/ether/etherpad-go/lib/plugins/ep_heading"
 	"github.com/ether/etherpad-go/lib/plugins/ep_markdown"
 	"github.com/ether/etherpad-go/lib/plugins/ep_rss"
@@ -13,6 +14,7 @@ import (
 
 var RegisteredPlugins = []interfaces.EpPlugin{
 	&ep_align.EpAlignPlugin{},
+	&ep_chat_log_join_leave.EpChatLogJoinLeavePlugin{},
 	&ep_spellcheck.EpSpellcheckPlugin{},
 	&ep_markdown.EpMarkdownPlugin{},
 	&ep_rss.EPRssPlugin{},

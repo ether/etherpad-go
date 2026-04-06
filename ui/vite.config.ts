@@ -3,17 +3,17 @@ import {defineConfig} from "vite";
 import commonjs from '@rollup/plugin-commonjs';
 
 export default defineConfig(({ mode }) => {
-    let entry = '';
+    let entry: Record<string, string> = {};
     let outDir = '';
 
     if (mode === 'pad') {
-        entry = path.resolve(__dirname, 'src/pad.entry.ts')
+        entry = { pad: path.resolve(__dirname, 'src/pad.entry.ts') };
         outDir = '../assets/js/pad';
     } else if (mode === 'welcome') {
-        entry = path.resolve(__dirname, 'src/welcome.entry.ts')
+        entry = { welcome: path.resolve(__dirname, 'src/welcome.entry.ts') };
         outDir = '../assets/js/welcome';
     } else if (mode === 'timeslider') {
-        entry = path.resolve(__dirname, 'src/timeslider.entry.ts')
+        entry = { timeslider: path.resolve(__dirname, 'src/timeslider.entry.ts') };
         outDir = '../assets/js/timeslider';
     }
 
@@ -25,6 +25,11 @@ export default defineConfig(({ mode }) => {
             emptyOutDir: true,
             rollupOptions: {
                 input: entry,
+                output: {
+                    entryFileNames: 'assets/[name].js',
+                    chunkFileNames: 'assets/[name].js',
+                    assetFileNames: 'assets/[name][extname]',
+                },
             },
             commonjsOptions: {
                 transformMixedEsModules: true

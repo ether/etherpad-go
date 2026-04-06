@@ -1,0 +1,8 @@
+{
+  "name": "@etherpad/plugin-ep_chat_log_join_leave",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --project tsconfig.json --noEmit"
+  }
+}

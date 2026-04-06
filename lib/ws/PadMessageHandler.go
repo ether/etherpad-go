@@ -18,6 +18,7 @@ import (
 	"github.com/ether/etherpad-go/lib/changeset"
 	db2 "github.com/ether/etherpad-go/lib/db"
 	"github.com/ether/etherpad-go/lib/hooks"
+	"github.com/ether/etherpad-go/lib/hooks/events"
 	clientVars2 "github.com/ether/etherpad-go/lib/models/clientVars"
 	"github.com/ether/etherpad-go/lib/models/db"
 	pad2 "github.com/ether/etherpad-go/lib/models/pad"
@@ -96,6 +97,7 @@ type PadMessageHandler struct {
 	SessionStore    *SessionStore
 	hub             *Hub
 	Logger          *zap.SugaredLogger
+	hooks           *hooks.Hook
 }
 
 func NewPadMessageHandler(db db2.DataStore, hooks *hooks.Hook, padManager *pad.Manager, sessionStore *SessionStore, hub *Hub, logger *zap.SugaredLogger, uiAssets embed.FS) *PadMessageHandler {
@@ -112,6 +114,7 @@ func NewPadMessageHandler(db db2.DataStore, hooks *hooks.Hook, padManager *pad.M
 		SessionStore: sessionStore,
 		hub:          hub,
 		Logger:       logger,
+		hooks:        hooks,
 	}
 	padMessageHandler.padChannels = NewChannelOperator(&padMessageHandler)
 	return &padMessageHandler
@@ -793,6 +796,24 @@ func (p *PadMessageHandler) SendChatMessageToPadClients(session *ws.Session, cha
 	}
 }
 
+// BroadcastSystemChatToRoom sends a chat message to all clients in a pad room without saving to the database.
+// The message map is sent as-is inside a CHAT_MESSAGE COLLABROOM event.
+func (p *PadMessageHandler) BroadcastSystemChatToRoom(padId string, message map[string]any) {
+	for _, socket := range p.GetRoomSockets(padId) {
+		var arr = make([]interface{}, 2)
+		arr[0] = "message"
+		arr[1] = map[string]any{
+			"type": "COLLABROOM",
+			"data": map[string]any{
+				"type":    "CHAT_MESSAGE",
+				"message": message,
+			},
+		}
+		var marshalled, _ = json.Marshal(arr)
+		socket.SafeSend(marshalled)
+	}
+}
+
 func (p *PadMessageHandler) HandlePadDelete(client *Client, padDeleteMessage PadDelete) {
 	var session = p.SessionStore.getSession(client.SessionId)
 
@@ -1012,6 +1033,17 @@ func (p *PadMessageHandler) HandleDisconnectOfPadClient(client *Client, settings
 		var marshalled, _ = json.Marshal(arr)
 		otherSocket.SafeSend(marshalled)
 	}
+
+	// Fire userLeave hooks
+	padId := thisSession.PadId
+	authorId := thisSession.Author
+	p.hooks.ExecuteHooks("userLeave", &events.UserJoinLeaveContext{
+		PadId:    padId,
+		AuthorId: authorId,
+		BroadcastChat: func(message map[string]any) {
+			p.BroadcastSystemChatToRoom(padId, message)
+		},
+	})
 
 	p.SessionStore.removeSession(client.SessionId)
 }
@@ -1313,6 +1345,15 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 
 		client.SafeSend(marshalled)
 	}
+
+	// Fire userJoin hooks
+	p.hooks.ExecuteHooks("userJoin", &events.UserJoinLeaveContext{
+		PadId:    thisSession.PadId,
+		AuthorId: thisSession.Author,
+		BroadcastChat: func(message map[string]any) {
+			p.BroadcastSystemChatToRoom(thisSession.PadId, message)
+		},
+	})
 }
 
 func (p *PadMessageHandler) UpdatePadClients(pad *pad2.Pad) {
