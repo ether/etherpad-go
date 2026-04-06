@@ -1,0 +1,20 @@
+{
+  "parts": [
+    {
+      "name": "ep_clear_formatting",
+      "client_hooks": {
+        "postAceInit": "ep_clear_formatting/static/js/index:postAceInit",
+        "aceInitialized": "ep_clear_formatting/static/js/index:aceInitialized"
+      },
+      "toolbar_buttons": [
+        {
+          "key": "clearFormatting",
+          "title": "ep_clear_formatting.title",
+          "icon": "buttonicon-clearauthorship",
+          "group": "right",
+          "type": "button"
+        }
+      ]
+    }
+  ]
+}

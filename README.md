@@ -167,17 +167,38 @@ variables.
 
 ## Plugins
 
-Etherpad-Go supports plugins, but the plugin system is still evolving.
+Etherpad-Go ships with 15 built-in plugins ported from the original Etherpad ecosystem.
+All plugins are disabled by default and can be enabled individually.
 
-Supported plugins can be found in the
-[plugins directory](./plugins).
+### Available Plugins
 
-Enable plugins via `settings.json`:
+| Plugin | Description |
+|--------|-------------|
+| **ep_align** | Text alignment (left, center, right, justify) |
+| **ep_author_hover** | Show author name on text hover |
+| **ep_chat_log_join_leave** | Log user join/leave events in the chat |
+| **ep_clear_formatting** | Remove all formatting from selected text |
+| **ep_cursortrace** | Show other users' cursor positions in real time |
+| **ep_font_color** | Change text color (6 colors) |
+| **ep_font_family** | Change font family (10 fonts) |
+| **ep_font_size** | Change font size (15 sizes from 8px to 60px) |
+| **ep_heading** | Heading levels (h1-h4) |
+| **ep_markdown** | Markdown editing support |
+| **ep_print** | Print the pad |
+| **ep_rss** | RSS feed for pad content |
+| **ep_spellcheck** | Browser spell checking |
+| **ep_table_of_contents** | Sidebar table of contents from headings |
+
+### Enabling Plugins
+
+Via `settings.json`:
 
 ```json
 {
   "plugins": {
-    "ep_align": { "enabled": true }
+    "ep_align": { "enabled": true },
+    "ep_cursortrace": { "enabled": true },
+    "ep_font_color": { "enabled": true }
   }
 }
 ```
@@ -186,6 +207,7 @@ Or via environment variables:
 
 ```text
 ETHERPAD_PLUGINS_EP_ALIGN_ENABLED=true
+ETHERPAD_PLUGINS_EP_CURSORTRACE_ENABLED=true
 ```
 
 ---

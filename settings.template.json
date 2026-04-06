@@ -146,7 +146,16 @@
     "ep_align": {
       "enabled": false
     },
+    "ep_author_hover": {
+      "enabled": false
+    },
     "ep_chat_log_join_leave": {
+      "enabled": false
+    },
+    "ep_clear_formatting": {
+      "enabled": false
+    },
+    "ep_cursortrace": {
       "enabled": false
     },
     "ep_font_color": {
@@ -158,10 +167,13 @@
     "ep_font_size": {
       "enabled": false
     },
-    "ep_spellcheck": {
+    "ep_markdown": {
       "enabled": false
     },
-    "ep_markdown": {
+    "ep_print": {
+      "enabled": false
+    },
+    "ep_spellcheck": {
       "enabled": false
     },
     "ep_table_of_contents": {

@@ -1,0 +1,47 @@
+@media print {
+  /* Hide toolbar and UI elements */
+  #editbar,
+  #editorcontainerbox .menu_left,
+  #editorcontainerbox .menu_right,
+  .toolbar,
+  .popup,
+  #myuser,
+  #chatbox,
+  #chaticon,
+  #users,
+  #mycolorpicker,
+  #revision,
+  #options-stickychat,
+  #options-chatandusers,
+  #options-usercolor,
+  .gritter-item-wrapper,
+  #sidebar,
+  #rightside,
+  #leftside {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  /* Show only the pad content */
+  #editorcontainer {
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    position: static !important;
+    top: 0 !important;
+    left: 0 !important;
+  }
+
+  #editorcontainerbox {
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+  }
+
+  body {
+    background: white !important;
+  }
+
+  iframe {
+    border: none !important;
+  }
+}

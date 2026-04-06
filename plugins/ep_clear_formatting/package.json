@@ -1,0 +1,8 @@
+{
+  "name": "@etherpad/plugin-ep_clear_formatting",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --project tsconfig.json --noEmit"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "parts": [
+    {
+      "name": "ep_cursortrace",
+      "client_hooks": {
+        "aceEditorCSS": "ep_cursortrace/static/js/index:aceEditorCSS",
+        "aceInitInnerdocbodyHead": "ep_cursortrace/static/js/index:aceInitInnerdocbodyHead",
+        "postAceInit": "ep_cursortrace/static/js/index:postAceInit",
+        "aceEditEvent": "ep_cursortrace/static/js/index:aceEditEvent",
+        "handleClientMessage_CUSTOM": "ep_cursortrace/static/js/index:handleClientMessage_CUSTOM"
+      }
+    }
+  ]
+}
