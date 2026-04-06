@@ -16,35 +16,30 @@ export default defineConfig({
   testDir: '.',
   testMatch: 'specs/**/*.spec.ts',
   forbidOnly: isCI,
-  retries: isCI ? 2 : 0,
-  // Reduce workers in CI to avoid overwhelming the server
-  workers: isCI ? 2 : '75%',
+  retries: isCI ? 1 : 0,
+  workers: isCI ? 4 : '75%',
   reporter: isCI ? [['html', { open: 'never' }], ['github']] : 'html',
-  timeout: isCI ? 120000 : 60000,
+  timeout: isCI ? 60000 : 30000,
   expect: {
-    timeout: isCI ? 20000 : 10000,
+    timeout: isCI ? 10000 : 5000,
   },
   use: {
     baseURL: 'http://localhost:9001',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
-    actionTimeout: isCI ? 20000 : 10000,
-    navigationTimeout: isCI ? 60000 : 30000,
+    actionTimeout: isCI ? 10000 : 5000,
+    navigationTimeout: isCI ? 30000 : 15000,
   },
   projects: [
-      ...(isWindows ? [] : [{
+    {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
-    }]),
-      ...(isLinux ? [] : [{
+    },
+    // Firefox only on CI Linux (most stable there), skip on Windows
+    ...(isWindows ? [] : isCI && !isLinux ? [] : [{
       name: 'firefox',
       use: { ...devices['Desktop Firefox'] },
-      }]),
-    // Only run webkit on macOS where it's most stable
-    ...(isMac ? [{
-      name: 'webkit',
-      use: { ...devices['Desktop Safari'] },
-    }] : []),
+    }]),
   ],
   webServer: {
     command: isWindows ? 'cmd /c "go build -o etherpad-go.exe . && etherpad-go.exe"' : 'go build -o etherpad-go . && ./etherpad-go',
