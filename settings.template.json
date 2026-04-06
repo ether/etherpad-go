@@ -146,6 +146,9 @@
     "ep_align": {
       "enabled": false
     },
+    "ep_chat_log_join_leave": {
+      "enabled": false
+    },
     "ep_spellcheck": {
       "enabled": false
     },
