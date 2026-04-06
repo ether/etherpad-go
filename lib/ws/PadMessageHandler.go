@@ -19,7 +19,6 @@ import (
 	db2 "github.com/ether/etherpad-go/lib/db"
 	"github.com/ether/etherpad-go/lib/hooks"
 	"github.com/ether/etherpad-go/lib/hooks/events"
-	clientVars2 "github.com/ether/etherpad-go/lib/models/clientVars"
 	"github.com/ether/etherpad-go/lib/models/db"
 	pad2 "github.com/ether/etherpad-go/lib/models/pad"
 	"github.com/ether/etherpad-go/lib/models/webaccess"
@@ -29,7 +28,6 @@ import (
 	"github.com/ether/etherpad-go/lib/settings/clientVars"
 	"github.com/ether/etherpad-go/lib/utils"
 	"github.com/ether/etherpad-go/lib/ws/constants"
-	"github.com/gofiber/fiber/v2"
 	"go.uber.org/zap"
 )
 
@@ -305,7 +303,7 @@ func (p *PadMessageHandler) ComposePadChangesets(retrievedPad *pad2.Pad, startNu
 	return startChangeset, nil
 }
 
-func (p *PadMessageHandler) HandleMessage(message any, client *Client, ctx *fiber.Ctx, retrievedSettings *settings.Settings, logger *zap.SugaredLogger) {
+func (p *PadMessageHandler) HandleMessage(message any, client *Client, retrievedSettings *settings.Settings, logger *zap.SugaredLogger) {
 	var isSessionInfo = p.SessionStore.hasSession(client.SessionId)
 
 	if !isSessionInfo {
@@ -348,21 +346,21 @@ func (p *PadMessageHandler) HandleMessage(message any, client *Client, ctx *fibe
 
 	if auth == nil {
 		var ip string
-		if ctx == nil {
+		if client.ClientIP == "" {
 			ip = "TEST"
 		} else if settings.Displayed.DisableIPLogging {
 			ip = "ANONYMOUS"
 		} else {
-			ip = ctx.IP()
+			ip = client.ClientIP
 		}
 		println("pre-CLIENT_READY message from IP " + ip)
 		return
 	}
 
 	var user *webaccess.SocketClientRequest
-	if ctx != nil {
+	if client.WebAccessUser != nil {
 		var okConv bool
-		user, okConv = ctx.Locals(clientVars2.WebAccessStore).(*webaccess.SocketClientRequest)
+		user, okConv = client.WebAccessUser.(*webaccess.SocketClientRequest)
 		if !okConv {
 			user = nil
 		}
@@ -997,7 +995,7 @@ func (p *PadMessageHandler) HandleDisconnectOfPadClient(client *Client, settings
 	if settings.DisableIPLogging {
 		logger.Infof("[LEAVE] pad:%s socket:%s IP:ANONYMOUS ", thisSession.PadId, client.SessionId)
 	} else {
-		logger.Infof("[LEAVE] pad:%s socket:%s IP:%s ", thisSession.PadId, client.SessionId, client.Ctx.IP())
+		logger.Infof("[LEAVE] pad:%s socket:%s IP:%s ", thisSession.PadId, client.SessionId, client.ClientIP)
 	}
 
 	var roomSockets = p.GetRoomSockets(thisSession.PadId)
@@ -1081,7 +1079,7 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 		loggerStr += " IP:ANONYMOUS "
 	} else {
 		loggerStr += " IP:%s "
-		argsForLogger = append(argsForLogger, client.Ctx.IP())
+		argsForLogger = append(argsForLogger, client.ClientIP)
 	}
 
 	logger.Infof(loggerStr, argsForLogger...)

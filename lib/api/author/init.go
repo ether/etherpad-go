@@ -6,7 +6,7 @@ import (
 	"github.com/ether/etherpad-go/lib"
 	"github.com/ether/etherpad-go/lib/api/errors"
 	"github.com/ether/etherpad-go/lib/author"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 // CreateDto represents the request to create an author
@@ -48,7 +48,7 @@ type PadsResponse struct {
 // @Security BearerAuth
 // @Router /admin/api/author [post]
 func CreateAuthor(initStore *lib.InitStore, authorManager *author.Manager) fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		var dto CreateDto
 		err := json.Unmarshal(c.Body(), &dto)
 		if err != nil {
@@ -83,9 +83,9 @@ func CreateAuthor(initStore *lib.InitStore, authorManager *author.Manager) fiber
 // @Security BearerAuth
 // @Router /admin/api/author/createIfNotExistsFor [post]
 func CreateAuthorIfNotExistsFor(initStore *lib.InitStore, authorManager *author.Manager) fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		var request CreateAuthorIfNotExistsForRequest
-		if err := c.BodyParser(&request); err != nil {
+		if err := c.Bind().Body(&request); err != nil {
 			return c.Status(400).JSON(errors.InvalidRequestError)
 		}
 		if request.AuthorMapper == "" {
@@ -122,7 +122,7 @@ func CreateAuthorIfNotExistsFor(initStore *lib.InitStore, authorManager *author.
 // @Security BearerAuth
 // @Router /admin/api/author/{authorId}/name [get]
 func GetAuthorName(initStore *lib.InitStore, authorManager *author.Manager) fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		authorId := c.Params("authorId")
 		if authorId == "" {
 			return c.Status(400).JSON(errors.NewInvalidParamError("authorId is required"))
@@ -158,7 +158,7 @@ func GetAuthorName(initStore *lib.InitStore, authorManager *author.Manager) fibe
 // @Security BearerAuth
 // @Router /admin/api/author/{authorId} [get]
 func GetAuthor(initStore *lib.InitStore, authorManager *author.Manager) fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		var authorId = c.Params("authorId")
 		if authorId == "" {
 			return c.Status(400).JSON(errors.NewInvalidParamError("authorId is required"))
@@ -190,7 +190,7 @@ func GetAuthor(initStore *lib.InitStore, authorManager *author.Manager) fiber.Ha
 // @Security BearerAuth
 // @Router /admin/api/author/{authorId}/pads [get]
 func GetAuthorPads(initStore *lib.InitStore, authorManager *author.Manager) fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		var authorId = c.Params("authorId")
 		if authorId == "" {
 			return c.Status(400).JSON(errors.NewInvalidParamError("authorId is required"))

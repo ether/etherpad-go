@@ -11,7 +11,7 @@ import (
 	apiio "github.com/ether/etherpad-go/lib/api/io"
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/test/testutils"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 )
 

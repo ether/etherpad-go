@@ -77,7 +77,6 @@ func testHandleLoadSettings(t *testing.T, ds testutils.TestDataStore) {
 		Send:      make(chan []byte, 256),
 		Room:      "test-pad",
 		SessionId: "session123",
-		Ctx:       nil,
 		Handler:   nil,
 	}
 
@@ -110,7 +109,6 @@ func testHandleCreatePadWithExistingPad(t *testing.T, ds testutils.TestDataStore
 		Send:      make(chan []byte, 256),
 		Room:      "test-pad",
 		SessionId: "session123",
-		Ctx:       nil,
 		Handler:   nil,
 	}
 
@@ -151,7 +149,6 @@ func testHandleShout(t *testing.T, ds testutils.TestDataStore) {
 		Send:      make(chan []byte, 256),
 		Room:      "test-pad",
 		SessionId: "session123",
-		Ctx:       nil,
 		Handler:   nil,
 	}
 
@@ -195,7 +192,6 @@ func testHandleCreatePadWithNoExistingPad(t *testing.T, ds testutils.TestDataSto
 		Send:      make(chan []byte, 256),
 		Room:      "test-pad",
 		SessionId: "session123",
-		Ctx:       nil,
 		Handler:   nil,
 	}
 
@@ -233,7 +229,6 @@ func testHandlePadLoad(t *testing.T, ds testutils.TestDataStore) {
 		Send:      make(chan []byte, 256),
 		Room:      "test-pad",
 		SessionId: "session123",
-		Ctx:       nil,
 		Handler:   nil,
 	}
 
@@ -284,7 +279,6 @@ func testHandlePadLoadExactPattern(t *testing.T, ds testutils.TestDataStore) {
 		Send:      make(chan []byte, 256),
 		Room:      "test-pad",
 		SessionId: "session123",
-		Ctx:       nil,
 		Handler:   nil,
 	}
 
@@ -335,7 +329,6 @@ func testHandlePadLoadFuzzyPattern(t *testing.T, ds testutils.TestDataStore) {
 		Send:      make(chan []byte, 256),
 		Room:      "test-pad",
 		SessionId: "session123",
-		Ctx:       nil,
 		Handler:   nil,
 	}
 
@@ -378,7 +371,6 @@ func testGetInstalled(t *testing.T, ds testutils.TestDataStore) {
 		Send:      make(chan []byte, 256),
 		Room:      "test-pad",
 		SessionId: "session123",
-		Ctx:       nil,
 		Handler:   nil,
 	}
 
@@ -409,7 +401,6 @@ func testHandleDeletePadNotExisting(t *testing.T, ds testutils.TestDataStore) {
 		Send:      make(chan []byte, 256),
 		Room:      "test-pad",
 		SessionId: "session123",
-		Ctx:       nil,
 		Handler:   nil,
 	}
 	padDelete := "nonExistingPad"
@@ -433,7 +424,6 @@ func testHandleDeletePad(t *testing.T, ds testutils.TestDataStore) {
 		Send:      make(chan []byte, 256),
 		Room:      "test-pad",
 		SessionId: "session123",
-		Ctx:       nil,
 		Handler:   nil,
 	}
 
@@ -472,7 +462,6 @@ func testHandleCheckUpdates(t *testing.T, ds testutils.TestDataStore) {
 		Send:      make(chan []byte, 256),
 		Room:      "test-pad",
 		SessionId: "session123",
-		Ctx:       nil,
 		Handler:   nil,
 	}
 

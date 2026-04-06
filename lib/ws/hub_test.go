@@ -5,10 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/valyala/fasthttp"
 )
 
 func TestNewHub(t *testing.T) {
@@ -29,7 +27,6 @@ func TestHub_RegisterClient(t *testing.T) {
 		Send:      make(chan []byte, 256),
 		Room:      "test-pad",
 		SessionId: "session123",
-		Ctx:       nil,
 		Handler:   nil,
 	}
 
@@ -308,10 +305,6 @@ func TestHub_ClientWithHandlers(t *testing.T) {
 
 func TestHub_ClientWithFiberContext(t *testing.T) {
 	hub := NewHub()
-	app := fiber.New()
-
-	ctx := app.AcquireCtx(&fasthttp.RequestCtx{})
-	defer app.ReleaseCtx(ctx)
 
 	client := &Client{
 		Hub:       hub,
@@ -319,7 +312,7 @@ func TestHub_ClientWithFiberContext(t *testing.T) {
 		Send:      make(chan []byte, 256),
 		Room:      "test-pad",
 		SessionId: "session1",
-		Ctx:       ctx,
+		ClientIP:  "127.0.0.1",
 	}
 
 	go hub.Run()
@@ -333,5 +326,5 @@ func TestHub_ClientWithFiberContext(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 
 	assert.Contains(t, hub.Clients, client)
-	assert.Equal(t, ctx, client.Ctx)
+	assert.Equal(t, "127.0.0.1", client.ClientIP)
 }

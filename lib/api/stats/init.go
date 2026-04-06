@@ -5,7 +5,7 @@ import (
 
 	"github.com/ether/etherpad-go/lib"
 	"github.com/ether/etherpad-go/lib/settings"
-	"github.com/gofiber/adaptor/v2"
+	"github.com/gofiber/fiber/v3/middleware/adaptor"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
