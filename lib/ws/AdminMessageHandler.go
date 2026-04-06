@@ -586,9 +586,7 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 				}
 				h.hub.ClientsRWMutex.RUnlock()
 
-				retrievedPad, err := h.padManager.GetPad(padName, nil, nil)
-				if err == nil && retrievedPad != nil {
-					retrievedPad.Remove()
+				if err := h.padMessageHandler.DeletePad(admin.PadDeleteData(padName)); err == nil {
 					deleted++
 				}
 			}

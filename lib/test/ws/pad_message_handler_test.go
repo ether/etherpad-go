@@ -1108,11 +1108,14 @@ func testKickSessionsVerifyMessage(t *testing.T, ds testutils.TestDataStore) {
 	// Check if message was sent to the Send channel
 	select {
 	case msg := <-client.Send:
-		// The message format from SendPadDelete is a direct object, not wrapped
-		var msgData map[string]interface{}
-		err := json.Unmarshal(msg, &msgData)
+		// SendPadDelete sends ["message", {"disconnect":"deleted"}]
+		var arr []interface{}
+		err := json.Unmarshal(msg, &arr)
 		require.NoError(t, err)
-		// Verify the disconnect field - it should be "deleted" for pad delete
+		require.Len(t, arr, 2)
+		assert.Equal(t, "message", arr[0])
+		msgData, ok := arr[1].(map[string]interface{})
+		require.True(t, ok)
 		assert.Equal(t, "deleted", msgData["disconnect"])
 	default:
 		assert.NotNil(t, ds.PadMessageHandler)
