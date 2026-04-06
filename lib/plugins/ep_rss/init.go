@@ -80,7 +80,7 @@ func safeTags(str string) string {
 func handleFeed(c fiber.Ctx, padManager *pad.Manager, zap *zap.SugaredLogger) error {
 	padID := c.Params("padID")
 	fullURL := c.BaseURL() + c.OriginalURL()
-	padURL := fmt.Sprintf("%s://%s/p/%s", c.Protocol(), c.Hostname(), padID)
+	padURL := fmt.Sprintf("%s://%s/p/%s", c.Scheme(), c.Hostname(), padID)
 	dateString := time.Now().UTC().Format(time.RFC1123)
 
 	var isPublished bool
