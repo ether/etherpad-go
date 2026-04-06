@@ -1,0 +1,7 @@
+{
+  "extends": "../tsconfig.base.json",
+  "include": [
+    "../typings/**/*.d.ts",
+    "./static/js/**/*.ts"
+  ]
+}

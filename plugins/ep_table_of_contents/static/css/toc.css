@@ -1,0 +1,39 @@
+#toc {
+  display: none;
+  width: 200px;
+  min-width: 200px;
+  overflow-y: auto;
+  background: #f7f7f7;
+  border-right: 1px solid #ddd;
+  padding: 8px;
+  font-size: 13px;
+}
+
+#toc.active {
+  display: block;
+}
+
+.tocItem {
+  padding: 3px 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-radius: 3px;
+}
+
+.tocItem:hover {
+  background: #e8e8e8;
+}
+
+.tocItem.activeTOC {
+  font-weight: bold;
+  background: #dde8f0;
+}
+
+.tocDepth1 { margin-left: 0; font-size: 14px; font-weight: bold; }
+.tocDepth2 { margin-left: 12px; font-size: 13px; }
+.tocDepth3 { margin-left: 24px; font-size: 12px; }
+.tocDepth4 { margin-left: 36px; font-size: 11px; }
+.tocDepth5 { margin-left: 48px; font-size: 11px; }
+.tocDepth6 { margin-left: 60px; font-size: 11px; }

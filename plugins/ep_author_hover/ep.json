@@ -1,0 +1,17 @@
+{
+  "parts": [
+    {
+      "name": "ep_author_hover",
+      "settings_menu_items": [
+        {
+          "key": "author-hover",
+          "title": "ep_author_hover.showHoverLabel",
+          "id": "options-author-hover"
+        }
+      ],
+      "client_hooks": {
+        "postAceInit": "ep_author_hover/static/js/index:postAceInit"
+      }
+    }
+  ]
+}

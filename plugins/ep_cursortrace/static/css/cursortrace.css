@@ -1,0 +1,76 @@
+.ep_cursortrace {
+  border-bottom: 5px solid red;
+}
+
+.ghettoCursorXPos {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  z-index: 99999;
+  background: red;
+  position: fixed;
+  top: 80px;
+  left: 33px;
+  margin-right: 10px;
+  line-height: 16px;
+}
+
+.caretindicator {
+  max-width: 300px;
+  padding: 1px;
+  position: absolute;
+  height: 20px;
+  opacity: 1;
+}
+
+div.stickUp::before {
+  content: "";
+  display: block;
+  width: 2px;
+  height: 28px;
+  background-color: black;
+  opacity: 0.5;
+  margin-left: -2px;
+  margin-top: -6px;
+}
+
+div.stickDown::before {
+  content: "";
+  display: block;
+  width: 2px;
+  height: 23px;
+  background-color: black;
+  opacity: 0.5;
+  margin-left: -2px;
+  margin-top: 0;
+}
+
+p.stickUp {
+  position: relative;
+  top: 2px;
+  margin-top: -18px;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+p.stickDown {
+  position: relative;
+  top: 2px;
+  margin-top: -28px;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+p.caretindicator {
+  position: relative;
+  top: 2px;
+  margin-top: -24px;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+.stickp {
+  max-width: 200px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

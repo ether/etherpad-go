@@ -1,0 +1,19 @@
+{
+  "parts": [
+    {
+      "name": "ep_print",
+      "client_hooks": {
+        "postToolbarInit": "ep_print/static/js/index:postToolbarInit"
+      },
+      "toolbar_buttons": [
+        {
+          "key": "print",
+          "title": "ep_print.title",
+          "icon": "buttonicon-print",
+          "group": "right",
+          "type": "button"
+        }
+      ]
+    }
+  ]
+}

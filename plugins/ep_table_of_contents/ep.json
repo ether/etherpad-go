@@ -1,0 +1,18 @@
+{
+  "parts": [
+    {
+      "name": "ep_table_of_contents",
+      "client_hooks": {
+        "postAceInit": "ep_table_of_contents/static/js/index:postAceInit",
+        "aceEditEvent": "ep_table_of_contents/static/js/index:aceEditEvent"
+      },
+      "settings_menu_items": [
+        {
+          "key": "toc",
+          "title": "ep_table_of_contents.toc.title",
+          "id": "options-toc"
+        }
+      ]
+    }
+  ]
+}

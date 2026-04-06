@@ -1,0 +1,39 @@
+{
+  "parts": [
+    {
+      "name": "ep_font_family",
+      "client_hooks": {
+        "postAceInit": "ep_font_family/static/js/index:postAceInit",
+        "aceInitialized": "ep_font_family/static/js/index:aceInitialized",
+        "aceEditEvent": "ep_font_family/static/js/index:aceEditEvent",
+        "aceEditorCSS": "ep_font_family/static/js/index:aceEditorCSS",
+        "aceCreateDomLine": "ep_font_family/static/js/index:aceCreateDomLine",
+        "postToolbarInit": "ep_font_family/static/js/index:postToolbarInit",
+        "aceAttribsToClasses": "ep_font_family/static/js/index:aceAttribsToClasses",
+        "collectContentPre": "ep_font_family/static/js/index:collectContentPre"
+      },
+      "toolbar_buttons": [
+        {
+          "key": "fontFamily",
+          "title": "ep_font_family.family",
+          "icon": "buttonicon ep_font_family_icon",
+          "group": "left",
+          "type": "select",
+          "selectClass": "font-family-selection",
+          "options": [
+            { "title": "Arial", "value": "0" },
+            { "title": "Avant Garde", "value": "1" },
+            { "title": "Bookman", "value": "2" },
+            { "title": "Calibri", "value": "3" },
+            { "title": "Courier", "value": "4" },
+            { "title": "Garamond", "value": "5" },
+            { "title": "Helvetica", "value": "6" },
+            { "title": "Monospace", "value": "7" },
+            { "title": "Palatino", "value": "8" },
+            { "title": "Times New Roman", "value": "9" }
+          ]
+        }
+      ]
+    }
+  ]
+}
