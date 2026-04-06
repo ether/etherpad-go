@@ -5,11 +5,11 @@ import (
 	"strings"
 
 	"github.com/ether/etherpad-go/lib"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	qrcode "github.com/skip2/go-qrcode"
 )
 
-func HandlePadQr(c *fiber.Ctx, store *lib.InitStore) error {
+func HandlePadQr(c fiber.Ctx, store *lib.InitStore) error {
 	rawPadID := c.Params("pad")
 	if rawPadID == "" {
 		return c.SendStatus(fiber.StatusNotFound)

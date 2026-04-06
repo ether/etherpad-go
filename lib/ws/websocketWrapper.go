@@ -5,7 +5,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/gorilla/websocket"
+	"github.com/gofiber/contrib/v3/websocket"
 )
 
 type WebSocketConn interface {

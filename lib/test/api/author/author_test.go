@@ -64,7 +64,7 @@ func testCreateAuthorNoName(t *testing.T, tsStore testutils.TestDataStore) {
 	marshall, _ := json.Marshal(dto)
 	req := httptest.NewRequest("POST", "/admin/api/author", bytes.NewBuffer(marshall))
 
-	resp, _ := initStore.C.Test(req, 10)
+	resp, _ := initStore.C.Test(req)
 	require.NotNil(t, resp)
 	if resp.StatusCode != 400 {
 		t.Errorf("should deny creation of author without required fields, got %d", resp.StatusCode)
@@ -75,7 +75,7 @@ func testCreateAuthorNoBody(t *testing.T, tsStore testutils.TestDataStore) {
 	author.Init(tsStore.ToInitStore())
 	req := httptest.NewRequest("POST", "/admin/api/author", nil)
 
-	resp, _ := tsStore.App.Test(req, 10)
+	resp, _ := tsStore.App.Test(req)
 	require.NotNil(t, resp)
 	if resp.StatusCode != 400 {
 		t.Errorf("should deny creation of author with nil body, got %d", resp.StatusCode)
@@ -87,7 +87,7 @@ func testGetNotExistingAuthor(t *testing.T, tsStore testutils.TestDataStore) {
 	author.Init(initStore)
 	req := httptest.NewRequest("GET", "/admin/api/author/unknownAuthorId", nil)
 
-	resp, err := initStore.C.Test(req, 5000)
+	resp, err := initStore.C.Test(req)
 	if err != nil {
 		t.Errorf("error getting not existing author: %v", err)
 	}
@@ -107,7 +107,7 @@ func testGetExistingAuthor(t *testing.T, tsStore testutils.TestDataStore) {
 	}
 	marshall, _ := json.Marshal(dto)
 	req := httptest.NewRequest("POST", "/admin/api/author", bytes.NewBuffer(marshall))
-	resp, err := initStore.C.Test(req, 5000)
+	resp, err := initStore.C.Test(req)
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 	if resp.StatusCode != 200 {
@@ -120,7 +120,7 @@ func testGetExistingAuthor(t *testing.T, tsStore testutils.TestDataStore) {
 
 	req = httptest.NewRequest("GET", "/admin/api/author/"+createdAuthor.AuthorId, nil)
 
-	resp, err = initStore.C.Test(req, 5000)
+	resp, err = initStore.C.Test(req)
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 	if resp.StatusCode != 200 {
@@ -137,7 +137,7 @@ func testGetAuthorPadIDS(t *testing.T, tsStore testutils.TestDataStore) {
 	assert.NoError(t, err)
 	req := httptest.NewRequest("GET", "/admin/api/author/"+dbAuthorToSave.ID+"/pads", nil)
 
-	resp, err := tsStore.App.Test(req, 5000)
+	resp, err := tsStore.App.Test(req)
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 	if resp.StatusCode != 200 {
@@ -166,7 +166,7 @@ func testCreateAuthorIfNotExistsForNew(t *testing.T, tsStore testutils.TestDataS
 
 	req := httptest.NewRequest("POST", "/admin/api/author/createIfNotExistsFor", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := initStore.C.Test(req, 5000)
+	resp, err := initStore.C.Test(req)
 
 	if !assert.NoError(t, err) {
 		return
@@ -194,7 +194,7 @@ func testCreateAuthorIfNotExistsForExisting(t *testing.T, tsStore testutils.Test
 
 	req := httptest.NewRequest("POST", "/admin/api/author/createIfNotExistsFor", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := initStore.C.Test(req, 5000)
+	resp, err := initStore.C.Test(req)
 
 	require.NoError(t, err)
 	require.NotNil(t, resp)
@@ -213,7 +213,7 @@ func testCreateAuthorIfNotExistsForExisting(t *testing.T, tsStore testutils.Test
 
 	req2 := httptest.NewRequest("POST", "/admin/api/author/createIfNotExistsFor", bytes.NewBuffer(body2))
 	req2.Header.Set("Content-Type", "application/json")
-	resp2, err := initStore.C.Test(req2, 5000)
+	resp2, err := initStore.C.Test(req2)
 
 	require.NoError(t, err)
 	require.NotNil(t, resp2)
@@ -238,7 +238,7 @@ func testGetAuthorName(t *testing.T, tsStore testutils.TestDataStore) {
 	assert.NoError(t, err)
 
 	req := httptest.NewRequest("GET", "/admin/api/author/"+createdAuthor.Id+"/name", nil)
-	resp, err := initStore.C.Test(req, 5000)
+	resp, err := initStore.C.Test(req)
 
 	require.NoError(t, err)
 	require.NotNil(t, resp)
@@ -256,7 +256,7 @@ func testGetAuthorNameNotFound(t *testing.T, tsStore testutils.TestDataStore) {
 	author.Init(initStore)
 
 	req := httptest.NewRequest("GET", "/admin/api/author/a.nonexistent12345/name", nil)
-	resp, err := initStore.C.Test(req, 5000)
+	resp, err := initStore.C.Test(req)
 
 	require.NoError(t, err)
 	require.NotNil(t, resp)

@@ -15,15 +15,14 @@ import (
 	"github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/plugins"
 	"github.com/ether/etherpad-go/lib/plugins/interfaces"
-	session2 "github.com/ether/etherpad-go/lib/session"
 	settings2 "github.com/ether/etherpad-go/lib/settings"
 	"github.com/ether/etherpad-go/lib/utils"
 	"github.com/ether/etherpad-go/lib/ws"
 	"github.com/go-playground/validator/v10"
-	"github.com/gofiber/adaptor/v2"
-	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/compress"
-	"github.com/gofiber/fiber/v2/middleware/session"
+	fiberws "github.com/gofiber/contrib/v3/websocket"
+	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/compress"
+	"github.com/gofiber/fiber/v3/middleware/session"
 	"go.uber.org/zap"
 )
 
@@ -53,15 +52,12 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 
 	readOnlyManager := pad.NewReadOnlyManager(dataStore)
 
-	var db = session2.NewSessionDatabase(nil)
-	app := fiber.New(fiber.Config{
-		DisableStartupMessage: true,
-	})
+	app := fiber.New(fiber.Config{})
 	app.Use(compress.New(compress.Config{
 		Level: compress.LevelBestSpeed,
 	}))
 
-	app.Use(func(c *fiber.Ctx) error {
+	app.Use(func(c fiber.Ctx) error {
 		return pad.CheckAccess(c, setupLogger, &settings, readOnlyManager)
 	})
 
@@ -86,11 +82,9 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 	// init plugins
 	plugins.InitPlugins(epPluginStore)
 
-	var cookieStore = session.New(session.Config{
-		KeyLookup:      "cookie:express_sid",
-		Storage:        db,
+	var cookieStore = session.NewStore(session.Config{
 		CookieSameSite: settings.Cookie.SameSite,
-		Expiration:     time.Duration(settings.Cookie.SessionLifetime),
+		IdleTimeout:    time.Duration(settings.Cookie.SessionLifetime),
 	})
 
 	hooks.ExpressPreSession(app, uiAssets)
@@ -116,16 +110,35 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 		Importer:          importer,
 	})
 
-	app.Get("/socket.io/*", func(c *fiber.Ctx) error {
-		return adaptor.HTTPHandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-			ws.ServeWs(writer, request, cookieStore, c, &settings, setupLogger, padMessageHandler)
-		})(c)
+	app.Use("/socket.io", func(c fiber.Ctx) error {
+		if fiberws.IsWebSocketUpgrade(c) {
+			sess, err := cookieStore.Get(c)
+			if err != nil {
+				return c.Status(fiber.StatusInternalServerError).SendString("session error")
+			}
+			c.Locals("sessionID", sess.ID())
+			c.Locals("clientIP", c.IP())
+			// Preserve web access user info set by CheckAccess middleware
+			c.Locals("webAccessUser", c.Locals("sessionUser"))
+			return c.Next()
+		}
+		return fiber.ErrUpgradeRequired
 	})
+	app.Get("/socket.io/*", fiberws.New(func(conn *fiberws.Conn) {
+		sessionID, _ := conn.Locals("sessionID").(string)
+		clientIP, _ := conn.Locals("clientIP").(string)
+		webAccessUser := conn.Locals("webAccessUser")
+		ws.ServeWs(conn, sessionID, clientIP, webAccessUser, &settings, setupLogger, padMessageHandler)
+	}, fiberws.Config{
+		ReadBufferSize:  1024,
+		WriteBufferSize: 1024,
+		Origins:         []string{"*"},
+	}))
 
 	ssoAdminClient := settings.SSO.GetAdminClient()
 
 	if ssoAdminClient != nil {
-		app.Get("/admin/validate", func(c *fiber.Ctx) error {
+		app.Get("/admin/validate", func(c fiber.Ctx) error {
 			token := c.Query("token")
 			if token == "" {
 				setupLogger.Info("No token provided for admin validation")
@@ -143,26 +156,35 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 			return c.SendStatus(http.StatusOK)
 		})
 
-		app.Get("/admin/ws", func(c *fiber.Ctx) error {
-			token := c.Query("token")
-			if token == "" {
-				setupLogger.Warn("No token provided for websocket connection")
-				return c.Status(http.StatusUnauthorized).Send([]byte("No token provided"))
+		app.Use("/admin/ws", func(c fiber.Ctx) error {
+			if fiberws.IsWebSocketUpgrade(c) {
+				token := c.Query("token")
+				if token == "" {
+					setupLogger.Warn("No token provided for websocket connection")
+					return c.Status(http.StatusUnauthorized).Send([]byte("No token provided"))
+				}
+				ok, err := authenticator.ValidateAdminToken(token, ssoAdminClient)
+				if err != nil || !ok {
+					setupLogger.Warn("Invalid token provided for websocket connection")
+					return c.Status(http.StatusUnauthorized).Send([]byte("No token provided"))
+				}
+				c.Locals("fiberCtx", c)
+				return c.Next()
 			}
-			ok, err := authenticator.ValidateAdminToken(token, ssoAdminClient)
-			if err != nil || !ok {
-				setupLogger.Warn("Invalid token provided for websocket connection: " + err.Error())
-				return c.Status(http.StatusUnauthorized).Send([]byte("No token provided"))
-			}
-			return adaptor.HTTPHandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-				ws.ServeAdminWs(writer, request, c, &settings, setupLogger, adminMessageHandler)
-			})(c)
+			return fiber.ErrUpgradeRequired
 		})
+		app.Get("/admin/ws", fiberws.New(func(conn *fiberws.Conn) {
+			ws.ServeAdminWs(conn, &settings, setupLogger, adminMessageHandler)
+		}, fiberws.Config{
+			ReadBufferSize:  1024,
+			WriteBufferSize: 1024,
+			Origins:         []string{"*"},
+		}))
 	}
 
 	fiberString := fmt.Sprintf("%s:%s", settings.IP, settings.Port)
 	setupLogger.Info("Starting Web UI on " + fiberString)
-	err = app.Listen(fiberString)
+	err = app.Listen(fiberString, fiber.ListenConfig{DisableStartupMessage: true})
 	if err != nil {
 		setupLogger.Error("Error starting web UI: " + err.Error())
 		os.Exit(1)

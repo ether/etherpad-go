@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 
 	"github.com/ether/etherpad-go/lib/settings"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 type Plugin struct {
@@ -127,7 +127,7 @@ type ClientPlugin struct {
 	Parts   []Part            `json:"parts"`
 }
 
-func ReturnPluginResponse(c *fiber.Ctx) error {
+func ReturnPluginResponse(c fiber.Ctx) error {
 	packages, parts, _ := Update()
 
 	var clientPlugins = ClientPlugin{

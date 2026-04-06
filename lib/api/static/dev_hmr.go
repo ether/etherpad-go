@@ -8,7 +8,7 @@ import (
 
 	"github.com/ether/etherpad-go/lib"
 	"github.com/evanw/esbuild/pkg/api"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 type devBundleState struct {
@@ -40,7 +40,7 @@ func (h *esbuildDevHMR) bundleFromPath(requestPath string) *devBundleState {
 	}
 }
 
-func (h *esbuildDevHMR) serveBundle(c *fiber.Ctx) error {
+func (h *esbuildDevHMR) serveBundle(c fiber.Ctx) error {
 	bundle := h.bundleFromPath(c.Path())
 	if bundle == nil {
 		return c.Status(fiber.StatusNotFound).SendString("Unknown JS bundle")

@@ -17,8 +17,8 @@ import (
 	"github.com/ether/etherpad-go/lib/timeslider"
 	"github.com/ether/etherpad-go/lib/utils"
 	"github.com/evanw/esbuild/pkg/api"
-	"github.com/gofiber/adaptor/v2"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/adaptor"
 )
 
 func registerEmbeddedStatic(app *fiber.App, route string, subPath string, uiAssets embed.FS) {
@@ -137,7 +137,7 @@ func Init(store *lib.InitStore) {
 		}
 	}
 
-	store.C.Use("/p/", func(c *fiber.Ctx) error {
+	store.C.Use("/p/", func(c fiber.Ctx) error {
 		c.Path()
 
 		if store.CookieStore != nil {
@@ -150,30 +150,33 @@ func Init(store *lib.InitStore) {
 		return c.Next()
 	})
 
-	store.C.Get("/pluginfw/plugin-definitions.json", func(ctx *fiber.Ctx) error {
+	store.C.Get("/pluginfw/plugin-definitions.json", func(ctx fiber.Ctx) error {
 		return plugins.ReturnPluginResponse(ctx)
 	})
-	store.C.Post("/jserror", func(ctx *fiber.Ctx) error {
+	store.C.Post("/jserror", func(ctx fiber.Ctx) error {
 		store.Logger.Warnf("Frontend error report: %s", string(ctx.Body()))
 		return ctx.SendStatus(fiber.StatusNoContent)
 	})
 
-	store.C.Static("/static/plugins/", "./plugins")
+	store.C.Get("/static/plugins/*", func(c fiber.Ctx) error {
+		filePath := c.Params("*")
+		return c.SendFile("./plugins/" + filePath)
+	})
 
 	adminHtml, err := getAdminBody(store.UiAssets, store.RetrievedSettings)
 
 	if err != nil {
 		store.Logger.Errorf("Error setting up admin page: %v", err)
 	} else {
-		store.C.Get("/admin/index.html", func(c *fiber.Ctx) error {
+		store.C.Get("/admin/index.html", func(c fiber.Ctx) error {
 			return c.Type("html").SendString(*adminHtml)
 		})
-		store.C.Get("/admin/", func(c *fiber.Ctx) error {
+		store.C.Get("/admin/", func(c fiber.Ctx) error {
 			return c.Type("html").SendString(*adminHtml)
 		})
 	}
 
-	store.C.Get("/admin/admin.wasm", func(c *fiber.Ctx) error {
+	store.C.Get("/admin/admin.wasm", func(c fiber.Ctx) error {
 		err := serveAdminAsset(c, store.UiAssets, store.RetrievedSettings, "admin.wasm", "application/wasm")
 		if err != nil {
 			store.Logger.Errorf("Error serving admin.wasm: %v", err)
@@ -182,7 +185,7 @@ func Init(store *lib.InitStore) {
 		return nil
 	})
 
-	store.C.Get("/admin/loader.js", func(c *fiber.Ctx) error {
+	store.C.Get("/admin/loader.js", func(c fiber.Ctx) error {
 		err := serveAdminAsset(c, store.UiAssets, store.RetrievedSettings, "loader.js", "application/javascript")
 		if err != nil {
 			store.Logger.Errorf("Error serving admin loader: %v", err)
@@ -191,7 +194,7 @@ func Init(store *lib.InitStore) {
 		return nil
 	})
 
-	store.C.Get("/admin/wasm_exec.js", func(c *fiber.Ctx) error {
+	store.C.Get("/admin/wasm_exec.js", func(c fiber.Ctx) error {
 		err := serveAdminAsset(c, store.UiAssets, store.RetrievedSettings, "wasm_exec.js", "application/javascript")
 		if err != nil {
 			store.Logger.Errorf("Error serving wasm_exec.js: %v", err)
@@ -200,7 +203,7 @@ func Init(store *lib.InitStore) {
 		return nil
 	})
 
-	store.C.Get("/admin/admin.css", func(c *fiber.Ctx) error {
+	store.C.Get("/admin/admin.css", func(c fiber.Ctx) error {
 		err := serveAdminAsset(c, store.UiAssets, store.RetrievedSettings, "admin.css", "text/css; charset=utf-8")
 		if err != nil {
 			store.Logger.Errorf("Error serving admin.css: %v", err)
@@ -209,7 +212,7 @@ func Init(store *lib.InitStore) {
 		return nil
 	})
 
-	store.C.Get("/admin/locales/:file", func(c *fiber.Ctx) error {
+	store.C.Get("/admin/locales/:file", func(c fiber.Ctx) error {
 		err := serveAdminAsset(c, store.UiAssets, store.RetrievedSettings, path.Join("locales", c.Params("file")), "application/json; charset=utf-8")
 		if err != nil {
 			store.Logger.Errorf("Error serving admin locale: %v", err)
@@ -218,7 +221,7 @@ func Init(store *lib.InitStore) {
 		return nil
 	})
 
-	store.C.Get("/css/static/pad.css", func(ctx *fiber.Ctx) error {
+	store.C.Get("/css/static/pad.css", func(ctx fiber.Ctx) error {
 		if isDevEnabled(store.RetrievedSettings) {
 			fileContent, err := os.ReadFile("assets/css/build/static/pad.css")
 			if err != nil {
@@ -234,7 +237,7 @@ func Init(store *lib.InitStore) {
 		}
 	})
 
-	store.C.Get("/css/skin/colibris/pad.css", func(ctx *fiber.Ctx) error {
+	store.C.Get("/css/skin/colibris/pad.css", func(ctx fiber.Ctx) error {
 		if isDevEnabled(store.RetrievedSettings) {
 			fileContent, err := os.ReadFile("assets/css/build/skin/colibris/pad.css")
 			if err != nil {
@@ -261,23 +264,23 @@ func Init(store *lib.InitStore) {
 	registerEmbeddedStatic(store.C, "/font/", "assets/font", store.UiAssets)
 	registerEmbeddedStatic(store.C, "/admin/ep_admin_pads/", "assets/locales/ep_admin_pads", store.UiAssets)
 
-	store.C.Get("/p/:pad", func(ctx *fiber.Ctx) error {
+	store.C.Get("/p/:pad", func(ctx fiber.Ctx) error {
 		return pad2.HandlePadOpen(ctx, store.UiAssets, store.RetrievedSettings, store.Hooks)
 	})
 
-	store.C.Get("/p/:pad/qr", func(ctx *fiber.Ctx) error {
+	store.C.Get("/p/:pad/qr", func(ctx fiber.Ctx) error {
 		return pad2.HandlePadQr(ctx, store)
 	})
 
-	store.C.Get("/p/:pad/timeslider", func(c *fiber.Ctx) error {
+	store.C.Get("/p/:pad/timeslider", func(c fiber.Ctx) error {
 		return timeslider.HandleTimesliderOpen(c, store.UiAssets, store.RetrievedSettings, store.Hooks)
 	})
 
-	store.C.Get("/favicon.ico", func(c *fiber.Ctx) error {
-		return c.Redirect("/images/favicon.ico", fiber.StatusMovedPermanently)
+	store.C.Get("/favicon.ico", func(c fiber.Ctx) error {
+		return c.Redirect().Status(fiber.StatusMovedPermanently).To("/images/favicon.ico")
 	})
 
-	store.C.Get("/", func(c *fiber.Ctx) error {
+	store.C.Get("/", func(c fiber.Ctx) error {
 		var language = c.Cookies("language", "en")
 		var keyValues, err = utils.LoadTranslations(language, store.UiAssets, store.Hooks)
 		if err != nil {
@@ -293,7 +296,7 @@ func Init(store *lib.InitStore) {
 		registerEmbeddedStatic(store.C, "/admin/assets", "assets/js/admin/assets", store.UiAssets)
 		registerEmbeddedStatic(store.C, "/js/timeslider/assets/", "assets/js/timeslider/assets", store.UiAssets)
 	} else {
-		store.C.Get("/js/*", func(c *fiber.Ctx) error {
+		store.C.Get("/js/*", func(c fiber.Ctx) error {
 			if devHMR == nil {
 				return c.Status(fiber.StatusServiceUnavailable).SendString("Dev bundler unavailable")
 			}
@@ -306,7 +309,7 @@ func Init(store *lib.InitStore) {
 	registerEmbeddedStatic(store.C, "/pluginfw", "assets/plugin", store.UiAssets)
 
 	if adminHtml != nil {
-		store.C.Get("/admin/*", func(c *fiber.Ctx) error {
+		store.C.Get("/admin/*", func(c fiber.Ctx) error {
 			if !shouldServeAdminSPA(c.Path()) {
 				return c.Next()
 			}

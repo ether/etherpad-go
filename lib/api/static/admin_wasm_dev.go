@@ -16,7 +16,7 @@ import (
 	"github.com/ether/etherpad-go/lib"
 	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/fsnotify/fsnotify"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 type adminWASMDevBuilder struct {
@@ -63,7 +63,7 @@ func getAdminBody(_ embed.FS, retrievedSettings *settings.Settings) (*string, er
 	return &result, nil
 }
 
-func serveAdminAsset(c *fiber.Ctx, uiAssets embed.FS, retrievedSettings *settings.Settings, assetName string, contentType string) error {
+func serveAdminAsset(c fiber.Ctx, uiAssets embed.FS, retrievedSettings *settings.Settings, assetName string, contentType string) error {
 	if isDevEnabled(retrievedSettings) {
 		fileContent, err := os.ReadFile(filepath.Join(retrievedSettings.Root, "assets", "js", "admin", assetName))
 		if err == nil {

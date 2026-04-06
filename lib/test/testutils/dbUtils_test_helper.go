@@ -25,7 +25,7 @@ import (
 	"github.com/ether/etherpad-go/lib/ws"
 	"github.com/go-playground/validator/v10"
 	mysql2 "github.com/go-sql-driver/mysql"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 	"go.uber.org/zap"

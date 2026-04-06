@@ -1455,7 +1455,7 @@ func testHandleMessageGetChatMessages(t *testing.T, ds testutils.TestDataStore) 
 
 	// Call HandleMessage
 	initStore := ds.ToInitStore()
-	ds.PadMessageHandler.HandleMessage(getChatMessages, client, nil, initStore.RetrievedSettings, ds.Logger)
+	ds.PadMessageHandler.HandleMessage(getChatMessages, client, initStore.RetrievedSettings, ds.Logger)
 
 	// Wait for mock write pump to process messages
 	wg.Wait()
@@ -1520,7 +1520,7 @@ func testHandleMessageChangesetReq(t *testing.T, ds testutils.TestDataStore) {
 
 	// Call HandleMessage
 	initStore := ds.ToInitStore()
-	ds.PadMessageHandler.HandleMessage(changesetReq, client, nil, initStore.RetrievedSettings, ds.Logger)
+	ds.PadMessageHandler.HandleMessage(changesetReq, client, initStore.RetrievedSettings, ds.Logger)
 
 	// Wait for mock write pump to process messages
 	wg.Wait()
@@ -1636,7 +1636,7 @@ func testHandleMessageUserChangeReadonly(t *testing.T, ds testutils.TestDataStor
 
 	// Call HandleMessage - should be rejected due to readonly
 	initStore := ds.ToInitStore()
-	ds.PadMessageHandler.HandleMessage(userChange, client, nil, initStore.RetrievedSettings, ds.Logger)
+	ds.PadMessageHandler.HandleMessage(userChange, client, initStore.RetrievedSettings, ds.Logger)
 
 	// Wait for processing
 	time.Sleep(100 * time.Millisecond)
@@ -1722,7 +1722,7 @@ func testHandleMessageNoSession(t *testing.T, ds testutils.TestDataStore) {
 
 	// Call HandleMessage - should return early due to no session
 	initStore := ds.ToInitStore()
-	ds.PadMessageHandler.HandleMessage(chatMessage, client, nil, initStore.RetrievedSettings, ds.Logger)
+	ds.PadMessageHandler.HandleMessage(chatMessage, client, initStore.RetrievedSettings, ds.Logger)
 
 	// Wait for processing
 	time.Sleep(50 * time.Millisecond)

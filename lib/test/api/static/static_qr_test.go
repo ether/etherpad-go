@@ -44,7 +44,7 @@ func testPadQrEndpointReturnsPng(t *testing.T, tsStore testutils.TestDataStore) 
 	createStaticTestPad(t, tsStore, "qrpad", "QR endpoint test\n")
 
 	req := httptest.NewRequest("GET", "/p/qrpad/qr", nil)
-	resp, err := initStore.C.Test(req, 5000)
+	resp, err := initStore.C.Test(req)
 
 	assert.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
@@ -64,19 +64,19 @@ func testPadQrEndpointReadonlyVariants(t *testing.T, tsStore testutils.TestDataS
 	readOnlyID := initStore.ReadOnlyManager.GetReadOnlyId("qrreadonlypad")
 
 	readwriteReq := httptest.NewRequest("GET", "/p/qrreadonlypad/qr", nil)
-	readwriteResp, err := initStore.C.Test(readwriteReq, 5000)
+	readwriteResp, err := initStore.C.Test(readwriteReq)
 	assert.NoError(t, err)
 	assert.Equal(t, 200, readwriteResp.StatusCode)
 	readwriteBody, _ := io.ReadAll(readwriteResp.Body)
 
 	readonlyReq := httptest.NewRequest("GET", "/p/qrreadonlypad/qr?readonly=true", nil)
-	readonlyResp, err := initStore.C.Test(readonlyReq, 5000)
+	readonlyResp, err := initStore.C.Test(readonlyReq)
 	assert.NoError(t, err)
 	assert.Equal(t, 200, readonlyResp.StatusCode)
 	readonlyBody, _ := io.ReadAll(readonlyResp.Body)
 
 	readonlyRouteReq := httptest.NewRequest("GET", "/p/"+readOnlyID+"/qr", nil)
-	readonlyRouteResp, err := initStore.C.Test(readonlyRouteReq, 5000)
+	readonlyRouteResp, err := initStore.C.Test(readonlyRouteReq)
 	assert.NoError(t, err)
 	assert.Equal(t, 200, readonlyRouteResp.StatusCode)
 	readonlyRouteBody, _ := io.ReadAll(readonlyRouteResp.Body)
@@ -90,7 +90,7 @@ func testPadQrEndpointMissingPad(t *testing.T, tsStore testutils.TestDataStore) 
 	staticapi.Init(initStore)
 
 	req := httptest.NewRequest("GET", "/p/missingpad/qr", nil)
-	resp, err := initStore.C.Test(req, 5000)
+	resp, err := initStore.C.Test(req)
 
 	assert.NoError(t, err)
 	assert.Equal(t, 404, resp.StatusCode)

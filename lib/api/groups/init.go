@@ -6,7 +6,7 @@ import (
 	"github.com/ether/etherpad-go/lib"
 	"github.com/ether/etherpad-go/lib/api/errors"
 	"github.com/ether/etherpad-go/lib/utils"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 // GroupIDResponse represents a response with a group ID
@@ -32,7 +32,7 @@ type CreateGroupPadRequest struct {
 // @Security BearerAuth
 // @Router /admin/api/groups [post]
 func CreateGroup(store *lib.InitStore) fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		groupId := "g." + utils.RandomString(16)
 		err := store.Store.SaveGroup(groupId)
 		if err != nil {
@@ -58,7 +58,7 @@ func CreateGroup(store *lib.InitStore) fiber.Handler {
 // @Security BearerAuth
 // @Router /admin/api/groups/{groupId} [delete]
 func DeleteGroup(store *lib.InitStore) fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		groupId := c.Params("groupId")
 		if groupId == "" {
 			return c.Status(400).JSON(errors.NewMissingParamError("groupId"))
@@ -96,14 +96,14 @@ func DeleteGroup(store *lib.InitStore) fiber.Handler {
 // @Security BearerAuth
 // @Router /admin/api/groups/{groupId}/pads [post]
 func CreateGroupPad(store *lib.InitStore) fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		groupId := c.Params("groupId")
 		if groupId == "" {
 			return c.Status(400).JSON(errors.NewMissingParamError("groupId"))
 		}
 
 		var request CreateGroupPadRequest
-		if err := c.BodyParser(&request); err != nil {
+		if err := c.Bind().Body(&request); err != nil {
 			return c.Status(400).JSON(errors.InvalidRequestError)
 		}
 		if request.PadName == "" {

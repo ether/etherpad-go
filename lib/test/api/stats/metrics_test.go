@@ -32,7 +32,7 @@ func testMetricsEndpointExists(t *testing.T, testDb testutils.TestDataStore) {
 
 	req := httptest.NewRequest("GET", "/metrics", nil)
 
-	resp, err := testDb.App.Test(req, 1000)
+	resp, err := testDb.App.Test(req)
 	require.NoError(t, err)
 
 	body := make([]byte, resp.ContentLength)
@@ -50,7 +50,7 @@ func testHealthendpointExists(t *testing.T, testDb testutils.TestDataStore) {
 	stats.Init(testDb.ToInitStore())
 
 	req := httptest.NewRequest("GET", "/health", nil)
-	resp, err := testDb.App.Test(req, 1000)
+	resp, err := testDb.App.Test(req)
 	require.NoError(t, err)
 	require.Equal(t, 200, resp.StatusCode)
 }

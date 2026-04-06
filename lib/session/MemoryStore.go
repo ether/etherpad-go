@@ -7,7 +7,7 @@ import (
 
 	"github.com/ether/etherpad-go/lib/db"
 	"github.com/ether/etherpad-go/lib/models/session"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 type Expiration struct {
@@ -25,7 +25,7 @@ type MemoryStore struct {
 	//   - `timeout`: Timeout ID for a timeout that will clean up the database record.
 	expirations map[string]Expiration
 	refresh     *int64
-	generate    *func(c *fiber.Ctx)
+	generate    *func(c fiber.Ctx)
 }
 
 func NewMemoryStore(db db.DataStore, refresh *int64) *MemoryStore {

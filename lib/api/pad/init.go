@@ -7,7 +7,7 @@ import (
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/utils"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 type AttributePoolResponse struct {
@@ -40,7 +40,7 @@ type SetTextRequest struct {
 // @Security BearerAuth
 // @Router /admin/api/pads/{padId}/text [get]
 func GetPadText(initStore *lib.InitStore) fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		foundPad, err := utils2.GetPadSafe(c.Params("padId", ""), true, nil, nil, initStore.PadManager)
 		if err != nil {
 			return c.Status(404).JSON(errors2.PadNotFoundError)
@@ -89,7 +89,7 @@ func GetPadText(initStore *lib.InitStore) fiber.Handler {
 // @Security BearerAuth
 // @Router /admin/api/pads/{padId}/attributePool [get]
 func GetAttributePool(initStore *lib.InitStore) fiber.Handler {
-	return func(ctx *fiber.Ctx) error {
+	return func(ctx fiber.Ctx) error {
 		var padIdToFind = ctx.Params("padId")
 		var padFound, err = utils2.GetPadSafe(padIdToFind, true, nil, nil, initStore.PadManager)
 		if err != nil {
@@ -116,7 +116,7 @@ func GetAttributePool(initStore *lib.InitStore) fiber.Handler {
 // @Security BearerAuth
 // @Router /admin/api/pads/{padId}/{rev}/revisionChangeset [get]
 func GetRevisionChangeset(initStore *lib.InitStore) fiber.Handler {
-	return func(ctx *fiber.Ctx) error {
+	return func(ctx fiber.Ctx) error {
 		var padId = ctx.Params("padId")
 		var rev = ctx.Params("rev")
 
@@ -159,10 +159,10 @@ func GetRevisionChangeset(initStore *lib.InitStore) fiber.Handler {
 // @Security BearerAuth
 // @Router /admin/api/pads/{padId}/text [post]
 func SetPadText(initStore *lib.InitStore) fiber.Handler {
-	return func(ctx *fiber.Ctx) error {
+	return func(ctx fiber.Ctx) error {
 		var padId = ctx.Params("padId")
 		var request SetTextRequest
-		err := ctx.BodyParser(&request)
+		err := ctx.Bind().Body(&request)
 
 		if err != nil {
 			return ctx.Status(400).JSON(errors2.InvalidRequestError)

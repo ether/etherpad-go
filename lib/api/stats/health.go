@@ -5,7 +5,7 @@ import (
 
 	"github.com/ether/etherpad-go/lib/db"
 	"github.com/ether/etherpad-go/lib/ws"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 type DBChecker struct {
@@ -76,7 +76,7 @@ func Handler(
 	serviceID string,
 	checkers []Checker,
 ) fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		resp := HealthResponse{
 			Status:    StatusPass,
 			Version:   version,
