@@ -1,0 +1,12 @@
+[data-color="black"], .color\:black  { color: black; }
+[data-color="red"], .color\:red      { color: red; }
+[data-color="green"], .color\:green  { color: green; }
+[data-color="blue"], .color\:blue    { color: blue; }
+[data-color="yellow"], .color\:yellow { color: yellow; }
+[data-color="orange"], .color\:orange { color: orange; }
+
+.ep_font_color_icon::before {
+  content: "\e81b";
+  font-family: font-awesome;
+  border-bottom: solid 2px red;
+}
