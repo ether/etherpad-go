@@ -109,7 +109,9 @@ export const appendQueryParams = async (page: Page, queryParameters: Record<stri
     await page.waitForSelector('iframe[name="ace_outer"]', { timeout: 30000 });
 }
 
-const waitForPadToLoad = async (page: Page, timeout: number = 30000) => {
+const PAD_TIMEOUT = process.env.CI && os.arch() === 'arm64' ? 60000 : 30000;
+
+const waitForPadToLoad = async (page: Page, timeout: number = PAD_TIMEOUT) => {
     // Wait for the outer frame
     await page.waitForSelector('iframe[name="ace_outer"]', { timeout, state: 'attached' });
 
@@ -121,14 +123,28 @@ const waitForPadToLoad = async (page: Page, timeout: number = 30000) => {
 
 export const goToNewPad = async (page: Page) => {
     const padId = "FRONTEND_TESTS" + randomUUID();
-    await page.goto('http://localhost:9001/p/' + padId, { waitUntil: 'load', timeout: 30000 });
-    await waitForPadToLoad(page, 30000);
+    for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+            await page.goto('http://localhost:9001/p/' + padId, { waitUntil: 'load', timeout: PAD_TIMEOUT });
+            await waitForPadToLoad(page);
+            return padId;
+        } catch (error) {
+            if (attempt === 1) throw error;
+        }
+    }
     return padId;
 }
 
 export const goToPad = async (page: Page, padId: string) => {
-    await page.goto('http://localhost:9001/p/' + padId, { waitUntil: 'load', timeout: 30000 });
-    await waitForPadToLoad(page, 30000);
+    for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+            await page.goto('http://localhost:9001/p/' + padId, { waitUntil: 'load', timeout: PAD_TIMEOUT });
+            await waitForPadToLoad(page);
+            return;
+        } catch (error) {
+            if (attempt === 1) throw error;
+        }
+    }
 }
 
 export const clearPadContent = async (page: Page) => {
