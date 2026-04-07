@@ -15,8 +15,9 @@
  */
 
 import padutils from './pad_utils';
-import {editorBus} from './core/EventBus';
+import {editorBus} from './core';
 import html10n from './i18n';
+import {pad} from "./pad.ts";
 
 let myUserInfo: Record<string, any> = {};
 
@@ -415,13 +416,13 @@ export const paduserlist = (() => {
     }
   });
 
-  editorBus.on('user:leave', (data) => {
+  editorBus.on('user:leave', () => {
     // The user:leave event is also emitted *by* this module when the leave timer
     // fires, so we only react if the user is still in our list and not already
     // marked as disconnected-and-leaving.
   });
 
-  editorBus.on('user:info:updated', (data) => {
+  editorBus.on('user:info:updated', () => {
     // Externally triggered info updates (e.g. from the server via collab)
     // are handled through userJoinOrUpdate, which already emits this event.
     // Avoid infinite loops by not re-processing our own emits.
@@ -666,28 +667,14 @@ export const paduserlist = (() => {
   return self;
 })();
 
-const getColorPickerSwatchIndex = (jnode: HTMLElement): number => {
-  if (!(jnode instanceof HTMLElement)) return -1;
-  const swatches = qa('#colorpickerswatches li');
-  return swatches.indexOf(jnode);
-};
-
 const closeColorPicker = (accept: boolean) => {
   if (accept) {
     const preview = q('#mycolorpickerpreview');
-    let newColor = preview instanceof HTMLElement ? getComputedStyle(preview).backgroundColor : '';
-    const parts = newColor.match(/^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/);
-    // parts now should be ["rgb(0, 70, 255", "0", "70", "255"]
-    if (parts) {
-      delete (parts[0]);
-      for (let i = 1; i <= 3; ++i) {
-        parts[i] = parseInt(parts[i]).toString(16);
-        if (parts[i].length === 1) parts[i] = `0${parts[i]}`;
-      }
-      newColor = `#${parts.join('')}`; // "0070ff"
-    }
-    (window as any).myUserInfo = (window as any).myUserInfo || {};
-    // Update via the pad reference
+    const previewColor = preview instanceof HTMLElement ? getComputedStyle(preview).backgroundColor : '';
+    const newColor = toHexColor(previewColor);
+
+    myUserInfo.colorId = newColor;
+    pad?.notifyChangeColor?.(newColor);
     paduserlist.renderMyUserInfo();
   }
 
@@ -722,8 +709,10 @@ const ensureNativeColorPicker = (): HTMLInputElement | null => {
 const showColorPicker = () => {
   const colorInput = ensureNativeColorPicker();
   if (colorInput instanceof HTMLInputElement) {
+    const currentColor = toHexColor(String(myUserInfo.colorId ?? '#000000'));
+    colorInput.value = currentColor;
     const preview = q('#mycolorpickerpreview');
-    if (preview instanceof HTMLElement) preview.style.backgroundColor = colorInput.value;
+    if (preview instanceof HTMLElement) preview.style.backgroundColor = currentColor;
   }
 
   if (!colorPickerOpen) {
