@@ -54,6 +54,7 @@ templ EditBar(translations map[string]string, buttonGroups []pluginTypes.Toolbar
           <li data-type="button" data-key="redo"><a class="grouped-right" title={translations["pad.toolbar.redo.title"]} aria-label={translations["pad.toolbar.redo.title"]}><button class=" buttonicon buttonicon-redo" title={translations["pad.toolbar.redo.title"]} aria-label={translations["pad.toolbar.redo.title"]}></button></a></li><li class="separator"></li><li data-type="button" data-key="clearauthorship"><a class="" title={translations["pad.toolbar.clearAuthorship.title"]} aria-label={translations["pad.toolbar.clearAuthorship.title"]}><button class=" buttonicon buttonicon-clearauthorship" title={translations["pad.toolbar.clearAuthorship.title"]} aria-label={translations["pad.toolbar.clearAuthorship.title"]}></button></a></li>
 
           @PluginToolbarButtons(translations, buttonGroups)
+          <ep-plugin-toolbar></ep-plugin-toolbar>
 
           </ul>
           <ul class="menu_right" role="toolbar">

@@ -1,23 +1,31 @@
-import type { ToolbarContext } from '../../../typings/etherpad';
+/**
+ * ep_print — Self-initializing EventBus subscriber.
+ *
+ * Adds a print command to the toolbar and injects print CSS.
+ * No hook exports — all behavior is registered via editorBus.on(...).
+ */
 
-// Inject print CSS link on load
-const injectPrintCSS = (): void => {
-  const link = document.createElement('link');
-  link.rel = 'stylesheet';
-  link.type = 'text/css';
-  link.href = '../static/plugins/ep_print/static/css/print.css';
-  link.media = 'print';
-  document.head.appendChild(link);
-};
+import { editorBus } from 'ep_etherpad-lite/static/js/core/EventBus'
 
-injectPrintCSS();
+// ---------------------------------------------------------------------------
+// CSS injection — runs immediately at module load
+// ---------------------------------------------------------------------------
 
-export const postToolbarInit = (_hookName: string, context: ToolbarContext): boolean => {
-  const editbar = context.toolbar;
+const link = document.createElement('link')
+link.rel = 'stylesheet'
+link.type = 'text/css'
+link.href = '../static/plugins/ep_print/static/css/print.css'
+link.media = 'print'
+document.head.appendChild(link)
 
-  editbar.registerCommand('print', () => {
-    window.print();
-  });
+// ---------------------------------------------------------------------------
+// EventBus subscriptions
+// ---------------------------------------------------------------------------
 
-  return true;
-};
+// Register print command when toolbar is ready
+editorBus.on('toolbar:ready' as any, (context: { toolbar: any }) => {
+  context.toolbar.registerCommand('print', () => {
+    window.print()
+    editorBus.emit('custom:print:triggered' as any, {})
+  })
+})

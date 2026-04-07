@@ -1,114 +1,127 @@
-const colors = ['black', 'red', 'green', 'blue', 'yellow', 'orange'] as const;
-const colorRegex = /(?:^| )color:([A-Za-z0-9]*)/;
+/**
+ * ep_font_color — Self-initializing EventBus subscriber.
+ *
+ * Provides font color formatting support via the editor EventBus.
+ * No hook exports — all behavior is registered via editorBus.on(...).
+ */
 
-// Inject plugin CSS into the outer page for the toolbar icon
-let cssLoaded = false;
-const ensureCSS = () => {
-  if (cssLoaded) return;
-  cssLoaded = true;
-  const link = document.createElement('link');
-  link.rel = 'stylesheet';
-  link.href = '/static/plugins/ep_font_color/static/css/color.css';
-  document.head.appendChild(link);
-};
-ensureCSS();
+import { editorBus } from 'ep_etherpad-lite/static/js/core/EventBus'
 
-// --- ACE hooks ---
+const colors = ['black', 'red', 'green', 'blue', 'yellow', 'orange'] as const
+const colorRegex = /(?:^| )color:([A-Za-z0-9]*)/
 
-export const aceEditorCSS = (): string[] => ['ep_font_color/static/css/color.css'];
+// ---------------------------------------------------------------------------
+// CSS injection — runs immediately at module load
+// ---------------------------------------------------------------------------
 
-export const aceAttribsToClasses = (_hookName: string, context: { key: string; value: string }) => {
-  if (context.key.indexOf('color:') !== -1) {
-    const m = colorRegex.exec(context.key);
-    if (m) return [`color:${m[1]}`];
-  }
-  if (context.key === 'color') {
-    return [`color:${context.value}`];
-  }
-};
+const link = document.createElement('link')
+link.rel = 'stylesheet'
+link.href = '/static/plugins/ep_font_color/static/css/color.css'
+document.head.appendChild(link)
 
-export const aceCreateDomLine = (_hookName: string, context: { cls: string }) => {
-  const m = colorRegex.exec(context.cls);
-  if (!m) return [];
-  const idx = colors.indexOf(m[1] as typeof colors[number]);
-  if (idx < 0) return [];
-  return [{ extraOpenTags: '', extraCloseTags: '', cls: context.cls }];
-};
+// ---------------------------------------------------------------------------
+// Internal helpers
+// ---------------------------------------------------------------------------
 
 const doInsertColors = function (this: any, level: number) {
-  const rep = this.rep;
-  const documentAttributeManager = this.documentAttributeManager;
-  if (!(rep.selStart && rep.selEnd) || (level >= 0 && colors[level] === undefined)) return;
+  const rep = this.rep
+  const documentAttributeManager = this.documentAttributeManager
+  if (!(rep.selStart && rep.selEnd) || (level >= 0 && colors[level] === undefined)) return
 
-  const newColor: [string, string] = level >= 0 ? ['color', colors[level]] : ['color', ''];
-  documentAttributeManager.setAttributesOnRange(rep.selStart, rep.selEnd, [newColor]);
-};
+  const newColor: [string, string] = level >= 0 ? ['color', colors[level]] : ['color', '']
+  documentAttributeManager.setAttributesOnRange(rep.selStart, rep.selEnd, [newColor])
+}
 
-export const aceInitialized = (_hookName: string, context: { editorInfo: any }) => {
-  context.editorInfo.ace_doInsertColors = doInsertColors.bind(context);
-};
+// ---------------------------------------------------------------------------
+// EventBus subscriptions
+// ---------------------------------------------------------------------------
 
-// --- Toolbar hooks ---
+// Inject CSS into the ACE editor iframe
+editorBus.on('custom:ace:editor:css' as any, ({ result }: { result: string[] }) => {
+  result.push('ep_font_color/static/css/color.css')
+})
 
-export const postToolbarInit = (_hookName: string, context: { toolbar: any }) => {
-  const editbar = context.toolbar;
-  editbar.registerCommand('fontColor', () => {
-    const dropdown = document.getElementById('font-color-dropdown');
-    if (dropdown) dropdown.style.display = dropdown.style.display === 'none' ? '' : 'none';
-  });
-};
+// Bind ace_doInsertColors when the ACE editor is initialized
+editorBus.on('editor:ace:initialized' as any, (context: { editorInfo: any }) => {
+  context.editorInfo.ace_doInsertColors = doInsertColors.bind(context)
+})
 
-export const postAceInit = (_hookName: string, context: { ace: any }) => {
-  // Create the color dropdown and insert it after the toolbar button
-  const btn = document.querySelector('[data-key="fontColor"]') as HTMLElement | null;
+// Set up color dropdown UI when editor is ready
+editorBus.on('editor:ready' as any, (context: { ace: any }) => {
+  const btn = document.querySelector('[data-key="fontColor"]') as HTMLElement | null
   if (btn && !document.getElementById('font-color-dropdown')) {
-    const dropdown = document.createElement('div');
-    dropdown.id = 'font-color-dropdown';
-    dropdown.style.display = 'none';
-    dropdown.style.position = 'absolute';
-    dropdown.style.zIndex = '1000';
-    dropdown.style.background = '#fff';
-    dropdown.style.border = '1px solid #ccc';
-    dropdown.style.borderRadius = '4px';
-    dropdown.style.padding = '4px';
-    dropdown.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
-
-    colors.forEach((color, idx) => {
-      const swatch = document.createElement('span');
-      swatch.style.display = 'inline-block';
-      swatch.style.width = '20px';
-      swatch.style.height = '20px';
-      swatch.style.margin = '2px';
-      swatch.style.cursor = 'pointer';
-      swatch.style.backgroundColor = color;
-      swatch.style.border = '1px solid #999';
-      swatch.style.borderRadius = '3px';
-      swatch.title = color;
-      swatch.addEventListener('click', () => {
+    const picker = document.createElement('ep-color-picker')
+    picker.id = 'font-color-dropdown'
+    picker.setAttribute('colors', JSON.stringify(colors))
+    picker.addEventListener('ep-color-select', ((e: CustomEvent) => {
+      const idx = colors.indexOf(e.detail.color)
+      if (idx >= 0) {
         context.ace.callWithAce((ace: any) => {
-          ace.ace_doInsertColors(idx);
-        }, 'insertColor', true);
-        dropdown.style.display = 'none';
-      });
-      dropdown.appendChild(swatch);
-    });
+          ace.ace_doInsertColors(idx)
+        }, 'insertColor', true)
+      }
+    }) as EventListener)
 
-    btn.style.position = 'relative';
-    btn.appendChild(dropdown);
+    btn.style.position = 'relative'
+    btn.appendChild(picker)
   }
-};
+})
 
-export const aceEditEvent = (_hookName: string, call: any) => {
-  const cs = call.callstack;
-  if (['handleClick', 'handleKeyEvent'].indexOf(cs.type) === -1 && !cs.docTextChanged) return;
-  if (cs.type === 'setBaseText' || cs.type === 'setup') return;
-};
+// Register fontColor command when toolbar is ready
+editorBus.on('toolbar:ready' as any, (context: { toolbar: any }) => {
+  context.toolbar.registerCommand('fontColor', () => {
+    const dropdown = document.getElementById('font-color-dropdown')
+    if (dropdown) dropdown.style.display = dropdown.style.display === 'none' ? '' : 'none'
+  })
 
-// --- Content collection ---
+  // Register as a Web Component toolbar select via EventBus
+  editorBus.emit('custom:toolbar:register:select' as any, {
+    key: 'fontColor',
+    title: 'Color',
+    options: colors.map((c, i) => ({ label: c, value: String(i) })),
+    onChange: (value: string) => {
+      const ace = context.toolbar?.ace ?? (window as any).pad?.editor
+      if (ace?.callWithAce) {
+        ace.callWithAce((a: any) => {
+          a.ace_doInsertColors(parseInt(value, 10))
+        }, 'insertColor', true)
+      }
+    },
+  })
+})
 
-export const collectContentPre = (_hookName: string, context: any) => {
-  const m = colorRegex.exec(context.cls);
+// Return color classes for attribute-to-class mapping (mutable result pattern)
+editorBus.on('editor:attribs:to:classes' as any, ({ key, value, result }: { key: string; value: string; result: string[] }) => {
+  if (key.indexOf('color:') !== -1) {
+    const m = colorRegex.exec(key)
+    if (m) result.push(`color:${m[1]}`)
+  }
+  if (key === 'color') {
+    result.push(`color:${value}`)
+  }
+})
+
+// Create DOM line elements for color spans (mutable result pattern)
+editorBus.on('editor:create:dom:line' as any, ({ cls, result }: { cls: string; result: any[] }) => {
+  const m = colorRegex.exec(cls)
+  if (!m) return
+  const idx = colors.indexOf(m[1] as typeof colors[number])
+  if (idx < 0) return
+  result.push({ extraOpenTags: '', extraCloseTags: '', cls })
+})
+
+// Track edit events (content changes)
+editorBus.on('editor:content:changed' as any, (call: any) => {
+  if (!call?.callstack) return
+  const cs = call.callstack
+  if (['handleClick', 'handleKeyEvent'].indexOf(cs.type) === -1 && !cs.docTextChanged) return
+  if (cs.type === 'setBaseText' || cs.type === 'setup') return
+})
+
+// Collect content for color attributes (mutable result pattern)
+editorBus.on('editor:collect:content:pre' as any, (context: any) => {
+  const m = colorRegex.exec(context.cls)
   if (m && m[1]) {
-    context.cc.doAttrib(context.state, `color::${m[1]}`);
+    context.cc.doAttrib(context.state, `color::${m[1]}`)
   }
-};
+})

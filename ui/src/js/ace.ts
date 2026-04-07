@@ -24,7 +24,7 @@
 // requires: top
 // requires: undefined
 
-import * as hooks from './pluginfw/hooks';
+import {editorBus} from './core/EventBus';
 import {makeCSSManager} from './cssmanager';
 import * as pluginUtils from './pluginfw/shared';
 const debugLog = (...args) => {};
@@ -170,11 +170,9 @@ export const Ace2Editor = function () {
     const includedCSS = [
       `../static/css/iframe_editor.css?v=${clientVars.randomVersionString}`,
       `../css/static/pad.css?v=${clientVars.randomVersionString}`,
-      ...hooks.callAll('aceEditorCSS').map(
-          // Allow urls to external CSS - http(s):// and //some/path.css
-          (p) => /\/\//.test(p) ? p : `../static/plugins/${p}`),
       `../css/skin/${clientVars.skinName}/pad.css?v=${clientVars.randomVersionString}`,
     ];
+    editorBus.emit('custom:ace:editor:css', {css: includedCSS});
 
     const skinVariants = clientVars.skinVariants.split(' ').filter((x) => x !== '');
 
@@ -273,7 +271,7 @@ export const Ace2Editor = function () {
     innerStyle.title = 'dynamicsyntax';
     innerDocument.head.appendChild(innerStyle);
     const headLines = [];
-    hooks.callAll('aceInitInnerdocbodyHead', {iframeHTML: headLines});
+    editorBus.emit('custom:ace:init:innerdocbody:head', {iframeHTML: headLines});
     innerDocument.head.appendChild(
         innerDocument.createRange().createContextualFragment(headLines.join('\n')));
 

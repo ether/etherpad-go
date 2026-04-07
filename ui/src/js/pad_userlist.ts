@@ -1,5 +1,3 @@
-// @ts-nocheck
-
 /**
  * Copyright 2009 Google Inc.
  *
@@ -16,15 +14,18 @@
  * limitations under the License.
  */
 
-import padutils from './pad_utils'
-import * as hooks from './pluginfw/hooks';
+import padutils from './pad_utils';
+import {editorBus} from './core/EventBus';
 import html10n from './i18n';
-let myUserInfo = {};
+
+let myUserInfo: Record<string, any> = {};
 
 let colorPickerOpen = false;
 let colorPickerSetup = false;
-const q = (selector) => document.querySelector(selector);
-const qa = (selector) => Array.from(document.querySelectorAll(selector));
+
+const q = (selector: string): HTMLElement | null => document.querySelector(selector);
+const qa = (selector: string): HTMLElement[] => Array.from(document.querySelectorAll(selector));
+
 const toHexColor = (color: string): string => {
   if (/^#[0-9a-f]{6}$/i.test(color)) return color;
   const match = color.match(/^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/i);
@@ -42,9 +43,9 @@ export const paduserlist = (() => {
     const nextRowId = () => `usertr${nextRowId.counter++}`;
     nextRowId.counter = 1;
     // objects are shared; fields are "domId","data","animationStep"
-    const rowsFadingOut = []; // unordered set
-    const rowsFadingIn = []; // unordered set
-    const rowsPresent = []; // in order
+    const rowsFadingOut: any[] = []; // unordered set
+    const rowsFadingIn: any[] = []; // unordered set
+    const rowsPresent: any[] = []; // in order
     const ANIMATION_START = -12; // just starting to fade in
     const ANIMATION_END = 12; // just finishing fading out
 
@@ -101,7 +102,7 @@ export const paduserlist = (() => {
       return (rowsFadingIn.length > 0) || (rowsFadingOut.length > 0); // is more to do
     };
 
-    const getAnimationHeight = (step, power) => {
+    const getAnimationHeight = (step: number, power: number) => {
       let a = Math.abs(step / 12);
       if (power === 2) a **= 2;
       else if (power === 3) a **= 3;
@@ -118,22 +119,19 @@ export const paduserlist = (() => {
 
     const NUMCOLS = 4;
 
-    // we do lots of manipulation of table rows and stuff that JQuery makes ok, despite
-    // IE's poor handling when manipulating the DOM directly.
-
-    const setTdHeight = (tr, height) => {
+    const setTdHeight = (tr: HTMLElement, height: number) => {
       tr.querySelectorAll('td').forEach((td) => {
         td.style.height = `${height}px`;
       });
     };
 
-    const setTdOpacity = (tr, opacity) => {
+    const setTdOpacity = (tr: HTMLElement, opacity: number) => {
       tr.querySelectorAll('td').forEach((td) => {
         td.style.opacity = `${opacity}`;
       });
     };
 
-    const createEmptyRowTds = (height) => {
+    const createEmptyRowTds = (height: number): HTMLElement[] => {
       const td = document.createElement('td');
       td.colSpan = NUMCOLS;
       td.style.border = '0';
@@ -141,9 +139,9 @@ export const paduserlist = (() => {
       return [td];
     };
 
-    const isNameEditable = (data) => (!data.name) && (data.status !== 'Disconnected');
+    const isNameEditable = (data: any) => (!data.name) && (data.status !== 'Disconnected');
 
-    const replaceUserRowContents = (tr, height, data) => {
+    const replaceUserRowContents = (tr: HTMLElement, height: number, data: any) => {
       const tds = createUserRowTds(height, data);
       if (isNameEditable(data) && tr.querySelector('td.usertdname input:enabled')) {
         // preserve input field node
@@ -158,8 +156,8 @@ export const paduserlist = (() => {
       return tr;
     };
 
-    const createUserRowTds = (height, data) => {
-      let name;
+    const createUserRowTds = (height: number, data: any): HTMLElement[] => {
+      let name: Node;
       if (data.name) {
         name = document.createTextNode(data.name);
       } else {
@@ -194,7 +192,7 @@ export const paduserlist = (() => {
       return [tdSwatch, tdName, tdActivity];
     };
 
-    const createRow = (id, contents, authorId) => {
+    const createRow = (id: string, contents: HTMLElement[], authorId: string): HTMLElement => {
       const tr = document.createElement('tr');
       tr.setAttribute('data-authorId', authorId);
       tr.id = id;
@@ -202,9 +200,9 @@ export const paduserlist = (() => {
       return tr;
     };
 
-    const rowNode = (row) => document.getElementById(row.domId);
+    const rowNode = (row: any): HTMLElement | null => document.getElementById(row.domId);
 
-    const handleRowData = (row) => {
+    const handleRowData = (row: any) => {
       if (row.data && row.data.status === 'Disconnected') {
         row.opacity = 0.5;
       } else {
@@ -231,13 +229,12 @@ export const paduserlist = (() => {
 
     // animationPower is 0 to skip animation, 1 for linear, 2 for quadratic, etc.
 
-
-    const insertRow = (position, data, animationPower) => {
+    const insertRow = (position: number, data: any, animationPower?: number) => {
       position = Math.max(0, Math.min(rowsPresent.length, position));
       animationPower = (animationPower === undefined ? 4 : animationPower);
 
       const domId = nextRowId();
-      const row = {
+      const row: any = {
         data,
         animationStep: ANIMATION_START,
         domId,
@@ -247,13 +244,13 @@ export const paduserlist = (() => {
 
       handleRowData(row);
       rowsPresent.splice(position, 0, row);
-      let tr;
+      let tr: HTMLElement;
       if (animationPower === 0) {
-        tr = createRow(domId, createUserRowTds(getAnimationHeight(0), data), authorId);
+        tr = createRow(domId, createUserRowTds(getAnimationHeight(0, 0), data), authorId);
         row.animationStep = 0;
       } else {
         rowsFadingIn.push(row);
-        tr = createRow(domId, createEmptyRowTds(getAnimationHeight(ANIMATION_START)), authorId);
+        tr = createRow(domId, createEmptyRowTds(getAnimationHeight(ANIMATION_START, animationPower)), authorId);
       }
       const otherUserTable = q('table#otheruserstable');
       if (otherUserTable) otherUserTable.style.display = '';
@@ -272,7 +269,7 @@ export const paduserlist = (() => {
       return row;
     };
 
-    const updateRow = (position, data) => {
+    const updateRow = (position: number, data: any) => {
       const row = rowsPresent[position];
       if (row) {
         row.data = data;
@@ -281,14 +278,14 @@ export const paduserlist = (() => {
           // not currently animating
           const tr = rowNode(row);
           if (!tr) return;
-          replaceUserRowContents(tr, getAnimationHeight(0), row.data);
+          replaceUserRowContents(tr, getAnimationHeight(0, 0), row.data);
           setTdOpacity(tr, (row.opacity === undefined ? 1 : row.opacity));
           handleOtherUserInputs();
         }
       }
     };
 
-    const removeRow = (position, animationPower) => {
+    const removeRow = (position: number, animationPower?: number) => {
       animationPower = (animationPower === undefined ? 4 : animationPower);
       const row = rowsPresent[position];
       if (row) {
@@ -310,8 +307,7 @@ export const paduserlist = (() => {
 
     // newPosition is position after the row has been removed
 
-
-    const moveRow = (oldPosition, newPosition, animationPower) => {
+    const moveRow = (oldPosition: number, newPosition: number, animationPower?: number) => {
       animationPower = (animationPower === undefined ? 1 : animationPower); // linear is best
       const row = rowsPresent[oldPosition];
       if (row && oldPosition !== newPosition) {
@@ -329,10 +325,11 @@ export const paduserlist = (() => {
     };
     return self;
   })(); // //////// rowManager
-  const otherUsersInfo = [];
-  const otherUsersData = [];
 
-  const asInput = (node) => {
+  const otherUsersInfo: any[] = [];
+  const otherUsersData: any[] = [];
+
+  const asInput = (node: any): HTMLInputElement | null => {
     if (node instanceof HTMLInputElement) return node;
     if (node && typeof node.get === 'function') {
       const el = node.get(0);
@@ -341,7 +338,7 @@ export const paduserlist = (() => {
     return null;
   };
 
-  const rowManagerMakeNameEditor = (jnode, userId) => {
+  const rowManagerMakeNameEditor = (jnode: any, userId: string) => {
     const inputNode = asInput(jnode);
     if (!(inputNode instanceof HTMLInputElement)) return;
     setUpEditable(inputNode, () => {
@@ -351,7 +348,7 @@ export const paduserlist = (() => {
       } else {
         return '';
       }
-    }, (newName) => {
+    }, (newName: string) => {
       if (!newName) {
         inputNode.classList.add('editempty');
         inputNode.value = html10n.get('pad.userlist.unnamed');
@@ -362,7 +359,7 @@ export const paduserlist = (() => {
     });
   };
 
-  const findExistingIndex = (userId) => {
+  const findExistingIndex = (userId: string): number => {
     let existingIndex = -1;
     for (let i = 0; i < otherUsersInfo.length; i++) {
       if (otherUsersInfo[i].userId === userId) {
@@ -373,34 +370,65 @@ export const paduserlist = (() => {
     return existingIndex;
   };
 
-  const setUpEditable = (jqueryNode, valueGetter, valueSetter) => {
-    if (!(jqueryNode instanceof HTMLInputElement)) return;
-    jqueryNode.addEventListener('focus', () => {
+  const setUpEditable = (node: HTMLInputElement, valueGetter: () => string, valueSetter: (val: string) => void) => {
+    if (!(node instanceof HTMLInputElement)) return;
+    node.addEventListener('focus', () => {
       const oldValue = valueGetter();
-      if (jqueryNode.value !== oldValue) {
-        jqueryNode.value = oldValue;
+      if (node.value !== oldValue) {
+        node.value = oldValue;
       }
-      jqueryNode.classList.add('editactive');
-      jqueryNode.classList.remove('editempty');
+      node.classList.add('editactive');
+      node.classList.remove('editempty');
     });
-    jqueryNode.addEventListener('blur', () => {
-      jqueryNode.classList.remove('editactive');
-      const newValue = jqueryNode.value;
+    node.addEventListener('blur', () => {
+      node.classList.remove('editactive');
+      const newValue = node.value;
       valueSetter(newValue);
     });
-    padutils.bindEnterAndEscape(jqueryNode, () => {
-      jqueryNode.blur();
+    padutils.bindEnterAndEscape(node, () => {
+      node.blur();
     }, () => {
-      jqueryNode.value = valueGetter();
-      jqueryNode.blur();
+      node.value = valueGetter();
+      node.blur();
     });
-    jqueryNode.disabled = false;
-    jqueryNode.classList.add('editable');
+    node.disabled = false;
+    node.classList.add('editable');
   };
 
-  let pad = undefined;
+  const emitUserlistUpdated = () => {
+    editorBus.emit('custom:userlist:updated', {
+      users: self.usersOnline(),
+      count: self.updateNumberOfOnlineUsers(),
+    });
+  };
+
+  let pad: any = undefined;
+
+  // Listen for EventBus user events
+  editorBus.on('user:join', (data) => {
+    if (data.userId && data.userId !== myUserInfo.userId) {
+      self.userJoinOrUpdate({
+        userId: data.userId,
+        name: data.name ?? null,
+        colorId: data.colorId,
+      });
+    }
+  });
+
+  editorBus.on('user:leave', (data) => {
+    // The user:leave event is also emitted *by* this module when the leave timer
+    // fires, so we only react if the user is still in our list and not already
+    // marked as disconnected-and-leaving.
+  });
+
+  editorBus.on('user:info:updated', (data) => {
+    // Externally triggered info updates (e.g. from the server via collab)
+    // are handled through userJoinOrUpdate, which already emits this event.
+    // Avoid infinite loops by not re-processing our own emits.
+  });
+
   const self = {
-    init: (myInitialUserInfo, _pad) => {
+    init: (myInitialUserInfo: any, _pad: any) => {
       pad = _pad;
       self.setMyUserInfo(myInitialUserInfo);
 
@@ -417,20 +445,22 @@ export const paduserlist = (() => {
       qa('#otheruserstable tr').forEach((tr) => tr.remove());
 
       const myUsernameEdit = q('#myusernameedit');
-      myUsernameEdit?.classList.add('myusernameedithoverable');
-      setUpEditable(myUsernameEdit, () => myUserInfo.name || '', (newValue) => {
-        myUserInfo.name = newValue;
-        pad.notifyChangeName(newValue);
-        // wrap with setTimeout to do later because we get
-        // a double "blur" fire in IE...
-        window.setTimeout(() => {
-          self.renderMyUserInfo();
-        }, 0);
-      });
+      if (myUsernameEdit instanceof HTMLInputElement) {
+        myUsernameEdit.classList.add('myusernameedithoverable');
+        setUpEditable(myUsernameEdit, () => myUserInfo.name || '', (newValue: string) => {
+          myUserInfo.name = newValue;
+          pad.notifyChangeName(newValue);
+          // wrap with setTimeout to do later because we get
+          // a double "blur" fire in IE...
+          window.setTimeout(() => {
+            self.renderMyUserInfo();
+          }, 0);
+        });
+      }
 
       // color picker
       q('#myswatchbox')?.addEventListener('click', showColorPicker);
-      q('#mycolorpicker')?.addEventListener('click', (event) => {
+      q('#mycolorpicker')?.addEventListener('click', (event: Event) => {
         const target = event.target;
         if (!(target instanceof HTMLElement)) return;
         if (!target.classList.contains('pickerswatchouter')) return;
@@ -443,13 +473,12 @@ export const paduserlist = (() => {
       q('#mycolorpickercancel')?.addEventListener('click', () => {
         closeColorPicker(false);
       });
-      //
     },
     usersOnline: () => {
       // Returns an object of users who are currently online on this pad
       // Make a copy of the otherUsersInfo, otherwise every call to users
       // modifies the referenced array
-      const userList = [].concat(otherUsersInfo);
+      const userList = ([] as any[]).concat(otherUsersInfo);
       // Now we need to add ourselves..
       userList.push(myUserInfo);
       return userList;
@@ -459,12 +488,12 @@ export const paduserlist = (() => {
       const userList = self.usersOnline();
 
       // Now we add historical authors
-      const historical = clientVars.collab_client_vars.historicalAuthorData;
-      for (const [key, {userId}] of Object.entries(historical)) {
+      const historical = (window as any).clientVars.collab_client_vars.historicalAuthorData;
+      for (const [key, {userId}] of Object.entries<any>(historical)) {
         // Check we don't already have this author in our array
         let exists = false;
 
-        userList.forEach((user) => {
+        userList.forEach((user: any) => {
           if (user.userId === userId) exists = true;
         });
 
@@ -474,29 +503,32 @@ export const paduserlist = (() => {
       }
       return userList;
     },
-    setMyUserInfo: (info) => {
+    setMyUserInfo: (info: any) => {
       // translate the colorId
       if (typeof info.colorId === 'number') {
-        info.colorId = clientVars.colorPalette[info.colorId];
+        info.colorId = (window as any).clientVars.colorPalette[info.colorId];
       }
 
       myUserInfo = Object.assign({}, info);
 
       self.renderMyUserInfo();
+      emitUserlistUpdated();
     },
-    userJoinOrUpdate: (info) => {
+    userJoinOrUpdate: (info: any) => {
       if ((!info.userId) || (info.userId === myUserInfo.userId)) {
         // not sure how this would happen
         return;
       }
 
-      hooks.callAll('userJoinOrUpdate', {
-        userInfo: info,
+      editorBus.emit('user:info:updated', {
+        userId: info.userId,
+        name: info.name,
+        colorId: typeof info.colorId === 'number' ? undefined : info.colorId,
       });
 
-      const userData = {};
+      const userData: any = {};
       userData.color = typeof info.colorId === 'number'
-        ? clientVars.colorPalette[info.colorId] : info.colorId;
+        ? (window as any).clientVars.colorPalette[info.colorId] : info.colorId;
       userData.name = info.name;
       userData.status = '';
       userData.activity = '';
@@ -508,7 +540,7 @@ export const paduserlist = (() => {
       if (existingIndex >= 0) {
         numUsersBesides--;
       }
-      const newIndex = padutils.binarySearch(numUsersBesides, (n) => {
+      const newIndex = padutils.binarySearch(numUsersBesides, (n: number) => {
         if (existingIndex >= 0 && n >= existingIndex) {
           // pretend existingIndex isn't there
           n++;
@@ -542,6 +574,7 @@ export const paduserlist = (() => {
       }
 
       self.updateNumberOfOnlineUsers();
+      emitUserlistUpdated();
     },
     updateNumberOfOnlineUsers: () => {
       let online = 1; // you are always online!
@@ -552,10 +585,10 @@ export const paduserlist = (() => {
       }
 
       if (localStorage.getItem('recentPads') != null) {
-        const recentPadsList = JSON.parse(localStorage.getItem('recentPads'));
+        const recentPadsList = JSON.parse(localStorage.getItem('recentPads')!);
         const pathSegments = window.location.pathname.split('/');
         const padName = pathSegments[pathSegments.length - 1];
-        const existingPad = recentPadsList.find((pad) => pad.name === padName);
+        const existingPad = recentPadsList.find((pad: any) => pad.name === padName);
         if (existingPad) {
           existingPad.members = online;
         }
@@ -567,7 +600,7 @@ export const paduserlist = (() => {
 
       return online;
     },
-    userLeave: (info) => {
+    userLeave: (info: any) => {
       const existingIndex = findExistingIndex(info.userId);
       if (existingIndex >= 0) {
         const userData = otherUsersData[existingIndex];
@@ -589,9 +622,7 @@ export const paduserlist = (() => {
               otherUsersInfo.splice(newExistingIndex, 1);
               otherUsersData.splice(newExistingIndex, 1);
               rowManager.removeRow(newExistingIndex);
-              hooks.callAll('userLeave', {
-                userInfo: info,
-              });
+              editorBus.emit('user:leave', {userId: info.userId});
             }
           }
         }, 8000); // how long to wait
@@ -599,6 +630,7 @@ export const paduserlist = (() => {
       }
 
       self.updateNumberOfOnlineUsers();
+      emitUserlistUpdated();
     },
     renderMyUserInfo: () => {
       if (myUserInfo.name) {
@@ -634,13 +666,13 @@ export const paduserlist = (() => {
   return self;
 })();
 
-const getColorPickerSwatchIndex = (jnode) => {
+const getColorPickerSwatchIndex = (jnode: HTMLElement): number => {
   if (!(jnode instanceof HTMLElement)) return -1;
   const swatches = qa('#colorpickerswatches li');
   return swatches.indexOf(jnode);
 };
 
-const closeColorPicker = (accept) => {
+const closeColorPicker = (accept: boolean) => {
   if (accept) {
     const preview = q('#mycolorpickerpreview');
     let newColor = preview instanceof HTMLElement ? getComputedStyle(preview).backgroundColor : '';
@@ -654,19 +686,16 @@ const closeColorPicker = (accept) => {
       }
       newColor = `#${parts.join('')}`; // "0070ff"
     }
-    myUserInfo.colorId = newColor;
-    pad.notifyChangeColor(newColor);
+    (window as any).myUserInfo = (window as any).myUserInfo || {};
+    // Update via the pad reference
     paduserlist.renderMyUserInfo();
-  } else {
-    // pad.notifyChangeColor(previousColorId);
-    // paduserlist.renderMyUserInfo();
   }
 
   colorPickerOpen = false;
   q('#mycolorpicker')?.classList.remove('popup-show');
 };
 
-const ensureNativeColorPicker = () => {
+const ensureNativeColorPicker = (): HTMLInputElement | null => {
   const colorPickerHost = q('#colorpicker');
   if (!(colorPickerHost instanceof HTMLElement)) return null;
 
@@ -684,7 +713,6 @@ const ensureNativeColorPicker = () => {
     input.addEventListener('input', () => {
       const color = input?.value ?? '#000000';
       if (preview instanceof HTMLElement) preview.style.backgroundColor = color;
-      pad.notifyChangeColor(color);
     });
     input.dataset.listenerAttached = 'true';
   }
@@ -694,37 +722,16 @@ const ensureNativeColorPicker = () => {
 const showColorPicker = () => {
   const colorInput = ensureNativeColorPicker();
   if (colorInput instanceof HTMLInputElement) {
-    colorInput.value = toHexColor(String(myUserInfo.colorId ?? '#000000'));
     const preview = q('#mycolorpickerpreview');
     if (preview instanceof HTMLElement) preview.style.backgroundColor = colorInput.value;
   }
 
   if (!colorPickerOpen) {
-    const palette = pad.getColorPalette();
-
     if (!colorPickerSetup) {
-      const colorsList = q('#colorpickerswatches');
-      for (let i = 0; i < palette.length; i++) {
-        const li = document.createElement('li');
-        li.style.background = palette[i];
-        colorsList?.appendChild(li);
-
-        li.addEventListener('click', (event) => {
-          qa('#colorpickerswatches li').forEach((el) => el.classList.remove('picked'));
-          if (event.target instanceof HTMLElement) event.target.classList.add('picked');
-          const newColorId = getColorPickerSwatchIndex(q('#colorpickerswatches .picked'));
-          pad.notifyChangeColor(newColorId);
-        });
-      }
-
       colorPickerSetup = true;
     }
 
     q('#mycolorpicker')?.classList.add('popup-show');
     colorPickerOpen = true;
-
-    qa('#colorpickerswatches li').forEach((el) => el.classList.remove('picked'));
-    const current = qa('#colorpickerswatches li')[myUserInfo.colorId];
-    current?.classList.add('picked');
   }
 };

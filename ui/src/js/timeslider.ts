@@ -3,7 +3,6 @@ import padutils from './pad_utils';
 import {padimpexp} from './pad_impexp';
 import html10n from './i18n';
 import * as socketio from './socketio';
-import * as hooks from './pluginfw/hooks';
 
 type ServerMessage = {
   type?: string;
@@ -165,5 +164,4 @@ export const init = async (): Promise<void> => {
     window.location.reload();
   });
 
-  await hooks.aCallAll('postTimesliderInit', {});
 };

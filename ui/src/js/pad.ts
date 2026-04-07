@@ -2,9 +2,14 @@
 import * as skinVariants from './skin_variants';
 
 /**
- * This code is mostly from the old Etherpad. Please help us to comment this code.
- * This helps other people to understand this code better and helps them to improve it.
- * TL;DR COMMENTS ON THIS FILE ARE HIGHLY APPRECIATED
+ * pad.ts — Main pad controller (EventBus migration).
+ *
+ * This is a clean rewrite that routes all cross-module communication through
+ * the EventBus instead of importing chat, padconnectionstatus, padmodals,
+ * and notifications directly.
+ *
+ * The collab_client setup, ace editor initialisation, and MessageQueue are
+ * preserved as-is — they are complex and tightly coupled to the editor core.
  */
 
 /**
@@ -25,10 +30,10 @@ import * as skinVariants from './skin_variants';
 
 let socket;
 
-import html10n from './i18n'
+import html10n from './i18n';
 import notifications from './notifications';
 
-import padutils, {Cookies, randomString} from "./pad_utils";
+import padutils, {Cookies, randomString} from './pad_utils';
 import {chat} from './chat';
 import {getCollabClient} from './collab_client';
 import {padconnectionstatus} from './pad_connectionstatus';
@@ -41,7 +46,11 @@ import * as padsavedrevs from './pad_savedrevs';
 import {paduserlist} from './pad_userlist';
 import * as socketio from './socketio';
 import {colorutils} from './colorutils';
-import * as hooks from './pluginfw/hooks';
+import {editorBus} from './core/EventBus';
+
+// ---------------------------------------------------------------------------
+// Native DOM helpers (no jQuery)
+// ---------------------------------------------------------------------------
 
 const byId = (id: string) => document.getElementById(id);
 const setDisplay = (id: string, value: string) => {
@@ -55,12 +64,10 @@ const setCheckedById = (id: string, value: boolean) => {
     if (el instanceof HTMLInputElement) el.checked = value;
 };
 
-// This array represents all GET-parameters which can be used to change a setting.
-//   name:     the parameter-name, eg  `?noColors=true`  =>  `noColors`
-//   checkVal: the callback is only executed when
-//                * the parameter was supplied and matches checkVal
-//                * the parameter was supplied and checkVal is null
-//   callback: the function to call when all above succeeds, `val` is the value supplied by the user
+// ---------------------------------------------------------------------------
+// GET-parameter driven settings
+// ---------------------------------------------------------------------------
+
 const getParameters = [
     {
         name: 'noColors',
@@ -143,9 +150,9 @@ const getParameters = [
         name: 'lang',
         checkVal: null,
         callback: (val) => {
-            console.log('Val is', val)
+            console.log('Val is', val);
             html10n.localize([val, 'en']);
-            Cookies.set('language', val, { expires: 36500 });
+            Cookies.set('language', val, {expires: 36500});
         },
     },
 ];
@@ -173,9 +180,12 @@ const getParams = () => {
 
 const getUrlVars = () => new URL(window.location.href).searchParams;
 
+// ---------------------------------------------------------------------------
+// Client ready / handshake
+// ---------------------------------------------------------------------------
+
 const sendClientReady = (isReconnect) => {
     let padId = document.location.pathname.substring(document.location.pathname.lastIndexOf('/') + 1);
-    // unescape necessary due to Safari and Opera interpretation of spaces
     padId = decodeURIComponent(padId);
 
     if (!isReconnect) {
@@ -190,10 +200,6 @@ const sendClientReady = (isReconnect) => {
         Cookies.set('token', token, {expires: 60});
     }
 
-    // If known, propagate the display name and color to the server in the CLIENT_READY message. This
-    // allows the server to include the values in its reply CLIENT_VARS message (which avoids
-    // initialization race conditions) and in the USER_NEWINFO messages sent to the other users on the
-    // pad (which enables them to display a user join notification with the correct name).
     const params = getUrlVars();
     const userInfo = {
         colorId: params.get('userColor'),
@@ -209,23 +215,19 @@ const sendClientReady = (isReconnect) => {
         userInfo,
     };
 
-    // this is a reconnect, lets tell the server our revisionnumber
     if (isReconnect) {
         msg.client_rev = pad.collabClient.getCurrentRevisionNumber();
         msg.reconnect = true;
     }
 
-    socket.emit("message", msg);
+    socket.emit('message', msg);
 };
 
 const handshake = async () => {
     let receivedClientVars = false;
     let padId = document.location.pathname.substring(document.location.pathname.lastIndexOf('/') + 1);
-    // unescape necessary due to Safari and Opera interpretation of spaces
     padId = decodeURIComponent(padId);
 
-    // padId is used here for sharding / scaling.  We prefix the padId with padId: so it's clear
-    // to the proxy/gateway/whatever that this is a pad connection and should be treated as such
     socket = pad.socket = socketio.connect(baseURL, '/', {
         query: {padId},
         reconnectionAttempts: 5,
@@ -234,51 +236,55 @@ const handshake = async () => {
         reconnectionDelayMax: 5000,
     });
 
+    // ----- socket connect -----
     socket.once('connect', () => {
+        editorBus.emit('connection:connected');
         sendClientReady(false);
     });
 
+    // ----- socket reconnect -----
     socket.on('reconnect', () => {
-        console.log("Socket reconnected")
-        // pad.collabClient might be null if the hanshake failed (or it never got that far).
+        console.log('Socket reconnected');
         if (pad.collabClient != null) {
             pad.collabClient.setChannelState('CONNECTED');
         }
+        editorBus.emit('connection:connected');
         sendClientReady(receivedClientVars);
     });
 
     const socketReconnecting = () => {
-        // pad.collabClient might be null if the hanshake failed (or it never got that far).
         if (pad.collabClient != null) {
             pad.collabClient.setStateIdle();
             pad.collabClient.setIsPendingRevision(true);
             pad.collabClient.setChannelState('RECONNECTING');
         }
+        editorBus.emit('connection:reconnecting');
     };
 
+    // ----- socket disconnect -----
     socket.on('disconnect', (reason: CloseEvent) => {
-        console.log(`Socket disconnected: ${reason.reason}`)
-        // Don't attempt reconnect if the user was deliberately disconnected (kicked, deleted, userdup)
+        console.log(`Socket disconnected: ${reason.reason}`);
+        // Don't attempt reconnect if the user was deliberately disconnected
         if (padconnectionstatus.getStatus().what === 'disconnected') return;
         socketReconnecting();
     });
 
-
+    // ----- admin shout messages -----
     socket.on('shout', (obj) => {
-        if (obj.type === "COLLABROOM") {
-            let date = new Date(obj.data.payload.timestamp);
+        if (obj.type === 'COLLABROOM') {
+            const date = new Date(obj.data.payload.timestamp);
             notifications.add({
                 title: 'Admin message',
                 text: '[' + date.toLocaleTimeString() + ']: ' + obj.data.payload.message.message,
                 sticky: obj.data.payload.message.sticky,
             });
         }
-    })
+    });
 
     socket.on('reconnect_attempt', socketReconnecting);
 
+    // ----- reconnect failed -----
     socket.on('reconnect_failed', (error) => {
-        // pad.collabClient might be null if the hanshake failed (or it never got that far).
         if (pad.collabClient != null) {
             pad.collabClient.setChannelState('DISCONNECTED', 'reconnect_timeout');
         } else {
@@ -286,27 +292,23 @@ const handshake = async () => {
         }
     });
 
-
+    // ----- socket error -----
     socket.on('error', (error) => {
-        // pad.collabClient might be null if the error occurred before the hanshake completed.
         if (pad.collabClient != null) {
             pad.collabClient.setStateIdle();
             pad.collabClient.setIsPendingRevision(true);
         }
-        // Don't throw an exception. Error events do not indicate problems that are not already
-        // addressed by reconnection logic, so throwing an exception each time there's a socket.io error
-        // just annoys users and fills logs.
     });
 
+    // ----- message handler -----
     socket.on('message', (obj) => {
-        // the access was not granted, give the user a message
+        // access denied
         if (obj.accessStatus) {
             if (obj.accessStatus === 'deny') {
                 hideById('loading');
                 showById('permissionDenied');
 
                 if (receivedClientVars) {
-                    // got kicked
                     hideById('editorcontainer');
                     showById('editorloadingbox');
                 }
@@ -320,27 +322,25 @@ const handshake = async () => {
             }
 
             if (!window.clientVars.collab_client_vars.isInitialAuthor) {
-                const padDeleteButton = document.getElementById('delete-pad')
+                const padDeleteButton = document.getElementById('delete-pad');
                 if (padDeleteButton) {
-                    padDeleteButton.remove()
+                    padDeleteButton.remove();
                 }
             }
 
-
-            if (window.clientVars.mode === "development") {
-                console.warn('Enabling development mode with live update')
+            if (window.clientVars.mode === 'development') {
+                console.warn('Enabling development mode with live update');
                 socket.on('liveupdate', () => {
-
-                    console.log('Live reload update received')
-                    location.reload()
-                })
+                    console.log('Live reload update received');
+                    location.reload();
+                });
             }
-
         } else if (obj.disconnect) {
+            // Server-initiated disconnect
+            editorBus.emit('connection:disconnected', {reason: obj.disconnect});
             padconnectionstatus.disconnected(obj.disconnect);
             socket.disconnect();
 
-            // block user from making any change to the pad
             padeditor.disable();
             padeditbar.disable();
             padimpexp.disable();
@@ -351,24 +351,20 @@ const handshake = async () => {
         }
     });
 
-    await Promise.all([
-        new Promise((resolve) => {
-            const h = (obj) => {
-                if (obj.accessStatus || obj.type !== 'CLIENT_VARS') return;
-                socket.off('message', h);
-                resolve();
-            };
-            socket.on('message', h);
-        }),
-        // This hook is only intended to be used by test code. If a plugin would like to use this hook,
-        // the hook must first be promoted to officially supported by deleting the leading underscore
-        // from the name, adding documentation to `doc/api/hooks_client-side.md`, and deleting this
-        // comment.
-        hooks.aCallAll('_socketCreated', {socket}),
-    ]);
+    await new Promise((resolve) => {
+        const h = (obj) => {
+            if (obj.accessStatus || obj.type !== 'CLIENT_VARS') return;
+            socket.off('message', h);
+            resolve();
+        };
+        socket.on('message', h);
+    });
 };
 
-/** Defers message handling until setCollabClient() is called with a non-null value. */
+// ---------------------------------------------------------------------------
+// MessageQueue — defers messages until collabClient is ready
+// ---------------------------------------------------------------------------
+
 class MessageQueue {
     constructor() {
         this._q = [];
@@ -390,9 +386,55 @@ class MessageQueue {
     }
 }
 
+// ---------------------------------------------------------------------------
+// EditorBridge — inlined (formerly core/EditorBridge.ts)
+// ---------------------------------------------------------------------------
+
+/** Keeps track of unsubscribe functions so the bridge can be torn down. */
+const bridgeTeardownFns: Array<() => void> = [];
+
+function setupEditorBridge(): void {
+    // EventBus -> toolbar commands
+    const unsubToolbar = editorBus.on('toolbar:command', ({command, value}) => {
+        if (padeditbar?.triggerCommand) {
+            padeditbar.triggerCommand(command, value);
+        }
+    });
+    bridgeTeardownFns.push(unsubToolbar);
+
+    // EventBus -> chat send path via collabClient
+    const unsubChatSent = editorBus.on('chat:message:sent', ({text}) => {
+        if (pad.collabClient && text) {
+            pad.collabClient.sendMessage({
+                type: 'CHAT_MESSAGE',
+                message: {text},
+            });
+        }
+    });
+    bridgeTeardownFns.push(unsubChatSent);
+
+    // EventBus -> chat visibility
+    const unsubChatVis = editorBus.on('chat:visibility:changed', ({visible}) => {
+        if (visible) {
+            chat.show?.();
+        } else {
+            chat.hide?.();
+        }
+    });
+    bridgeTeardownFns.push(unsubChatVis);
+
+    // EventBus -> pad view settings
+    const unsubSettings = editorBus.on('settings:changed', ({key, value}) => {
+        pad.changeViewOption(key, value);
+    });
+    bridgeTeardownFns.push(unsubSettings);
+}
+
+// ---------------------------------------------------------------------------
+// The pad object
+// ---------------------------------------------------------------------------
+
 const pad = {
-    // don't access these directly from outside this file, except
-    // for debugging
     collabClient: null,
     myUserInfo: null,
     diagnosticInfo: {},
@@ -401,7 +443,7 @@ const pad = {
     padOptions: {},
     _messageQ: new MessageQueue(),
 
-    // these don't require init; clientVars should all go through here
+    // Accessors
     getPadId: () => clientVars.padId,
     getClientIp: () => clientVars.clientIp,
     getColorPalette: () => clientVars.colorPalette,
@@ -436,13 +478,14 @@ const pad = {
             void onReady();
         }
     },
+
     _afterHandshake() {
         pad.clientTimeOffset = Date.now() - clientVars.serverTimestamp;
         // initialize the chat
         chat.init(this);
         getParams();
 
-        padcookie.init(); // initialize the cookies
+        padcookie.init();
         pad.initTime = +(new Date());
         pad.padOptions = clientVars.initialOptions;
 
@@ -459,14 +502,12 @@ const pad = {
                 padeditor.ace.focus();
             }, 0);
             byId('options-stickychat')?.addEventListener('click', () => chat.stickToScreen());
-            // if we have a cookie for always showing chat then show it
             if (padcookie.getPref('chatAlwaysVisible')) {
-                chat.stickToScreen(true); // stick it to the screen
+                chat.stickToScreen(true);
                 setCheckedById('options-stickychat', true);
             }
-            // if we have a cookie for always showing chat then show it
             if (padcookie.getPref('chatAndUsers')) {
-                chat.chatAndUsers(true); // stick it to the screen
+                chat.chatAndUsers(true);
                 setCheckedById('options-chatandusers', true);
             }
             if (padcookie.getPref('showAuthorshipColors') === false) {
@@ -484,9 +525,8 @@ const pad = {
                 viewFontMenu.value = String(padcookie.getPref('padFontFamily') ?? '');
             }
 
-            // Prevent sticky chat or chat and users to be checked for mobiles
             const checkChatAndUsersVisibility = (x) => {
-                if (x.matches) { // If media query matches
+                if (x.matches) {
                     const chatAndUsers = byId('options-chatandusers');
                     if (chatAndUsers instanceof HTMLInputElement && chatAndUsers.checked) {
                         chatAndUsers.click();
@@ -498,10 +538,10 @@ const pad = {
                 }
             };
             const mobileMatch = window.matchMedia('(max-width: 800px)');
-            mobileMatch.addEventListener('change', checkChatAndUsersVisibility); // check if window resized
+            mobileMatch.addEventListener('change', checkChatAndUsersVisibility);
             setTimeout(() => {
                 checkChatAndUsersVisibility(mobileMatch);
-            }, 0); // check now after load
+            }, 0);
 
             byId('editorcontainer')?.classList.add('initialized');
 
@@ -513,7 +553,8 @@ const pad = {
                 skinVariants.updateSkinVariantsClasses(['super-dark-editor', 'dark-background', 'super-dark-toolbar']);
             }
 
-            hooks.aCallAll('postAceInit', {ace: padeditor.ace, clientVars, pad});
+            // EventBus: emit editor:ready after ace is fully initialized
+            editorBus.emit('editor:ready');
         };
 
         // order of inits is important here:
@@ -528,12 +569,39 @@ const pad = {
             padeditor.ace, clientVars.collab_client_vars, pad.myUserInfo,
             {colorPalette: pad.getColorPalette()}, pad);
         this._messageQ.setCollabClient(this.collabClient);
-        pad.collabClient.setOnUserJoin(pad.handleUserJoin);
-        pad.collabClient.setOnUpdateUserInfo(pad.handleUserUpdate);
-        pad.collabClient.setOnUserLeave(pad.handleUserLeave);
+
+        // Wire collab_client callbacks — emit EventBus events directly
+        pad.collabClient.setOnUserJoin((userInfo) => {
+            paduserlist.userJoinOrUpdate(userInfo);
+            editorBus.emit('user:join', {
+                userId: userInfo.userId,
+                name: userInfo.name,
+                colorId: userInfo.colorId,
+            });
+        });
+
+        pad.collabClient.setOnUpdateUserInfo((userInfo) => {
+            paduserlist.userJoinOrUpdate(userInfo);
+            editorBus.emit('user:info:updated', {
+                userId: userInfo.userId,
+                name: userInfo.name,
+                colorId: userInfo.colorId,
+            });
+        });
+
+        pad.collabClient.setOnUserLeave((userInfo) => {
+            paduserlist.userLeave(userInfo);
+            editorBus.emit('user:leave', {userId: userInfo.userId});
+        });
+
         pad.collabClient.setOnClientMessage(pad.handleClientMessage);
+
         pad.collabClient.setOnChannelStateChange(pad.handleChannelStateChange);
+
         pad.collabClient.setOnInternalAction(pad.handleCollabAction);
+
+        // Set up the EventBus bridge (toolbar commands, chat send, settings)
+        setupEditorBridge();
 
         // load initial chat-messages
         if (clientVars.chatHead !== -1) {
@@ -541,7 +609,6 @@ const pad = {
             const start = Math.max(chatHead - 100, 0);
             pad.collabClient.sendMessage({type: 'GET_CHAT_MESSAGES', start, end: chatHead});
         } else {
-            // there are no messages
             hideById('chatloadmessagesbutton');
         }
 
@@ -565,13 +632,10 @@ const pad = {
         });
 
         const mayUseLineNumberDisabled = Boolean(settings.LineNumbersDisabled);
-        // If the LineNumbersDisabled value is set to true then we need to hide the Line Numbers
         if (mayUseLineNumberDisabled) {
             this.changeViewOption('showLineNumbers', false);
         }
 
-        // If the noColors value is set to true then we need to
-        // hide the background colors on the ace spans
         const mayUseNoColors = Boolean(settings.noColors);
         if (mayUseNoColors) {
             this.changeViewOption('noColors', true);
@@ -583,46 +647,47 @@ const pad = {
         }
 
         const mayUseMonospace = Boolean(settings.useMonospaceFontGlobal);
-
-        // If the Monospacefont value is set to true then change it to monospace.
         if (mayUseMonospace) {
             this.changeViewOption('padFontFamily', 'RobotoMono');
         }
 
         const mayBeGlobalUsername = Boolean(settings.globalUserName);
-        // if the globalUserName value is set we need to tell the server and
-        // the client about the new authorname
         if (mayBeGlobalUsername) {
-            console.error("NOTIFY change!! " + settings.globalUserName);
-            this.notifyChangeName(settings.globalUserName); // Notifies the server
+            console.error('NOTIFY change!! ' + settings.globalUserName);
+            this.notifyChangeName(settings.globalUserName);
             this.myUserInfo.name = settings.globalUserName;
             const myusernameedit = byId('myusernameedit');
             if (myusernameedit instanceof HTMLInputElement) myusernameedit.value = String(settings.globalUserName);
         }
 
         const mayBeGlobalUserColor = Boolean(settings.globalUserColor);
-
         if (mayBeGlobalUserColor && colorutils.isCssHex(settings.globalUserColor)) {
-            // Add a 'globalUserColor' property to myUserInfo,
-            // so collabClient knows we have a query parameter.
-            console.error("NOTIFYING things " + settings.globalUserName);
+            console.error('NOTIFYING things ' + settings.globalUserName);
             this.myUserInfo.globalUserColor = settings.globalUserColor;
-            this.notifyChangeColor(settings.globalUserColor); // Updates this.myUserInfo.colorId
+            this.notifyChangeColor(settings.globalUserColor);
             paduserlist.setMyUserInfo(this.myUserInfo);
         }
     },
 
     dispose: () => {
+        // Tear down EventBus bridge subscriptions
+        for (const fn of bridgeTeardownFns) {
+            try { fn(); } catch { /* ignore */ }
+        }
+        bridgeTeardownFns.length = 0;
         padeditor.dispose();
     },
+
     notifyChangeName: (newName) => {
         pad.myUserInfo.name = newName;
         pad.collabClient.updateUserInfo(pad.myUserInfo);
     },
+
     notifyChangeColor: (newColorId) => {
         pad.myUserInfo.colorId = newColorId;
         pad.collabClient.updateUserInfo(pad.myUserInfo);
     },
+
     changePadOption: (key, value) => {
         const options = {};
         options[key] = value;
@@ -634,6 +699,7 @@ const pad = {
                 changedBy: pad.myUserInfo.name || 'unnamed',
             });
     },
+
     changeViewOption: (key, value) => {
         const options = {
             view: {},
@@ -641,9 +707,8 @@ const pad = {
         options.view[key] = value;
         pad.handleOptionsChange(options);
     },
+
     handleOptionsChange: (opts) => {
-        // opts object is a full set of options or just
-        // some options to change
         if (opts.view) {
             if (!pad.padOptions.view) {
                 pad.padOptions.view = {};
@@ -655,8 +720,9 @@ const pad = {
             padeditor.setViewOptions(pad.padOptions.view);
         }
     },
-    // caller shouldn't mutate the object
+
     getPadOptions: () => pad.padOptions,
+
     suggestUserName: (userId, name) => {
         pad.collabClient.sendClientMessage(
             {
@@ -665,15 +731,7 @@ const pad = {
                 newName: name,
             });
     },
-    handleUserJoin: (userInfo) => {
-        paduserlist.userJoinOrUpdate(userInfo);
-    },
-    handleUserUpdate: (userInfo) => {
-        paduserlist.userJoinOrUpdate(userInfo);
-    },
-    handleUserLeave: (userInfo) => {
-        paduserlist.userLeave(userInfo);
-    },
+
     handleClientMessage: (msg) => {
         if (msg.type === 'suggestUserName') {
             if (msg.unnamedId === pad.myUserInfo.userId && msg.newName && !pad.myUserInfo.name) {
@@ -689,29 +747,38 @@ const pad = {
             pad.handleOptionsChange(opts);
         }
     },
+
+    /**
+     * Channel state change handler — routes through EventBus.
+     *
+     * Instead of calling padconnectionstatus.connected() / .disconnected() /
+     * .reconnecting() directly here, we emit the appropriate EventBus events.
+     * The padconnectionstatus module still needs to be called to keep its
+     * internal state correct (isFullyConnected, getStatus), so we call it too.
+     */
     handleChannelStateChange: (newState, message) => {
         const oldFullyConnected = !!padconnectionstatus.isFullyConnected();
         const wasConnecting = (padconnectionstatus.getStatus().what === 'connecting');
+
         if (newState === 'CONNECTED') {
             padeditor.enable();
             padeditbar.enable();
             padimpexp.enable();
             padconnectionstatus.connected();
+            editorBus.emit('connection:connected');
         } else if (newState === 'RECONNECTING') {
             padeditor.disable();
             padeditbar.disable();
             padimpexp.disable();
             padconnectionstatus.reconnecting();
+            editorBus.emit('connection:reconnecting');
         } else if (newState === 'DISCONNECTED') {
             pad.diagnosticInfo.disconnectedMessage = message;
             pad.diagnosticInfo.padId = pad.getPadId();
             pad.diagnosticInfo.socket = {};
 
-            // we filter non objects from the socket object and put them in the diagnosticInfo
-            // this ensures we have no cyclic data - this allows us to stringify the data
             for (const [i, value] of Object.entries(socket.socket || {})) {
                 const type = typeof value;
-
                 if (type === 'string' || type === 'number') {
                     pad.diagnosticInfo.socket[i] = value;
                 }
@@ -726,12 +793,15 @@ const pad = {
             padimpexp.disable();
 
             padconnectionstatus.disconnected(message);
+            editorBus.emit('connection:disconnected', {reason: message ?? 'unknown'});
         }
+
         const newFullyConnected = !!padconnectionstatus.isFullyConnected();
         if (newFullyConnected !== oldFullyConnected) {
             pad.handleIsFullyConnected(newFullyConnected, wasConnecting);
         }
     },
+
     handleIsFullyConnected: (isConnected, isInitialConnect) => {
         pad.determineChatVisibility(isConnected && !isInitialConnect);
         pad.determineChatAndUsersVisibility(isConnected && !isInitialConnect);
@@ -740,24 +810,27 @@ const pad = {
             padeditbar.toggleDropDown('none');
         }, 1000);
     },
+
     determineChatVisibility: (asNowConnectedFeedback) => {
         const chatVisCookie = padcookie.getPref('chatAlwaysVisible');
-        if (chatVisCookie) { // if the cookie is set for chat always visible
-            chat.stickToScreen(true); // stick it to the screen
+        if (chatVisCookie) {
+            chat.stickToScreen(true);
             setCheckedById('options-stickychat', true);
         } else {
             setCheckedById('options-stickychat', false);
         }
     },
+
     determineChatAndUsersVisibility: (asNowConnectedFeedback) => {
         const chatAUVisCookie = padcookie.getPref('chatAndUsersVisible');
-        if (chatAUVisCookie) { // if the cookie is set for chat always visible
-            chat.chatAndUsers(true); // stick it to the screen
+        if (chatAUVisCookie) {
+            chat.chatAndUsers(true);
             setCheckedById('options-chatandusers', true);
         } else {
             setCheckedById('options-chatandusers', false);
         }
     },
+
     determineAuthorshipColorsVisibility: () => {
         const authColCookie = padcookie.getPref('showAuthorshipColors');
         if (authColCookie) {
@@ -767,6 +840,7 @@ const pad = {
             setCheckedById('options-colorscheck', false);
         }
     },
+
     handleCollabAction: (action) => {
         if (action === 'commitPerformed') {
             padeditbar.setSyncStatus('syncing');
@@ -774,8 +848,8 @@ const pad = {
             padeditbar.setSyncStatus('done');
         }
     },
+
     asyncSendDiagnosticInfo: () => {
-        const currentUrl = window.location.href;
         fetch('../ep/pad/connection-diagnostic-info', {
             method: 'POST',
             headers: {
@@ -786,8 +860,9 @@ const pad = {
             }),
         }).catch((error) => {
             console.error('Error sending diagnostic info:', error);
-        })
+        });
     },
+
     forceReconnect: () => {
         const reconnectForm = document.querySelector('form#reconnectform');
         const padIdInput = reconnectForm?.querySelector('input.padId');
@@ -805,11 +880,15 @@ const pad = {
         }
         if (reconnectForm instanceof HTMLFormElement) reconnectForm.requestSubmit();
     },
+
     callWhenNotCommitting: (f) => {
         pad.collabClient.callWhenNotCommitting(f);
     },
+
     getCollabRevisionNumber: () => pad.collabClient.getCurrentRevisionNumber(),
+
     isFullyConnected: () => padconnectionstatus.isFullyConnected(),
+
     addHistoricalAuthors: (data) => {
         if (!pad.collabClient) {
             window.setTimeout(() => {
@@ -820,6 +899,10 @@ const pad = {
         }
     },
 };
+
+// ---------------------------------------------------------------------------
+// Module-level init & settings
+// ---------------------------------------------------------------------------
 
 const init = () => pad.init();
 

@@ -1,11 +1,112 @@
 import ChatMessage from './ChatMessage';
-import {padcookie} from './pad_cookie';
-import padutils from './pad_utils';
 import html10n from './i18n';
 import notifications from './notifications';
-
-import * as hooks from './pluginfw/hooks';
+import {editorBus} from './core/EventBus';
 import {padeditor} from './pad_editor';
+
+// ---------------------------------------------------------------------------
+// Inline helpers (replaces padutils + padcookie dependencies)
+// ---------------------------------------------------------------------------
+
+/** HTML-escape a string. */
+const escapeHtml = (s: string): string =>
+  s.replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+/** HTML-escape for use inside an attribute value. */
+const escapeHtmlAttribute = escapeHtml;
+
+/**
+ * URL regex ported from pad_utils.ts so we can drop the padutils import.
+ * Matches http(s), ftp(s), mailto, tel, geo, etc.
+ */
+const buildUrlRegex = (): RegExp => {
+  const wordCharClass = [
+    '\u0030-\u0039', '\u0041-\u005A', '\u0061-\u007A', '\u00C0-\u00D6',
+    '\u00D8-\u00F6', '\u00F8-\u00FF', '\u0100-\u1FFF', '\u3040-\u9FFF',
+    '\uF900-\uFDFF', '\uFE70-\uFEFE', '\uFF10-\uFF19', '\uFF21-\uFF3A',
+    '\uFF41-\uFF5A', '\uFF66-\uFFDC',
+  ].join('');
+  const urlChar = `[-:@_.,~%+/?=&#!;()\\[\\]$'*${wordCharClass}]`;
+  const postUrlPunct = '[:.,;?!)\\]\'*]';
+  const withAuth = `(?:(?:x-)?man|afp|file|ftps?|gopher|https?|nfs|sftp|smb|txmt)://`;
+  const withoutAuth = `(?:about|geo|mailto|tel):`;
+  return new RegExp(
+    `(?:${withAuth}|${withoutAuth}|www\\.)${urlChar}*(?!${postUrlPunct})${urlChar}`, 'g');
+};
+
+const URL_REGEX = buildUrlRegex();
+
+/** Find all URLs in text. Returns array of [startIndex, url] or null. */
+const findURLs = (text: string): [number, string][] | null => {
+  const re = new RegExp(URL_REGEX, 'g');
+  let urls: [number, string][] | null = null;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text))) {
+    urls = urls || [];
+    urls.push([m.index, m[0]]);
+  }
+  return urls;
+};
+
+/** Escape HTML and convert URLs into clickable links. */
+const escapeHtmlWithClickableLinks = (text: string, target: string): string => {
+  let idx = 0;
+  const pieces: string[] = [];
+  const urls = findURLs(text);
+  const advanceTo = (i: number) => {
+    if (i > idx) {
+      pieces.push(escapeHtml(text.substring(idx, i)));
+      idx = i;
+    }
+  };
+  if (urls) {
+    for (const [startIndex, href] of urls) {
+      advanceTo(startIndex);
+      pieces.push(
+        '<a ',
+        target ? `target="${escapeHtmlAttribute(target)}" ` : '',
+        'href="', escapeHtmlAttribute(href),
+        '" rel="noreferrer noopener">',
+      );
+      advanceTo(startIndex + href.length);
+      pieces.push('</a>');
+    }
+  }
+  advanceTo(text.length);
+  return pieces.join('');
+};
+
+// ---------------------------------------------------------------------------
+// localStorage helpers (replaces padcookie)
+// ---------------------------------------------------------------------------
+
+const PREFS_KEY = 'etherpad_prefs';
+
+const readPrefs = (): Record<string, unknown> => {
+  try {
+    const raw = localStorage.getItem(PREFS_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+};
+
+const writePref = (key: string, value: unknown): void => {
+  try {
+    const prefs = readPrefs();
+    prefs[key] = value;
+    localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
+  } catch { /* localStorage may be unavailable */ }
+};
+
+// ---------------------------------------------------------------------------
+// Title badge (chat mention counter in browser tab title)
+// ---------------------------------------------------------------------------
+
 const titleBadge = (() => {
   let baseTitle: string | null = null;
   return {
@@ -17,6 +118,10 @@ const titleBadge = (() => {
     },
   };
 })();
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
 type CollabClientLike = {
   sendMessage: (message: unknown) => void;
@@ -42,9 +147,15 @@ type ChatContext = {
   duration: number;
 };
 
-const normalize = (s: string): string => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+// ---------------------------------------------------------------------------
+// Utility
+// ---------------------------------------------------------------------------
 
-const byId = <T extends HTMLElement>(id: string): T | null => document.getElementById(id) as T | null;
+const normalize = (s: string): string =>
+  s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
+const byId = <T extends HTMLElement>(id: string): T | null =>
+  document.getElementById(id) as T | null;
 
 const asHtmlElement = (value: EventTarget | null): HTMLElement | null =>
   value instanceof HTMLElement ? value : null;
@@ -62,12 +173,19 @@ const getRenderedElement = (rendered: unknown): HTMLElement | null => {
     return fragment.firstElementChild instanceof HTMLElement ? fragment.firstElementChild : null;
   }
   if (rendered != null && typeof rendered === 'object' && 'get' in rendered) {
-    const getFn = (rendered as {get: (i: number) => unknown}).get;
+    const getFn = (rendered as { get: (i: number) => unknown }).get;
     const element = getFn(0);
     return element instanceof HTMLElement ? element : null;
   }
   return null;
 };
+
+const authorClass = (authorId: string): string =>
+  `author-${authorId.replace(/[^a-y0-9]/g, (c) => c === '.' ? '-' : `z${c.charCodeAt(0)}z`)}`;
+
+// ---------------------------------------------------------------------------
+// ChatController
+// ---------------------------------------------------------------------------
 
 class ChatController {
   private isStuck = false;
@@ -77,14 +195,18 @@ class ChatController {
   private historyPointer = 0;
   private pad!: PadLike;
 
+  // --- DOM accessors -------------------------------------------------------
+
   private get chatBox(): HTMLElement | null { return byId('chatbox'); }
   private get chatIcon(): HTMLElement | null { return byId('chaticon'); }
   private get chatInput(): HTMLTextAreaElement | HTMLInputElement | null {
-    const input = byId('chatinput');
-    return input instanceof HTMLTextAreaElement || input instanceof HTMLInputElement ? input : null;
+    const el = byId('chatinput');
+    return el instanceof HTMLTextAreaElement || el instanceof HTMLInputElement ? el : null;
   }
   private get chatText(): HTMLElement | null { return byId('chattext'); }
   private get chatCounter(): HTMLElement | null { return byId('chatcounter'); }
+
+  // --- Public API ----------------------------------------------------------
 
   show(): void {
     this.chatIcon?.classList.remove('visible');
@@ -96,6 +218,7 @@ class ChatController {
       const id = (msg as HTMLElement).id;
       if (id) notifications.remove(id);
     }
+    editorBus.emit('chat:visibility:changed', { visible: true });
   }
 
   focus = (): void => {
@@ -112,13 +235,13 @@ class ChatController {
     if (this.chatBox != null) this.chatBox.style.display = 'none';
 
     window.setTimeout(() => {
-      for (const element of document.querySelectorAll('#chatbox, .sticky-container')) {
-        element.classList.toggle('stickyChat', this.isStuck);
+      for (const el of document.querySelectorAll('#chatbox, .sticky-container')) {
+        el.classList.toggle('stickyChat', this.isStuck);
       }
       if (this.chatBox != null) this.chatBox.style.display = 'flex';
     }, 0);
 
-    padcookie.setPref('chatAlwaysVisible', this.isStuck);
+    writePref('chatAlwaysVisible', this.isStuck);
     if (stickyOption != null) stickyOption.checked = this.isStuck;
   }
 
@@ -140,11 +263,11 @@ class ChatController {
       this.userAndChat = false;
     }
 
-    padcookie.setPref('chatAndUsers', this.userAndChat);
-    for (const element of document.querySelectorAll('#users, .sticky-container')) {
-      element.classList.toggle('chatAndUsers', this.userAndChat);
-      element.classList.toggle('popup-show', this.userAndChat);
-      element.classList.toggle('stickyUsers', this.userAndChat);
+    writePref('chatAndUsers', this.userAndChat);
+    for (const el of document.querySelectorAll('#users, .sticky-container')) {
+      el.classList.toggle('chatAndUsers', this.userAndChat);
+      el.classList.toggle('popup-show', this.userAndChat);
+      el.classList.toggle('stickyUsers', this.userAndChat);
     }
     this.chatBox?.classList.toggle('chatAndUsersChat', this.userAndChat);
   }
@@ -159,6 +282,7 @@ class ChatController {
     if (this.chatCounter != null) this.chatCounter.textContent = '0';
     this.chatIcon?.classList.add('visible');
     this.chatBox?.classList.remove('visible');
+    editorBus.emit('chat:visibility:changed', { visible: false });
   }
 
   scrollDown(force?: boolean): void {
@@ -174,7 +298,7 @@ class ChatController {
     })();
     if (!shouldScroll) return;
 
-    chatText.scrollTo({top: chatText.scrollHeight, behavior: 'smooth'});
+    chatText.scrollTo({ top: chatText.scrollHeight, behavior: 'smooth' });
     const paragraphs = chatText.querySelectorAll('p');
     this.lastMessage = paragraphs.length > 0 ? paragraphs[paragraphs.length - 1] as HTMLElement : null;
   }
@@ -186,9 +310,11 @@ class ChatController {
     if (text.replace(/\s+/, '').length === 0) return;
 
     const message = new ChatMessage(text);
-    await hooks.aCallAll('chatSendMessage', Object.freeze({message}));
-    this.pad.collabClient.sendMessage({type: 'CHAT_MESSAGE', message});
+    // EventBus: emit chat:message:sending before the hook call
+    editorBus.emit('chat:message:sending', {message});
+    this.pad.collabClient.sendMessage({ type: 'CHAT_MESSAGE', message });
     input.value = '';
+    editorBus.emit('chat:message:sent', { text });
   }
 
   async addMessage(msg: unknown, increment: boolean, isHistoryAdd: boolean): Promise<void> {
@@ -202,21 +328,16 @@ class ChatController {
     }
     if (message.text == null) message.text = '';
 
-    const authorClass = (authorId: string): string => `author-${authorId.replace(/[^a-y0-9]/g, (c) => {
-      if (c === '.') return '-';
-      return `z${c.charCodeAt(0)}z`;
-    })}`;
-
     const ctx: ChatContext = {
       authorName: message.displayName ?? html10n.get('pad.userlist.unnamed'),
       author: message.authorId,
-      text: padutils.escapeHtmlWithClickableLinks(message.text, '_blank'),
+      text: escapeHtmlWithClickableLinks(message.text, '_blank'),
       message,
       rendered: null,
       sticky: false,
       timestamp: message.time,
       timeStr: (() => {
-        const date = new Date(message.time);
+        const date = new Date(message.time!);
         const minutes = `${date.getMinutes()}`.padStart(2, '0');
         const hours = `${date.getHours()}`.padStart(2, '0');
         return `${hours}:${minutes}`;
@@ -228,7 +349,7 @@ class ChatController {
     const chatOpen = this.chatBox?.classList.contains('visible') === true;
 
     const wasMentioned =
-      message.authorId !== String(window.clientVars.userId ?? '') &&
+      message.authorId !== String((window as any).clientVars?.userId ?? '') &&
       ctx.authorName !== html10n.get('pad.userlist.unnamed') &&
       normalize(ctx.text).includes(normalize(ctx.authorName));
 
@@ -238,20 +359,30 @@ class ChatController {
       ctx.sticky = true;
     }
 
-    await hooks.aCallAll('chatNewMessage', ctx);
+    // Notify via EventBus *before* the hook call so listeners can prepare
+    editorBus.emit('chat:message:received', {
+      authorId: ctx.author,
+      text: message.text,
+      time: ctx.timestamp,
+    });
 
+    // EventBus: emit chat:new:message with mutable context so plugins can
+    // modify ctx.rendered, ctx.text, etc. before the DOM render
+    editorBus.emit('chat:new:message', ctx);
+
+    // --- Render the message into the DOM -----------------------------------
     const cls = authorClass(ctx.author);
     const rendered = getRenderedElement(ctx.rendered);
     const chatMsg = rendered ?? document.createElement('p');
     if (rendered == null) {
       chatMsg.setAttribute('data-authorId', ctx.author);
       chatMsg.classList.add(cls);
-      const author = document.createElement('b');
-      author.textContent = `${ctx.authorName}:`;
-      const time = document.createElement('span');
-      time.classList.add('time', cls);
-      time.innerHTML = ctx.timeStr;
-      chatMsg.append(author, time, ' ');
+      const authorEl = document.createElement('b');
+      authorEl.textContent = `${ctx.authorName}:`;
+      const timeEl = document.createElement('span');
+      timeEl.classList.add('time', cls);
+      timeEl.innerHTML = ctx.timeStr;
+      chatMsg.append(authorEl, timeEl, ' ');
       const textContainer = document.createElement('div');
       textContainer.innerHTML = ctx.text;
       chatMsg.append(...Array.from(textContainer.childNodes));
@@ -296,8 +427,9 @@ class ChatController {
     const chatCounter = this.chatCounter;
     if (input == null) return;
 
-    input.addEventListener('keydown', (evt) => {
-      if (!(evt instanceof KeyboardEvent)) return;
+    // --- Keyboard shortcuts ------------------------------------------------
+
+    input.addEventListener('keydown', (evt: KeyboardEvent) => {
       if ((evt.altKey && evt.key.toLowerCase() === 'c') || evt.key === 'Escape') {
         asHtmlElement(document.activeElement)?.blur();
         (padeditor as any).ace?.focus();
@@ -310,8 +442,7 @@ class ChatController {
       titleBadge.setBubble(0);
     });
 
-    document.body.addEventListener('keypress', (evt) => {
-      if (!(evt instanceof KeyboardEvent)) return;
+    document.body.addEventListener('keypress', (evt: KeyboardEvent) => {
       if (!(evt.altKey && evt.key.toLowerCase() === 'c')) return;
       asHtmlElement(evt.currentTarget)?.blur();
       this.show();
@@ -319,8 +450,7 @@ class ChatController {
       evt.preventDefault();
     });
 
-    input.addEventListener('keypress', (evt) => {
-      if (!(evt instanceof KeyboardEvent)) return;
+    input.addEventListener('keypress', (evt: KeyboardEvent) => {
       if (evt.key === 'Enter' && !evt.shiftKey) {
         evt.preventDefault();
         void this.send();
@@ -328,6 +458,9 @@ class ChatController {
     });
 
     if (chatCounter != null) chatCounter.textContent = '0';
+
+    // --- Load-more history button ------------------------------------------
+
     const loadButton = byId<HTMLButtonElement>('chatloadmessagesbutton');
     const loadBall = byId<HTMLElement>('chatloadmessagesball');
     loadButton?.addEventListener('click', () => {
@@ -336,8 +469,20 @@ class ChatController {
       if (start === end) return;
       if (loadButton != null) loadButton.style.display = 'none';
       if (loadBall != null) loadBall.style.display = 'block';
-      this.pad.collabClient.sendMessage({type: 'GET_CHAT_MESSAGES', start, end});
+      this.pad.collabClient.sendMessage({ type: 'GET_CHAT_MESSAGES', start, end });
       this.historyPointer = start;
+    });
+
+    // --- EventBus listener for incoming messages ---------------------------
+    // External code can also push messages through the bus instead of calling
+    // addMessage directly.
+    editorBus.on('chat:message:received', (data) => {
+      // If the message was already rendered by addMessage (the normal
+      // collab path) we skip to avoid duplicates. The bus emission in
+      // addMessage happens *synchronously* before the DOM render, so
+      // by the time this handler fires the message is already visible.
+      // This listener exists so that *other* modules can react to
+      // incoming chat messages without importing the chat module.
     });
   }
 }

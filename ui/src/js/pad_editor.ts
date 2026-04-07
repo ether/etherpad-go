@@ -24,6 +24,7 @@
 import padutils,{Cookies} from "./pad_utils";
 import {padcookie} from './pad_cookie';
 import {Ace2Editor} from './ace';
+import {editorBus} from './core/EventBus';
 import html10n from './i18n'
 import * as skinVariants from './skin_variants';
 
@@ -43,6 +44,8 @@ export const padeditor = (() => {
       settings = pad.settings;
       self.ace = new Ace2Editor();
       await self.ace.init('editorcontainer', '');
+      // EventBus: emit editor:ace:initialized after the ACE editor is created
+      editorBus.emit('editor:ace:initialized', {editorInfo: self.ace});
       const editorLoading = q('#editorloadingbox');
       if (editorLoading) editorLoading.style.display = 'none';
       // Listen for clicks on sidediv items

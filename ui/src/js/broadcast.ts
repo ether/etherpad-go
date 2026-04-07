@@ -29,7 +29,7 @@ import {compose, deserializeOps, inverse, moveOpsToNewPool, mutateAttributionLin
 import attributes from './attributes';
 import {linestylefilter} from './linestylefilter';
 import {colorutils} from './colorutils';
-import * as hooks from './pluginfw/hooks';
+import {editorBus} from './core/EventBus';
 
 import html10n from './i18n';
 
@@ -266,9 +266,7 @@ export const loadBroadcastJS = (socket, sendSocketMsg, fireWhenAllScriptsAreLoad
     padContents.targetRevision = newRevision;
     const path = window.revisionInfo.getPath(padContents.currentRevision, newRevision);
 
-    hooks.aCallAll('goToRevisionEvent', {
-      rev: newRevision,
-    });
+    editorBus.emit('custom:go:to:revision', {rev: newRevision});
 
     if (path.status === 'complete') {
       const cs = path.changesets;
@@ -433,7 +431,7 @@ export const loadBroadcastJS = (socket, sendSocketMsg, fireWhenAllScriptsAreLoad
           const savedRev = obj.savedRev;
           BroadcastSlider.addSavedRevision(savedRev.revNum, savedRev);
         }
-        hooks.callAll(`handleClientTimesliderMessage_${obj.type}`, {payload: obj});
+        editorBus.emit(`custom:timeslider:message:${obj.type}`, {payload: obj});
       } else if (obj.type === 'CHANGESET_REQ') {
         this.handleSocketResponse(obj);
       } else {
