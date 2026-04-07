@@ -68,6 +68,14 @@
   background: #dadada;
 }
 
+.toolbar select.toolbar-select.heading-selection,
+.toolbar select.toolbar-select.size-selection,
+.toolbar select.toolbar-select.font-family-selection,
+.toolbar select.toolbar-select.color-selection {
+  opacity: 0;
+  pointer-events: none;
+}
+
 .toolbar ul li a.grouped-left {
   border-radius: 3px 0 0 3px;
 }

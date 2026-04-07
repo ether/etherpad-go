@@ -23,7 +23,7 @@
 // requires: undefined
 
 import {escapeHtml, escapeHtmlAttribute} from './html_escape';
-import * as hooks from './pluginfw/hooks';
+import {editorBus} from './core/EventBus';
 import {lineAttributeMarker} from './linestylefilter';
 const noop = () => {};
 const identity = (value) => value;
@@ -87,14 +87,6 @@ domline.createDomLine = (nonEmpty, doesWrap, optBrowser, optDocument) => {
       let listType = /(?:^| )list:(\S+)/.exec(cls);
       const start = /(?:^| )start:(\S+)/.exec(cls);
 
-      hooks.callAll('aceDomLinePreProcessLineAttributes', {
-        domline,
-        cls,
-      }).forEach((modifier) => {
-        preHtml += modifier.preHtml;
-        postHtml += modifier.postHtml;
-        processedMarker |= modifier.processedMarker;
-      });
       if (listType) {
         listType = listType[1];
         if (listType) {
@@ -118,14 +110,19 @@ domline.createDomLine = (nonEmpty, doesWrap, optBrowser, optDocument) => {
         }
         processedMarker = true;
       }
-      hooks.callAll('aceDomLineProcessLineAttributes', {
-        domline,
+      // EventBus: emit editor:process:line:attribs with mutable result array
+      const busProcessLineResult = [];
+      editorBus.emit('editor:process:line:attribs', {
         cls,
-      }).forEach((modifier) => {
-        preHtml += modifier.preHtml;
-        postHtml += modifier.postHtml;
-        processedMarker |= modifier.processedMarker;
+        domline,
+        result: busProcessLineResult,
+        modifier: {preHtml, postHtml, processedMarker},
       });
+      for (const modifier of busProcessLineResult) {
+        if (modifier.preHtml) preHtml += modifier.preHtml;
+        if (modifier.postHtml) postHtml = modifier.postHtml + postHtml;
+        if (modifier.processedMarker) processedMarker = true;
+      }
       if (processedMarker) {
         result.lineMarker += txt.length;
         return; // don't append any text
@@ -150,14 +147,14 @@ domline.createDomLine = (nonEmpty, doesWrap, optBrowser, optDocument) => {
     let extraOpenTags = '';
     let extraCloseTags = '';
 
-    hooks.callAll('aceCreateDomLine', {
-      domline,
-      cls,
-    }).forEach((modifier) => {
-      cls = modifier.cls;
-      extraOpenTags += modifier.extraOpenTags;
-      extraCloseTags = modifier.extraCloseTags + extraCloseTags;
-    });
+    // EventBus: emit editor:create:dom:line with mutable result array
+    const busCreateDomResult: any[] = [];
+    editorBus.emit('editor:create:dom:line', {cls, domline, result: busCreateDomResult});
+    for (const modifier of busCreateDomResult) {
+      if (modifier.cls != null) cls = modifier.cls;
+      if (modifier.extraOpenTags) extraOpenTags += modifier.extraOpenTags;
+      if (modifier.extraCloseTags) extraCloseTags = modifier.extraCloseTags + extraCloseTags;
+    }
 
     if ((!txt) && cls) {
       lineClass = domline.addToLineClass(lineClass, cls);
@@ -220,9 +217,6 @@ domline.createDomLine = (nonEmpty, doesWrap, optBrowser, optDocument) => {
     }
     if (lineClass != null) result.node.className = lineClass;
 
-    hooks.callAll('acePostWriteDomLineHTML', {
-      node: result.node,
-    });
   };
   result.prepareForAdd = writeHTML;
   result.finishUpdate = writeHTML;

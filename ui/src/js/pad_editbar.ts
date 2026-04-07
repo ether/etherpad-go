@@ -23,7 +23,7 @@
  */
 
 import {browserFlags as browser} from './browser_flags';
-import * as hooks from './pluginfw/hooks';
+import {editorBus} from './core/EventBus';
 import html10n from './i18n';
 import padutils from "./pad_utils";
 import {padeditor} from './pad_editor';
@@ -170,10 +170,8 @@ export const padeditbar = new class {
 
     this._registerDefaultCommands();
 
-    hooks.callAll('postToolbarInit', {
-      toolbar: this,
-      ace: padeditor.ace,
-    });
+    // EventBus: emit toolbar:ready after toolbar initialization
+    editorBus.emit('toolbar:ready', {toolbar: this, ace: padeditor.ace});
 
     /*
      * On safari, the dropdown in the toolbar gets hidden because of toolbar
@@ -226,6 +224,8 @@ export const padeditbar = new class {
     if (this.isEnabled() && this.commands[cmd]) {
       this.commands[cmd](cmd, padeditor.ace, item);
     }
+    // EventBus: emit toolbar:command when a toolbar command is executed
+    editorBus.emit('toolbar:command', {command: cmd, value: item?.getValue?.()});
     if (padeditor.ace) padeditor.ace.focus();
   }
 

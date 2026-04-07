@@ -109,5 +109,6 @@ export const loadBroadcastRevisionsJS = () => {
       times,
     };
   };
+  // Exposed as a window global because broadcast.ts accesses it via window.revisionInfo.
   window.revisionInfo = revisionInfo;
 };

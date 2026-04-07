@@ -32,7 +32,7 @@
 
 import {deserializeOps} from './Changeset';
 import attributes from './attributes';
-import * as hooks from './pluginfw/hooks';
+import {editorBus} from './core/EventBus';
 export const linestylefilter = {};
 import AttributeManager from './AttributeManager';
 import padutils from './pad_utils'
@@ -55,11 +55,6 @@ linestylefilter.getAuthorClassName = (author) => `author-${author.replace(/[^a-y
 // lineLength is without newline; aline includes newline,
 // but may be falsy if lineLength == 0
 linestylefilter.getLineStyleFilter = (lineLength, aline, textAndClassFunc, apool) => {
-  // Plugin Hook to add more Attrib Classes
-  for (const attribClasses of hooks.callAll('aceAttribClasses', linestylefilter.ATTRIB_CLASSES)) {
-    Object.assign(linestylefilter.ATTRIB_CLASSES, attribClasses);
-  }
-
   if (lineLength === 0) return textAndClassFunc;
 
   const nextAfterAuthorColors = textAndClassFunc;
@@ -89,8 +84,10 @@ linestylefilter.getLineStyleFilter = (lineLength, aline, textAndClassFunc, apool
         } else if (linestylefilter.ATTRIB_CLASSES[key]) {
           classes += ` ${linestylefilter.ATTRIB_CLASSES[key]}`;
         } else {
-          const results = hooks.callAll('aceAttribsToClasses', {linestylefilter, key, value});
-          classes += ` ${results.join(' ')}`;
+          // EventBus: emit editor:attribs:to:classes with mutable result array
+          const busResult: string[] = [];
+          editorBus.emit('editor:attribs:to:classes', {key, value, result: busResult});
+          classes += ` ${busResult.join(' ')}`;
         }
       }
 
@@ -123,13 +120,7 @@ linestylefilter.getLineStyleFilter = (lineLength, aline, textAndClassFunc, apool
     nextClasses();
 
     return (txt, cls) => {
-      const disableAuthColorForThisLine = hooks.callAll('disableAuthorColorsForThisLine', {
-        linestylefilter,
-        text: txt,
-        class: cls,
-      });
-      const disableAuthors = (disableAuthColorForThisLine == null ||
-        disableAuthColorForThisLine.length === 0) ? false : disableAuthColorForThisLine[0];
+      const disableAuthors = false;
       while (txt.length > 0) {
         if (leftInAuthor <= 0 || disableAuthors) {
           // prevent infinite loop if something funny's going on
@@ -259,14 +250,6 @@ linestylefilter.textAndClassFuncSplitter = (func, splitPointsOpt) => {
 
 linestylefilter.getFilterStack = (lineText, textAndClassFunc, abrowser) => {
   let func = linestylefilter.getURLFilter(lineText, textAndClassFunc);
-
-  const hookFilters = hooks.callAll('aceGetFilterStack', {
-    linestylefilter,
-    browser: abrowser,
-  });
-  hookFilters.map((hookFilter) => {
-    func = hookFilter(lineText, func);
-  });
 
   return func;
 };

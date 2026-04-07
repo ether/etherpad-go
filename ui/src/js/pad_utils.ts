@@ -93,8 +93,6 @@ const urlRegex = (() => {
 // https://stackoverflow.com/a/68957976
 const base64url = /^(?=(?:.{4})*$)[A-Za-z0-9_-]*(?:[AQgw]==|[AEIMQUYcgkosw048]=)?$/;
 
-type JQueryNode = any
-const getJq = () => (typeof window !== 'undefined' ? (window as any).$ : undefined);
 const getPadRef = () => (globalThis as any).pad;
 
 class PadUtils {
@@ -246,7 +244,7 @@ class PadUtils {
     return pieces.join('');
   }
   bindEnterAndEscape = (
-      node: string | HTMLElement | JQueryNode,
+      node: HTMLElement | string,
       onEnter: Function,
       onEscape: Function,
   ) => {
@@ -266,29 +264,6 @@ class PadUtils {
           if (evt instanceof KeyboardEvent && evt.key === 'Escape') onEscape(evt);
         });
       }
-      return;
-    }
-    // Use keypress instead of keyup in bindEnterAndEscape. Keyup event is fired on enter in IME
-    // (Input Method Editor), But keypress is not. So, I changed to use keypress instead of keyup.
-    // It is work on Windows (IE8, Chrome 6.0.472), CentOs (Firefox 3.0) and Mac OSX (Firefox
-    // 3.6.10, Chrome 6.0.472, Safari 5.0).
-    const jqNode = node as JQueryNode;
-    const jq = getJq();
-    if (jq == null) return;
-    if (onEnter) {
-      jqNode.on('keypress', (evt: { which: number; }) => {
-        if (evt.which === 13) {
-          onEnter(evt);
-        }
-      });
-    }
-
-    if (onEscape) {
-      jqNode.on('keydown', (evt: { which: number }) => {
-        if (evt.which === 27) {
-          onEscape(evt);
-        }
-      });
     }
   }
 
@@ -344,7 +319,7 @@ class PadUtils {
 
   makeFieldLabeledWhenEmpty
     =
-    (field: string | HTMLElement | JQueryNode, labelText: string) => {
+    (field: HTMLElement | string, labelText: string) => {
       const element = (() => {
         if (typeof field === 'string') return document.querySelector(field);
         if (field instanceof HTMLElement) return field;
@@ -364,25 +339,9 @@ class PadUtils {
         });
         return {clear};
       }
-      const jq = getJq();
-      if (jq == null) return {clear: () => {}};
-      const jqField = jq(field as JQueryNode);
-      const clear = () => {
-        jqField.addClass('editempty');
-        jqField.val(labelText);
-      };
-      jqField.focus(() => {
-        if (jqField.hasClass('editempty')) jqField.val('');
-        jqField.removeClass('editempty');
-      });
-      jqField.on('blur', () => {
-        if (!jqField.val()) clear();
-      });
-      return {
-        clear,
-      };
+      return {clear: () => {}};
     }
-  getCheckbox = (node: string | HTMLElement | JQueryNode) => {
+  getCheckbox = (node: HTMLElement | string) => {
     if (typeof node === 'string') {
       const el = document.querySelector(node);
       return el instanceof HTMLInputElement ? el.checked : false;
@@ -390,11 +349,10 @@ class PadUtils {
     if (node instanceof HTMLElement) {
       return node instanceof HTMLInputElement ? node.checked : false;
     }
-    const jq = getJq();
-    return jq?.(node)?.is(':checked') ?? false;
+    return false;
   }
   setCheckbox =
-    (node: string | HTMLElement | JQueryNode, value: boolean) => {
+    (node: HTMLElement | string, value: boolean) => {
       if (typeof node === 'string') {
         const el = document.querySelector(node);
         if (el instanceof HTMLInputElement) el.checked = value;
@@ -404,12 +362,9 @@ class PadUtils {
         if (node instanceof HTMLInputElement) node.checked = value;
         return;
       }
-      const jq = getJq();
-      if (value) jq?.(node).attr('checked', 'checked');
-      else jq?.(node).prop('checked', false);
     }
   bindCheckboxChange =
-    (node: string | HTMLElement | JQueryNode, func: Function) => {
+    (node: HTMLElement | string, func: Function) => {
       if (typeof node === 'string') {
         document.querySelector(node)?.addEventListener('change', () => func());
         return;
@@ -418,8 +373,6 @@ class PadUtils {
         node.addEventListener('change', () => func());
         return;
       }
-      const jq = getJq();
-      jq?.(node).on('change', func as any);
     }
   encodeUserId =
     (userId: string) => userId.replace(/[^a-y0-9]/g, (c) => {

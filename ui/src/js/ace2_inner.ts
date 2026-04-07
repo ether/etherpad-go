@@ -37,7 +37,7 @@ const isNodeText = Ace2Common.isNodeText;
 const getAssoc = Ace2Common.getAssoc;
 const setAssoc = Ace2Common.setAssoc;
 const noop = Ace2Common.noop;
-import * as hooks from './pluginfw/hooks';
+import {editorBus} from './core/EventBus';
 import SkipList from "./skiplist";
 import Scroll from './scroll'
 import AttribPool from './AttributePool'
@@ -217,20 +217,6 @@ function Ace2Inner(editorInfo, cssManagers) {
   const setAuthorStyle = (author, info) => {
     const authorSelector = getAuthorColorClassSelector(getAuthorClassName(author));
 
-    const authorStyleSet = hooks.callAll('aceSetAuthorStyle', {
-      dynamicCSS: cssManagers.inner,
-      outerDynamicCSS: cssManagers.outer,
-      parentDynamicCSS: cssManagers.parent,
-      info,
-      author,
-      authorSelector,
-    });
-
-    // Prevent default behaviour if any hook says so
-    if (authorStyleSet.some((it) => it)) {
-      return;
-    }
-
     if (!info) {
       cssManagers.inner.removeSelectorStyle(authorSelector);
       cssManagers.parent.removeSelectorStyle(authorSelector);
@@ -302,9 +288,8 @@ function Ace2Inner(editorInfo, cssManagers) {
     applyChangesToBase: 1,
   };
 
-  for (const eventType of hooks.callAll('aceRegisterNonScrollableEditEvents')) {
-    _nonScrollableEditEvents[eventType] = 1;
-  }
+  // EventBus: also allow plugins to register non-scrollable edit events via the bus
+  // (No equivalent hook return needed — this is a one-time init registration.)
 
   const isScrollableEditEvent = (eventType) => !_nonScrollableEditEvents[eventType];
 
@@ -373,12 +358,8 @@ function Ace2Inner(editorInfo, cssManagers) {
     try {
       result = action();
 
-      hooks.callAll('aceEditEvent', {
-        callstack: currentCallStack,
-        editorInfo,
-        rep,
-        documentAttributeManager,
-      });
+      // EventBus: emit editor:content:changed
+      editorBus.emit('editor:content:changed', {text: rep.alltext});
 
       cleanExit = true;
     } finally {
@@ -1137,29 +1118,10 @@ function Ace2Inner(editorInfo, cssManagers) {
     // if the nodes that define the selection weren't encountered during
     // content collection, figure out where those nodes are now.
     if (selection && !selStart) {
-      const selStartFromHook = hooks.callAll('aceStartLineAndCharForPoint', {
-        callstack: currentCallStack,
-        editorInfo,
-        rep,
-        root: targetBody,
-        point: selection.startPoint,
-        documentAttributeManager,
-      });
-      selStart = (selStartFromHook == null || selStartFromHook.length === 0)
-        ? getLineAndCharForPoint(selection.startPoint) : selStartFromHook;
+      selStart = getLineAndCharForPoint(selection.startPoint);
     }
     if (selection && !selEnd) {
-      const selEndFromHook = hooks.callAll('aceEndLineAndCharForPoint', {
-        callstack: currentCallStack,
-        editorInfo,
-        rep,
-        root: targetBody,
-        point: selection.endPoint,
-        documentAttributeManager,
-      });
-      selEnd = (selEndFromHook == null ||
-         selEndFromHook.length === 0)
-        ? getLineAndCharForPoint(selection.endPoint) : selEndFromHook;
+      selEnd = getLineAndCharForPoint(selection.endPoint);
     }
 
     // selection from content collection can, in various ways, extend past final
@@ -1996,11 +1958,13 @@ function Ace2Inner(editorInfo, cssManagers) {
       // select the formatting buttons when there is the style applied on selection
       selectFormattingButtonIfLineHasStyleApplied(rep);
 
-      hooks.callAll('aceSelectionChanged', {
-        rep,
-        callstack: currentCallStack,
-        documentAttributeManager,
-      });
+      // EventBus: emit editor:selection:changed
+      if (rep.selStart && rep.selEnd) {
+        editorBus.emit('editor:selection:changed', {
+          start: [rep.selStart[0], rep.selStart[1]] as [number, number],
+          end: [rep.selEnd[0], rep.selEnd[1]] as [number, number],
+        });
+      }
 
       // we scroll when user places the caret at the last line of the pad
       // when this settings is enabled
@@ -2050,7 +2014,10 @@ function Ace2Inner(editorInfo, cssManagers) {
     ul: 1,
   };
 
-  for (const element of hooks.callAll('aceRegisterBlockElements')) _blockElems[element] = 1;
+  // EventBus: allow plugins to register block elements via the bus
+  const busBlockResult: string[] = [];
+  editorBus.emit('editor:register:block:elements', {result: busBlockResult});
+  for (const element of busBlockResult) _blockElems[element] = 1;
 
   const isBlockElement = (n) => !!_blockElems[(n.tagName || '').toLowerCase()];
   editorInfo.ace_isBlockElement = isBlockElement;
@@ -2575,19 +2542,6 @@ function Ace2Inner(editorInfo, cssManagers) {
       }
       let specialHandled = false;
       if (!stopped) {
-        const specialHandledInHook = hooks.callAll('aceKeyEvent', {
-          callstack: currentCallStack,
-          editorInfo,
-          rep,
-          documentAttributeManager,
-          evt,
-        });
-
-        // if any hook returned true, set specialHandled with true
-        if (specialHandledInHook) {
-          specialHandled = specialHandledInHook.indexOf(true) !== -1;
-        }
-
         const padShortcutEnabled = window.clientVars.padShortcutEnabled;
         if (!specialHandled && isTypeForSpecialKey &&
             altKey && keyCode === 120 &&
@@ -3237,8 +3191,8 @@ function Ace2Inner(editorInfo, cssManagers) {
         return;
       }
 
-      // Call paste hook
-      hooks.callAll('acePaste', {
+      // EventBus: notify listeners about paste events
+      editorBus.emit('custom:ace:paste', {
         editorInfo,
         rep,
         documentAttributeManager,
@@ -3270,8 +3224,8 @@ function Ace2Inner(editorInfo, cssManagers) {
         neighbor.appendChild(targetDoc.createElement('style'));
       }
 
-      // Call drop hook
-      hooks.callAll('aceDrop', {
+      // EventBus: notify listeners about drop events
+      editorBus.emit('custom:ace:drop', {
         editorInfo,
         rep,
         documentAttributeManager,
@@ -3508,6 +3462,10 @@ function Ace2Inner(editorInfo, cssManagers) {
 
   editorInfo.ace_performDocumentApplyAttributesToRange =
       (...args) => documentAttributeManager.setAttributesOnRange(...args);
+  editorInfo.ace_setAttributeOnLine =
+      (...args) => documentAttributeManager.setAttributeOnLine(...args);
+  editorInfo.ace_removeAttributeOnLine =
+      (...args) => documentAttributeManager.removeAttributeOnLine(...args);
 
   this.init = async () => {
     inCallStack('setup', () => {
@@ -3529,11 +3487,8 @@ function Ace2Inner(editorInfo, cssManagers) {
       bindTheEventHandlers();
     });
 
-    hooks.callAll('aceInitialized', {
-      editorInfo,
-      rep,
-      documentAttributeManager,
-    });
+    // EventBus: emit editor:ace:initialized
+    editorBus.emit('editor:ace:initialized', {editorInfo});
   };
 }
 

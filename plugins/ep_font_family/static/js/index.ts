@@ -1,113 +1,128 @@
-const fonts = ['arial', 'avant-garde', 'bookman', 'calibri', 'courier', 'garamond', 'helvetica', 'monospace', 'palatino', 'times-new-roman'] as const;
-const fontLabels = ['Arial', 'Avant Garde', 'Bookman', 'Calibri', 'Courier', 'Garamond', 'Helvetica', 'Monospace', 'Palatino', 'Times New Roman'] as const;
-const fontRegex = /(?:^| )font([a-z-]+)/;
+/**
+ * ep_font_family — Self-initializing EventBus subscriber.
+ *
+ * Provides font family formatting support via the editor EventBus.
+ * No hook exports — all behavior is registered via editorBus.on(...).
+ */
 
-// Inject plugin CSS into the outer page for the toolbar icon
-let cssLoaded = false;
-const ensureCSS = () => {
-  if (cssLoaded) return;
-  cssLoaded = true;
-  const link = document.createElement('link');
-  link.rel = 'stylesheet';
-  link.href = '/static/plugins/ep_font_family/static/css/fonts.css';
-  document.head.appendChild(link);
-};
-ensureCSS();
+import { editorBus } from 'ep_etherpad-lite/static/js/core/EventBus'
 
-// --- ACE hooks ---
-
-export const aceEditorCSS = (): string[] => ['ep_font_family/static/css/fonts.css'];
-
-export const aceAttribsToClasses = (_hookName: string, context: { key: string; value: string }) => {
-  if (context.key === 'font-family') {
-    return ['font' + context.value];
+const fonts = ['arial', 'avant-garde', 'bookman', 'calibri', 'courier', 'garamond', 'helvetica', 'monospace', 'palatino', 'times-new-roman'] as const
+const fontRegex = /(?:^| )font([a-z-]+)/
+type ToolbarSelectElement = HTMLElement & {
+  options: Array<{label: string; value: string}>;
+  value: string;
+}
+let editorAce: any = null
+const onDomReady = (fn: () => void) => {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', fn, {once: true})
+  } else {
+    fn()
   }
-};
+}
 
-export const aceCreateDomLine = (_hookName: string, context: { cls: string }) => {
-  const m = fontRegex.exec(context.cls);
-  if (!m) return [];
-  const idx = fonts.indexOf(m[1] as typeof fonts[number]);
-  if (idx < 0) return [];
-  return [{ extraOpenTags: '', extraCloseTags: '', cls: context.cls }];
-};
+// ---------------------------------------------------------------------------
+// CSS injection — runs immediately at module load
+// ---------------------------------------------------------------------------
+
+const link = document.createElement('link')
+link.rel = 'stylesheet'
+link.href = '/static/plugins/ep_font_family/static/css/fonts.css'
+document.head.appendChild(link)
+
+// ---------------------------------------------------------------------------
+// Internal helpers
+// ---------------------------------------------------------------------------
 
 const doInsertFonts = function (this: any, level: number) {
-  const rep = this.rep;
-  const documentAttributeManager = this.documentAttributeManager;
-  if (!(rep.selStart && rep.selEnd) || (level >= 0 && fonts[level] === undefined)) return;
+  const rep = this.ace_getRep()
+  if (!(rep.selStart && rep.selEnd) || (level >= 0 && fonts[level] === undefined)) return
 
-  const newFont: [string, string] = level >= 0 ? ['font-family', fonts[level]] : ['font-family', ''];
-  documentAttributeManager.setAttributesOnRange(rep.selStart, rep.selEnd, [newFont]);
-};
+  const newFont: [string, string] = level >= 0 ? ['font-family', fonts[level]] : ['font-family', '']
+  this.ace_performDocumentApplyAttributesToRange(rep.selStart, rep.selEnd, [newFont])
+}
 
-export const aceInitialized = (_hookName: string, context: { editorInfo: any }) => {
-  context.editorInfo.ace_doInsertFonts = doInsertFonts.bind(context);
-};
+// ---------------------------------------------------------------------------
+// EventBus subscriptions
+// ---------------------------------------------------------------------------
 
-// --- Toolbar hooks ---
+// Inject CSS into the ACE editor iframe
+editorBus.on('custom:ace:editor:css' as any, ({ result }: { result: string[] }) => {
+  result.push('ep_font_family/static/css/fonts.css')
+})
 
-export const postToolbarInit = (_hookName: string, context: { toolbar: any }) => {
-  const editbar = context.toolbar;
-  editbar.registerCommand('fontFamily', () => {
-    const dropdown = document.getElementById('font-family-dropdown');
-    if (dropdown) dropdown.style.display = dropdown.style.display === 'none' ? '' : 'none';
-  });
-};
+// Bind ace_doInsertFonts when the ACE editor is initialized
+editorBus.on('editor:ace:initialized' as any, (context: { editorInfo: any }) => {
+  context.editorInfo.ace_doInsertFonts = doInsertFonts
+})
 
-export const postAceInit = (_hookName: string, context: { ace: any }) => {
-  // Create the font family dropdown and insert it after the toolbar button
-  const btn = document.querySelector('[data-key="fontFamily"]') as HTMLElement | null;
-  if (btn && !document.getElementById('font-family-dropdown')) {
-    const dropdown = document.createElement('div');
-    dropdown.id = 'font-family-dropdown';
-    dropdown.style.display = 'none';
-    dropdown.style.position = 'absolute';
-    dropdown.style.zIndex = '1000';
-    dropdown.style.background = '#fff';
-    dropdown.style.border = '1px solid #ccc';
-    dropdown.style.borderRadius = '4px';
-    dropdown.style.padding = '4px';
-    dropdown.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
+const mountToolbarSelect = () => {
+  const item = document.querySelector<HTMLElement>('li[data-key="fontFamily"]')
+  const select = item?.querySelector<HTMLSelectElement>('select.font-family-selection')
+  if (!item || !select || item.querySelector('ep-toolbar-select')) return
 
-    fonts.forEach((font, idx) => {
-      const item = document.createElement('div');
-      item.style.padding = '4px 8px';
-      item.style.cursor = 'pointer';
-      item.style.whiteSpace = 'nowrap';
-      item.textContent = fontLabels[idx];
-      item.title = fontLabels[idx];
-      item.addEventListener('mouseenter', () => {
-        item.style.backgroundColor = '#f0f0f0';
-      });
-      item.addEventListener('mouseleave', () => {
-        item.style.backgroundColor = '';
-      });
-      item.addEventListener('click', () => {
-        context.ace.callWithAce((ace: any) => {
-          ace.ace_doInsertFonts(idx);
-        }, 'insertFont', true);
-        dropdown.style.display = 'none';
-      });
-      dropdown.appendChild(item);
-    });
+  const control = document.createElement('ep-toolbar-select') as ToolbarSelectElement
+  const label = select.getAttribute('aria-label') ?? item.getAttribute('title') ?? 'Font family'
+  control.setAttribute('label', label)
+  control.setAttribute('placeholder', label)
+  control.setAttribute('icon-class', 'ep_font_family_icon')
+  control.options = Array.from(select.options).map((option) => ({
+    label: option.textContent?.trim() || option.value,
+    value: option.value,
+  }))
+  control.addEventListener('ep-toolbar-select:change', ((event: CustomEvent) => {
+    const level = Number.parseInt(String(event.detail?.value ?? ''), 10)
+    if (Number.isNaN(level) || !editorAce) return
+    editorAce.callWithAce((ace: any) => {
+      ace.ace_doInsertFonts(level)
+    }, 'insertFont', true)
+    control.value = String(level)
+  }) as EventListener)
 
-    btn.style.position = 'relative';
-    btn.appendChild(dropdown);
+  item.replaceChildren(control)
+  item.setAttribute('data-type', 'custom')
+  item.removeAttribute('data-key')
+}
+
+onDomReady(() => {
+  mountToolbarSelect()
+})
+
+// Set up font family dropdown UI when editor is ready
+editorBus.on('editor:ready' as any, (context: { ace: any }) => {
+  editorAce = context.ace
+  mountToolbarSelect()
+})
+
+// Return font classes for attribute-to-class mapping (mutable result pattern)
+editorBus.on('editor:attribs:to:classes' as any, ({ key, value, result }: { key: string; value: string; result: string[] }) => {
+  if (key === 'font-family') {
+    result.push('font' + value)
   }
-};
+})
 
-export const aceEditEvent = (_hookName: string, call: any) => {
-  const cs = call.callstack;
-  if (!['handleClick', 'handleKeyEvent'].includes(cs.type) && !cs.docTextChanged) return;
-  if (cs.type === 'setBaseText' || cs.type === 'setup') return;
-};
+// Create DOM line elements for font spans (mutable result pattern)
+editorBus.on('editor:create:dom:line' as any, ({ cls, result }: { cls: string; result: any[] }) => {
+  const m = fontRegex.exec(cls)
+  if (!m) return
+  const idx = fonts.indexOf(m[1] as typeof fonts[number])
+  if (idx < 0) return
+  result.push({ extraOpenTags: '', extraCloseTags: '', cls })
+})
 
-// --- Content collection ---
+// Track edit events (content changes)
+editorBus.on('editor:content:changed' as any, (call: any) => {
+  if (!call?.callstack) return
+  const cs = call.callstack
+  if (!['handleClick', 'handleKeyEvent'].includes(cs.type) && !cs.docTextChanged) return
+  if (cs.type === 'setBaseText' || cs.type === 'setup') return
+})
 
-export const collectContentPre = (_hookName: string, context: any) => {
-  const m = fontRegex.exec(context.cls);
+// Collect content for font-family attributes (mutable result pattern)
+editorBus.on('editor:collect:content:pre' as any, (context: any) => {
+  const m = fontRegex.exec(context.cls)
   if (m?.[1]) {
-    context.cc.doAttrib(context.state, `font-family::${m[1]}`);
+    context.cc.doAttrib(context.state, `font-family::${m[1]}`)
   }
-};
+})

@@ -23,7 +23,7 @@
  */
 
 import {chat} from './chat';
-import * as hooks from './pluginfw/hooks';
+import {editorBus} from './core/EventBus';
 import {browserFlags as browser} from './browser_flags';
 
 // Dependency fill on init. This exists for `pad.socket` only.
@@ -318,7 +318,7 @@ export const getCollabClient = (ace2editor, serverVars, initialUserInfo, options
     // Similar for NEW_CHANGES
     if (msg.type === 'NEW_CHANGES') msg.payload = msg;
 
-    hooks.callAll(`handleClientMessage_${msg.type}`, {payload: msg.payload});
+    editorBus.emit(`custom:client:message:${msg.type}`, {payload: msg.payload});
   };
 
   const updateUserInfo = (userInfo) => {

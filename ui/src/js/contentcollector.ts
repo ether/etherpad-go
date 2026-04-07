@@ -31,7 +31,7 @@ const _MAX_LIST_LEVEL = 16;
 import AttributeMap from './AttributeMap';
 import {subattribution} from './Changeset';
 import {SmartOpAssembler} from "./SmartOpAssembler";
-import * as hooks from './pluginfw/hooks';
+import {editorBus} from './core/EventBus';
 
 export const sanitizeUnicode = (s) => s.normalize('NFC');
 const tagName = (n) => n.tagName && n.tagName.toLowerCase();
@@ -66,10 +66,7 @@ export const makeContentCollector = (collectStyles, abrowser, apool, className2A
     li: 1,
   };
 
-  hooks.callAll('ccRegisterBlockElements').forEach((element) => {
-    _blockElems[element] = 1;
-    supportedElems.add(element);
-  });
+  editorBus.emit('editor:register:block:elements', {result: Object.keys(_blockElems)});
 
   const isBlockElement = (n) => !!_blockElems[tagName(n) || ''];
 
@@ -335,9 +332,8 @@ export const makeContentCollector = (collectStyles, abrowser, apool, className2A
       // Hook functions may either return a string (deprecated) or modify context.text. If any hook
       // function modifies context.text then all returned strings are ignored. If no hook functions
       // modify context.text, the first hook function to return a string wins.
-      const [hookTxt] =
-          hooks.callAll('collectContentLineText', context).filter((s) => typeof s === 'string');
-      let txt = context.text === node.nodeValue && hookTxt != null ? hookTxt : context.text;
+      editorBus.emit('custom:collect:content:line:text', context);
+      let txt = context.text;
 
       let rest = '';
       let x = 0; // offset into original text
@@ -391,14 +387,15 @@ export const makeContentCollector = (collectStyles, abrowser, apool, className2A
       const tname = tagName(node) || '';
 
       if (tname === 'img') {
-        hooks.callAll('collectContentImage', {
+        const imageContext = {
           cc,
           state,
           tname,
           styl: null,
           cls: null,
           node,
-        });
+        };
+        editorBus.emit('custom:collect:content:image', imageContext);
       } else {
         // THIS SEEMS VERY HACKY! -- Please submit a better fix!
         delete state.lineAttributes.img;
@@ -407,14 +404,16 @@ export const makeContentCollector = (collectStyles, abrowser, apool, className2A
       if (tname === 'br') {
         this.breakLine = true;
         const tvalue = node.getAttribute('value');
-        const [startNewLine = true] = hooks.callAll('collectContentLineBreak', {
+        const lineBreakContext = {
           cc: this,
           state,
           tname,
           tvalue,
           styl: null,
           cls: null,
-        });
+        };
+        editorBus.emit('custom:collect:content:line:break', lineBreakContext);
+        const startNewLine = true;
         if (startNewLine) {
           cc.startNewLine(state);
         }
@@ -441,13 +440,8 @@ export const makeContentCollector = (collectStyles, abrowser, apool, className2A
           return;
         }
         if (collectStyles) {
-          hooks.callAll('collectContentPre', {
-            cc,
-            state,
-            tname,
-            styl,
-            cls,
-          });
+          const preContext = {cc, state, tname, styl, cls};
+          editorBus.emit('editor:collect:content:pre', preContext);
           if (tname === 'b' ||
               (styl && /\bfont-weight:\s*bold\b/i.exec(styl)) ||
               tname === 'strong') {
@@ -561,13 +555,8 @@ export const makeContentCollector = (collectStyles, abrowser, apool, className2A
         }
 
         if (collectStyles) {
-          hooks.callAll('collectContentPost', {
-            cc,
-            state,
-            tname,
-            styl,
-            cls,
-          });
+          const postContext = {cc, state, tname, styl, cls};
+          editorBus.emit('custom:collect:content:post', postContext);
         }
 
         if (isPre) cc.decrementFlag(state, 'preMode');

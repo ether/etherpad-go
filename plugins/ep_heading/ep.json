@@ -14,52 +14,38 @@
       },
       "toolbar_buttons": [
         {
-          "key": "normal",
+          "key": "heading",
           "title": "ep_headings.normal",
-          "icon": "-1",
-          "group": "normal",
-          "dataPlugin": "-1",
-          "type": "button"
-        },
-        {
-          "key": "heading1",
-          "title": "ep_headings.h1",
-          "icon": "1",
-          "group": "h1",
-          "dataPlugin": "0",
-          "type": "button"
-        },
-        {
-          "key": "heading2",
-          "title": "ep_headings.h2",
-          "icon": "1",
-          "group": "h2",
-          "dataPlugin": "1",
-          "type": "button"
-        },
-        {
-          "key": "heading3",
-          "title": "ep_headings.h3",
-          "icon": "1",
-          "group": "h3",
-          "dataPlugin": "2",
-          "type": "button"
-        },
-        {
-          "key": "heading4",
-          "title": "ep_headings.h4",
-          "icon": "1",
-          "group": "h4",
-          "dataPlugin": "3",
-          "type": "button"
-        },
-        {
-          "key": "heading5",
-          "title": "ep_headings.code",
-          "icon": "1",
-          "group": "code",
-          "dataPlugin": "4",
-          "type": "button"
+          "icon": "",
+          "group": "left",
+          "type": "select",
+          "selectClass": "heading-selection",
+          "options": [
+            {
+              "title": "ep_headings.normal",
+              "value": "-1"
+            },
+            {
+              "title": "ep_headings.h1",
+              "value": "0"
+            },
+            {
+              "title": "ep_headings.h2",
+              "value": "1"
+            },
+            {
+              "title": "ep_headings.h3",
+              "value": "2"
+            },
+            {
+              "title": "ep_headings.h4",
+              "value": "3"
+            },
+            {
+              "title": "ep_headings.code",
+              "value": "4"
+            }
+          ]
         }
       ],
       "hooks": {

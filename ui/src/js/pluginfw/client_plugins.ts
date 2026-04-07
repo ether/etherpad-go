@@ -1,14 +1,4 @@
 import defs from './plugin_defs';
-import * as pluginUtils from './shared';
-
-type HookParts = Array<Record<string, unknown> & {
-  client_hooks?: Record<string, string>;
-}>;
-
-type PluginDefinitionsResponse = {
-  plugins: Record<string, unknown>;
-  parts: HookParts;
-};
 
 export let baseURL = '';
 export const setBaseURL = (value: string): void => {
@@ -23,88 +13,38 @@ export const ensure = (cb: () => void): void => {
   cb();
 };
 
-const loadPluginScript = (pluginPath: string): Promise<void> => new Promise((resolve) => {
-  if (pluginUtils.isModuleRegistered?.(pluginPath)) {
-    resolve();
-    return;
-  }
-
-  const url = `${baseURL}static/plugins/${pluginPath}.js?v=${window.clientVars.randomVersionString}`;
-  const script = document.createElement('script');
-  script.src = url;
-  script.type = 'text/javascript';
-  script.onload = () => {
-    const moduleRegistry = window as unknown as Record<string, unknown>;
-    if (moduleRegistry[pluginPath] != null) {
-      pluginUtils.registerPluginModule(pluginPath, moduleRegistry[pluginPath]);
-    }
-    resolve();
-  };
-  script.onerror = (err) => {
-    console.warn(`Failed to load plugin script: ${url}`, err);
-    resolve();
-  };
-  document.head.appendChild(script);
-});
-
-const getPluginPaths = (parts: HookParts): string[] => {
-  const paths = new Set<string>();
-  for (const part of parts) {
-    if (part.client_hooks == null) continue;
-    for (const hookFnPath of Object.values(part.client_hooks)) {
-      const modulePath = hookFnPath.split(':')[0];
-      if (!modulePath.startsWith('ep_etherpad-lite/')) {
-        paths.add(modulePath);
-      }
-    }
-  }
-  return [...paths];
-};
-
-const fetchPluginDefinitions = async (): Promise<PluginDefinitionsResponse> => {
+/**
+ * Load plugin definitions (metadata for admin UI and plugin-definitions.json).
+ * Plugins self-initialize when imported via dynamic imports in plugin_registry.ts.
+ */
+export const update = async (): Promise<void> => {
   const response = await fetch(
-      `${baseURL}pluginfw/plugin-definitions.json?v=${window.clientVars.randomVersionString}`);
+    `${baseURL}pluginfw/plugin-definitions.json?v=${window.clientVars.randomVersionString}`);
   if (!response.ok) {
     throw new Error(`Failed to load plugin definitions (${response.status})`);
   }
-  return await response.json() as PluginDefinitionsResponse;
-};
-
-export const update = async (modules?: Map<string, unknown>): Promise<void> => {
-  const data = await fetchPluginDefinitions();
+  const data = await response.json();
   defs.plugins = data.plugins;
   defs.parts = data.parts;
-
-  const pluginPaths = getPluginPaths(data.parts);
-  await Promise.all(pluginPaths.map(loadPluginScript));
-
-  defs.hooks = pluginUtils.extractHooks(defs.parts, 'client_hooks', null, modules);
   defs.loaded = true;
 };
 
+/**
+ * Adopted by ace2_inner from the parent frame.
+ */
 export const adoptPluginsFromAncestorsOf = (frame: Window): void => {
-  let parentRequire: ((moduleName: string) => unknown) | null = null;
   try {
-    while ((frame = frame.parent)) {
-      if (typeof (frame.require) !== 'undefined') {
-        parentRequire = frame.require as (moduleName: string) => unknown;
-        break;
-      }
+    const parentDefs = (frame.parent as any)?.pluginDefs;
+    if (parentDefs) {
+      defs.loaded = parentDefs.loaded;
+      defs.parts = parentDefs.parts;
+      defs.plugins = parentDefs.plugins;
+    }
+    const parentPlugins = (frame.parent as any)?.plugins;
+    if (parentPlugins?.baseURL) {
+      baseURL = parentPlugins.baseURL;
     }
   } catch (error) {
-    console.error(error);
+    console.error('Could not adopt plugins from parent frame:', error);
   }
-
-  if (parentRequire == null) throw new Error('Parent plugins could not be found.');
-
-  const ancestorPluginDefs = parentRequire('ep_etherpad-lite/static/js/pluginfw/plugin_defs') as typeof defs;
-  defs.hooks = ancestorPluginDefs.hooks;
-  defs.loaded = ancestorPluginDefs.loaded;
-  defs.parts = ancestorPluginDefs.parts;
-  defs.plugins = ancestorPluginDefs.plugins;
-
-  const ancestorPlugins = parentRequire('ep_etherpad-lite/static/js/pluginfw/client_plugins') as {
-    baseURL: string;
-  };
-  baseURL = ancestorPlugins.baseURL;
 };

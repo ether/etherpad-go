@@ -5,8 +5,38 @@
 [data-color="yellow"], .color\:yellow { color: yellow; }
 [data-color="orange"], .color\:orange { color: orange; }
 
+#innerdocbody.authorColors .color\:black { color: black !important; }
+#innerdocbody.authorColors .color\:red { color: red !important; }
+#innerdocbody.authorColors .color\:green { color: green !important; }
+#innerdocbody.authorColors .color\:blue { color: blue !important; }
+#innerdocbody.authorColors .color\:yellow { color: yellow !important; }
+#innerdocbody.authorColors .color\:orange { color: orange !important; }
+
+.ep_font_color_icon {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 14px;
+  font-family: inherit;
+  font-size: 13px;
+  font-style: normal;
+  font-weight: 700;
+  line-height: 1;
+}
+
 .ep_font_color_icon::before {
-  content: "\e81b";
-  font-family: font-awesome;
-  border-bottom: solid 2px red;
+  content: "A";
+}
+
+.ep_font_color_icon::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--ep-font-color-swatch, #485365);
 }

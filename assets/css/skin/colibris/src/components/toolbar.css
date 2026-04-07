@@ -73,6 +73,15 @@
   background-color: #f2f3f4;
   background-color: var(--bg-soft-color);
 }
+
+.toolbar select.toolbar-select.heading-selection,
+.toolbar select.toolbar-select.size-selection,
+.toolbar select.toolbar-select.font-family-selection,
+.toolbar select.toolbar-select.color-selection {
+  opacity: 0;
+  pointer-events: none;
+}
+
 .toolbar ul li a.pressed,
 .toolbar ul li select:active {
   color: #64d29b;
