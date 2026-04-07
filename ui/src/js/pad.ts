@@ -394,14 +394,6 @@ class MessageQueue {
 const bridgeTeardownFns: Array<() => void> = [];
 
 function setupEditorBridge(): void {
-    // EventBus -> toolbar commands
-    const unsubToolbar = editorBus.on('toolbar:command', ({command, value}) => {
-        if (padeditbar?.triggerCommand) {
-            padeditbar.triggerCommand(command, value);
-        }
-    });
-    bridgeTeardownFns.push(unsubToolbar);
-
     // EventBus -> chat send path via collabClient
     const unsubChatSent = editorBus.on('chat:message:sent', ({text}) => {
         if (pad.collabClient && text) {
@@ -554,7 +546,7 @@ const pad = {
             }
 
             // EventBus: emit editor:ready after ace is fully initialized
-            editorBus.emit('editor:ready');
+            editorBus.emit('editor:ready', {ace: padeditor.ace});
         };
 
         // order of inits is important here:

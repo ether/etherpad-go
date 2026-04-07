@@ -3462,6 +3462,10 @@ function Ace2Inner(editorInfo, cssManagers) {
 
   editorInfo.ace_performDocumentApplyAttributesToRange =
       (...args) => documentAttributeManager.setAttributesOnRange(...args);
+  editorInfo.ace_setAttributeOnLine =
+      (...args) => documentAttributeManager.setAttributeOnLine(...args);
+  editorInfo.ace_removeAttributeOnLine =
+      (...args) => documentAttributeManager.removeAttributeOnLine(...args);
 
   this.init = async () => {
     inCallStack('setup', () => {

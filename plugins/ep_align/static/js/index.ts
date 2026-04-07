@@ -52,7 +52,7 @@ editorBus.on('editor:register:block:elements' as any, ({ result }: { result: str
 // Bind ace_doInsertAlign when the ACE editor is initialized
 editorBus.on('editor:ace:initialized' as any, (context: any) => {
   const doInsertAlign = function (this: any, level: number): void {
-    const { rep, documentAttributeManager } = this
+    const rep = this.ace_getRep()
     if (!(rep.selStart && rep.selEnd)) return
     if (level >= 0 && tags[level] === undefined) return
 
@@ -60,14 +60,14 @@ editorBus.on('editor:ace:initialized' as any, (context: any) => {
     const lastLine = Math.max(firstLine, rep.selEnd[0] - (rep.selEnd[1] === 0 ? 1 : 0))
     range(firstLine, lastLine).forEach((line) => {
       if (level >= 0) {
-        documentAttributeManager.setAttributeOnLine(line, 'align', tags[level])
+        this.ace_setAttributeOnLine(line, 'align', tags[level])
       } else {
-        documentAttributeManager.removeAttributeOnLine(line, 'align')
+        this.ace_removeAttributeOnLine(line, 'align')
       }
     })
   }
 
-  context.editorInfo.ace_doInsertAlign = doInsertAlign.bind(context)
+  context.editorInfo.ace_doInsertAlign = doInsertAlign
 })
 
 // Set up alignment button click handlers when editor is ready
@@ -152,4 +152,20 @@ editorBus.on('editor:process:line:attribs' as any, ({ cls, result }: { cls: stri
     postHtml: `</${tag}>`,
     processedMarker: true,
   })
+})
+
+// Collect content pre — preserve line alignment attributes during DOM reparse
+editorBus.on('editor:collect:content:pre' as any, (context: any) => {
+  const {lineAttributes} = context.state
+  const tagIndex = tags.indexOf(context.tname as (typeof tags)[number])
+
+  if (context.tname === 'div' || context.tname === 'p') delete lineAttributes.align
+  if (tagIndex >= 0) lineAttributes.align = tags[tagIndex]
+})
+
+// Collect content post — clear alignment state when the wrapper tag closes
+editorBus.on('custom:collect:content:post' as any, (context: any) => {
+  const {lineAttributes} = context.state
+  const tagIndex = tags.indexOf(context.tname as (typeof tags)[number])
+  if (tagIndex >= 0) delete lineAttributes.align
 })

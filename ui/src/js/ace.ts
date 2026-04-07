@@ -149,10 +149,17 @@ export const Ace2Editor = function () {
 
   const addStyleTagsFor = (doc, files) => {
     for (const file of files) {
+      const normalizedFile = file.startsWith('/static/plugins/') ||
+          file.startsWith('/static/') ||
+          file.startsWith('../') ||
+          file.startsWith('./') ||
+          file.startsWith('http://') ||
+          file.startsWith('https://') ? file :
+        file.startsWith('/') ? `/static/plugins${file}` : `/static/plugins/${file}`;
       const link = doc.createElement('link');
       link.rel = 'stylesheet';
       link.type = 'text/css';
-      link.href = absUrl(encodeURI(file));
+      link.href = absUrl(encodeURI(normalizedFile));
       doc.head.appendChild(link);
     }
   };
@@ -172,7 +179,7 @@ export const Ace2Editor = function () {
       `../css/static/pad.css?v=${clientVars.randomVersionString}`,
       `../css/skin/${clientVars.skinName}/pad.css?v=${clientVars.randomVersionString}`,
     ];
-    editorBus.emit('custom:ace:editor:css', {css: includedCSS});
+    editorBus.emit('custom:ace:editor:css', {result: includedCSS, css: includedCSS});
 
     const skinVariants = clientVars.skinVariants.split(' ').filter((x) => x !== '');
 

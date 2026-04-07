@@ -12,6 +12,7 @@ import './EpToast';
 import './EpColorPicker';
 import './EpDropdown';
 import './EpPluginToolbar';
+import './EpToolbarSelect';
 
 export {EpNotification} from './EpNotification';
 export {EpModal} from './EpModal';
@@ -19,3 +20,4 @@ export {EpToastContainer} from './EpToast';
 export {EpColorPicker} from './EpColorPicker';
 export {EpDropdown, EpDropdownItem} from './EpDropdown';
 export {EpPluginToolbar} from './EpPluginToolbar';
+export {EpToolbarSelect} from './EpToolbarSelect';

@@ -5,6 +5,15 @@ interface ToolbarApi {
 interface EditorInfo {
   ace_doInsertAlign?: (level: number) => void;
   ace_doInsertHeading?: (level: number) => void;
+  ace_getRep?: () => RepState;
+  ace_performDocumentApplyAttributesToRange?: (
+    start: [number, number],
+    end: [number, number],
+    attribs: Array<[string, string]>,
+  ) => void;
+  ace_setAttributeOnSelection?: (attr: string, value: string) => void;
+  ace_setAttributeOnLine?: (line: number, attr: string, value: string) => void;
+  ace_removeAttributeOnLine?: (line: number, attr: string) => void;
 }
 
 interface DocumentAttributeManager {

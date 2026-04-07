@@ -18,7 +18,7 @@
 
 export interface EditorEvents {
   // Editor lifecycle
-  'editor:ready': void;
+  'editor:ready': { ace: any };
   'editor:content:changed': { text: string };
   'editor:cursor:moved': { line: number; column: number };
   'editor:selection:changed': { start: [number, number]; end: [number, number] };
@@ -54,7 +54,7 @@ export interface EditorEvents {
   // Editor hooks (with mutable result arrays for return values)
   'editor:attribs:to:classes': { key: string; value: string; result: string[] };
   'editor:create:dom:line': { cls: string; domline: any; result: any[] };
-  'editor:process:line:attribs': { cls: string; domline: any; modifier: any };
+  'editor:process:line:attribs': { cls: string; domline: any; result: any[]; modifier?: any };
   'editor:register:block:elements': { result: string[] };
   'editor:collect:content:pre': { cc: any; state: any; cls: string };
   'editor:ace:initialized': { editorInfo: any };

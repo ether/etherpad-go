@@ -275,7 +275,8 @@ const alias = {
     [`${relativePath}/timeslider`]: `${moduleResolutionPath}/timeslider`,
     [`${relativePath}/socketio`]: `${moduleResolutionPath}/socketio`,
     [`${relativePath}/skin_variants`]: `${moduleResolutionPath}/skin_variants`,
-    [`${relativePath}/notifications`]: `${moduleResolutionPath}/notifications`
+    [`${relativePath}/notifications`]: `${moduleResolutionPath}/notifications`,
+    [`${relativePath}/core/EventBus`]: `${moduleResolutionPath}/core/EventBus`
 };
 
 // Dynamisch Aliase für externe Plugins hinzufügen

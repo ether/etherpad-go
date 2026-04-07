@@ -110,8 +110,19 @@ domline.createDomLine = (nonEmpty, doesWrap, optBrowser, optDocument) => {
         }
         processedMarker = true;
       }
-      // EventBus: emit editor:process:line:attribs
-      editorBus.emit('editor:process:line:attribs', {cls, domline, modifier: {preHtml, postHtml, processedMarker}});
+      // EventBus: emit editor:process:line:attribs with mutable result array
+      const busProcessLineResult = [];
+      editorBus.emit('editor:process:line:attribs', {
+        cls,
+        domline,
+        result: busProcessLineResult,
+        modifier: {preHtml, postHtml, processedMarker},
+      });
+      for (const modifier of busProcessLineResult) {
+        if (modifier.preHtml) preHtml += modifier.preHtml;
+        if (modifier.postHtml) postHtml = modifier.postHtml + postHtml;
+        if (modifier.processedMarker) processedMarker = true;
+      }
       if (processedMarker) {
         result.lineMarker += txt.length;
         return; // don't append any text

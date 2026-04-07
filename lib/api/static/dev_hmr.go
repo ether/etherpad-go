@@ -74,6 +74,8 @@ func buildDevAliases() map[string]string {
 		"ep_etherpad-lite/static/js/ace2_common":             relativePath + "/ace2_common",
 		"ep_etherpad-lite/static/js/pad_cookie":              relativePath + "/pad_cookie",
 		"ep_etherpad-lite/static/js/pluginfw/client_plugins": relativePath + "/pluginfw/client_plugins",
+		"ep_etherpad-lite/static/js/core/EventBus":           relativePath + "/core/EventBus",
+		"ep_etherpad-lite/static/js/notifications":           relativePath + "/notifications",
 	}
 }
 

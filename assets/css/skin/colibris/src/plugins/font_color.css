@@ -15,9 +15,18 @@
   color: var(--text-color);
 }
 
+#innerdocbody.authorColors .color\:black {
+  color: #485365 !important;
+  color: var(--text-color) !important;
+}
+
 .color\:red,
 [data-color=red] {
   color: #F44336;
+}
+
+#innerdocbody.authorColors .color\:red {
+  color: #F44336 !important;
 }
 
 .color\:green,
@@ -25,9 +34,17 @@
   color: #66d29c;
 }
 
+#innerdocbody.authorColors .color\:green {
+  color: #66d29c !important;
+}
+
 .color\:blue,
 [data-color=blue] {
   color: #2196f3;
+}
+
+#innerdocbody.authorColors .color\:blue {
+  color: #2196f3 !important;
 }
 
 .color\:yellow,
@@ -35,7 +52,15 @@
   color: #ffeb3b;
 }
 
+#innerdocbody.authorColors .color\:yellow {
+  color: #ffeb3b !important;
+}
+
 .color\:orange,
 [data-color=orange] {
   color: #FF9800;
+}
+
+#innerdocbody.authorColors .color\:orange {
+  color: #FF9800 !important;
 }

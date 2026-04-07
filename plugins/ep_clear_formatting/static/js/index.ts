@@ -33,7 +33,7 @@ interface ClearFormattingAce {
 // Bind ace_doClearFormatting when the ACE editor is initialized
 editorBus.on('editor:ace:initialized' as any, (context: any) => {
   const doClearFormatting = function (this: any): void {
-    const { rep } = this
+    const rep = this.ace_getRep()
     if (!rep.selStart || !rep.selEnd) return
 
     const isSelection =
@@ -41,7 +41,7 @@ editorBus.on('editor:ace:initialized' as any, (context: any) => {
     if (!isSelection) return
   }
 
-  context.editorInfo.ace_doClearFormatting = doClearFormatting.bind(context)
+  context.editorInfo.ace_doClearFormatting = doClearFormatting
 })
 
 // Set up clear formatting button click handler when editor is ready

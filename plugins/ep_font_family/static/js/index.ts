@@ -8,8 +8,19 @@
 import { editorBus } from 'ep_etherpad-lite/static/js/core/EventBus'
 
 const fonts = ['arial', 'avant-garde', 'bookman', 'calibri', 'courier', 'garamond', 'helvetica', 'monospace', 'palatino', 'times-new-roman'] as const
-const fontLabels = ['Arial', 'Avant Garde', 'Bookman', 'Calibri', 'Courier', 'Garamond', 'Helvetica', 'Monospace', 'Palatino', 'Times New Roman'] as const
 const fontRegex = /(?:^| )font([a-z-]+)/
+type ToolbarSelectElement = HTMLElement & {
+  options: Array<{label: string; value: string}>;
+  value: string;
+}
+let editorAce: any = null
+const onDomReady = (fn: () => void) => {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', fn, {once: true})
+  } else {
+    fn()
+  }
+}
 
 // ---------------------------------------------------------------------------
 // CSS injection — runs immediately at module load
@@ -25,12 +36,11 @@ document.head.appendChild(link)
 // ---------------------------------------------------------------------------
 
 const doInsertFonts = function (this: any, level: number) {
-  const rep = this.rep
-  const documentAttributeManager = this.documentAttributeManager
+  const rep = this.ace_getRep()
   if (!(rep.selStart && rep.selEnd) || (level >= 0 && fonts[level] === undefined)) return
 
   const newFont: [string, string] = level >= 0 ? ['font-family', fonts[level]] : ['font-family', '']
-  documentAttributeManager.setAttributesOnRange(rep.selStart, rep.selEnd, [newFont])
+  this.ace_performDocumentApplyAttributesToRange(rep.selStart, rep.selEnd, [newFont])
 }
 
 // ---------------------------------------------------------------------------
@@ -44,72 +54,45 @@ editorBus.on('custom:ace:editor:css' as any, ({ result }: { result: string[] }) 
 
 // Bind ace_doInsertFonts when the ACE editor is initialized
 editorBus.on('editor:ace:initialized' as any, (context: { editorInfo: any }) => {
-  context.editorInfo.ace_doInsertFonts = doInsertFonts.bind(context)
+  context.editorInfo.ace_doInsertFonts = doInsertFonts
+})
+
+const mountToolbarSelect = () => {
+  const item = document.querySelector<HTMLElement>('li[data-key="fontFamily"]')
+  const select = item?.querySelector<HTMLSelectElement>('select.font-family-selection')
+  if (!item || !select || item.querySelector('ep-toolbar-select')) return
+
+  const control = document.createElement('ep-toolbar-select') as ToolbarSelectElement
+  const label = select.getAttribute('aria-label') ?? item.getAttribute('title') ?? 'Font family'
+  control.setAttribute('label', label)
+  control.setAttribute('placeholder', label)
+  control.setAttribute('icon-class', 'ep_font_family_icon')
+  control.options = Array.from(select.options).map((option) => ({
+    label: option.textContent?.trim() || option.value,
+    value: option.value,
+  }))
+  control.addEventListener('ep-toolbar-select:change', ((event: CustomEvent) => {
+    const level = Number.parseInt(String(event.detail?.value ?? ''), 10)
+    if (Number.isNaN(level) || !editorAce) return
+    editorAce.callWithAce((ace: any) => {
+      ace.ace_doInsertFonts(level)
+    }, 'insertFont', true)
+    control.value = String(level)
+  }) as EventListener)
+
+  item.replaceChildren(control)
+  item.setAttribute('data-type', 'custom')
+  item.removeAttribute('data-key')
+}
+
+onDomReady(() => {
+  mountToolbarSelect()
 })
 
 // Set up font family dropdown UI when editor is ready
 editorBus.on('editor:ready' as any, (context: { ace: any }) => {
-  const btn = document.querySelector('[data-key="fontFamily"]') as HTMLElement | null
-  if (btn && !document.getElementById('font-family-dropdown')) {
-    const dropdown = document.createElement('div')
-    dropdown.id = 'font-family-dropdown'
-    dropdown.style.display = 'none'
-    dropdown.style.position = 'absolute'
-    dropdown.style.zIndex = '1000'
-    dropdown.style.background = '#fff'
-    dropdown.style.border = '1px solid #ccc'
-    dropdown.style.borderRadius = '4px'
-    dropdown.style.padding = '4px'
-    dropdown.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)'
-
-    fonts.forEach((font, idx) => {
-      const item = document.createElement('div')
-      item.style.padding = '4px 8px'
-      item.style.cursor = 'pointer'
-      item.style.whiteSpace = 'nowrap'
-      item.textContent = fontLabels[idx]
-      item.title = fontLabels[idx]
-      item.addEventListener('mouseenter', () => {
-        item.style.backgroundColor = '#f0f0f0'
-      })
-      item.addEventListener('mouseleave', () => {
-        item.style.backgroundColor = ''
-      })
-      item.addEventListener('click', () => {
-        context.ace.callWithAce((ace: any) => {
-          ace.ace_doInsertFonts(idx)
-        }, 'insertFont', true)
-        dropdown.style.display = 'none'
-      })
-      dropdown.appendChild(item)
-    })
-
-    btn.style.position = 'relative'
-    btn.appendChild(dropdown)
-  }
-})
-
-// Register fontFamily command when toolbar is ready
-editorBus.on('toolbar:ready' as any, (context: { toolbar: any }) => {
-  context.toolbar.registerCommand('fontFamily', () => {
-    const dropdown = document.getElementById('font-family-dropdown')
-    if (dropdown) dropdown.style.display = dropdown.style.display === 'none' ? '' : 'none'
-  })
-
-  // Register as a Web Component toolbar select via EventBus
-  editorBus.emit('custom:toolbar:register:select' as any, {
-    key: 'fontFamily',
-    title: 'Font',
-    options: fonts.map((f, i) => ({ label: fontLabels[i], value: String(i) })),
-    onChange: (value: string) => {
-      const ace = context.toolbar?.ace ?? (window as any).pad?.editor
-      if (ace?.callWithAce) {
-        ace.callWithAce((a: any) => {
-          a.ace_doInsertFonts(parseInt(value, 10))
-        }, 'insertFont', true)
-      }
-    },
-  })
+  editorAce = context.ace
+  mountToolbarSelect()
 })
 
 // Return font classes for attribute-to-class mapping (mutable result pattern)

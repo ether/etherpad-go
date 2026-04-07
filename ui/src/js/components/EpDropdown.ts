@@ -15,21 +15,17 @@
 
 const dropdownItemStyles = /* css */ `
   :host {
-    --ep-item-fg: #171717;
-    --ep-item-hover-bg: #f5f5f5;
-    --ep-item-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
-      Oxygen, Ubuntu, Cantarell, 'Helvetica Neue', sans-serif;
+    --ep-item-fg: #485365;
+    --ep-item-fg: var(--text-color, #485365);
+    --ep-item-hover-bg: #f2f3f4;
+    --ep-item-hover-bg: var(--bg-soft-color, #f2f3f4);
+    --ep-item-font: var(--main-font-family, Quicksand, Cantarell, "Open Sans", "Helvetica Neue", sans-serif);
+    --ep-item-focus: #64d29b;
+    --ep-item-focus: var(--primary-color, #64d29b);
 
     display: block;
     font-family: var(--ep-item-font);
     font-size: 14px;
-  }
-
-  @media (prefers-color-scheme: dark) {
-    :host {
-      --ep-item-fg: #e5e5e5;
-      --ep-item-hover-bg: #333;
-    }
   }
 
   .item {
@@ -57,7 +53,7 @@ const dropdownItemStyles = /* css */ `
 
   .item:focus-visible {
     background: var(--ep-item-hover-bg);
-    outline: 2px solid #3b82f6;
+    outline: 2px solid var(--ep-item-focus);
     outline-offset: -2px;
   }
 
@@ -141,24 +137,17 @@ customElements.define('ep-dropdown-item', EpDropdownItem);
 const dropdownStyles = /* css */ `
   :host {
     --ep-dd-bg: #fff;
-    --ep-dd-border: #e5e5e5;
+    --ep-dd-bg: var(--bg-color, #fff);
+    --ep-dd-border: #d2d2d2;
+    --ep-dd-border: var(--border-color, #d2d2d2);
     --ep-dd-radius: 8px;
     --ep-dd-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
-    --ep-dd-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
-      Oxygen, Ubuntu, Cantarell, 'Helvetica Neue', sans-serif;
+    --ep-dd-font: var(--main-font-family, Quicksand, Cantarell, "Open Sans", "Helvetica Neue", sans-serif);
 
     display: inline-block;
     position: relative;
     font-family: var(--ep-dd-font);
     font-size: 14px;
-  }
-
-  @media (prefers-color-scheme: dark) {
-    :host {
-      --ep-dd-bg: #1a1a1a;
-      --ep-dd-border: #333;
-      --ep-dd-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
-    }
   }
 
   .trigger-wrapper {
@@ -167,9 +156,9 @@ const dropdownStyles = /* css */ `
 
   .content-wrapper {
     display: none;
-    position: absolute;
-    top: 100%;
-    margin-top: 4px;
+    position: fixed;
+    top: 0;
+    left: 0;
     min-width: 140px;
     max-height: 280px;
     overflow-y: auto;
@@ -217,6 +206,7 @@ export class EpDropdown extends HTMLElement {
   /* Bound handlers for clean add/remove */
   private _onDocClick = this._handleOutsideClick.bind(this);
   private _onDocKeydown = this._handleDocKeydown.bind(this);
+  private _onViewportChange = this._positionContent.bind(this);
 
   constructor() {
     super();
@@ -241,6 +231,8 @@ export class EpDropdown extends HTMLElement {
   disconnectedCallback(): void {
     document.removeEventListener('click', this._onDocClick, true);
     document.removeEventListener('keydown', this._onDocKeydown);
+    window.removeEventListener('resize', this._onViewportChange);
+    window.removeEventListener('scroll', this._onViewportChange, true);
     if (this._hoverCloseTimer != null) clearTimeout(this._hoverCloseTimer);
   }
 
@@ -314,6 +306,15 @@ export class EpDropdown extends HTMLElement {
 
   private _attachTriggerEvents(): void {
     const triggerSlot = this._shadow.querySelector('slot[name="trigger"]') as HTMLSlotElement;
+    const contentWrapper = this._shadow.querySelector('.content-wrapper') as HTMLElement | null;
+
+    const preserveEditorSelection = (e: MouseEvent) => {
+      // Toolbar clicks should not steal focus from the ACE iframe before the command runs.
+      e.preventDefault();
+    };
+
+    triggerSlot?.addEventListener('mousedown', preserveEditorSelection);
+    contentWrapper?.addEventListener('mousedown', preserveEditorSelection);
 
     if (this.triggerMode === 'click') {
       triggerSlot?.addEventListener('click', (e: Event) => {
@@ -345,15 +346,19 @@ export class EpDropdown extends HTMLElement {
   private _onOpened(): void {
     this._focusIndex = -1;
     this._clearItemFocus();
+    this._positionContent();
 
     // Animate in.
     requestAnimationFrame(() => {
       const content = this._shadow.querySelector('.content-wrapper');
+      this._positionContent();
       content?.classList.add('visible');
     });
 
     document.addEventListener('click', this._onDocClick, true);
     document.addEventListener('keydown', this._onDocKeydown);
+    window.addEventListener('resize', this._onViewportChange);
+    window.addEventListener('scroll', this._onViewportChange, true);
   }
 
   private _onClosed(): void {
@@ -364,6 +369,35 @@ export class EpDropdown extends HTMLElement {
 
     document.removeEventListener('click', this._onDocClick, true);
     document.removeEventListener('keydown', this._onDocKeydown);
+    window.removeEventListener('resize', this._onViewportChange);
+    window.removeEventListener('scroll', this._onViewportChange, true);
+  }
+
+  private _positionContent(): void {
+    const content = this._shadow.querySelector('.content-wrapper') as HTMLElement | null;
+    if (!content || !this.isOpen) return;
+
+    const hostRect = this.getBoundingClientRect();
+    const viewportPadding = 8;
+    const gap = 4;
+
+    content.style.minWidth = `${Math.max(140, Math.ceil(hostRect.width))}px`;
+    content.style.maxWidth = `${Math.max(140, window.innerWidth - (viewportPadding * 2))}px`;
+
+    const contentRect = content.getBoundingClientRect();
+    const width = Math.max(contentRect.width, Math.ceil(hostRect.width), 140);
+    const height = contentRect.height;
+
+    let left = this.align === 'right' ? hostRect.right - width : hostRect.left;
+    left = Math.min(Math.max(viewportPadding, left), Math.max(viewportPadding, window.innerWidth - width - viewportPadding));
+
+    let top = hostRect.bottom + gap;
+    if (top + height > window.innerHeight - viewportPadding) {
+      top = Math.max(viewportPadding, hostRect.top - height - gap);
+    }
+
+    content.style.left = `${Math.round(left)}px`;
+    content.style.top = `${Math.round(top)}px`;
   }
 
   private _handleOutsideClick(e: Event): void {

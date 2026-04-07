@@ -9,6 +9,19 @@ import { editorBus } from 'ep_etherpad-lite/static/js/core/EventBus'
 
 const colors = ['black', 'red', 'green', 'blue', 'yellow', 'orange'] as const
 const colorRegex = /(?:^| )color:([A-Za-z0-9]*)/
+type ToolbarSelectElement = HTMLElement & {
+  options: Array<{label: string; value: string}>;
+  value: string;
+}
+let editorAce: any = null
+let lastExpandedSelection: { start: [number, number]; end: [number, number] } | null = null
+const onDomReady = (fn: () => void) => {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', fn, {once: true})
+  } else {
+    fn()
+  }
+}
 
 // ---------------------------------------------------------------------------
 // CSS injection — runs immediately at module load
@@ -19,17 +32,37 @@ link.rel = 'stylesheet'
 link.href = '/static/plugins/ep_font_color/static/css/color.css'
 document.head.appendChild(link)
 
+const setToolbarColorIndicator = (control: HTMLElement, index: number) => {
+  const selectedColor = colors[index] ?? colors[0]
+  control.style.setProperty('--ep-font-color-swatch', selectedColor)
+}
+
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
 
 const doInsertColors = function (this: any, level: number) {
-  const rep = this.rep
-  const documentAttributeManager = this.documentAttributeManager
+  const rep = this.ace_getRep()
   if (!(rep.selStart && rep.selEnd) || (level >= 0 && colors[level] === undefined)) return
 
   const newColor: [string, string] = level >= 0 ? ['color', colors[level]] : ['color', '']
-  documentAttributeManager.setAttributesOnRange(rep.selStart, rep.selEnd, [newColor])
+  const hasRangeSelection =
+    rep.selStart[0] !== rep.selEnd[0] || rep.selStart[1] !== rep.selEnd[1]
+
+  if (!hasRangeSelection && lastExpandedSelection) {
+    this.ace_performDocumentApplyAttributesToRange(
+      lastExpandedSelection.start,
+      lastExpandedSelection.end,
+      [newColor],
+    )
+    return
+  }
+
+  if (this.ace_setAttributeOnSelection) {
+    this.ace_setAttributeOnSelection(newColor[0], newColor[1])
+    return
+  }
+  this.ace_performDocumentApplyAttributesToRange(rep.selStart, rep.selEnd, [newColor])
 }
 
 // ---------------------------------------------------------------------------
@@ -43,51 +76,53 @@ editorBus.on('custom:ace:editor:css' as any, ({ result }: { result: string[] }) 
 
 // Bind ace_doInsertColors when the ACE editor is initialized
 editorBus.on('editor:ace:initialized' as any, (context: { editorInfo: any }) => {
-  context.editorInfo.ace_doInsertColors = doInsertColors.bind(context)
+  context.editorInfo.ace_doInsertColors = doInsertColors
+})
+
+const mountColorPicker = () => {
+  const item = document.querySelector<HTMLElement>('li[data-key="fontColor"]')
+  const select = item?.querySelector<HTMLSelectElement>('select.color-selection')
+  if (!item || !select || item.querySelector('ep-toolbar-select')) return
+
+  const control = document.createElement('ep-toolbar-select') as ToolbarSelectElement
+  const label = select.getAttribute('aria-label') ?? item.getAttribute('title') ?? 'Font color'
+  control.setAttribute('label', label)
+  control.setAttribute('placeholder', label)
+  control.setAttribute('icon-class', 'ep_font_color_icon')
+  control.options = Array.from(select.options).map((option) => ({
+    label: option.textContent?.trim() || option.value,
+    value: option.value,
+  }))
+  setToolbarColorIndicator(control, 0)
+  control.addEventListener('ep-toolbar-select:change', ((event: CustomEvent) => {
+    const index = Number.parseInt(String(event.detail?.value ?? ''), 10)
+    if (Number.isNaN(index) || !editorAce) return
+    editorAce.callWithAce((ace: any) => {
+      ace.ace_doInsertColors(index)
+    }, 'insertColor', true)
+    editorAce.focus?.()
+    control.value = String(index)
+    setToolbarColorIndicator(control, index)
+  }) as EventListener)
+
+  item.replaceChildren(control)
+  item.setAttribute('data-type', 'custom')
+  item.removeAttribute('data-key')
+}
+
+onDomReady(() => {
+  mountColorPicker()
 })
 
 // Set up color dropdown UI when editor is ready
 editorBus.on('editor:ready' as any, (context: { ace: any }) => {
-  const btn = document.querySelector('[data-key="fontColor"]') as HTMLElement | null
-  if (btn && !document.getElementById('font-color-dropdown')) {
-    const picker = document.createElement('ep-color-picker')
-    picker.id = 'font-color-dropdown'
-    picker.setAttribute('colors', JSON.stringify(colors))
-    picker.addEventListener('ep-color-select', ((e: CustomEvent) => {
-      const idx = colors.indexOf(e.detail.color)
-      if (idx >= 0) {
-        context.ace.callWithAce((ace: any) => {
-          ace.ace_doInsertColors(idx)
-        }, 'insertColor', true)
-      }
-    }) as EventListener)
-
-    btn.style.position = 'relative'
-    btn.appendChild(picker)
-  }
+  editorAce = context.ace
+  mountColorPicker()
 })
 
-// Register fontColor command when toolbar is ready
-editorBus.on('toolbar:ready' as any, (context: { toolbar: any }) => {
-  context.toolbar.registerCommand('fontColor', () => {
-    const dropdown = document.getElementById('font-color-dropdown')
-    if (dropdown) dropdown.style.display = dropdown.style.display === 'none' ? '' : 'none'
-  })
-
-  // Register as a Web Component toolbar select via EventBus
-  editorBus.emit('custom:toolbar:register:select' as any, {
-    key: 'fontColor',
-    title: 'Color',
-    options: colors.map((c, i) => ({ label: c, value: String(i) })),
-    onChange: (value: string) => {
-      const ace = context.toolbar?.ace ?? (window as any).pad?.editor
-      if (ace?.callWithAce) {
-        ace.callWithAce((a: any) => {
-          a.ace_doInsertColors(parseInt(value, 10))
-        }, 'insertColor', true)
-      }
-    },
-  })
+editorBus.on('editor:selection:changed' as any, ({ start, end }: { start: [number, number]; end: [number, number] }) => {
+  const hasRangeSelection = start[0] !== end[0] || start[1] !== end[1]
+  lastExpandedSelection = hasRangeSelection ? { start: [...start] as [number, number], end: [...end] as [number, number] } : null
 })
 
 // Return color classes for attribute-to-class mapping (mutable result pattern)

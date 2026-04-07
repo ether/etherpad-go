@@ -171,7 +171,7 @@ export const padeditbar = new class {
     this._registerDefaultCommands();
 
     // EventBus: emit toolbar:ready after toolbar initialization
-    editorBus.emit('toolbar:ready', {toolbar: this});
+    editorBus.emit('toolbar:ready', {toolbar: this, ace: padeditor.ace});
 
     /*
      * On safari, the dropdown in the toolbar gets hidden because of toolbar

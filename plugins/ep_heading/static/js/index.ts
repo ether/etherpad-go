@@ -10,6 +10,18 @@ import { editorBus } from 'ep_etherpad-lite/static/js/core/EventBus'
 
 const cssFiles = ['ep_heading/static/css/editor.css']
 const tags = ['h1', 'h2', 'h3', 'h4', 'code'] as const
+type ToolbarSelectElement = HTMLElement & {
+  options: Array<{label: string; value: string}>;
+  value: string;
+}
+let editorAce: any = null
+const onDomReady = (fn: () => void) => {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', fn, {once: true})
+  } else {
+    fn()
+  }
+}
 
 // ---------------------------------------------------------------------------
 // CSS injection — runs immediately at module load
@@ -27,8 +39,41 @@ document.head.appendChild(link)
 const range = (start: number, end: number): number[] =>
   Array.from({ length: Math.abs(end - start) + 1 }, (_, index) => start + index)
 
-const updateHeadingSelectUi = (_select: HTMLSelectElement): void => {
-  // Native select does not need sync hooks.
+const applyHeading = (ace: any, value: string): void => {
+  const level = Number.parseInt(value, 10)
+  if (Number.isNaN(level)) return
+  ace.ace_doInsertHeading(level)
+}
+
+const mountHeadingControl = () => {
+  const item = document.querySelector<HTMLElement>('li[data-key="heading"]')
+  const select = item?.querySelector<HTMLSelectElement>('select.heading-selection')
+  if (!item || !select || item.querySelector('ep-toolbar-select')) return
+
+  const options = Array.from(select.options).map((option) => ({
+    label: option.textContent?.trim() || option.value,
+    value: option.value,
+  }))
+
+  const control = document.createElement('ep-toolbar-select') as ToolbarSelectElement
+  const label = select.getAttribute('aria-label') ?? item.getAttribute('title') ?? 'Heading'
+  control.setAttribute('label', label)
+  control.setAttribute('placeholder', label)
+  control.options = options
+  control.value = '-1'
+  control.dataset.control = 'heading'
+  control.addEventListener('ep-toolbar-select:change', ((event: CustomEvent) => {
+    const value = String(event.detail?.value ?? '')
+    if (!editorAce) return
+    editorAce.callWithAce((ace: any) => {
+      applyHeading(ace, value)
+    }, 'insertheading', true)
+    control.value = value
+  }) as EventListener)
+
+  item.replaceChildren(control)
+  item.setAttribute('data-type', 'custom')
+  item.removeAttribute('data-key')
 }
 
 // ---------------------------------------------------------------------------
@@ -47,8 +92,8 @@ editorBus.on('editor:register:block:elements' as any, ({ result }: { result: str
 
 // Bind ace_doInsertHeading when the ACE editor is initialized
 editorBus.on('editor:ace:initialized' as any, (context: any) => {
-  context.editorInfo.ace_doInsertHeading = (level: number): void => {
-    const { documentAttributeManager, rep } = context
+  context.editorInfo.ace_doInsertHeading = function (this: any, level: number): void {
+    const rep = this.ace_getRep()
     if (!(rep.selStart && rep.selEnd)) return
     if (level >= 0 && tags[level] === undefined) return
 
@@ -57,41 +102,22 @@ editorBus.on('editor:ace:initialized' as any, (context: any) => {
 
     range(firstLine, lastLine).forEach((line) => {
       if (level >= 0) {
-        documentAttributeManager.setAttributeOnLine(line, 'heading', tags[level])
+        this.ace_setAttributeOnLine(line, 'heading', tags[level])
       } else {
-        documentAttributeManager.removeAttributeOnLine(line, 'heading')
+        this.ace_removeAttributeOnLine(line, 'heading')
       }
     })
   }
 })
 
+onDomReady(() => {
+  mountHeadingControl()
+})
+
 // Set up heading toolbar UI when editor is ready
 editorBus.on('editor:ready' as any, (context: { ace: any }) => {
-  document.querySelectorAll<HTMLElement>('.toolbar a.ep_heading').forEach((button) => {
-    button.addEventListener('click', (event) => {
-      event.preventDefault()
-      const indexOfHeading = Number.parseInt(button.dataset.plugin ?? '', 10)
-      if (Number.isNaN(indexOfHeading)) return
-      context.ace.callWithAce((ace: any) => {
-        ace.ace_doInsertHeading(indexOfHeading)
-      }, 'insertheading', true)
-    })
-  })
-
-  const headingSelection = document.querySelector<HTMLSelectElement>('#heading-selection')
-  if (!headingSelection) return
-
-  headingSelection.addEventListener('change', () => {
-    const intValue = Number.parseInt(headingSelection.value, 10)
-    if (Number.isNaN(intValue)) return
-
-    context.ace.callWithAce((ace: any) => {
-      ace.ace_doInsertHeading(intValue)
-    }, 'insertheading', true)
-
-    headingSelection.value = 'dummy'
-    updateHeadingSelectUi(headingSelection)
-  })
+  editorAce = context.ace
+  mountHeadingControl()
 })
 
 // Track edit events to update the heading select UI
@@ -105,11 +131,8 @@ editorBus.on('editor:content:changed' as any, (call: any) => {
     const rep = call.rep
     if (!rep.selStart || !rep.selEnd) return
 
-    const headingSelection = document.querySelector<HTMLSelectElement>('#heading-selection')
-    if (headingSelection) {
-      headingSelection.value = 'dummy'
-      updateHeadingSelectUi(headingSelection)
-    }
+    const headingSelect = document.querySelector<ToolbarSelectElement>('ep-toolbar-select[data-control="heading"]')
+    if (headingSelect) headingSelect.value = ''
 
     const attributeManager = call.documentAttributeManager
     const activeAttributes: Record<string, number> = {}
@@ -125,12 +148,15 @@ editorBus.on('editor:content:changed' as any, (call: any) => {
     })
 
     Object.entries(activeAttributes).forEach(([key, count]) => {
-      if (count !== totalNumberOfLines || !headingSelection) return
+      if (count !== totalNumberOfLines || !headingSelect) return
       const index = tags.indexOf(key as (typeof tags)[number])
       if (index < 0) return
-      headingSelection.value = String(index)
-      updateHeadingSelectUi(headingSelection)
+      headingSelect.value = String(index)
     })
+
+    if (headingSelect && Object.keys(activeAttributes).length === 0) {
+      headingSelect.value = '-1'
+    }
   }, 250)
 })
 

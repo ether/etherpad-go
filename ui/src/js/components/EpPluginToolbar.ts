@@ -26,18 +26,26 @@ interface SelectConfig {
 class EpPluginToolbar extends HTMLElement {
   private buttons: Map<string, ButtonConfig> = new Map()
   private selects: Map<string, SelectConfig> = new Map()
+  private unsubs: Array<() => void> = []
 
   connectedCallback() {
+    this.style.display = 'contents'
+
     // Listen for plugin toolbar registrations via EventBus
-    editorBus.on('custom:toolbar:register:button' as any, (config: ButtonConfig) => {
+    this.unsubs.push(editorBus.on('custom:toolbar:register:button' as any, (config: ButtonConfig) => {
       this.buttons.set(config.key, config)
       this.render()
-    })
-    editorBus.on('custom:toolbar:register:select' as any, (config: SelectConfig) => {
+    }))
+    this.unsubs.push(editorBus.on('custom:toolbar:register:select' as any, (config: SelectConfig) => {
       this.selects.set(config.key, config)
       this.render()
-    })
+    }))
     this.render()
+  }
+
+  disconnectedCallback() {
+    for (const unsub of this.unsubs) unsub()
+    this.unsubs = []
   }
 
   private render() {
@@ -66,31 +74,36 @@ class EpPluginToolbar extends HTMLElement {
       const li = document.createElement('li')
       li.dataset.key = key
       li.dataset.plugin = 'true'
-      const select = document.createElement('select')
-      select.className = 'plugin-select'
-      select.title = config.title
+      const dropdown = document.createElement('ep-dropdown')
+      dropdown.setAttribute('align', 'left')
+      dropdown.setAttribute('trigger', 'click')
+      dropdown.className = 'plugin-select'
 
-      // Add dummy/title option
-      const titleOpt = document.createElement('option')
-      titleOpt.value = ''
-      titleOpt.textContent = config.title
-      titleOpt.selected = true
-      titleOpt.disabled = true
-      select.appendChild(titleOpt)
+      const trigger = document.createElement('button')
+      trigger.type = 'button'
+      trigger.slot = 'trigger'
+      trigger.className = 'editbarbutton plugin-select-trigger'
+      trigger.title = config.title
+      trigger.textContent = config.title
 
+      const content = document.createElement('div')
+      content.slot = 'content'
       for (const opt of config.options) {
-        const option = document.createElement('option')
-        option.value = opt.value
-        option.textContent = opt.label
-        select.appendChild(option)
+        const item = document.createElement('ep-dropdown-item')
+        item.setAttribute('value', opt.value)
+        item.textContent = opt.label
+        content.appendChild(item)
       }
 
-      select.addEventListener('change', () => {
-        config.onChange(select.value)
-        select.value = '' // reset to title
-      })
+      dropdown.addEventListener('ep-dropdown-select', ((event: CustomEvent) => {
+        config.onChange(event.detail.value)
+      }) as EventListener)
 
-      li.appendChild(select)
+      dropdown.append(trigger, content)
+      li.appendChild(dropdown)
+      trigger.addEventListener('click', (event) => {
+        event.stopPropagation()
+      })
       this.appendChild(li)
     }
   }
