@@ -29,6 +29,7 @@ export interface EditorEvents {
   'toolbar:dropdown:toggle': { name: string; visible: boolean };
 
   // Chat
+  'chat:message:send': { text: string; message: any };
   'chat:message:sent': { text: string };
   'chat:message:received': { authorId: string; text: string; time: number };
   'chat:visibility:changed': { visible: boolean };

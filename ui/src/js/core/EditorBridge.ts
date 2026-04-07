@@ -165,16 +165,15 @@ export function initEditorBridge(pad: Pad, socket: Socket): void {
   // 4. EventBus -> chat controller
   // ------------------------------------------------------------------
 
-  const unsubChat = editorBus.on('chat:message:sent', ({ text }) => {
-    // Forward to existing chat send path via collabClient.
-    if (pad.collabClient && text) {
+  const unsubChatSend = editorBus.on('chat:message:send', ({ message }) => {
+    if (pad.collabClient && message) {
       pad.collabClient.sendMessage({
         type: 'CHAT_MESSAGE',
-        message: { text },
+        message,
       });
     }
   });
-  teardownFns.push(unsubChat);
+  teardownFns.push(unsubChatSend);
 
   const unsubChatVisibility = editorBus.on('chat:visibility:changed', ({ visible }) => {
     const chatObj = (window as any).chat ?? (window as any).require?.('./chat')?.chat;

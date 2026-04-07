@@ -395,15 +395,15 @@ const bridgeTeardownFns: Array<() => void> = [];
 
 function setupEditorBridge(): void {
     // EventBus -> chat send path via collabClient
-    const unsubChatSent = editorBus.on('chat:message:sent', ({text}) => {
-        if (pad.collabClient && text) {
+    const unsubChatSend = editorBus.on('chat:message:send', ({message}) => {
+        if (pad.collabClient && message) {
             pad.collabClient.sendMessage({
                 type: 'CHAT_MESSAGE',
-                message: {text},
+                message,
             });
         }
     });
-    bridgeTeardownFns.push(unsubChatSent);
+    bridgeTeardownFns.push(unsubChatSend);
 
     // EventBus -> chat visibility
     const unsubChatVis = editorBus.on('chat:visibility:changed', ({visible}) => {

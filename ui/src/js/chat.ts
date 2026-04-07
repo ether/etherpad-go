@@ -312,7 +312,7 @@ class ChatController {
     const message = new ChatMessage(text);
     // EventBus: emit chat:message:sending before the hook call
     editorBus.emit('chat:message:sending', {message});
-    this.pad.collabClient.sendMessage({ type: 'CHAT_MESSAGE', message });
+    editorBus.emit('chat:message:send', {text, message});
     input.value = '';
     editorBus.emit('chat:message:sent', { text });
   }
