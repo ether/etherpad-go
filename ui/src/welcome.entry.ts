@@ -1,1 +1,1 @@
-import './welcome.js';
+import './welcome.ts';

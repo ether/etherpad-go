@@ -4,9 +4,16 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  etherpad-webcomponents: link:../../AppData/Local/pnpm/global/5/node_modules/etherpad-webcomponents
+
 importers:
 
   .:
+    dependencies:
+      etherpad-webcomponents:
+        specifier: link:../../AppData/Local/pnpm/global/5/node_modules/etherpad-webcomponents
+        version: link:../../AppData/Local/pnpm/global/5/node_modules/etherpad-webcomponents
     devDependencies:
       typescript:
         specifier: ^5.6.3
@@ -111,6 +118,9 @@ importers:
       esbuild:
         specifier: 0.27.4
         version: 0.27.4
+      etherpad-webcomponents:
+        specifier: link:../../../AppData/Local/pnpm/global/5/node_modules/etherpad-webcomponents
+        version: link:../../../AppData/Local/pnpm/global/5/node_modules/etherpad-webcomponents
       typescript:
         specifier: ^6.0.2
         version: 6.0.2

@@ -11,5 +11,8 @@
   },
   "devDependencies": {
     "typescript": "^5.6.3"
+  },
+  "dependencies": {
+    "etherpad-webcomponents": "link:../../AppData/Local/pnpm/global/5/node_modules/etherpad-webcomponents"
   }
 }

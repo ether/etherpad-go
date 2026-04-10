@@ -20,7 +20,7 @@ templ Page(settings *settings.Settings, translations map[string]string) {
 		<body>
 			<div id="wrapper">
 				<div id="inner">
-				<button id="button">{translations["index.newPad"]}</button>
+				<ep-button variant="primary" id="button">{translations["index.newPad"]}</ep-button>
 					<label id="label" for="padname">{translations["index.createOpenPad"]}</label>
 					<form action="#" id="go2Name">
 						<input type="text" id="padname" maxlength="50" autofocus/>

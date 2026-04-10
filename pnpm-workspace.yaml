@@ -3,3 +3,6 @@ packages:
   - playwright
   - ui
   - plugins/*
+
+overrides:
+  etherpad-webcomponents: link:../../AppData/Local/pnpm/global/5/node_modules/etherpad-webcomponents
