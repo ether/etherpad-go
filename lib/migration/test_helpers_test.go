@@ -316,48 +316,57 @@ func startMigratorPipeline(t *testing.T, oldDB *SQLDatabase, newDB db.DataStore)
 
 func startMySQL(t *testing.T) (*sql.DB, func()) {
 	ctx := context.Background()
+	var container testcontainers.Container
+	host := ""
+	port := ""
 
-	req := testcontainers.ContainerRequest{
-		Image:        "mysql:9.6",
-		ExposedPorts: []string{"3306/tcp"},
-		Env: map[string]string{
-			"MYSQL_ROOT_PASSWORD": "root",
-			"MYSQL_DATABASE":      "etherpad",
-		},
-		WaitingFor: wait.ForLog("ready for connections"),
+	if isEPCIMode() {
+		host = envOrDefault(epMySQLHostEnv, "127.0.0.1")
+		port = envOrDefault(epMySQLPortEnv, "3306")
+		waitForMySQLReady(t, host, port)
+	} else {
+		req := testcontainers.ContainerRequest{
+			Image:        "mysql:9.6",
+			ExposedPorts: []string{"3306/tcp"},
+			Env: map[string]string{
+				"MYSQL_PASSWORD":      testDbPass,
+				"MYSQL_ROOT_PASSWORD": testDbPass,
+				"MYSQL_USER":          testDbUser,
+				"MYSQL_DATABASE":      testDbName,
+			},
+			WaitingFor: wait.ForLog("ready for connections"),
+		}
+
+		var err error
+		container, err = testcontainers.GenericContainer(ctx,
+			testcontainers.GenericContainerRequest{
+				ContainerRequest: req,
+				Started:          true,
+			})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		mappedPort, err := container.MappedPort(ctx, "3306")
+		if err != nil {
+			t.Fatal(err)
+		}
+		port = mappedPort.Port()
+
+		host, err = container.Host(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		waitForMySQLReady(t, host, port)
 	}
 
-	container, err := testcontainers.GenericContainer(ctx,
-		testcontainers.GenericContainerRequest{
-			ContainerRequest: req,
-			Started:          true,
-		})
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true", testDbUser, testDbPass, host, port, testDbName)
+	db, err := sql.Open("mysql", dsn)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	host, _ := container.Host(ctx)
-	port, _ := container.MappedPort(ctx, "3306")
-
-	dsn := fmt.Sprintf(
-		"root:root@tcp(%s:%s)/etherpad?parseTime=true",
-		host, port.Port(),
-	)
-
-	deadline := time.Now().Add(2 * time.Minute)
-	for time.Now().Before(deadline) {
-		db, err := sql.Open("mysql", dsn)
-		if err == nil {
-			err = db.Ping()
-			if err == nil {
-				db.Close()
-				break
-			}
-			db.Close()
-		}
-		time.Sleep(1 * time.Second)
-	}
-	db, err := sql.Open("mysql", dsn)
+	_, err = db.Exec("DROP TABLE IF EXISTS `store`")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -373,8 +382,10 @@ func startMySQL(t *testing.T) (*sql.DB, func()) {
 	}
 
 	cleanup := func() {
-		db.Close()
-		container.Terminate(ctx)
+		_ = db.Close()
+		if container != nil {
+			_ = container.Terminate(ctx)
+		}
 	}
 
 	return db, cleanup
@@ -384,45 +395,60 @@ func startPostgres(t *testing.T) (*sql.DB, func()) {
 	t.Helper()
 
 	ctx := context.Background()
+	var container testcontainers.Container
+	host := ""
+	port := ""
 
-	req := testcontainers.ContainerRequest{
-		Image:        "postgres:16-alpine",
-		ExposedPorts: []string{"5432/tcp"},
-		Env: map[string]string{
-			"POSTGRES_USER":     "etherpad",
-			"POSTGRES_PASSWORD": "etherpad",
-			"POSTGRES_DB":       "etherpad",
-		},
-		WaitingFor: wait.
-			ForListeningPort("5432/tcp").
-			WithStartupTimeout(60 * time.Second),
-	}
+	if isEPCIMode() {
+		host = envOrDefault(epPostgresHostEnv, "127.0.0.1")
+		port = envOrDefault(epPostgresPortEnv, "5432")
+		waitForPostgresReady(t, host, port)
+	} else {
+		req := testcontainers.ContainerRequest{
+			Image:        "postgres:16-alpine",
+			ExposedPorts: []string{"5432/tcp"},
+			Env: map[string]string{
+				"POSTGRES_USER":     testDbUser,
+				"POSTGRES_PASSWORD": testDbPass,
+				"POSTGRES_DB":       testDbName,
+			},
+			WaitingFor: wait.
+				ForListeningPort("5432/tcp").
+				WithStartupTimeout(60 * time.Second),
+		}
 
-	container, err := testcontainers.GenericContainer(
-		ctx,
-		testcontainers.GenericContainerRequest{
-			ContainerRequest: req,
-			Started:          true,
-		},
-	)
-	if err != nil {
-		t.Fatalf("failed to start postgres container: %v", err)
-	}
+		var err error
+		container, err = testcontainers.GenericContainer(
+			ctx,
+			testcontainers.GenericContainerRequest{
+				ContainerRequest: req,
+				Started:          true,
+			},
+		)
+		if err != nil {
+			t.Fatalf("failed to start postgres container: %v", err)
+		}
 
-	host, err := container.Host(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
+		host, err = container.Host(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	port, err := container.MappedPort(ctx, "5432")
-	if err != nil {
-		t.Fatal(err)
+		mappedPort, err := container.MappedPort(ctx, "5432")
+		if err != nil {
+			t.Fatal(err)
+		}
+		port = mappedPort.Port()
+		waitForPostgresReady(t, host, port)
 	}
 
 	dsn := fmt.Sprintf(
-		"postgres://etherpad:etherpad@%s:%s/etherpad?sslmode=disable",
+		"postgres://%s:%s@%s:%s/%s?sslmode=disable",
+		testDbUser,
+		testDbPass,
 		host,
-		port.Port(),
+		port,
+		testDbName,
 	)
 
 	db, err := sql.Open("pgx", dsn)
@@ -430,15 +456,16 @@ func startPostgres(t *testing.T) (*sql.DB, func()) {
 		t.Fatalf("failed to open postgres connection: %v", err)
 	}
 
-	// Wait until DB is actually ready
-	for i := 0; i < 10; i++ {
-		if err := db.Ping(); err == nil {
-			break
+	// Create Etherpad store table
+	_, err = db.Exec("DROP TABLE IF EXISTS store")
+	if err != nil {
+		db.Close()
+		if container != nil {
+			_ = container.Terminate(ctx)
 		}
-		time.Sleep(500 * time.Millisecond)
+		t.Fatalf("failed to drop store table: %v", err)
 	}
 
-	// Create Etherpad store table
 	_, err = db.Exec(`
 		CREATE TABLE store (
 			key   TEXT PRIMARY KEY,
@@ -447,13 +474,17 @@ func startPostgres(t *testing.T) (*sql.DB, func()) {
 	`)
 	if err != nil {
 		db.Close()
-		container.Terminate(ctx)
+		if container != nil {
+			_ = container.Terminate(ctx)
+		}
 		t.Fatalf("failed to create store table: %v", err)
 	}
 
 	cleanup := func() {
-		db.Close()
-		_ = container.Terminate(ctx)
+		_ = db.Close()
+		if container != nil {
+			_ = container.Terminate(ctx)
+		}
 	}
 
 	return db, cleanup

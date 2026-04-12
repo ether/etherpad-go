@@ -22,11 +22,108 @@ const (
 	testDbName = "test_db"
 	testDbUser = "test_user"
 	testDbPass = "test_password"
+
+	epCiEnv = "EP_CI"
+
+	epPostgresHostEnv = "EP_TEST_POSTGRES_HOST"
+	epPostgresPortEnv = "EP_TEST_POSTGRES_PORT"
+	epMySQLHostEnv    = "EP_TEST_MYSQL_HOST"
+	epMySQLPortEnv    = "EP_TEST_MYSQL_PORT"
 )
 
 func normalizeContainerPort(port string) string {
 	normalized, _, _ := strings.Cut(port, "/")
 	return normalized
+}
+
+func isEPCIMode() bool {
+	value := strings.ToLower(strings.TrimSpace(os.Getenv(epCiEnv)))
+	return value == "1" || value == "true" || value == "yes"
+}
+
+func envOrDefault(key, fallback string) string {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return fallback
+	}
+	return value
+}
+
+func waitForPostgresReady(t *testing.T, host, port string) {
+	t.Helper()
+
+	dsn := fmt.Sprintf(
+		"postgres://%s:%s@%s:%s/%s?sslmode=disable",
+		testDbUser, testDbPass, host, port, testDbName,
+	)
+
+	var lastErr error
+	deadline := time.Now().Add(2 * time.Minute)
+	for time.Now().Before(deadline) {
+		conn, err := sql.Open("pgx", dsn)
+		if err == nil {
+			lastErr = conn.Ping()
+			_ = conn.Close()
+			if lastErr == nil {
+				return
+			}
+		} else {
+			lastErr = err
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	t.Fatalf("postgres did not become ready at %s:%s: %v", host, port, lastErr)
+}
+
+func waitForMySQLReady(t *testing.T, host, port string) {
+	t.Helper()
+
+	mysqlCfg := mysql2.NewConfig()
+	mysqlCfg.User = testDbUser
+	mysqlCfg.Passwd = testDbPass
+	mysqlCfg.Net = "tcp"
+	mysqlCfg.Addr = fmt.Sprintf("%s:%s", host, port)
+	mysqlCfg.DBName = testDbName
+	mysqlCfg.ParseTime = true
+
+	var lastErr error
+	deadline := time.Now().Add(2 * time.Minute)
+	for time.Now().Before(deadline) {
+		conn, err := sql.Open("mysql", mysqlCfg.FormatDSN())
+		if err == nil {
+			lastErr = conn.Ping()
+			_ = conn.Close()
+			if lastErr == nil {
+				return
+			}
+		} else {
+			lastErr = err
+		}
+		time.Sleep(time.Second)
+	}
+	t.Fatalf("mysql did not become ready at %s:%s: %v", host, port, lastErr)
+}
+
+func setupExternalPostgresConfig(t *testing.T) *TestContainerConfig {
+	t.Helper()
+	host := envOrDefault(epPostgresHostEnv, "127.0.0.1")
+	port := envOrDefault(epPostgresPortEnv, "5432")
+	waitForPostgresReady(t, host, port)
+	return &TestContainerConfig{
+		Host: host,
+		Port: port,
+	}
+}
+
+func setupExternalMySQLConfig(t *testing.T) *TestContainerConfig {
+	t.Helper()
+	host := envOrDefault(epMySQLHostEnv, "127.0.0.1")
+	port := envOrDefault(epMySQLPortEnv, "3306")
+	waitForMySQLReady(t, host, port)
+	return &TestContainerConfig{
+		Host: host,
+		Port: port,
+	}
 }
 
 // TestContainerConfig holds container connection details
@@ -68,6 +165,11 @@ func setupPostgresContainer(t *testing.T) *TestContainerConfig {
 	t.Helper()
 
 	sharedEnv.postgresOnce.Do(func() {
+		if isEPCIMode() {
+			sharedEnv.postgres = setupExternalPostgresConfig(t)
+			return
+		}
+
 		ctx := context.Background()
 		container, err := testcontainers.Run(
 			ctx, "postgres:alpine",
@@ -118,6 +220,11 @@ func setupMySQLContainer(t *testing.T) *TestContainerConfig {
 	t.Helper()
 
 	sharedEnv.mysqlOnce.Do(func() {
+		if isEPCIMode() {
+			sharedEnv.mysql = setupExternalMySQLConfig(t)
+			return
+		}
+
 		ctx := context.Background()
 		container, err := testcontainers.Run(
 			ctx, "mysql:9.6",

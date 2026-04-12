@@ -22,6 +22,34 @@ jobs:
           - os: ubuntu-24.04-arm
             arch: arm64
     runs-on: ${{ matrix.os }}
+    services:
+      postgres:
+        image: postgres:alpine
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U test_user -d test_db"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 12
+      mysql:
+        image: mysql:9.6
+        env:
+          MYSQL_PASSWORD: test_password
+          MYSQL_ROOT_PASSWORD: test_password
+          MYSQL_USER: test_user
+          MYSQL_DATABASE: test_db
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -uroot -ptest_password --silent"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 20
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -74,10 +102,12 @@ jobs:
           retention-days: 1
       - name: Run tests with coverage
         env:
-          TESTCONTAINERS_RYUK_DISABLED: "true"
-        run: |
-          go test -p 1 -v -coverpkg=./... -coverprofile=coverage.out ./...
-          go tool cover -html=coverage.out -o coverage.html
+          EP_CI: "true"
+          EP_TEST_POSTGRES_HOST: "127.0.0.1"
+          EP_TEST_POSTGRES_PORT: "5432"
+          EP_TEST_MYSQL_HOST: "127.0.0.1"
+          EP_TEST_MYSQL_PORT: "3306"
+        run: go test -p 1 -v -coverpkg=./... -coverprofile=coverage.out ./...
       - name: Setup SonarQube
         if: (github.actor == 'samtv12345' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')) && matrix.arch == 'amd64'
         uses: warchant/setup-sonar-scanner@v10
