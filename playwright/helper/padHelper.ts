@@ -121,30 +121,35 @@ const waitForPadToLoad = async (page: Page, timeout: number = PAD_TIMEOUT) => {
     await innerFrame.locator('#innerdocbody').waitFor({ state: 'visible', timeout });
 };
 
-export const goToNewPad = async (page: Page) => {
-    const padId = "FRONTEND_TESTS" + randomUUID();
-    for (let attempt = 0; attempt < 2; attempt++) {
+const navigateToPad = async (page: Page, padId: string) => {
+    const padUrl = `http://localhost:9001/p/${padId}`;
+    for (let attempt = 0; attempt < 3; attempt++) {
         try {
-            await page.goto('http://localhost:9001/p/' + padId, { waitUntil: 'load', timeout: PAD_TIMEOUT });
+            await page.goto(padUrl, { waitUntil: 'domcontentloaded', timeout: PAD_TIMEOUT });
             await waitForPadToLoad(page);
-            return padId;
+            return;
         } catch (error) {
-            if (attempt === 1) throw error;
+            const isInterruptedNavigation = error instanceof Error &&
+                error.message.includes('interrupted by another navigation');
+            if (isInterruptedNavigation) {
+                await page.waitForURL((url) =>
+                    decodeURIComponent(url.pathname).endsWith(`/${padId}`), { timeout: PAD_TIMEOUT });
+                await waitForPadToLoad(page);
+                return;
+            }
+            if (attempt === 2) throw error;
         }
     }
+};
+
+export const goToNewPad = async (page: Page) => {
+    const padId = "FRONTEND_TESTS" + randomUUID();
+    await navigateToPad(page, padId);
     return padId;
 }
 
 export const goToPad = async (page: Page, padId: string) => {
-    for (let attempt = 0; attempt < 2; attempt++) {
-        try {
-            await page.goto('http://localhost:9001/p/' + padId, { waitUntil: 'load', timeout: PAD_TIMEOUT });
-            await waitForPadToLoad(page);
-            return;
-        } catch (error) {
-            if (attempt === 1) throw error;
-        }
-    }
+    await navigateToPad(page, padId);
 }
 
 export const clearPadContent = async (page: Page) => {
