@@ -44,45 +44,12 @@ input {
     text-align: center;
 }
 
-#button {
-    margin: 0 auto;
-    text-align: center;
-    width: 100%;
-    text-shadow: none;
-    font-size: 23px;
+#button::part(button) {
     line-height: 1.8;
-    color: #64d29b;
-    background: #586a69;
-    border-radius: 3px;
-    box-shadow: none;
-    height: 53px;
-    border: none;
-    display: block;
-}
-
-
-button[type=submit] {
-    border-top-right-radius: 3px;
-    border-bottom-right-radius: 3px;
-    left: 305px;
-    color: #64d29b;
-    background: #586a69;
-    border: none;
-    top: 0;
-    opacity: 1;
-    transition: .2s background;
-}
-
-#button:hover,
-button[type=submit]:hover {
-    cursor: pointer;
-    background: #4a5d5c;
-    color: #64d29b;
 }
 
 #padname {
     height: 38px;
     max-width: 350px;
-    padding: 0 12px;
     position: relative;
 }

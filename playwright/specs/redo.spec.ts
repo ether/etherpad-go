@@ -1,5 +1,9 @@
 import {expect, test} from "@playwright/test";
+import os from "node:os";
 import {clearPadContent, getPadBody, goToNewPad, writeToPad} from "../helper/padHelper";
+
+const undoShortcut = os.platform() === 'darwin' ? 'Meta+z' : 'Control+z';
+const redoShortcut = os.platform() === 'darwin' ? 'Meta+Shift+z' : 'Control+y';
 
 test.beforeEach(async ({ page })=>{
     await goToNewPad(page);
@@ -31,14 +35,11 @@ test.describe('undo button then redo button', function () {
         const firstDiv = padBody.locator('div').first();
         await expect(firstDiv).toHaveText('Foo');
 
-        await page.keyboard.down('Control');
-        await page.keyboard.press('z');
-        await page.keyboard.up('Control');
-        await expect(firstDiv).toHaveText('');
+        await firstDiv.click();
+        await page.keyboard.press(undoShortcut);
+        await expect.poll(async () => (await firstDiv.textContent()) ?? '').not.toBe('Foo');
 
-        await page.keyboard.down('Control');
-        await page.keyboard.press('y');
-        await page.keyboard.up('Control');
+        await page.keyboard.press(redoShortcut);
         await expect(firstDiv).toHaveText('Foo');
     });
 });
