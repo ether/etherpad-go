@@ -129,11 +129,106 @@ const (
 	DbPass = "test_password"
 	// Container config is valid for 30 minutes
 	ContainerConfigTTL = 30 * time.Minute
+
+	epCiEnv = "EP_CI"
+
+	epPostgresHostEnv = "EP_TEST_POSTGRES_HOST"
+	epPostgresPortEnv = "EP_TEST_POSTGRES_PORT"
+	epMySQLHostEnv    = "EP_TEST_MYSQL_HOST"
+	epMySQLPortEnv    = "EP_TEST_MYSQL_PORT"
 )
 
 func normalizeContainerPort(port string) string {
 	normalized, _, _ := strings.Cut(port, "/")
 	return normalized
+}
+
+func isEPCIMode() bool {
+	value := strings.ToLower(strings.TrimSpace(os.Getenv(epCiEnv)))
+	return value == "1" || value == "true" || value == "yes"
+}
+
+func envOrDefault(key, fallback string) string {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return fallback
+	}
+	return value
+}
+
+func configureExternalCIDatabases(t *testing.T) {
+	t.Helper()
+
+	postgresHost := envOrDefault(epPostgresHostEnv, "127.0.0.1")
+	postgresPort := envOrDefault(epPostgresPortEnv, "5432")
+	mySQLHost := envOrDefault(epMySQLHostEnv, "127.0.0.1")
+	mySQLPort := envOrDefault(epMySQLPortEnv, "3306")
+
+	postgresDSN := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",
+		DbUser, DbPass, postgresHost, postgresPort, DbName)
+
+	postgresReady := false
+	postgresDeadline := time.Now().Add(2 * time.Minute)
+	for time.Now().Before(postgresDeadline) {
+		postgresConn, err := sql.Open("pgx", postgresDSN)
+		if err == nil {
+			err = postgresConn.Ping()
+			_ = postgresConn.Close()
+			if err == nil {
+				postgresReady = true
+				break
+			}
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	if !postgresReady {
+		t.Fatalf("external Postgres is not reachable at %s:%s", postgresHost, postgresPort)
+	}
+
+	mySQLConf := mysql2.NewConfig()
+	mySQLConf.User = DbUser
+	mySQLConf.Passwd = DbPass
+	mySQLConf.Net = "tcp"
+	mySQLConf.Addr = fmt.Sprintf("%s:%s", mySQLHost, mySQLPort)
+	mySQLConf.DBName = DbName
+	mySQLConf.ParseTime = true
+	mySQLDSN := mySQLConf.FormatDSN()
+
+	mySQLReady := false
+	mySQLDeadline := time.Now().Add(2 * time.Minute)
+	for time.Now().Before(mySQLDeadline) {
+		mySQLConn, err := sql.Open("mysql", mySQLDSN)
+		if err == nil {
+			err = mySQLConn.Ping()
+			_ = mySQLConn.Close()
+			if err == nil {
+				mySQLReady = true
+				break
+			}
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	if !mySQLReady {
+		t.Fatalf("external MySQL is not reachable at %s:%s", mySQLHost, mySQLPort)
+	}
+
+	globalPostgresContainer = &TestContainerConfiguration{
+		Host:     postgresHost,
+		Port:     postgresPort,
+		Username: DbUser,
+		Password: DbPass,
+		Database: DbName,
+	}
+	globalMysqlContainer = &TestContainerConfiguration{
+		Host:     mySQLHost,
+		Port:     mySQLPort,
+		Username: DbUser,
+		Password: DbPass,
+		Database: DbName,
+	}
+
+	fmt.Printf("Using external CI databases - Postgres: %s:%s, MySQL: %s:%s\n",
+		postgresHost, postgresPort, mySQLHost, mySQLPort)
 }
 
 type TestContainerConfiguration struct {
@@ -262,9 +357,6 @@ func saveContainerConfig() error {
 func initGlobalContainers(t *testing.T) {
 	t.Helper()
 
-	// Enable testcontainers reuse feature
-	os.Setenv("TESTCONTAINERS_RYUK_DISABLED", "true")
-
 	containersMutex.Lock()
 	defer containersMutex.Unlock()
 
@@ -272,6 +364,15 @@ func initGlobalContainers(t *testing.T) {
 	if containersInitialized {
 		return
 	}
+
+	if isEPCIMode() {
+		configureExternalCIDatabases(t)
+		containersInitialized = true
+		return
+	}
+
+	// Enable testcontainers reuse feature
+	os.Setenv("TESTCONTAINERS_RYUK_DISABLED", "true")
 
 	// Use file-based locking to prevent multiple processes from starting containers
 	lockFile, err := os.OpenFile(containerLockFile, os.O_CREATE|os.O_RDWR, 0666)
