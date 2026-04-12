@@ -5,4 +5,4 @@ packages:
   - plugins/*
 
 overrides:
-  etherpad-webcomponents: link:../../AppData/Local/pnpm/global/5/node_modules/etherpad-webcomponents
+  etherpad-webcomponents: 0.0.4
