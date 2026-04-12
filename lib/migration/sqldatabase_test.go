@@ -6,11 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/docker/go-connections/nat"
 	mysql2 "github.com/go-sql-driver/mysql"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,6 +23,11 @@ const (
 	testDbUser = "test_user"
 	testDbPass = "test_password"
 )
+
+func normalizeContainerPort(port string) string {
+	normalized, _, _ := strings.Cut(port, "/")
+	return normalized
+}
 
 // TestContainerConfig holds container connection details
 type TestContainerConfig struct {
@@ -68,10 +73,10 @@ func setupPostgresContainer(t *testing.T) *TestContainerConfig {
 			ctx, "postgres:alpine",
 			testcontainers.WithExposedPorts("5432/tcp"),
 			testcontainers.WithWaitStrategy(
-				wait.ForSQL("5432/tcp", "pgx", func(host string, port nat.Port) string {
+				wait.ForSQL("5432/tcp", "pgx", func(host string, port string) string {
 					return fmt.Sprintf(
 						"postgres://%s:%s@%s:%s/%s?sslmode=disable",
-						testDbUser, testDbPass, host, port.Port(), testDbName,
+						testDbUser, testDbPass, host, normalizeContainerPort(port), testDbName,
 					)
 				}).WithStartupTimeout(30*time.Second).WithQuery("SELECT 1"),
 			),

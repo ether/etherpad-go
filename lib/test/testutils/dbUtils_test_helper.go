@@ -13,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/docker/go-connections/nat"
 	"github.com/ether/etherpad-go/lib"
 	"github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/db"
@@ -131,6 +130,11 @@ const (
 	// Container config is valid for 30 minutes
 	ContainerConfigTTL = 30 * time.Minute
 )
+
+func normalizeContainerPort(port string) string {
+	normalized, _, _ := strings.Cut(port, "/")
+	return normalized
+}
 
 type TestContainerConfiguration struct {
 	Container *testcontainers.DockerContainer
@@ -388,8 +392,9 @@ func PreparePostgresDB() (*TestContainerConfiguration, error) {
 			Image:        "postgres:alpine",
 			ExposedPorts: []string{"5432/tcp"},
 			Env:          env,
-			WaitingFor: wait.ForSQL("5432/tcp", "pgx", func(host string, port nat.Port) string {
-				return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable", DbUser, DbPass, host, port.Port(), DbName)
+			WaitingFor: wait.ForSQL("5432/tcp", "pgx", func(host string, port string) string {
+				return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",
+					DbUser, DbPass, host, normalizeContainerPort(port), DbName)
 			}).WithStartupTimeout(time.Second * 60).WithQuery("SELECT 10"),
 		},
 		Started: true,
