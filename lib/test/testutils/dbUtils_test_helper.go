@@ -131,6 +131,11 @@ const (
 	ContainerConfigTTL = 30 * time.Minute
 )
 
+func normalizeContainerPort(port string) string {
+	normalized, _, _ := strings.Cut(port, "/")
+	return normalized
+}
+
 type TestContainerConfiguration struct {
 	Container *testcontainers.DockerContainer
 	Host      string
@@ -388,7 +393,8 @@ func PreparePostgresDB() (*TestContainerConfiguration, error) {
 			ExposedPorts: []string{"5432/tcp"},
 			Env:          env,
 			WaitingFor: wait.ForSQL("5432/tcp", "pgx", func(host string, port string) string {
-				return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable", DbUser, DbPass, host, port, DbName)
+				return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",
+					DbUser, DbPass, host, normalizeContainerPort(port), DbName)
 			}).WithStartupTimeout(time.Second * 60).WithQuery("SELECT 10"),
 		},
 		Started: true,

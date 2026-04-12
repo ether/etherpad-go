@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -22,6 +23,11 @@ const (
 	testDbUser = "test_user"
 	testDbPass = "test_password"
 )
+
+func normalizeContainerPort(port string) string {
+	normalized, _, _ := strings.Cut(port, "/")
+	return normalized
+}
 
 // TestContainerConfig holds container connection details
 type TestContainerConfig struct {
@@ -70,7 +76,7 @@ func setupPostgresContainer(t *testing.T) *TestContainerConfig {
 				wait.ForSQL("5432/tcp", "pgx", func(host string, port string) string {
 					return fmt.Sprintf(
 						"postgres://%s:%s@%s:%s/%s?sslmode=disable",
-						testDbUser, testDbPass, host, port, testDbName,
+						testDbUser, testDbPass, host, normalizeContainerPort(port), testDbName,
 					)
 				}).WithStartupTimeout(30*time.Second).WithQuery("SELECT 1"),
 			),
