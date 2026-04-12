@@ -9,9 +9,6 @@ import (
 templ Page(settings *settings.Settings, translations map[string]string) {
 	<html lang="en">
 		<head>
-			<script>
-                    window.customStart=()=>{};
-            </script>
 			<link rel="stylesheet" href="/css/welcome/main.css"/>
 			<link rel="stylesheet" href={"/css/skin/"+ settings.SkinName + "/index.css"}/>
 			<link rel="localizations" type="application/l10n+json" href="locales.json"/>
@@ -23,8 +20,8 @@ templ Page(settings *settings.Settings, translations map[string]string) {
 				<ep-button variant="primary" id="button">{translations["index.newPad"]}</ep-button>
 					<label id="label" for="padname">{translations["index.createOpenPad"]}</label>
 					<form action="#" id="go2Name">
-						<input type="text" id="padname" maxlength="50" autofocus/>
-						<button type="submit">OK</button>
+						<ep-input type="text" id="padname" maxlength="50" autofocus></ep-input>
+						<ep-button type="submit" variant="primary">OK</ep-button>
 					</form>
 				</div>
 			</div>
