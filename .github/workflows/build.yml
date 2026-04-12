@@ -107,9 +107,7 @@ jobs:
           EP_TEST_POSTGRES_PORT: "5432"
           EP_TEST_MYSQL_HOST: "127.0.0.1"
           EP_TEST_MYSQL_PORT: "3306"
-        run: |
-          go test -p 1 -v -coverpkg=./... -coverprofile=coverage.out ./...
-          go tool cover -html=coverage.out -o coverage.html
+        run: go test -p 1 -v -coverpkg=./... -coverprofile=coverage.out ./...
       - name: Setup SonarQube
         if: (github.actor == 'samtv12345' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')) && matrix.arch == 'amd64'
         uses: warchant/setup-sonar-scanner@v10
