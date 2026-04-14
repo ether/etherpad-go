@@ -44,14 +44,11 @@ export const padeditor = (() => {
       settings = pad.settings;
       self.ace = new Ace2Editor();
       await self.ace.init('editorcontainer', '');
-      // EventBus: emit editor:ace:initialized after the ACE editor is created
-      editorBus.emit('editor:ace:initialized', {editorInfo: self.ace});
+      // editor:ace:initialized is emitted by ace.ts with the shared info object
       const editorLoading = q('#editorloadingbox');
       if (editorLoading) editorLoading.style.display = 'none';
-      // Listen for clicks on sidediv items
-      const outerFrame = q('iframe[name="ace_outer"]');
-      const outerDoc = outerFrame?.contentDocument;
-      const sideDivInner = outerDoc?.querySelector('#sidedivinner');
+      // Listen for clicks on sidediv items (now in main document, not iframe)
+      const sideDivInner = q('#sidedivinner');
       sideDivInner?.addEventListener('click', (event) => {
         const target = event.target;
         if (!(target instanceof HTMLElement) || target.tagName.toLowerCase() !== 'div') return;
@@ -91,10 +88,13 @@ export const padeditor = (() => {
 
 
       // font family change
-      q('#viewfontmenu')?.addEventListener('change', () => {
-        const menu = q('#viewfontmenu');
-        pad.changeViewOption('padFontFamily', menu?.value);
-      });
+      q('#viewfontmenu')?.addEventListener('ep-dropdown-select', ((e: CustomEvent) => {
+        const font = e.detail?.value ?? '';
+        // Update the trigger button text
+        const trigger = q('#viewfontmenu [slot="trigger"]');
+        if (trigger) trigger.textContent = font || html10n.get('pad.settings.fontType.normal');
+        pad.changeViewOption('padFontFamily', font);
+      }) as EventListener);
 
       // delete pad
       q('#delete-pad')?.addEventListener('click', () => {
@@ -118,14 +118,13 @@ export const padeditor = (() => {
 
       // Language
       html10n.bind('localized', () => {
-        const menu = q('#languagemenu');
-        if (menu) menu.value = html10n.getLanguage();
-        // translate the value of 'unnamed' and 'Enter your name' textboxes in the userlist
+        // Update the language trigger button text
+        const lang = html10n.getLanguage();
+        const langItem = q(`#languagemenu ep-dropdown-item[value="${lang}"]`);
+        const trigger = q('#languagemenu [slot="trigger"]');
+        if (trigger && langItem) trigger.textContent = langItem.textContent;
 
-        // this does not interfere with html10n's normal value-setting because
-        // html10n just ingores <input>s
-        // also, a value which has been set by the user will be not overwritten
-        // since a user-edited <input> does *not* have the editempty-class
+        // translate the value of 'unnamed' and 'Enter your name' textboxes in the userlist
         qa('input[data-l10n-id]').forEach((input) => {
           if (!(input instanceof HTMLInputElement)) return;
           if (input.classList.contains('editempty')) {
@@ -134,14 +133,18 @@ export const padeditor = (() => {
           }
         });
       });
-      const languageMenu = q('#languagemenu');
-      if (languageMenu) languageMenu.value = html10n.getLanguage();
-      languageMenu?.addEventListener('change', () => {
-        const value = languageMenu.value;
+      // Set initial language trigger text
+      const langTrigger = q('#languagemenu [slot="trigger"]');
+      const currentLang = html10n.getLanguage();
+      const currentLangItem = q(`#languagemenu ep-dropdown-item[value="${currentLang}"]`);
+      if (langTrigger && currentLangItem) langTrigger.textContent = currentLangItem.textContent;
+
+      q('#languagemenu')?.addEventListener('ep-dropdown-select', ((e: CustomEvent) => {
+        const value = e.detail?.value ?? '';
         Cookies.set('language', value, { expires: 36500 });
         location.reload();
         html10n.localize([value, 'en']);
-      });
+      }) as EventListener);
     },
     setViewOptions: (newOptions) => {
       const getOption = (key, defaultValue) => {
@@ -164,7 +167,7 @@ export const padeditor = (() => {
       v = getOption('showAuthorColors', true);
       self.ace.setProperty('showsauthorcolors', v);
       q('#chattext')?.classList.toggle('authorColors', v);
-      const sideDivInner = q('iframe[name="ace_outer"]')?.contentDocument?.querySelector('#sidedivinner');
+      const sideDivInner = q('#sidedivinner');
       sideDivInner?.classList.toggle('authorColors', v);
       padutils.setCheckbox('#options-colorscheck', v);
 
@@ -206,23 +209,16 @@ export const focusOnLine = (ace) => {
     if (lineNumber[0] === 'L') {
       const lineNumberInt = parseInt(lineNumber.substr(1));
       if (lineNumberInt) {
-        const outerFrame = q('iframe[name="ace_outer"]');
-        const outerDoc = outerFrame?.contentDocument;
-        const outerDocBody = outerDoc?.querySelector('#outerdocbody');
-        const innerFrame = outerDoc?.querySelector('iframe');
-        const innerDocBody = innerFrame?.contentDocument?.querySelector('#innerdocbody');
+        const innerDocBody = document.getElementById('innerdocbody');
         const line = innerDocBody?.querySelector(`div:nth-child(${lineNumberInt})`);
-        if (line && outerDocBody && innerDocBody) {
-          let offsetTop = line.getBoundingClientRect().top - innerDocBody.getBoundingClientRect().top;
-          offsetTop += parseInt(getComputedStyle(outerDocBody).paddingTop.replace('px', ''));
-          const hasMobileLayout = window.matchMedia('(max-width: 1000px)').matches;
-          if (!hasMobileLayout) {
-            offsetTop += parseInt(getComputedStyle(innerDocBody).paddingTop.replace('px', ''));
+        if (line && innerDocBody) {
+          const offsetTop = line.getBoundingClientRect().top - innerDocBody.getBoundingClientRect().top;
+          const editorContainer = document.getElementById('editorcontainer');
+          if (editorContainer) {
+            editorContainer.scrollTop = offsetTop;
           }
-          (outerDocBody).style.top = `${offsetTop}px`; // Chrome
-          outerDoc?.documentElement?.scrollTo({top: offsetTop}); // needed for FF
-          const node = line;
           ace.callWithAce((ace) => {
+            const node = line;
             const selection = {
               startPoint: {
                 index: 0,

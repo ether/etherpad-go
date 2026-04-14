@@ -3,6 +3,7 @@ import html10n from './i18n';
 import notifications from './notifications';
 import {editorBus} from './core/EventBus';
 import {padeditor} from './pad_editor';
+import 'etherpad-webcomponents/EpChatMessage.js';
 
 // ---------------------------------------------------------------------------
 // Inline helpers (replaces padutils + padcookie dependencies)
@@ -226,7 +227,7 @@ class ChatController {
   };
 
   stickToScreen(fromInitialCall?: boolean): void {
-    const stickyOption = byId<HTMLInputElement>('options-stickychat');
+    const stickyOption = byId('options-stickychat') as any;
     if (stickyOption?.checked) stickyOption.checked = false;
     if (this.pad.settings?.hideChat) return;
 
@@ -246,8 +247,8 @@ class ChatController {
   }
 
   chatAndUsers(fromInitialCall?: boolean): void {
-    const chatAndUsersOption = byId<HTMLInputElement>('options-chatandusers');
-    const stickyOption = byId<HTMLInputElement>('options-stickychat');
+    const chatAndUsersOption = byId('options-chatandusers') as any;
+    const stickyOption = byId('options-stickychat') as any;
     const toEnable = Boolean(chatAndUsersOption?.checked);
 
     if (toEnable || !this.userAndChat || fromInitialCall === true) {
@@ -273,7 +274,7 @@ class ChatController {
   }
 
   hide(): void {
-    const stickyOption = byId<HTMLInputElement>('options-stickychat');
+    const stickyOption = byId('options-stickychat') as any;
     if (stickyOption?.checked) {
       this.stickToScreen();
       stickyOption.checked = false;
@@ -299,8 +300,8 @@ class ChatController {
     if (!shouldScroll) return;
 
     chatText.scrollTo({ top: chatText.scrollHeight, behavior: 'smooth' });
-    const paragraphs = chatText.querySelectorAll('p');
-    this.lastMessage = paragraphs.length > 0 ? paragraphs[paragraphs.length - 1] as HTMLElement : null;
+    const messages = chatText.querySelectorAll('ep-chat-message');
+    this.lastMessage = messages.length > 0 ? messages[messages.length - 1] as HTMLElement : null;
   }
 
   async send(): Promise<void> {
@@ -371,19 +372,17 @@ class ChatController {
     editorBus.emit('chat:new:message', ctx);
 
     // --- Render the message into the DOM -----------------------------------
-    const cls = authorClass(ctx.author);
     const rendered = getRenderedElement(ctx.rendered);
-    const chatMsg = rendered ?? document.createElement('p');
+    const chatMsg = rendered ?? document.createElement('ep-chat-message');
     if (rendered == null) {
+      const myUserId = String((window as any).clientVars?.userId ?? '');
       chatMsg.setAttribute('data-authorId', ctx.author);
-      chatMsg.classList.add(cls);
-      const authorEl = document.createElement('b');
-      authorEl.textContent = `${ctx.authorName}:`;
-      const timeEl = document.createElement('span');
-      timeEl.classList.add('time', cls);
-      timeEl.innerHTML = ctx.timeStr;
-      chatMsg.append(authorEl, timeEl, ' ');
-      const textContainer = document.createElement('div');
+      chatMsg.setAttribute('author', ctx.authorName);
+      chatMsg.setAttribute('time', ctx.timeStr);
+      if (ctx.author === myUserId) {
+        chatMsg.setAttribute('own', '');
+      }
+      const textContainer = document.createElement('span');
       textContainer.innerHTML = ctx.text;
       chatMsg.append(...Array.from(textContainer.childNodes));
     }

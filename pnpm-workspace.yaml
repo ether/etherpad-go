@@ -5,4 +5,4 @@ packages:
   - plugins/*
 
 overrides:
-  etherpad-webcomponents: 0.0.4
+  etherpad-webcomponents: link:C:/Users/samue/WebstormProjects/webcomponents
