@@ -1,16 +1,21 @@
-import {expect, Frame, Locator, Page} from "@playwright/test";
+import {expect, Locator, Page} from "@playwright/test";
 import {randomUUID} from "node:crypto";
 import os from "node:os";
 
 const isMac = os.platform() === 'darwin';
 const modifier = isMac ? 'Meta' : 'Control';
 
-export const getPadOuter = async (page: Page): Promise<Frame> => {
-    return page.frame('ace_outer')!;
+// After the WebComponents migration (ui/src/js/ace.ts) the editor no longer
+// uses nested iframes — #outerdocbody and #innerdocbody are regular divs in
+// the main document. getPadOuter is kept for backwards compatibility with
+// specs that only needed a scope; it now returns the page itself as a
+// Locator-returning helper.
+export const getPadOuter = async (page: Page): Promise<Page> => {
+    return page;
 }
 
 export const getPadBody = async (page: Page): Promise<Locator> => {
-    return page.frame('ace_inner')!.locator('#innerdocbody')
+    return page.locator('#innerdocbody');
 }
 
 export const selectAllText = async (page: Page) => {
@@ -106,19 +111,13 @@ export const appendQueryParams = async (page: Page, queryParameters: Record<stri
         searchParams.append(key, queryParameters[key]);
     });
     await page.goto(page.url() + "?" + searchParams.toString());
-    await page.waitForSelector('iframe[name="ace_outer"]', { timeout: 30000 });
+    await page.locator('#innerdocbody').waitFor({ state: 'visible', timeout: 30000 });
 }
 
 const PAD_TIMEOUT = process.env.CI && os.arch() === 'arm64' ? 60000 : 30000;
 
 const waitForPadToLoad = async (page: Page, timeout: number = PAD_TIMEOUT) => {
-    // Wait for the outer frame
-    await page.waitForSelector('iframe[name="ace_outer"]', { timeout, state: 'attached' });
-
-    // Use frameLocator to wait for inner frame content — avoids polling loop
-    const innerFrame = page.frameLocator('iframe[name="ace_outer"]')
-        .frameLocator('iframe[name="ace_inner"]');
-    await innerFrame.locator('#innerdocbody').waitFor({ state: 'visible', timeout });
+    await page.locator('#innerdocbody').waitFor({ state: 'visible', timeout });
 };
 
 const navigateToPad = async (page: Page, padId: string) => {
@@ -153,11 +152,7 @@ export const goToPad = async (page: Page, padId: string) => {
 }
 
 export const clearPadContent = async (page: Page) => {
-    const innerFrame = page.frame('ace_inner');
-    if (!innerFrame) {
-        throw new Error('Could not find ace_inner frame');
-    }
-    const body = innerFrame.locator('#innerdocbody');
+    const body = page.locator('#innerdocbody');
     await body.click();
     await selectAllText(page);
     await page.keyboard.press('Backspace');
@@ -166,11 +161,7 @@ export const clearPadContent = async (page: Page) => {
 }
 
 export const writeToPad = async (page: Page, text: string) => {
-    const innerFrame = page.frame('ace_inner');
-    if (!innerFrame) {
-        throw new Error('Could not find ace_inner frame');
-    }
-    const body = innerFrame.locator('#innerdocbody');
+    const body = page.locator('#innerdocbody');
     await body.click();
     await page.keyboard.type(text, { delay: 5 });
 }

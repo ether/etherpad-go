@@ -5,7 +5,7 @@ const settingsButton = "button[class~='buttonicon-settings']";
 
 const ensureSettingsVisible = async (page: Page) => {
     const settings = page.locator('#settings');
-    await page.waitForSelector('iframe[name="ace_outer"]');
+    await page.locator('#innerdocbody').waitFor({ state: 'visible' });
     for (let i = 0; i < 3; i++) {
         const classes = await settings.getAttribute('class');
         if (classes?.includes('popup-show')) return;
@@ -34,18 +34,16 @@ test.describe('settings popup and options', () => {
     test('toggles line numbers visibility in editor gutter', async ({page}) => {
         await ensureSettingsVisible(page);
         const lineNumbersCheckbox = page.locator('#options-linenoscheck');
-        const outerFrame = page.frame('ace_outer');
-        if (!outerFrame) throw new Error('Could not find ace_outer frame');
 
         await lineNumbersCheckbox.uncheck({force: true});
         await expect.poll(async () => {
-            return await outerFrame.locator('#sidediv').evaluate((node) =>
+            return await page.locator('#sidediv').evaluate((node) =>
                 node.parentElement?.classList.contains('line-numbers-hidden') ?? false);
         }).toBe(true);
 
         await lineNumbersCheckbox.check({force: true});
         await expect.poll(async () => {
-            return await outerFrame.locator('#sidediv').evaluate((node) =>
+            return await page.locator('#sidediv').evaluate((node) =>
                 node.parentElement?.classList.contains('line-numbers-hidden') ?? false);
         }).toBe(false);
     });

@@ -13,9 +13,7 @@ test.describe('enter keystroke', function () {
         await clearPadContent(page);
         await writeToPad(page, 'Test Line');
 
-        const innerFrame = page.frame('ace_inner');
-        if (!innerFrame) throw new Error('Could not find ace_inner frame');
-        const body = innerFrame.locator('#innerdocbody');
+        const body = page.locator('#innerdocbody');
 
         // Verify we have one line with content
         await expect(body.locator('div').first()).toHaveText('Test Line');
@@ -38,9 +36,7 @@ test.describe('enter keystroke', function () {
     test('enter is always visible after event', async function ({page}) {
         await clearPadContent(page);
 
-        const innerFrame = page.frame('ace_inner');
-        if (!innerFrame) throw new Error('Could not find ace_inner frame');
-        const body = innerFrame.locator('#innerdocbody');
+        const body = page.locator('#innerdocbody');
 
         // Start with 1 line
         await expect(body.locator('div')).toHaveCount(1);

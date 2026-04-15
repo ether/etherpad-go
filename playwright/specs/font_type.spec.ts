@@ -11,9 +11,7 @@ test.describe('font select', function () {
     test.skip(({ browserName }) => browserName === 'webkit', 'Skipping on WebKit due to dropdown issues');
 
     const getBodyFontFamily = async (page: Page) => {
-        const innerFrame = page.frame('ace_inner');
-        if (!innerFrame) throw new Error('Could not find ace_inner frame');
-        const body = innerFrame.locator('#innerdocbody');
+        const body = page.locator('#innerdocbody');
         return await body.evaluate((e) => {
             return window.getComputedStyle(e).getPropertyValue("font-family").toLowerCase();
         });

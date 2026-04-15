@@ -8,7 +8,7 @@ test.beforeEach(async ({ page })=>{
 
 const selectLanguage = async (page: Page, language: string) => {
     const languageMenu = page.locator('#languagemenu');
-    await page.waitForSelector('iframe[name="ace_outer"]');
+    await page.locator('#innerdocbody').waitFor({ state: 'visible' });
     for (let i = 0; i < 3; i++) {
         if (await languageMenu.isVisible()) break;
         await page.locator("button[class~='buttonicon-settings']").click();
