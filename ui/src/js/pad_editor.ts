@@ -158,10 +158,21 @@ export const padeditor = (() => {
 
       v = getOption('rtlIsTrue', ('rtl' === html10n.getDirection()));
       self.ace.setProperty('rtlIsTrue', v);
+      // setProperty on the AceEditor only flips the editor body's direction.
+      // Etherpad's layout also depends on the <html> dir attribute (the whole
+      // page flips), so mirror the setting here. The original ace2_inner.ts did
+      // this inside the editor; in the webcomponent port the editor is scoped
+      // to its own DOM, so the page-level update lives at the consumer layer.
+      document.documentElement.dir = v ? 'rtl' : 'ltr';
       padutils.setCheckbox('#options-rtlcheck', v);
 
       v = getOption('showLineNumbers', true);
       self.ace.setProperty('showslinenumbers', v);
+      // #sidediv is outside the editor's scope (it's a sibling in
+      // #outerdocbody), so the webcomponent AceEditor cannot toggle its
+      // parent's class the way the original ace2_inner did.
+      document.getElementById('sidediv')
+        ?.parentElement?.classList.toggle('line-numbers-hidden', !v);
       padutils.setCheckbox('#options-linenoscheck', v);
 
       v = getOption('showAuthorColors', true);

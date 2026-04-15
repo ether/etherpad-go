@@ -34,6 +34,17 @@ export const setEpCheckbox = async (locator: Locator, want: boolean) => {
 export const isEpCheckboxChecked = (locator: Locator): Promise<boolean> =>
     locator.evaluate((el: Element) => el.hasAttribute('checked'));
 
+// <ep-dropdown> is a Lit web component, not a native <select>, so
+// Playwright's .selectOption() / toHaveValue() do not apply. Opening the
+// dropdown requires clicking its trigger button; choosing a value means
+// clicking the matching <ep-dropdown-item>. The component dispatches
+// 'ep-dropdown-select' on pick, which consumer code listens for.
+export const selectEpDropdownItem = async (page: Page, dropdownSelector: string, value: string) => {
+    const dropdown = page.locator(dropdownSelector);
+    await dropdown.locator('[slot="trigger"]').click();
+    await dropdown.locator(`ep-dropdown-item[value="${value}"]`).click();
+}
+
 export const selectAllText = async (page: Page) => {
     await page.keyboard.down(modifier);
     await page.keyboard.press('a');
@@ -58,29 +69,35 @@ export const showChat = async (page: Page) => {
     await expect(chatIcon).not.toHaveClass(/visible/, { timeout: 5000 })
 }
 
+// Chat messages are rendered as <ep-chat-message> web components (author,
+// time, and `own` are reflected attributes; the message body lives in the
+// default slot). The old helpers looked for <p> elements from the pre-
+// webcomponent chat UI — every selector here needed to move to the new tag.
 export const getCurrentChatMessageCount = async (page: Page) => {
-    return await page.locator('#chattext').locator('p').count()
+    return await page.locator('#chattext').locator('ep-chat-message').count()
 }
 
 export const getChatUserName = async (page: Page) => {
-    return await page.locator('#chattext')
-        .locator('p')
-        .locator('b')
-        .innerText()
+    return (await page.locator('#chattext')
+        .locator('ep-chat-message')
+        .first()
+        .getAttribute('author')) ?? ''
 }
 
 export const getChatMessage = async (page: Page) => {
+    // The slotted body contains the message text. textContent on the host
+    // returns the combined light-DOM children (author/time live in shadow DOM).
     return (await page.locator('#chattext')
-        .locator('p')
-        .textContent({}))!
-        .split(await getChatTime(page))[1]
+        .locator('ep-chat-message')
+        .first()
+        .textContent()) ?? ''
 }
 
 export const getChatTime = async (page: Page) => {
-    return await page.locator('#chattext')
-        .locator('p')
-        .locator('.time')
-        .innerText()
+    return (await page.locator('#chattext')
+        .locator('ep-chat-message')
+        .first()
+        .getAttribute('time')) ?? ''
 }
 
 export const sendChatMessage = async (page: Page, message: string) => {
@@ -90,7 +107,7 @@ export const sendChatMessage = async (page: Page, message: string) => {
     await chatInput.fill(message)
     await page.keyboard.press('Enter')
     if (message === "") return
-    await expect(page.locator('#chattext').locator('p')).toHaveCount(currentChatCount + 1, { timeout: 10000 })
+    await expect(page.locator('#chattext').locator('ep-chat-message')).toHaveCount(currentChatCount + 1, { timeout: 10000 })
 }
 
 export const isChatBoxShown = async (page: Page) => {
