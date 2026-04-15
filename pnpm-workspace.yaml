@@ -3,6 +3,3 @@ packages:
   - playwright
   - ui
   - plugins/*
-
-overrides:
-  etherpad-webcomponents: link:C:/Users/samue/WebstormProjects/webcomponents

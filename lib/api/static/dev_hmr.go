@@ -2,7 +2,7 @@ package static
 
 import (
 	"encoding/json"
-	"path"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -67,6 +67,23 @@ func (h *esbuildDevHMR) serveBundle(c fiber.Ctx) error {
 	return c.Send(output)
 }
 
+// buildDevNodePaths exposes pnpm's isolated node_modules folders as fallback
+// Node resolution paths. pnpm installs each package's transitive deps inside
+// node_modules/.pnpm/<pkg>@<ver>/node_modules/, reachable from the consuming
+// package only through a symlink. On Windows the Go resolver in esbuild does
+// not always follow those symlinks the same way Node does, so bare imports
+// like `lit/decorators.js` coming out of a pnpm-installed library fail to
+// resolve. Handing esbuild the isolated folders as NodePaths lets it find
+// those deps without relying on symlink resolution.
+func buildDevNodePaths(projectRoot string) []string {
+	pattern := filepath.Join(projectRoot, "node_modules", ".pnpm", "*", "node_modules")
+	matches, err := filepath.Glob(pattern)
+	if err != nil {
+		return nil
+	}
+	return matches
+}
+
 func buildDevAliases() map[string]string {
 	relativePath := "./src/js"
 	return map[string]string{
@@ -84,6 +101,7 @@ func newDevBundle(
 	name string,
 	entryPoint string,
 	pathToBuild string,
+	nodePaths []string,
 	notify func(string),
 ) (*devBundleState, error) {
 	state := &devBundleState{name: name, entryPoint: entryPoint}
@@ -118,6 +136,7 @@ func newDevBundle(
 		LogLevel:      api.LogLevelInfo,
 		Target:        api.ES2020,
 		Alias:         buildDevAliases(),
+		NodePaths:     nodePaths,
 		Sourcemap:     api.SourceMapInline,
 		Plugins:       []api.Plugin{resultPlugin},
 	})
@@ -151,7 +170,8 @@ func startEsbuildDevHMR(store *lib.InitStore) (*esbuildDevHMR, error) {
 		return nil, nil
 	}
 
-	pathToBuild := path.Join(store.RetrievedSettings.Root, "ui")
+	pathToBuild := filepath.Join(store.RetrievedSettings.Root, "ui")
+	nodePaths := buildDevNodePaths(store.RetrievedSettings.Root)
 	hmr := &esbuildDevHMR{
 		logger:  store.Logger,
 		bundles: map[string]*devBundleState{},
@@ -173,7 +193,7 @@ func startEsbuildDevHMR(store *lib.InitStore) (*esbuildDevHMR, error) {
 	}
 
 	for _, spec := range specs {
-		bundle, err := newDevBundle(store, spec.name, spec.entryPoint, pathToBuild, hmr.notify)
+		bundle, err := newDevBundle(store, spec.name, spec.entryPoint, pathToBuild, nodePaths, hmr.notify)
 		if err != nil {
 			return nil, err
 		}
