@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       etherpad-webcomponents:
-        specifier: ^0.0.8
-        version: 0.0.8
+        specifier: ^0.0.9
+        version: 0.0.9
     devDependencies:
       typescript:
         specifier: ^5.6.3
@@ -116,8 +116,8 @@ importers:
         specifier: 0.28.0
         version: 0.28.0
       etherpad-webcomponents:
-        specifier: ^0.0.8
-        version: 0.0.8
+        specifier: ^0.0.9
+        version: 0.0.9
       typescript:
         specifier: ^6.0.2
         version: 6.0.2
@@ -850,8 +850,8 @@ packages:
   estree-walker@2.0.2:
     resolution: {integrity: sha512-Rfkk/Mp/DL7JVje3u18FxFujQlTNR2q6QfMSMB7AvCBx91NGj/ba3kCfza0f6dVDbw7YlRf/nDrn7pQrCCyQ/w==}
 
-  etherpad-webcomponents@0.0.8:
-    resolution: {integrity: sha512-V4Tw4EpZvOnjevenx7b8allkoa0S/8vUdCIXrDLSIu261Mb5UoRAuWDuMD5GdzupFrgg+C2yovBtWE10m3lucA==}
+  etherpad-webcomponents@0.0.9:
+    resolution: {integrity: sha512-w/jom2QxEjU0403sTAi44X2RPqL6kJhmjJLKrVa291jk3RQ50wZixDfTBIGDRRmkuwoLIOvTJ+ps5IiPbRrMIA==}
 
   fdir@6.5.0:
     resolution: {integrity: sha512-tIbYtZbucOs0BRGqPJkshJUYdL+SDH7dVM8gjy+ERp3WAUjLEFJE+02kanyHtwjWOnwrKYBiwAmM0p4kLJAnXg==}
@@ -1696,7 +1696,7 @@ snapshots:
 
   estree-walker@2.0.2: {}
 
-  etherpad-webcomponents@0.0.8:
+  etherpad-webcomponents@0.0.9:
     dependencies:
       '@lit/reactive-element': 2.1.2
       lit: 3.3.2

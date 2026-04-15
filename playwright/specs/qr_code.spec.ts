@@ -1,5 +1,5 @@
 import {expect, Page, test} from "@playwright/test";
-import {goToNewPad} from "../helper/padHelper";
+import {goToNewPad, setEpCheckbox} from "../helper/padHelper";
 
 test.beforeEach(async ({page}) => {
     await goToNewPad(page);
@@ -44,10 +44,7 @@ test.describe('QR share popup', () => {
         const qrLinkInput = page.locator('#qrcodelinkinput');
         const qrImage = page.locator('#qrcodeimg');
 
-        await qrReadonlyToggle.evaluate((element: HTMLInputElement) => {
-            element.checked = true;
-            element.dispatchEvent(new Event('click', {bubbles: true}));
-        });
+        await setEpCheckbox(qrReadonlyToggle, true);
         await expect(qrLinkInput).toHaveValue(new RegExp(`/${readOnlyId}$`));
         await expect(qrImage).toHaveAttribute('src', `${page.url().split('?')[0]}/qr?readonly=true`);
         await waitForQrImage(page);

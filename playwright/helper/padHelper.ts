@@ -18,6 +18,22 @@ export const getPadBody = async (page: Page): Promise<Locator> => {
     return page.locator('#innerdocbody');
 }
 
+// ep-checkbox is a Lit web component, not a native <input type="checkbox">,
+// so Playwright's .check()/.uncheck()/toBeChecked() do not apply. The
+// component reflects its state via the `checked` attribute on the host
+// element and toggles on click. Use this helper whenever a test needs to
+// set or assert the state of an <ep-checkbox>.
+export const setEpCheckbox = async (locator: Locator, want: boolean) => {
+    const isChecked = () => locator.evaluate((el: Element) => el.hasAttribute('checked'));
+    if ((await isChecked()) !== want) {
+        await locator.click({force: true});
+    }
+    await expect.poll(isChecked).toBe(want);
+}
+
+export const isEpCheckboxChecked = (locator: Locator): Promise<boolean> =>
+    locator.evaluate((el: Element) => el.hasAttribute('checked'));
+
 export const selectAllText = async (page: Page) => {
     await page.keyboard.down(modifier);
     await page.keyboard.press('a');

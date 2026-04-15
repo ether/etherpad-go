@@ -1,5 +1,5 @@
 import {expect, Page, test} from "@playwright/test";
-import {goToNewPad} from "../helper/padHelper";
+import {goToNewPad, setEpCheckbox} from "../helper/padHelper";
 
 const settingsButton = "button[class~='buttonicon-settings']";
 
@@ -35,13 +35,13 @@ test.describe('settings popup and options', () => {
         await ensureSettingsVisible(page);
         const lineNumbersCheckbox = page.locator('#options-linenoscheck');
 
-        await lineNumbersCheckbox.uncheck({force: true});
+        await setEpCheckbox(lineNumbersCheckbox, false);
         await expect.poll(async () => {
             return await page.locator('#sidediv').evaluate((node) =>
                 node.parentElement?.classList.contains('line-numbers-hidden') ?? false);
         }).toBe(true);
 
-        await lineNumbersCheckbox.check({force: true});
+        await setEpCheckbox(lineNumbersCheckbox, true);
         await expect.poll(async () => {
             return await page.locator('#sidediv').evaluate((node) =>
                 node.parentElement?.classList.contains('line-numbers-hidden') ?? false);
@@ -53,10 +53,10 @@ test.describe('settings popup and options', () => {
         const colorsCheckbox = page.locator('#options-colorscheck');
         const chatText = page.locator('#chattext');
 
-        await colorsCheckbox.uncheck({force: true});
+        await setEpCheckbox(colorsCheckbox, false);
         await expect(chatText).not.toHaveClass(/authorColors/);
 
-        await colorsCheckbox.check({force: true});
+        await setEpCheckbox(colorsCheckbox, true);
         await expect(chatText).toHaveClass(/authorColors/);
     });
 
@@ -64,10 +64,10 @@ test.describe('settings popup and options', () => {
         await ensureSettingsVisible(page);
         const rtlCheckbox = page.locator('#options-rtlcheck');
 
-        await rtlCheckbox.check({force: true});
+        await setEpCheckbox(rtlCheckbox, true);
         await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
 
-        await rtlCheckbox.uncheck({force: true});
+        await setEpCheckbox(rtlCheckbox, false);
         await expect(page.locator('html')).toHaveAttribute('dir', 'ltr');
     });
 });

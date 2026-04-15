@@ -1,5 +1,5 @@
 import {expect, test} from "@playwright/test";
-import {goToNewPad, sendChatMessage, showChat} from "../helper/padHelper";
+import {goToNewPad, sendChatMessage, setEpCheckbox, showChat} from "../helper/padHelper";
 
 test.beforeEach(async ({page}) => {
     await goToNewPad(page);
@@ -59,9 +59,7 @@ test.describe('change user color', function () {
     test('Own user color is shown when you enter a chat', async function ({page}) {
 
         const colorOption = page.locator('#options-colorscheck');
-        if (!(await colorOption.isChecked())) {
-            await colorOption.check();
-        }
+        await setEpCheckbox(colorOption, true);
 
         // click on the settings button to make settings visible
         const $userButton = page.locator('.buttonicon-showusers');
