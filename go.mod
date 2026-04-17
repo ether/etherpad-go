@@ -7,7 +7,6 @@ require (
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/a-h/templ v0.3.1001
 	github.com/brianvoe/gofakeit/v7 v7.14.1
-	github.com/docker/go-connections v0.6.0
 	github.com/evanw/esbuild v0.28.0
 	github.com/go-jose/go-jose/v3 v3.0.5
 	github.com/go-playground/validator/v10 v10.30.2
@@ -15,7 +14,7 @@ require (
 	github.com/gofiber/contrib/v3/swaggo v1.0.1
 	github.com/gofiber/contrib/v3/websocket v1.1.0
 	github.com/gofiber/fiber/v3 v3.1.0
-	github.com/gofiber/utils/v2 v2.0.2
+	github.com/gofiber/utils/v2 v2.0.3
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
@@ -59,6 +58,7 @@ require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dgraph-io/ristretto v1.0.0 // indirect
 	github.com/distribution/reference v0.6.0 // indirect
+	github.com/docker/go-connections v0.6.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/ebitengine/purego v0.10.0 // indirect
