@@ -12,7 +12,7 @@ require (
 	github.com/go-playground/validator/v10 v10.30.2
 	github.com/go-sql-driver/mysql v1.9.3
 	github.com/gofiber/contrib/v3/swaggo v1.0.2
-	github.com/gofiber/contrib/v3/websocket v1.1.0
+	github.com/gofiber/contrib/v3/websocket v1.1.1
 	github.com/gofiber/fiber/v3 v3.1.0
 	github.com/gofiber/utils/v2 v2.0.3
 	github.com/google/go-cmp v0.7.0
