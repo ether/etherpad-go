@@ -418,6 +418,13 @@ class PadUtils {
         if (err.name != null && msg !== err.name && !msg.startsWith(`${err.name}: `)) {
           msg = `${err.name}: ${msg}`;
         }
+
+        // Upstream #7456: ignore errors from browser-extension scripts
+        // (BitWarden, Dashlane, etc.). They are unrelated to Etherpad and
+        // should not show a scary popup nor block pad loading.
+        const source = url || err.stack || '';
+        if (/^(moz|chrome|safari)-extension:\/\//.test(source)) return;
+
         const errorId = randomString(20);
 
         const msgAlreadyVisible = Array.from(document.querySelectorAll('.gritter-item .error-msg'))

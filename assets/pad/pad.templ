@@ -130,8 +130,8 @@ templ SettingsPopup(translations map[string]string, availablefonts []string, set
                   <ep-dropdown id="languagemenu" align="left" trigger="click">
                     <button slot="trigger" type="button" class="dropdown-select-trigger">{translations["pad.settings.language"]}</button>
                     <div slot="content">
-                      for key, valueInLoop := range hooks.AvailableLangs {
-                        <ep-dropdown-item value={key}>{valueInLoop.DisplayName}</ep-dropdown-item>
+                      for _, entry := range hooks.SortedAvailableLangs {
+                        <ep-dropdown-item value={entry.Code}>{entry.Info.DisplayName}</ep-dropdown-item>
                       }
                     </div>
                   </ep-dropdown>

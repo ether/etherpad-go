@@ -7,6 +7,7 @@ import (
 	"path"
 	"path/filepath"
 	"slices"
+	"sort"
 	"strings"
 
 	"github.com/gofiber/fiber/v3"
@@ -506,10 +507,22 @@ func generateLocaleIndex(locales Locales) Locales {
 
 var AvailableLangs = map[string]LanguageInfo{}
 
+// LanguageEntry is the ordered (code, info) pair used by templates that
+// render the language dropdown. Go maps have no stable iteration order, so
+// SortedAvailableLangs provides the alphabetical-by-native-name ordering
+// that upstream #7477 added on the Node side.
+type LanguageEntry struct {
+	Code string
+	Info LanguageInfo
+}
+
+var SortedAvailableLangs []LanguageEntry
+
 func ExpressPreSession(app *fiber.App, uiAssets embed.FS) {
 	var locales = getAllLocales(uiAssets)
 	var localeIndex = generateLocaleIndex(locales)
 	AvailableLangs = getAvailableLangs(locales)
+	SortedAvailableLangs = sortAvailableLangs(AvailableLangs)
 
 	for key, value := range locales["en"].(map[string]string) {
 		localeIndex["en"].(map[string]string)[key] = value
@@ -616,4 +629,17 @@ func getAvailableLangs(locales Locales) map[string]LanguageInfo {
 		availableLangs[key] = getLanguageInfo(key)
 	}
 	return availableLangs
+}
+
+// sortAvailableLangs returns language entries sorted alphabetically by native
+// (DisplayName) name, case-insensitive. Upstream #7477.
+func sortAvailableLangs(langs map[string]LanguageInfo) []LanguageEntry {
+	entries := make([]LanguageEntry, 0, len(langs))
+	for code, info := range langs {
+		entries = append(entries, LanguageEntry{Code: code, Info: info})
+	}
+	sort.Slice(entries, func(i, j int) bool {
+		return strings.ToLower(entries[i].Info.DisplayName) < strings.ToLower(entries[j].Info.DisplayName)
+	})
+	return entries
 }

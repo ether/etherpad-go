@@ -1618,13 +1618,13 @@ func SettingsPopup(translations map[string]string, availablefonts []string, sett
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		for key, valueInLoop := range hooks.AvailableLangs {
+		for _, entry := range hooks.SortedAvailableLangs {
 			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 124, "<ep-dropdown-item value=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var117 string
-			templ_7745c5c3_Var117, templ_7745c5c3_Err = templ.JoinStringErrs(key)
+			templ_7745c5c3_Var117, templ_7745c5c3_Err = templ.JoinStringErrs(entry.Code)
 			if templ_7745c5c3_Err != nil {
 				return templ.Error{Err: templ_7745c5c3_Err, FileName: `assets/pad/pad.templ`, Line: 134, Col: 52}
 			}
@@ -1637,7 +1637,7 @@ func SettingsPopup(translations map[string]string, availablefonts []string, sett
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var118 string
-			templ_7745c5c3_Var118, templ_7745c5c3_Err = templ.JoinStringErrs(valueInLoop.DisplayName)
+			templ_7745c5c3_Var118, templ_7745c5c3_Err = templ.JoinStringErrs(entry.Info.DisplayName)
 			if templ_7745c5c3_Err != nil {
 				return templ.Error{Err: templ_7745c5c3_Err, FileName: `assets/pad/pad.templ`, Line: 134, Col: 78}
 			}

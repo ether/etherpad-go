@@ -5,6 +5,7 @@ import (
 	"context"
 	"html"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/ether/etherpad-go/assets/export"
@@ -352,6 +353,13 @@ func (e *ExportHtml) getHTMLFromAtext(padId string, padPool *apool.APool, atext 
 	pieces = append(pieces, css.String())
 
 	var openLists []openList
+	// Track running ordered-list item counts per indent level so that when an
+	// <ol> is reopened after an unordered-list interruption we can emit
+	// start="N". Upstream #7470.
+	// A value of 0 (not-missing) is a sentinel meaning "this level was
+	// explicitly reset" — we then open a fresh <ol> without a start attribute.
+	olItemCounts := map[int]int{}
+	olItemCountSet := map[int]bool{}
 
 	for i := 0; i < len(textLines); i++ {
 		var aline string
@@ -422,10 +430,27 @@ func (e *ExportHtml) getHTMLFromAtext(padId string, padPool *apool.APool, atext 
 						}
 
 						if line.ListTypeName == "number" {
-							// We introduce line.start here, this is useful for continuing
-							// Ordered list line numbers
-							if line.Start != "" {
-								pieces = append(pieces, "<ol start=\""+line.Start+"\" class=\""+line.ListTypeName+"\">")
+							// Upstream #7470: continue numbering across bullet
+							// interruptions by consulting the per-level counter.
+							if olItemCountSet[line.ListLevel] && olItemCounts[line.ListLevel] > 0 {
+								startNum := olItemCounts[line.ListLevel] + 1
+								pieces = append(pieces, "<ol start=\""+strconv.Itoa(startNum)+"\" class=\""+line.ListTypeName+"\">")
+							} else if olItemCountSet[line.ListLevel] {
+								// Counter exists but is 0 — level was explicitly
+								// reset; start fresh without a start attribute.
+								pieces = append(pieces, "<ol class=\""+line.ListTypeName+"\">")
+							} else if line.Start != "" {
+								// Explicit start from the line attribute (e.g.
+								// from import). Seed the counter so subsequent
+								// continuations stay aligned.
+								startNum, err := strconv.Atoi(line.Start)
+								if err == nil && startNum > 0 {
+									pieces = append(pieces, "<ol start=\""+line.Start+"\" class=\""+line.ListTypeName+"\">")
+									olItemCounts[line.ListLevel] = startNum - 1
+									olItemCountSet[line.ListLevel] = true
+								} else {
+									pieces = append(pieces, "<ol class=\""+line.ListTypeName+"\">")
+								}
 							} else {
 								pieces = append(pieces, "<ol class=\""+line.ListTypeName+"\">")
 							}
@@ -439,6 +464,15 @@ func (e *ExportHtml) getHTMLFromAtext(padId string, padPool *apool.APool, atext 
 			// if we're going up a level we shouldn't be adding..
 			if hookContext.LineContent != nil && *hookContext.LineContent != "" {
 				pieces = append(pieces, "<li>", *hookContext.LineContent)
+				// Track ordered-list item counts for continuation. Upstream #7470.
+				if line.ListTypeName == "number" {
+					if !olItemCountSet[line.ListLevel] || olItemCounts[line.ListLevel] == 0 {
+						olItemCounts[line.ListLevel] = 1
+					} else {
+						olItemCounts[line.ListLevel]++
+					}
+					olItemCountSet[line.ListLevel] = true
+				}
 			}
 
 			// To close list elements
@@ -463,12 +497,27 @@ func (e *ExportHtml) getHTMLFromAtext(padId string, padPool *apool.APool, atext 
 				if nextLine != nil && nextLine.ListLevel > 0 {
 					nextLevel = nextLine.ListLevel
 				}
+				// The actual depth the next line lives at, independent of
+				// any list-type change. Used to decide whether the level is
+				// genuinely closing (depth decrease) vs. just changing type.
+				actualNextLevel := 0
+				if nextLine != nil && nextLine.ListLevel > 0 {
+					actualNextLevel = nextLine.ListLevel
+				}
 				if nextLine != nil && line.ListTypeName != nextLine.ListTypeName {
 					nextLevel = 0
 				}
 
 				for diff := nextLevel; diff < line.ListLevel; diff++ {
 					openLists = filterList(openLists, diff, line.ListTypeName)
+
+					// Reset counter for levels that are genuinely closing (depth
+					// decrease), not merely changing type at the same depth.
+					// Upstream #7470.
+					if diff+1 > actualNextLevel {
+						olItemCounts[diff+1] = 0
+						olItemCountSet[diff+1] = true
+					}
 
 					if len(pieces) > 0 {
 						lastPiece := pieces[len(pieces)-1]
@@ -485,7 +534,10 @@ func (e *ExportHtml) getHTMLFromAtext(padId string, padPool *apool.APool, atext 
 				}
 			}
 		} else {
-			// outside any list
+			// outside any list — reset ordered-list counters for all levels
+			// so numbering starts fresh on the next list block. Upstream #7470.
+			olItemCounts = map[int]int{}
+			olItemCountSet = map[int]bool{}
 			hookContext := &events.LineHtmlForExportContext{
 				Line:        line,
 				LineContent: &lineContent,

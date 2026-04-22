@@ -159,17 +159,34 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 		// + can add text with attribs
 		// = can change or add attribs
 		// - can have attribs, but they are discarded and don't show up in the attribs -
-		// but do show up in the pool
-
-		// Besides verifying the author attribute, this serves a second purpose:
-		// AttributeMap.fromString() ensures that all attribute numbers are valid (it will throw if
-		// an attribute number isn't in the pool).
+		// but do show up in the pool.
+		//
+		// Exception for '=' ops (upstream #7430 / issue #2802): allow restoring
+		// other authors' IDs on existing text so that undoing "clear authorship
+		// colors" works. The foreign author must already be in the pad's pool —
+		// this blocks fabricated-author injection via a '=' op.
+		//
+		// '+' and '-' ops are still rejected for foreign authors: '-' attribs
+		// are discarded from the document but moveOpsToNewPool still adds them
+		// to the pad's pool, which would bypass the '=' pool check above.
 		fromString := changeset.FromString(op.Attribs, &wireApool)
 		var opAuthorId = fromString.Get("author")
 
 		if opAuthorId != nil && utf8.RuneCountInString(*opAuthorId) != 0 && *opAuthorId != session.Author {
-			println("Wrong author tried to submit changeset")
-			return
+			if op.OpCode == "=" {
+				dontAdd := true
+				known := retrievedPad.Pool.PutAttrib(apool.Attribute{
+					Key:   "author",
+					Value: *opAuthorId,
+				}, &dontAdd) != -1
+				if !known {
+					p.Logger.Warnf("Author %s tried to set unknown author %s on existing text", session.Author, *opAuthorId)
+					return
+				}
+			} else {
+				p.Logger.Warnf("Author %s tried to submit changes as author %s (op %s)", session.Author, *opAuthorId, op.OpCode)
+				return
+			}
 		}
 	}
 
@@ -1273,14 +1290,34 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 			thisSession.Revision = headRev
 		}
 	} else {
-		var atext = changeset.CloneAText(retrievedPad.AText)
-		var attribsForWire = changeset.PrepareForWire(atext.Attribs, retrievedPad.Pool)
-		atext.Attribs = attribsForWire.Translated
+		// Capture atext and head revision atomically so the client's initial
+		// state is internally consistent — otherwise concurrent edits between
+		// the two reads can produce "mismatched apply" errors on the client.
+		// See upstream fix #7480.
+		atextSnapshot := changeset.CloneAText(retrievedPad.AText)
+		headRevSnapshot := retrievedPad.Head
+		attribsForWire := changeset.PrepareForWire(atextSnapshot.Attribs, retrievedPad.Pool)
+		atextSnapshot.Attribs = attribsForWire.Translated
 		wirePool := attribsForWire.Pool.ToJsonable()
-		retrivedClientVars, err := p.factory.NewClientVars(*retrievedPad, thisSession, wirePool, atext.Attribs, historicalAuthorData, retrievedSettings)
+
+		// Count includes the joining user — their session.PadId has already
+		// been set via addPadReadOnlyIds() before HandleClientReadyMessage runs.
+		numConnected := len(p.GetRoomSockets(retrievedPad.Id))
+
+		retrivedClientVars, err := p.factory.NewClientVars(*retrievedPad, thisSession, wirePool, atextSnapshot.Attribs, historicalAuthorData, retrievedSettings, numConnected)
 		if err != nil {
 			println("Error creating client vars", err.Error())
 			return
+		}
+		// Honor the atomic snapshot in the outgoing CLIENT_VARS.
+		retrivedClientVars.CollabClientVars.Rev = headRevSnapshot
+		retrivedClientVars.CollabClientVars.InitialAttributedText.Text = atextSnapshot.Text
+		retrivedClientVars.CollabClientVars.InitialAttributedText.Attribs = atextSnapshot.Attribs
+
+		// Initialize session time before broadcasting so timeDelta calculations
+		// in UpdatePadClients don't produce nonsense values. Upstream #7480.
+		if thisSession.Time == 0 {
+			thisSession.Time = retrivedClientVars.CollabClientVars.Time
 		}
 		var arr = make([]interface{}, 2)
 		arr[0] = "message"
@@ -1294,7 +1331,13 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 		// Send the clientVars to the Client
 		client.SafeSend(encoded)
 		// Save the current revision in sessioninfos, should be the same as in clientVars
-		thisSession.Revision = retrievedPad.Head
+		thisSession.Revision = headRevSnapshot
+
+		// Flush any revisions that landed between the atomic snapshot and
+		// this socket officially joining the pad room. Upstream #7480.
+		if retrievedPad.Head > headRevSnapshot {
+			p.UpdatePadClients(retrievedPad)
+		}
 	}
 
 	retrievedAuthor, err := p.authorManager.GetAuthor(thisSession.Author)
