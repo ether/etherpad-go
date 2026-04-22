@@ -3,6 +3,7 @@ import html10n from './i18n';
 import notifications from './notifications';
 import {editorBus} from './core/EventBus';
 import {padeditor} from './pad_editor';
+import {paduserlist} from './pad_userlist';
 import 'etherpad-webcomponents/EpChatMessage.js';
 
 // ---------------------------------------------------------------------------
@@ -375,13 +376,45 @@ class ChatController {
     const rendered = getRenderedElement(ctx.rendered);
     const chatMsg = rendered ?? document.createElement('ep-chat-message');
     if (rendered == null) {
-      const myUserId = String((window as any).clientVars?.userId ?? '');
+      const cv: any = (window as any).clientVars ?? {};
+      const myUserId = String(cv.userId ?? '');
       chatMsg.setAttribute('data-authorId', ctx.author);
       chatMsg.setAttribute('author', ctx.authorName);
       chatMsg.setAttribute('time', ctx.timeStr);
       if (ctx.author === myUserId) {
         chatMsg.setAttribute('own', '');
       }
+      // Resolve the author's current color so <ep-chat-message> can tint the
+      // name. Priority: own user's live color from pad.myUserInfo (tracks the
+      // color picker immediately, before the server round-trip updates
+      // historicalAuthorData) → live user list from paduserlist for other
+      // currently-connected users → historicalAuthorData from clientVars for
+      // authors who have left but contributed to the pad. Empty string
+      // leaves the default theme color.
+      const toCssColor = (c: unknown): string => {
+        if (typeof c === 'number') return cv.colorPalette?.[c] ?? '';
+        return typeof c === 'string' ? c : '';
+      };
+      const resolveAuthorColor = (): string => {
+        const myColor = (this.pad as any)?.myUserInfo?.colorId;
+        if (ctx.author === myUserId && myColor) return toCssColor(myColor);
+        try {
+          const list = paduserlist.users();
+          const u = list.find((x: any) => x?.userId === ctx.author);
+          if (u) {
+            const c = u.color ?? u.colorId;
+            const resolved = toCssColor(c);
+            if (resolved) return resolved;
+          }
+        } catch {
+          // paduserlist may not be initialized during handshake — fall through.
+        }
+        const historical = cv.collab_client_vars?.historicalAuthorData?.[ctx.author];
+        if (historical?.colorId) return toCssColor(historical.colorId);
+        return '';
+      };
+      const authorColor = resolveAuthorColor();
+      if (authorColor) chatMsg.setAttribute('author-color', authorColor);
       const textContainer = document.createElement('span');
       textContainer.innerHTML = ctx.text;
       chatMsg.append(...Array.from(textContainer.childNodes));

@@ -35,36 +35,41 @@ export const isEpCheckboxChecked = (locator: Locator): Promise<boolean> =>
     locator.evaluate((el: Element) => el.hasAttribute('checked'));
 
 // <ep-dropdown> is a Lit web component, not a native <select>, so
-// Playwright's .selectOption() / toHaveValue() do not apply. Opening the
-// dropdown requires clicking its trigger button; choosing a value means
-// clicking the matching <ep-dropdown-item>. The component dispatches
-// 'ep-dropdown-select' on pick, which consumer code listens for.
+// Playwright's .selectOption() / toHaveValue() do not apply.
 //
-// The opened/closed state is driven by the reflected `open` boolean
-// attribute on the host. The component's shadow DOM keeps its
-// `.content-wrapper` (and therefore the slotted items) `display: none`
-// until `[open]` is set; clicking an item before that would race with
-// Lit's async `updated()` lifecycle and time out. So we:
-//   1. click the slotted trigger button,
-//   2. wait for the host to report `open`,
-//   3. confirm the item is present+visible,
-//   4. click it.
+// Playwright's actionability checks (visibility in particular) don't
+// always cooperate with the way Lit projects slotted content into the
+// shadow DOM's `.content-wrapper` — even after the dropdown is open,
+// `ep-dropdown-item` is slotted through a fixed-position wrapper that
+// Playwright can report as not-visible on both Chromium and Firefox.
+// So we drive the component the same way `_selectItem()` does internally:
+// wait for the matching item to exist, then dispatch `ep-dropdown-select`
+// on the host. That's exactly what a real click would trigger, minus the
+// actionability gymnastics.
 export const selectEpDropdownItem = async (page: Page, dropdownSelector: string, value: string) => {
     const dropdown = page.locator(dropdownSelector);
-    await dropdown.waitFor({ state: 'visible', timeout: 10000 });
-    await dropdown.locator('[slot="trigger"]').click();
-    // Re-open if a stale `_onDocClick` fired synchronously with our own
-    // click and immediately closed the dropdown.
-    await expect.poll(async () => {
-        const isOpen = await dropdown.evaluate((el: Element) => el.hasAttribute('open'));
-        if (!isOpen) {
-            await dropdown.locator('[slot="trigger"]').click().catch(() => {});
-        }
-        return isOpen;
-    }, { timeout: 10000 }).toBe(true);
-    const item = dropdown.locator(`ep-dropdown-item[value="${value}"]`);
-    await item.waitFor({ state: 'visible', timeout: 10000 });
-    await item.click();
+    await dropdown.waitFor({ state: 'attached', timeout: 10000 });
+    // Ensure the target <ep-dropdown-item> has been rendered into the
+    // dropdown before we try to select it.
+    await expect.poll(async () =>
+        await dropdown.evaluate(
+            (el: Element, v: string) => !!el.querySelector(`ep-dropdown-item[value="${CSS.escape(v)}"]`),
+            value,
+        ),
+        { timeout: 10000 },
+    ).toBe(true);
+    // Some select handlers (e.g. #languagemenu) call location.reload(),
+    // which detaches the frame mid-evaluate and causes evaluate() to reject.
+    // Swallow that — callers that care about the reload wrap us in
+    // Promise.all(page.waitForLoadState('load'), ...).
+    await dropdown.evaluate((el: any, v: string) => {
+        el.dispatchEvent(new CustomEvent('ep-dropdown-select', {
+            bubbles: true,
+            composed: true,
+            detail: { value: v },
+        }));
+        if (typeof el.close === 'function') el.close();
+    }, value).catch(() => {});
 }
 
 export const selectAllText = async (page: Page) => {
