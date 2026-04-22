@@ -22,7 +22,7 @@ type Factory struct {
 	UiAssets        embed.FS
 }
 
-func (f *Factory) NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apool2.APool, translatedAttribs string, historicalAuthorData map[string]author2.Author, retrievedSettings *settings.Settings) (*clientVars.ClientVars, error) {
+func (f *Factory) NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apool2.APool, translatedAttribs string, historicalAuthorData map[string]author2.Author, retrievedSettings *settings.Settings, numConnectedUsers int) (*clientVars.ClientVars, error) {
 	var historyData = make(map[string]clientVars.CollabAuthor)
 
 	for _, authorData := range historicalAuthorData {
@@ -174,7 +174,8 @@ func (f *Factory) NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apoo
 		InitialTitle:                       "Pad: " + pad.Id,
 		Opts:                               map[string]interface{}{},
 		ChatHead:                           pad.ChatHead,
-		NumConnectedUsers:                  0,
+		NumConnectedUsers:                  numConnectedUsers,
+		CookiePrefix:                       retrievedSettings.Cookie.Prefix,
 		ReadOnlyId:                         sessionInfo.ReadOnlyPadId,
 		ReadOnly:                           sessionInfo.ReadOnly,
 		ServerTimeStamp:                    time.Now().UTC().UnixMilli(),

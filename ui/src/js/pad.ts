@@ -127,9 +127,12 @@ const getParameters = [
     },
     {
         name: 'rtl',
-        checkVal: 'true',
-        callback: (val) => {
-            settings.rtlIsTrue = true;
+        // Accept any value (checkVal: null) so rtl=false is honored as well.
+        // Upstream #7464.
+        checkVal: null,
+        callback: (val, fromUrl) => {
+            settings.rtlIsTrue = val === 'true';
+            if (fromUrl) settings.rtlIsExplicit = true;
         },
     },
     {
@@ -158,22 +161,23 @@ const getParameters = [
 ];
 
 const getParams = () => {
-    // Tries server enforced options first..
-    for (const setting of getParameters) {
-        let value = clientVars.padOptions[setting.name];
-        if (value == null) continue;
-        value = value.toString();
-        if (value === setting.checkVal || setting.checkVal == null) {
-            setting.callback(value);
-        }
-    }
-
-    // Then URL applied stuff
+    // Upstream #7464 #7454: URL params take priority over server padOptions.
+    // Process URL first, falling through to server defaults only when no URL
+    // value is present. This prevents the async html10n localize pass from
+    // re-triggering a server default that clobbers an explicit URL value.
     const params = getUrlVars();
     for (const setting of getParameters) {
-        const value = params.get(setting.name);
-        if (value && (value === setting.checkVal || setting.checkVal == null)) {
-            setting.callback(value);
+        const urlValue = params.get(setting.name);
+        if (urlValue != null && (urlValue === setting.checkVal || setting.checkVal == null)) {
+            setting.callback(urlValue, true);
+            continue;
+        }
+
+        let serverValue = clientVars.padOptions[setting.name];
+        if (serverValue == null) continue;
+        serverValue = serverValue.toString();
+        if (serverValue === setting.checkVal || setting.checkVal == null) {
+            setting.callback(serverValue, false);
         }
     }
 };
@@ -508,7 +512,11 @@ const pad = {
             if (padcookie.getPref('showLineNumbers') === false) {
                 pad.changeViewOption('showLineNumbers', false);
             }
-            if (padcookie.getPref('rtlIsTrue') === true) {
+            // Upstream #7464: if the URL/server explicitly set RTL, that wins
+            // over the cookie-persisted preference.
+            if (settings.rtlIsExplicit) {
+                pad.changeViewOption('rtlIsTrue', settings.rtlIsTrue === true);
+            } else if (padcookie.getPref('rtlIsTrue') === true) {
                 pad.changeViewOption('rtlIsTrue', true);
             }
             pad.changeViewOption('padFontFamily', padcookie.getPref('padFontFamily'));
@@ -905,6 +913,9 @@ const settings = {
     globalUserName: false,
     globalUserColor: false,
     rtlIsTrue: false,
+    // Upstream #7464: distinguish an explicit URL/server-configured RTL value
+    // from a cookie-persisted preference, so the explicit value wins.
+    rtlIsExplicit: false,
 };
 
 pad.settings = settings;

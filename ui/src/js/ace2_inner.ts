@@ -2272,14 +2272,26 @@ function Ace2Inner(editorInfo, cssManagers) {
       let position = 1;
       let curLevel = level;
       let listType;
+      let prevType = '';
       // loop over the lines
       while ((listType = getLineListType(line))) {
         // apply new num
         listType = /([a-z]+)([0-9]+)/.exec(listType);
         curLevel = Number(listType[2]);
-        if (isNaN(curLevel) || listType[0] === 'indent') {
+        const curType = listType[1];
+        // Upstream #7447: use the regex capture group, not the full match,
+        // so indent-type lines are correctly detected during renumbering.
+        if (isNaN(curLevel) || listType[1] === 'indent') {
           return line;
         } else if (curLevel === level) {
+          // Upstream #7436: reset position when switching between list types
+          // at the same level (e.g., bullet -> number) so OL following UL
+          // starts at 1.
+          if (prevType && prevType !== curType) {
+            position = 1;
+          }
+          prevType = curType;
+
           buildKeepRange(rep, builder, loc, (loc = [line, 0]));
           buildKeepRange(rep, builder, loc, (loc = [line, 1]), [
             ['start', position],
@@ -2861,7 +2873,14 @@ function Ace2Inner(editorInfo, cssManagers) {
       const isSafariHalfCharacter =
           (browser.safari && evt.altKey && keyCode === 229);
 
-      if (thisKeyDoesntTriggerNormalize || isFirefoxHalfCharacter || isSafariHalfCharacter) {
+      // Upstream #7459: keyCode 229 indicates an IME/composition event
+      // (dead keys, compose key). On Firefox Linux, the keydown for a dead
+      // key fires before compositionstart, so inInternationalComposition
+      // may not yet be set — treat it as a half-character input to keep
+      // observeChangesAroundSelection from eating the preceding space.
+      const isCompositionKeyCode = (keyCode === 229);
+
+      if (thisKeyDoesntTriggerNormalize || isFirefoxHalfCharacter || isSafariHalfCharacter || isCompositionKeyCode) {
         idleWorkTimer.atLeast(3000); // give user time to type
         // if this is a keydown, e.g., the keyup shouldn't trigger a normalize
         thisKeyDoesntTriggerNormalize = true;
@@ -3183,7 +3202,7 @@ function Ace2Inner(editorInfo, cssManagers) {
       }
     });
 
-    targetBody.addEventListener('paste', (e) => {
+    targetBody.addEventListener('paste', (e: ClipboardEvent) => {
       if (suppressPasteOnLink != null && isLinkTarget(e.target)) {
         scheduler.clearTimeout(suppressPasteOnLink);
         suppressPasteOnLink = null;
@@ -3198,6 +3217,56 @@ function Ace2Inner(editorInfo, cssManagers) {
         documentAttributeManager,
         e,
       });
+
+      // Upstream #7460: preserve inline formatting (bold/italic/etc.) when
+      // pasting. Browser contentEditable normalization strips nested ace-line
+      // wrappers and loses the formatting tags before Etherpad's content
+      // collector sees them. Extract HTML from the clipboard ourselves,
+      // sanitize it, and insert it directly so the collector sees intact tags.
+      const clipboardData = e.clipboardData || (window as any).clipboardData;
+      const pastedHtml = clipboardData?.getData && clipboardData.getData('text/html');
+      if (pastedHtml) {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(pastedHtml, 'text/html');
+        const hasFormatting = doc.querySelector('b, strong, i, em, u, s, del, ins');
+        if (hasFormatting) {
+          e.preventDefault();
+
+          // Strip dangerous elements + event handlers to prevent XSS.
+          // DOMParser doesn't execute scripts but importNode copies attributes.
+          for (const el of doc.body.querySelectorAll(
+              'script, style, iframe, object, embed, form, link, meta')) {
+            el.remove();
+          }
+          for (const el of doc.body.querySelectorAll('*')) {
+            for (const attr of Array.from(el.attributes)) {
+              if (attr.name.startsWith('on') ||
+                  (attr.name === 'href' && /^\s*javascript:/i.test(attr.value))) {
+                el.removeAttribute(attr.name);
+              }
+            }
+          }
+
+          const sel = targetDoc.getSelection();
+          if (sel && sel.rangeCount > 0) {
+            const range = sel.getRangeAt(0);
+            range.deleteContents();
+            const frag = targetDoc.createDocumentFragment();
+            for (const child of Array.from(doc.body.childNodes)) {
+              frag.appendChild(targetDoc.importNode(child, true));
+            }
+            range.insertNode(frag);
+            range.collapse(false);
+            sel.removeAllRanges();
+            sel.addRange(range);
+          }
+          scheduler.setTimeout(() => {
+            inCallStackIfNecessary('paste', () => {
+              incorporateUserChanges();
+            });
+          }, 0);
+        }
+      }
     });
 
     // We reference document here, this is because if we don't this will expose a bug
@@ -3213,6 +3282,10 @@ function Ace2Inner(editorInfo, cssManagers) {
       // in order to make content be observed by incorporateUserChanges() (see
       // observeSuspiciousNodes() for more info)
       const selection = getSelection();
+      // Upstream #7461: capture line attributes of neighboring lines before
+      // the browser processes the drop. Chrome/Safari can corrupt these
+      // attributes when merging lines after removing the dragged content.
+      let savedLineAttrs: {lineNum: number, listType: string}[] | null = null;
       if (selection) {
         const firstLineSelected = topLevel(selection.startPoint.node);
         const lastLineSelected = topLevel(selection.endPoint.node);
@@ -3222,6 +3295,28 @@ function Ace2Inner(editorInfo, cssManagers) {
 
         const neighbor = lineBeforeSelection || lineAfterSelection;
         neighbor.appendChild(targetDoc.createElement('style'));
+
+        // Save attributes of lines adjacent to the dragged content.
+        savedLineAttrs = [];
+        const startEntry = firstLineSelected.id && rep.lines.atKey(firstLineSelected.id);
+        const endEntry = lastLineSelected.id && rep.lines.atKey(lastLineSelected.id);
+        if (!startEntry || !endEntry) {
+          savedLineAttrs = null;
+        }
+        const startLine = startEntry ? rep.lines.indexOfEntry(startEntry) : -1;
+        const endLine = endEntry ? rep.lines.indexOfEntry(endEntry) : -1;
+        if (savedLineAttrs && endLine >= 0 && endLine + 1 < rep.lines.length()) {
+          savedLineAttrs.push({
+            lineNum: endLine + 1,
+            listType: getLineListType(endLine + 1) || '',
+          });
+        }
+        if (savedLineAttrs && startLine > 0) {
+          savedLineAttrs.push({
+            lineNum: startLine - 1,
+            listType: getLineListType(startLine - 1) || '',
+          });
+        }
       }
 
       // EventBus: notify listeners about drop events
@@ -3231,6 +3326,30 @@ function Ace2Inner(editorInfo, cssManagers) {
         documentAttributeManager,
         e,
       });
+
+      // After the browser processes the drop and incorporateUserChanges runs,
+      // restore any corrupted line attributes. Upstream #7461.
+      if (savedLineAttrs && savedLineAttrs.length > 0) {
+        const attrsToCheck = savedLineAttrs;
+        scheduler.setTimeout(() => {
+          inCallStackIfNecessary('dropRestore', () => {
+            incorporateUserChanges();
+            for (const {lineNum, listType} of attrsToCheck) {
+              if (lineNum < rep.lines.length()) {
+                const currentType = getLineListType(lineNum) || '';
+                if (currentType !== listType) {
+                  if (listType) {
+                    documentAttributeManager.setAttributeOnLine(lineNum, 'list', listType);
+                  } else {
+                    documentAttributeManager.removeAttributeOnLine(lineNum, 'list');
+                    documentAttributeManager.removeAttributeOnLine(lineNum, 'start');
+                  }
+                }
+              }
+            }
+          });
+        }, 100);
+      }
     });
 
     targetDoc.documentElement.addEventListener('compositionstart', () => {

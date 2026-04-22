@@ -108,4 +108,5 @@ type ClientVars struct {
 	IndentationOnNewLine               bool                               `json:"indentationOnNewLine"`
 	ScrollWhenFocusLineIsOutOfViewport ScrollWhenFocusLineIsOutOfViewport `json:"scrollWhenFocusLineIsOutOfViewport"`
 	InitialChangesets                  []string                           `json:"initialChangesets"`
+	CookiePrefix                       string                             `json:"cookiePrefix"`
 }

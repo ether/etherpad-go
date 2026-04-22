@@ -3,10 +3,15 @@ package settings
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 
 	clientVars2 "github.com/ether/etherpad-go/lib/models/clientVars"
 	"go.uber.org/zap"
 )
+
+// cookiePrefixPattern restricts cookie.prefix values to characters safe for
+// HTTP header emission (prevents cookie-header injection via \r\n / spaces).
+var cookiePrefixPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]*$`)
 
 type DBSettings struct {
 	Filename string `mapstructure:"filename"`
@@ -79,9 +84,13 @@ type User struct {
 
 type Cookie struct {
 	KeyRotationInterval    int64  `json:"keyRotationInterval" mapstructure:"keyRotationInterval"`
+	Prefix                 string `json:"prefix" mapstructure:"prefix"`
 	SameSite               string `json:"sameSite" mapstructure:"sameSite"`
 	SessionLifetime        int64  `json:"sessionLifetime" mapstructure:"sessionLifetime"`
 	SessionRefreshInterval int64  `json:"sessionRefreshInterval" mapstructure:"sessionRefreshInterval"`
+	// SessionCleanup controls periodic removal of expired/stale sessions.
+	// Defaults to true. Set to false to disable the cleanup goroutine.
+	SessionCleanup *bool `json:"sessionCleanup" mapstructure:"sessionCleanup"`
 }
 
 type SSOClient struct {
@@ -262,7 +271,7 @@ func (s *Settings) GetPublicSettings() PublicSettings {
 }
 
 type SocketIoSettings struct {
-	MaxHttpBufferSize int64 `json:"maxHttpBufferSize"`
+	MaxHttpBufferSize int64 `json:"maxHttpBufferSize" mapstructure:"maxHttpBufferSize"`
 }
 
 var Displayed Settings
@@ -315,6 +324,12 @@ func InitSettings(logger *zap.SugaredLogger) {
 
 	setting.GitVersion = GitVersion()
 	setting.Root = pathToRoot
+
+	if setting.Cookie.Prefix != "" && !cookiePrefixPattern.MatchString(setting.Cookie.Prefix) {
+		logger.Errorf("cookie.prefix %q contains invalid characters. Only [a-zA-Z0-9_-] are allowed. Using empty prefix.", setting.Cookie.Prefix)
+		setting.Cookie.Prefix = ""
+	}
+
 	Displayed = *setting
 
 }

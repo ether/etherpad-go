@@ -284,8 +284,12 @@ func (p *Pad) GetRevisionAuthor(revNum int) (*string, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Very old .etherpad exports (circa 2014) sometimes omit meta.author.
+	// Return an empty string instead of an error so imports don't break.
+	// Upstream fix #7473.
 	if rev.AuthorId == nil {
-		return nil, errors.New("invalid rev id")
+		empty := ""
+		return &empty, nil
 	}
 	return rev.AuthorId, nil
 }
@@ -361,6 +365,7 @@ func (p *Pad) Init(text *string, author *string, authorManager *author.Manager) 
 				Type:     &padDefaultText,
 				Content:  text,
 				Pad:      p,
+				PadId:    p.Id,
 			}
 			p.hook.ExecuteHooks(hooks.PadDefaultContentString, &context)
 			text = context.Content
@@ -375,10 +380,23 @@ func (p *Pad) Init(text *string, author *string, authorManager *author.Manager) 
 		if err != nil {
 			return err
 		}
+
+		// Fire padCreate on first materialization. Upstream #7452 ensures padId
+		// is a top-level field because toJSON() strips the embedded id.
+		var createAuthor string
+		if author != nil {
+			createAuthor = *author
+		}
+		p.hook.ExecuteHooks(hooks.PadCreateString, Create{
+			Pad:      p,
+			PadId:    p.Id,
+			AuthorId: createAuthor,
+		})
 	}
 
 	p.hook.ExecuteHooks(hooks.PadLoadString, Load{
-		Pad: p,
+		Pad:   p,
+		PadId: p.Id,
 	})
 	return nil
 }
@@ -417,7 +435,22 @@ func (p *Pad) SpliceText(start int, ndel int, ins string, authorId *string) erro
 	if ndel == 0 && utf8.RuneCountInString(ins) == 0 {
 		return nil
 	}
-	var changesetFromSplice, err = changeset.MakeSplice(orig, start, ndel, ins, nil, nil)
+
+	// Carry the author attribute through the splice so appendText / setText
+	// attribute the inserted text to the caller-supplied author. Upstream fix #7446.
+	var attribs *string
+	var poolForSplice *apool.APool
+	if authorId != nil && *authorId != "" {
+		num := p.Pool.PutAttrib(apool.Attribute{
+			Key:   "author",
+			Value: *authorId,
+		}, nil)
+		as := "*" + utils.NumToString(num)
+		attribs = &as
+		poolForSplice = &p.Pool
+	}
+
+	var changesetFromSplice, err = changeset.MakeSplice(orig, start, ndel, ins, attribs, poolForSplice)
 	if err != nil {
 		return err
 	}
@@ -546,6 +579,22 @@ func (p *Pad) AppendRevision(cs string, authorId *string) (*int, error) {
 				p.authorManager.AddPad(*authorId, p.Id)
 			}
 		}*/
+
+	// Fire padUpdate with explicit padId (upstream #7452). Skip during the very
+	// first revision created from Init() — Init fires padCreate/padLoad itself.
+	if p.hook != nil && newRev > 0 {
+		var updateAuthor string
+		if authorId != nil {
+			updateAuthor = *authorId
+		}
+		p.hook.ExecuteHooks(hooks.PadUpdateString, Update{
+			Pad:       p,
+			PadId:     p.Id,
+			AuthorId:  updateAuthor,
+			Revs:      newRev,
+			Changeset: cs,
+		})
+	}
 
 	return &p.Head, nil
 }

@@ -138,17 +138,26 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 		}
 		return fiber.ErrUpgradeRequired
 	})
+	// Honor settings.socketIo.maxHttpBufferSize for large pastes (default 1 MiB).
+	// Fiber's gorilla-based websocket wraps ReadBufferSize/WriteBufferSize into
+	// the underlying TCP buffers; use the configured size, or fall back to 1 MiB.
+	wsBufSize := int(settings.SocketIo.MaxHttpBufferSize)
+	if wsBufSize <= 0 {
+		wsBufSize = 1 << 20
+	}
 	app.Get("/socket.io/*", fiberws.New(func(conn *fiberws.Conn) {
 		connID, _ := conn.Locals("wsConnID").(string)
 		data := wsUpgradeData{}
 		if v, ok := wsPreUpgrade.LoadAndDelete(connID); ok {
 			data = v.(wsUpgradeData)
 		}
+		// Enforce a hard per-message ceiling matching the configured buffer size.
+		conn.SetReadLimit(int64(wsBufSize))
 		setupLogger.Debugf("[WS] New connection sessionID=%s clientIP=%s", data.SessionID, data.ClientIP)
 		ws.ServeWs(conn, data.SessionID, data.ClientIP, data.WebAccessUser, &settings, setupLogger, padMessageHandler)
 	}, fiberws.Config{
-		ReadBufferSize:  1024,
-		WriteBufferSize: 1024,
+		ReadBufferSize:  wsBufSize,
+		WriteBufferSize: wsBufSize,
 		Origins:         []string{"*"},
 	}))
 

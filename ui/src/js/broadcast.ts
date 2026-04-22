@@ -25,7 +25,7 @@
 import {makeCSSManager} from './cssmanager';
 import {domline} from './domline';
 import AttribPool from './AttributePool';
-import {compose, deserializeOps, inverse, moveOpsToNewPool, mutateAttributionLines, mutateTextLines, splitAttributionLines, splitTextLines, unpack} from './Changeset';
+import {compose, deserializeOps, inverse, isIdentity, moveOpsToNewPool, mutateAttributionLines, mutateTextLines, splitAttributionLines, splitTextLines, unpack} from './Changeset';
 import attributes from './attributes';
 import {linestylefilter} from './linestylefilter';
 import {colorutils} from './colorutils';
@@ -137,54 +137,59 @@ export const loadBroadcastJS = (socket, sendSocketMsg, fireWhenAllScriptsAreLoad
       BroadcastSlider.setSliderPosition(revision);
     }
 
-    const oldAlines = padContents.alines.slice();
-    try {
-      // must mutate attribution lines before text lines
-      mutateAttributionLines(changeset, padContents.alines, padContents.apool);
-    } catch (e) {
-      debugLog(e);
-    }
-
-    // scroll to the area that is changed before the lines are mutated
-    const followContents = document.getElementById('options-followContents');
-    if (followContents instanceof HTMLInputElement && followContents.checked) {
-      // get the index of the first line that has mutated attributes
-      // the last line in `oldAlines` should always equal to "|1+1", ie newline without attributes
-      // so it should be safe to assume this line has changed attributes when inserting content at
-      // the bottom of a pad
-      let lineChanged;
-      oldAlines.some((line, index) => {
-        if (line !== padContents.alines[index]) {
-          lineChanged = index;
-          return true; // break
-        }
-        return false;
-      });
-      // some chars are replaced (no attributes change and no length change)
-      // test if there are keep ops at the start of the cs
-      if (lineChanged === undefined) {
-        const [op] = deserializeOps(unpack(changeset).ops);
-        lineChanged = op != null && op.opcode === '=' ? op.lines : 0;
+    // Upstream #7438: skip mutation for identity changesets (no actual change)
+    // but still advance revision/time state so the timeslider doesn't get stuck.
+    if (!isIdentity(changeset)) {
+      const oldAlines = padContents.alines.slice();
+      try {
+        // must mutate attribution lines before text lines
+        mutateAttributionLines(changeset, padContents.alines, padContents.apool);
+      } catch (e) {
+        debugLog(e);
       }
 
-      const goToLineNumber = (lineNumber) => {
-        // Sets the Y scrolling of the browser to go to this line
-        const line = document.querySelector(`#innerdocbody div:nth-child(${lineNumber + 1})`);
-        if (!(line instanceof HTMLElement)) return;
-        const newY = line.offsetTop;
-        const ecb = document.getElementById('editorcontainerbox');
-        // Chrome 55 - 59 bugfix
-        if (ecb.scrollTo) {
-          ecb.scrollTo({top: newY, behavior: 'auto'});
-        } else {
-          ecb.scrollTop = newY;
+      // scroll to the area that is changed before the lines are mutated
+      const followContents = document.getElementById('options-followContents');
+      if (followContents instanceof HTMLInputElement && followContents.checked) {
+        // get the index of the first line that has mutated attributes
+        // the last line in `oldAlines` should always equal to "|1+1", ie newline without attributes
+        // so it should be safe to assume this line has changed attributes when inserting content at
+        // the bottom of a pad
+        let lineChanged;
+        oldAlines.some((line, index) => {
+          if (line !== padContents.alines[index]) {
+            lineChanged = index;
+            return true; // break
+          }
+          return false;
+        });
+        // some chars are replaced (no attributes change and no length change)
+        // test if there are keep ops at the start of the cs
+        if (lineChanged === undefined) {
+          const [op] = deserializeOps(unpack(changeset).ops);
+          lineChanged = op != null && op.opcode === '=' ? op.lines : 0;
         }
-      };
 
-      goToLineNumber(lineChanged);
+        const goToLineNumber = (lineNumber) => {
+          // Sets the Y scrolling of the browser to go to this line
+          const line = document.querySelector(`#innerdocbody div:nth-child(${lineNumber + 1})`);
+          if (!(line instanceof HTMLElement)) return;
+          const newY = line.offsetTop;
+          const ecb = document.getElementById('editorcontainerbox');
+          // Chrome 55 - 59 bugfix
+          if (ecb.scrollTo) {
+            ecb.scrollTo({top: newY, behavior: 'auto'});
+          } else {
+            ecb.scrollTop = newY;
+          }
+        };
+
+        goToLineNumber(lineChanged);
+      }
+
+      mutateTextLines(changeset, padContents);
     }
 
-    mutateTextLines(changeset, padContents);
     padContents.currentRevision = revision;
     padContents.currentTime += timeDelta;
 

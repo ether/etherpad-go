@@ -130,8 +130,8 @@ templ SettingsPopup(translations map[string]string, availablefonts []string, set
                 <p class="dropdown-line">
                   <label for="languagemenu">{translations["pad.settings.language"]}</label>
                   <select id="languagemenu">
-                  for key, valueInLoop := range hooks.AvailableLangs {
-                    <option value={key}>{valueInLoop.DisplayName}</option>
+                  for _, entry := range hooks.SortedAvailableLangs {
+                    <option value={entry.Code}>{entry.Info.DisplayName}</option>
                   }
                   </select>
                 </p>
