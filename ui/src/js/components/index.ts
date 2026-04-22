@@ -2,22 +2,23 @@
  * Etherpad UI Web Components
  *
  * Import this module to register all custom elements.
- * Components are self-contained and work without the EventBus — they will be
- * wired together with core/EventBus and core/BaseComponent later.
+ * Most components come from the etherpad-webcomponents npm package.
+ * EpPluginToolbar is local-only (not in the npm package).
  */
 
-import './EpNotification';
-import './EpModal';
-import './EpToast';
-import './EpColorPicker';
-import './EpDropdown';
+import 'etherpad-webcomponents/EpNotification.js';
+import 'etherpad-webcomponents/EpModal.js';
+import 'etherpad-webcomponents/EpToast.js';
+import 'etherpad-webcomponents/EpColorPicker.js';
+import 'etherpad-webcomponents/EpDropdown.js';
+import 'etherpad-webcomponents/EpToolbarSelect.js';
+import 'etherpad-webcomponents/EpCheckbox.js';
 import './EpPluginToolbar';
-import './EpToolbarSelect';
 
-export {EpNotification} from './EpNotification';
-export {EpModal} from './EpModal';
-export {EpToastContainer} from './EpToast';
-export {EpColorPicker} from './EpColorPicker';
-export {EpDropdown, EpDropdownItem} from './EpDropdown';
+export {EpNotification} from 'etherpad-webcomponents';
+export {EpModal} from 'etherpad-webcomponents';
+export {EpToastContainer} from 'etherpad-webcomponents';
+export {EpColorPicker} from 'etherpad-webcomponents';
+export {EpDropdown, EpDropdownItem} from 'etherpad-webcomponents';
 export {EpPluginToolbar} from './EpPluginToolbar';
-export {EpToolbarSelect} from './EpToolbarSelect';
+export {EpToolbarSelect} from 'etherpad-webcomponents';

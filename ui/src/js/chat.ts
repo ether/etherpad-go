@@ -3,6 +3,8 @@ import html10n from './i18n';
 import notifications from './notifications';
 import {editorBus} from './core/EventBus';
 import {padeditor} from './pad_editor';
+import {paduserlist} from './pad_userlist';
+import 'etherpad-webcomponents/EpChatMessage.js';
 
 // ---------------------------------------------------------------------------
 // Inline helpers (replaces padutils + padcookie dependencies)
@@ -226,7 +228,7 @@ class ChatController {
   };
 
   stickToScreen(fromInitialCall?: boolean): void {
-    const stickyOption = byId<HTMLInputElement>('options-stickychat');
+    const stickyOption = byId('options-stickychat') as any;
     if (stickyOption?.checked) stickyOption.checked = false;
     if (this.pad.settings?.hideChat) return;
 
@@ -246,8 +248,8 @@ class ChatController {
   }
 
   chatAndUsers(fromInitialCall?: boolean): void {
-    const chatAndUsersOption = byId<HTMLInputElement>('options-chatandusers');
-    const stickyOption = byId<HTMLInputElement>('options-stickychat');
+    const chatAndUsersOption = byId('options-chatandusers') as any;
+    const stickyOption = byId('options-stickychat') as any;
     const toEnable = Boolean(chatAndUsersOption?.checked);
 
     if (toEnable || !this.userAndChat || fromInitialCall === true) {
@@ -273,7 +275,7 @@ class ChatController {
   }
 
   hide(): void {
-    const stickyOption = byId<HTMLInputElement>('options-stickychat');
+    const stickyOption = byId('options-stickychat') as any;
     if (stickyOption?.checked) {
       this.stickToScreen();
       stickyOption.checked = false;
@@ -299,8 +301,8 @@ class ChatController {
     if (!shouldScroll) return;
 
     chatText.scrollTo({ top: chatText.scrollHeight, behavior: 'smooth' });
-    const paragraphs = chatText.querySelectorAll('p');
-    this.lastMessage = paragraphs.length > 0 ? paragraphs[paragraphs.length - 1] as HTMLElement : null;
+    const messages = chatText.querySelectorAll('ep-chat-message');
+    this.lastMessage = messages.length > 0 ? messages[messages.length - 1] as HTMLElement : null;
   }
 
   async send(): Promise<void> {
@@ -371,19 +373,49 @@ class ChatController {
     editorBus.emit('chat:new:message', ctx);
 
     // --- Render the message into the DOM -----------------------------------
-    const cls = authorClass(ctx.author);
     const rendered = getRenderedElement(ctx.rendered);
-    const chatMsg = rendered ?? document.createElement('p');
+    const chatMsg = rendered ?? document.createElement('ep-chat-message');
     if (rendered == null) {
+      const cv: any = (window as any).clientVars ?? {};
+      const myUserId = String(cv.userId ?? '');
       chatMsg.setAttribute('data-authorId', ctx.author);
-      chatMsg.classList.add(cls);
-      const authorEl = document.createElement('b');
-      authorEl.textContent = `${ctx.authorName}:`;
-      const timeEl = document.createElement('span');
-      timeEl.classList.add('time', cls);
-      timeEl.innerHTML = ctx.timeStr;
-      chatMsg.append(authorEl, timeEl, ' ');
-      const textContainer = document.createElement('div');
+      chatMsg.setAttribute('author', ctx.authorName);
+      chatMsg.setAttribute('time', ctx.timeStr);
+      if (ctx.author === myUserId) {
+        chatMsg.setAttribute('own', '');
+      }
+      // Resolve the author's current color so <ep-chat-message> can tint the
+      // name. Priority: own user's live color from pad.myUserInfo (tracks the
+      // color picker immediately, before the server round-trip updates
+      // historicalAuthorData) → live user list from paduserlist for other
+      // currently-connected users → historicalAuthorData from clientVars for
+      // authors who have left but contributed to the pad. Empty string
+      // leaves the default theme color.
+      const toCssColor = (c: unknown): string => {
+        if (typeof c === 'number') return cv.colorPalette?.[c] ?? '';
+        return typeof c === 'string' ? c : '';
+      };
+      const resolveAuthorColor = (): string => {
+        const myColor = (this.pad as any)?.myUserInfo?.colorId;
+        if (ctx.author === myUserId && myColor) return toCssColor(myColor);
+        try {
+          const list = paduserlist.users();
+          const u = list.find((x: any) => x?.userId === ctx.author);
+          if (u) {
+            const c = u.color ?? u.colorId;
+            const resolved = toCssColor(c);
+            if (resolved) return resolved;
+          }
+        } catch {
+          // paduserlist may not be initialized during handshake — fall through.
+        }
+        const historical = cv.collab_client_vars?.historicalAuthorData?.[ctx.author];
+        if (historical?.colorId) return toCssColor(historical.colorId);
+        return '';
+      };
+      const authorColor = resolveAuthorColor();
+      if (authorColor) chatMsg.setAttribute('author-color', authorColor);
+      const textContainer = document.createElement('span');
       textContainer.innerHTML = ctx.text;
       chatMsg.append(...Array.from(textContainer.childNodes));
     }

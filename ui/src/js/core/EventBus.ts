@@ -304,4 +304,12 @@ export class EventBus<TEvents extends Record<string, any> = EditorEvents> {
 // Singleton instance for the editor
 // ---------------------------------------------------------------------------
 
-export const editorBus = new EventBus<EditorEvents>();
+// Uses a global reference so that when bundled with etherpad-webcomponents,
+// both packages share the exact same EventBus instance. This is critical for
+// plugin hooks (editor:attribs:to:classes, editor:process:line:attribs, etc.)
+// to work across package boundaries.
+const _global = globalThis as any;
+if (!_global.__etherpadEditorBus) {
+  _global.__etherpadEditorBus = new EventBus<EditorEvents>();
+}
+export const editorBus: EventBus<EditorEvents> = _global.__etherpadEditorBus;

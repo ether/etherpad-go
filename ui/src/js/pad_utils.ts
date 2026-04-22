@@ -342,37 +342,25 @@ class PadUtils {
       return {clear: () => {}};
     }
   getCheckbox = (node: HTMLElement | string) => {
-    if (typeof node === 'string') {
-      const el = document.querySelector(node);
-      return el instanceof HTMLInputElement ? el.checked : false;
-    }
-    if (node instanceof HTMLElement) {
-      return node instanceof HTMLInputElement ? node.checked : false;
-    }
-    return false;
+    const el = typeof node === 'string' ? document.querySelector(node) : node;
+    if (!el) return false;
+    if (el.tagName === 'EP-CHECKBOX') return (el as any).checked ?? false;
+    return el instanceof HTMLInputElement ? el.checked : false;
   }
   setCheckbox =
     (node: HTMLElement | string, value: boolean) => {
-      if (typeof node === 'string') {
-        const el = document.querySelector(node);
-        if (el instanceof HTMLInputElement) el.checked = value;
-        return;
-      }
-      if (node instanceof HTMLElement) {
-        if (node instanceof HTMLInputElement) node.checked = value;
-        return;
-      }
+      const el = typeof node === 'string' ? document.querySelector(node) : node;
+      if (!el) return;
+      if (el.tagName === 'EP-CHECKBOX') { (el as any).checked = value; return; }
+      if (el instanceof HTMLInputElement) el.checked = value;
     }
   bindCheckboxChange =
     (node: HTMLElement | string, func: Function) => {
-      if (typeof node === 'string') {
-        document.querySelector(node)?.addEventListener('change', () => func());
-        return;
-      }
-      if (node instanceof HTMLElement) {
-        node.addEventListener('change', () => func());
-        return;
-      }
+      const el = typeof node === 'string' ? document.querySelector(node) : node;
+      if (!el) return;
+      // ep-checkbox fires 'ep-change', native checkbox fires 'change'
+      const event = el.tagName === 'EP-CHECKBOX' ? 'ep-change' : 'change';
+      el.addEventListener(event, () => func());
     }
   encodeUserId =
     (userId: string) => userId.replace(/[^a-y0-9]/g, (c) => {

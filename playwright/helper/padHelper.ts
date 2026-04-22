@@ -1,16 +1,75 @@
-import {expect, Frame, Locator, Page} from "@playwright/test";
+import {expect, Locator, Page} from "@playwright/test";
 import {randomUUID} from "node:crypto";
 import os from "node:os";
 
 const isMac = os.platform() === 'darwin';
 const modifier = isMac ? 'Meta' : 'Control';
 
-export const getPadOuter = async (page: Page): Promise<Frame> => {
-    return page.frame('ace_outer')!;
+// After the WebComponents migration (ui/src/js/ace.ts) the editor no longer
+// uses nested iframes — #outerdocbody and #innerdocbody are regular divs in
+// the main document. getPadOuter is kept for backwards compatibility with
+// specs that only needed a scope; it now returns the page itself as a
+// Locator-returning helper.
+export const getPadOuter = async (page: Page): Promise<Page> => {
+    return page;
 }
 
 export const getPadBody = async (page: Page): Promise<Locator> => {
-    return page.frame('ace_inner')!.locator('#innerdocbody')
+    return page.locator('#innerdocbody');
+}
+
+// ep-checkbox is a Lit web component, not a native <input type="checkbox">,
+// so Playwright's .check()/.uncheck()/toBeChecked() do not apply. The
+// component reflects its state via the `checked` attribute on the host
+// element and toggles on click. Use this helper whenever a test needs to
+// set or assert the state of an <ep-checkbox>.
+export const setEpCheckbox = async (locator: Locator, want: boolean) => {
+    const isChecked = () => locator.evaluate((el: Element) => el.hasAttribute('checked'));
+    if ((await isChecked()) !== want) {
+        await locator.click({force: true});
+    }
+    await expect.poll(isChecked).toBe(want);
+}
+
+export const isEpCheckboxChecked = (locator: Locator): Promise<boolean> =>
+    locator.evaluate((el: Element) => el.hasAttribute('checked'));
+
+// <ep-dropdown> is a Lit web component, not a native <select>, so
+// Playwright's .selectOption() / toHaveValue() do not apply.
+//
+// Playwright's actionability checks (visibility in particular) don't
+// always cooperate with the way Lit projects slotted content into the
+// shadow DOM's `.content-wrapper` — even after the dropdown is open,
+// `ep-dropdown-item` is slotted through a fixed-position wrapper that
+// Playwright can report as not-visible on both Chromium and Firefox.
+// So we drive the component the same way `_selectItem()` does internally:
+// wait for the matching item to exist, then dispatch `ep-dropdown-select`
+// on the host. That's exactly what a real click would trigger, minus the
+// actionability gymnastics.
+export const selectEpDropdownItem = async (page: Page, dropdownSelector: string, value: string) => {
+    const dropdown = page.locator(dropdownSelector);
+    await dropdown.waitFor({ state: 'attached', timeout: 10000 });
+    // Ensure the target <ep-dropdown-item> has been rendered into the
+    // dropdown before we try to select it.
+    await expect.poll(async () =>
+        await dropdown.evaluate(
+            (el: Element, v: string) => !!el.querySelector(`ep-dropdown-item[value="${CSS.escape(v)}"]`),
+            value,
+        ),
+        { timeout: 10000 },
+    ).toBe(true);
+    // Some select handlers (e.g. #languagemenu) call location.reload(),
+    // which detaches the frame mid-evaluate and causes evaluate() to reject.
+    // Swallow that — callers that care about the reload wrap us in
+    // Promise.all(page.waitForLoadState('load'), ...).
+    await dropdown.evaluate((el: any, v: string) => {
+        el.dispatchEvent(new CustomEvent('ep-dropdown-select', {
+            bubbles: true,
+            composed: true,
+            detail: { value: v },
+        }));
+        if (typeof el.close === 'function') el.close();
+    }, value).catch(() => {});
 }
 
 export const selectAllText = async (page: Page) => {
@@ -37,29 +96,35 @@ export const showChat = async (page: Page) => {
     await expect(chatIcon).not.toHaveClass(/visible/, { timeout: 5000 })
 }
 
+// Chat messages are rendered as <ep-chat-message> web components (author,
+// time, and `own` are reflected attributes; the message body lives in the
+// default slot). The old helpers looked for <p> elements from the pre-
+// webcomponent chat UI — every selector here needed to move to the new tag.
 export const getCurrentChatMessageCount = async (page: Page) => {
-    return await page.locator('#chattext').locator('p').count()
+    return await page.locator('#chattext').locator('ep-chat-message').count()
 }
 
 export const getChatUserName = async (page: Page) => {
-    return await page.locator('#chattext')
-        .locator('p')
-        .locator('b')
-        .innerText()
+    return (await page.locator('#chattext')
+        .locator('ep-chat-message')
+        .first()
+        .getAttribute('author')) ?? ''
 }
 
 export const getChatMessage = async (page: Page) => {
+    // The slotted body contains the message text. textContent on the host
+    // returns the combined light-DOM children (author/time live in shadow DOM).
     return (await page.locator('#chattext')
-        .locator('p')
-        .textContent({}))!
-        .split(await getChatTime(page))[1]
+        .locator('ep-chat-message')
+        .first()
+        .textContent()) ?? ''
 }
 
 export const getChatTime = async (page: Page) => {
-    return await page.locator('#chattext')
-        .locator('p')
-        .locator('.time')
-        .innerText()
+    return (await page.locator('#chattext')
+        .locator('ep-chat-message')
+        .first()
+        .getAttribute('time')) ?? ''
 }
 
 export const sendChatMessage = async (page: Page, message: string) => {
@@ -69,7 +134,7 @@ export const sendChatMessage = async (page: Page, message: string) => {
     await chatInput.fill(message)
     await page.keyboard.press('Enter')
     if (message === "") return
-    await expect(page.locator('#chattext').locator('p')).toHaveCount(currentChatCount + 1, { timeout: 10000 })
+    await expect(page.locator('#chattext').locator('ep-chat-message')).toHaveCount(currentChatCount + 1, { timeout: 10000 })
 }
 
 export const isChatBoxShown = async (page: Page) => {
@@ -106,19 +171,13 @@ export const appendQueryParams = async (page: Page, queryParameters: Record<stri
         searchParams.append(key, queryParameters[key]);
     });
     await page.goto(page.url() + "?" + searchParams.toString());
-    await page.waitForSelector('iframe[name="ace_outer"]', { timeout: 30000 });
+    await page.locator('#innerdocbody').waitFor({ state: 'visible', timeout: 30000 });
 }
 
 const PAD_TIMEOUT = process.env.CI && os.arch() === 'arm64' ? 60000 : 30000;
 
 const waitForPadToLoad = async (page: Page, timeout: number = PAD_TIMEOUT) => {
-    // Wait for the outer frame
-    await page.waitForSelector('iframe[name="ace_outer"]', { timeout, state: 'attached' });
-
-    // Use frameLocator to wait for inner frame content — avoids polling loop
-    const innerFrame = page.frameLocator('iframe[name="ace_outer"]')
-        .frameLocator('iframe[name="ace_inner"]');
-    await innerFrame.locator('#innerdocbody').waitFor({ state: 'visible', timeout });
+    await page.locator('#innerdocbody').waitFor({ state: 'visible', timeout });
 };
 
 const navigateToPad = async (page: Page, padId: string) => {
@@ -153,11 +212,7 @@ export const goToPad = async (page: Page, padId: string) => {
 }
 
 export const clearPadContent = async (page: Page) => {
-    const innerFrame = page.frame('ace_inner');
-    if (!innerFrame) {
-        throw new Error('Could not find ace_inner frame');
-    }
-    const body = innerFrame.locator('#innerdocbody');
+    const body = page.locator('#innerdocbody');
     await body.click();
     await selectAllText(page);
     await page.keyboard.press('Backspace');
@@ -166,11 +221,7 @@ export const clearPadContent = async (page: Page) => {
 }
 
 export const writeToPad = async (page: Page, text: string) => {
-    const innerFrame = page.frame('ace_inner');
-    if (!innerFrame) {
-        throw new Error('Could not find ace_inner frame');
-    }
-    const body = innerFrame.locator('#innerdocbody');
+    const body = page.locator('#innerdocbody');
     await body.click();
     await page.keyboard.type(text, { delay: 5 });
 }

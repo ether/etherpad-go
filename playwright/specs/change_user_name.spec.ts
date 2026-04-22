@@ -29,7 +29,12 @@ test('Own user name is shown when you enter a chat', async ({page})=> {
 
     await showChat(page);
     await sendChatMessage(page,chatMessage);
-    const chatText = await page.locator('#chattext').locator('p').innerText();
-    expect(chatText).toContain('😃')
-    expect(chatText).toContain(chatMessage)
+    // Chat renders as <ep-chat-message> webcomponents: the author name lives
+    // on the `author` attribute, and the message body is the slotted text.
+    const chatMsg = page.locator('#chattext').locator('ep-chat-message').first();
+    await expect(chatMsg).toBeVisible({timeout: 10000});
+    const author = (await chatMsg.getAttribute('author')) ?? '';
+    const body = (await chatMsg.textContent()) ?? '';
+    expect(author).toContain('😃');
+    expect(body).toContain(chatMessage);
 });

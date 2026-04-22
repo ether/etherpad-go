@@ -9,7 +9,7 @@
     "preview": "vite preview"
   },
   "devDependencies": {
-    "etherpad-webcomponents": "^0.0.4",
+    "etherpad-webcomponents": "^0.0.11",
     "@types/node": "^25.6.0",
     "esbuild": "0.28.0",
     "typescript": "^6.0.2",

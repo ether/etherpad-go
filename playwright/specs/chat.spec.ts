@@ -31,10 +31,14 @@ test('opens chat, sends a message, makes sure it exists on the page and hides ch
     const time = await getChatTime(page)
     const chatMessage = await getChatMessage(page)
 
-    expect(username).toBe('unnamed:');
+    // After the WebComponents migration chat messages render as <ep-chat-message>
+    // with `author` and `time` as attributes. No trailing colon on the username,
+    // and the message body has no leading space — those artifacts were from the
+    // previous <p><b>name:</b><span class="time">…</span> body</p> layout.
+    expect(username).toBe('unnamed');
     const regex = new RegExp('^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$');
     expect(time).toMatch(regex);
-    expect(chatMessage).toBe(" "+chatValue);
+    expect(chatMessage).toBe(chatValue);
 })
 
 test("makes sure that an empty message can't be sent", async function ({page}) {
@@ -53,10 +57,10 @@ test("makes sure that an empty message can't be sent", async function ({page}) {
     const time = await getChatTime(page);
     const chatMessage = await getChatMessage(page);
 
-    expect(username).toBe('unnamed:');
+    expect(username).toBe('unnamed');
     const regex = new RegExp('^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$');
     expect(time).toMatch(regex);
-    expect(chatMessage).toBe(" "+chatValue);
+    expect(chatMessage).toBe(chatValue);
 });
 
 test('makes chat stick to right side of the screen via settings, remove sticky via settings, close it', async ({page}) =>{

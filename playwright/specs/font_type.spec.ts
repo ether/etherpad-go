@@ -1,5 +1,5 @@
 import {expect, Page, test} from "@playwright/test";
-import {goToNewPad} from "../helper/padHelper";
+import {goToNewPad, selectEpDropdownItem} from "../helper/padHelper";
 import {showSettings} from "../helper/settingsHelper";
 
 test.beforeEach(async ({ page })=>{
@@ -11,9 +11,7 @@ test.describe('font select', function () {
     test.skip(({ browserName }) => browserName === 'webkit', 'Skipping on WebKit due to dropdown issues');
 
     const getBodyFontFamily = async (page: Page) => {
-        const innerFrame = page.frame('ace_inner');
-        if (!innerFrame) throw new Error('Could not find ace_inner frame');
-        const body = innerFrame.locator('#innerdocbody');
+        const body = page.locator('#innerdocbody');
         return await body.evaluate((e) => {
             return window.getComputedStyle(e).getPropertyValue("font-family").toLowerCase();
         });
@@ -21,9 +19,7 @@ test.describe('font select', function () {
 
     test('makes text RobotoMono', async function ({page}) {
         await showSettings(page);
-        const fontMenu = page.locator('#viewfontmenu');
-        await fontMenu.selectOption('RobotoMono');
-        await expect(fontMenu).toHaveValue('RobotoMono');
+        await selectEpDropdownItem(page, '#viewfontmenu', 'RobotoMono');
 
         // Check if font changed to RobotoMono
         await expect.poll(async () => {
@@ -33,12 +29,12 @@ test.describe('font select', function () {
 
     test('resets to normal font type', async function ({page}) {
         await showSettings(page);
-        const fontMenu = page.locator('#viewfontmenu');
-        await fontMenu.selectOption('RobotoMono');
-        await expect(fontMenu).toHaveValue('RobotoMono');
+        await selectEpDropdownItem(page, '#viewfontmenu', 'RobotoMono');
+        await expect.poll(async () => {
+            return await getBodyFontFamily(page);
+        }).toContain('robotomono');
 
-        await fontMenu.selectOption('');
-        await expect(fontMenu).toHaveValue('');
+        await selectEpDropdownItem(page, '#viewfontmenu', '');
 
         await expect.poll(async () => {
             return await getBodyFontFamily(page);

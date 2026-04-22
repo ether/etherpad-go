@@ -78,9 +78,11 @@
   "trustProxy": false,
   "cookie": {
     "keyRotationInterval": 86400000,
+    "prefix": "",
     "sameSite": "Lax",
     "sessionLifetime": 864000000,
-    "sessionRefreshInterval": 86400000
+    "sessionRefreshInterval": 86400000,
+    "sessionCleanup": true
   },
   "disableIPlogging": false,
   "automaticReconnectionTimeout": 0,
@@ -105,7 +107,7 @@
   },
   "socketTransportProtocols": ["websocket", "polling"],
   "socketIo": {
-    "maxHttpBufferSize": 50000
+    "maxHttpBufferSize": 1048576
   },
   "loadTest": false,
   "dumpOnUncleanExit": false,

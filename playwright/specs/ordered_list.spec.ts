@@ -58,6 +58,7 @@ test.describe('ordered_list.js', function () {
 
     test('indent and de-indent list item with keypress', async function ({page}) {
       const padBody = await getPadBody(page);
+      await clearPadContent(page)
 
       // get the first text element out of the inner iframe
       const $firstTextElement = padBody.locator('div').first();
@@ -68,6 +69,11 @@ test.describe('ordered_list.js', function () {
       const $insertorderedlistButton = page.locator('.buttonicon-insertorderedlist')
       await $insertorderedlistButton.click()
 
+      // Re-focus the editor: clicking the toolbar button moves focus off
+      // #innerdocbody, so a bare keyboard.press('Tab') would tab to the next
+      // toolbar button instead of triggering the editor's Tab handler.
+      await padBody.locator('div').first().click();
+      await page.keyboard.press('Home');
       await page.keyboard.press('Tab')
 
       await expect(padBody.locator('div').first().locator('.list-number2')).toHaveCount(1)
@@ -94,6 +100,13 @@ test.describe('ordered_list.js', function () {
 
       const $insertorderedlistButton = page.locator('.buttonicon-insertorderedlist')
       await $insertorderedlistButton.click()
+
+      // Re-focus the editor and place the caret on the list line: the toolbar
+      // button click applies a changeset that shifts rep.selStart to a stale
+      // position, so subsequent indent commands need a fresh selection inside
+      // the new list line.
+      await padBody.locator('div').first().click();
+      await page.keyboard.press('Home');
 
       const $indentButton = page.locator('.buttonicon-indent')
       await $indentButton.dblclick() // make it indented twice

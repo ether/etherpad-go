@@ -730,6 +730,15 @@ func (p *PadMessageHandler) getChangesetInfo(retrievedPad pad2.Pad, startNum int
 			println("Error getting inverse changeset", err)
 			return nil, err
 		}
+
+		// Snapshot pre-forward text so we can verify that `backwards` truly inverts
+		// `forwards`. This surfaces the exact revision range responsible for the
+		// client-side "line count mismatch when composing changesets A*B"
+		// assertion, which fires when a server-generated '=' op is missing its
+		// |N line count prefix.
+		preForwardLines := make([]string, len(lines.TextLines))
+		copy(preForwardLines, lines.TextLines)
+
 		if err := changeset.MutateAttributionLines(forwards, &lines.Alines, &retrievedPad.Pool); err != nil {
 			println("Error mutating attribution lines", err)
 			return nil, err
@@ -741,6 +750,19 @@ func (p *PadMessageHandler) getChangesetInfo(retrievedPad pad2.Pad, startNum int
 
 		forwards2 := changeset.MoveOpsToNewPool(forwards, &retrievedPad.Pool, &createdApool)
 		backwards2 := changeset.MoveOpsToNewPool(*backwards, &retrievedPad.Pool, &createdApool)
+
+		if err := changeset.ValidateWellFormed(forwards2); err != nil {
+			p.Logger.Errorf("malformed forwards changeset for pad %s revs %d/%d: %v\n  forwards: %s",
+				retrievedPad.Id, compositeStart, compositeEnd, err, forwards2)
+		}
+		if err := changeset.ValidateWellFormed(backwards2); err != nil {
+			p.Logger.Errorf("malformed backwards changeset for pad %s revs %d/%d: %v\n  backwards: %s",
+				retrievedPad.Id, compositeStart, compositeEnd, err, backwards2)
+		}
+		if err := changeset.ValidateRoundTrip(*backwards, lines.TextLines, preForwardLines); err != nil {
+			p.Logger.Errorf("backwards changeset does not invert forwards for pad %s revs %d/%d: %v\n  forwards:  %s\n  backwards: %s",
+				retrievedPad.Id, compositeStart, compositeEnd, err, forwards, *backwards)
+		}
 
 		var t1 int64
 		var t2 int64

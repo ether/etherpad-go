@@ -4,16 +4,13 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-overrides:
-  etherpad-webcomponents: 0.0.4
-
 importers:
 
   .:
     dependencies:
       etherpad-webcomponents:
-        specifier: 0.0.4
-        version: 0.0.4(@lit/reactive-element@2.1.2)(lit-element@4.2.2)(lit-html@3.3.2)(lit@3.3.2)
+        specifier: ^0.0.11
+        version: 0.0.11
     devDependencies:
       typescript:
         specifier: ^5.6.3
@@ -119,8 +116,8 @@ importers:
         specifier: 0.28.0
         version: 0.28.0
       etherpad-webcomponents:
-        specifier: 0.0.4
-        version: 0.0.4(@lit/reactive-element@2.1.2)(lit-element@4.2.2)(lit-html@3.3.2)(lit@3.3.2)
+        specifier: ^0.0.11
+        version: 0.0.11
       typescript:
         specifier: ^6.0.2
         version: 6.0.2
@@ -853,13 +850,8 @@ packages:
   estree-walker@2.0.2:
     resolution: {integrity: sha512-Rfkk/Mp/DL7JVje3u18FxFujQlTNR2q6QfMSMB7AvCBx91NGj/ba3kCfza0f6dVDbw7YlRf/nDrn7pQrCCyQ/w==}
 
-  etherpad-webcomponents@0.0.4:
-    resolution: {integrity: sha512-fvOJChHwmleqhkoTlxGx0/2BvoYUiWxIgA0APrYORHSR6ovgpA5VVLN5J+8YTO+FPGQQOVBgZVdZE69fydnlZg==}
-    peerDependencies:
-      '@lit/reactive-element': ^2.1.2
-      lit: ^3.3.2
-      lit-element: ^4.2.2
-      lit-html: ^3.3.2
+  etherpad-webcomponents@0.0.11:
+    resolution: {integrity: sha512-4QrJuCAXHIAm7hxffAv4cIPaXesLLSd1rfJhpOvI8gaOCvjhMSJb9wDLItwjfCMnbTHkRPQTVdAZGwwqVkyM0Q==}
 
   fdir@6.5.0:
     resolution: {integrity: sha512-tIbYtZbucOs0BRGqPJkshJUYdL+SDH7dVM8gjy+ERp3WAUjLEFJE+02kanyHtwjWOnwrKYBiwAmM0p4kLJAnXg==}
@@ -1704,7 +1696,7 @@ snapshots:
 
   estree-walker@2.0.2: {}
 
-  etherpad-webcomponents@0.0.4(@lit/reactive-element@2.1.2)(lit-element@4.2.2)(lit-html@3.3.2)(lit@3.3.2):
+  etherpad-webcomponents@0.0.11:
     dependencies:
       '@lit/reactive-element': 2.1.2
       lit: 3.3.2

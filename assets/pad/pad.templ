@@ -96,44 +96,45 @@ templ SettingsPopup(translations map[string]string, availablefonts []string, set
               <h1 id="padSettingsTitle">{translations["pad.settings.padSettings"]}</h1>
               <h2>{translations["pad.settings.myView"]}</h2>
               <p class="hide-for-mobile">
-                  <input type="checkbox" id="options-stickychat"/>
-                  <label for="options-stickychat">{translations["pad.settings.stickychat"]}</label>
+                  <ep-checkbox id="options-stickychat" label={translations["pad.settings.stickychat"]}></ep-checkbox>
               </p>
               <p class="hide-for-mobile">
-                  <input type="checkbox" id="options-chatandusers" onClick="chat.chatAndUsers();"/>
-                  <label for="options-chatandusers">{translations["pad.settings.chatandusers"]}</label>
+                  <ep-checkbox id="options-chatandusers" label={translations["pad.settings.chatandusers"]}></ep-checkbox>
               </p>
               <p>
-                  <input type="checkbox" id="options-colorscheck"/>
-                  <label for="options-colorscheck">{translations["pad.settings.colorcheck"]}</label>
+                  <ep-checkbox id="options-colorscheck" label={translations["pad.settings.colorcheck"]}></ep-checkbox>
               </p>
               <p>
-                  <input type="checkbox" id="options-linenoscheck" checked/>
-                  <label for="options-linenoscheck">{translations["pad.settings.linenocheck"]}</label>
+                  <ep-checkbox id="options-linenoscheck" checked label={translations["pad.settings.linenocheck"]}></ep-checkbox>
               </p>
               <p>
-                  <input type="checkbox" id="options-rtlcheck"/>
-                  <label for="options-rtlcheck">{translations["pad.settings.rtlcheck"]}</label>
+                  <ep-checkbox id="options-rtlcheck" label={translations["pad.settings.rtlcheck"]}></ep-checkbox>
               </p>
 
               <div class="dropdowns-container">
                 <p class="dropdown-line">
-                  <label for="viewfontmenu">{translations["pad.settings.fontType"]}</label>
-                  <select id="viewfontmenu">
-                    <option value="">{translations["pad.settings.fontType.normal"]}</option>
-                    for _, valueInLoop := range availablefonts {
-                        <option value={valueInLoop}>{valueInLoop}</option>
-                        }
-                  </select>
+                  <label>{translations["pad.settings.fontType"]}</label>
+                  <ep-dropdown id="viewfontmenu" align="left" trigger="click">
+                    <button slot="trigger" type="button" class="dropdown-select-trigger">{translations["pad.settings.fontType.normal"]}</button>
+                    <div slot="content">
+                      <ep-dropdown-item value="">{translations["pad.settings.fontType.normal"]}</ep-dropdown-item>
+                      for _, valueInLoop := range availablefonts {
+                        <ep-dropdown-item value={valueInLoop}>{valueInLoop}</ep-dropdown-item>
+                      }
+                    </div>
+                  </ep-dropdown>
                 </p>
 
                 <p class="dropdown-line">
-                  <label for="languagemenu">{translations["pad.settings.language"]}</label>
-                  <select id="languagemenu">
-                  for _, entry := range hooks.SortedAvailableLangs {
-                    <option value={entry.Code}>{entry.Info.DisplayName}</option>
-                  }
-                  </select>
+                  <label>{translations["pad.settings.language"]}</label>
+                  <ep-dropdown id="languagemenu" align="left" trigger="click">
+                    <button slot="trigger" type="button" class="dropdown-select-trigger">{translations["pad.settings.language"]}</button>
+                    <div slot="content">
+                      for _, entry := range hooks.SortedAvailableLangs {
+                        <ep-dropdown-item value={entry.Code}>{entry.Info.DisplayName}</ep-dropdown-item>
+                      }
+                    </div>
+                  </ep-dropdown>
                 </p>
               </div>
               <button id="delete-pad">{translations["pad.settings.deletePad"]}</button>
@@ -152,8 +153,7 @@ templ SettingsPopup(translations map[string]string, availablefonts []string, set
               for _, group := range settingsGroups {
                   for _, item := range group.Items {
                       <p>
-                          <input id={item.Id} type="checkbox" class="settings-plugin-item" data-key={item.Key}/>
-                          <label for={item.Id}>{getTranslation(translations, item.Title)}</label>
+                          <ep-checkbox id={item.Id} class="settings-plugin-item" data-key={item.Key} label={getTranslation(translations, item.Title)}></ep-checkbox>
                       </p>
                       }
                 }
@@ -168,8 +168,7 @@ templ EmbedPopup(translations map[string]string) {
           <div id="embed" class="popup"><div class="popup-content">
               <h1>{translations["pad.share"]}</h1>
               <div id="embedreadonly" class="acl-write">
-                  <input type="checkbox" id="readonlyinput"/>
-                  <label for="readonlyinput">{translations["pad.share.readonly"]}</label>
+                  <ep-checkbox id="readonlyinput" label={translations["pad.share.readonly"]}></ep-checkbox>
               </div>
               <div id="linkcode">
                   <h2>{translations["pad.share.link"]}</h2>
@@ -188,8 +187,7 @@ templ QrPopup(translations map[string]string) {
               <div id="qrcodeheader">
                   <h1>{translations["pad.share"]}</h1>
                   <div id="qrreadonly" class="acl-write">
-                  <input type="checkbox" id="qrreadonlyinput"/>
-                  <label for="qrreadonlyinput">{translations["pad.share.readonly"]}</label>
+                  <ep-checkbox id="qrreadonlyinput" label={translations["pad.share.readonly"]}></ep-checkbox>
                   </div>
               </div>
               <img id="qrcodeimg" alt="QR code for sharing this pad"/>
@@ -399,6 +397,7 @@ availableFonts []string, buttonGroups []pluginTypes.ToolbarButtonGroup, settings
     <title>{settings.Title}</title>
     <script type="module" src={jsScript}></script>
       <link href="/css/static/pad.css" rel="stylesheet"/>
+      <link href="/css/static/iframe_editor.css" rel="stylesheet"/>
     <link  href={"/css/skin/"+ settings.SkinName + "/pad.css"} rel="stylesheet"/>
     <style title="dynamicsyntax"></style>
     <link rel="localizations" type="application/l10n+json" href="/locales.json"/>
