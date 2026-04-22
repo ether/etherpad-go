@@ -39,10 +39,32 @@ export const isEpCheckboxChecked = (locator: Locator): Promise<boolean> =>
 // dropdown requires clicking its trigger button; choosing a value means
 // clicking the matching <ep-dropdown-item>. The component dispatches
 // 'ep-dropdown-select' on pick, which consumer code listens for.
+//
+// The opened/closed state is driven by the reflected `open` boolean
+// attribute on the host. The component's shadow DOM keeps its
+// `.content-wrapper` (and therefore the slotted items) `display: none`
+// until `[open]` is set; clicking an item before that would race with
+// Lit's async `updated()` lifecycle and time out. So we:
+//   1. click the slotted trigger button,
+//   2. wait for the host to report `open`,
+//   3. confirm the item is present+visible,
+//   4. click it.
 export const selectEpDropdownItem = async (page: Page, dropdownSelector: string, value: string) => {
     const dropdown = page.locator(dropdownSelector);
+    await dropdown.waitFor({ state: 'visible', timeout: 10000 });
     await dropdown.locator('[slot="trigger"]').click();
-    await dropdown.locator(`ep-dropdown-item[value="${value}"]`).click();
+    // Re-open if a stale `_onDocClick` fired synchronously with our own
+    // click and immediately closed the dropdown.
+    await expect.poll(async () => {
+        const isOpen = await dropdown.evaluate((el: Element) => el.hasAttribute('open'));
+        if (!isOpen) {
+            await dropdown.locator('[slot="trigger"]').click().catch(() => {});
+        }
+        return isOpen;
+    }, { timeout: 10000 }).toBe(true);
+    const item = dropdown.locator(`ep-dropdown-item[value="${value}"]`);
+    await item.waitFor({ state: 'visible', timeout: 10000 });
+    await item.click();
 }
 
 export const selectAllText = async (page: Page) => {

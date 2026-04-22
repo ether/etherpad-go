@@ -10,6 +10,16 @@ export const showSettings = async (page: Page) => {
     if (await isSettingsShown(page)) return
     await page.locator("button[class~='buttonicon-settings']").click()
     await expect(page.locator('#settings')).toHaveClass(/popup-show/, { timeout: 5000 })
+    // The popup's scale(0.7) → none transform animates over 300ms. While
+    // that transform is non-identity it forms a containing block for any
+    // position: fixed descendants — which includes <ep-dropdown>'s
+    // content-wrapper. Clicking a dropdown item before the transform
+    // settles positions the content relative to the still-transforming
+    // popup instead of the viewport, and Playwright can time out waiting
+    // for a stable, visible item. Wait for the transition to complete.
+    await page.locator('#settings').evaluate((el) =>
+        Promise.all(el.getAnimations({ subtree: true }).map((a) => a.finished.catch(() => {})))
+    );
 }
 
 export const hideSettings = async (page: Page) => {
