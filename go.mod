@@ -12,7 +12,7 @@ require (
 	github.com/go-playground/validator/v10 v10.30.2
 	github.com/go-sql-driver/mysql v1.9.3
 	github.com/gofiber/contrib/v3/swaggo v1.0.2
-	github.com/gofiber/contrib/v3/websocket v1.1.1
+	github.com/gofiber/contrib/v3/websocket v1.1.2
 	github.com/gofiber/fiber/v3 v3.1.0
 	github.com/gofiber/utils/v2 v2.0.4
 	github.com/google/go-cmp v0.7.0
@@ -83,7 +83,7 @@ require (
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
 	github.com/gobuffalo/pop/v6 v6.1.1 // indirect
-	github.com/gofiber/schema v1.7.0 // indirect
+	github.com/gofiber/schema v1.7.1 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/mock v1.6.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.28.0 // indirect
