@@ -9,11 +9,11 @@
     "preview": "vite preview"
   },
   "devDependencies": {
-    "etherpad-webcomponents": "^0.0.4",
+    "etherpad-webcomponents": "^0.0.11",
     "@types/node": "^25.6.0",
     "esbuild": "0.28.0",
-    "typescript": "^6.0.2",
-    "vite": "^8.0.8"
+    "typescript": "^6.0.3",
+    "vite": "^8.0.9"
   },
   "dependencies": {
     "@rollup/plugin-commonjs": "^29.0.2"
