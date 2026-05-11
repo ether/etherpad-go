@@ -5,7 +5,7 @@ go 1.25.0
 require (
 	github.com/Masterminds/semver/v3 v3.4.0
 	github.com/Masterminds/squirrel v1.5.4
-	github.com/a-h/templ v0.3.1001
+	github.com/a-h/templ v0.3.1020
 	github.com/brianvoe/gofakeit/v7 v7.14.1
 	github.com/evanw/esbuild v0.28.0
 	github.com/go-jose/go-jose/v3 v3.0.5
