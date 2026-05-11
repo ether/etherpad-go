@@ -374,8 +374,8 @@ github.com/ory/jsonschema/v3 v3.0.8 h1:Ssdb3eJ4lDZ/+XnGkvQS/te0p+EkolqwTsDOCxr/F
 github.com/ory/jsonschema/v3 v3.0.8/go.mod h1:ZPzqjDkwd3QTnb2Z6PAS+OTvBE2x5i6m25wCGx54W/0=
 github.com/ory/x v0.0.665 h1:61vv0ObCDSX1vOQYbxBeqDiv4YiPmMT91lYxDaaKX08=
 github.com/ory/x v0.0.665/go.mod h1:7SCTki3N0De3ZpqlxhxU/94ZrOCfNEnXwVtd0xVt+L8=
-github.com/pdfcpu/pdfcpu v0.12.0 h1:GonU1Ub45kKo/LdakJhaBA0NTTvBA7KGs3bfmEU1osU=
-github.com/pdfcpu/pdfcpu v0.12.0/go.mod h1:7KPpVLMavcpliPrtN6o7Kuk3cFtYq8nii3SJnnsK7ps=
+github.com/pdfcpu/pdfcpu v0.12.1 h1:HwoN72zJCj+pPbfMDChYBTZrT7SY0VwgUzqeaId3I20=
+github.com/pdfcpu/pdfcpu v0.12.1/go.mod h1:7KPpVLMavcpliPrtN6o7Kuk3cFtYq8nii3SJnnsK7ps=
 github.com/pelletier/go-toml/v2 v2.2.4 h1:mye9XuhQ6gvn5h28+VilKrrPoQVanw5PMw/TB0t5Ec4=
 github.com/pelletier/go-toml/v2 v2.2.4/go.mod h1:2gIqNv+qfxSVS7cM2xJQKtLSTLUE9V8t9Stt+h56mCY=
 github.com/philhofer/fwd v1.2.0 h1:e6DnBTl7vGY+Gz322/ASL4Gyp1FspeMvx1RNDoToZuM=

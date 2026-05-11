@@ -21,7 +21,7 @@ require (
 	github.com/jackc/pgx/v5 v5.9.2
 	github.com/ledongthuc/pdf v0.0.0-20250511090121-5959a4027728
 	github.com/ory/fosite v0.49.0
-	github.com/pdfcpu/pdfcpu v0.12.0
+	github.com/pdfcpu/pdfcpu v0.12.1
 	github.com/prometheus/client_golang v1.23.2
 	github.com/signintech/gopdf v0.36.0
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
