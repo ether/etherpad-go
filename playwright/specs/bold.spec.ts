@@ -12,10 +12,7 @@ test.describe('bold button', ()=>{
         await writeToPad(page, "Hi Etherpad");
         await page.waitForTimeout(300);
 
-        // Get the inner frame directly
-        const innerFrame = page.frame('ace_inner');
-        if (!innerFrame) throw new Error('Could not find ace_inner frame');
-        const body = innerFrame.locator('#innerdocbody');
+        const body = page.locator('#innerdocbody');
 
         // Triple-click to select the line
         await body.locator('div').first().click({ clickCount: 3 });
@@ -38,10 +35,7 @@ test.describe('bold button', ()=>{
         await writeToPad(page, "Hi Etherpad");
         await page.waitForTimeout(300);
 
-        // Get the inner frame directly
-        const innerFrame = page.frame('ace_inner');
-        if (!innerFrame) throw new Error('Could not find ace_inner frame');
-        const body = innerFrame.locator('#innerdocbody');
+        const body = page.locator('#innerdocbody');
 
         // Triple-click to select the line
         await body.locator('div').first().click({ clickCount: 3 });

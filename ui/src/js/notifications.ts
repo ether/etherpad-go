@@ -1,8 +1,8 @@
-import './components/EpNotification'
-import { EpNotification } from './components/EpNotification'
+import 'etherpad-webcomponents/EpNotification.js'
+import { EpNotification } from 'etherpad-webcomponents'
 
 export const notifications = {
-  add(args: { title?: string; text: string | Node; class_name?: string; sticky?: boolean; time?: number; position?: 'top' | 'bottom' }): string {
+  add(args: { title?: string; text: string | Node; class_name?: string; sticky?: boolean; time?: number; position?: 'top' | 'bottom' }): EpNotification {
     const type = args.class_name?.includes('error') ? 'error' : 'success'
     const textContent = args.text instanceof Node ? (args.text as HTMLElement).textContent || '' : String(args.text)
     return EpNotification.show({

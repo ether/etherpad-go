@@ -3,6 +3,3 @@ packages:
   - playwright
   - ui
   - plugins/*
-
-overrides:
-  etherpad-webcomponents: 0.0.4

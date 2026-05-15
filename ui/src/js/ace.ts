@@ -1,12 +1,14 @@
-// @ts-nocheck
 /**
- * This code is mostly from the old Etherpad. Please help us to comment this code.
- * This helps other people to understand this code better and helps them to improve it.
- * TL;DR COMMENTS ON THIS FILE ARE HIGHLY APPRECIATED
- */
-
-/**
+ * Ace2Editor — Wrapper around the WebComponent-based AceEditor from etherpad-webcomponents.
+ *
+ * Replaces the old iframe-based editor (ace2_inner) with a direct contenteditable div.
+ * Maintains the same public API so collab_client, pad_editor, and plugins work unchanged.
+ *
+ * The key pattern: a shared `info` object holds `ace_*` prefixed methods that plugins
+ * and callWithAce callbacks use. This mirrors the original ace2_inner architecture.
+ *
  * Copyright 2009 Google Inc.
+ * Copyright 2025 - Adapted for WebComponent-based editor.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,83 +23,21 @@
  * limitations under the License.
  */
 
-// requires: top
-// requires: undefined
-
+import {AceEditor} from 'etherpad-webcomponents';
 import {editorBus} from './core/EventBus';
-import {makeCSSManager} from './cssmanager';
 import * as pluginUtils from './pluginfw/shared';
-const debugLog = (...args) => {};
-// The inner and outer iframe's locations are about:blank, so relative URLs are relative to that.
-// Firefox and Chrome seem to do what the developer intends if given a relative URL, but Safari
-// errors out unless given an absolute URL for a JavaScript-created element.
-const absUrl = (url) => new URL(url, window.location.href).href;
 
-const eventFired = async (obj, event, cleanups = [], predicate = () => true) => {
-  if (typeof cleanups === 'function') {
-    predicate = cleanups;
-    cleanups = [];
-  }
-  await new Promise((resolve, reject) => {
-    let cleanup;
-    const successCb = () => {
-      if (!predicate()) return;
-      debugLog(`Ace2Editor.init() ${event} event on`, obj);
-      cleanup();
-      resolve();
-    };
-    const errorCb = (evt) => {
-      // Upstream #7456: ignore error events from browser-extension scripts —
-      // they are unrelated to Etherpad and should not block editor init.
-      const src = evt?.target?.src || evt?.filename || '';
-      if (/^(moz|chrome|safari)-extension:\/\//.test(src)) {
-        debugLog('Ace2Editor.init() ignoring error from browser extension:', src);
-        return;
-      }
-      const err = new Error(`Ace2Editor.init() error event while waiting for ${event} event`);
-      debugLog(`${err} on object`, obj);
-      cleanup();
-      reject(err);
-    };
-    cleanup = () => {
-      cleanup = () => {};
-      obj.removeEventListener(event, successCb);
-      obj.removeEventListener('error', errorCb);
-    };
-    cleanups.push(cleanup);
-    obj.addEventListener(event, successCb);
-    obj.addEventListener('error', errorCb);
-  });
-};
-
-// Resolves when the frame's document is ready to be mutated. Browsers seem to be quirky about
-// iframe ready events so this function throws the kitchen sink at the problem. Maybe one day we'll
-// find a concise general solution.
-const frameReady = async (frame) => {
-  // Can't do `const doc = frame.contentDocument;` because Firefox seems to asynchronously replace
-  // the document object after the frame is first created for some reason. ¯\_(ツ)_/¯
-  const doc = () => frame.contentDocument;
-  const cleanups = [];
-  try {
-    await Promise.race([
-      eventFired(frame, 'load', cleanups),
-      eventFired(frame.contentWindow, 'load', cleanups),
-      eventFired(doc(), 'load', cleanups),
-      eventFired(doc(), 'DOMContentLoaded', cleanups),
-      eventFired(doc(), 'readystatechange', cleanups, () => doc.readyState === 'complete'),
-    ]);
-  } finally {
-    for (const cleanup of cleanups) cleanup();
-  }
-};
-
-export const Ace2Editor = function () {
-  let info = {editor: this};
+export const Ace2Editor = function (this: any) {
+  let editor: AceEditor | null = null;
   let loaded = false;
 
-  let actionsPendingInit = [];
+  // Shared info object — plugins and callWithAce callbacks access ace_* methods on this.
+  // This replicates the original editorInfo pattern from ace2_inner.
+  const info: Record<string, any> = {editor: this};
 
-  const pendingInit = (func) => function (...args) {
+  let actionsPendingInit: Array<() => void> = [];
+
+  const pendingInit = (func: (...args: any[]) => any) => function (this: any, ...args: any[]) {
     const action = () => func.apply(this, args);
     if (loaded) return action();
     actionsPendingInit.push(action);
@@ -108,7 +48,120 @@ export const Ace2Editor = function () {
     actionsPendingInit = [];
   };
 
-  // The following functions (prefixed by 'ace_')  are exposed by editor, but
+  /**
+   * Populates the info object with ace_* methods that delegate to the AceEditor.
+   * Called once after editor.init() completes.
+   */
+  const populateInfo = () => {
+    const e = editor!;
+
+    // --- Core ---
+    info.ace_getRep = () => e.rep;
+    info.ace_getAuthor = () => (e as any).thisAuthor;
+    info.ace_focus = () => e.focus();
+    info.ace_setEditable = (val: boolean) => e.setEditable(val);
+    info.ace_getDocument = () => document;
+    info.ace_dispose = () => e.dispose();
+
+    // --- Text import/export ---
+    info.ace_importText = (text: string) => e.setText(text);
+    info.ace_importAText = (atext: any, apoolJsonObj: any) => e.setAttributedText(atext, apoolJsonObj);
+    info.ace_exportText = () => e.exportText();
+
+    // --- Properties ---
+    info.ace_setProperty = (key: string, value: any) => e.setProperty(key, value);
+
+    // --- Formatting ---
+    info.ace_toggleAttributeOnSelection = (name: string) => e.toggleAttribute(name);
+    info.ace_setAttributeOnSelection = (name: string, value: any) => {
+      (e as any).setAttributeOnSelection(name, value);
+    };
+    info.ace_getAttributeOnSelection = (name: string) => e.getAttribute(name);
+
+    // --- Lists ---
+    // Use private methods directly because callWithAce wraps in inCallStack already
+    info.ace_doInsertUnorderedList = () => (e as any).doInsertUnorderedList();
+    info.ace_doInsertOrderedList = () => (e as any).doInsertOrderedList();
+    // doIndentOutdent returns boolean (used by pad_editbar), so call private method
+    info.ace_doIndentOutdent = (isOut: boolean) => (e as any).doIndentOutdent(isOut);
+
+    // --- Undo/Redo ---
+    info.ace_doUndoRedo = (type: string) => {
+      if (type === 'undo') e.undo();
+      else if (type === 'redo') e.redo();
+    };
+
+    // --- Selection ---
+    info.ace_isCaret = () => e.isCaret();
+    info.ace_caretLine = () => e.getCaretLine();
+    info.ace_caretColumn = () => e.getCaretColumn();
+    info.ace_setSelection = (selection: any) => {
+      (e as any).performSelectionChange?.(selection);
+    };
+
+    // --- Document operations ---
+    info.ace_performDocumentApplyAttributesToCharRange = (start: number, end: number, attribs: any[]) => {
+      (e as any).performDocumentApplyAttributesToCharRange?.(start, end, attribs);
+    };
+    info.ace_performDocumentApplyAttributesToRange = (start: any, end: any, attribs: any[]) => {
+      if ((e as any).documentAttributeManager) {
+        (e as any).documentAttributeManager.setAttributesOnRange(start, end, attribs);
+      }
+    };
+    info.ace_setAttributeOnLine = (lineNum: number, attrName: string, attrValue: any) => {
+      if ((e as any).documentAttributeManager) {
+        (e as any).documentAttributeManager.setAttributeOnLine(lineNum, attrName, attrValue);
+      }
+    };
+    info.ace_removeAttributeOnLine = (lineNum: number, attrName: string) => {
+      if ((e as any).documentAttributeManager) {
+        (e as any).documentAttributeManager.removeAttributeOnLine(lineNum, attrName);
+      }
+    };
+
+    // --- Internal access (used by plugins) ---
+    info.ace_fastIncorp = (n: number) => (e as any).fastIncorp(n);
+    info.ace_inCallStack = (type: string, fn: () => any) => (e as any).inCallStack(type, fn);
+    info.ace_inCallStackIfNecessary = (type: string, fn: () => any) => (e as any).inCallStackIfNecessary(type, fn);
+    info.ace_getInInternationalComposition = () => e.getInInternationalComposition();
+    info.ace_replaceRange = (start: any, end: any, text: string) => e.replaceRange(start, end, text);
+    info.ace_execCommand = (cmd: string, ...args: any[]) => e.execCommand(cmd, ...args);
+
+    // --- Author ---
+    info.ace_setAuthorInfo = (author: string, i: any) => e.setAuthorInfo(author, i);
+    info.ace_getAuthorInfos = () => (e as any).authorInfos;
+
+    // --- Key handlers ---
+    info.ace_setOnKeyPress = (handler: any) => e.setOnKeyPress(handler);
+    info.ace_setOnKeyDown = (handler: any) => e.setOnKeyDown(handler);
+    info.ace_setNotifyDirty = (handler: any) => e.setNotifyDirty(handler);
+
+    // --- Collaboration ---
+    info.ace_setBaseText = (txt: string) => e.setBaseText(txt);
+    info.ace_setBaseAttributedText = (atxt: any, apoolJsonObj: any) => e.setBaseAttributedText(atxt, apoolJsonObj);
+    info.ace_applyChangesToBase = (c: string, optAuthor?: string, apoolJsonObj?: any) => e.applyChangesToBase(c, optAuthor, apoolJsonObj);
+    info.ace_prepareUserChangeset = () => e.prepareUserChangeset();
+    info.ace_applyPreparedChangesetToBase = () => e.applyPreparedChangesetToBase();
+    info.ace_setUserChangeNotificationCallback = (f: () => void) => e.setUserChangeNotificationCallback(f);
+
+    // --- callWithAce ---
+    info.ace_callWithAce = (fn: (aceInfo: any) => any, callStack?: string, normalize?: boolean) => {
+      let wrapper = () => fn(info);
+      if (normalize !== undefined) {
+        const inner = wrapper;
+        wrapper = () => {
+          info.ace_fastIncorp(9);
+          return inner();
+        };
+      }
+      if (callStack !== undefined) {
+        return info.ace_inCallStackIfNecessary(callStack, wrapper);
+      }
+      return wrapper();
+    };
+  };
+
+  // The following functions are exposed on Ace2Editor but
   // execution is delayed until init is complete
   const aceFunctionsPendingInit = [
     'importText',
@@ -131,199 +184,101 @@ export const Ace2Editor = function () {
   ];
 
   for (const fnName of aceFunctionsPendingInit) {
-    // Note: info[`ace_${fnName}`] does not exist yet, so it can't be passed directly to
-    // pendingInit(). A simple wrapper is used to defer the info[`ace_${fnName}`] lookup until
-    // method invocation.
-    this[fnName] = pendingInit(function (...args) {
-      info[`ace_${fnName}`].apply(this, args);
+    this[fnName] = pendingInit(function (...args: any[]) {
+      info[`ace_${fnName}`].apply(info, args);
     });
   }
 
+  // Methods that return values immediately (or fallback if not loaded)
   this.exportText = () => loaded ? info.ace_exportText() : '(awaiting init)\n';
-
-  this.getInInternationalComposition =
-      () => loaded ? info.ace_getInInternationalComposition() : null;
-
-  // prepareUserChangeset:
-  // Returns null if no new changes or ACE not ready.  Otherwise, bundles up all user changes
-  // to the latest base text into a Changeset, which is returned (as a string if encodeAsString).
-  // If this method returns a truthy value, then applyPreparedChangesetToBase can be called at some
-  // later point to consider these changes part of the base, after which prepareUserChangeset must
-  // be called again before applyPreparedChangesetToBase. Multiple consecutive calls to
-  // prepareUserChangeset will return an updated changeset that takes into account the latest user
-  // changes, and modify the changeset to be applied by applyPreparedChangesetToBase accordingly.
+  this.getInInternationalComposition = () => loaded ? info.ace_getInInternationalComposition() : null;
   this.prepareUserChangeset = () => loaded ? info.ace_prepareUserChangeset() : null;
-
-  const addStyleTagsFor = (doc, files) => {
-    for (const file of files) {
-      const normalizedFile = file.startsWith('/static/plugins/') ||
-          file.startsWith('/static/') ||
-          file.startsWith('../') ||
-          file.startsWith('./') ||
-          file.startsWith('http://') ||
-          file.startsWith('https://') ? file :
-        file.startsWith('/') ? `/static/plugins${file}` : `/static/plugins/${file}`;
-      const link = doc.createElement('link');
-      link.rel = 'stylesheet';
-      link.type = 'text/css';
-      link.href = absUrl(encodeURI(normalizedFile));
-      doc.head.appendChild(link);
-    }
-  };
 
   this.destroy = pendingInit(() => {
     info.ace_dispose();
-    info.frame.parentNode.removeChild(info.frame);
-    info = null; // prevent IE 6 closure memory leaks
+    const container = document.getElementById('editorcontainer');
+    if (container) container.innerHTML = '';
+    editor = null;
   });
 
-  this.init = async function (containerId, initialCode) {
-    debugLog('Ace2Editor.init()');
-    this.importText(initialCode);
+  this.init = async function (containerId: string, initialCode: string) {
+    if (initialCode) {
+      this.importText(initialCode);
+    }
 
-    const includedCSS = [
-      `../static/css/iframe_editor.css?v=${clientVars.randomVersionString}`,
-      `../css/static/pad.css?v=${clientVars.randomVersionString}`,
-      `../css/skin/${clientVars.skinName}/pad.css?v=${clientVars.randomVersionString}`,
-    ];
-    editorBus.emit('custom:ace:editor:css', {result: includedCSS, css: includedCSS});
+    const container = document.getElementById(containerId);
+    if (!container) throw new Error(`Container #${containerId} not found`);
 
-    const skinVariants = clientVars.skinVariants.split(' ').filter((x) => x !== '');
+    const skinVariants = (window as any).clientVars?.skinVariants?.split(' ').filter((x: string) => x !== '') ?? [];
 
-    const outerFrame = document.createElement('iframe');
-    outerFrame.name = 'ace_outer';
-    outerFrame.frameBorder = 0; // for IE
-    outerFrame.title = 'Ether';
-    // Some browsers do strange things unless the iframe has a src or srcdoc property:
-    //   - Firefox replaces the frame's contentWindow.document object with a different object after
-    //     the frame is created. This can be worked around by waiting for the window's load event
-    //     before continuing.
-    //   - Chrome never fires any events on the frame or document. Eventually the document's
-    //     readyState becomes 'complete' even though it never fires a readystatechange event.
-    //   - Safari behaves like Chrome.
-    // srcdoc is avoided because Firefox's Content Security Policy engine does not properly handle
-    // 'self' with nested srcdoc iframes: https://bugzilla.mozilla.org/show_bug.cgi?id=1721296
-    outerFrame.src = '../static/empty.html';
-    info.frame = outerFrame;
-    document.getElementById(containerId).appendChild(outerFrame);
-    const outerWindow = outerFrame.contentWindow;
+    // iframe_editor.css is loaded statically in pad.templ (no dynamic loading needed).
 
-    debugLog('Ace2Editor.init() waiting for outer frame');
-    await frameReady(outerFrame);
-    debugLog('Ace2Editor.init() outer frame ready');
+    // Set up the editor container structure.
+    // Original structure: #editorcontainer > iframe(ace_outer) > body#outerdocbody > [sidediv, iframe(ace_inner) > body#innerdocbody]
+    // New structure:      #editorcontainer > div#outerdocbody > [sidediv, div#innerdocbody]
+    container.innerHTML = '';
 
-    // Firefox might replace the outerWindow.document object after iframe creation so this variable
-    // is assigned after the Window's load event.
-    const outerDocument = outerWindow.document;
+    // Apply skin variants to html element. Do NOT add outer-editor/inner-editor classes here —
+    // those trigger "background-color: transparent !important" which was meant for iframes only.
+    document.documentElement.classList.add(...skinVariants);
 
-    // <html> tag
-    outerDocument.documentElement.classList.add('outer-editor', 'outerdoc', ...skinVariants);
+    // Create the outerdocbody container (replaces the outer iframe's body)
+    const outerBody = document.createElement('div');
+    outerBody.id = 'outerdocbody';
+    outerBody.classList.add('outerdocbody', ...pluginUtils.clientPluginNames());
+    container.appendChild(outerBody);
 
-    // <head> tag
-    addStyleTagsFor(outerDocument, includedCSS);
-    const outerStyle = outerDocument.createElement('style');
-    outerStyle.type = 'text/css';
-    outerStyle.title = 'dynamicsyntax';
-    outerDocument.head.appendChild(outerStyle);
-
-    // <body> tag
-    outerDocument.body.id = 'outerdocbody';
-    outerDocument.body.classList.add('outerdocbody', ...pluginUtils.clientPluginNames());
-    const sideDiv = outerDocument.createElement('div');
+    // Create sidediv for line numbers
+    const sideDiv = document.createElement('div');
     sideDiv.id = 'sidediv';
     sideDiv.classList.add('sidediv');
-    outerDocument.body.appendChild(sideDiv);
-    const sideDivInner = outerDocument.createElement('div');
+    const sideDivInner = document.createElement('div');
     sideDivInner.id = 'sidedivinner';
     sideDivInner.classList.add('sidedivinner');
     sideDiv.appendChild(sideDivInner);
-    const lineMetricsDiv = outerDocument.createElement('div');
-    lineMetricsDiv.id = 'linemetricsdiv';
-    lineMetricsDiv.appendChild(outerDocument.createTextNode('x'));
-    outerDocument.body.appendChild(lineMetricsDiv);
+    outerBody.appendChild(sideDiv);
 
-    const innerFrame = outerDocument.createElement('iframe');
-    innerFrame.name = 'ace_inner';
-    innerFrame.title = 'pad';
-    innerFrame.scrolling = 'no';
-    innerFrame.frameBorder = 0;
-    innerFrame.allowTransparency = true; // for IE
-    // The iframe MUST have a src or srcdoc property to avoid browser quirks. See the comment above
-    // outerFrame.srcdoc.
-    innerFrame.src = 'empty.html';
-    outerDocument.body.insertBefore(innerFrame, outerDocument.body.firstChild);
-    const innerWindow = innerFrame.contentWindow;
+    // Create the contenteditable editor body (replaces the inner iframe's body)
+    const editorBody = document.createElement('div');
+    editorBody.id = 'innerdocbody';
+    editorBody.classList.add('innerdocbody');
+    editorBody.setAttribute('spellcheck', 'false');
+    // flex: 1 replaces the iframe rule "#outerdocbody iframe { flex: 1 auto; width: 100% }"
+    editorBody.style.flex = '1 auto';
+    editorBody.style.width = '100%';
+    // Remove browser focus outline (was invisible when inside an iframe)
+    editorBody.style.outline = 'none';
+    outerBody.appendChild(editorBody);
 
-    debugLog('Ace2Editor.init() waiting for inner frame');
-    await frameReady(innerFrame);
-    debugLog('Ace2Editor.init() inner frame ready');
+    // Load plugin CSS
+    const includedCSS: string[] = [];
+    editorBus.emit('custom:ace:editor:css', {result: includedCSS, css: includedCSS});
 
-    // Firefox might replace the innerWindow.document object after iframe creation so this variable
-    // is assigned after the Window's load event.
-    const innerDocument = innerWindow.document;
-
-    // <html> tag
-    innerDocument.documentElement.classList.add('inner-editor', ...skinVariants);
-
-    // <head> tag
-    addStyleTagsFor(innerDocument, includedCSS);
-    //const requireKernel = innerDocument.createElement('script');
-    //requireKernel.type = 'text/javascript';
-    //requireKernel.src =
-     //   absUrl(`../static/js/require-kernel.js?v=${clientVars.randomVersionString}`);
-    //innerDocument.head.appendChild(requireKernel);
-    // Pre-fetch modules to improve load performance.
-    /*for (const module of ['ace2_inner', 'ace2_common']) {
-      const script = innerDocument.createElement('script');
-      script.type = 'text/javascript';
-      script.src = absUrl(`../javascripts/lib/ep_etherpad-lite/static/js/${module}.js` +
-                          `?callback=require.define&v=${clientVars.randomVersionString}`);
-      innerDocument.head.appendChild(script);
-    }*/
-    const innerStyle = innerDocument.createElement('style');
-    innerStyle.type = 'text/css';
-    innerStyle.title = 'dynamicsyntax';
-    innerDocument.head.appendChild(innerStyle);
-    const headLines = [];
+    // Load custom head content from plugins
+    const headLines: string[] = [];
     editorBus.emit('custom:ace:init:innerdocbody:head', {iframeHTML: headLines});
-    innerDocument.head.appendChild(
-        innerDocument.createRange().createContextualFragment(headLines.join('\n')));
+    if (headLines.length > 0) {
+      document.head.appendChild(
+        document.createRange().createContextualFragment(headLines.join('\n')));
+    }
 
-    // <body> tag
-    innerDocument.body.id = 'innerdocbody';
-    innerDocument.body.classList.add('innerdocbody');
-    innerDocument.body.setAttribute('spellcheck', 'false');
-    innerDocument.body.appendChild(innerDocument.createTextNode('\u00A0')); // &nbsp;
-/*
-    debugLog('Ace2Editor.init() waiting for require kernel load');
-    await eventFired(requireKernel, 'load');
-    debugLog('Ace2Editor.init() require kernel loaded');
-    const require = innerWindow.require;
-    require.setRootURI(absUrl('../javascripts/src'));
-    require.setLibraryURI(absUrl('../javascripts/lib'));
-    require.setGlobalKeyPath('require');
-*/
-    // intentionally moved before requiring client_plugins to save a 307
-    const [ace2Inner, clPlugins] = await Promise.all([
-      import('./ace2_inner'),
-      import('./pluginfw/client_plugins'),
-    ]);
-    innerWindow.Ace2Inner = ace2Inner;
-    innerWindow.plugins = clPlugins;
+    // Create and initialize the AceEditor
+    editor = new AceEditor(editorBody);
+    await editor.init();
 
-    debugLog('Ace2Editor.init() waiting for plugins');
-    /*await new Promise((resolve, reject) => innerWindow.plugins.ensure(
-        (err) => err != null ? reject(err) : resolve()));*/
-    debugLog('Ace2Editor.init() waiting for Ace2Inner.init()');
-    await innerWindow.Ace2Inner.init(info, {
-      inner: makeCSSManager(innerStyle.sheet),
-      outer: makeCSSManager(outerStyle.sheet),
-      parent: makeCSSManager(document.querySelector('style[title="dynamicsyntax"]').sheet),
-    });
-    debugLog('Ace2Editor.init() Ace2Inner.init() returned');
+    // Populate the info object with ace_* methods
+    populateInfo();
+
+    // Mark container as initialized (removes visibility:hidden from CSS rule
+    // #editorcontainerbox #editorcontainer:not(.initialized))
+    container.classList.add('initialized');
+
+    // Emit the initialized event with info as editorInfo.
+    // Plugins set custom ace_* methods on this object, and callWithAce passes it to callbacks.
+    // This replaces the emit that was in ace2_inner.ts in the original code.
+    editorBus.emit('editor:ace:initialized', {editorInfo: info});
+
     loaded = true;
     doActionsPendingInit();
-    debugLog('Ace2Editor.init() done');
   };
 };
-

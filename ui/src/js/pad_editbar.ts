@@ -330,9 +330,12 @@ export const padeditbar = new class {
     const qrImage = q('#qrcodeimg');
     const qrLinkInput = q('#qrcodelinkinput');
     if (!(qrImage instanceof HTMLImageElement) || !(qrLinkInput instanceof HTMLInputElement)) return;
-    const {link} = this.getShareLinks(Boolean(readonlyInput instanceof HTMLInputElement && readonlyInput.checked));
+    // #qrreadonlyinput is an <ep-checkbox>, not a native <input>. Reading .checked
+    // works on both because the Lit component exposes a reflected `checked` property.
+    const isReadonly = Boolean((readonlyInput as any)?.checked);
+    const {link} = this.getShareLinks(isReadonly);
     qrLinkInput.value = link;
-    qrImage.src = this.getQrCodeSrc(Boolean(readonlyInput instanceof HTMLInputElement && readonlyInput.checked));
+    qrImage.src = this.getQrCodeSrc(isReadonly);
   }
 
   _syncToolbarScrollState() {

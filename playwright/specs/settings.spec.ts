@@ -1,11 +1,11 @@
 import {expect, Page, test} from "@playwright/test";
-import {goToNewPad} from "../helper/padHelper";
+import {goToNewPad, setEpCheckbox} from "../helper/padHelper";
 
 const settingsButton = "button[class~='buttonicon-settings']";
 
 const ensureSettingsVisible = async (page: Page) => {
     const settings = page.locator('#settings');
-    await page.waitForSelector('iframe[name="ace_outer"]');
+    await page.locator('#innerdocbody').waitFor({ state: 'visible' });
     for (let i = 0; i < 3; i++) {
         const classes = await settings.getAttribute('class');
         if (classes?.includes('popup-show')) return;
@@ -34,18 +34,16 @@ test.describe('settings popup and options', () => {
     test('toggles line numbers visibility in editor gutter', async ({page}) => {
         await ensureSettingsVisible(page);
         const lineNumbersCheckbox = page.locator('#options-linenoscheck');
-        const outerFrame = page.frame('ace_outer');
-        if (!outerFrame) throw new Error('Could not find ace_outer frame');
 
-        await lineNumbersCheckbox.uncheck({force: true});
+        await setEpCheckbox(lineNumbersCheckbox, false);
         await expect.poll(async () => {
-            return await outerFrame.locator('#sidediv').evaluate((node) =>
+            return await page.locator('#sidediv').evaluate((node) =>
                 node.parentElement?.classList.contains('line-numbers-hidden') ?? false);
         }).toBe(true);
 
-        await lineNumbersCheckbox.check({force: true});
+        await setEpCheckbox(lineNumbersCheckbox, true);
         await expect.poll(async () => {
-            return await outerFrame.locator('#sidediv').evaluate((node) =>
+            return await page.locator('#sidediv').evaluate((node) =>
                 node.parentElement?.classList.contains('line-numbers-hidden') ?? false);
         }).toBe(false);
     });
@@ -55,10 +53,10 @@ test.describe('settings popup and options', () => {
         const colorsCheckbox = page.locator('#options-colorscheck');
         const chatText = page.locator('#chattext');
 
-        await colorsCheckbox.uncheck({force: true});
+        await setEpCheckbox(colorsCheckbox, false);
         await expect(chatText).not.toHaveClass(/authorColors/);
 
-        await colorsCheckbox.check({force: true});
+        await setEpCheckbox(colorsCheckbox, true);
         await expect(chatText).toHaveClass(/authorColors/);
     });
 
@@ -66,10 +64,10 @@ test.describe('settings popup and options', () => {
         await ensureSettingsVisible(page);
         const rtlCheckbox = page.locator('#options-rtlcheck');
 
-        await rtlCheckbox.check({force: true});
+        await setEpCheckbox(rtlCheckbox, true);
         await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
 
-        await rtlCheckbox.uncheck({force: true});
+        await setEpCheckbox(rtlCheckbox, false);
         await expect(page.locator('html')).toHaveAttribute('dir', 'ltr');
     });
 });

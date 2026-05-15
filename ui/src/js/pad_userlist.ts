@@ -18,6 +18,7 @@ import padutils from './pad_utils';
 import {editorBus} from './core';
 import html10n from './i18n';
 import {pad} from "./pad.ts";
+import 'etherpad-webcomponents/EpUserBadge.js';
 
 let myUserInfo: Record<string, any> = {};
 
@@ -118,7 +119,7 @@ export const paduserlist = (() => {
     const {scheduleAnimation} =
         padutils.makeAnimationScheduler(animateStep, ANIMATION_STEP_TIME, LOWER_FRAMERATE_FACTOR);
 
-    const NUMCOLS = 4;
+    const NUMCOLS = 3;
 
     const setTdHeight = (tr: HTMLElement, height: number) => {
       tr.querySelectorAll('td').forEach((td) => {
@@ -144,23 +145,21 @@ export const paduserlist = (() => {
 
     const replaceUserRowContents = (tr: HTMLElement, height: number, data: any) => {
       const tds = createUserRowTds(height, data);
-      if (isNameEditable(data) && tr.querySelector('td.usertdname input:enabled')) {
-        // preserve input field node
-        tds.forEach((td, i) => {
-          const oldTd = tr.querySelectorAll('td')[i];
-          if (!oldTd?.classList.contains('usertdname')) oldTd?.replaceWith(td);
-        });
-      } else {
-        tr.innerHTML = '';
-        tr.append(...tds);
-      }
+      tr.innerHTML = '';
+      tr.append(...tds);
       return tr;
     };
 
     const createUserRowTds = (height: number, data: any): HTMLElement[] => {
-      let name: Node;
+      const tdBadge = document.createElement('td');
+      tdBadge.style.height = `${height}px`;
+      tdBadge.className = 'usertdswatch';
+      tdBadge.colSpan = 2;
+      const badge = document.createElement('ep-user-badge') as any;
+      badge.setAttribute('color', padutils.escapeHtml(data.color));
+      badge.setAttribute('online', '');
       if (data.name) {
-        name = document.createTextNode(data.name);
+        badge.setAttribute('name', data.name);
       } else {
         const input = document.createElement('input');
         input.setAttribute('data-l10n-id', 'pad.userlist.unnamed');
@@ -168,29 +167,18 @@ export const paduserlist = (() => {
         input.classList.add('editempty', 'newinput');
         input.value = html10n.get('pad.userlist.unnamed');
         if (isNameEditable(data)) input.disabled = true;
-        name = input;
+        badge.setAttribute('name', input.value);
+        tdBadge.appendChild(input);
+        input.style.display = 'none';
       }
-
-      const tdSwatch = document.createElement('td');
-      tdSwatch.style.height = `${height}px`;
-      tdSwatch.className = 'usertdswatch';
-      const swatch = document.createElement('div');
-      swatch.className = 'swatch';
-      swatch.style.background = padutils.escapeHtml(data.color);
-      swatch.innerHTML = '&nbsp;';
-      tdSwatch.appendChild(swatch);
-
-      const tdName = document.createElement('td');
-      tdName.style.height = `${height}px`;
-      tdName.className = 'usertdname';
-      tdName.append(name);
+      tdBadge.prepend(badge);
 
       const tdActivity = document.createElement('td');
       tdActivity.style.height = `${height}px`;
       tdActivity.className = 'activity';
       tdActivity.textContent = data.activity;
 
-      return [tdSwatch, tdName, tdActivity];
+      return [tdBadge, tdActivity];
     };
 
     const createRow = (id: string, contents: HTMLElement[], authorId: string): HTMLElement => {

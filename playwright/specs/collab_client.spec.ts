@@ -15,9 +15,7 @@ test.describe('Messages in the COLLABROOM', function () {
         await clearPadContent(page1);
         await writeToPad(page1, 'Hello from User 1');
 
-        const innerFrame1 = page1.frame('ace_inner');
-        if (!innerFrame1) throw new Error('Could not find ace_inner frame');
-        const body1 = innerFrame1.locator('#innerdocbody');
+        const body1 = page1.locator('#innerdocbody');
 
         // Verify User 1's content
         await expect(body1.locator('div').first()).toContainText('Hello from User 1');
@@ -27,9 +25,7 @@ test.describe('Messages in the COLLABROOM', function () {
         const page2 = await context2.newPage();
         await goToPad(page2, padId);
 
-        const innerFrame2 = page2.frame('ace_inner');
-        if (!innerFrame2) throw new Error('Could not find ace_inner frame');
-        const body2 = innerFrame2.locator('#innerdocbody');
+        const body2 = page2.locator('#innerdocbody');
 
         // User 2 should see User 1's text
         await expect(body2.locator('div').first()).toContainText('Hello from User 1', { timeout: 20000 });
