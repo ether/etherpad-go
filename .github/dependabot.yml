@@ -5,10 +5,20 @@ updates:
     directory: "/"
     schedule:
       interval: "daily"
+    groups:
+      actions-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
   - package-ecosystem: "docker"
     directory: "/"
     schedule:
       interval: "daily"
+    groups:
+      docker-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
   - package-ecosystem: "npm"
     directory: "/ui"
     schedule:
@@ -18,6 +28,11 @@ updates:
     groups:
       dev-dependencies:
         dependency-type: "development"
+      prod-minor-patch:
+        dependency-type: "production"
+        update-types:
+          - "minor"
+          - "patch"
   - package-ecosystem: "npm"
     directory: "/admin"
     schedule:
@@ -27,8 +42,21 @@ updates:
     groups:
       dev-dependencies:
         dependency-type: "development"
+      prod-minor-patch:
+        dependency-type: "production"
+        update-types:
+          - "minor"
+          - "patch"
   - package-ecosystem: gomod
     directory: "/"
     schedule:
       interval: "daily"
     open-pull-requests-limit: 30
+    # Bundle all minor + patch Go module bumps into a single PR per run.
+    # Major bumps stay as individual PRs (need a human review) and the
+    # auto-merge workflow ignores them.
+    groups:
+      go-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
