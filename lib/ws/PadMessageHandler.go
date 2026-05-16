@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"slices"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 	"unicode/utf8"
@@ -188,9 +189,40 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 				return
 			}
 		}
+		// Upstream #7773: reject '+' ops that do not carry the author
+		// attribute. The standard JS client always tags inserts with the
+		// author; rejecting unattributed inserts keeps pad.AText.Text and
+		// pad.AText.Attribs in lock-step. Without this check, an insert
+		// op with empty attribs grows the text without contributing
+		// matching markers — clients then fail setDocAText reconciliation
+		// on the next load.
+		if op.OpCode == "+" && (opAuthorId == nil || *opAuthorId == "") {
+			p.Logger.Warnf("Author %s submitted an insert without an author attribute in changeset %s",
+				session.Author, task.message.Data.Data.Changeset)
+			return
+		}
+		// Upstream #7773: defense-in-depth — reject any wire-borne `*N`
+		// that resolves to the reserved system author. SystemAuthorId is
+		// server-internal (only used when SpliceText / SetText is called
+		// with an empty authorId from HTTP API or plugin paths). No
+		// legitimate socket.io session ever writes as the system author,
+		// so a wire op that names it is either a confused client or an
+		// attempt to launder writes through a reserved attribution slot.
+		if opAuthorId != nil && *opAuthorId == pad2.SystemAuthorId {
+			p.Logger.Warnf("Author %s attempted to submit changes as the reserved system author %s in changeset %s",
+				session.Author, *opAuthorId, task.message.Data.Data.Changeset)
+			return
+		}
 	}
 
 	rebasedChangeset := changeset.MoveOpsToNewPool(task.message.Data.Data.Changeset, &wireApool, &retrievedPad.Pool)
+	// Upstream #7773: snapshot the post-pool-mapping form so the
+	// retransmission check below recognises our changeset against the
+	// stored revision form. Comparing the raw client wire against `c`
+	// would miss legitimate retransmissions whenever MoveOpsToNewPool
+	// renumbered a `*N` reference (e.g. `*0` -> `*1` because the pad
+	// pool already had something at slot 0).
+	canonicalCs := rebasedChangeset
 
 	var r = task.message.Data.Data.BaseRev
 	headRev := retrievedPad.Head
@@ -208,9 +240,9 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 			return
 		}
 
-		if revisionPad.Changeset == task.message.Data.Data.Changeset && revisionPad.AuthorId == &session.Author {
+		if revisionPad.Changeset == canonicalCs && revisionPad.AuthorId != nil && *revisionPad.AuthorId == session.Author {
 			// Assume this is a retransmission of an already applied changeset.
-			unpackedChangeset, err = changeset.Unpack(task.message.Data.Data.Changeset)
+			unpackedChangeset, err = changeset.Unpack(canonicalCs)
 			if err != nil {
 				p.Logger.Warnf("Error unpacking changeset: %v", err)
 				return
@@ -242,6 +274,28 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 	if *oldLen != utf8.RuneCountInString(prevText) {
 		p.Logger.Warnf("Can't apply changeset to pad text: oldLen=%d, prevTextLen=%d, baseRev=%d, headRev=%d",
 			*oldLen, utf8.RuneCountInString(prevText), r, retrievedPad.Head)
+		return
+	}
+
+	// Upstream #7773: defensive — reject any rebased changeset whose
+	// application would leave the pad text not ending with '\n'.
+	// Previously the server silently appended a separate correction
+	// revision; that worked for the stored pad but the FIRST broadcast
+	// (the malformed user revision) reached browsers BEFORE the
+	// correction did, and the browser's line assembler asserts on a doc
+	// that doesn't end with '\n', taking the session out. Refuse —
+	// clients must always preserve the trailing-newline invariant.
+	projectedText, projectErr := changeset.ApplyToText(rebasedChangeset, prevText)
+	if projectErr != nil {
+		p.Logger.Warnf("Error projecting changeset application: %v", projectErr)
+		return
+	}
+	if projectedText == nil || !strings.HasSuffix(*projectedText, "\n") {
+		var projLen int
+		if projectedText != nil {
+			projLen = utf8.RuneCountInString(*projectedText)
+		}
+		p.Logger.Warnf("Rejected USER_CHANGES whose application would leave the pad without a trailing '\\n' (length %d). Every USER_CHANGES must preserve the \"doc ends with \\n\" invariant.", projLen)
 		return
 	}
 

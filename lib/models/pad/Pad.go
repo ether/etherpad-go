@@ -32,6 +32,15 @@ func IsValidPadId(padID string) bool {
 	return padRegex.MatchString(padID)
 }
 
+// SystemAuthorId is the stable author id used to attribute inserts coming
+// from internal callers (HTTP API SetText/AppendText with no authorId,
+// plugins, server-side import flows). Without ANY author attribute,
+// AText.Text and AText.Attribs drift out of sync — clients then fail
+// setDocAText reconciliation in ace2_inner.ts when loading the pad. Using
+// a fixed system author keeps the AText well-formed without requiring
+// every plugin to allocate its own author up-front. Upstream #7773.
+const SystemAuthorId = "a.etherpad-system"
+
 type Pad struct {
 	db             db.DataStore
 	authorManager  *author.Manager
@@ -438,12 +447,23 @@ func (p *Pad) SpliceText(start int, ndel int, ins string, authorId *string) erro
 
 	// Carry the author attribute through the splice so appendText / setText
 	// attribute the inserted text to the caller-supplied author. Upstream fix #7446.
+	//
+	// An unattributed insert (empty authorId + non-empty ins) would produce an
+	// AText where text and attribs disagree on length — clients fail
+	// setDocAText reconciliation on load. Backward-compat fix from upstream
+	// #7773: attribute the insert to a stable system author when the caller
+	// didn't provide an authorId.
+	effectiveAuthorId := authorId
+	if utf8.RuneCountInString(ins) > 0 && (authorId == nil || *authorId == "") {
+		sys := SystemAuthorId
+		effectiveAuthorId = &sys
+	}
 	var attribs *string
 	var poolForSplice *apool.APool
-	if authorId != nil && *authorId != "" {
+	if effectiveAuthorId != nil && *effectiveAuthorId != "" {
 		num := p.Pool.PutAttrib(apool.Attribute{
 			Key:   "author",
-			Value: *authorId,
+			Value: *effectiveAuthorId,
 		}, nil)
 		as := "*" + utils.NumToString(num)
 		attribs = &as
@@ -454,7 +474,7 @@ func (p *Pad) SpliceText(start int, ndel int, ins string, authorId *string) erro
 	if err != nil {
 		return err
 	}
-	_, err = p.AppendRevision(changesetFromSplice, authorId)
+	_, err = p.AppendRevision(changesetFromSplice, effectiveAuthorId)
 	if err != nil {
 		return err
 	}
