@@ -39,10 +39,17 @@ func getTranslation(translations map[string]string, key string) string {
 }
 
 templ EditBar(translations map[string]string, buttonGroups []pluginTypes.ToolbarButtonGroup) {
+      // Visually-hidden labels for the role=toolbar regions. Sitting outside
+      // the <ul>s keeps the toolbar markup valid (HTML disallows non-<li>/
+      // <script> children inside <ul>) while still giving each toolbar a
+      // translated accessible name via aria-labelledby. Upstream #7255 / #7777.
+      <span id="editbar-formatting-label" class="sr-only" aria-label={translations["pad.editor.toolbar.formatting"]}>{translations["pad.editor.toolbar.formatting"]}</span>
+      <span id="editbar-actions-label" class="sr-only" aria-label={translations["pad.editor.toolbar.actions"]}>{translations["pad.editor.toolbar.actions"]}</span>
+      <span id="editbar-showmore-label" class="sr-only" aria-label={translations["pad.editor.toolbar.showMore"]}>{translations["pad.editor.toolbar.showMore"]}</span>
       <div id="editbar" class="toolbar enabledtoolbar" style="display: flex;">
           <div id="toolbar-overlay"></div>
 
-          <ul class="menu_left" role="toolbar">
+          <ul class="menu_left" role="toolbar" aria-labelledby="editbar-formatting-label">
 
                     <li data-type="button" data-key="bold"><a class="grouped-left" title={translations["pad.toolbar.bold.title"]} aria-label={translations["pad.toolbar.bold.title"]}><button class=" buttonicon buttonicon-bold" title={translations["pad.toolbar.bold.title"]} aria-label={translations["pad.toolbar.bold.title"]}></button></a></li>
           <li data-type="button" data-key="italic"><a class="grouped-middle" title={translations["pad.toolbar.italic.title"]} aria-label={translations["pad.toolbar.italic.title"]}><button class=" buttonicon buttonicon-italic" title={translations["pad.toolbar.italic.title"]} aria-label={translations["pad.toolbar.italic.title"]}></button></a></li>
@@ -56,7 +63,7 @@ templ EditBar(translations map[string]string, buttonGroups []pluginTypes.Toolbar
           @PluginToolbarButtons(translations, buttonGroups)
 
           </ul>
-          <ul class="menu_right" role="toolbar">
+          <ul class="menu_right" role="toolbar" aria-labelledby="editbar-actions-label">
 
                     <li data-type="button" data-key="import_export"><a class="grouped-left" title={translations["pad.toolbar.import_export.title"]} aria-label={translations["pad.toolbar.import_export.title"]}><button class=" buttonicon buttonicon-import_export" title={translations["pad.toolbar.import_export.title"]} aria-label={translations["pad.toolbar.import_export.title"]}></button></a></li>
           <li data-type="button" data-key="showTimeSlider"><a class="grouped-middle" title={translations["pad.toolbar.timeslider.title"]} aria-label={translations["pad.toolbar.timeslider.title"]}><button class=" buttonicon buttonicon-history" title={translations["pad.toolbar.timeslider.title"]} aria-label={translations["pad.toolbar.timeslider.title"]}></button></a></li>
@@ -64,9 +71,9 @@ templ EditBar(translations map[string]string, buttonGroups []pluginTypes.Toolbar
           <li data-type="button" data-key="embed"><a class="grouped-middle" title={translations["pad.toolbar.embed.title"]} aria-label={translations["pad.toolbar.embed.title"]}><button class=" buttonicon buttonicon-embed" title={translations["pad.toolbar.embed.title"]} aria-label={translations["pad.toolbar.embed.title"]}></button></a></li>
           <li data-type="button" data-key="share_qr"><a class="grouped-right" title={translations["pad.share"]} aria-label={translations["pad.share"]}><button class=" buttonicon buttonicon-qrcode" title={translations["pad.share"]} aria-label={translations["pad.share"]}></button></a></li><li class="separator"></li>
                     <li data-type="button" data-key="home"><a class="grouped-right" data-l10n-id="pad.toolbar.home.title" title="Zurück zur Startseite" aria-label="Zurück zur Startseite"><button class=" buttonicon buttonicon-home" data-l10n-id="pad.toolbar.home.title" title="Zurück zur Startseite" aria-label="Zurück zur Startseite"></button></a></li>
-          <li data-type="button" data-key="showusers"><a class="" title={translations["pad.toolbar.showusers.title"]} aria-label={translations["pad.toolbar.showusers.title"]} style="box-shadow: rgb(207, 255, 158) 0px 0px 30px inset;"><button class=" buttonicon buttonicon-showusers" title={translations["pad.toolbar.showusers.title"]} aria-label={translations["pad.toolbar.showusers.title"]}></button><span id="online_count">1</span></a></li>
+          <li data-type="button" data-key="showusers"><a class="" title={translations["pad.toolbar.showusers.title"]} aria-label={translations["pad.toolbar.showusers.title"]} style="box-shadow: rgb(207, 255, 158) 0px 0px 30px inset;"><button class=" buttonicon buttonicon-showusers" title={translations["pad.toolbar.showusers.title"]} aria-label={translations["pad.toolbar.showusers.title"]}></button><span id="online_count" role="status" aria-live="polite">1</span></a></li>
           </ul>
-          <span class="show-more-icon-btn"></span> <!-- use on small screen to display hidden toolbar buttons -->
+          <span class="show-more-icon-btn" role="button" aria-labelledby="editbar-showmore-label" aria-expanded="false"></span> <!-- use on small screen to display hidden toolbar buttons -->
       </div>
 }
 

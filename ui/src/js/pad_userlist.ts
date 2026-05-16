@@ -436,12 +436,23 @@ export const paduserlist = (() => {
       if (q('#online_count') == null) {
         const target = q('#editbar [data-key=showusers] > a');
         if (target) {
+          // role="status" + aria-live="polite" announces the count when it
+          // changes; the localized aria-label (set by updateNumberOfOnlineUsers
+          // below) turns the bare badge digit into "N connected users" so AT
+          // users get context, not a stray "5". Upstream #7255 / #7777.
           const onlineCount = document.createElement('span');
           onlineCount.id = 'online_count';
+          onlineCount.setAttribute('role', 'status');
+          onlineCount.setAttribute('aria-live', 'polite');
           onlineCount.textContent = '1';
           target.append(onlineCount);
         }
       }
+      // Set the initial aria-label. updateNumberOfOnlineUsers otherwise only
+      // fires on userJoin / userLeave / status change — on a solo-author pad
+      // those events never come, and the badge would ship to AT with no
+      // accessible name. Upstream #7255 / #7777.
+      self.updateNumberOfOnlineUsers();
 
       qa('#otheruserstable tr').forEach((tr) => tr.remove());
 
@@ -596,8 +607,17 @@ export const paduserlist = (() => {
         localStorage.setItem('recentPads', JSON.stringify(recentPadsList));
       }
 
+      // Set both visible text (the badge digit) and the accessible name in
+      // one place so they can't drift. html10n.get returns undefined if the
+      // locale bundle hasn't loaded yet — fall back to an English template
+      // so AT never reads back "undefined". Upstream #7255 / #7777.
       const onlineCount = q('#online_count');
-      if (onlineCount) onlineCount.textContent = `${online}`;
+      if (onlineCount) {
+        onlineCount.textContent = `${online}`;
+        const label = (html10n.get('pad.userlist.onlineCount', {count: online} as any) as string | undefined)
+            || `${online} connected user${online === 1 ? '' : 's'}`;
+        onlineCount.setAttribute('aria-label', label);
+      }
 
       return online;
     },

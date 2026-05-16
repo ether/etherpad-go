@@ -239,6 +239,11 @@ export const Ace2Editor = function () {
     sideDiv.appendChild(sideDivInner);
     const lineMetricsDiv = outerDocument.createElement('div');
     lineMetricsDiv.id = 'linemetricsdiv';
+    // Measurement-only node: holds a single "x" so the renderer can read
+    // its computed line height. Without aria-hidden, AT exposes the stray
+    // glyph as a "text leaf" sandwiched between the editor iframe and the
+    // chat button. Upstream #7255 / #7777.
+    lineMetricsDiv.setAttribute('aria-hidden', 'true');
     lineMetricsDiv.appendChild(outerDocument.createTextNode('x'));
     outerDocument.body.appendChild(lineMetricsDiv);
 
