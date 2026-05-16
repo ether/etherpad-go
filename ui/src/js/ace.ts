@@ -232,6 +232,9 @@ export const Ace2Editor = function () {
     const sideDiv = outerDocument.createElement('div');
     sideDiv.id = 'sidediv';
     sideDiv.classList.add('sidediv');
+    // Line numbers are visual scaffolding, not content. Without aria-hidden,
+    // screen readers iterate every number — upstream #7255 / #7758.
+    sideDiv.setAttribute('aria-hidden', 'true');
     outerDocument.body.appendChild(sideDiv);
     const sideDivInner = outerDocument.createElement('div');
     sideDivInner.id = 'sidedivinner';
@@ -334,6 +337,21 @@ export const Ace2Editor = function () {
       parent: makeCSSManager(document.querySelector('style[title="dynamicsyntax"]').sheet),
     });
     debugLog('Ace2Editor.init() Ace2Inner.init() returned');
+
+    // Screen-reader-only keyboard hint, target of the body's
+    // aria-describedby. We park it in <head> instead of <body> because
+    // Ace2Inner manages body children via its line model — anything
+    // unrelated inserted into body gets wiped by line splices. The ARIA
+    // spec allows the description target to live anywhere in the same
+    // document, and screen readers resolve it by ID. Upstream #7255 / #7758.
+    const hint = innerDocument.createElement('div');
+    hint.id = 'editor-keyboard-hint';
+    hint.hidden = true;
+    const html10n = (window as any).html10n;
+    hint.textContent = (html10n && html10n.get && html10n.get('pad.editor.keyboardHint'))
+        || 'Press Escape to exit the editor. Press Alt+F9 to access the toolbar.';
+    innerDocument.head.appendChild(hint);
+
     loaded = true;
     doActionsPendingInit();
     debugLog('Ace2Editor.init() done');

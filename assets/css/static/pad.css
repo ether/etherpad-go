@@ -27,6 +27,29 @@ html,
   clear: both
 }
 
+/*
+ * Skip link — hidden until keyboard focus reveals it at the top-left of the
+ * viewport, giving screen-reader and keyboard-only users an immediate jump
+ * past the toolbar to the editor (WCAG 2.4.1 Bypass Blocks). Upstream
+ * #7255 / #7758.
+ */
+.skip-link {
+  position: absolute;
+  top: -100px;
+  left: 8px;
+  z-index: 10000;
+  padding: 8px 12px;
+  background: #2c3e50;
+  color: #fff;
+  text-decoration: none;
+  border-radius: 0 0 4px 4px;
+}
+.skip-link:focus {
+  top: 0;
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
 /* Visually hide content while keeping it available to assistive
    technology. Used for aria-labelledby targets such as the
    editbar-formatting-label / editbar-actions-label spans (upstream

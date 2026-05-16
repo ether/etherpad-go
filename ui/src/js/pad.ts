@@ -496,9 +496,20 @@ const pad = {
 
         const postAceInit = () => {
             padeditbar.init();
-            setTimeout(() => {
+            // Skip link (a11y, upstream #7255 / #7758): href="#editorcontainer"
+            // gives a working no-JS fallback, but the real focus target is
+            // the inner contenteditable inside two nested iframes — route
+            // through ace_focus.
+            byId('skip-to-content')?.addEventListener('click', (e) => {
+                e.preventDefault();
                 padeditor.ace.focus();
-            }, 0);
+            });
+            // Auto-focusing the editor on load traps Tab inside the editor
+            // iframe (Tab inserts an indent there, not bubbling out), which
+            // makes the skip link above unreachable via Tab from the URL
+            // bar — i.e., the standard WCAG 2.4.1 entry path. Users now
+            // click or Tab into the editor; the skip link is the first
+            // tabbable element. Upstream #7758.
             byId('options-stickychat')?.addEventListener('click', () => chat.stickToScreen());
             if (padcookie.getPref('chatAlwaysVisible')) {
                 chat.stickToScreen(true);

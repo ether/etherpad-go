@@ -411,6 +411,11 @@ availableFonts []string, buttonGroups []pluginTypes.ToolbarButtonGroup, settings
     <link rel="localizations" type="application/l10n+json" href="/locales.json"/>
   </head>
   <body>
+  // WCAG 2.4.1 — bypass the toolbar and jump straight to the editor.
+  // Visible only when keyboard-focused; click handler in pad.ts routes
+  // focus into the editor iframe rather than just scrolling. Upstream
+  // #7255 / #7758.
+  <a id="skip-to-content" class="skip-link" href="#editorcontainer" aria-label={translations["pad.editor.skipToContent"]}>{translations["pad.editor.skipToContent"]}</a>
   @EditBar(translations, buttonGroups)
     <div id="editorcontainerbox" class="flex-layout">
               <div id="editorcontainer" class="editorcontainer"></div>

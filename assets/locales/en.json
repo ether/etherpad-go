@@ -199,6 +199,8 @@
   "pad.userlist.entername": "Enter your name",
   "pad.userlist.unnamed": "unnamed",
   "pad.userlist.onlineCount": "{[ plural(count) one: {{count}} connected user, other: {{count}} connected users ]}",
+  "pad.editor.skipToContent": "Skip to editor",
+  "pad.editor.keyboardHint": "Press Escape to exit the editor. Press Alt+F9 to access the toolbar.",
   "pad.editor.toolbar.formatting": "Formatting toolbar",
   "pad.editor.toolbar.actions": "Pad actions toolbar",
   "pad.editor.toolbar.showMore": "Show more toolbar buttons",
