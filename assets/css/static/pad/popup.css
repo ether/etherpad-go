@@ -36,6 +36,17 @@
    * stays accessible on screens <300px. */
   min-width: min(300px, 90vw);
   max-width: min(600px, 95vw);
+  /* Constrain height so popups (notably Settings with many controls) scroll
+     instead of cropping items off-screen on short windows. Upstream #7696 /
+     #7703. */
+  max-height: calc(100vh - 20px);
+  overflow-y: auto;
+}
+
+/* Chat manages its own scroll and floats author-colour pickers outside the
+   popup, so it must not become a scroll container. Upstream #7703. */
+.popup#users .popup-content {
+  overflow: visible;
 }
 .popup input[type=text] {
   width: 100%;
@@ -163,11 +174,7 @@
   .popup-content {
     min-width: 0;
     max-height: calc(100dvh - var(--mobile-toolbar-height) - var(--mobile-safe-bottom) - 2.5rem);
-    overflow: auto;
     overscroll-behavior: contain;
-  }
-  .popup#users .popup-content {
-    overflow: visible;
   }
   #share_qr {
     top: 0 !important;
