@@ -257,6 +257,11 @@ var Registry = []ConfigKey{
 		Description: "Enable dark mode",
 	},
 	{
+		Key:         EnablePluginPadOptions,
+		Default:     false,
+		Description: "Pass plugin-namespaced ep_* keys through pad-wide padOptions (upstream #7698, opt-in)",
+	},
+	{
 		Key:         AvailableExports,
 		Default:     []string{"txt", "pdf", "etherpad", "word", "open", "html", "markdown"},
 		Description: "Available export formats",

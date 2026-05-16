@@ -15,6 +15,7 @@ const (
 	CleanupKeepRevisions                = "cleanup.keepRevisions"
 	AuthenticationMethod                = "authenticationMethod"
 	EnableDarkMode                      = "enableDarkMode"
+	EnablePluginPadOptions              = "enablePluginPadOptions"
 	AvailableExports                    = "availableExports"
 	IndentationOnNewLine                = "indentationOnNewLine"
 	UpdateServer                        = "updateServer"

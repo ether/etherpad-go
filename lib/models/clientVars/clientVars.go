@@ -109,4 +109,8 @@ type ClientVars struct {
 	ScrollWhenFocusLineIsOutOfViewport ScrollWhenFocusLineIsOutOfViewport `json:"scrollWhenFocusLineIsOutOfViewport"`
 	InitialChangesets                  []string                           `json:"initialChangesets"`
 	CookiePrefix                       string                             `json:"cookiePrefix"`
+	// EnablePluginPadOptions mirrors settings.enablePluginPadOptions so the
+	// client can decide whether to forward plugin-namespaced ep_* keys
+	// through padOptions. Upstream #7698.
+	EnablePluginPadOptions bool `json:"enablePluginPadOptions"`
 }

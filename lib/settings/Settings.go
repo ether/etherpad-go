@@ -152,6 +152,11 @@ type Settings struct {
 	TTL            TTL    `json:"ttl" mapstructure:"ttl"`
 	UpdateServer   string `json:"updateServer" mapstructure:"updateServer"`
 	EnableDarkMode bool   `json:"enableDarkMode" mapstructure:"enableDarkMode"`
+	// EnablePluginPadOptions: when true, plugin-namespaced keys (matching
+	// /^ep_[a-z0-9_]+$/) on padOptions are preserved verbatim through the
+	// pad-wide settings broadcast/persist rail. Default false (opt-in).
+	// Upstream #7698.
+	EnablePluginPadOptions bool `json:"enablePluginPadOptions" mapstructure:"enablePluginPadOptions"`
 
 	SkinName     string `json:"skinName" mapstructure:"skinName"`
 	SkinVariants string `json:"skinVariants" mapstructure:"skinVariants"`

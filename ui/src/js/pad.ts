@@ -732,6 +732,15 @@ const pad = {
             }
             padeditor.setViewOptions(pad.padOptions.view);
         }
+        // Plugin-namespaced keys (ep_*) are passed through verbatim so
+        // plugins can ride the existing padoptions broadcast/persist rail.
+        // Gated on clientVars.enablePluginPadOptions (mirrored from
+        // settings.json). Upstream #7698.
+        if ((clientVars as any).enablePluginPadOptions) {
+            for (const [k, v] of Object.entries(opts)) {
+                if (/^ep_[a-z0-9_]+$/.test(k)) (pad.padOptions as any)[k] = v;
+            }
+        }
     },
 
     getPadOptions: () => pad.padOptions,

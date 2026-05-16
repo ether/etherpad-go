@@ -176,6 +176,7 @@ func (f *Factory) NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apoo
 		ChatHead:                           pad.ChatHead,
 		NumConnectedUsers:                  numConnectedUsers,
 		CookiePrefix:                       retrievedSettings.Cookie.Prefix,
+		EnablePluginPadOptions:             retrievedSettings.EnablePluginPadOptions,
 		ReadOnlyId:                         sessionInfo.ReadOnlyPadId,
 		ReadOnly:                           sessionInfo.ReadOnly,
 		ServerTimeStamp:                    time.Now().UTC().UnixMilli(),
