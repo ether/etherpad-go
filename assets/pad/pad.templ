@@ -100,7 +100,10 @@ templ EditorLoadingBox(translations map[string]string) {
 
 templ SettingsPopup(translations map[string]string, availablefonts []string, settingsGroups []pluginTypes.SettingsMenuItemGroup) {
           <div id="settings" class="popup"><div class="popup-content">
-              <h1 id="padSettingsTitle">{translations["pad.settings.padSettings"]}</h1>
+              // Always "Settings" — the previous "Pad Settings" label
+              // suggested pad-wide controls even when the feature was off.
+              // Upstream #7679.
+              <h1 id="padSettingsTitle">{translations["pad.settings.title"]}</h1>
               <h2>{translations["pad.settings.myView"]}</h2>
               <p class="hide-for-mobile">
                   <input type="checkbox" id="options-stickychat"/>

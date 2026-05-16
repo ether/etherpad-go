@@ -1505,9 +1505,9 @@ func SettingsPopup(translations map[string]string, availablefonts []string, sett
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var109 string
-		templ_7745c5c3_Var109, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.settings.padSettings"])
+		templ_7745c5c3_Var109, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.settings.title"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 103, Col: 81}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 106, Col: 75}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var109))
 		if templ_7745c5c3_Err != nil {
@@ -1520,7 +1520,7 @@ func SettingsPopup(translations map[string]string, availablefonts []string, sett
 		var templ_7745c5c3_Var110 string
 		templ_7745c5c3_Var110, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.settings.myView"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 104, Col: 54}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 107, Col: 54}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var110))
 		if templ_7745c5c3_Err != nil {
@@ -1533,7 +1533,7 @@ func SettingsPopup(translations map[string]string, availablefonts []string, sett
 		var templ_7745c5c3_Var111 string
 		templ_7745c5c3_Var111, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.settings.stickychat"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 107, Col: 90}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 110, Col: 90}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var111))
 		if templ_7745c5c3_Err != nil {
@@ -1546,7 +1546,7 @@ func SettingsPopup(translations map[string]string, availablefonts []string, sett
 		var templ_7745c5c3_Var112 string
 		templ_7745c5c3_Var112, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.settings.chatandusers"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 111, Col: 94}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 114, Col: 94}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var112))
 		if templ_7745c5c3_Err != nil {
@@ -1559,7 +1559,7 @@ func SettingsPopup(translations map[string]string, availablefonts []string, sett
 		var templ_7745c5c3_Var113 string
 		templ_7745c5c3_Var113, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.settings.colorcheck"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 115, Col: 91}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 118, Col: 91}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var113))
 		if templ_7745c5c3_Err != nil {
@@ -1572,7 +1572,7 @@ func SettingsPopup(translations map[string]string, availablefonts []string, sett
 		var templ_7745c5c3_Var114 string
 		templ_7745c5c3_Var114, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.settings.linenocheck"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 119, Col: 93}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 122, Col: 93}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var114))
 		if templ_7745c5c3_Err != nil {
@@ -1585,7 +1585,7 @@ func SettingsPopup(translations map[string]string, availablefonts []string, sett
 		var templ_7745c5c3_Var115 string
 		templ_7745c5c3_Var115, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.settings.rtlcheck"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 123, Col: 86}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 126, Col: 86}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var115))
 		if templ_7745c5c3_Err != nil {
@@ -1598,7 +1598,7 @@ func SettingsPopup(translations map[string]string, availablefonts []string, sett
 		var templ_7745c5c3_Var116 string
 		templ_7745c5c3_Var116, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.settings.fontType"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 128, Col: 82}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 131, Col: 82}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var116))
 		if templ_7745c5c3_Err != nil {
@@ -1611,7 +1611,7 @@ func SettingsPopup(translations map[string]string, availablefonts []string, sett
 		var templ_7745c5c3_Var117 string
 		templ_7745c5c3_Var117, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.settings.fontType.normal"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 130, Col: 82}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 133, Col: 82}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var117))
 		if templ_7745c5c3_Err != nil {
@@ -1629,7 +1629,7 @@ func SettingsPopup(translations map[string]string, availablefonts []string, sett
 			var templ_7745c5c3_Var118 string
 			templ_7745c5c3_Var118, templ_7745c5c3_Err = templ.JoinStringErrs(valueInLoop)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 132, Col: 50}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 135, Col: 50}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var118))
 			if templ_7745c5c3_Err != nil {
@@ -1642,7 +1642,7 @@ func SettingsPopup(translations map[string]string, availablefonts []string, sett
 			var templ_7745c5c3_Var119 string
 			templ_7745c5c3_Var119, templ_7745c5c3_Err = templ.JoinStringErrs(valueInLoop)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 132, Col: 64}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 135, Col: 64}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var119))
 			if templ_7745c5c3_Err != nil {
@@ -1660,7 +1660,7 @@ func SettingsPopup(translations map[string]string, availablefonts []string, sett
 		var templ_7745c5c3_Var120 string
 		templ_7745c5c3_Var120, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.settings.language"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 138, Col: 82}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 141, Col: 82}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var120))
 		if templ_7745c5c3_Err != nil {
@@ -1678,7 +1678,7 @@ func SettingsPopup(translations map[string]string, availablefonts []string, sett
 			var templ_7745c5c3_Var121 string
 			templ_7745c5c3_Var121, templ_7745c5c3_Err = templ.JoinStringErrs(entry.Code)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 141, Col: 45}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 144, Col: 45}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var121))
 			if templ_7745c5c3_Err != nil {
@@ -1691,7 +1691,7 @@ func SettingsPopup(translations map[string]string, availablefonts []string, sett
 			var templ_7745c5c3_Var122 string
 			templ_7745c5c3_Var122, templ_7745c5c3_Err = templ.JoinStringErrs(entry.Info.DisplayName)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 141, Col: 70}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 144, Col: 70}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var122))
 			if templ_7745c5c3_Err != nil {
@@ -1709,7 +1709,7 @@ func SettingsPopup(translations map[string]string, availablefonts []string, sett
 		var templ_7745c5c3_Var123 string
 		templ_7745c5c3_Var123, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.settings.deletePad"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 146, Col: 77}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 149, Col: 77}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var123))
 		if templ_7745c5c3_Err != nil {
@@ -1728,7 +1728,7 @@ func SettingsPopup(translations map[string]string, availablefonts []string, sett
 				var templ_7745c5c3_Var124 string
 				templ_7745c5c3_Var124, templ_7745c5c3_Err = templ.JoinStringErrs(item.Id)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 162, Col: 44}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 165, Col: 44}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var124))
 				if templ_7745c5c3_Err != nil {
@@ -1741,7 +1741,7 @@ func SettingsPopup(translations map[string]string, availablefonts []string, sett
 				var templ_7745c5c3_Var125 string
 				templ_7745c5c3_Var125, templ_7745c5c3_Err = templ.JoinStringErrs(item.Key)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 162, Col: 109}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 165, Col: 109}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var125))
 				if templ_7745c5c3_Err != nil {
@@ -1754,7 +1754,7 @@ func SettingsPopup(translations map[string]string, availablefonts []string, sett
 				var templ_7745c5c3_Var126 string
 				templ_7745c5c3_Var126, templ_7745c5c3_Err = templ.JoinStringErrs(item.Id)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 163, Col: 45}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 166, Col: 45}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var126))
 				if templ_7745c5c3_Err != nil {
@@ -1767,7 +1767,7 @@ func SettingsPopup(translations map[string]string, availablefonts []string, sett
 				var templ_7745c5c3_Var127 string
 				templ_7745c5c3_Var127, templ_7745c5c3_Err = templ.JoinStringErrs(getTranslation(translations, item.Title))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 163, Col: 88}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 166, Col: 88}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var127))
 				if templ_7745c5c3_Err != nil {
@@ -1786,7 +1786,7 @@ func SettingsPopup(translations map[string]string, availablefonts []string, sett
 		var templ_7745c5c3_Var128 string
 		templ_7745c5c3_Var128, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.settings.about"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 168, Col: 53}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 171, Col: 53}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var128))
 		if templ_7745c5c3_Err != nil {
@@ -1799,7 +1799,7 @@ func SettingsPopup(translations map[string]string, availablefonts []string, sett
 		var templ_7745c5c3_Var129 string
 		templ_7745c5c3_Var129, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.settings.poweredBy"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 169, Col: 59}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 172, Col: 59}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var129))
 		if templ_7745c5c3_Err != nil {
@@ -1841,7 +1841,7 @@ func EmbedPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var131 string
 		templ_7745c5c3_Var131, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.share"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 176, Col: 44}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 179, Col: 44}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var131))
 		if templ_7745c5c3_Err != nil {
@@ -1854,7 +1854,7 @@ func EmbedPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var132 string
 		templ_7745c5c3_Var132, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.share.readonly"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 179, Col: 80}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 182, Col: 80}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var132))
 		if templ_7745c5c3_Err != nil {
@@ -1867,7 +1867,7 @@ func EmbedPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var133 string
 		templ_7745c5c3_Var133, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.share.link"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 182, Col: 53}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 185, Col: 53}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var133))
 		if templ_7745c5c3_Err != nil {
@@ -1880,7 +1880,7 @@ func EmbedPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var134 string
 		templ_7745c5c3_Var134, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.share.emebdcode"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 186, Col: 58}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 189, Col: 58}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var134))
 		if templ_7745c5c3_Err != nil {
@@ -1922,7 +1922,7 @@ func QrPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var136 string
 		templ_7745c5c3_Var136, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.share"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 196, Col: 48}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 199, Col: 48}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var136))
 		if templ_7745c5c3_Err != nil {
@@ -1935,7 +1935,7 @@ func QrPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var137 string
 		templ_7745c5c3_Var137, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.share.readonly"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 199, Col: 82}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 202, Col: 82}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var137))
 		if templ_7745c5c3_Err != nil {
@@ -1948,7 +1948,7 @@ func QrPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var138 string
 		templ_7745c5c3_Var138, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.share.link"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 204, Col: 78}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 207, Col: 78}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var138))
 		if templ_7745c5c3_Err != nil {
@@ -1990,7 +1990,7 @@ func ImportExportPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var140 string
 		templ_7745c5c3_Var140, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.importExport.import_export"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 213, Col: 65}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 216, Col: 65}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var140))
 		if templ_7745c5c3_Err != nil {
@@ -2003,7 +2003,7 @@ func ImportExportPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var141 string
 		templ_7745c5c3_Var141, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.importExport.import"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 215, Col: 62}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 218, Col: 62}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var141))
 		if templ_7745c5c3_Err != nil {
@@ -2016,7 +2016,7 @@ func ImportExportPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var142 string
 		templ_7745c5c3_Var142, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.importExport.abiword.innerHTML"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 216, Col: 122}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 219, Col: 122}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var142))
 		if templ_7745c5c3_Err != nil {
@@ -2029,7 +2029,7 @@ func ImportExportPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var143 string
 		templ_7745c5c3_Var143, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.importExport.importSuccessful"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 223, Col: 125}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 226, Col: 125}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var143))
 		if templ_7745c5c3_Err != nil {
@@ -2042,7 +2042,7 @@ func ImportExportPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var144 string
 		templ_7745c5c3_Var144, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.importExport.export"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 233, Col: 62}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 236, Col: 62}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var144))
 		if templ_7745c5c3_Err != nil {
@@ -2055,7 +2055,7 @@ func ImportExportPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var145 string
 		templ_7745c5c3_Var145, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.importExport.exportetherpada.title"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 238, Col: 153}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 241, Col: 153}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var145))
 		if templ_7745c5c3_Err != nil {
@@ -2068,7 +2068,7 @@ func ImportExportPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var146 string
 		templ_7745c5c3_Var146, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.importExport.exportetherpada.title"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 238, Col: 221}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 241, Col: 221}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var146))
 		if templ_7745c5c3_Err != nil {
@@ -2081,7 +2081,7 @@ func ImportExportPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var147 string
 		templ_7745c5c3_Var147, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.importExport.exportetherpad"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 239, Col: 170}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 242, Col: 170}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var147))
 		if templ_7745c5c3_Err != nil {
@@ -2094,7 +2094,7 @@ func ImportExportPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var148 string
 		templ_7745c5c3_Var148, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.importExport.exporthtmla.title"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 241, Col: 145}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 244, Col: 145}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var148))
 		if templ_7745c5c3_Err != nil {
@@ -2107,7 +2107,7 @@ func ImportExportPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var149 string
 		templ_7745c5c3_Var149, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.importExport.exporthtmla.title"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 241, Col: 209}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 244, Col: 209}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var149))
 		if templ_7745c5c3_Err != nil {
@@ -2120,7 +2120,7 @@ func ImportExportPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var150 string
 		templ_7745c5c3_Var150, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.importExport.exporthtml"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 242, Col: 156}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 245, Col: 156}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var150))
 		if templ_7745c5c3_Err != nil {
@@ -2133,7 +2133,7 @@ func ImportExportPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var151 string
 		templ_7745c5c3_Var151, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.importExport.exportplaina.title"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 244, Col: 145}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 247, Col: 145}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var151))
 		if templ_7745c5c3_Err != nil {
@@ -2146,7 +2146,7 @@ func ImportExportPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var152 string
 		templ_7745c5c3_Var152, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.importExport.exportplaina.title"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 244, Col: 210}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 247, Col: 210}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var152))
 		if templ_7745c5c3_Err != nil {
@@ -2159,7 +2159,7 @@ func ImportExportPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var153 string
 		templ_7745c5c3_Var153, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.importExport.exportplain"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 245, Col: 153}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 248, Col: 153}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var153))
 		if templ_7745c5c3_Err != nil {
@@ -2172,7 +2172,7 @@ func ImportExportPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var154 string
 		templ_7745c5c3_Var154, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.importExport.exportworda.title"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 247, Col: 145}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 250, Col: 145}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var154))
 		if templ_7745c5c3_Err != nil {
@@ -2185,7 +2185,7 @@ func ImportExportPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var155 string
 		templ_7745c5c3_Var155, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.importExport.exportworda.title"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 247, Col: 209}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 250, Col: 209}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var155))
 		if templ_7745c5c3_Err != nil {
@@ -2198,7 +2198,7 @@ func ImportExportPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var156 string
 		templ_7745c5c3_Var156, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.importExport.exportword"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 248, Col: 156}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 251, Col: 156}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var156))
 		if templ_7745c5c3_Err != nil {
@@ -2211,7 +2211,7 @@ func ImportExportPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var157 string
 		templ_7745c5c3_Var157, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.importExport.exportpdfa.title"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 250, Col: 143}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 253, Col: 143}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var157))
 		if templ_7745c5c3_Err != nil {
@@ -2224,7 +2224,7 @@ func ImportExportPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var158 string
 		templ_7745c5c3_Var158, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.importExport.exportpdfa.title"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 250, Col: 206}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 253, Col: 206}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var158))
 		if templ_7745c5c3_Err != nil {
@@ -2237,7 +2237,7 @@ func ImportExportPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var159 string
 		templ_7745c5c3_Var159, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.importExport.exportpdf"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 251, Col: 153}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 254, Col: 153}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var159))
 		if templ_7745c5c3_Err != nil {
@@ -2250,7 +2250,7 @@ func ImportExportPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var160 string
 		templ_7745c5c3_Var160, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.importExport.exportopena.title"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 253, Col: 145}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 256, Col: 145}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var160))
 		if templ_7745c5c3_Err != nil {
@@ -2263,7 +2263,7 @@ func ImportExportPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var161 string
 		templ_7745c5c3_Var161, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.importExport.exportopena.title"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 253, Col: 209}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 256, Col: 209}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var161))
 		if templ_7745c5c3_Err != nil {
@@ -2276,7 +2276,7 @@ func ImportExportPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var162 string
 		templ_7745c5c3_Var162, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.importExport.exportopen"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 254, Col: 155}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 257, Col: 155}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var162))
 		if templ_7745c5c3_Err != nil {
@@ -2318,7 +2318,7 @@ func ConnectivityPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var164 string
 		templ_7745c5c3_Var164, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.modals.connected"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 267, Col: 57}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 270, Col: 57}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var164))
 		if templ_7745c5c3_Err != nil {
@@ -2331,7 +2331,7 @@ func ConnectivityPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var165 string
 		templ_7745c5c3_Var165, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.modals.reconnecting"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 270, Col: 60}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 273, Col: 60}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var165))
 		if templ_7745c5c3_Err != nil {
@@ -2344,7 +2344,7 @@ func ConnectivityPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var166 string
 		templ_7745c5c3_Var166, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.modals.userdup"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 276, Col: 55}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 279, Col: 55}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var166))
 		if templ_7745c5c3_Err != nil {
@@ -2357,7 +2357,7 @@ func ConnectivityPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var167 string
 		templ_7745c5c3_Var167, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.modals.userdup.explanation"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 277, Col: 67}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 280, Col: 67}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var167))
 		if templ_7745c5c3_Err != nil {
@@ -2370,7 +2370,7 @@ func ConnectivityPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var168 string
 		templ_7745c5c3_Var168, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.modals.userdup.advice"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 278, Col: 78}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 281, Col: 78}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var168))
 		if templ_7745c5c3_Err != nil {
@@ -2383,7 +2383,7 @@ func ConnectivityPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var169 string
 		templ_7745c5c3_Var169, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.modals.forcereconnect"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 279, Col: 110}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 282, Col: 110}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var169))
 		if templ_7745c5c3_Err != nil {
@@ -2396,7 +2396,7 @@ func ConnectivityPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var170 string
 		templ_7745c5c3_Var170, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.modals.unauth"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 282, Col: 54}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 285, Col: 54}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var170))
 		if templ_7745c5c3_Err != nil {
@@ -2409,7 +2409,7 @@ func ConnectivityPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var171 string
 		templ_7745c5c3_Var171, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.modals.unauth.explanation"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 283, Col: 82}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 286, Col: 82}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var171))
 		if templ_7745c5c3_Err != nil {
@@ -2422,7 +2422,7 @@ func ConnectivityPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var172 string
 		templ_7745c5c3_Var172, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.modals.forcereconnect"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 284, Col: 110}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 287, Col: 110}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var172))
 		if templ_7745c5c3_Err != nil {
@@ -2435,7 +2435,7 @@ func ConnectivityPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var173 string
 		templ_7745c5c3_Var173, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.modals.disconnected"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 287, Col: 60}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 290, Col: 60}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var173))
 		if templ_7745c5c3_Err != nil {
@@ -2448,7 +2448,7 @@ func ConnectivityPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var174 string
 		templ_7745c5c3_Var174, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.modals.looping.explanation"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 288, Col: 67}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 291, Col: 67}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var174))
 		if templ_7745c5c3_Err != nil {
@@ -2461,7 +2461,7 @@ func ConnectivityPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var175 string
 		templ_7745c5c3_Var175, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.modals.looping.cause"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 289, Col: 60}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 292, Col: 60}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var175))
 		if templ_7745c5c3_Err != nil {
@@ -2474,7 +2474,7 @@ func ConnectivityPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var176 string
 		templ_7745c5c3_Var176, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.modals.initsocketfail"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 292, Col: 62}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 295, Col: 62}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var176))
 		if templ_7745c5c3_Err != nil {
@@ -2487,7 +2487,7 @@ func ConnectivityPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var177 string
 		templ_7745c5c3_Var177, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.modals.initsocketfail.explanation"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 293, Col: 74}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 296, Col: 74}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var177))
 		if templ_7745c5c3_Err != nil {
@@ -2500,7 +2500,7 @@ func ConnectivityPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var178 string
 		templ_7745c5c3_Var178, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.modals.initsocketfail.cause"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 294, Col: 67}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 297, Col: 67}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var178))
 		if templ_7745c5c3_Err != nil {
@@ -2513,7 +2513,7 @@ func ConnectivityPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var179 string
 		templ_7745c5c3_Var179, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.modals.disconnected"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 297, Col: 60}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 300, Col: 60}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var179))
 		if templ_7745c5c3_Err != nil {
@@ -2526,7 +2526,7 @@ func ConnectivityPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var180 string
 		templ_7745c5c3_Var180, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.modals.slowcommit.explanation"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 298, Col: 70}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 301, Col: 70}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var180))
 		if templ_7745c5c3_Err != nil {
@@ -2539,7 +2539,7 @@ func ConnectivityPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var181 string
 		templ_7745c5c3_Var181, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.modals.slowcommit.cause"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 299, Col: 80}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 302, Col: 80}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var181))
 		if templ_7745c5c3_Err != nil {
@@ -2552,7 +2552,7 @@ func ConnectivityPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var182 string
 		templ_7745c5c3_Var182, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.modals.forcereconnect"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 300, Col: 110}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 303, Col: 110}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var182))
 		if templ_7745c5c3_Err != nil {
@@ -2565,7 +2565,7 @@ func ConnectivityPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var183 string
 		templ_7745c5c3_Var183, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.modals.disconnected"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 303, Col: 60}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 306, Col: 60}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var183))
 		if templ_7745c5c3_Err != nil {
@@ -2578,7 +2578,7 @@ func ConnectivityPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var184 string
 		templ_7745c5c3_Var184, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.modals.badChangeset.explanation"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 304, Col: 72}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 307, Col: 72}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var184))
 		if templ_7745c5c3_Err != nil {
@@ -2591,7 +2591,7 @@ func ConnectivityPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var185 string
 		templ_7745c5c3_Var185, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.modals.badChangeset.cause"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 305, Col: 82}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 308, Col: 82}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var185))
 		if templ_7745c5c3_Err != nil {
@@ -2604,7 +2604,7 @@ func ConnectivityPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var186 string
 		templ_7745c5c3_Var186, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.modals.forcereconnect"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 306, Col: 110}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 309, Col: 110}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var186))
 		if templ_7745c5c3_Err != nil {
@@ -2617,7 +2617,7 @@ func ConnectivityPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var187 string
 		templ_7745c5c3_Var187, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.modals.disconnected"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 309, Col: 60}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 312, Col: 60}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var187))
 		if templ_7745c5c3_Err != nil {
@@ -2630,7 +2630,7 @@ func ConnectivityPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var188 string
 		templ_7745c5c3_Var188, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.modals.corruptPad.explanation"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 310, Col: 70}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 313, Col: 70}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var188))
 		if templ_7745c5c3_Err != nil {
@@ -2643,7 +2643,7 @@ func ConnectivityPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var189 string
 		templ_7745c5c3_Var189, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.modals.corruptPad.cause"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 311, Col: 63}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 314, Col: 63}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var189))
 		if templ_7745c5c3_Err != nil {
@@ -2656,7 +2656,7 @@ func ConnectivityPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var190 string
 		templ_7745c5c3_Var190, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.modals.deleted"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 314, Col: 55}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 317, Col: 55}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var190))
 		if templ_7745c5c3_Err != nil {
@@ -2669,7 +2669,7 @@ func ConnectivityPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var191 string
 		templ_7745c5c3_Var191, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.modals.deleted.explanation"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 315, Col: 66}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 318, Col: 66}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var191))
 		if templ_7745c5c3_Err != nil {
@@ -2682,7 +2682,7 @@ func ConnectivityPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var192 string
 		templ_7745c5c3_Var192, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.modals.kicked"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 318, Col: 54}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 321, Col: 54}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var192))
 		if templ_7745c5c3_Err != nil {
@@ -2695,7 +2695,7 @@ func ConnectivityPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var193 string
 		templ_7745c5c3_Var193, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.modals.kicked.explanation"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 319, Col: 65}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 322, Col: 65}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var193))
 		if templ_7745c5c3_Err != nil {
@@ -2708,7 +2708,7 @@ func ConnectivityPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var194 string
 		templ_7745c5c3_Var194, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.modals.rateLimited"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 322, Col: 59}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 325, Col: 59}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var194))
 		if templ_7745c5c3_Err != nil {
@@ -2721,7 +2721,7 @@ func ConnectivityPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var195 string
 		templ_7745c5c3_Var195, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.modals.rateLimited.explanation"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 323, Col: 70}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 326, Col: 70}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var195))
 		if templ_7745c5c3_Err != nil {
@@ -2734,7 +2734,7 @@ func ConnectivityPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var196 string
 		templ_7745c5c3_Var196, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.modals.disconnected"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 326, Col: 60}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 329, Col: 60}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var196))
 		if templ_7745c5c3_Err != nil {
@@ -2747,7 +2747,7 @@ func ConnectivityPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var197 string
 		templ_7745c5c3_Var197, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.modals.rejected.explanation"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 327, Col: 68}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 330, Col: 68}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var197))
 		if templ_7745c5c3_Err != nil {
@@ -2760,7 +2760,7 @@ func ConnectivityPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var198 string
 		templ_7745c5c3_Var198, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.modals.rejected.cause"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 328, Col: 61}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 331, Col: 61}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var198))
 		if templ_7745c5c3_Err != nil {
@@ -2773,7 +2773,7 @@ func ConnectivityPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var199 string
 		templ_7745c5c3_Var199, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.modals.disconnected"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 331, Col: 60}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 334, Col: 60}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var199))
 		if templ_7745c5c3_Err != nil {
@@ -2786,7 +2786,7 @@ func ConnectivityPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var200 string
 		templ_7745c5c3_Var200, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.modals.disconnected.explanation"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 332, Col: 72}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 335, Col: 72}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var200))
 		if templ_7745c5c3_Err != nil {
@@ -2799,7 +2799,7 @@ func ConnectivityPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var201 string
 		templ_7745c5c3_Var201, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.modals.disconnected.cause"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 333, Col: 82}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 336, Col: 82}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var201))
 		if templ_7745c5c3_Err != nil {
@@ -2812,7 +2812,7 @@ func ConnectivityPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var202 string
 		templ_7745c5c3_Var202, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.modals.forcereconnect"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 334, Col: 110}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 337, Col: 110}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var202))
 		if templ_7745c5c3_Err != nil {
@@ -2854,7 +2854,7 @@ func UserPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var204 string
 		templ_7745c5c3_Var204, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.colorpicker.save"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 352, Col: 118}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 355, Col: 118}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var204))
 		if templ_7745c5c3_Err != nil {
@@ -2867,7 +2867,7 @@ func UserPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var205 string
 		templ_7745c5c3_Var205, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.colorpicker.cancel"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 353, Col: 122}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 356, Col: 122}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var205))
 		if templ_7745c5c3_Err != nil {
@@ -2880,7 +2880,7 @@ func UserPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var206 string
 		templ_7745c5c3_Var206, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.userlist.entername"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 359, Col: 132}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 362, Col: 132}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var206))
 		if templ_7745c5c3_Err != nil {
@@ -2922,7 +2922,7 @@ func ChatPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var208 string
 		templ_7745c5c3_Var208, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.chat"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 374, Col: 110}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 377, Col: 110}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var208))
 		if templ_7745c5c3_Err != nil {
@@ -2935,7 +2935,7 @@ func ChatPopup(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var209 string
 		templ_7745c5c3_Var209, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.chat"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 375, Col: 58}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 378, Col: 58}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var209))
 		if templ_7745c5c3_Err != nil {
@@ -2977,7 +2977,7 @@ func ChatBox(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var211 string
 		templ_7745c5c3_Var211, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.chat"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 387, Col: 59}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 390, Col: 59}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var211))
 		if templ_7745c5c3_Err != nil {
@@ -2990,7 +2990,7 @@ func ChatBox(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var212 string
 		templ_7745c5c3_Var212, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.chat.loadmessages"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 393, Col: 115}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 396, Col: 115}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var212))
 		if templ_7745c5c3_Err != nil {
@@ -3003,7 +3003,7 @@ func ChatBox(translations map[string]string) templ.Component {
 		var templ_7745c5c3_Var213 string
 		templ_7745c5c3_Var213, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.chat.writeMessage.placeholder"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 397, Col: 123}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 400, Col: 123}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var213))
 		if templ_7745c5c3_Err != nil {
@@ -3046,7 +3046,7 @@ func PadIndex(pad padModel.Model, jsScript string, translations map[string]strin
 		var templ_7745c5c3_Var215 string
 		templ_7745c5c3_Var215, templ_7745c5c3_Err = templ.JoinStringErrs(settings.Title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 410, Col: 26}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 413, Col: 26}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var215))
 		if templ_7745c5c3_Err != nil {
@@ -3059,7 +3059,7 @@ func PadIndex(pad padModel.Model, jsScript string, translations map[string]strin
 		var templ_7745c5c3_Var216 string
 		templ_7745c5c3_Var216, templ_7745c5c3_Err = templ.JoinStringErrs(jsScript)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 411, Col: 39}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 414, Col: 39}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var216))
 		if templ_7745c5c3_Err != nil {
@@ -3072,7 +3072,7 @@ func PadIndex(pad padModel.Model, jsScript string, translations map[string]strin
 		var templ_7745c5c3_Var217 templ.SafeURL
 		templ_7745c5c3_Var217, templ_7745c5c3_Err = templ.JoinURLErrs("/css/skin/" + settings.SkinName + "/pad.css")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 413, Col: 61}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 416, Col: 61}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var217))
 		if templ_7745c5c3_Err != nil {
@@ -3085,7 +3085,7 @@ func PadIndex(pad padModel.Model, jsScript string, translations map[string]strin
 		var templ_7745c5c3_Var218 string
 		templ_7745c5c3_Var218, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.editor.skipToContent"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 427, Col: 120}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 430, Col: 120}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var218))
 		if templ_7745c5c3_Err != nil {
@@ -3098,7 +3098,7 @@ func PadIndex(pad padModel.Model, jsScript string, translations map[string]strin
 		var templ_7745c5c3_Var219 string
 		templ_7745c5c3_Var219, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.editor.skipToContent"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 427, Col: 163}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 430, Col: 163}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var219))
 		if templ_7745c5c3_Err != nil {

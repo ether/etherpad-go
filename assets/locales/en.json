@@ -84,6 +84,7 @@
   "pad.permissionDenied": "You do not have permission to access this pad",
 
   "pad.settings.padSettings": "Pad Settings",
+  "pad.settings.title": "Settings",
   "pad.settings.myView": "My View",
   "pad.settings.stickychat": "Chat always on screen",
   "pad.settings.chatandusers": "Show Chat and Users",
