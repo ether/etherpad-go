@@ -46,9 +46,10 @@ func buildHomeSocialMeta(c fiber.Ctx, s *settings.Settings) string {
 			AcceptLanguage: c.Get("Accept-Language"),
 		},
 		Settings: socialmeta.Settings{
-			Title:     s.Title,
-			Favicon:   favicon,
-			PublicURL: s.PublicURL,
+			Title:               s.Title,
+			Favicon:             favicon,
+			PublicURL:           s.PublicURL,
+			DescriptionOverride: s.SocialMeta.Description,
 		},
 		AvailableLangs: availableLangsSet,
 		Locales:        hooks.AllLocales,

@@ -31,6 +31,23 @@ type TTL struct {
 	RefreshToken      int `mapstructure:"refreshToken"`
 }
 
+// SocialMetaSettings holds operator overrides for Open Graph / Twitter
+// Card preview metadata. Upstream #7691 / #7692.
+type SocialMetaSettings struct {
+	// Description: when non-empty, used verbatim for og:description /
+	// twitter:description regardless of negotiated language. Most preview
+	// crawlers (WhatsApp, Signal, Slack, ...) do not send Accept-Language
+	// and otherwise always see the English fallback from the i18n catalog.
+	//
+	// Type is `any` (not `string`) because viper/mapstructure may yield
+	// number or boolean when the value comes from an env-var-driven
+	// settings.json (e.g. SOCIAL_META_DESCRIPTION="2026" -> number,
+	// ="true" -> bool). The renderer stringifies before use; empty /
+	// whitespace values are treated as unset so an accidental "" doesn't
+	// silently blank out previews. Upstream #7692.
+	Description any `json:"description" mapstructure:"description"`
+}
+
 type PadOptions struct {
 	NoColors         bool    `mapstructure:"noColors"`
 	ShowControls     bool    `mapstructure:"showControls"`
@@ -156,6 +173,10 @@ type Settings struct {
 	// fall back to the request's scheme + Host header with strict
 	// validation. No trailing slash. Upstream #7635.
 	PublicURL string `json:"publicURL" mapstructure:"publicURL"`
+
+	// SocialMeta carries operator overrides for the Open Graph / Twitter
+	// Card preview block. Upstream #7691 / #7692.
+	SocialMeta SocialMetaSettings `json:"socialMeta" mapstructure:"socialMeta"`
 
 	TTL            TTL    `json:"ttl" mapstructure:"ttl"`
 	UpdateServer   string `json:"updateServer" mapstructure:"updateServer"`

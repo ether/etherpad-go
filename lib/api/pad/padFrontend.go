@@ -83,9 +83,10 @@ func socialMetaSettings(s *settings.Settings) socialmeta.Settings {
 		favicon = *s.Favicon
 	}
 	return socialmeta.Settings{
-		Title:     s.Title,
-		Favicon:   favicon,
-		PublicURL: s.PublicURL,
+		Title:               s.Title,
+		Favicon:             favicon,
+		PublicURL:           s.PublicURL,
+		DescriptionOverride: s.SocialMeta.Description,
 	}
 }
 

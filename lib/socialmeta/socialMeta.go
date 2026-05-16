@@ -12,6 +12,7 @@
 package socialmeta
 
 import (
+	"fmt"
 	"net/http"
 	"regexp"
 	"strings"
@@ -45,6 +46,18 @@ type Settings struct {
 	Title     string
 	Favicon   string
 	PublicURL string
+	// DescriptionOverride: when non-nil and stringifies to non-empty,
+	// used verbatim for og:description / twitter:description regardless
+	// of negotiated language. Operators set this via settings.json
+	// (socialMeta.description) to fix the case where preview crawlers
+	// don't send Accept-Language and hit the English fallback.
+	//
+	// Type is `any` because viper/mapstructure may surface a string,
+	// number, or boolean depending on whether the value came from a
+	// literal or env-var coercion in settings.json. The resolver
+	// stringifies and treats empty/whitespace as unset. Upstream
+	// #7691 / #7692.
+	DescriptionOverride any
 }
 
 // Locales maps a language tag (e.g. "en", "de", "de-AT") to its translation
@@ -154,6 +167,29 @@ func resolveImageURL(req RequestInfo, faviconSetting, publicURL string) string {
 	return buildAbsoluteURL(req, "/favicon.ico", publicURL)
 }
 
+// resolveDescriptionWithOverride: operator override wins when set. The
+// value may arrive as string, number, or boolean (env-var coercion via
+// mapstructure); stringify and treat empty/whitespace as unset so an
+// accidental "" in settings.json doesn't silently blank out the preview.
+// Upstream #7691 / #7692.
+func resolveDescriptionWithOverride(override any, locales Locales, renderLang string) string {
+	if override != nil {
+		var s string
+		switch v := override.(type) {
+		case string:
+			s = v
+		case nil:
+			s = ""
+		default:
+			s = fmt.Sprintf("%v", v)
+		}
+		if strings.TrimSpace(s) != "" {
+			return s
+		}
+	}
+	return resolveDescription(locales, renderLang)
+}
+
 func resolveDescription(locales Locales, renderLang string) string {
 	if locales == nil {
 		return ""
@@ -225,7 +261,7 @@ func Render(o Opts) string {
 	if siteName == "" {
 		siteName = "Etherpad"
 	}
-	description := resolveDescription(o.Locales, renderLang)
+	description := resolveDescriptionWithOverride(o.Settings.DescriptionOverride, o.Locales, renderLang)
 	imageURL := resolveImageURL(o.Req, o.Settings.Favicon, o.Settings.PublicURL)
 	imageAlt := siteName + " logo"
 

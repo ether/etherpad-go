@@ -45,9 +45,10 @@ func HandleTimesliderOpen(c fiber.Ctx, uiAssets embed.FS, retrievedSettings *set
 			AcceptLanguage: c.Get("Accept-Language"),
 		},
 		Settings: socialmeta.Settings{
-			Title:     retrievedSettings.Title,
-			Favicon:   favicon,
-			PublicURL: retrievedSettings.PublicURL,
+			Title:               retrievedSettings.Title,
+			Favicon:             favicon,
+			PublicURL:           retrievedSettings.PublicURL,
+			DescriptionOverride: retrievedSettings.SocialMeta.Description,
 		},
 		AvailableLangs: availableLangsSet,
 		Locales:        hooks.AllLocales,
