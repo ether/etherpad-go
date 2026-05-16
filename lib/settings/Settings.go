@@ -149,6 +149,14 @@ type Settings struct {
 	ShowRecentPads bool    `json:"showRecentPads" mapstructure:"showRecentPads"`
 	Favicon        *string `json:"favicon" mapstructure:"favicon"`
 
+	// PublicURL: canonical public origin of this Etherpad instance
+	// (e.g. "https://pad.example.com"). When set, server-rendered
+	// absolute URLs (currently the Open Graph / Twitter Card og:url
+	// and og:image) use it unconditionally. When empty, those URLs
+	// fall back to the request's scheme + Host header with strict
+	// validation. No trailing slash. Upstream #7635.
+	PublicURL string `json:"publicURL" mapstructure:"publicURL"`
+
 	TTL            TTL    `json:"ttl" mapstructure:"ttl"`
 	UpdateServer   string `json:"updateServer" mapstructure:"updateServer"`
 	EnableDarkMode bool   `json:"enableDarkMode" mapstructure:"enableDarkMode"`

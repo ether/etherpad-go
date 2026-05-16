@@ -6,13 +6,15 @@ import (
 	"strconv"
 )
 
-templ Page(settings *settings.Settings, translations map[string]string) {
+templ Page(settings *settings.Settings, translations map[string]string, socialMetaHTML string) {
 	<html lang="en">
 		<head>
 			<link rel="stylesheet" href="/css/welcome/main.css"/>
 			<link rel="stylesheet" href={"/css/skin/"+ settings.SkinName + "/index.css"}/>
 			<link rel="localizations" type="application/l10n+json" href="locales.json"/>
 			<title>{settings.Title}</title>
+			// Open Graph + Twitter Card preview metadata. Upstream #7635.
+			@templ.Raw(socialMetaHTML)
 		</head>
 		<body>
 			<div id="wrapper">

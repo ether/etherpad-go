@@ -658,7 +658,7 @@ func SettingsPopup(translations map[string]string) templ.Component {
 	})
 }
 
-func Timeslider(jsScript string, translations map[string]string, settings *settings.Settings) templ.Component {
+func Timeslider(jsScript string, translations map[string]string, settings *settings.Settings, socialMetaHTML string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -731,46 +731,54 @@ func Timeslider(jsScript string, translations map[string]string, settings *setti
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 51, "\"><style type=\"text/css\" title=\"dynamicsyntax\"></style><link rel=\"localizations\" type=\"application/l10n+json\" href=\"../../locales.json\"></head><body id=\"padbody\" class=\"timeslider limwidth\"><div id=\"editbar\" class=\"toolbar\"><div class=\"timeslider-bar\"><div class=\"timeslider-title-container\"><h1 class=\"timeslider-title\"><span id=\"revision_label\"></span> <span id=\"revision_date\"></span></h1><p class=\"timeslider-subtitle\"><span class=\"authors-label\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 51, "\"><style type=\"text/css\" title=\"dynamicsyntax\"></style>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templ.Raw(socialMetaHTML).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 52, "<link rel=\"localizations\" type=\"application/l10n+json\" href=\"../../locales.json\"></head><body id=\"padbody\" class=\"timeslider limwidth\"><div id=\"editbar\" class=\"toolbar\"><div class=\"timeslider-bar\"><div class=\"timeslider-title-container\"><h1 class=\"timeslider-title\"><span id=\"revision_label\"></span> <span id=\"revision_date\"></span></h1><p class=\"timeslider-subtitle\"><span class=\"authors-label\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var52 string
 		templ_7745c5c3_Var52, templ_7745c5c3_Err = templ.JoinStringErrs(translations["timeslider.toolbar.authors"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `assets/timeslider/timeslider.templ`, Line: 145, Col: 87}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `assets/timeslider/timeslider.templ`, Line: 147, Col: 87}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var52))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 52, "</span> <span id=\"authorsList\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 53, "</span> <span id=\"authorsList\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var53 string
 		templ_7745c5c3_Var53, templ_7745c5c3_Err = templ.JoinStringErrs(translations["timeslider.toolbar.authorsList"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `assets/timeslider/timeslider.templ`, Line: 146, Col: 86}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `assets/timeslider/timeslider.templ`, Line: 148, Col: 86}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var53))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 53, "</span></p></div><div class=\"editbarright menu_right\"><ul><li data-type=\"button\" data-key=\"import_export\"><a class=\"grouped-left\" title='{translations[\"timeslider.toolbar.exportlink.title\"]}' aria-label='{translations[\"timeslider.toolbar.exportlink.title\"]}'><button class=\"buttonicon buttonicon-import_export\" title='{translations[\"timeslider.toolbar.exportlink.title\"]}' aria-label='{translations[\"timeslider.toolbar.exportlink.title\"]}'></button></a></li><li data-type=\"button\" data-key=\"settings\"><a class=\"grouped-middle\" title='{translations[\"pad.toolbar.settings.title\"]}' aria-label='{translations[\"pad.toolbar.settings.title\"]}'><button class=\"buttonicon buttonicon-settings\" title='{translations[\"pad.toolbar.settings.title\"]}' aria-label='{translations[\"pad.toolbar.settings.title\"]}'></button></a></li><li data-type=\"button\" data-key=\"timeslider_returnToPad\"><a class=\"grouped-right\"><button class=\"buttontext\" aria-label='{translations[\"timeslider.toolbar.returnbutton\"]}'>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 54, "</span></p></div><div class=\"editbarright menu_right\"><ul><li data-type=\"button\" data-key=\"import_export\"><a class=\"grouped-left\" title='{translations[\"timeslider.toolbar.exportlink.title\"]}' aria-label='{translations[\"timeslider.toolbar.exportlink.title\"]}'><button class=\"buttonicon buttonicon-import_export\" title='{translations[\"timeslider.toolbar.exportlink.title\"]}' aria-label='{translations[\"timeslider.toolbar.exportlink.title\"]}'></button></a></li><li data-type=\"button\" data-key=\"settings\"><a class=\"grouped-middle\" title='{translations[\"pad.toolbar.settings.title\"]}' aria-label='{translations[\"pad.toolbar.settings.title\"]}'><button class=\"buttonicon buttonicon-settings\" title='{translations[\"pad.toolbar.settings.title\"]}' aria-label='{translations[\"pad.toolbar.settings.title\"]}'></button></a></li><li data-type=\"button\" data-key=\"timeslider_returnToPad\"><a class=\"grouped-right\"><button class=\"buttontext\" aria-label='{translations[\"timeslider.toolbar.returnbutton\"]}'>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var54 string
 		templ_7745c5c3_Var54, templ_7745c5c3_Err = templ.JoinStringErrs(translations["timeslider.toolbar.returnbutton"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `assets/timeslider/timeslider.templ`, Line: 164, Col: 158}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `assets/timeslider/timeslider.templ`, Line: 166, Col: 158}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var54))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 54, "</button></a></li></ul></div></div><div id=\"timeslider-wrapper\"><div id=\"timeslider-slider\"><div id=\"ui-slider-handle\"></div><div id=\"ui-slider-bar\"></div><div id=\"timer\"></div></div><div id=\"slider-btn-container\"><button id=\"playpause_button_icon\" class=\"buttonicon buttonicon-play\"></button> <button id=\"leftstep\" class=\"stepper buttonicon buttonicon-step-backward\"></button> <button id=\"rightstep\" class=\"stepper buttonicon buttonicon-step-forward\"></button> <button id=\"leftstar\" class=\"stepper buttonicon\" style=\"display:none\"></button> <button id=\"rightstar\" class=\"stepper buttonicon\" style=\"display:none\"></button></div></div></div><div id=\"editorcontainerbox\"><div id=\"outerdocbody\"><div id=\"innerdocbody\"></div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 55, "</button></a></li></ul></div></div><div id=\"timeslider-wrapper\"><div id=\"timeslider-slider\"><div id=\"ui-slider-handle\"></div><div id=\"ui-slider-bar\"></div><div id=\"timer\"></div></div><div id=\"slider-btn-container\"><button id=\"playpause_button_icon\" class=\"buttonicon buttonicon-play\"></button> <button id=\"leftstep\" class=\"stepper buttonicon buttonicon-step-backward\"></button> <button id=\"rightstep\" class=\"stepper buttonicon buttonicon-step-forward\"></button> <button id=\"leftstar\" class=\"stepper buttonicon\" style=\"display:none\"></button> <button id=\"rightstar\" class=\"stepper buttonicon\" style=\"display:none\"></button></div></div></div><div id=\"editorcontainerbox\"><div id=\"outerdocbody\"><div id=\"innerdocbody\"></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -786,7 +794,7 @@ func Timeslider(jsScript string, translations map[string]string, settings *setti
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 55, "</div></body></html>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 56, "</div></body></html>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

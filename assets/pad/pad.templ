@@ -407,7 +407,7 @@ templ ChatBox(translations map[string]string) {
 
 
 templ PadIndex(pad padModel.Model, jsScript string, translations map[string]string, settings *settings.Settings,
-availableFonts []string, buttonGroups []pluginTypes.ToolbarButtonGroup, settingsGroups []pluginTypes.SettingsMenuItemGroup) {
+availableFonts []string, buttonGroups []pluginTypes.ToolbarButtonGroup, settingsGroups []pluginTypes.SettingsMenuItemGroup, socialMetaHTML string) {
   <html class="pad super-light-toolbar super-light-editor light-background">
   <head>
     <title>{settings.Title}</title>
@@ -420,6 +420,9 @@ availableFonts []string, buttonGroups []pluginTypes.ToolbarButtonGroup, settings
     // skin_variants.ts so dark-mode users don't get a light address bar
     // above a dark toolbar. Upstream #7606 / #7690.
     <meta name="theme-color" content="#ffffff"/>
+    // Open Graph + Twitter Card preview metadata. Pre-rendered with all
+    // values HTML-escaped (pad name is user-controlled). Upstream #7635.
+    @templ.Raw(socialMetaHTML)
     <link rel="localizations" type="application/l10n+json" href="/locales.json"/>
   </head>
   <body>

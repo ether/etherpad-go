@@ -12,14 +12,49 @@ import (
 	"github.com/ether/etherpad-go/assets/welcome"
 	"github.com/ether/etherpad-go/lib"
 	pad2 "github.com/ether/etherpad-go/lib/api/pad"
+	"github.com/ether/etherpad-go/lib/hooks"
 	"github.com/ether/etherpad-go/lib/plugins"
 	"github.com/ether/etherpad-go/lib/settings"
+	"github.com/ether/etherpad-go/lib/socialmeta"
 	"github.com/ether/etherpad-go/lib/timeslider"
 	"github.com/ether/etherpad-go/lib/utils"
 	"github.com/evanw/esbuild/pkg/api"
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/adaptor"
 )
+
+// buildHomeSocialMeta renders the Open Graph + Twitter Card meta block for
+// the homepage. Upstream #7635.
+func buildHomeSocialMeta(c fiber.Ctx, s *settings.Settings) string {
+	scheme := "http"
+	if c.Protocol() == "https" {
+		scheme = "https"
+	}
+	favicon := ""
+	if s.Favicon != nil {
+		favicon = *s.Favicon
+	}
+	availableLangsSet := make(map[string]struct{}, len(hooks.AvailableLangs))
+	for k := range hooks.AvailableLangs {
+		availableLangsSet[k] = struct{}{}
+	}
+	return socialmeta.Render(socialmeta.Opts{
+		Req: socialmeta.RequestInfo{
+			Scheme:         scheme,
+			Host:           string(c.Request().Host()),
+			Path:           c.Path(),
+			AcceptLanguage: c.Get("Accept-Language"),
+		},
+		Settings: socialmeta.Settings{
+			Title:     s.Title,
+			Favicon:   favicon,
+			PublicURL: s.PublicURL,
+		},
+		AvailableLangs: availableLangsSet,
+		Locales:        hooks.AllLocales,
+		Kind:           socialmeta.KindHome,
+	})
+}
 
 func registerEmbeddedStatic(app *fiber.App, route string, subPath string, uiAssets embed.FS) {
 	prefix := strings.TrimSuffix(route, "/")
@@ -263,7 +298,8 @@ func Init(store *lib.InitStore) {
 		if err != nil {
 			return err
 		}
-		component := welcome.Page(store.RetrievedSettings, keyValues)
+		socialMetaHTML := buildHomeSocialMeta(c, store.RetrievedSettings)
+		component := welcome.Page(store.RetrievedSettings, keyValues, socialMetaHTML)
 		return adaptor.HTTPHandler(templ.Handler(component))(c)
 	})
 

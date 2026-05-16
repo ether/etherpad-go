@@ -211,6 +211,7 @@
   "pad.editor.toolbar.formatting": "Formatting toolbar",
   "pad.editor.toolbar.actions": "Pad actions toolbar",
   "pad.editor.toolbar.showMore": "Show more toolbar buttons",
+  "pad.social.description": "A collaborative real-time text editor.",
   "pad.editbar.clearcolors": "Clear authorship colors on entire document? This cannot be undone",
 
   "pad.impexp.importbutton": "Import Now",

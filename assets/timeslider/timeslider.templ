@@ -114,7 +114,7 @@ templ SettingsPopup(translations map[string]string) {
 }
 
 
-templ Timeslider(jsScript string, translations map[string]string, settings *settings.Settings) {
+templ Timeslider(jsScript string, translations map[string]string, settings *settings.Settings, socialMetaHTML string) {
     <html class="pad super-light-toolbar super-light-editor light-background">
       <head>
         <title>{translations["timeslider.pageTitle"]}</title>
@@ -130,6 +130,8 @@ templ Timeslider(jsScript string, translations map[string]string, settings *sett
         <link rel="stylesheet" href={"/css/skin/"+ settings.SkinName + "/pad.css"}>
         <link rel="stylesheet" href={"/css/skin/" + settings.SkinName  + "/timeslider.css"}>
         <style type="text/css" title="dynamicsyntax"></style>
+        // Open Graph + Twitter Card preview metadata. Upstream #7635.
+        @templ.Raw(socialMetaHTML)
         <link rel="localizations" type="application/l10n+json" href="../../locales.json" />
       </head>
 
