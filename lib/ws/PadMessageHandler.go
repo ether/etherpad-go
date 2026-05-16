@@ -386,7 +386,23 @@ func (p *PadMessageHandler) HandleMessage(message any, client *Client, retrieved
 	var thisSession = p.SessionStore.getSession(client.SessionId)
 
 	if ok {
+		// Upstream #7045 / #7755: resolve the integrator-set sessionID
+		// preferring the value read from the socket.io handshake Cookie
+		// header (which now allows the cookie to be HttpOnly). Fall back
+		// to the deprecated CLIENT_READY message field for legacy
+		// clients, and emit a one-time deprecation warning per socket.
+		resolvedSessionID := client.IntegratorSessionID
+		if resolvedSessionID == "" && castedMessage.Data.SessionID != "" {
+			resolvedSessionID = castedMessage.Data.SessionID
+			if !client.legacySessionIdWarned {
+				p.Logger.Warn("client sent sessionID via CLIENT_READY message; integrators should " +
+					"set the sessionID cookie as HttpOnly (upstream #7045). The in-message " +
+					"field is deprecated and will be removed in a future release.")
+				client.legacySessionIdWarned = true
+			}
+		}
 		thisSession = p.SessionStore.addHandleClientInformation(client.SessionId, castedMessage.Data.PadID, castedMessage.Data.Token)
+		thisSession.Auth.IntegratorSessionID = resolvedSessionID
 		exists, err := p.padManager.DoesPadExist(thisSession.Auth.PadId)
 
 		if err != nil {
@@ -411,6 +427,7 @@ func (p *PadMessageHandler) HandleMessage(message any, client *Client, retrieved
 		}
 		p.SessionStore.addPadReadOnlyIds(client.SessionId, padIds.PadId, padIds.ReadOnlyPadId, padIds.ReadOnly)
 		thisSession = p.SessionStore.getSession(client.SessionId)
+		thisSession.Auth.IntegratorSessionID = resolvedSessionID
 	}
 
 	var auth = thisSession.Auth
@@ -437,7 +454,15 @@ func (p *PadMessageHandler) HandleMessage(message any, client *Client, retrieved
 		}
 	}
 
-	var grantedAccess, err = p.securityManager.CheckAccess(&auth.PadId, &auth.SessionId, &auth.Token, user)
+	// Upstream #7045 / #7755: use the integrator-supplied sessionID (read
+	// from the handshake cookie or, deprecated, the CLIENT_READY message
+	// field) for group-session author lookup. auth.SessionId is the WS
+	// connection ID — passing it here was historically a bug.
+	var sessionCookie *string
+	if auth.IntegratorSessionID != "" {
+		sessionCookie = &auth.IntegratorSessionID
+	}
+	var grantedAccess, err = p.securityManager.CheckAccess(&auth.PadId, sessionCookie, &auth.Token, user)
 
 	if err != nil {
 		var arr = make([]interface{}, 2)

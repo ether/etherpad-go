@@ -48,6 +48,9 @@ const refreshSessionLifetime = async (): Promise<void> => {
   }
 };
 
+// The integrator-set `sessionID` cookie is consumed server-side from the
+// socket.io handshake (upstream #7045 / #7755). It does not need to ride on
+// every message; the server only reads it during CLIENT_READY.
 const sendSocketMsg = (type: string, data: Record<string, unknown>): void => {
   socket?.emit('message', {
     component: 'pad',
@@ -55,7 +58,6 @@ const sendSocketMsg = (type: string, data: Record<string, unknown>): void => {
     data,
     padId,
     token,
-    sessionID: Cookies.get('sessionID'),
   });
 };
 

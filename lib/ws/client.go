@@ -30,13 +30,21 @@ type Client struct {
 	// The websocket connection.
 	Conn WebSocketConn
 	// Buffered channel of outbound messages.
-	Send          chan []byte
-	Room          string
-	SessionId     string
-	ClientIP      string
-	WebAccessUser any
-	Handler       *PadMessageHandler
-	adminHandler  *AdminMessageHandler
+	Send      chan []byte
+	Room      string
+	SessionId string
+	// IntegratorSessionID carries the integrator-set sessionID cookie
+	// value (from createSession() HTTP API), read from the socket.io
+	// handshake so the cookie can be HttpOnly. Upstream #7045 / #7755.
+	IntegratorSessionID string
+	// legacySessionIdWarned tracks whether we've already emitted the
+	// deprecation warning for clients that still forward sessionID via
+	// the CLIENT_READY message payload.
+	legacySessionIdWarned bool
+	ClientIP              string
+	WebAccessUser         any
+	Handler               *PadMessageHandler
+	adminHandler          *AdminMessageHandler
 }
 
 func (c *Client) readPumpAdmin(retrievedSettings *settings.Settings, logger *zap.SugaredLogger) {
@@ -239,10 +247,10 @@ func (c *Client) SendPadDelete() {
 }
 
 // ServeWs handles websocket requests from the peer using Fiber's websocket middleware.
-func ServeWs(conn *websocket.Conn, sessionID string, clientIP string, webAccessUser any,
+func ServeWs(conn *websocket.Conn, sessionID string, integratorSessionID string, clientIP string, webAccessUser any,
 	configSettings *settings.Settings,
 	logger *zap.SugaredLogger, handler *PadMessageHandler) {
-	client := &Client{Hub: handler.hub, Conn: conn, Send: make(chan []byte, 256), SessionId: sessionID, ClientIP: clientIP, WebAccessUser: webAccessUser, Handler: handler}
+	client := &Client{Hub: handler.hub, Conn: conn, Send: make(chan []byte, 256), SessionId: sessionID, IntegratorSessionID: integratorSessionID, ClientIP: clientIP, WebAccessUser: webAccessUser, Handler: handler}
 	handler.SessionStore.initSession(sessionID)
 	client.Hub.Register <- client
 	go client.writePump()

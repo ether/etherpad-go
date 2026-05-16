@@ -28,9 +28,14 @@ import (
 )
 
 type wsUpgradeData struct {
-	SessionID     string
-	ClientIP      string
-	WebAccessUser any
+	SessionID         string
+	// IntegratorSessionID is the integrator-set sessionID cookie value
+	// (from createSession() HTTP API), read from the socket.io handshake
+	// Cookie header so the cookie can be marked HttpOnly. Upstream
+	// #7045 / #7755.
+	IntegratorSessionID string
+	ClientIP            string
+	WebAccessUser       any
 }
 
 func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets embed.FS) {
@@ -128,10 +133,21 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 				return c.Status(fiber.StatusInternalServerError).SendString("session error")
 			}
 			connID := sess.ID()
+			// Read the integrator-set sessionID cookie (from createSession()
+			// HTTP API) directly from the handshake so the cookie can be
+			// marked HttpOnly. Falls back to the legacy in-message
+			// `sessionID` field in HandleMessage for older clients.
+			// Upstream #7045 / #7755.
+			cookiePrefix := settings.Cookie.Prefix
+			integratorSessionID := c.Cookies(cookiePrefix + "sessionID")
+			if integratorSessionID == "" {
+				integratorSessionID = c.Cookies("sessionID")
+			}
 			wsPreUpgrade.Store(connID, wsUpgradeData{
-				SessionID:     sess.ID(),
-				ClientIP:      c.IP(),
-				WebAccessUser: c.Locals("sessionUser"),
+				SessionID:           sess.ID(),
+				IntegratorSessionID: integratorSessionID,
+				ClientIP:            c.IP(),
+				WebAccessUser:       c.Locals("sessionUser"),
 			})
 			c.Locals("wsConnID", connID)
 			return c.Next()
@@ -154,7 +170,7 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 		// Enforce a hard per-message ceiling matching the configured buffer size.
 		conn.SetReadLimit(int64(wsBufSize))
 		setupLogger.Debugf("[WS] New connection sessionID=%s clientIP=%s", data.SessionID, data.ClientIP)
-		ws.ServeWs(conn, data.SessionID, data.ClientIP, data.WebAccessUser, &settings, setupLogger, padMessageHandler)
+		ws.ServeWs(conn, data.SessionID, data.IntegratorSessionID, data.ClientIP, data.WebAccessUser, &settings, setupLogger, padMessageHandler)
 	}, fiberws.Config{
 		ReadBufferSize:  wsBufSize,
 		WriteBufferSize: wsBufSize,

@@ -210,11 +210,13 @@ const sendClientReady = (isReconnect) => {
         name: params.get('userName'),
     };
 
+    // The integrator-set `sessionID` cookie is read server-side from the
+    // socket.io handshake (upstream #7045 / #7755) so it can be HttpOnly.
+    // We no longer forward it via the CLIENT_READY payload.
     const msg = {
         component: 'pad',
         type: 'CLIENT_READY',
         padId,
-        sessionID: Cookies.get('sessionID'),
         token,
         userInfo,
     };
