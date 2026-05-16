@@ -231,26 +231,30 @@ templ ImportExportPopup(translations map[string]string) {
               </div>
               <div id="exportColumn">
                   <h2>{translations["pad.importExport.export"]}</h2>
-                  <a id="exportetherpada" target="_blank" class="exportlink">
-                    <span class="exporttype buttonicon buttonicon-file-powerpoint" id="exportetherpad">{translations["pad.importExport.exportetherpad"]}</span>
+                  // Upstream #7697: each anchor carries a localized
+                  // aria-label/title and rel="noopener"; inner icon spans
+                  // are aria-hidden so AT announces the link's label once,
+                  // not twice.
+                  <a id="exportetherpada" target="_blank" rel="noopener" class="exportlink" title={translations["pad.importExport.exportetherpada.title"]} aria-label={translations["pad.importExport.exportetherpada.title"]}>
+                    <span class="exporttype buttonicon buttonicon-file-powerpoint" id="exportetherpad" aria-hidden="true">{translations["pad.importExport.exportetherpad"]}</span>
                   </a>
-                  <a id="exporthtmla" target="_blank" class="exportlink" hidden>
-                    <span class="exporttype buttonicon buttonicon-file-code" id="exporthtml">{translations["pad.importExport.exporthtml"]}</span>
+                  <a id="exporthtmla" target="_blank" rel="noopener" class="exportlink" title={translations["pad.importExport.exporthtmla.title"]} aria-label={translations["pad.importExport.exporthtmla.title"]} hidden>
+                    <span class="exporttype buttonicon buttonicon-file-code" id="exporthtml" aria-hidden="true">{translations["pad.importExport.exporthtml"]}</span>
                   </a>
-                  <a id="exporttxta" target="_blank" class="exportlink" hidden>
-                    <span class="exporttype buttonicon buttonicon-file" id="exportplain">{translations["pad.importExport.exportplain"]}</span>
+                  <a id="exporttxta" target="_blank" rel="noopener" class="exportlink" title={translations["pad.importExport.exportplaina.title"]} aria-label={translations["pad.importExport.exportplaina.title"]} hidden>
+                    <span class="exporttype buttonicon buttonicon-file" id="exportplain" aria-hidden="true">{translations["pad.importExport.exportplain"]}</span>
                   </a>
-                  <a id="exportworda" target="_blank" class="exportlink" hidden>
-                    <span class="exporttype buttonicon buttonicon-file-word" id="exportword">{translations["pad.importExport.exportword"]}</span>
+                  <a id="exportworda" target="_blank" rel="noopener" class="exportlink" title={translations["pad.importExport.exportworda.title"]} aria-label={translations["pad.importExport.exportworda.title"]} hidden>
+                    <span class="exporttype buttonicon buttonicon-file-word" id="exportword" aria-hidden="true">{translations["pad.importExport.exportword"]}</span>
                   </a>
-                  <a id="exportpdfa" target="_blank" class="exportlink" hidden>
-                    <span class="exporttype buttonicon buttonicon-file-pdf" id="exportpdf">{translations["pad.importExport.exportpdf"]}</span>
+                  <a id="exportpdfa" target="_blank" rel="noopener" class="exportlink" title={translations["pad.importExport.exportpdfa.title"]} aria-label={translations["pad.importExport.exportpdfa.title"]} hidden>
+                    <span class="exporttype buttonicon buttonicon-file-pdf" id="exportpdf" aria-hidden="true">{translations["pad.importExport.exportpdf"]}</span>
                   </a>
-                  <a id="exportopena" target="_blank" class="exportlink" hidden>
-                    <span class="exporttype buttonicon buttonicon-file-alt" id="exportopen">{translations["pad.importExport.exportopen"]}</span>
+                  <a id="exportopena" target="_blank" rel="noopener" class="exportlink" title={translations["pad.importExport.exportopena.title"]} aria-label={translations["pad.importExport.exportopena.title"]} hidden>
+                    <span class="exporttype buttonicon buttonicon-file-alt" id="exportopen" aria-hidden="true">{translations["pad.importExport.exportopen"]}</span>
                   </a>
-                  <a id="exportmarkdowna" target="_blank" class="exportlink">
-                    <span class="exporttype buttonicon buttonicon-file-code" id="exportmarkdown">Markdown</span>
+                  <a id="exportmarkdowna" target="_blank" rel="noopener" class="exportlink" title="Export as Markdown" aria-label="Export as Markdown">
+                    <span class="exporttype buttonicon buttonicon-file-code" id="exportmarkdown" aria-hidden="true">Markdown</span>
                   </a>
               </div>
           </div></div>
