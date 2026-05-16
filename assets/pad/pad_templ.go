@@ -3078,14 +3078,14 @@ func PadIndex(pad padModel.Model, jsScript string, translations map[string]strin
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 228, "\" rel=\"stylesheet\"><style title=\"dynamicsyntax\"></style><link rel=\"localizations\" type=\"application/l10n+json\" href=\"/locales.json\"></head><body><a id=\"skip-to-content\" class=\"skip-link\" href=\"#editorcontainer\" aria-label=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 228, "\" rel=\"stylesheet\"><style title=\"dynamicsyntax\"></style><meta name=\"theme-color\" content=\"#ffffff\"><link rel=\"localizations\" type=\"application/l10n+json\" href=\"/locales.json\"></head><body><a id=\"skip-to-content\" class=\"skip-link\" href=\"#editorcontainer\" aria-label=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var218 string
 		templ_7745c5c3_Var218, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.editor.skipToContent"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 422, Col: 120}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 427, Col: 120}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var218))
 		if templ_7745c5c3_Err != nil {
@@ -3098,7 +3098,7 @@ func PadIndex(pad padModel.Model, jsScript string, translations map[string]strin
 		var templ_7745c5c3_Var219 string
 		templ_7745c5c3_Var219, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.editor.skipToContent"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 422, Col: 163}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pad/pad.templ`, Line: 427, Col: 163}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var219))
 		if templ_7745c5c3_Err != nil {

@@ -3,6 +3,43 @@
 const containers = ['editor', 'background', 'toolbar'];
 const colors = ['super-light', 'light', 'dark', 'super-dark'];
 
+// Toolbar background colors that the colibris skin variants resolve to.
+// Mirrors --bg-color in assets/css/skin/colibris/pad-variants.css. Order
+// matters: when skinVariants contains multiple *-toolbar tokens the CSS
+// cascade picks the rule defined last, so iterate in source order and let
+// the last matching token win. Upstream #7606 / #7690.
+const TOOLBAR_COLORS_IN_CSS_ORDER: Array<[string, string]> = [
+  ['super-light-toolbar', '#ffffff'],
+  ['light-toolbar', '#f2f3f4'],
+  ['super-dark-toolbar', '#485365'],
+  ['dark-toolbar', '#576273'],
+];
+const COLIBRIS_DEFAULT_TOOLBAR_COLOR = '#ffffff';
+
+const toolbarColorForTokens = (tokens: string[]): string => {
+  const set = new Set(tokens);
+  let color = COLIBRIS_DEFAULT_TOOLBAR_COLOR;
+  for (const [variant, c] of TOOLBAR_COLORS_IN_CSS_ORDER) {
+    if (set.has(variant)) color = c;
+  }
+  return color;
+};
+
+// Keep <meta name="theme-color"> in sync with the toolbar the user actually
+// sees. The server emits a baseline derived from settings.skinVariants, but
+// pad.ts may flip the toolbar to super-dark on first paint (enableDarkMode
+// + prefers-color-scheme:dark + no localStorage white-mode override) and
+// the user can toggle via #options-darkmode. Without this, dark-mode users
+// keep the light meta and see a white address bar above a dark toolbar
+// (issue #7606 follow-up, upstream #7690). When no meta is present the
+// helper is a no-op.
+const updateThemeColorMeta = (newClasses: string[]) => {
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (!meta) return;
+  meta.setAttribute('content',
+      toolbarColorForTokens(newClasses.join(' ').split(/\s+/).filter(Boolean)));
+};
+
 const getHtmlTargets = () => {
   const targets = [document.documentElement];
   const outerFrame = document.querySelector('iframe[name="ace_outer"]') as HTMLIFrameElement | null;
@@ -30,6 +67,8 @@ export const updateSkinVariantsClasses = (newClasses) => {
   if (newClasses.length > 0) {
     domsToUpdate.forEach((el) => { el.classList.add(...newClasses); });
   }
+
+  updateThemeColorMeta(newClasses);
 };
 
 

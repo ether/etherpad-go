@@ -412,6 +412,11 @@ availableFonts []string, buttonGroups []pluginTypes.ToolbarButtonGroup, settings
       <link href="/css/static/pad.css" rel="stylesheet"/>
     <link  href={"/css/skin/"+ settings.SkinName + "/pad.css"} rel="stylesheet"/>
     <style title="dynamicsyntax"></style>
+    // Baseline theme-color derived from the configured toolbar variant.
+    // Kept in sync with the runtime toolbar by updateThemeColorMeta in
+    // skin_variants.ts so dark-mode users don't get a light address bar
+    // above a dark toolbar. Upstream #7606 / #7690.
+    <meta name="theme-color" content="#ffffff"/>
     <link rel="localizations" type="application/l10n+json" href="/locales.json"/>
   </head>
   <body>
