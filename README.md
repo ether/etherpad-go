@@ -1,4 +1,4 @@
-# Etherpad-Go
+# Etherpad-Go-EXPERIMENTAL
 
 **A fast, modern, real-time collaborative editor written in Go**
 
@@ -8,10 +8,10 @@
 [![Release](https://img.shields.io/github/v/release/ether/etherpad-go)](https://github.com/ether/etherpad-go/releases)
 [![Docker Image](https://img.shields.io/badge/docker-ghcr.io%2Fether%2Fetherpad--go-blue?logo=docker)](https://ghcr.io/ether/etherpad-go)
 
-Etherpad-Go is a performance-focused, 1:1 rewrite of Etherpad-Lite in Go.
+Etherpad-Go is a performance-focused, 1:1(currently partial) rewrite of Etherpad in Go.
 The original implementation was written in Node.js (CommonJS).
 Rewriting Etherpad in Go allows us to leverage Go’s concurrency model,
-static typing, fast startup times, and lower memory usage.
+static typing, fast startup times, and lower memory usage however there are trade offs and this is an experimental branch so YMMV!
 
 <p align="center">
   <img src="doc/public/gopherEtherpad.png"
