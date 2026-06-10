@@ -619,6 +619,28 @@ func (d PostgresDB) RemoveGroup(groupId string) error {
 	return err
 }
 
+func (d PostgresDB) GetGroups() (*[]string, error) {
+	ctx := context.Background()
+	rows, err := d.pool.Query(ctx, `SELECT id FROM "grouppadgroup"`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	groups := make([]string, 0)
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		groups = append(groups, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return &groups, nil
+}
+
 func (d PostgresDB) GetGroup(groupId string) (*string, error) {
 	ctx := context.Background()
 	var foundGroup string
@@ -672,7 +694,7 @@ func (d PostgresDB) SetSessionById(sessionID string, session session2.Session) e
              connections = EXCLUDED.connections,
              updated_at = NOW()`,
 		sessionID, session.OriginalMaxAge, session.Expires, session.Secure,
-		session.HttpOnly, session.Path, session.SameSite, "")
+		session.HttpOnly, session.Path, session.SameSite, session.Connections)
 	return err
 }
 

@@ -98,7 +98,7 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 		{
 			var padCreateData admin.PadCreateData
 			if err := json.Unmarshal(message.Data, &padCreateData); err != nil {
-				println("Error unmarshalling padCreate data:", err.Error())
+				h.Logger.Warn("Error unmarshalling padCreate data:", err.Error())
 			}
 			padExists, err := h.padManager.DoesPadExist(padCreateData.PadName)
 			if err != nil {
@@ -115,7 +115,7 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 				resp[1] = errorMessage
 				responseBytes, err := json.Marshal(resp)
 				if err != nil {
-					println("Error marshalling response:", err.Error())
+					h.Logger.Warn("Error marshalling response:", err.Error())
 					return
 				}
 
@@ -136,7 +136,7 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 
 				responseBytes, err := json.Marshal(resp)
 				if err != nil {
-					println("Error marshalling response:", err.Error())
+					h.Logger.Warn("Error marshalling response:", err.Error())
 					return
 				}
 				c.SafeSend(responseBytes)
@@ -147,12 +147,12 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 		{
 			var padLoadData admin.PadLoadData
 			if err := json.Unmarshal(message.Data, &padLoadData); err != nil {
-				println("Error unmarshalling padLoad data:", err.Error())
+				h.Logger.Warn("Error unmarshalling padLoad data:", err.Error())
 				return
 			}
 			dbPads, err := h.store.QueryPad(padLoadData.Offset, padLoadData.Limit, padLoadData.SortBy, padLoadData.Ascending, padLoadData.Pattern)
 			if err != nil {
-				println("Error querying pads:", err.Error())
+				h.Logger.Warn("Error querying pads:", err.Error())
 				return
 			}
 
@@ -175,7 +175,7 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 
 			responseBytes, err := json.Marshal(resp)
 			if err != nil {
-				println("Error marshalling response:", err.Error())
+				h.Logger.Warn("Error marshalling response:", err.Error())
 				return
 			}
 			c.SafeSend(responseBytes)
@@ -217,7 +217,7 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 
 			responseBytes, err := json.Marshal(resp)
 			if err != nil {
-				println("Error marshalling response:", err.Error())
+				h.Logger.Warn("Error marshalling response:", err.Error())
 				return
 			}
 			c.SafeSend(responseBytes)
@@ -226,7 +226,7 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 		{
 			var adminMessage admin.ShoutMessageRequest
 			if err := json.Unmarshal(message.Data, &adminMessage); err != nil {
-				println("Error unmarshalling shout data:", err.Error())
+				h.Logger.Warn("Error unmarshalling shout data:", err.Error())
 				return
 			}
 			padShoutData := admin.ShoutMessageResponse{
@@ -244,7 +244,7 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 			resp[1] = padShoutData
 			responseBytes, err := json.Marshal(resp)
 			if err != nil {
-				println("Error marshalling response:", err.Error())
+				h.Logger.Warn("Error marshalling response:", err.Error())
 				return
 			}
 
@@ -259,7 +259,7 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 		{
 			var padDeleteData admin.PadDeleteData
 			if err := json.Unmarshal(message.Data, &padDeleteData); err != nil {
-				println("Error unmarshalling padDelete data:", err.Error())
+				h.Logger.Warn("Error unmarshalling padDelete data:", err.Error())
 				return
 			}
 
@@ -276,7 +276,7 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 
 			responseBytes, err := json.Marshal(resp)
 			if err != nil {
-				println("Error marshalling response:", err.Error())
+				h.Logger.Warn("Error marshalling response:", err.Error())
 				return
 			}
 			c.SafeSend(responseBytes)
@@ -289,7 +289,7 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 			}
 			var padDeleteData admin.PadCleanupData
 			if err := json.Unmarshal(message.Data, &padDeleteData); err != nil {
-				println("Error unmarshalling padDelete data:", err.Error())
+				h.Logger.Warn("Error unmarshalling padDelete data:", err.Error())
 				return
 			}
 
@@ -314,7 +314,7 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 
 			responseBytes, err := json.Marshal(resp)
 			if err != nil {
-				println("Error marshalling response:", err.Error())
+				h.Logger.Warn("Error marshalling response:", err.Error())
 			}
 			c.SafeSend(responseBytes)
 		}
@@ -337,7 +337,7 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 
 			responseBytes, err := json.Marshal(resp)
 			if err != nil {
-				println("Error marshalling response:", err.Error())
+				h.Logger.Warn("Error marshalling response:", err.Error())
 				return
 			}
 			c.SafeSend(responseBytes)
@@ -353,7 +353,7 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 			resp[1] = totalUserMessage
 			responseBytes, err := json.Marshal(resp)
 			if err != nil {
-				println("Error marshalling response:", err.Error())
+				h.Logger.Warn("Error marshalling response:", err.Error())
 				return
 			}
 			c.SafeSend(responseBytes)
@@ -455,7 +455,7 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 				SessionID string `json:"sessionId"`
 			}
 			if err := json.Unmarshal(message.Data, &kickData); err != nil {
-				println("Error unmarshalling kickUser data:", err.Error())
+				h.Logger.Warn("Error unmarshalling kickUser data:", err.Error())
 				return
 			}
 			h.hub.ClientsRWMutex.RLock()
@@ -485,7 +485,7 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 				Limit int    `json:"limit"`
 			}
 			if err := json.Unmarshal(message.Data, &searchData); err != nil {
-				println("Error unmarshalling searchPadContent:", err.Error())
+				h.Logger.Warn("Error unmarshalling searchPadContent:", err.Error())
 				return
 			}
 			if searchData.Limit <= 0 || searchData.Limit > 50 {
@@ -571,7 +571,7 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 				PadNames []string `json:"padNames"`
 			}
 			if err := json.Unmarshal(message.Data, &bulkData); err != nil {
-				println("Error unmarshalling bulkDeletePads:", err.Error())
+				h.Logger.Warn("Error unmarshalling bulkDeletePads:", err.Error())
 				return
 			}
 			deleted := 0
@@ -597,7 +597,7 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 			c.SafeSend(responseBytes)
 		}
 	default:
-		println("Unknown admin event:", message.Event)
+		h.Logger.Warn("Unknown admin event:", message.Event)
 	}
 }
 
@@ -624,14 +624,14 @@ func (h AdminMessageHandler) DeleteRevisions(padId string, keepRevisions int) er
 	h.Logger.Infof("Deleting revisions for pad %s until revision %d", padId, cleanupUntilRevision)
 	compressedChangeset, err := h.padMessageHandler.ComposePadChangesets(retrievedPad, 0, cleanupUntilRevision+1)
 	if err != nil {
-		println("Error composing changeset:", err.Error())
+		h.Logger.Warn("Error composing changeset:", err.Error())
 		return err
 	}
 
 	// Save revisions to keep (we need to resave because of changed changesets due to compression)
 	revisionsToKeep, err := retrievedPad.GetRevisions(0, retrievedPad.Head)
 	if err != nil {
-		println("Error getting revisions to keep:", err.Error())
+		h.Logger.Warn("Error getting revisions to keep:", err.Error())
 		return err
 	}
 	currentRevsToKeep := make(map[int]db2.PadSingleRevision)
@@ -640,7 +640,7 @@ func (h AdminMessageHandler) DeleteRevisions(padId string, keepRevisions int) er
 	}
 
 	if err := retrievedPad.RemoveAllSavedRevisions(); err != nil {
-		println("Error removing saved revisions:", err.Error())
+		h.Logger.Warn("Error removing saved revisions:", err.Error())
 		return err
 	}
 
@@ -667,7 +667,7 @@ func (h AdminMessageHandler) DeleteRevisions(padId string, keepRevisions int) er
 	pool := padContent.Pool
 	optNewAtext, err := changeset.ApplyToAText(compressedChangeset, newAtext, pool)
 	if err != nil {
-		println("Error applying compressed changeset to atext:", err.Error())
+		h.Logger.Warn("Error applying compressed changeset to atext:", err.Error())
 		return err
 	}
 	newAtext = *optNewAtext
@@ -675,7 +675,7 @@ func (h AdminMessageHandler) DeleteRevisions(padId string, keepRevisions int) er
 	createdRevision := adminutils.CreateRevision(compressedChangeset, currentRevsToKeep[cleanupUntilRevision].Timestamp, true, currentRevsToKeep[cleanupUntilRevision].AuthorId, newAtext, pool)
 
 	if err := h.store.SaveRevision(padContent.Id, 0, createdRevision.Changeset, newAtext.ToDBAText(), pool.ToRevDB(), createdRevision.Meta.Author, createdRevision.Meta.Timestamp); err != nil {
-		println("Error saving compressed revision:", err.Error())
+		h.Logger.Warn("Error saving compressed revision:", err.Error())
 		return err
 	}
 	for i := 0; i < keepRevisions; i++ {
@@ -684,19 +684,19 @@ func (h AdminMessageHandler) DeleteRevisions(padId string, keepRevisions int) er
 
 		currentRevisionDb, ok := currentRevsToKeep[rev]
 		if !ok {
-			println("Error: revision", rev, "not found in current revisions to keep")
+			h.Logger.Warn("Error: revision", rev, "not found in current revisions to keep")
 			return errors.New("revision not found in current revisions to keep")
 		}
 		optNewAtext, err = changeset.ApplyToAText(currentRevisionDb.Changeset, newAtext, pool)
 		if err != nil {
-			println("Error applying changeset to atext for revision", rev, ":", err.Error())
+			h.Logger.Warn("Error applying changeset to atext for revision", rev, ":", err.Error())
 			return err
 		}
 		newAtext = *optNewAtext
 
 		createdRevision = adminutils.CreateRevision(currentRevisionDb.Changeset, currentRevisionDb.Timestamp, true, currentRevisionDb.AuthorId, newAtext, pool)
 		if err := h.store.SaveRevision(padContent.Id, newRev, createdRevision.Changeset, newAtext.ToDBAText(), pool.ToRevDB(), createdRevision.Meta.Author, createdRevision.Meta.Timestamp); err != nil {
-			println("Error saving revision after deleting:", err.Error())
+			h.Logger.Warn("Error saving revision after deleting:", err.Error())
 			return err
 		}
 	}

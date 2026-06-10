@@ -512,6 +512,14 @@ func (m *MemoryDataStore) GetGroup(groupId string) (*string, error) {
 	return &group, nil
 }
 
+func (m *MemoryDataStore) GetGroups() (*[]string, error) {
+	groups := make([]string, 0, len(m.groupStore))
+	for id := range m.groupStore {
+		groups = append(groups, id)
+	}
+	return &groups, nil
+}
+
 // ============== SESSION METHODS ==============
 
 func (m *MemoryDataStore) GetSessionById(sessionID string) (*session2.Session, error) {

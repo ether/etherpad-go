@@ -119,6 +119,14 @@ func NewPadMessageHandler(db db2.DataStore, hooks *hooks.Hook, padManager *pad.M
 	return &padMessageHandler
 }
 
+// sendDisconnectMessage tells the client to disconnect for the given reason
+// (e.g. "badChangeset"), mirroring the original's
+// socket.emit('message', {disconnect: reason}).
+func sendDisconnectMessage(client *Client, reason string) {
+	msg, _ := json.Marshal([]interface{}{"message", map[string]string{"disconnect": reason}})
+	client.SafeSend(msg)
+}
+
 func (p *PadMessageHandler) handleUserChanges(task Task) {
 	var wireApool = apool.NewAPool()
 	var newAPool = apool.NewAPool()
@@ -133,26 +141,30 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 
 	var retrievedPad, err = p.padManager.GetPad(session.PadId, nil, &session.Author)
 	if err != nil {
-		println("Error retrieving pad", err)
+		p.Logger.Warnf("Error retrieving pad %s: %v", session.PadId, err)
+		sendDisconnectMessage(task.socket, "badChangeset")
 		return
 	}
 	checkedRep, err := changeset.CheckRep(task.message.Data.Data.Changeset)
 
 	if err != nil {
-		println("Error checking rep", err.Error())
+		p.Logger.Warnf("Error checking rep of changeset %s: %v", task.message.Data.Data.Changeset, err)
+		sendDisconnectMessage(task.socket, "badChangeset")
 		return
 	}
 
 	unpackedChangeset, err := changeset.Unpack(*checkedRep)
 
 	if err != nil {
-		println("Error retrieving changeset", err)
+		p.Logger.Warnf("Error unpacking changeset %s: %v", *checkedRep, err)
+		sendDisconnectMessage(task.socket, "badChangeset")
 		return
 	}
 	deserializedOps, errWhenDeserializing := changeset.DeserializeOps(unpackedChangeset.Ops)
 
 	if errWhenDeserializing != nil {
-		println("error when deserializing ops")
+		p.Logger.Warnf("Error deserializing ops of changeset %s: %v", *checkedRep, errWhenDeserializing)
+		sendDisconnectMessage(task.socket, "badChangeset")
 		return
 	}
 
@@ -182,10 +194,12 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 				}, &dontAdd) != -1
 				if !known {
 					p.Logger.Warnf("Author %s tried to set unknown author %s on existing text", session.Author, *opAuthorId)
+					sendDisconnectMessage(task.socket, "badChangeset")
 					return
 				}
 			} else {
 				p.Logger.Warnf("Author %s tried to submit changes as author %s (op %s)", session.Author, *opAuthorId, op.OpCode)
+				sendDisconnectMessage(task.socket, "badChangeset")
 				return
 			}
 		}
@@ -199,6 +213,7 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 		if op.OpCode == "+" && (opAuthorId == nil || *opAuthorId == "") {
 			p.Logger.Warnf("Author %s submitted an insert without an author attribute in changeset %s",
 				session.Author, task.message.Data.Data.Changeset)
+			sendDisconnectMessage(task.socket, "badChangeset")
 			return
 		}
 		// Upstream #7773: defense-in-depth — reject any wire-borne `*N`
@@ -211,6 +226,7 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 		if opAuthorId != nil && *opAuthorId == pad2.SystemAuthorId {
 			p.Logger.Warnf("Author %s attempted to submit changes as the reserved system author %s in changeset %s",
 				session.Author, *opAuthorId, task.message.Data.Data.Changeset)
+			sendDisconnectMessage(task.socket, "badChangeset")
 			return
 		}
 	}
@@ -237,6 +253,7 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 		var revisionPad, err = retrievedPad.GetRevision(r)
 		if err != nil {
 			p.Logger.Warnf("Error retrieving revision %d: %v", r, err)
+			sendDisconnectMessage(task.socket, "badChangeset")
 			return
 		}
 
@@ -245,6 +262,7 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 			unpackedChangeset, err = changeset.Unpack(canonicalCs)
 			if err != nil {
 				p.Logger.Warnf("Error unpacking changeset: %v", err)
+				sendDisconnectMessage(task.socket, "badChangeset")
 				return
 			}
 			rebasedChangeset = changeset.Identity(unpackedChangeset.OldLen)
@@ -256,6 +274,7 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 		optRebasedChangeset, err := changeset.Follow(revisionPad.Changeset, rebasedChangeset, false, &retrievedPad.Pool)
 		if err != nil {
 			p.Logger.Warnf("Error rebasing changeset at rev %d: %v for %s", r, err, retrievedPad.Id)
+			sendDisconnectMessage(task.socket, "badChangeset")
 			return
 		}
 		rebasedChangeset = *optRebasedChangeset
@@ -268,12 +287,14 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 
 	if err != nil {
 		p.Logger.Warnf("Error retrieving old len from changeset: %v", err)
+		sendDisconnectMessage(task.socket, "badChangeset")
 		return
 	}
 
 	if *oldLen != utf8.RuneCountInString(prevText) {
 		p.Logger.Warnf("Can't apply changeset to pad text: oldLen=%d, prevTextLen=%d, baseRev=%d, headRev=%d",
 			*oldLen, utf8.RuneCountInString(prevText), r, retrievedPad.Head)
+		sendDisconnectMessage(task.socket, "badChangeset")
 		return
 	}
 
@@ -288,6 +309,7 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 	projectedText, projectErr := changeset.ApplyToText(rebasedChangeset, prevText)
 	if projectErr != nil {
 		p.Logger.Warnf("Error projecting changeset application: %v", projectErr)
+		sendDisconnectMessage(task.socket, "badChangeset")
 		return
 	}
 	if projectedText == nil || !strings.HasSuffix(*projectedText, "\n") {
@@ -296,12 +318,14 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 			projLen = utf8.RuneCountInString(*projectedText)
 		}
 		p.Logger.Warnf("Rejected USER_CHANGES whose application would leave the pad without a trailing '\\n' (length %d). Every USER_CHANGES must preserve the \"doc ends with \\n\" invariant.", projLen)
+		sendDisconnectMessage(task.socket, "badChangeset")
 		return
 	}
 
 	newRev, err := retrievedPad.AppendRevision(rebasedChangeset, &session.Author)
 	if err != nil {
-		println("Error appending revision", err.Error())
+		p.Logger.Errorf("Error appending revision: %v", err)
+		sendDisconnectMessage(task.socket, "badChangeset")
 		return
 	}
 	// The head revision will either stay the same or increase by 1 depending on whether the
@@ -312,9 +336,21 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 
 	if !slices.Contains(rangeForRevs, *newRev) {
 		p.Logger.Warnf("Head revision after appending changeset is unexpected. Expected: %v, Got: %d", rangeForRevs, *newRev)
+		sendDisconnectMessage(task.socket, "badChangeset")
 		return
 	}
-	finalRev := retrievedPad.Head
+	finalRev := *newRev
+
+	// Mirror the original's _correctMarkersInPad: if the accepted revision
+	// left line markers (e.g. list bullets) that are not at the start of a
+	// line, append a correction revision that removes them. The correction
+	// is broadcast via UpdatePadClients below; ACCEPT_COMMIT still carries
+	// the user's own revision number.
+	if correction := p.correctMarkersInPad(retrievedPad.AText, retrievedPad.Pool); correction != nil {
+		if _, err := retrievedPad.AppendRevision(*correction, &session.Author); err != nil {
+			p.Logger.Errorf("Error appending marker-correction revision: %v", err)
+		}
+	}
 
 	// The client assumes that ACCEPT_COMMIT and NEW_CHANGES messages arrive in order. Make sure we
 	// have already sent any previous ACCEPT_COMMIT and NEW_CHANGES messages.
@@ -336,11 +372,11 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 		optTime, err := retrievedPad.GetRevisionDate(finalRev)
 		if err != nil {
 			p.Logger.Warnf("Error retrieving revision date: %v", err)
+			sendDisconnectMessage(task.socket, "badChangeset")
 			return
 		}
 		session.Time = *optTime
 	}
-	retrievedPad.Head = finalRev
 	p.UpdatePadClients(retrievedPad)
 }
 
@@ -366,7 +402,7 @@ func (p *PadMessageHandler) ComposePadChangesets(retrievedPad *pad2.Pad, startNu
 		cs := (*requiredChangesets)[r]
 		optStartChangeset, err := changeset.Compose(startChangeset, cs.Changeset, &padPool)
 		if err != nil {
-			println("Error composing changesets", err)
+			p.Logger.Warn("Error composing changesets", err)
 			return "", err
 		}
 		startChangeset = *optStartChangeset
@@ -441,7 +477,7 @@ func (p *PadMessageHandler) HandleMessage(message any, client *Client, retrieved
 		} else {
 			ip = client.ClientIP
 		}
-		println("pre-CLIENT_READY message from IP " + ip)
+		p.Logger.Warn("pre-CLIENT_READY message from IP " + ip)
 		return
 	}
 
@@ -493,7 +529,7 @@ func (p *PadMessageHandler) HandleMessage(message any, client *Client, retrieved
 	var readonly = thisSession.ReadOnly
 	var thisSessionNewRetrieved = p.SessionStore.getSession(client.SessionId)
 	if thisSessionNewRetrieved == nil {
-		println("Client disconnected")
+		p.Logger.Warn("Client disconnected")
 		return
 	}
 
@@ -518,7 +554,7 @@ func (p *PadMessageHandler) HandleMessage(message any, client *Client, retrieved
 	case ws.UserChange:
 		{
 			if readonly {
-				println("write attempt on read-only pad")
+				p.Logger.Warn("write attempt on read-only pad")
 				return
 			}
 
@@ -541,32 +577,36 @@ func (p *PadMessageHandler) HandleMessage(message any, client *Client, retrieved
 			}
 			p.HandleSavedRevisionMessage(foundPad, sess.Author)
 		}
+	case ws.ClientMessage:
+		{
+			p.HandleClientMessage(expectedType, client, thisSession)
+		}
 	case ws.GetChatMessages:
 		{
 			if expectedType.Data.Data.Start < 0 {
-				println("Invalid start for chat messages")
+				p.Logger.Warn("Invalid start for chat messages")
 				return
 			}
 
 			if expectedType.Data.Data.End < 0 {
-				println("Invalid end for chat messages")
+				p.Logger.Warn("Invalid end for chat messages")
 				return
 			}
 
 			var count = expectedType.Data.Data.End - expectedType.Data.Data.Start
 			if count < 0 || count > 100 {
-				println("End must be greater than start for chat messages and no more than 100 messages can be requested at once")
+				p.Logger.Warn("End must be greater than start for chat messages and no more than 100 messages can be requested at once")
 				return
 			}
 
 			retrievedPad, err := p.padManager.GetPad(thisSession.PadId, nil, &thisSession.Author)
 			if err != nil {
-				println("Error retrieving pad for chat messages", err)
+				p.Logger.Warn("Error retrieving pad for chat messages", err)
 				return
 			}
 			chatMessages, err := retrievedPad.GetChatMessages(expectedType.Data.Data.Start, expectedType.Data.Data.End)
 			if err != nil {
-				println("Error retrieving chat messages", err)
+				p.Logger.Warn("Error retrieving chat messages", err)
 				return
 			}
 
@@ -581,11 +621,6 @@ func (p *PadMessageHandler) HandleMessage(message any, client *Client, retrieved
 				if msg.DisplayName != nil && *msg.DisplayName != "" {
 					convertedMessages[len(convertedMessages)-1].UserName = msg.DisplayName
 				}
-			}
-
-			if err != nil {
-				println("Error retrieving chat messages", err)
-				return
 			}
 
 			var arr = make([]interface{}, 2)
@@ -609,22 +644,22 @@ func (p *PadMessageHandler) HandleMessage(message any, client *Client, retrieved
 			p.HandlePadDelete(client, expectedType)
 		}
 	default:
-		println("Unknown message type received")
+		p.Logger.Warn("Unknown message type received")
 	}
 }
 
 func (p *PadMessageHandler) HandleChangesetRequest(socket *Client, message ws.ChangesetReq) {
 	if (message.Data.Data.Granularity <= 0) || (message.Data.Data.Start < 0) {
-		println("Invalid changeset request parameters")
+		p.Logger.Warn("Invalid changeset request parameters")
 		return
 	}
 	start, err := utils.CheckValidRev(strconv.Itoa(message.Data.Data.Start))
 	if err != nil {
-		println("Error checking valid rev for changeset request", err)
+		p.Logger.Warn("Error checking valid rev for changeset request", err)
 		return
 	}
 	if message.Data.Data.RequestID == -1 {
-		println("Invalid request ID for changeset request")
+		p.Logger.Warn("Invalid request ID for changeset request")
 		return
 	}
 
@@ -633,13 +668,13 @@ func (p *PadMessageHandler) HandleChangesetRequest(socket *Client, message ws.Ch
 	end := startRev + (message.Data.Data.Granularity * 100)
 	session := p.SessionStore.getSession(socket.SessionId)
 	if session == nil {
-		println("Session not found for changeset request")
+		p.Logger.Warn("Session not found for changeset request")
 		return
 	}
 
 	retrievedPad, err := p.padManager.GetPad(session.PadId, nil, &session.Author)
 	if err != nil {
-		println("Error retrieving pad for changeset request", err)
+		p.Logger.Warn("Error retrieving pad for changeset request", err)
 		return
 	}
 	headRev := retrievedPad.Head
@@ -649,7 +684,7 @@ func (p *PadMessageHandler) HandleChangesetRequest(socket *Client, message ws.Ch
 
 	data, err := p.getChangesetInfo(*retrievedPad, startRev, end, message.Data.Data.Granularity)
 	if err != nil {
-		println("Error getting changeset info for changeset request", err)
+		p.Logger.Warn("Error getting changeset info for changeset request", err)
 		return
 	}
 
@@ -665,7 +700,7 @@ func (p *PadMessageHandler) HandleChangesetRequest(socket *Client, message ws.Ch
 	arr[1] = messageToSend
 	encoded, err := json.Marshal(arr)
 	if err != nil {
-		println("Error marshalling changeset response", err)
+		p.Logger.Warn("Error marshalling changeset response", err)
 		return
 	}
 
@@ -775,14 +810,14 @@ func (p *PadMessageHandler) getChangesetInfo(retrievedPad pad2.Pad, startNum int
 
 	lines, err := getPadLines(&retrievedPad, startNum-1)
 	if err != nil {
-		println("Error getting pad lines", err)
+		p.Logger.Warn("Error getting pad lines", err)
 		return nil, err
 	}
 
 	for _, composeNeeded := range compositesChangesetNeeded {
 		changesetComposed, err := p.composePadChangesets(&retrievedPad, composeNeeded.Start, composeNeeded.End)
 		if err != nil {
-			println("Error composing pad changesets", err)
+			p.Logger.Warn("Error composing pad changesets", err)
 			return nil, err
 		}
 		composedChangesets[fmt.Sprintf("%d/%d", composeNeeded.Start, composeNeeded.End)] = changesetComposed
@@ -806,15 +841,15 @@ func (p *PadMessageHandler) getChangesetInfo(retrievedPad pad2.Pad, startNum int
 		forwards := composedChangesets[fmt.Sprintf("%d/%d", compositeStart, compositeEnd)]
 		backwards, err := changeset.Inverse(forwards, lines.TextLines, lines.Alines, &retrievedPad.Pool)
 		if err != nil {
-			println("Error getting inverse changeset", err)
+			p.Logger.Warn("Error getting inverse changeset", err)
 			return nil, err
 		}
 		if err := changeset.MutateAttributionLines(forwards, &lines.Alines, &retrievedPad.Pool); err != nil {
-			println("Error mutating attribution lines", err)
+			p.Logger.Warn("Error mutating attribution lines", err)
 			return nil, err
 		}
 		if err := changeset.MutateTextLines(forwards, &lines.TextLines); err != nil {
-			println("Error mutating text lines", err)
+			p.Logger.Warn("Error mutating text lines", err)
 			return nil, err
 		}
 
@@ -850,19 +885,19 @@ func (p *PadMessageHandler) getChangesetInfo(retrievedPad pad2.Pad, startNum int
 func (p *PadMessageHandler) SendChatMessageToPadClients(session *ws.Session, chatMessage ws.ChatMessageData) {
 	var retrievedPad, err = p.padManager.GetPad(session.PadId, nil, chatMessage.AuthorId)
 	if err != nil {
-		println("Error retrieving pad for chat message", err)
+		p.Logger.Warn("Error retrieving pad for chat message", err)
 		return
 	}
 	// pad.appendChatMessage() ignores the displayName property so we don't need to wait for
 	// authorManager.getAuthorName() to resolve before saving the message to the database.
 	_, err = retrievedPad.AppendChatMessage(chatMessage.AuthorId, *chatMessage.Time, chatMessage.Text)
 	if err != nil {
-		println("Error appending chat message to pad", err)
+		p.Logger.Warn("Error appending chat message to pad", err)
 		return
 	}
 	authorName, err := p.authorManager.GetAuthorName(*chatMessage.AuthorId)
 	if err != nil {
-		println("Error retrieving author name for chat message", err)
+		p.Logger.Warn("Error retrieving author name for chat message", err)
 	}
 	if authorName != nil && *authorName != "" {
 		chatMessage.DisplayName = authorName
@@ -912,7 +947,7 @@ func (p *PadMessageHandler) HandlePadDelete(client *Client, padDeleteMessage Pad
 	var session = p.SessionStore.getSession(client.SessionId)
 
 	if session == nil || session.Author == "" || session.PadId == "" {
-		println("Session not ready")
+		p.Logger.Warn("Session not ready")
 		return
 	}
 
@@ -921,29 +956,29 @@ func (p *PadMessageHandler) HandlePadDelete(client *Client, padDeleteMessage Pad
 		return
 	}
 	if !*retrievedPad {
-		println("Pad does not exist")
+		p.Logger.Warn("Pad does not exist")
 		return
 	}
 	retrievedPadObj, err := p.padManager.GetPad(padDeleteMessage.Data.PadID, nil, nil)
 	if err != nil {
-		println("Error retrieving pad")
+		p.Logger.Warn("Error retrieving pad")
 		return
 	}
 	// Only the one doing the first revision can delete the pad, otherwise people could troll a lot
 	firstContributor, err := retrievedPadObj.GetRevisionAuthor(0)
 	if err != nil {
-		println("Error retrieving first contributor")
+		p.Logger.Warn("Error retrieving first contributor")
 		return
 	}
 
 	if *firstContributor != session.Author {
-		println("Only first contributor can delete the pad")
+		p.Logger.Warn("Only first contributor can delete the pad")
 		return
 	}
 
 	err = p.DeletePad(retrievedPadObj.Id)
 	if err != nil {
-		println("Error deleting pad", err)
+		p.Logger.Warn("Error deleting pad", err)
 		return
 	}
 }
@@ -988,13 +1023,13 @@ func (p *PadMessageHandler) HandleUserInfoUpdate(userInfo UserInfoUpdate, client
 	var session = p.SessionStore.getSession(client.SessionId)
 
 	if session == nil || session.Author == "" || session.PadId == "" {
-		println("Session not ready")
+		p.Logger.Warn("Session not ready")
 		return
 	}
 
 	var match, _ = regexp.MatchString("^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$", *userInfo.Data.UserInfo.ColorId)
 	if !match {
-		println("Malformed color", *userInfo.Data.UserInfo.ColorId)
+		p.Logger.Warn("Malformed color", *userInfo.Data.UserInfo.ColorId)
 		return
 	}
 
@@ -1037,14 +1072,18 @@ func (p *PadMessageHandler) HandleUserInfoUpdate(userInfo UserInfoUpdate, client
 }
 
 func (p *PadMessageHandler) correctMarkersInPad(atext apool.AText, apool apool.APool) *string {
-	var text = atext.Text
+	var text = []rune(atext.Text)
 
 	// collect char positions of line markers (e.g. bullets) in new atext
 	// that aren't at the start of a line
 	var badMarkers = make([]int, 0)
 	var offset = 0
 
-	deserializedOps, _ := changeset.DeserializeOps(atext.Attribs)
+	deserializedOps, err := changeset.DeserializeOps(atext.Attribs)
+	if err != nil {
+		p.Logger.Warnf("Error deserializing atext attribs while correcting markers: %v", err)
+		return nil
+	}
 
 	for _, op := range *deserializedOps {
 		var attribs = changeset.FromString(op.Attribs, &apool)
@@ -1069,10 +1108,10 @@ func (p *PadMessageHandler) correctMarkersInPad(atext apool.AText, apool apool.A
 	// create changeset that removes these bad markers
 	offset = 0
 
-	var builder = changeset.NewBuilder(utf8.RuneCountInString(text))
+	var builder = changeset.NewBuilder(len(text))
 
 	for _, i := range badMarkers {
-		builder.KeepText(text[offset:i], nil, nil)
+		builder.KeepText(string(text[offset:i]), nil, nil)
 		builder.Remove(1, 0)
 		offset = i + 1
 	}
@@ -1097,7 +1136,7 @@ func (p *PadMessageHandler) HandleDisconnectOfPadClient(client *Client, settings
 	var roomSockets = p.GetRoomSockets(thisSession.PadId)
 	var authorToRemove, err = p.authorManager.GetAuthor(thisSession.Author)
 	if err != nil {
-		println("Error retrieving author for disconnect")
+		p.Logger.Warn("Error retrieving author for disconnect")
 		return
 	}
 
@@ -1144,7 +1183,7 @@ func (p *PadMessageHandler) HandleDisconnectOfPadClient(client *Client, settings
 
 func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, client *Client, thisSession *ws.Session, retrievedSettings *settings.Settings, logger *zap.SugaredLogger) {
 	if ready.Data.UserInfo.ColorId != nil && !colorRegEx.MatchString(*ready.Data.UserInfo.ColorId) {
-		println("Invalid color id")
+		p.Logger.Warn("Invalid color id")
 		ready.Data.UserInfo.ColorId = nil
 	}
 
@@ -1159,7 +1198,7 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 	var retrievedPad, err = p.padManager.GetPad(thisSession.PadId, nil, &thisSession.Author)
 
 	if err != nil {
-		println("Error getting pad")
+		p.Logger.Warn("Error getting pad")
 		return
 	}
 
@@ -1183,12 +1222,12 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 	var foundAuthor, errAuth = p.authorManager.GetAuthor(thisSession.Author)
 
 	if errAuth != nil {
-		println("Error retrieving author")
+		p.Logger.Warn("Error retrieving author")
 		return
 	}
 
 	if foundAuthor == nil || (*foundAuthor).Id == "" {
-		println("Author not found")
+		p.Logger.Warn("Author not found")
 		return
 	}
 
@@ -1363,7 +1402,7 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 
 		retrivedClientVars, err := p.factory.NewClientVars(*retrievedPad, thisSession, wirePool, atextSnapshot.Attribs, historicalAuthorData, retrievedSettings, numConnected)
 		if err != nil {
-			println("Error creating client vars", err.Error())
+			p.Logger.Warn("Error creating client vars", err.Error())
 			return
 		}
 		// Honor the atomic snapshot in the outgoing CLIENT_VARS.
@@ -1399,7 +1438,7 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 
 	retrievedAuthor, err := p.authorManager.GetAuthor(thisSession.Author)
 	if err != nil {
-		println("Error retrieving author for USER_NEWINFO broadcast")
+		p.Logger.Warn("Error retrieving author for USER_NEWINFO broadcast")
 		return
 	}
 
@@ -1440,7 +1479,7 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 		}
 		otherAuthor, err := p.authorManager.GetAuthor(sinfo.Author)
 		if err != nil {
-			println("Error retrieving author for USER_NEWINFO send to new client")
+			p.Logger.Warn("Error retrieving author for USER_NEWINFO send to new client")
 			continue
 		}
 		var userNewInfoDat = ws.UserNewInfoDat{
@@ -1492,7 +1531,7 @@ func (p *PadMessageHandler) UpdatePadClients(pad *pad2.Pad) {
 		}
 
 		for sessionInfo.Revision < pad.Head {
-			println("Sending NEW_CHANGES to client for pad", pad.Id, "from rev", sessionInfo.Revision, "to", pad.Head)
+			p.Logger.Warn("Sending NEW_CHANGES to client for pad", pad.Id, "from rev", sessionInfo.Revision, "to", pad.Head)
 			var r = sessionInfo.Revision + 1
 			if _, ok := revCache[r]; !ok {
 				revCache[r], _ = pad.GetRevision(r)
@@ -1524,7 +1563,7 @@ func (p *PadMessageHandler) UpdatePadClients(pad *pad2.Pad) {
 			marshalledMessage, err := json.Marshal(arr)
 
 			if err != nil {
-				println("Error sending NEW_CHANGES message to client")
+				p.Logger.Warn("Error sending NEW_CHANGES message to client")
 				return
 			}
 
@@ -1532,6 +1571,44 @@ func (p *PadMessageHandler) UpdatePadClients(pad *pad2.Pad) {
 			sessionInfo.Time = currentTime
 			sessionInfo.Revision = r
 		}
+	}
+}
+
+// HandleClientMessage handles the COLLABROOM CLIENT_MESSAGE family,
+// mirroring the original's handleSuggestUserName / handlePadOptionsMessage.
+func (p *PadMessageHandler) HandleClientMessage(message ws.ClientMessage, client *Client, session *ws.Session) {
+	if session == nil || session.PadId == "" || session.Author == "" {
+		p.Logger.Warn("CLIENT_MESSAGE received before session was ready")
+		return
+	}
+
+	payload := message.Data.Data.Payload
+	switch payload.Type {
+	case "suggestUserName":
+		if payload.NewName == "" || payload.UnnamedId == "" {
+			p.Logger.Warnf("suggestUserName from %s is missing newName or unnamedId", session.Author)
+			return
+		}
+		// Relay the message verbatim to the sockets of the unnamed author.
+		arr := []any{"message", message.Data}
+		encoded, err := json.Marshal(arr)
+		if err != nil {
+			p.Logger.Errorf("Error marshalling suggestUserName relay: %v", err)
+			return
+		}
+		for _, socket := range p.GetRoomSockets(session.PadId) {
+			targetSession := p.SessionStore.getSession(socket.SessionId)
+			if targetSession != nil && targetSession.Author == payload.UnnamedId {
+				socket.SafeSend(encoded)
+			}
+		}
+	case "padoptions":
+		// The original gates pad-wide settings behind enablePadWideSettings
+		// (default off) and per-pad settings storage, neither of which this
+		// implementation supports yet — ignore, like the original default.
+		p.Logger.Debugf("Ignoring padoptions CLIENT_MESSAGE from %s: pad-wide settings are not supported", session.Author)
+	default:
+		p.Logger.Warnf("Unknown CLIENT_MESSAGE payload type %q from %s", payload.Type, session.Author)
 	}
 }
 

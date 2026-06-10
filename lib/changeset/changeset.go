@@ -377,9 +377,8 @@ func Follow(c string, rebasedChangeset string, reverseInsertOrder bool, pool *ap
 			}
 
 			if whichToDo == 1 {
-				err := chars1.Skip(op1.Chars)
-				if err != nil {
-					panic(err)
+				if err := chars1.Skip(op1.Chars); err != nil {
+					return nil, err
 				}
 				opOut.OpCode = "="
 				opOut.Lines = op1.Lines
@@ -780,11 +779,12 @@ func Inverse(cs string, lines []string, alines []string, pool *apool.APool) (*st
 
 	builder := NewBuilder(unpacked.NewLen)
 
-	consumeAttribRuns := func(numChars int, callback func(length int, attribs string, endsLine bool)) {
+	consumeAttribRuns := func(numChars int, callback func(length int, attribs string, endsLine bool)) error {
 		if curLineOps == nil || curLineOpsLine != curLine {
-			curLineOps, err = DeserializeOps(alinesGet(curLine))
-			if err != nil {
-				panic(err)
+			var deserializeErr error
+			curLineOps, deserializeErr = DeserializeOps(alinesGet(curLine))
+			if deserializeErr != nil {
+				return deserializeErr
 			}
 			curLineOpsNext = 0
 			curLineOpsLine = curLine
@@ -806,9 +806,10 @@ func Inverse(cs string, lines []string, alines []string, pool *apool.APool) (*st
 				curChar = 0
 				curLineOpsLine = curLine
 				curLineNextOp = NewOp(nil)
-				curLineOps, err = DeserializeOps(alinesGet(curLine))
-				if err != nil {
-					panic(err)
+				var deserializeErr error
+				curLineOps, deserializeErr = DeserializeOps(alinesGet(curLine))
+				if deserializeErr != nil {
+					return deserializeErr
 				}
 				curLineOpsNext = 0
 			}
@@ -831,19 +832,21 @@ func Inverse(cs string, lines []string, alines []string, pool *apool.APool) (*st
 			curLine++
 			curChar = 0
 		}
+		return nil
 	}
 
-	skip := func(n int, l int) {
+	skip := func(n int, l int) error {
 		if l > 0 {
 			curLine += l
 			curChar = 0
 			curLineOps = nil
 			curLineNextOp = NewOp(nil)
 		} else if curLineOps != nil && curLineOpsLine == curLine {
-			consumeAttribRuns(n, func(int, string, bool) {})
+			return consumeAttribRuns(n, func(int, string, bool) {})
 		} else {
 			curChar += n
 		}
+		return nil
 	}
 
 	nextText := func(numChars int) string {
@@ -901,7 +904,7 @@ func Inverse(cs string, lines []string, alines []string, pool *apool.APool) (*st
 					}
 					return backAttribs.String()
 				})
-				consumeAttribRuns(csOp.Chars, func(length int, attribs string, endsLine bool) {
+				if err := consumeAttribRuns(csOp.Chars, func(length int, attribs string, endsLine bool) {
 					lines := 0
 					if endsLine {
 						lines = 1
@@ -910,9 +913,13 @@ func Inverse(cs string, lines []string, alines []string, pool *apool.APool) (*st
 					builder.Keep(length, lines, KeepArgs{
 						stringAttribs: &undoArgs,
 					}, nil)
-				})
+				}); err != nil {
+					return nil, err
+				}
 			} else {
-				skip(csOp.Chars, csOp.Lines)
+				if err := skip(csOp.Chars, csOp.Lines); err != nil {
+					return nil, err
+				}
 				emptyString := ""
 				builder.Keep(csOp.Chars, csOp.Lines, KeepArgs{
 					stringAttribs: &emptyString,
@@ -923,12 +930,14 @@ func Inverse(cs string, lines []string, alines []string, pool *apool.APool) (*st
 		} else if csOp.OpCode == "-" {
 			textBank := nextText(csOp.Chars)
 			textBankIndex := 0
-			consumeAttribRuns(csOp.Chars, func(length int, attribs string, endsLine bool) {
+			if err := consumeAttribRuns(csOp.Chars, func(length int, attribs string, endsLine bool) {
 				builder.Insert(utils.RuneSlice(textBank, textBankIndex, textBankIndex+length), KeepArgs{
 					stringAttribs: &attribs,
 				}, nil)
 				textBankIndex += length
-			})
+			}); err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -1183,8 +1192,14 @@ func DeserializeOps(ops string) (*[]Op, error) {
 }
 
 func Compose(cs1 string, cs2 string, pool *apool.APool) (*string, error) {
-	var unpacked1, _ = Unpack(cs1)
-	var unpacked2, _ = Unpack(cs2)
+	var unpacked1, err1 = Unpack(cs1)
+	if err1 != nil {
+		return nil, err1
+	}
+	var unpacked2, err2 = Unpack(cs2)
+	if err2 != nil {
+		return nil, err2
+	}
 	var len1 = unpacked1.OldLen
 	var len2 = unpacked1.NewLen
 
@@ -1210,7 +1225,7 @@ func Compose(cs1 string, cs2 string, pool *apool.APool) (*string, error) {
 		var opOut, err = SlicerZipperFunc(op1, op2, pool)
 
 		if err != nil {
-			panic(fmt.Sprintf("Error in SlicerZipperFunc: %v", err))
+			return nil, err
 		}
 
 		if opOut.OpCode == "+" {

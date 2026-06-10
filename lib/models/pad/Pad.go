@@ -25,7 +25,7 @@ import (
 var padRegex *regexp.Regexp
 
 func init() {
-	padRegex, _ = regexp.Compile(`^(g\.[A-Za-z0-9]{16})?[^ \t\r\n\f\v$]{1,50}$`)
+	padRegex, _ = regexp.Compile(`^(g\.[A-Za-z0-9]{16}\$)?[^ \t\r\n\f\v$]{1,50}$`)
 }
 
 func IsValidPadId(padID string) bool {
@@ -272,19 +272,14 @@ func (p *Pad) getKeyRevisionAText(revNum int) (*apool.AText, error) {
 }
 
 func (p *Pad) Remove() error {
-	padId := p.Id
-	// Kick session is done in ws package to avoid circular import
-	if utils.RuneIndex(padId, "$") >= 0 {
-		indexOfDollar := utils.RuneIndex(padId, "$")
-		groupId := padId[0:indexOfDollar]
-		groupVal, err := p.db.GetGroup(groupId)
-		if err != nil {
-			return err
-		}
-		// TODO remove pad from group pads list
-		println("Removing group:", groupVal)
-	}
-	// Actual code was moved to padManager to avoid circular import
+	// Kick session is done in ws package to avoid circular import.
+	//
+	// Group membership needs no cleanup here: unlike the original Etherpad,
+	// which keeps a group2pads mapping, this implementation derives a
+	// group's pad list from the `groupId$padName` ID prefix, so deleting
+	// the pad record is sufficient.
+	//
+	// Actual deletion code was moved to padManager to avoid circular import.
 	return nil
 }
 
@@ -555,7 +550,6 @@ func (p *Pad) AppendRevision(cs string, authorId *string) (*int, error) {
 	var newAText, err = changeset.ApplyToAText(cs, p.AText, p.Pool)
 
 	if err != nil {
-		println("Error applying changeset to atext:", err.Error())
 		return &p.Head, errors.New("Error applying changeset to atext " + err.Error())
 	}
 
@@ -578,6 +572,24 @@ func (p *Pad) AppendRevision(cs string, authorId *string) (*int, error) {
 
 	// Save pad
 	p.Save()
+
+	// padRev.authorId has a foreign key on globalAuthor. The reserved system
+	// author (used for unattributed API/plugin writes, upstream #7773) is
+	// never created through the normal author flows, so make sure its row
+	// exists before saving a revision attributed to it.
+	if authorId != nil && *authorId == SystemAuthorId {
+		if _, getErr := p.db.GetAuthor(SystemAuthorId); getErr != nil {
+			systemName := "System"
+			if saveErr := p.db.SaveAuthor(db2.AuthorDB{
+				ID:        SystemAuthorId,
+				Name:      &systemName,
+				ColorId:   "#808080",
+				Timestamp: time.Now().Unix(),
+			}); saveErr != nil {
+				return nil, errors.New("Error ensuring system author exists " + saveErr.Error())
+			}
+		}
+	}
 
 	var poolToUse apool.APool
 	var atextToUse apool.AText

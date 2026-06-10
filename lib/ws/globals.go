@@ -3,6 +3,8 @@ package ws
 import (
 	"sync"
 
+	"github.com/ether/etherpad-go/lib/apool"
+
 	"github.com/ether/etherpad-go/lib/models/ws"
 )
 
@@ -204,4 +206,9 @@ func (s *SessionStore) GetSessionForTest(sessionId string) *ws.Session {
 // RemoveSessionForTest removes a session for testing
 func (s *SessionStore) RemoveSessionForTest(sessionId string) {
 	s.removeSession(sessionId)
+}
+
+// CorrectMarkersInPadForTest exposes correctMarkersInPad for tests.
+func (p *PadMessageHandler) CorrectMarkersInPadForTest(atext apool.AText, pool apool.APool) *string {
+	return p.correctMarkersInPad(atext, pool)
 }

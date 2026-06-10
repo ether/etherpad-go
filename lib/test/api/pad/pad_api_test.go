@@ -143,6 +143,54 @@ func TestPadAPI(t *testing.T) {
 			Name: "CheckToken returns 200",
 			Test: testCheckToken,
 		},
+		// Copy pad
+		testutils.TestRunConfig{
+			Name: "CopyPad copies pad with history",
+			Test: testCopyPadSuccess,
+		},
+		testutils.TestRunConfig{
+			Name: "CopyPad source not found returns 404",
+			Test: testCopyPadSourceNotFound,
+		},
+		testutils.TestRunConfig{
+			Name: "CopyPad destination exists without force returns 409",
+			Test: testCopyPadDestinationExistsNoForce,
+		},
+		testutils.TestRunConfig{
+			Name: "CopyPad with force overwrites destination",
+			Test: testCopyPadForceOverwrites,
+		},
+		// Copy pad without history
+		testutils.TestRunConfig{
+			Name: "CopyPadWithoutHistory copies only current text",
+			Test: testCopyPadWithoutHistorySuccess,
+		},
+		testutils.TestRunConfig{
+			Name: "CopyPadWithoutHistory destination exists without force returns 409",
+			Test: testCopyPadWithoutHistoryDestinationExistsNoForce,
+		},
+		// Move pad
+		testutils.TestRunConfig{
+			Name: "MovePad moves pad and removes source",
+			Test: testMovePadSuccess,
+		},
+		testutils.TestRunConfig{
+			Name: "MovePad destination exists without force returns 409",
+			Test: testMovePadDestinationExistsNoForce,
+		},
+		// Public status
+		testutils.TestRunConfig{
+			Name: "GetPublicStatus defaults to false",
+			Test: testGetPublicStatusDefault,
+		},
+		testutils.TestRunConfig{
+			Name: "SetPublicStatus persists across pad reload",
+			Test: testSetPublicStatusPersists,
+		},
+		testutils.TestRunConfig{
+			Name: "GetPublicStatus pad not found returns 404",
+			Test: testGetPublicStatusNotFound,
+		},
 	)
 
 	defer testDb.StartTestDBHandler()
@@ -698,6 +746,269 @@ func testGetPadUsersCount(t *testing.T, tsStore testutils.TestDataStore) {
 	_ = json.Unmarshal(body, &response)
 
 	assert.Equal(t, 0, response.PadUsersCount)
+}
+
+// ========== Copy Pad ==========
+
+// helper to POST a copy/move-style request body to the given URL
+func postPadOperation(t *testing.T, tsStore testutils.TestDataStore, url string, destinationID string, force bool) (int, []byte) {
+	t.Helper()
+	initStore := tsStore.ToInitStore()
+
+	reqBody := pad.CopyPadRequest{
+		DestinationID: destinationID,
+		Force:         force,
+	}
+	body, err := json.Marshal(reqBody)
+	assert.NoError(t, err)
+
+	req := httptest.NewRequest("POST", url, bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := initStore.C.Test(req)
+	assert.NoError(t, err)
+
+	respBody, _ := io.ReadAll(resp.Body)
+	return resp.StatusCode, respBody
+}
+
+// helper to fetch the text of a pad through the API
+func getPadTextViaAPI(t *testing.T, tsStore testutils.TestDataStore, padId string) (int, string) {
+	t.Helper()
+	initStore := tsStore.ToInitStore()
+
+	req := httptest.NewRequest("GET", "/admin/api/pads/"+padId+"/text", nil)
+	resp, err := initStore.C.Test(req)
+	assert.NoError(t, err)
+
+	var response pad.TextResponse
+	body, _ := io.ReadAll(resp.Body)
+	_ = json.Unmarshal(body, &response)
+	return resp.StatusCode, response.Text
+}
+
+func testCopyPadSuccess(t *testing.T, tsStore testutils.TestDataStore) {
+	initStore := tsStore.ToInitStore()
+	pad.Init(initStore)
+
+	text := "Copy me\n"
+	createTestPad(t, tsStore, "copysource", text)
+
+	// Add a second revision so we can verify history is copied
+	srcPad, err := tsStore.PadManager.GetPad("copysource", nil, nil)
+	assert.NoError(t, err)
+	assert.NoError(t, srcPad.SetText("Copy me v2", nil))
+	sourceHead := srcPad.Head
+
+	status, respBody := postPadOperation(t, tsStore, "/admin/api/pads/copysource/copy", "copydest", false)
+	assert.Equal(t, 200, status, "response body: %s", string(respBody))
+
+	var response pad.PadIDResponse
+	_ = json.Unmarshal(respBody, &response)
+	assert.Equal(t, "copydest", response.PadID)
+
+	// Destination has the same text
+	textStatus, destText := getPadTextViaAPI(t, tsStore, "copydest")
+	assert.Equal(t, 200, textStatus)
+	assert.Contains(t, destText, "Copy me v2")
+
+	// Destination has the same revision history
+	destPad, err := tsStore.PadManager.GetPad("copydest", nil, nil)
+	assert.NoError(t, err)
+	assert.Equal(t, sourceHead, destPad.Head)
+
+	// Source pad still exists
+	srcStatus, srcText := getPadTextViaAPI(t, tsStore, "copysource")
+	assert.Equal(t, 200, srcStatus)
+	assert.Contains(t, srcText, "Copy me v2")
+}
+
+func testCopyPadSourceNotFound(t *testing.T, tsStore testutils.TestDataStore) {
+	initStore := tsStore.ToInitStore()
+	pad.Init(initStore)
+
+	status, _ := postPadOperation(t, tsStore, "/admin/api/pads/nosuchsource/copy", "copydest2", false)
+	assert.Equal(t, 404, status)
+}
+
+func testCopyPadDestinationExistsNoForce(t *testing.T, tsStore testutils.TestDataStore) {
+	initStore := tsStore.ToInitStore()
+	pad.Init(initStore)
+
+	createTestPad(t, tsStore, "copysrc3", "Source\n")
+	createTestPad(t, tsStore, "copydst3", "Existing destination\n")
+
+	status, _ := postPadOperation(t, tsStore, "/admin/api/pads/copysrc3/copy", "copydst3", false)
+	assert.Equal(t, 409, status)
+
+	// Destination is untouched
+	textStatus, destText := getPadTextViaAPI(t, tsStore, "copydst3")
+	assert.Equal(t, 200, textStatus)
+	assert.Contains(t, destText, "Existing destination")
+}
+
+func testCopyPadForceOverwrites(t *testing.T, tsStore testutils.TestDataStore) {
+	initStore := tsStore.ToInitStore()
+	pad.Init(initStore)
+
+	createTestPad(t, tsStore, "copysrc4", "Force source\n")
+	createTestPad(t, tsStore, "copydst4", "Old destination\n")
+
+	status, respBody := postPadOperation(t, tsStore, "/admin/api/pads/copysrc4/copy", "copydst4", true)
+	assert.Equal(t, 200, status, "response body: %s", string(respBody))
+
+	textStatus, destText := getPadTextViaAPI(t, tsStore, "copydst4")
+	assert.Equal(t, 200, textStatus)
+	assert.Contains(t, destText, "Force source")
+	assert.NotContains(t, destText, "Old destination")
+}
+
+// ========== Copy Pad Without History ==========
+
+func testCopyPadWithoutHistorySuccess(t *testing.T, tsStore testutils.TestDataStore) {
+	initStore := tsStore.ToInitStore()
+	pad.Init(initStore)
+
+	createTestPad(t, tsStore, "nohistsrc", "No history source\n")
+
+	// Add a second revision; the copy must not include it
+	srcPad, err := tsStore.PadManager.GetPad("nohistsrc", nil, nil)
+	assert.NoError(t, err)
+	assert.NoError(t, srcPad.SetText("No history source v2", nil))
+	assert.True(t, srcPad.Head > 0)
+
+	status, respBody := postPadOperation(t, tsStore, "/admin/api/pads/nohistsrc/copyWithoutHistory", "nohistdst", false)
+	assert.Equal(t, 200, status, "response body: %s", string(respBody))
+
+	var response pad.PadIDResponse
+	_ = json.Unmarshal(respBody, &response)
+	assert.Equal(t, "nohistdst", response.PadID)
+
+	// Destination has the current text but only the initial revision
+	textStatus, destText := getPadTextViaAPI(t, tsStore, "nohistdst")
+	assert.Equal(t, 200, textStatus)
+	assert.Contains(t, destText, "No history source v2")
+
+	destPad, err := tsStore.PadManager.GetPad("nohistdst", nil, nil)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, destPad.Head)
+}
+
+func testCopyPadWithoutHistoryDestinationExistsNoForce(t *testing.T, tsStore testutils.TestDataStore) {
+	initStore := tsStore.ToInitStore()
+	pad.Init(initStore)
+
+	createTestPad(t, tsStore, "nohistsrc2", "Source\n")
+	createTestPad(t, tsStore, "nohistdst2", "Existing destination\n")
+
+	status, _ := postPadOperation(t, tsStore, "/admin/api/pads/nohistsrc2/copyWithoutHistory", "nohistdst2", false)
+	assert.Equal(t, 409, status)
+}
+
+// ========== Move Pad ==========
+
+func testMovePadSuccess(t *testing.T, tsStore testutils.TestDataStore) {
+	initStore := tsStore.ToInitStore()
+	pad.Init(initStore)
+
+	createTestPad(t, tsStore, "movesource", "Move me\n")
+
+	status, respBody := postPadOperation(t, tsStore, "/admin/api/pads/movesource/move", "movedest", false)
+	assert.Equal(t, 200, status, "response body: %s", string(respBody))
+
+	var response pad.PadIDResponse
+	_ = json.Unmarshal(respBody, &response)
+	assert.Equal(t, "movedest", response.PadID)
+
+	// Destination has the text
+	textStatus, destText := getPadTextViaAPI(t, tsStore, "movedest")
+	assert.Equal(t, 200, textStatus)
+	assert.Contains(t, destText, "Move me")
+
+	// Source pad is gone
+	srcStatus, _ := getPadTextViaAPI(t, tsStore, "movesource")
+	assert.Equal(t, 404, srcStatus)
+}
+
+func testMovePadDestinationExistsNoForce(t *testing.T, tsStore testutils.TestDataStore) {
+	initStore := tsStore.ToInitStore()
+	pad.Init(initStore)
+
+	createTestPad(t, tsStore, "movesrc2", "Move source\n")
+	createTestPad(t, tsStore, "movedst2", "Existing destination\n")
+
+	status, _ := postPadOperation(t, tsStore, "/admin/api/pads/movesrc2/move", "movedst2", false)
+	assert.Equal(t, 409, status)
+
+	// Source pad still exists
+	srcStatus, srcText := getPadTextViaAPI(t, tsStore, "movesrc2")
+	assert.Equal(t, 200, srcStatus)
+	assert.Contains(t, srcText, "Move source")
+}
+
+// ========== Public Status ==========
+
+func testGetPublicStatusDefault(t *testing.T, tsStore testutils.TestDataStore) {
+	initStore := tsStore.ToInitStore()
+	pad.Init(initStore)
+
+	createTestPad(t, tsStore, "publicpad", "Public status test\n")
+
+	req := httptest.NewRequest("GET", "/admin/api/pads/publicpad/publicStatus", nil)
+	resp, err := initStore.C.Test(req)
+
+	assert.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	var response pad.PublicStatusResponse
+	body, _ := io.ReadAll(resp.Body)
+	_ = json.Unmarshal(body, &response)
+
+	assert.False(t, response.PublicStatus)
+}
+
+func testSetPublicStatusPersists(t *testing.T, tsStore testutils.TestDataStore) {
+	initStore := tsStore.ToInitStore()
+	pad.Init(initStore)
+
+	createTestPad(t, tsStore, "publicpad2", "Public status test\n")
+
+	reqBody := pad.PublicStatusRequest{
+		PublicStatus: true,
+	}
+	body, _ := json.Marshal(reqBody)
+
+	req := httptest.NewRequest("POST", "/admin/api/pads/publicpad2/publicStatus", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := initStore.C.Test(req)
+
+	assert.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	// Evict the pad from the manager cache so the next read comes from the database
+	tsStore.PadManager.UnloadPad("publicpad2")
+
+	req = httptest.NewRequest("GET", "/admin/api/pads/publicpad2/publicStatus", nil)
+	resp, err = initStore.C.Test(req)
+
+	assert.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	var response pad.PublicStatusResponse
+	respBody, _ := io.ReadAll(resp.Body)
+	_ = json.Unmarshal(respBody, &response)
+
+	assert.True(t, response.PublicStatus)
+}
+
+func testGetPublicStatusNotFound(t *testing.T, tsStore testutils.TestDataStore) {
+	initStore := tsStore.ToInitStore()
+	pad.Init(initStore)
+
+	req := httptest.NewRequest("GET", "/admin/api/pads/nosuchpublicpad/publicStatus", nil)
+	resp, err := initStore.C.Test(req)
+
+	assert.NoError(t, err)
+	assert.Equal(t, 404, resp.StatusCode)
 }
 
 // ========== Check Token ==========
