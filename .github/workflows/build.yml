@@ -183,6 +183,7 @@ jobs:
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps
         working-directory: ./playwright
+        timeout-minutes: 15
       - name: Run Playwright tests
         run: pnpm test
         working-directory: ./playwright

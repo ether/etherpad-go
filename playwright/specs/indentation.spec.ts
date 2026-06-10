@@ -12,6 +12,10 @@ test.describe('indentation button', function () {
         // get the first text element out of the inner iframe
         const $firstTextElement = padBody.locator('div').first();
 
+        // focus the editor before sending the Tab keypress — otherwise the
+        // keydown is not captured by the editor and indentation never happens
+        await $firstTextElement.click();
+
         // select this text element
         await $firstTextElement.selectText()
 

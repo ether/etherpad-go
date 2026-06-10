@@ -4,5 +4,8 @@ packages:
   - ui
   - plugins/*
 
+allowBuilds:
+  esbuild: true
+
 overrides:
   etherpad-webcomponents: 0.0.4
