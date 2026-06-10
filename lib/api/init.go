@@ -10,6 +10,7 @@ import (
 	"github.com/ether/etherpad-go/lib/api/io"
 	"github.com/ether/etherpad-go/lib/api/oidc"
 	"github.com/ether/etherpad-go/lib/api/pad"
+	"github.com/ether/etherpad-go/lib/api/session"
 	"github.com/ether/etherpad-go/lib/api/static"
 	"github.com/ether/etherpad-go/lib/api/stats"
 	swagger2 "github.com/ether/etherpad-go/lib/api/swagger"
@@ -52,6 +53,7 @@ func InitAPI(store *lib.InitStore) *oidc.Authenticator {
 	author.Init(store)
 	pad.Init(store)
 	groups.Init(store)
+	session.Init(store)
 	static.Init(store)
 	io.Init(store)
 	stats.Init(store)

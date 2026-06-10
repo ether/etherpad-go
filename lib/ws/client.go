@@ -131,7 +131,7 @@ func (c *Client) readPump(retrievedSettings *settings.Settings, logger *zap.Suga
 		}
 		retrievedSettings.CommitRateLimiting.LoadTest = retrievedSettings.LoadTest
 		if err := ratelimiter.CheckRateLimit(ratelimiter.IPAddress(c.ClientIP), retrievedSettings.CommitRateLimiting); err != nil {
-			println("Rate limit exceeded:", err.Error())
+			logger.Warn("Rate limit exceeded:", err.Error())
 			continue
 		}
 		message = bytes.TrimSpace(bytes.Replace(message, newline, space, -1))
@@ -141,7 +141,7 @@ func (c *Client) readPump(retrievedSettings *settings.Settings, logger *zap.Suga
 			var clientReady ws.ClientReady
 			err := json.Unmarshal(message, &clientReady)
 			if err != nil {
-				println("Error unmarshalling", err)
+				logger.Warn("Error unmarshalling", err)
 			}
 
 			c.Handler.HandleMessage(clientReady, c, retrievedSettings, logger)
@@ -211,6 +211,15 @@ func (c *Client) readPump(retrievedSettings *settings.Settings, logger *zap.Suga
 				continue
 			}
 			c.Handler.HandleMessage(chatMessage, c, retrievedSettings, logger)
+		} else if strings.Contains(decodedMessage, "CLIENT_MESSAGE") {
+			var clientMessage ws.ClientMessage
+			err := json.Unmarshal(message, &clientMessage)
+
+			if err != nil {
+				logger.Error("Error unmarshalling CLIENT_MESSAGE: ", err)
+				continue
+			}
+			c.Handler.HandleMessage(clientMessage, c, retrievedSettings, logger)
 		}
 
 		c.Hub.Broadcast <- message

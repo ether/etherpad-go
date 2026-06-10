@@ -61,6 +61,7 @@ type SessionMethods interface {
 
 type GroupMethods interface {
 	GetGroup(groupId string) (*string, error)
+	GetGroups() (*[]string, error)
 	SaveGroup(groupId string) error
 	RemoveGroup(groupId string) error
 }

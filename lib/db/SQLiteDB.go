@@ -812,6 +812,35 @@ func (d SQLiteDB) RemoveGroup(groupId string) error {
 	return err
 }
 
+func (d SQLiteDB) GetGroups() (*[]string, error) {
+	resultedSQL, args, err := sq.
+		Select("id").
+		From("groupPadGroup").
+		ToSql()
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := d.sqlDB.Query(resultedSQL, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	groups := make([]string, 0)
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		groups = append(groups, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return &groups, nil
+}
+
 func (d SQLiteDB) GetGroup(groupId string) (*string, error) {
 	resultedSQL, args, err := sq.
 		Select("id").
@@ -873,7 +902,7 @@ func (d SQLiteDB) SetSessionById(sessionID string, session session2.Session) err
 	retrievedSql, inserts, err := sq.Insert("sessionstorage").
 		Columns("id", "originalMaxAge", "expires", "secure", "httpOnly", "path", "sameSite", "connections").
 		Values(sessionID, session.OriginalMaxAge, session.Expires, session.Secure,
-			session.HttpOnly, session.Path, session.SameSite, "").
+			session.HttpOnly, session.Path, session.SameSite, session.Connections).
 		Suffix(`ON CONFLICT(id) DO UPDATE SET 
 			originalMaxAge = excluded.originalMaxAge, 
 			expires = excluded.expires, 

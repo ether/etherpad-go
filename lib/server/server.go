@@ -16,6 +16,7 @@ import (
 	"github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/plugins"
 	"github.com/ether/etherpad-go/lib/plugins/interfaces"
+	epsession "github.com/ether/etherpad-go/lib/session"
 	settings2 "github.com/ether/etherpad-go/lib/settings"
 	"github.com/ether/etherpad-go/lib/utils"
 	"github.com/ether/etherpad-go/lib/ws"
@@ -97,6 +98,7 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 	var cookieStore = session.NewStore(session.Config{
 		CookieSameSite: settings.Cookie.SameSite,
 		IdleTimeout:    time.Duration(settings.Cookie.SessionLifetime),
+		Storage:        epsession.NewSessionDatabase(&dataStore),
 	})
 
 	hooks.ExpressPreSession(app, uiAssets)

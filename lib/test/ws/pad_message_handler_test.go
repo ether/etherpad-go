@@ -2,9 +2,12 @@ package ws
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/ether/etherpad-go/lib/apool"
+	"github.com/ether/etherpad-go/lib/changeset"
 	"github.com/ether/etherpad-go/lib/models/ws"
 	"github.com/ether/etherpad-go/lib/test/testutils"
 	libws "github.com/ether/etherpad-go/lib/ws"
@@ -152,6 +155,18 @@ func TestPadMessageHandler_AllMethods(t *testing.T) {
 		testutils.TestRunConfig{
 			Name: "HandleMessage with UserChange on readonly rejects",
 			Test: testHandleMessageUserChangeReadonly,
+		},
+		testutils.TestRunConfig{
+			Name: "HandleMessage with invalid changeset sends badChangeset disconnect",
+			Test: testUserChangeInvalidChangesetSendsBadChangeset,
+		},
+		testutils.TestRunConfig{
+			Name: "CorrectMarkersInPad removes misplaced line markers",
+			Test: testCorrectMarkersInPad,
+		},
+		testutils.TestRunConfig{
+			Name: "CLIENT_MESSAGE suggestUserName is relayed to target author",
+			Test: testClientMessageSuggestUserName,
 		},
 		testutils.TestRunConfig{
 			Name: "HandleMessage with unknown type",
@@ -1650,6 +1665,99 @@ func testHandleMessageUserChangeReadonly(t *testing.T, ds testutils.TestDataStor
 	assert.Equal(t, headBefore, retrievedPad.Head, "Readonly pad should not have new revisions")
 }
 
+// drainClientMessages drains all messages currently buffered on the client's
+// Send channel and returns them as strings.
+func drainClientMessages(client *libws.Client) []string {
+	var messages []string
+	for {
+		select {
+		case msg := <-client.Send:
+			messages = append(messages, string(msg))
+		default:
+			return messages
+		}
+	}
+}
+
+// testUserChangeInvalidChangesetSendsBadChangeset tests that an invalid
+// changeset submitted via USER_CHANGES results in a {disconnect: "badChangeset"}
+// message being sent to the client (mirrors the original PadMessageHandler.ts
+// catch-all in handleUserChanges) and that the pad head stays unchanged.
+func testUserChangeInvalidChangesetSendsBadChangeset(t *testing.T, ds testutils.TestDataStore) {
+	padId := "test-pad-bad-changeset"
+	token := "test-token-bad-changeset"
+
+	// The session author must match the author granted by the security
+	// manager for the token, otherwise HandleMessage sends a
+	// {disconnect: "rejected"} userdup message and never queues the change.
+	tokenAuthor, err := ds.AuthorManager.GetAuthor4Token(token)
+	require.NoError(t, err)
+	authorId := tokenAuthor.Id
+
+	// Create the pad
+	_, err = ds.PadManager.GetPad(padId, nil, &authorId)
+	require.NoError(t, err)
+
+	mockConn := libws.NewActualMockWebSocketconn()
+	sessionId := "test-session-bad-changeset"
+
+	client := createTestClient(ds.Hub, sessionId, padId, mockConn)
+	defer func() {
+		delete(ds.Hub.Clients, client)
+	}()
+
+	// Initialize a writable (non-readonly) session
+	ds.PadMessageHandler.SessionStore.InitSessionForTest(sessionId)
+	ds.PadMessageHandler.SessionStore.AddHandleClientInformationForTest(sessionId, padId, token)
+	ds.PadMessageHandler.SessionStore.SetAuthorForTest(sessionId, authorId)
+	ds.PadMessageHandler.SessionStore.SetPadIdForTest(sessionId, padId)
+	ds.PadMessageHandler.SessionStore.AddPadReadOnlyIdsForTest(sessionId, padId, "readonly-id", false)
+
+	// Get pad revision before
+	retrievedPad, err := ds.PadManager.GetPad(padId, nil, &authorId)
+	require.NoError(t, err)
+	headBefore := retrievedPad.Head
+
+	// Create USER_CHANGES message with an invalid changeset: declared insert
+	// length (>3) does not match the ops (+2) — CheckRep must reject it.
+	userChange := ws.UserChange{
+		Event: "message",
+		Data: ws.UserChangeData{
+			Component: "pad",
+			Type:      "USER_CHANGES",
+			Data: ws.UserChangeDataData{
+				Apool: ws.UserChangeDataDataApool{
+					NumToAttrib: map[int][]string{},
+					NextNum:     0,
+				},
+				BaseRev:   0,
+				Changeset: "Z:1>3+2$abc",
+			},
+		},
+	}
+
+	initStore := ds.ToInitStore()
+	ds.PadMessageHandler.HandleMessage(userChange, client, initStore.RetrievedSettings, ds.Logger)
+
+	// USER_CHANGES processing is async via the per-pad queue
+	time.Sleep(200 * time.Millisecond)
+
+	messages := drainClientMessages(client)
+	foundBadChangeset := false
+	for _, msg := range messages {
+		if strings.Contains(msg, `"disconnect":"badChangeset"`) {
+			foundBadChangeset = true
+		}
+	}
+	assert.True(t, foundBadChangeset,
+		"Client should receive a disconnect badChangeset message, got: %v", messages)
+
+	// Verify pad was NOT changed
+	retrievedPad, err = ds.PadManager.GetPad(padId, nil, &authorId)
+	require.NoError(t, err)
+	assert.Equal(t, headBefore, retrievedPad.Head, "Invalid changeset must not create a new revision")
+}
+
 // testHandleMessageUnknownType tests HandleMessage with unknown message type
 func testHandleMessageUnknownType(t *testing.T, ds testutils.TestDataStore) {
 	padId := "test-pad-handle-unknown"
@@ -1732,4 +1840,94 @@ func testHandleMessageNoSession(t *testing.T, ds testutils.TestDataStore) {
 
 	// Verify no message was sent (no session should cause early return)
 	assert.Equal(t, initialMsgCount, len(mockConn.Data), "No message should be sent without session")
+}
+
+// testCorrectMarkersInPad tests that misplaced line markers (e.g. list
+// bullets not at a line start) are detected and a correction changeset is
+// produced, mirroring the original's _correctMarkersInPad.
+func testCorrectMarkersInPad(t *testing.T, ds testutils.TestDataStore) {
+	pool := apool.NewAPool()
+	pool.PutAttrib(apool.Attribute{Key: "list", Value: "bullet1"}, nil)
+
+	// Marker on the char at offset 1 ("b") — not at a line start.
+	atextBad := apool.AText{Text: "ab\n", Attribs: "+1*0+1|1+1"}
+	correction := ds.PadMessageHandler.CorrectMarkersInPadForTest(atextBad, pool)
+	require.NotNil(t, correction, "misplaced marker must produce a correction changeset")
+
+	// Applying the correction must remove the marked char.
+	corrected, err := changeset.ApplyToText(*correction, atextBad.Text)
+	require.NoError(t, err)
+	assert.Equal(t, "a\n", *corrected)
+
+	// Marker at the start of a line is fine — no correction.
+	atextOk := apool.AText{Text: "ab\n", Attribs: "*0+1+1|1+1"}
+	assert.Nil(t, ds.PadMessageHandler.CorrectMarkersInPadForTest(atextOk, pool))
+}
+
+// testClientMessageSuggestUserName tests that a CLIENT_MESSAGE with
+// suggestUserName payload is relayed only to the sockets of the unnamed
+// target author, mirroring the original handleSuggestUserName.
+func testClientMessageSuggestUserName(t *testing.T, ds testutils.TestDataStore) {
+	padId := "test-pad-suggest-username"
+	targetAuthorId, err := setupPadAndAuthor(t, ds, padId, "TargetUser")
+	require.NoError(t, err)
+	senderAuthor, err := ds.AuthorManager.CreateAuthor(nil)
+	require.NoError(t, err)
+
+	targetConn := libws.NewActualMockWebSocketconn()
+	senderConn := libws.NewActualMockWebSocketconn()
+	targetClient := createTestClient(ds.Hub, "suggest-target-session", padId, targetConn)
+	senderClient := createTestClient(ds.Hub, "suggest-sender-session", padId, senderConn)
+	defer func() {
+		delete(ds.Hub.Clients, targetClient)
+		delete(ds.Hub.Clients, senderClient)
+	}()
+
+	for sessionId, authorId := range map[string]string{
+		"suggest-target-session": targetAuthorId,
+		"suggest-sender-session": senderAuthor.Id,
+	} {
+		// HandleMessage resolves the author from the token via CheckAccess,
+		// so the token must map to the session's author.
+		token := "token-" + sessionId
+		require.NoError(t, ds.DS.SetAuthorByToken(token, authorId))
+		ds.PadMessageHandler.SessionStore.InitSessionForTest(sessionId)
+		ds.PadMessageHandler.SessionStore.AddHandleClientInformationForTest(sessionId, padId, token)
+		ds.PadMessageHandler.SessionStore.SetAuthorForTest(sessionId, authorId)
+		ds.PadMessageHandler.SessionStore.SetPadIdForTest(sessionId, padId)
+		ds.PadMessageHandler.SessionStore.AddPadReadOnlyIdsForTest(sessionId, padId, "readonly-id", false)
+	}
+
+	clientMessage := ws.ClientMessage{
+		Event: "message",
+		Data: ws.ClientMessageData{
+			Component: "pad",
+			Type:      "COLLABROOM",
+			Data: ws.ClientMessageDataData{
+				Type: "CLIENT_MESSAGE",
+				Payload: ws.ClientMessagePayload{
+					Type:      "suggestUserName",
+					NewName:   "Alice",
+					UnnamedId: targetAuthorId,
+				},
+			},
+		},
+	}
+
+	initStore := ds.ToInitStore()
+	ds.PadMessageHandler.HandleMessage(clientMessage, senderClient, initStore.RetrievedSettings, ds.Logger)
+	time.Sleep(100 * time.Millisecond)
+
+	targetMessages := drainClientMessages(targetClient)
+	found := false
+	for _, msg := range targetMessages {
+		if strings.Contains(msg, "suggestUserName") && strings.Contains(msg, "Alice") {
+			found = true
+		}
+	}
+	assert.True(t, found, "target client must receive the suggestUserName message, got: %v", targetMessages)
+
+	for _, msg := range drainClientMessages(senderClient) {
+		assert.NotContains(t, msg, "suggestUserName", "sender must not receive the suggestUserName relay")
+	}
 }
