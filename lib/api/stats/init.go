@@ -50,6 +50,8 @@ func Init(store *lib.InitStore) {
 		checks,
 	))
 
+	store.PrivateAPI.Get("/stats", GetStats(store))
+
 	if store.RetrievedSettings.EnableMetrics {
 		go func() {
 			ticker := time.NewTicker(10 * time.Second)

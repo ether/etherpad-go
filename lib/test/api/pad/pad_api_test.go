@@ -143,6 +143,10 @@ func TestPadAPI(t *testing.T) {
 			Name: "CheckToken returns 200",
 			Test: testCheckToken,
 		},
+		testutils.TestRunConfig{
+			Name: "SendClientsMessage broadcasts custom message",
+			Test: testSendClientsMessage,
+		},
 		// Copy pad
 		testutils.TestRunConfig{
 			Name: "CopyPad copies pad with history",
@@ -1022,4 +1026,31 @@ func testCheckToken(t *testing.T, tsStore testutils.TestDataStore) {
 
 	assert.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
+}
+
+func testSendClientsMessage(t *testing.T, tsStore testutils.TestDataStore) {
+	initStore := tsStore.ToInitStore()
+	pad.Init(initStore)
+
+	createTestPad(t, tsStore, "msgpad", "hello\n")
+
+	body, _ := json.Marshal(pad.SendClientsMessageRequest{Msg: "customType"})
+	req := httptest.NewRequest("POST", "/admin/api/pads/msgpad/sendClientsMessage", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := initStore.C.Test(req)
+	assert.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	// Missing msg is a 400
+	req = httptest.NewRequest("POST", "/admin/api/pads/msgpad/sendClientsMessage", bytes.NewBuffer([]byte(`{}`)))
+	req.Header.Set("Content-Type", "application/json")
+	resp, _ = initStore.C.Test(req)
+	assert.Equal(t, 400, resp.StatusCode)
+
+	// Unknown pad is a 404
+	body, _ = json.Marshal(pad.SendClientsMessageRequest{Msg: "customType"})
+	req = httptest.NewRequest("POST", "/admin/api/pads/nosuchmsgpad/sendClientsMessage", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp, _ = initStore.C.Test(req)
+	assert.Equal(t, 404, resp.StatusCode)
 }

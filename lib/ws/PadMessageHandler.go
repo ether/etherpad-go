@@ -1574,6 +1574,27 @@ func (p *PadMessageHandler) UpdatePadClients(pad *pad2.Pad) {
 	}
 }
 
+// SendCustomMessageToPad broadcasts a custom COLLABROOM message type to all
+// clients of a pad, mirroring the original handleCustomMessage (backing the
+// sendClientsMessage HTTP API).
+func (p *PadMessageHandler) SendCustomMessageToPad(padId string, msgType string) {
+	payload := map[string]any{
+		"type": "COLLABROOM",
+		"data": map[string]any{
+			"type": msgType,
+			"time": time.Now().UnixMilli(),
+		},
+	}
+	encoded, err := json.Marshal([]any{"message", payload})
+	if err != nil {
+		p.Logger.Errorf("Error marshalling custom message %q: %v", msgType, err)
+		return
+	}
+	for _, socket := range p.GetRoomSockets(padId) {
+		socket.SafeSend(encoded)
+	}
+}
+
 // HandleClientMessage handles the COLLABROOM CLIENT_MESSAGE family,
 // mirroring the original's handleSuggestUserName / handlePadOptionsMessage.
 func (p *PadMessageHandler) HandleClientMessage(message ws.ClientMessage, client *Client, session *ws.Session) {
