@@ -40,6 +40,18 @@ func TestAuthorManager(t *testing.T) {
 			Name: "TestGetPadsOfAuthor",
 			Test: testGetPadsOfAuthor,
 		},
+		testutils.TestRunConfig{
+			Name: "TestAnonymizeAuthor",
+			Test: testAnonymizeAuthor,
+		},
+		testutils.TestRunConfig{
+			Name: "TestAnonymizeAuthor_UnknownAuthor",
+			Test: testAnonymizeAuthorUnknown,
+		},
+		testutils.TestRunConfig{
+			Name: "TestAnonymizeAuthor_Idempotent",
+			Test: testAnonymizeAuthorIdempotent,
+		},
 	)
 }
 
@@ -159,4 +171,85 @@ func testGetPadsOfAuthor(t *testing.T, dbHandler testutils.TestDataStore) {
 	if len(*pads) != 1 || (*pads)[0] != randomPad.ID {
 		t.Fatalf("unexpected pads")
 	}
+}
+
+// testAnonymizeAuthor mirrors the original Etherpad's
+// AuthorManager.anonymizeAuthor (GDPR Art. 17 erasure): the display identity
+// (name, color) is zeroed, the token binding that links a person to the
+// author id is severed, and authorship on chat messages is nulled while the
+// message text itself is preserved. Pad content and revisions stay intact.
+func testAnonymizeAuthor(t *testing.T, dbHandler testutils.TestDataStore) {
+	name := "Alice GDPR"
+	createdAuthor, err := dbHandler.AuthorManager.CreateAuthor(&name)
+	if err != nil {
+		t.Fatalf("failed to create author: %v", err)
+	}
+	assert.NoError(t, dbHandler.AuthorManager.SetAuthorColor(createdAuthor.Id, "#aabbcc"))
+
+	token := "anonymize-token-1"
+	assert.NoError(t, dbHandler.DS.SetAuthorByToken(token, createdAuthor.Id))
+
+	// Author writes to a pad and posts a chat message.
+	padText := "GDPR pad text\n"
+	padId := "anonymizePad"
+	_, err = dbHandler.PadManager.GetPad(padId, &padText, &createdAuthor.Id)
+	if err != nil {
+		t.Fatalf("failed to create pad: %v", err)
+	}
+	assert.NoError(t, dbHandler.DS.SaveChatMessage(padId, 0, &createdAuthor.Id, 12345, "my secret chat message"))
+
+	assert.NoError(t, dbHandler.AuthorManager.AnonymizeAuthor(createdAuthor.Id))
+
+	// Display identity is zeroed (name -> nil, colorId -> "0").
+	scrubbed, err := dbHandler.AuthorManager.GetAuthor(createdAuthor.Id)
+	if err != nil {
+		t.Fatalf("anonymized author record must still exist: %v", err)
+	}
+	assert.Nil(t, scrubbed.Name, "name must be scrubbed")
+	assert.Equal(t, "0", scrubbed.ColorId, "colorId must be zeroed")
+
+	// Token binding is severed, the token can no longer resolve the author.
+	resolved, err := dbHandler.DS.GetAuthorByToken(token)
+	assert.Error(t, err, "token must no longer resolve to the author, got %v", resolved)
+
+	// Chat message survives but its authorship is nulled.
+	chats, err := dbHandler.DS.GetChatsOfPad(padId, 0, 0)
+	if err != nil {
+		t.Fatalf("failed to load chats: %v", err)
+	}
+	if len(*chats) != 1 {
+		t.Fatalf("chat message must survive anonymization, got %d messages", len(*chats))
+	}
+	chat := (*chats)[0]
+	assert.Nil(t, chat.AuthorId, "chat authorship must be nulled")
+	assert.Nil(t, chat.DisplayName, "chat display name must be gone")
+	assert.Equal(t, "my secret chat message", chat.Message, "chat text is preserved")
+}
+
+func testAnonymizeAuthorUnknown(t *testing.T, dbHandler testutils.TestDataStore) {
+	err := dbHandler.AuthorManager.AnonymizeAuthor("a.doesNotExist123456")
+	if err == nil {
+		t.Fatalf("expected error for unknown author")
+	}
+	assert.Equal(t, db.AuthorNotFoundError, err.Error())
+}
+
+func testAnonymizeAuthorIdempotent(t *testing.T, dbHandler testutils.TestDataStore) {
+	name := "Bob GDPR"
+	createdAuthor, err := dbHandler.AuthorManager.CreateAuthor(&name)
+	if err != nil {
+		t.Fatalf("failed to create author: %v", err)
+	}
+
+	assert.NoError(t, dbHandler.AuthorManager.AnonymizeAuthor(createdAuthor.Id))
+	// The original is idempotent: a second call succeeds and leaves the
+	// record in the same erased state.
+	assert.NoError(t, dbHandler.AuthorManager.AnonymizeAuthor(createdAuthor.Id))
+
+	scrubbed, err := dbHandler.AuthorManager.GetAuthor(createdAuthor.Id)
+	if err != nil {
+		t.Fatalf("anonymized author record must still exist: %v", err)
+	}
+	assert.Nil(t, scrubbed.Name)
+	assert.Equal(t, "0", scrubbed.ColorId)
 }

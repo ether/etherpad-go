@@ -421,6 +421,21 @@ func (d MysqlDB) SetAuthorByToken(token, authorId string) error {
 	return err
 }
 
+func (d MysqlDB) RemoveTokenOfAuthor(authorId string) error {
+	resultedSQL, args, err := mysql.
+		Update("globalAuthor").
+		Set("token", nil).
+		Where(sq.Eq{"id": authorId}).
+		ToSql()
+
+	if err != nil {
+		return err
+	}
+
+	_, err = d.sqlDB.Exec(resultedSQL, args...)
+	return err
+}
+
 func (d MysqlDB) GetAuthorByToken(token string) (*string, error) {
 	resultedSQL, args, err := mysql.
 		Select("id").
@@ -694,7 +709,7 @@ func (d MysqlDB) GetChatsOfPad(
 	resultedSQL, args, err := mysql.
 		Select("pc.padId", "pc.padHead", "pc.chatText", "pc.authorId", "pc.timestamp", "ga.name").
 		From("padChat pc").
-		Join("globalAuthor ga ON ga.id = pc.authorId").
+		LeftJoin("globalAuthor ga ON ga.id = pc.authorId").
 		Where(sq.Eq{"pc.padId": padId}).
 		Where(sq.GtOrEq{"pc.padHead": start}).
 		Where(sq.LtOrEq{"pc.padHead": end}).
@@ -731,6 +746,7 @@ func (d MysqlDB) GetAuthorIdsOfPadChats(id string) (*[]string, error) {
 		Select("DISTINCT authorId").
 		From("padChat").
 		Where(sq.Eq{"padId": id}).
+		Where(sq.NotEq{"authorId": nil}).
 		ToSql()
 
 	if err != nil {
@@ -753,6 +769,21 @@ func (d MysqlDB) GetAuthorIdsOfPadChats(id string) (*[]string, error) {
 	}
 
 	return &authorIds, query.Err()
+}
+
+func (d MysqlDB) ClearChatAuthorship(authorId string) error {
+	resultedSQL, args, err := mysql.
+		Update("padChat").
+		Set("authorId", nil).
+		Where(sq.Eq{"authorId": authorId}).
+		ToSql()
+
+	if err != nil {
+		return err
+	}
+
+	_, err = d.sqlDB.Exec(resultedSQL, args...)
+	return err
 }
 
 func (d MysqlDB) RemoveChat(padId string) error {

@@ -296,6 +296,17 @@ func (m *MemoryDataStore) SaveAuthorColor(authorId string, authorColor string) e
 	return nil
 }
 
+func (m *MemoryDataStore) RemoveTokenOfAuthor(authorId string) error {
+	retrievedAuthor, ok := m.authorStore[authorId]
+	if !ok {
+		return nil
+	}
+
+	retrievedAuthor.Token = nil
+	m.authorStore[authorId] = retrievedAuthor
+	return nil
+}
+
 // ============== REVISION METHODS ==============
 
 func (m *MemoryDataStore) SaveRevision(
@@ -481,6 +492,16 @@ func (m *MemoryDataStore) GetAuthorIdsOfPadChats(id string) (*[]string, error) {
 	}
 
 	return &authorIds, nil
+}
+
+func (m *MemoryDataStore) ClearChatAuthorship(authorId string) error {
+	for k, chatMessage := range m.chatPads {
+		if chatMessage.AuthorId != nil && *chatMessage.AuthorId == authorId {
+			chatMessage.AuthorId = nil
+			m.chatPads[k] = chatMessage
+		}
+	}
+	return nil
 }
 
 func (m *MemoryDataStore) RemoveChat(padId string) error {

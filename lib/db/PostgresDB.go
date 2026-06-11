@@ -388,6 +388,14 @@ func (d PostgresDB) SaveAuthorColor(authorId string, authorColor string) error {
 	return nil
 }
 
+func (d PostgresDB) RemoveTokenOfAuthor(authorId string) error {
+	ctx := context.Background()
+	_, err := d.pool.Exec(ctx,
+		`UPDATE "globalauthor" SET token = NULL, updated_at = NOW() WHERE id = $1`,
+		authorId)
+	return err
+}
+
 // ============== REVISION METHODS ==============
 
 func (d PostgresDB) SaveRevision(
@@ -551,7 +559,7 @@ func (d PostgresDB) GetChatsOfPad(
 		`SELECT pc."padid", pc."padhead", pc."chattext", 
                 pc."authorid", pc.timestamp, ga.name
          FROM "padchat" pc
-         JOIN "globalauthor" ga ON ga.id = pc."authorid"
+         LEFT JOIN "globalauthor" ga ON ga.id = pc."authorid"
          WHERE pc."padid" = $1 AND pc."padhead" >= $2 AND pc."padhead" <= $3
          ORDER BY pc."padhead" ASC`,
 		padId, start, end)
@@ -579,7 +587,7 @@ func (d PostgresDB) GetAuthorIdsOfPadChats(id string) (*[]string, error) {
 	ctx := context.Background()
 
 	rows, err := d.pool.Query(ctx,
-		`SELECT DISTINCT "authorid" FROM "padchat" WHERE "padid" = $1`,
+		`SELECT DISTINCT "authorid" FROM "padchat" WHERE "padid" = $1 AND "authorid" IS NOT NULL`,
 		id)
 	if err != nil {
 		return nil, err
@@ -595,6 +603,14 @@ func (d PostgresDB) GetAuthorIdsOfPadChats(id string) (*[]string, error) {
 		authorIds = append(authorIds, authorId)
 	}
 	return &authorIds, rows.Err()
+}
+
+func (d PostgresDB) ClearChatAuthorship(authorId string) error {
+	ctx := context.Background()
+	_, err := d.pool.Exec(ctx,
+		`UPDATE "padchat" SET "authorid" = NULL WHERE "authorid" = $1`,
+		authorId)
+	return err
 }
 
 func (d PostgresDB) RemoveChat(padId string) error {

@@ -172,23 +172,6 @@ func (a *APool) toDBRev() db.RevPool {
 	}
 }
 
-func (a *APool) clone() APool {
-	var newPool = APool{}
-
-	for num, attrib := range a.NumToAttrib {
-		newPool.NumToAttrib[num] = attrib
-		newPool.AttribToNum[attrib] = num
-	}
-
-	for attrib, num := range a.AttribToNum {
-		newPool.AttribToNum[attrib] = num
-		newPool.NumToAttrib[num] = attrib
-	}
-
-	newPool.NextNum = a.NextNum
-	return newPool
-}
-
 type AttributeIterator func(attributeKey *string, attributeValue *string)
 
 /**
@@ -209,4 +192,28 @@ func (a *APool) GetAttrib(num int) (*Attribute, error) {
 		return nil, errors.New("attrib not found")
 	}
 	return &pair, nil
+}
+
+// Clone returns a deep copy of the pool. Mutating the clone (e.g. PutAttrib)
+// leaves the original untouched — a plain struct copy would share the
+// underlying maps and corrupt the original's NextNum/map consistency.
+func (a *APool) Clone() APool {
+	clone := APool{
+		NumToAttrib: make(map[int]Attribute, len(a.NumToAttrib)),
+		AttribToNum: make(map[Attribute]int, len(a.AttribToNum)),
+		NextNum:     a.NextNum,
+	}
+	for num, attrib := range a.NumToAttrib {
+		clone.NumToAttrib[num] = attrib
+	}
+	for attrib, num := range a.AttribToNum {
+		clone.AttribToNum[attrib] = num
+	}
+	if a.NumToAttribRaw != nil {
+		clone.NumToAttribRaw = make(map[int][]string, len(a.NumToAttribRaw))
+		for num, raw := range a.NumToAttribRaw {
+			clone.NumToAttribRaw[num] = append([]string(nil), raw...)
+		}
+	}
+	return clone
 }

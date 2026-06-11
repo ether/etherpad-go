@@ -522,6 +522,21 @@ func (d SQLiteDB) SaveAuthorColor(authorId string, authorColor string) error {
 	return err
 }
 
+func (d SQLiteDB) RemoveTokenOfAuthor(authorId string) error {
+	resultedSQL, args, err := sq.
+		Update("globalAuthor").
+		Set("token", nil).
+		Where(sq.Eq{"id": authorId}).
+		ToSql()
+
+	if err != nil {
+		return err
+	}
+
+	_, err = d.sqlDB.Exec(resultedSQL, args...)
+	return err
+}
+
 // ============== REVISION METHODS ==============
 
 func (d SQLiteDB) SaveRevision(
@@ -710,7 +725,7 @@ func (d SQLiteDB) GetChatsOfPad(
 	resultedSQL, args, err := sq.
 		Select("pc.padId", "pc.padHead", "pc.chatText", "pc.authorId", "pc.created_at", "ga.name").
 		From("padChat pc").
-		Join("globalAuthor ga ON ga.id = pc.authorId").
+		LeftJoin("globalAuthor ga ON ga.id = pc.authorId").
 		Where(sq.Eq{"pc.padId": padId}).
 		Where(sq.GtOrEq{"pc.padHead": start}).
 		Where(sq.LtOrEq{"pc.padHead": end}).
@@ -747,6 +762,7 @@ func (d SQLiteDB) GetAuthorIdsOfPadChats(id string) (*[]string, error) {
 		Select("DISTINCT authorId").
 		From("padChat").
 		Where(sq.Eq{"padId": id}).
+		Where(sq.NotEq{"authorId": nil}).
 		ToSql()
 
 	if err != nil {
@@ -769,6 +785,21 @@ func (d SQLiteDB) GetAuthorIdsOfPadChats(id string) (*[]string, error) {
 	}
 
 	return &authorIds, query.Err()
+}
+
+func (d SQLiteDB) ClearChatAuthorship(authorId string) error {
+	resultedSQL, args, err := sq.
+		Update("padChat").
+		Set("authorId", nil).
+		Where(sq.Eq{"authorId": authorId}).
+		ToSql()
+
+	if err != nil {
+		return err
+	}
+
+	_, err = d.sqlDB.Exec(resultedSQL, args...)
+	return err
 }
 
 func (d SQLiteDB) RemoveChat(padId string) error {

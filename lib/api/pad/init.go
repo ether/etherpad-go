@@ -210,6 +210,8 @@ func Init(initStore *lib.InitStore) {
 
 	// Pad operations
 	initStore.PrivateAPI.Post("/pads/:padId/restoreRevision", RestoreRevision(initStore))
+	initStore.PrivateAPI.Post("/pads/:padId/compact", CompactPad(initStore))
+	initStore.PrivateAPI.Get("/pads/:padId/diffHTML", CreateDiffHTML(initStore))
 	initStore.PrivateAPI.Get("/pads/:padId/readOnlyID", GetReadOnlyID(initStore))
 	initStore.PrivateAPI.Get("/pads/:padId/authors", ListAuthorsOfPad(initStore))
 	initStore.PrivateAPI.Get("/pads/:padId/chatHead", GetChatHead(initStore))

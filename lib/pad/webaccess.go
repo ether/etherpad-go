@@ -10,6 +10,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/ether/etherpad-go/lib/hooks"
+	"github.com/ether/etherpad-go/lib/hooks/events"
 	"github.com/ether/etherpad-go/lib/models/clientVars"
 	"github.com/ether/etherpad-go/lib/models/webaccess"
 	"github.com/ether/etherpad-go/lib/settings"
@@ -44,13 +46,42 @@ func UserCanModify(padId *string, req *webaccess.SocketClientRequest, readOnlyMa
 	return level != nil && *level != "readOnly"
 }
 
+// CheckAccess keeps the historical signature (no hook system) and runs without
+// any plugin preAuthorize/preAuthzFailure hooks. New callers should prefer
+// CheckAccessWithHooks so that plugins get a chance to permit or deny early.
 func CheckAccess(ctx fiber.Ctx, logger *zap.SugaredLogger, retrievedSettings *settings.Settings, readOnlyManager *ReadOnlyManager) error {
+	return CheckAccessWithHooks(ctx, logger, retrievedSettings, readOnlyManager, nil)
+}
+
+func CheckAccessWithHooks(ctx fiber.Ctx, logger *zap.SugaredLogger, retrievedSettings *settings.Settings, readOnlyManager *ReadOnlyManager, hookSystem *hooks.Hook) error {
 	var requireAdmin = strings.HasPrefix(strings.ToLower(ctx.Path()), "/admin-auth")
 	// ///////////////////////////////////////////////////////////////////////////////////////////////
-	// Step 1 of the original — the preAuthorize hook for early permit/deny by plugins — is not
-	// implemented: the Go plugin system has no preAuthorize/preAuthzFailure hooks yet. Until it
-	// does, every request goes through the regular authorize/authenticate steps below.
+	// Step 1: Check the preAuthorize hook for early permit/deny (permit is only allowed for
+	// non-admin pages). If any plugin explicitly grants or denies access, skip the remaining steps.
+	// Plugins can use the preAuthzFailure hook to override the default 403 error.
 	// ///////////////////////////////////////////////////////////////////////////////////////////////
+
+	if hookSystem != nil {
+		preAuthorizeCtx := &events.PreAuthorizeContext{Path: ctx.Path(), RequireAdmin: requireAdmin}
+		hookSystem.ExecutePreAuthorizeHooks(preAuthorizeCtx)
+		switch preAuthorizeCtx.Decision() {
+		case events.PreAuthorizePermit:
+			return ctx.Next()
+		case events.PreAuthorizeDeny:
+			preAuthzFailureCtx := &events.PreAuthzFailureContext{Path: ctx.Path(), RequireAdmin: requireAdmin}
+			hookSystem.ExecutePreAuthzFailureHooks(preAuthzFailureCtx)
+			if preAuthzFailureCtx.Handled() {
+				for key, value := range preAuthzFailureCtx.Headers() {
+					ctx.Set(key, value)
+				}
+				return ctx.Status(preAuthzFailureCtx.Status()).SendString(preAuthzFailureCtx.Body())
+			}
+			// No plugin handled the pre-authentication authorization failure.
+			return ctx.Status(403).SendString("Forbidden")
+		case events.PreAuthorizeDefer:
+			// No plugin answered; fall through to the regular authorize/authenticate steps below.
+		}
+	}
 
 	// This helper is used in steps 2 and 4 below, so it may be called twice per access: once before
 	// authentication is checked and once after (if settings.requireAuthorization is true).
