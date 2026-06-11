@@ -51,6 +51,10 @@ type AuthorMethods interface {
 	SaveAuthorName(authorId string, authorName string) error
 	SaveAuthorColor(authorId string, authorColor string) error
 	GetAuthors(ids []string) (*[]db.AuthorDB, error)
+	// RemoveTokenOfAuthor severs the token binding that links a person to the
+	// given author id (GDPR erasure). It is a no-op if the author does not
+	// exist or has no token.
+	RemoveTokenOfAuthor(authorId string) error
 }
 
 type SessionMethods interface {
@@ -71,6 +75,9 @@ type ChatMethods interface {
 	SaveChatMessage(padId string, head int, authorId *string, timestamp int64, text string) error
 	GetChatsOfPad(padId string, start int, end int) (*[]db.ChatMessageDBWithDisplayName, error)
 	GetAuthorIdsOfPadChats(id string) (*[]string, error)
+	// ClearChatAuthorship nulls the authorship of all chat messages posted by
+	// the given author while preserving the messages themselves (GDPR erasure).
+	ClearChatAuthorship(authorId string) error
 }
 
 type ServerMethods interface {

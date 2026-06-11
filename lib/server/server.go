@@ -71,7 +71,7 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 	}))
 
 	app.Use(func(c fiber.Ctx) error {
-		return pad.CheckAccess(c, setupLogger, &settings, readOnlyManager)
+		return pad.CheckAccessWithHooks(c, setupLogger, &settings, readOnlyManager, &retrievedHooks)
 	})
 
 	padManager := pad.NewManager(dataStore, &retrievedHooks)

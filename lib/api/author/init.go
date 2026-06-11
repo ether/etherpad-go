@@ -6,6 +6,7 @@ import (
 	"github.com/ether/etherpad-go/lib"
 	"github.com/ether/etherpad-go/lib/api/errors"
 	"github.com/ether/etherpad-go/lib/author"
+	"github.com/ether/etherpad-go/lib/db"
 	"github.com/gofiber/fiber/v3"
 )
 
@@ -33,6 +34,12 @@ type AuthorNameResponse struct {
 // PadsResponse represents a list of pad IDs
 type PadsResponse struct {
 	PadIds []string `json:"padIds"`
+}
+
+// AnonymizeAuthorResponse represents the response after anonymizing an author
+type AnonymizeAuthorResponse struct {
+	AuthorId   string `json:"authorId" example:"a.s8oes9dhwrvt0zif"`
+	Anonymized bool   `json:"anonymized" example:"true"`
 }
 
 // CreateAuthor godoc
@@ -213,6 +220,40 @@ func GetAuthorPads(initStore *lib.InitStore, authorManager *author.Manager) fibe
 	}
 }
 
+// AnonymizeAuthor godoc
+// @Summary Anonymize an author (GDPR Art. 17 erasure)
+// @Description Severs the token binding of an author, zeroes their display identity (name, color) and nulls their authorship on chat messages. Pad content and revisions are left intact. Idempotent.
+// @Tags Authors
+// @Accept json
+// @Produce json
+// @Param authorId path string true "Author ID"
+// @Success 200 {object} AnonymizeAuthorResponse
+// @Failure 400 {object} errors.Error
+// @Failure 404 {object} errors.Error
+// @Failure 500 {object} errors.Error
+// @Security BearerAuth
+// @Router /admin/api/author/{authorId}/anonymize [post]
+func AnonymizeAuthor(initStore *lib.InitStore, authorManager *author.Manager) fiber.Handler {
+	return func(c fiber.Ctx) error {
+		authorId := c.Params("authorId")
+		if authorId == "" {
+			return c.Status(400).JSON(errors.NewInvalidParamError("authorId is required"))
+		}
+
+		if err := authorManager.AnonymizeAuthor(authorId); err != nil {
+			if err.Error() == db.AuthorNotFoundError {
+				return c.Status(404).JSON(errors.AuthorNotFoundError)
+			}
+			return c.Status(500).JSON(errors.InternalServerError)
+		}
+
+		return c.JSON(AnonymizeAuthorResponse{
+			AuthorId:   authorId,
+			Anonymized: true,
+		})
+	}
+}
+
 func Init(initStore *lib.InitStore) {
 	var authorManager = author.NewManager(initStore.Store)
 
@@ -221,4 +262,5 @@ func Init(initStore *lib.InitStore) {
 	initStore.PrivateAPI.Get("/author/:authorId", GetAuthor(initStore, authorManager))
 	initStore.PrivateAPI.Get("/author/:authorId/name", GetAuthorName(initStore, authorManager))
 	initStore.PrivateAPI.Get("/author/:authorId/pads", GetAuthorPads(initStore, authorManager))
+	initStore.PrivateAPI.Post("/author/:authorId/anonymize", AnonymizeAuthor(initStore, authorManager))
 }

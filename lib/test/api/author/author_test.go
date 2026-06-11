@@ -53,6 +53,18 @@ func TestAuthor(t *testing.T) {
 			Name: "Get Author Name Not Found",
 			Test: testGetAuthorNameNotFound,
 		},
+		testutils.TestRunConfig{
+			Name: "Anonymize Author",
+			Test: testAnonymizeAuthor,
+		},
+		testutils.TestRunConfig{
+			Name: "Anonymize Author Not Found",
+			Test: testAnonymizeAuthorNotFound,
+		},
+		testutils.TestRunConfig{
+			Name: "Anonymize Author Idempotent",
+			Test: testAnonymizeAuthorIdempotent,
+		},
 	)
 	defer testDb.StartTestDBHandler()
 }
@@ -261,4 +273,82 @@ func testGetAuthorNameNotFound(t *testing.T, tsStore testutils.TestDataStore) {
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 	assert.Equal(t, 404, resp.StatusCode)
+}
+
+// ========== Anonymize Author (GDPR Art. 17 erasure) ==========
+
+func testAnonymizeAuthor(t *testing.T, tsStore testutils.TestDataStore) {
+	initStore := tsStore.ToInitStore()
+	author.Init(initStore)
+
+	// Author with a name, color, token binding and a chat message on a pad.
+	testName := "GDPR Test Author"
+	createdAuthor, err := tsStore.AuthorManager.CreateAuthor(&testName)
+	require.NoError(t, err)
+	require.NoError(t, tsStore.AuthorManager.SetAuthorColor(createdAuthor.Id, "#123abc"))
+	require.NoError(t, tsStore.DS.SetAuthorByToken("api-anonymize-token", createdAuthor.Id))
+
+	padText := "anonymize pad text\n"
+	padId := "anonymizeApiPad"
+	_, err = tsStore.PadManager.GetPad(padId, &padText, &createdAuthor.Id)
+	require.NoError(t, err)
+	require.NoError(t, tsStore.DS.SaveChatMessage(padId, 0, &createdAuthor.Id, 4711, "identifying chat text"))
+
+	req := httptest.NewRequest("POST", "/admin/api/author/"+createdAuthor.Id+"/anonymize", nil)
+	resp, err := initStore.C.Test(req)
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	// Name is scrubbed but the author record still exists.
+	req = httptest.NewRequest("GET", "/admin/api/author/"+createdAuthor.Id+"/name", nil)
+	resp, err = initStore.C.Test(req)
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	var nameResponse author.AuthorNameResponse
+	body, _ := io.ReadAll(resp.Body)
+	_ = json.Unmarshal(body, &nameResponse)
+	assert.Equal(t, "", nameResponse.AuthorName, "author name must be scrubbed")
+
+	// Token binding is severed.
+	_, err = tsStore.DS.GetAuthorByToken("api-anonymize-token")
+	assert.Error(t, err, "token must no longer resolve to the author")
+
+	// Chat message survives, authorship is nulled.
+	chats, err := tsStore.DS.GetChatsOfPad(padId, 0, 0)
+	require.NoError(t, err)
+	require.Len(t, *chats, 1)
+	assert.Nil(t, (*chats)[0].AuthorId, "chat authorship must be nulled")
+	assert.Equal(t, "identifying chat text", (*chats)[0].Message)
+}
+
+func testAnonymizeAuthorNotFound(t *testing.T, tsStore testutils.TestDataStore) {
+	initStore := tsStore.ToInitStore()
+	author.Init(initStore)
+
+	req := httptest.NewRequest("POST", "/admin/api/author/a.unknownAuthor9876/anonymize", nil)
+	resp, err := initStore.C.Test(req)
+
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	assert.Equal(t, 404, resp.StatusCode)
+}
+
+func testAnonymizeAuthorIdempotent(t *testing.T, tsStore testutils.TestDataStore) {
+	initStore := tsStore.ToInitStore()
+	author.Init(initStore)
+
+	testName := "GDPR Idempotent Author"
+	createdAuthor, err := tsStore.AuthorManager.CreateAuthor(&testName)
+	require.NoError(t, err)
+
+	for i := 0; i < 2; i++ {
+		req := httptest.NewRequest("POST", "/admin/api/author/"+createdAuthor.Id+"/anonymize", nil)
+		resp, err := initStore.C.Test(req)
+		require.NoError(t, err)
+		require.NotNil(t, resp)
+		assert.Equal(t, 200, resp.StatusCode, "anonymize call %d must succeed", i+1)
+	}
 }

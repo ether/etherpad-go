@@ -169,6 +169,47 @@ func (m *Manager) GetAuthor(authorId string) (*Author, error) {
 	return &mappedDbAuthor, nil
 }
 
+/**
+ * AnonymizeAuthor performs GDPR Art. 17 erasure for an author, mirroring the
+ * original Etherpad's AuthorManager.anonymizeAuthor (API 1.3.1):
+ *   - the token binding that links a person to this author id is severed
+ *     first, so a concurrent token lookup can no longer resolve the author
+ *     mid-erasure,
+ *   - the display identity on the author record is zeroed (name -> null,
+ *     colorId -> 0) while the record itself is kept,
+ *   - authorship on chat messages the author posted is nulled; the message
+ *     text itself survives,
+ *   - pad content, revisions and attribute pools are left intact: changeset
+ *     references are opaque without the identity record.
+ * The operation is idempotent: re-running it leaves the same erased state.
+ * Returns db.AuthorNotFoundError if the author does not exist.
+ * @param {String} authorId The id of the author
+ */
+func (m *Manager) AnonymizeAuthor(authorId string) error {
+	if _, err := m.Db.GetAuthor(authorId); err != nil {
+		return errors.New(db.AuthorNotFoundError)
+	}
+
+	// Sever the token binding first, before touching anything else.
+	if err := m.Db.RemoveTokenOfAuthor(authorId); err != nil {
+		return err
+	}
+
+	// Zero the display identity. The token was already removed above, so
+	// SaveAuthor's token-preservation has nothing left to preserve.
+	if err := m.saveAuthor(Author{
+		Id:        authorId,
+		Name:      nil,
+		ColorId:   "0",
+		Timestamp: time.Now().Unix(),
+	}); err != nil {
+		return err
+	}
+
+	// Null authorship on chat messages the author posted.
+	return m.Db.ClearChatAuthorship(authorId)
+}
+
 func (m *Manager) GetPadsOfAuthor(authorId string) (*[]string, error) {
 	padIds, err := m.Db.GetPadIdsOfAuthor(authorId)
 	if err != nil {
