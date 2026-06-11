@@ -30,8 +30,11 @@ func UserCanModify(padId *string, req *webaccess.SocketClientRequest, readOnlyMa
 		return false
 	}
 
+	// The authentication layer normally populates PadAuthorizations even when
+	// requireAuthorization is off (mirrors the original's assert) — but a
+	// missing map must deny, not crash the request.
 	if req.PadAuthorizations == nil {
-		panic("This should not happen")
+		return false
 	}
 
 	var padMap = *req.PadAuthorizations
@@ -43,11 +46,10 @@ func UserCanModify(padId *string, req *webaccess.SocketClientRequest, readOnlyMa
 
 func CheckAccess(ctx fiber.Ctx, logger *zap.SugaredLogger, retrievedSettings *settings.Settings, readOnlyManager *ReadOnlyManager) error {
 	var requireAdmin = strings.HasPrefix(strings.ToLower(ctx.Path()), "/admin-auth")
-	//FIXME this needs to be set
 	// ///////////////////////////////////////////////////////////////////////////////////////////////
-	// Step 1: Check the preAuthorize hook for early permit/deny (permit is only allowed for non-admin
-	// pages). If any plugin explicitly grants or denies access, skip the remaining steps. Plugins can
-	// use the preAuthzFailure hook to override the default 403 error.
+	// Step 1 of the original — the preAuthorize hook for early permit/deny by plugins — is not
+	// implemented: the Go plugin system has no preAuthorize/preAuthzFailure hooks yet. Until it
+	// does, every request goes through the regular authorize/authenticate steps below.
 	// ///////////////////////////////////////////////////////////////////////////////////////////////
 
 	// This helper is used in steps 2 and 4 below, so it may be called twice per access: once before
@@ -246,25 +248,20 @@ func CheckAccess(ctx fiber.Ctx, logger *zap.SugaredLogger, retrievedSettings *se
 	return ctx.Status(403).SendString("Forbidden")
 }
 
+// NormalizeAuthzLevel mirrors the original webaccess.normalizeAuthzLevel:
+// `true` normalizes to "create", the three known levels pass through, and
+// everything else (false, empty, unknown strings) is denied.
 func NormalizeAuthzLevel(level interface{}) (*string, error) {
 	switch castedExpr := level.(type) {
 	case string:
-		{
-			switch castedExpr {
-			case "readOnly":
-			case "modify":
-			case "create":
-				return &castedExpr, nil
-			default:
-				println("Invalid level")
-				return nil, errors.New("unknown authorization level " + castedExpr)
-			}
+		switch castedExpr {
+		case "readOnly", "modify", "create":
+			return &castedExpr, nil
 		}
 	case bool:
-		{
-			if castedExpr {
-				return nil, nil
-			}
+		if castedExpr {
+			create := "create"
+			return &create, nil
 		}
 	}
 	return nil, errors.New("access denied")

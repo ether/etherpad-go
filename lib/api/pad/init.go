@@ -236,6 +236,7 @@ func Init(initStore *lib.InitStore) {
 	initStore.PrivateAPI.Post("/pads/:padId/copyWithoutHistory", CopyPadWithoutHistory(initStore))
 	initStore.PrivateAPI.Post("/pads/:padId/move", MovePad(initStore))
 	initStore.PrivateAPI.Get("/pads/:padId/publicStatus", GetPublicStatus(initStore))
+	initStore.PrivateAPI.Post("/pads/:padId/sendClientsMessage", SendClientsMessage(initStore))
 	initStore.PrivateAPI.Post("/pads/:padId/publicStatus", SetPublicStatus(initStore))
 
 	// CRUD operations on pad itself (last to avoid conflicts)

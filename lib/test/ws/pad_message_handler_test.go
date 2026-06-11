@@ -169,6 +169,10 @@ func TestPadMessageHandler_AllMethods(t *testing.T) {
 			Test: testClientMessageSuggestUserName,
 		},
 		testutils.TestRunConfig{
+			Name: "SendCustomMessageToPad broadcasts to all pad clients",
+			Test: testSendCustomMessageToPad,
+		},
+		testutils.TestRunConfig{
 			Name: "HandleMessage with unknown type",
 			Test: testHandleMessageUnknownType,
 		},
@@ -1929,5 +1933,43 @@ func testClientMessageSuggestUserName(t *testing.T, ds testutils.TestDataStore) 
 
 	for _, msg := range drainClientMessages(senderClient) {
 		assert.NotContains(t, msg, "suggestUserName", "sender must not receive the suggestUserName relay")
+	}
+}
+
+// testSendCustomMessageToPad tests the server-side part of the original
+// handleCustomMessage / sendClientsMessage API: a custom COLLABROOM message
+// type is broadcast to every client of the pad.
+func testSendCustomMessageToPad(t *testing.T, ds testutils.TestDataStore) {
+	padId := "test-pad-custom-message"
+	authorId, err := setupPadAndAuthor(t, ds, padId, "CustomMsgUser")
+	require.NoError(t, err)
+
+	conn1 := libws.NewActualMockWebSocketconn()
+	conn2 := libws.NewActualMockWebSocketconn()
+	client1 := createTestClient(ds.Hub, "custom-msg-session-1", padId, conn1)
+	client2 := createTestClient(ds.Hub, "custom-msg-session-2", padId, conn2)
+	defer func() {
+		delete(ds.Hub.Clients, client1)
+		delete(ds.Hub.Clients, client2)
+	}()
+
+	for _, sessionId := range []string{"custom-msg-session-1", "custom-msg-session-2"} {
+		ds.PadMessageHandler.SessionStore.InitSessionForTest(sessionId)
+		ds.PadMessageHandler.SessionStore.AddHandleClientInformationForTest(sessionId, padId, "test-token")
+		ds.PadMessageHandler.SessionStore.SetAuthorForTest(sessionId, authorId)
+		ds.PadMessageHandler.SessionStore.SetPadIdForTest(sessionId, padId)
+	}
+
+	ds.PadMessageHandler.SendCustomMessageToPad(padId, "myCustomType")
+
+	for i, client := range []*libws.Client{client1, client2} {
+		messages := drainClientMessages(client)
+		found := false
+		for _, msg := range messages {
+			if strings.Contains(msg, "myCustomType") && strings.Contains(msg, "COLLABROOM") {
+				found = true
+			}
+		}
+		assert.True(t, found, "client %d must receive the custom message, got: %v", i+1, messages)
 	}
 }

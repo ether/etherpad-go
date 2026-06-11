@@ -1,28 +1,18 @@
 // Package session implements the Etherpad API session endpoints
 // (createSession, getSessionInfo, deleteSession, listSessionsOfGroup,
-// listSessionsOfAuthor from the original HTTP API).
-//
-// API sessions bind an author to a group for access to that group's pads.
-// Like the original (which stores session:*, group2sessions:* and
-// author2sessions:* records in its key-value database), sessions are kept in
-// the generic key-value storage of the DataStore under "apisession:" keys —
-// no dedicated table is needed.
+// listSessionsOfAuthor from the original HTTP API). Storage and lookup live
+// in pad.SessionManager, which SecurityManager.CheckAccess also consults for
+// access to private group pads.
 package session
 
 import (
-	"encoding/json"
+	"sort"
 	"time"
 
 	"github.com/ether/etherpad-go/lib"
 	"github.com/ether/etherpad-go/lib/api/errors"
-	"github.com/ether/etherpad-go/lib/utils"
+	"github.com/ether/etherpad-go/lib/pad"
 	"github.com/gofiber/fiber/v3"
-)
-
-const (
-	sessionKeyPrefix = "apisession:"
-	groupKeyPrefix   = "apisessions:group:"
-	authorKeyPrefix  = "apisessions:author:"
 )
 
 // CreateSessionRequest represents the request to create an API session
@@ -55,63 +45,21 @@ type SessionListResponse struct {
 	Sessions []SessionWithID `json:"sessions"`
 }
 
-func loadSession(store *lib.InitStore, sessionId string) (*SessionInfoResponse, error) {
-	payload, err := store.Store.GetOIDCStorageValue(sessionKeyPrefix + sessionId)
-	if err != nil || payload == nil {
-		return nil, err
+func toInfoResponse(info pad.ApiSessionInfo) SessionInfoResponse {
+	return SessionInfoResponse{
+		GroupID:    info.GroupID,
+		AuthorID:   info.AuthorID,
+		ValidUntil: info.ValidUntil,
 	}
-	var info SessionInfoResponse
-	if err := json.Unmarshal([]byte(*payload), &info); err != nil {
-		return nil, err
-	}
-	return &info, nil
 }
 
-func loadIDList(store *lib.InitStore, key string) ([]string, error) {
-	payload, err := store.Store.GetOIDCStorageValue(key)
-	if err != nil || payload == nil {
-		return []string{}, err
+func toListResponse(sessions map[string]pad.ApiSessionInfo) SessionListResponse {
+	list := make([]SessionWithID, 0, len(sessions))
+	for id, info := range sessions {
+		list = append(list, SessionWithID{SessionID: id, SessionInfoResponse: toInfoResponse(info)})
 	}
-	var ids []string
-	if err := json.Unmarshal([]byte(*payload), &ids); err != nil {
-		return nil, err
-	}
-	return ids, nil
-}
-
-func saveIDList(store *lib.InitStore, key string, ids []string) error {
-	encoded, err := json.Marshal(ids)
-	if err != nil {
-		return err
-	}
-	return store.Store.SetOIDCStorageValue(key, string(encoded))
-}
-
-func addToIDList(store *lib.InitStore, key string, id string) error {
-	ids, err := loadIDList(store, key)
-	if err != nil {
-		return err
-	}
-	for _, existing := range ids {
-		if existing == id {
-			return nil
-		}
-	}
-	return saveIDList(store, key, append(ids, id))
-}
-
-func removeFromIDList(store *lib.InitStore, key string, id string) error {
-	ids, err := loadIDList(store, key)
-	if err != nil {
-		return err
-	}
-	filtered := make([]string, 0, len(ids))
-	for _, existing := range ids {
-		if existing != id {
-			filtered = append(filtered, existing)
-		}
-	}
-	return saveIDList(store, key, filtered)
+	sort.Slice(list, func(i, j int) bool { return list[i].SessionID < list[j].SessionID })
+	return SessionListResponse{Sessions: list}
 }
 
 // CreateSession godoc
@@ -127,7 +75,7 @@ func removeFromIDList(store *lib.InitStore, key string, id string) error {
 // @Failure 500 {object} errors.Error
 // @Security BearerAuth
 // @Router /admin/api/sessions [post]
-func CreateSession(store *lib.InitStore) fiber.Handler {
+func CreateSession(store *lib.InitStore, sessions *pad.SessionManager) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		var request CreateSessionRequest
 		if err := c.Bind().Body(&request); err != nil {
@@ -150,24 +98,8 @@ func CreateSession(store *lib.InitStore) fiber.Handler {
 			return c.Status(404).JSON(errors.NewInvalidParamError("author does not exist"))
 		}
 
-		sessionId := "s." + utils.RandomString(16)
-		info := SessionInfoResponse{
-			GroupID:    request.GroupID,
-			AuthorID:   request.AuthorID,
-			ValidUntil: request.ValidUntil,
-		}
-		encoded, err := json.Marshal(info)
+		sessionId, err := sessions.CreateSession(request.GroupID, request.AuthorID, request.ValidUntil)
 		if err != nil {
-			return c.Status(500).JSON(errors.InternalServerError)
-		}
-
-		if err := store.Store.SetOIDCStorageValue(sessionKeyPrefix+sessionId, string(encoded)); err != nil {
-			return c.Status(500).JSON(errors.InternalServerError)
-		}
-		if err := addToIDList(store, groupKeyPrefix+request.GroupID, sessionId); err != nil {
-			return c.Status(500).JSON(errors.InternalServerError)
-		}
-		if err := addToIDList(store, authorKeyPrefix+request.AuthorID, sessionId); err != nil {
 			return c.Status(500).JSON(errors.InternalServerError)
 		}
 
@@ -186,17 +118,16 @@ func CreateSession(store *lib.InitStore) fiber.Handler {
 // @Failure 500 {object} errors.Error
 // @Security BearerAuth
 // @Router /admin/api/sessions/{sessionId} [get]
-func GetSessionInfo(store *lib.InitStore) fiber.Handler {
+func GetSessionInfo(sessions *pad.SessionManager) fiber.Handler {
 	return func(c fiber.Ctx) error {
-		sessionId := c.Params("sessionId")
-		info, err := loadSession(store, sessionId)
+		info, err := sessions.GetSessionInfo(c.Params("sessionId"))
 		if err != nil {
 			return c.Status(500).JSON(errors.InternalServerError)
 		}
 		if info == nil {
 			return c.Status(404).JSON(errors.NewInvalidParamError("session does not exist"))
 		}
-		return c.JSON(info)
+		return c.JSON(toInfoResponse(*info))
 	}
 }
 
@@ -211,48 +142,17 @@ func GetSessionInfo(store *lib.InitStore) fiber.Handler {
 // @Failure 500 {object} errors.Error
 // @Security BearerAuth
 // @Router /admin/api/sessions/{sessionId} [delete]
-func DeleteSession(store *lib.InitStore) fiber.Handler {
+func DeleteSession(sessions *pad.SessionManager) fiber.Handler {
 	return func(c fiber.Ctx) error {
-		sessionId := c.Params("sessionId")
-		info, err := loadSession(store, sessionId)
+		deleted, err := sessions.DeleteSession(c.Params("sessionId"))
 		if err != nil {
 			return c.Status(500).JSON(errors.InternalServerError)
 		}
-		if info == nil {
+		if !deleted {
 			return c.Status(404).JSON(errors.NewInvalidParamError("session does not exist"))
 		}
-
-		if err := store.Store.DeleteOIDCStorageValue(sessionKeyPrefix + sessionId); err != nil {
-			return c.Status(500).JSON(errors.InternalServerError)
-		}
-		if err := removeFromIDList(store, groupKeyPrefix+info.GroupID, sessionId); err != nil {
-			return c.Status(500).JSON(errors.InternalServerError)
-		}
-		if err := removeFromIDList(store, authorKeyPrefix+info.AuthorID, sessionId); err != nil {
-			return c.Status(500).JSON(errors.InternalServerError)
-		}
-
 		return c.SendStatus(200)
 	}
-}
-
-func listSessions(store *lib.InitStore, key string) ([]SessionWithID, error) {
-	ids, err := loadIDList(store, key)
-	if err != nil {
-		return nil, err
-	}
-	sessions := make([]SessionWithID, 0, len(ids))
-	for _, id := range ids {
-		info, err := loadSession(store, id)
-		if err != nil {
-			return nil, err
-		}
-		if info == nil {
-			continue
-		}
-		sessions = append(sessions, SessionWithID{SessionID: id, SessionInfoResponse: *info})
-	}
-	return sessions, nil
 }
 
 // ListSessionsOfGroup godoc
@@ -266,17 +166,17 @@ func listSessions(store *lib.InitStore, key string) ([]SessionWithID, error) {
 // @Failure 500 {object} errors.Error
 // @Security BearerAuth
 // @Router /admin/api/groups/{groupId}/sessions [get]
-func ListSessionsOfGroup(store *lib.InitStore) fiber.Handler {
+func ListSessionsOfGroup(store *lib.InitStore, sessions *pad.SessionManager) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		groupId := c.Params("groupId")
 		if _, err := store.Store.GetGroup(groupId); err != nil {
 			return c.Status(404).JSON(errors.NewInvalidParamError("group does not exist"))
 		}
-		sessions, err := listSessions(store, groupKeyPrefix+groupId)
+		found, err := sessions.ListSessionsOfGroup(groupId)
 		if err != nil {
 			return c.Status(500).JSON(errors.InternalServerError)
 		}
-		return c.JSON(SessionListResponse{Sessions: sessions})
+		return c.JSON(toListResponse(found))
 	}
 }
 
@@ -291,24 +191,25 @@ func ListSessionsOfGroup(store *lib.InitStore) fiber.Handler {
 // @Failure 500 {object} errors.Error
 // @Security BearerAuth
 // @Router /admin/api/authors/{authorId}/sessions [get]
-func ListSessionsOfAuthor(store *lib.InitStore) fiber.Handler {
+func ListSessionsOfAuthor(store *lib.InitStore, sessions *pad.SessionManager) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		authorId := c.Params("authorId")
 		if _, err := store.Store.GetAuthor(authorId); err != nil {
 			return c.Status(404).JSON(errors.NewInvalidParamError("author does not exist"))
 		}
-		sessions, err := listSessions(store, authorKeyPrefix+authorId)
+		found, err := sessions.ListSessionsOfAuthor(authorId)
 		if err != nil {
 			return c.Status(500).JSON(errors.InternalServerError)
 		}
-		return c.JSON(SessionListResponse{Sessions: sessions})
+		return c.JSON(toListResponse(found))
 	}
 }
 
 func Init(store *lib.InitStore) {
-	store.PrivateAPI.Post("/sessions", CreateSession(store))
-	store.PrivateAPI.Get("/sessions/:sessionId", GetSessionInfo(store))
-	store.PrivateAPI.Delete("/sessions/:sessionId", DeleteSession(store))
-	store.PrivateAPI.Get("/groups/:groupId/sessions", ListSessionsOfGroup(store))
-	store.PrivateAPI.Get("/authors/:authorId/sessions", ListSessionsOfAuthor(store))
+	sessions := pad.NewSessionManager(store.Store)
+	store.PrivateAPI.Post("/sessions", CreateSession(store, sessions))
+	store.PrivateAPI.Get("/sessions/:sessionId", GetSessionInfo(sessions))
+	store.PrivateAPI.Delete("/sessions/:sessionId", DeleteSession(sessions))
+	store.PrivateAPI.Get("/groups/:groupId/sessions", ListSessionsOfGroup(store, sessions))
+	store.PrivateAPI.Get("/authors/:authorId/sessions", ListSessionsOfAuthor(store, sessions))
 }

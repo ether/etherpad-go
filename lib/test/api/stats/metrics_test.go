@@ -1,6 +1,8 @@
 package stats
 
 import (
+	"encoding/json"
+	"io"
 	"net/http/httptest"
 	"testing"
 
@@ -22,6 +24,10 @@ func TestAdminMessageHandlerAllMethods(t *testing.T) {
 		testutils.TestRunConfig{
 			Name: "Health Endpoint Exists",
 			Test: testHealthendpointExists,
+		},
+		testutils.TestRunConfig{
+			Name: "GetStats endpoint returns instance stats",
+			Test: testGetStatsEndpoint,
 		},
 	)
 
@@ -53,4 +59,25 @@ func testHealthendpointExists(t *testing.T, testDb testutils.TestDataStore) {
 	resp, err := testDb.App.Test(req)
 	require.NoError(t, err)
 	require.Equal(t, 200, resp.StatusCode)
+}
+
+func testGetStatsEndpoint(t *testing.T, testDb testutils.TestDataStore) {
+	initStore := testDb.ToInitStore()
+	stats.Init(initStore)
+
+	// Create a pad so totalPads is at least 1
+	_, err := testDb.PadManager.GetPad("statspad", nil, nil)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest("GET", "/admin/api/stats", nil)
+	resp, err := initStore.C.Test(req)
+	require.NoError(t, err)
+	require.Equal(t, 200, resp.StatusCode)
+
+	var response stats.StatsResponse
+	body, _ := io.ReadAll(resp.Body)
+	require.NoError(t, json.Unmarshal(body, &response))
+	require.GreaterOrEqual(t, response.TotalPads, 1)
+	require.GreaterOrEqual(t, response.TotalSessions, 0)
+	require.GreaterOrEqual(t, response.TotalActivePads, 0)
 }
