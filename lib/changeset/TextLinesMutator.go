@@ -4,6 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"unicode/utf8"
+
+	"github.com/ether/etherpad-go/lib/utils"
 )
 
 // TextLinesMutator is a class to iterate and modify texts which have several lines.
@@ -200,10 +203,11 @@ func (m *TextLinesMutator) RemoveLines(L int) string {
 			m.curSplice[1] = deleteCount + L - 1
 			sline := len(m.curSplice) - 1
 			slineStr := m.curSplice[sline].(string)
-			removed = slineStr[m.curCol:] + removed
+			slineRuneLen := utf8.RuneCountInString(slineStr)
+			removed = utils.RuneSlice(slineStr, m.curCol, slineRuneLen) + removed
 			startIdx := m.curSplice[0].(int)
 			deleteCount = m.curSplice[1].(int)
-			m.curSplice[sline] = slineStr[:m.curCol] + m.linesGet(startIdx+deleteCount)
+			m.curSplice[sline] = utils.RuneSlice(slineStr, 0, m.curCol) + m.linesGet(startIdx+deleteCount)
 			m.curSplice[1] = deleteCount + 1
 		}
 	} else {
@@ -231,14 +235,15 @@ func (m *TextLinesMutator) Remove(N, L int) string {
 
 	sline := m.putCurLineInSplice()
 	slineStr := m.curSplice[sline].(string)
+	slineRuneLen := utf8.RuneCountInString(slineStr)
 
 	endCol := m.curCol + N
-	if endCol > len(slineStr) {
-		endCol = len(slineStr)
+	if endCol > slineRuneLen {
+		endCol = slineRuneLen
 	}
 
-	removed := slineStr[m.curCol:endCol]
-	m.curSplice[sline] = slineStr[:m.curCol] + slineStr[endCol:]
+	removed := utils.RuneSlice(slineStr, m.curCol, endCol)
+	m.curSplice[sline] = utils.RuneSlice(slineStr, 0, m.curCol) + utils.RuneSlice(slineStr, endCol, slineRuneLen)
 
 	return removed
 }
@@ -260,9 +265,10 @@ func (m *TextLinesMutator) Insert(text string, L int) error {
 			sline := len(m.curSplice) - 1
 			theLine := m.curSplice[sline].(string)
 			lineCol := m.curCol
+			theLineRuneLen := utf8.RuneCountInString(theLine)
 
 			// Insert the chars up to curCol and the first new line
-			m.curSplice[sline] = theLine[:lineCol] + newLines[0]
+			m.curSplice[sline] = utils.RuneSlice(theLine, 0, lineCol) + newLines[0]
 			m.curLine++
 			newLines = newLines[1:]
 
@@ -273,7 +279,7 @@ func (m *TextLinesMutator) Insert(text string, L int) error {
 			m.curLine += len(newLines)
 
 			// Insert the remaining chars from the "old" line
-			m.curSplice = append(m.curSplice, theLine[lineCol:])
+			m.curSplice = append(m.curSplice, utils.RuneSlice(theLine, lineCol, theLineRuneLen))
 			m.curCol = 0
 		} else {
 			for _, line := range newLines {
@@ -293,8 +299,9 @@ func (m *TextLinesMutator) Insert(text string, L int) error {
 		}
 
 		slineStr := m.curSplice[sline].(string)
-		m.curSplice[sline] = slineStr[:m.curCol] + text + slineStr[m.curCol:]
-		m.curCol += len(text)
+		slineRuneLen := utf8.RuneCountInString(slineStr)
+		m.curSplice[sline] = utils.RuneSlice(slineStr, 0, m.curCol) + text + utils.RuneSlice(slineStr, m.curCol, slineRuneLen)
+		m.curCol += utf8.RuneCountInString(text)
 	}
 
 	return nil

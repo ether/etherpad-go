@@ -61,6 +61,8 @@ const hideById = (id: string) => setDisplay(id, 'none');
 const showById = (id: string, display = 'block') => setDisplay(id, display);
 const setCheckedById = (id: string, value: boolean) => {
     const el = byId(id);
+    if (!el) return;
+    if (el.tagName === 'EP-CHECKBOX') { (el as any).checked = value; return; }
     if (el instanceof HTMLInputElement) el.checked = value;
 };
 
@@ -520,7 +522,8 @@ const pad = {
             // bar — i.e., the standard WCAG 2.4.1 entry path. Users now
             // click or Tab into the editor; the skip link is the first
             // tabbable element. Upstream #7758.
-            byId('options-stickychat')?.addEventListener('click', () => chat.stickToScreen());
+            byId('options-stickychat')?.addEventListener('ep-change', () => chat.stickToScreen());
+            byId('options-chatandusers')?.addEventListener('ep-change', () => chat.chatAndUsers());
             if (padcookie.getPref('chatAlwaysVisible')) {
                 chat.stickToScreen(true);
                 setCheckedById('options-stickychat', true);
@@ -550,13 +553,15 @@ const pad = {
 
             const checkChatAndUsersVisibility = (x) => {
                 if (x.matches) {
-                    const chatAndUsers = byId('options-chatandusers');
-                    if (chatAndUsers instanceof HTMLInputElement && chatAndUsers.checked) {
-                        chatAndUsers.click();
+                    const chatAndUsers = byId('options-chatandusers') as any;
+                    if (chatAndUsers?.checked) {
+                        chatAndUsers.checked = false;
+                        chatAndUsers.dispatchEvent(new CustomEvent('ep-change', {detail: {checked: false}}));
                     }
-                    const stickyChat = byId('options-stickychat');
-                    if (stickyChat instanceof HTMLInputElement && stickyChat.checked) {
-                        stickyChat.click();
+                    const stickyChat = byId('options-stickychat') as any;
+                    if (stickyChat?.checked) {
+                        stickyChat.checked = false;
+                        stickyChat.dispatchEvent(new CustomEvent('ep-change', {detail: {checked: false}}));
                     }
                 }
             };

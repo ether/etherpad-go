@@ -115,6 +115,13 @@ test.describe('unordered_list.js', function () {
             const $insertunorderedlistButton = page.locator('.buttonicon-insertunorderedlist');
             await $insertunorderedlistButton.click();
 
+            // Re-focus the editor and place the caret on the list line: the
+            // toolbar button click applies a changeset that shifts rep.selStart
+            // to a stale position, so the subsequent indent command needs a
+            // fresh selection inside the new list line.
+            await padBody.locator('div').first().click();
+            await page.keyboard.press('Home');
+
             await page.locator('.buttonicon-indent').click();
 
             await expect(padBody.locator('div').first().locator('.list-bullet2')).toHaveCount(1);

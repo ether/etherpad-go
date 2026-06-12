@@ -1,5 +1,5 @@
 import {expect, Page, test} from "@playwright/test";
-import {goToNewPad} from "../helper/padHelper";
+import {goToNewPad, setEpCheckbox} from "../helper/padHelper";
 
 test.beforeEach(async ({ page })=>{
     // create a new pad before each test run
@@ -102,11 +102,7 @@ test.describe('embed links', function () {
                 await page.waitForTimeout(200);
 
                 const readonlyCheckbox = page.locator('#readonlyinput')
-                await readonlyCheckbox.click({
-                    force: true
-                })
-                // Wait for the checkbox to be checked
-                await expect(readonlyCheckbox).toBeChecked({ timeout: 5000 });
+                await setEpCheckbox(readonlyCheckbox, true);
 
                 // get the link of the share field + the actual pad url and compare them
                 const shareLink = await page.locator('#linkinput').inputValue()
@@ -122,15 +118,8 @@ test.describe('embed links', function () {
                 await shareButton.click()
                 await page.waitForTimeout(200);
 
-                // check read only checkbox, a bit hacky
                 const readonlyCheckbox = page.locator('#readonlyinput')
-                await readonlyCheckbox.click({
-                    force: true
-                })
-
-                // Wait for the checkbox to be checked
-                await expect(readonlyCheckbox).toBeChecked({ timeout: 5000 });
-
+                await setEpCheckbox(readonlyCheckbox, true);
 
                 // get the link of the share field + the actual pad url and compare them
                 const embedCode = await page.locator('#embedinput').inputValue()

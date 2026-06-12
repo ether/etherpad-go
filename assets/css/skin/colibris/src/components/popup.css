@@ -49,6 +49,21 @@
 .popup .dropdowns-container .nice-select {
   min-width: 180px;
 }
+.popup .dropdowns-container .dropdown-select-trigger {
+  min-width: 180px;
+  padding: 6px 12px;
+  border: 1px solid var(--middle-color, #d2d2d2);
+  border-radius: 4px;
+  background: var(--bg-color, white);
+  color: var(--text-color, #485365);
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+.popup .dropdowns-container .dropdown-select-trigger:hover {
+  border-color: var(--dark-color, #576273);
+}
 
 #delete-pad {
   background-color: #ff7b72;

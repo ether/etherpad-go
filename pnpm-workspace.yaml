@@ -8,4 +8,4 @@ allowBuilds:
   esbuild: true
 
 overrides:
-  etherpad-webcomponents: 0.0.4
+  etherpad-webcomponents: 0.0.11

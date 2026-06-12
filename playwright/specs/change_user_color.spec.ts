@@ -1,5 +1,5 @@
 import {expect, test} from "@playwright/test";
-import {goToNewPad, sendChatMessage, showChat} from "../helper/padHelper";
+import {goToNewPad, sendChatMessage, setEpCheckbox, showChat} from "../helper/padHelper";
 
 test.beforeEach(async ({page}) => {
     await goToNewPad(page);
@@ -59,9 +59,7 @@ test.describe('change user color', function () {
     test('Own user color is shown when you enter a chat', async function ({page}) {
 
         const colorOption = page.locator('#options-colorscheck');
-        if (!(await colorOption.isChecked())) {
-            await colorOption.check();
-        }
+        await setEpCheckbox(colorOption, true);
 
         // click on the settings button to make settings visible
         const $userButton = page.locator('.buttonicon-showusers');
@@ -88,16 +86,23 @@ test.describe('change user color', function () {
         await showChat(page)
         await sendChatMessage(page, 'O hi');
 
-        // wait until the chat message shows up
-        const chatP = page.locator('#chattext').locator('p')
-        const chatText = await chatP.innerText();
+        // wait until the chat message shows up — chat now renders as
+        // <ep-chat-message> webcomponents rather than <p> elements.
+        const chatMsg = page.locator('#chattext').locator('ep-chat-message').first()
+        await expect(chatMsg).toBeVisible({timeout: 10000});
+        const chatText = (await chatMsg.textContent()) ?? '';
 
         expect(chatText).toContain('O hi');
 
-        const color = await chatP.evaluate((el) => {
-            return window.getComputedStyle(el).getPropertyValue('background-color');
-        }, chatText);
+        // The author color is rendered inside the shadow DOM on the
+        // `.author` span via inline `color: ${authorColor}`. Read it from
+        // the shadow root.
+        const authorColor = await chatMsg.evaluate((el) => {
+            const span = el.shadowRoot?.querySelector('.author') as HTMLElement | null;
+            if (!span) return '';
+            return window.getComputedStyle(span).getPropertyValue('color');
+        });
 
-        expect(color).toBe(testColorRGB);
+        expect(authorColor).toBe(testColorRGB);
     });
 });

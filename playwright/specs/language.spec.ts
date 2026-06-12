@@ -1,5 +1,5 @@
 import {expect, Page, test} from "@playwright/test";
-import {goToNewPad} from "../helper/padHelper";
+import {goToNewPad, selectEpDropdownItem} from "../helper/padHelper";
 
 test.beforeEach(async ({ page })=>{
     await page.context().clearCookies();
@@ -8,7 +8,7 @@ test.beforeEach(async ({ page })=>{
 
 const selectLanguage = async (page: Page, language: string) => {
     const languageMenu = page.locator('#languagemenu');
-    await page.waitForSelector('iframe[name="ace_outer"]');
+    await page.locator('#innerdocbody').waitFor({ state: 'visible' });
     for (let i = 0; i < 3; i++) {
         if (await languageMenu.isVisible()) break;
         await page.locator("button[class~='buttonicon-settings']").click();
@@ -17,7 +17,7 @@ const selectLanguage = async (page: Page, language: string) => {
     await expect(languageMenu).toBeVisible();
     await Promise.all([
         page.waitForLoadState('load'),
-        languageMenu.selectOption(language),
+        selectEpDropdownItem(page, '#languagemenu', language),
     ]);
 };
 
@@ -27,14 +27,12 @@ test.describe('Language select and change', function () {
 
     test('makes text german', async function ({page}) {
         await selectLanguage(page, 'de');
-        await expect(page.locator('#languagemenu')).toHaveValue('de');
         await expect(page.locator('html')).toHaveAttribute('lang', 'de');
     });
 
     test('makes text English', async function ({page}) {
         await selectLanguage(page, 'de');
         await selectLanguage(page, 'en');
-        await expect(page.locator('#languagemenu')).toHaveValue('en');
         await expect(page.locator('html')).toHaveAttribute('lang', 'en');
     });
 
@@ -46,14 +44,12 @@ test.describe('Language select and change', function () {
     test('changes direction when picking an ltr lang', async function ({page}) {
         await selectLanguage(page, 'ar');
         await selectLanguage(page, 'en');
-        await expect(page.locator('#languagemenu')).toHaveValue('en');
         await expect(page.locator('html')).toHaveAttribute('dir', 'ltr');
     });
 
     test('keeps selected language after reload', async function ({page}) {
         await selectLanguage(page, 'de');
         await goToNewPad(page);
-        await expect(page.locator('#languagemenu')).toHaveValue('de');
         await expect(page.locator('html')).toHaveAttribute('lang', 'de');
     });
 
