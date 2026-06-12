@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/ether/etherpad-go/lib/api/pad"
+	"github.com/ether/etherpad-go/lib/hooks"
+	padModel "github.com/ether/etherpad-go/lib/models/pad"
 	"github.com/ether/etherpad-go/lib/test/testutils"
 	"github.com/stretchr/testify/assert"
 )
@@ -194,6 +196,18 @@ func TestPadAPI(t *testing.T) {
 		testutils.TestRunConfig{
 			Name: "GetPublicStatus pad not found returns 404",
 			Test: testGetPublicStatusNotFound,
+		},
+		testutils.TestRunConfig{
+			Name: "PublicStatus rejects non-group pads",
+			Test: testPublicStatusRejectsNonGroupPad,
+		},
+		testutils.TestRunConfig{
+			Name: "padCopy hook fires on copy",
+			Test: testPadCopyHookFires,
+		},
+		testutils.TestRunConfig{
+			Name: "padRemove hook fires on remove",
+			Test: testPadRemoveHookFires,
 		},
 	)
 
@@ -542,6 +556,8 @@ func testListAuthorsOfPad(t *testing.T, tsStore testutils.TestDataStore) {
 	initStore := tsStore.ToInitStore()
 	pad.Init(initStore)
 
+	// Created without an authorId, so the only contributor in the pool is the
+	// synthetic system author, which must be filtered out of the public list.
 	text := "Author test\n"
 	createTestPad(t, tsStore, "authorpad", text)
 
@@ -556,6 +572,7 @@ func testListAuthorsOfPad(t *testing.T, tsStore testutils.TestDataStore) {
 	_ = json.Unmarshal(body, &response)
 
 	assert.NotNil(t, response.AuthorIDs)
+	assert.NotContains(t, response.AuthorIDs, padModel.SystemAuthorId)
 }
 
 // ========== Last Edited ==========
@@ -955,9 +972,9 @@ func testGetPublicStatusDefault(t *testing.T, tsStore testutils.TestDataStore) {
 	initStore := tsStore.ToInitStore()
 	pad.Init(initStore)
 
-	createTestPad(t, tsStore, "publicpad", "Public status test\n")
+	createTestPad(t, tsStore, "g.0123456789abcdef$publicpad", "Public status test\n")
 
-	req := httptest.NewRequest("GET", "/admin/api/pads/publicpad/publicStatus", nil)
+	req := httptest.NewRequest("GET", "/admin/api/pads/g.0123456789abcdef$publicpad/publicStatus", nil)
 	resp, err := initStore.C.Test(req)
 
 	assert.NoError(t, err)
@@ -974,14 +991,14 @@ func testSetPublicStatusPersists(t *testing.T, tsStore testutils.TestDataStore) 
 	initStore := tsStore.ToInitStore()
 	pad.Init(initStore)
 
-	createTestPad(t, tsStore, "publicpad2", "Public status test\n")
+	createTestPad(t, tsStore, "g.0123456789abcdef$publicpad2", "Public status test\n")
 
 	reqBody := pad.PublicStatusRequest{
 		PublicStatus: true,
 	}
 	body, _ := json.Marshal(reqBody)
 
-	req := httptest.NewRequest("POST", "/admin/api/pads/publicpad2/publicStatus", bytes.NewBuffer(body))
+	req := httptest.NewRequest("POST", "/admin/api/pads/g.0123456789abcdef$publicpad2/publicStatus", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := initStore.C.Test(req)
 
@@ -989,9 +1006,9 @@ func testSetPublicStatusPersists(t *testing.T, tsStore testutils.TestDataStore) 
 	assert.Equal(t, 200, resp.StatusCode)
 
 	// Evict the pad from the manager cache so the next read comes from the database
-	tsStore.PadManager.UnloadPad("publicpad2")
+	tsStore.PadManager.UnloadPad("g.0123456789abcdef$publicpad2")
 
-	req = httptest.NewRequest("GET", "/admin/api/pads/publicpad2/publicStatus", nil)
+	req = httptest.NewRequest("GET", "/admin/api/pads/g.0123456789abcdef$publicpad2/publicStatus", nil)
 	resp, err = initStore.C.Test(req)
 
 	assert.NoError(t, err)
@@ -1008,11 +1025,92 @@ func testGetPublicStatusNotFound(t *testing.T, tsStore testutils.TestDataStore) 
 	initStore := tsStore.ToInitStore()
 	pad.Init(initStore)
 
-	req := httptest.NewRequest("GET", "/admin/api/pads/nosuchpublicpad/publicStatus", nil)
+	req := httptest.NewRequest("GET", "/admin/api/pads/g.0123456789abcdef$nosuch/publicStatus", nil)
 	resp, err := initStore.C.Test(req)
 
 	assert.NoError(t, err)
 	assert.Equal(t, 404, resp.StatusCode)
+}
+
+// testPublicStatusRejectsNonGroupPad asserts the upstream checkGroupPad guard:
+// reading or setting the public status of a non-group pad must be rejected.
+func testPublicStatusRejectsNonGroupPad(t *testing.T, tsStore testutils.TestDataStore) {
+	initStore := tsStore.ToInitStore()
+	pad.Init(initStore)
+
+	createTestPad(t, tsStore, "plainpad", "Not a group pad\n")
+
+	getReq := httptest.NewRequest("GET", "/admin/api/pads/plainpad/publicStatus", nil)
+	getResp, err := initStore.C.Test(getReq)
+	assert.NoError(t, err)
+	assert.Equal(t, 400, getResp.StatusCode)
+
+	body, _ := json.Marshal(pad.PublicStatusRequest{PublicStatus: true})
+	setReq := httptest.NewRequest("POST", "/admin/api/pads/plainpad/publicStatus", bytes.NewBuffer(body))
+	setReq.Header.Set("Content-Type", "application/json")
+	setResp, err := initStore.C.Test(setReq)
+	assert.NoError(t, err)
+	assert.Equal(t, 400, setResp.StatusCode)
+}
+
+// ========== Plugin hooks (padCopy / padRemove) ==========
+
+// testPadCopyHookFires asserts the padCopy hook fires with the source and
+// destination pads when a pad is copied through the API.
+func testPadCopyHookFires(t *testing.T, tsStore testutils.TestDataStore) {
+	initStore := tsStore.ToInitStore()
+	pad.Init(initStore)
+
+	createTestPad(t, tsStore, "copyhooksrc", "copy hook source\n")
+
+	var fired *padModel.Copy
+	tsStore.Hooks.EnqueueHook(hooks.PadCopyString, func(ctx any) {
+		if c, ok := ctx.(padModel.Copy); ok {
+			fired = &c
+		}
+	})
+
+	body, _ := json.Marshal(pad.CopyPadRequest{DestinationID: "copyhookdst"})
+	req := httptest.NewRequest("POST", "/admin/api/pads/copyhooksrc/copy", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := initStore.C.Test(req)
+	assert.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	assert.NotNil(t, fired)
+	if fired != nil {
+		assert.Equal(t, "copyhooksrc", fired.SrcId)
+		assert.Equal(t, "copyhookdst", fired.DstId)
+		assert.NotNil(t, fired.DstPad)
+	}
+}
+
+// testPadRemoveHookFires asserts the padRemove hook fires when a pad is removed
+// (here through a move, which deletes the source after copying it).
+func testPadRemoveHookFires(t *testing.T, tsStore testutils.TestDataStore) {
+	initStore := tsStore.ToInitStore()
+	pad.Init(initStore)
+
+	createTestPad(t, tsStore, "removehooksrc", "remove hook source\n")
+
+	var fired *padModel.Remove
+	tsStore.Hooks.EnqueueHook(hooks.PadRemoveString, func(ctx any) {
+		if c, ok := ctx.(padModel.Remove); ok {
+			fired = &c
+		}
+	})
+
+	body, _ := json.Marshal(pad.MovePadRequest{DestinationID: "removehookdst"})
+	req := httptest.NewRequest("POST", "/admin/api/pads/removehooksrc/move", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := initStore.C.Test(req)
+	assert.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	assert.NotNil(t, fired)
+	if fired != nil {
+		assert.Equal(t, "removehooksrc", fired.PadId)
+	}
 }
 
 // ========== Check Token ==========

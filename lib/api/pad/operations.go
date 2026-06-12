@@ -9,6 +9,8 @@ import (
 	utils2 "github.com/ether/etherpad-go/lib/api/utils"
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/changeset"
+	io2 "github.com/ether/etherpad-go/lib/io"
+	padModel "github.com/ether/etherpad-go/lib/models/pad"
 	"github.com/ether/etherpad-go/lib/utils"
 	"github.com/gofiber/fiber/v3"
 )
@@ -253,10 +255,13 @@ func ListAuthorsOfPad(initStore *lib.InitStore) fiber.Handler {
 			return c.Status(404).JSON(errors2.PadNotFoundError)
 		}
 
-		// Get all authors from the pool
+		// Get all authors from the pool. SystemAuthorId is the synthetic author
+		// used for unattributed inserts (HTTP API writes without an authorId,
+		// server-side imports); it is a changeset-bookkeeping detail, not a real
+		// contributor, so it must not surface through this public API.
 		authorIDs := make([]string, 0)
 		pad.Pool.EachAttrib(func(attr apool.Attribute) {
-			if attr.Key == "author" && attr.Value != "" {
+			if attr.Key == "author" && attr.Value != "" && attr.Value != padModel.SystemAuthorId {
 				// Check if not already in list
 				found := false
 				for _, id := range authorIDs {
@@ -432,20 +437,15 @@ func GetHTML(initStore *lib.InitStore) fiber.Handler {
 			rev = revNum
 		}
 
-		// Get the HTML (using exporter if available)
-		var text string
-		if rev != nil {
-			atext := pad.GetInternalRevisionAText(*rev)
-			if atext == nil {
-				return c.Status(500).JSON(errors2.InternalApiError)
-			}
-			text = atext.Text
-		} else {
-			text = pad.Text()
+		// Render the full HTML document through the real exporter so that
+		// formatting (bold/italic/underline, links, lists, headings, line
+		// markers) is preserved. Mirrors the original Etherpad getHTML, which
+		// delegates to exportHtml.getPadHTMLDocument.
+		exporter := io2.NewExportHtml(initStore.PadManager, initStore.AuthorManager, initStore.Hooks)
+		html, err := exporter.GetPadHTMLDocument(padId, rev, nil)
+		if err != nil {
+			return c.Status(500).JSON(errors2.InternalApiError)
 		}
-
-		// Simple HTML conversion (basic)
-		html := "<html><body>" + strings.ReplaceAll(text, "\n", "<br>") + "</body></html>"
 
 		return c.JSON(fiber.Map{
 			"html": html,

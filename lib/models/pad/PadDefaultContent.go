@@ -29,3 +29,19 @@ type Create struct {
 	PadId    string
 	AuthorId string
 }
+
+// Copy is the context passed to the padCopy hook after a pad is copied to a new
+// destination (copyPad, copyPadWithoutHistory, movePad). Mirrors the original
+// Etherpad context, which exposes the source and destination pads.
+type Copy struct {
+	SrcPad *Pad
+	DstPad *Pad
+	SrcId  string
+	DstId  string
+}
+
+// Remove is the context passed to the padRemove hook when a pad is deleted.
+type Remove struct {
+	Pad   *Pad
+	PadId string
+}
