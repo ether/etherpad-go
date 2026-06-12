@@ -39,6 +39,13 @@ var PadNotFoundError = Error{
 	Error:   404,
 }
 
+// NotAGroupPadError mirrors the original Etherpad checkGroupPad guard: public
+// status can only be read or changed on pads that belong to a group.
+var NotAGroupPadError = Error{
+	Message: "You can only get/set the publicStatus of pads that belong to a group",
+	Error:   400,
+}
+
 var AuthorNotFoundError = Error{
 	Message: "Author not found",
 	Error:   404,

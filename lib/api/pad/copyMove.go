@@ -6,7 +6,9 @@ import (
 	"github.com/ether/etherpad-go/lib"
 	errors2 "github.com/ether/etherpad-go/lib/api/errors"
 	utils2 "github.com/ether/etherpad-go/lib/api/utils"
+	"github.com/ether/etherpad-go/lib/hooks"
 	db2 "github.com/ether/etherpad-go/lib/models/db"
+	padModel "github.com/ether/etherpad-go/lib/models/pad"
 	"github.com/gofiber/fiber/v3"
 )
 
@@ -106,6 +108,28 @@ func copyPadRecords(initStore *lib.InitStore, sourceID string, destinationID str
 	return nil
 }
 
+// firePadCopy notifies plugins that a pad was copied, mirroring the original
+// Etherpad padCopy hook which is fired with the source and destination pads.
+func firePadCopy(initStore *lib.InitStore, srcPad *padModel.Pad, dstId string) {
+	dstPad, err := initStore.PadManager.GetPad(dstId, nil, nil)
+	if err != nil {
+		initStore.Logger.Errorf("padCopy hook: failed to load destination pad %s: %v", dstId, err)
+		return
+	}
+	initStore.Hooks.ExecuteHooks(hooks.PadCopyString, padModel.Copy{
+		SrcPad: srcPad,
+		DstPad: dstPad,
+		SrcId:  srcPad.Id,
+		DstId:  dstId,
+	})
+}
+
+// isGroupPad mirrors the original Etherpad checkGroupPad guard: only pads that
+// belong to a group (their id contains a '$') expose a public status.
+func isGroupPad(padId string) bool {
+	return strings.Contains(padId, "$")
+}
+
 // CopyPad godoc
 // @Summary Copy a pad
 // @Description Copies a pad including its full revision and chat history to a new pad. Fails if the destination exists unless force is set.
@@ -130,7 +154,8 @@ func CopyPad(initStore *lib.InitStore) fiber.Handler {
 		}
 
 		// Verify source pad exists
-		if _, err := utils2.GetPadSafe(padId, true, nil, nil, initStore.PadManager); err != nil {
+		srcPad, err := utils2.GetPadSafe(padId, true, nil, nil, initStore.PadManager)
+		if err != nil {
 			return c.Status(404).JSON(errors2.PadNotFoundError)
 		}
 
@@ -142,6 +167,8 @@ func CopyPad(initStore *lib.InitStore) fiber.Handler {
 			initStore.Logger.Errorf("Error copying pad %s to %s: %v", padId, request.DestinationID, err)
 			return c.Status(500).JSON(errors2.InternalServerError)
 		}
+
+		firePadCopy(initStore, srcPad, request.DestinationID)
 
 		return c.JSON(PadIDResponse{
 			PadID: request.DestinationID,
@@ -195,6 +222,8 @@ func CopyPadWithoutHistory(initStore *lib.InitStore) fiber.Handler {
 			return c.Status(500).JSON(errors2.InternalServerError)
 		}
 
+		firePadCopy(initStore, sourcePad, request.DestinationID)
+
 		return c.JSON(PadIDResponse{
 			PadID: request.DestinationID,
 		})
@@ -225,7 +254,8 @@ func MovePad(initStore *lib.InitStore) fiber.Handler {
 		}
 
 		// Verify source pad exists
-		if _, err := utils2.GetPadSafe(padId, true, nil, nil, initStore.PadManager); err != nil {
+		srcPad, err := utils2.GetPadSafe(padId, true, nil, nil, initStore.PadManager)
+		if err != nil {
 			return c.Status(404).JSON(errors2.PadNotFoundError)
 		}
 
@@ -238,7 +268,9 @@ func MovePad(initStore *lib.InitStore) fiber.Handler {
 			return c.Status(500).JSON(errors2.InternalServerError)
 		}
 
-		// Remove the source pad after a successful copy
+		firePadCopy(initStore, srcPad, request.DestinationID)
+
+		// Remove the source pad after a successful copy (fires padRemove)
 		if err := initStore.PadManager.RemovePad(padId); err != nil {
 			return c.Status(500).JSON(errors2.InternalServerError)
 		}
@@ -263,6 +295,10 @@ func MovePad(initStore *lib.InitStore) fiber.Handler {
 func GetPublicStatus(initStore *lib.InitStore) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		padId := c.Params("padId")
+
+		if !isGroupPad(padId) {
+			return c.Status(400).JSON(errors2.NotAGroupPadError)
+		}
 
 		// Get the pad
 		pad, err := utils2.GetPadSafe(padId, true, nil, nil, initStore.PadManager)
@@ -296,6 +332,10 @@ func SetPublicStatus(initStore *lib.InitStore) fiber.Handler {
 		var request PublicStatusRequest
 		if err := c.Bind().Body(&request); err != nil {
 			return c.Status(400).JSON(errors2.InvalidRequestError)
+		}
+
+		if !isGroupPad(padId) {
+			return c.Status(400).JSON(errors2.NotAGroupPadError)
 		}
 
 		// Get the pad

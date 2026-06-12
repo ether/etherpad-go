@@ -128,11 +128,21 @@ func (m *Manager) SanitizePadId(padID string) (*string, error) {
 }
 
 func (m *Manager) RemovePad(padID string) error {
+	// Capture the loaded pad (if any) before deletion so the padRemove hook can
+	// hand listeners the pad context, mirroring the original Etherpad which
+	// fires padRemove from Pad.remove() with `this`.
+	removedPad := m.globalPadCache.GetPad(padID)
+
 	if err := m.store.RemovePad(padID); err != nil {
 		return err
 	}
 	m.globalPadCache.DeletePad(padID)
 	m.padList.RemovePad(padID)
+
+	m.hook.ExecuteHooks(hooks.PadRemoveString, pad.Remove{
+		Pad:   removedPad,
+		PadId: padID,
+	})
 
 	return nil
 }
