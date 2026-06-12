@@ -25,6 +25,12 @@ updates:
       interval: "daily"
     versioning-strategy: "increase"
     open-pull-requests-limit: 30
+    # Wait until a release has aged before opening a PR. CI installs the
+    # latest pnpm, which enforces a 24h minimumReleaseAge supply-chain gate on
+    # the lockfile; opening PRs sooner just produces runs that fail that gate.
+    # The cooldown keeps the protection and avoids the doomed PRs.
+    cooldown:
+      default-days: 3
     groups:
       dev-dependencies:
         dependency-type: "development"
@@ -39,6 +45,10 @@ updates:
       interval: "daily"
     versioning-strategy: "increase"
     open-pull-requests-limit: 30
+    # See the /ui config above: cooldown clears pnpm's 24h minimumReleaseAge
+    # supply-chain gate so Dependabot doesn't open PRs that are sure to fail CI.
+    cooldown:
+      default-days: 3
     groups:
       dev-dependencies:
         dependency-type: "development"
