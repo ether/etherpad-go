@@ -109,3 +109,93 @@ func TestPadDefaultContentTypedWrapperMutatesContent(t *testing.T) {
 		t.Fatalf("expected content mutated to 'hello', got %v", ctx.Content)
 	}
 }
+
+func TestHandleMessageContextDropMessage(t *testing.T) {
+	h := NewHook()
+	h.EnqueueHandleMessageHook(func(ctx *events.HandleMessageContext) {
+		if ctx.PadId == "p1" {
+			ctx.DropMessage()
+		}
+	})
+
+	ctx := &events.HandleMessageContext{Message: "m", PadId: "p1", AuthorId: "a1"}
+	h.ExecuteHandleMessageHooks(ctx)
+
+	if !ctx.Dropped() {
+		t.Fatal("expected message to be dropped")
+	}
+}
+
+func TestHandleMessageSecurityGrant(t *testing.T) {
+	h := NewHook()
+	h.EnqueueHandleMessageSecurityHook(func(ctx *events.HandleMessageSecurityContext) {
+		ctx.GrantWriteAccess()
+	})
+
+	ctx := &events.HandleMessageSecurityContext{PadId: "p1"}
+	h.ExecuteHandleMessageSecurityHooks(ctx)
+
+	if !ctx.WriteAccessGranted() {
+		t.Fatal("expected write access to be granted")
+	}
+}
+
+func TestChatNewMessageContextMutateAndDrop(t *testing.T) {
+	h := NewHook()
+	h.EnqueueChatNewMessageHook(func(ctx *events.ChatNewMessageContext) {
+		*ctx.Text = "rewritten"
+	})
+
+	text := "original"
+	ctx := &events.ChatNewMessageContext{Text: &text, PadId: "p1"}
+	h.ExecuteChatNewMessageHooks(ctx)
+
+	if *ctx.Text != "rewritten" {
+		t.Fatalf("expected text rewritten, got %q", *ctx.Text)
+	}
+	if ctx.Dropped() {
+		t.Fatal("did not expect drop")
+	}
+}
+
+func TestClientVarsContextExtra(t *testing.T) {
+	h := NewHook()
+	h.EnqueueClientVarsHook(func(ctx *events.ClientVarsContext) {
+		ctx.Extra["myPlugin"] = 42
+	})
+
+	ctx := &events.ClientVarsContext{Extra: map[string]any{}, PadId: "p1"}
+	h.ExecuteClientVarsHooks(ctx)
+
+	if ctx.Extra["myPlugin"] != 42 {
+		t.Fatalf("expected extra key set, got %v", ctx.Extra["myPlugin"])
+	}
+}
+
+func TestClientReadyTypedWrapperDelivers(t *testing.T) {
+	h := NewHook()
+	var gotPad string
+	h.EnqueueClientReadyHook(func(ctx *events.ClientReadyContext) {
+		gotPad = ctx.PadId
+	})
+
+	h.ExecuteClientReadyHooks(&events.ClientReadyContext{PadId: "p1", AuthorId: "a1", Token: "t"})
+
+	if gotPad != "p1" {
+		t.Fatalf("expected p1, got %q", gotPad)
+	}
+}
+
+func TestUserJoinLeaveTypedWrappers(t *testing.T) {
+	h := NewHook()
+	var joined, left string
+	h.EnqueueUserJoinHook(func(ctx *events.UserJoinLeaveContext) { joined = ctx.AuthorId })
+	h.EnqueueUserLeaveHook(func(ctx *events.UserJoinLeaveContext) { left = ctx.AuthorId })
+
+	h.ExecuteUserJoinHooks(&events.UserJoinLeaveContext{PadId: "p1", AuthorId: "joiner"})
+	h.ExecuteUserLeaveHooks(&events.UserJoinLeaveContext{PadId: "p1", AuthorId: "leaver"})
+
+	if joined != "joiner" || left != "leaver" {
+		t.Fatalf("expected joiner/leaver, got %q/%q", joined, left)
+	}
+}
