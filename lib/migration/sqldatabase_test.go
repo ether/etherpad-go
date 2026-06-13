@@ -227,13 +227,13 @@ func setupMySQLContainer(t *testing.T) *TestContainerConfig {
 
 		ctx := context.Background()
 		container, err := testcontainers.Run(
-			ctx, "mysql:9.6",
+			ctx, "mariadb:lts",
 			testcontainers.WithExposedPorts("3306/tcp"),
 			testcontainers.WithEnv(map[string]string{
-				"MYSQL_PASSWORD":      testDbPass,
-				"MYSQL_ROOT_PASSWORD": testDbPass,
-				"MYSQL_USER":          testDbUser,
-				"MYSQL_DATABASE":      testDbName,
+				"MARIADB_PASSWORD":      testDbPass,
+				"MARIADB_ROOT_PASSWORD": testDbPass,
+				"MARIADB_USER":          testDbUser,
+				"MARIADB_DATABASE":      testDbName,
 			}),
 		)
 		if err != nil {

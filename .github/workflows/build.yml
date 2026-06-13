@@ -36,17 +36,17 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 12
-      mysql:
-        image: mysql:9.6
+      mariadb:
+        image: mariadb:lts
         env:
-          MYSQL_PASSWORD: test_password
-          MYSQL_ROOT_PASSWORD: test_password
-          MYSQL_USER: test_user
-          MYSQL_DATABASE: test_db
+          MARIADB_PASSWORD: test_password
+          MARIADB_ROOT_PASSWORD: test_password
+          MARIADB_USER: test_user
+          MARIADB_DATABASE: test_db
         ports:
           - 3306:3306
         options: >-
-          --health-cmd "mysqladmin ping -h 127.0.0.1 -uroot -ptest_password --silent"
+          --health-cmd "healthcheck.sh --connect --innodb_initialized"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 20

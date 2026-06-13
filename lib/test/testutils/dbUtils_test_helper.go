@@ -534,17 +534,17 @@ func PreparePostgresDB() (*TestContainerConfiguration, error) {
 
 func PrepareMySQLDB() (*TestContainerConfiguration, error) {
 	var env = map[string]string{
-		"MYSQL_PASSWORD":      DbPass,
-		"MYSQL_ROOT_PASSWORD": DbPass,
-		"MYSQL_USER":          DbUser,
-		"MYSQL_DATABASE":      DbName,
+		"MARIADB_PASSWORD":      DbPass,
+		"MARIADB_ROOT_PASSWORD": DbPass,
+		"MARIADB_USER":          DbUser,
+		"MARIADB_DATABASE":      DbName,
 	}
 	ctx := context.Background()
 
 	req := testcontainers.GenericContainerRequest{
 		ContainerRequest: testcontainers.ContainerRequest{
 			Name:         "etherpad-test-mysql",
-			Image:        "mysql:9.6",
+			Image:        "mariadb:lts",
 			ExposedPorts: []string{"3306/tcp"},
 			Env:          env,
 		},
