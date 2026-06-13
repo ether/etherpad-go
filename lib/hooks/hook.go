@@ -5,13 +5,18 @@ import (
 	"github.com/gofiber/utils/v2"
 )
 
+type hookEntry struct {
+	id string
+	fn func(ctx any)
+}
+
 type Hook struct {
-	hooks map[string]map[string]func(ctx any)
+	hooks map[string][]hookEntry
 }
 
 func NewHook() Hook {
 	return Hook{
-		hooks: make(map[string]map[string]func(ctx any)),
+		hooks: make(map[string][]hookEntry),
 	}
 }
 
@@ -67,30 +72,22 @@ func (h *Hook) ExecutePreAuthzFailureHooks(ctx *events.PreAuthzFailureContext) {
 
 func (h *Hook) EnqueueHook(key string, ctx func(ctx any)) string {
 	var uuid = utils.UUID()
-	var _, ok = h.hooks[key]
-
-	if !ok {
-		h.hooks[key] = make(map[string]func(ctx any))
-	}
-
-	h.hooks[key][uuid] = ctx
-
+	h.hooks[key] = append(h.hooks[key], hookEntry{id: uuid, fn: ctx})
 	return uuid
 }
 
 func (h *Hook) DequeueHook(key, id string) {
-	delete(h.hooks[key], id)
+	entries := h.hooks[key]
+	for i, e := range entries {
+		if e.id == id {
+			h.hooks[key] = append(entries[:i], entries[i+1:]...)
+			return
+		}
+	}
 }
 
 func (h *Hook) ExecuteHooks(key string, ctx any) {
-
-	var _, ok = h.hooks[key]
-
-	if !ok {
-		return
-	}
-
-	for _, v := range h.hooks[key] {
-		v(ctx)
+	for _, e := range h.hooks[key] {
+		e.fn(ctx)
 	}
 }
