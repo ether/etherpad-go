@@ -122,7 +122,7 @@ templ SettingsPopup(translations map[string]string, availablefonts []string, set
               </p>
 
               <div class="dropdowns-container">
-                <p class="dropdown-line">
+                <div class="dropdown-line">
                   <label>{translations["pad.settings.fontType"]}</label>
                   <ep-dropdown id="viewfontmenu" align="left" trigger="click">
                     <button slot="trigger" type="button" class="dropdown-select-trigger">{translations["pad.settings.fontType.normal"]}</button>
@@ -133,9 +133,9 @@ templ SettingsPopup(translations map[string]string, availablefonts []string, set
                       }
                     </div>
                   </ep-dropdown>
-                </p>
+                </div>
 
-                <p class="dropdown-line">
+                <div class="dropdown-line">
                   <label>{translations["pad.settings.language"]}</label>
                   <ep-dropdown id="languagemenu" align="left" trigger="click">
                     <button slot="trigger" type="button" class="dropdown-select-trigger">{translations["pad.settings.language"]}</button>
@@ -145,7 +145,7 @@ templ SettingsPopup(translations map[string]string, availablefonts []string, set
                       }
                     </div>
                   </ep-dropdown>
-                </p>
+                </div>
               </div>
               <button id="delete-pad">{translations["pad.settings.deletePad"]}</button>
               <div id="theme-switcher" style="display: none;">
