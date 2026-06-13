@@ -326,13 +326,13 @@ func startMySQL(t *testing.T) (*sql.DB, func()) {
 		waitForMySQLReady(t, host, port)
 	} else {
 		req := testcontainers.ContainerRequest{
-			Image:        "mysql:9.6",
+			Image:        "mariadb:lts",
 			ExposedPorts: []string{"3306/tcp"},
 			Env: map[string]string{
-				"MYSQL_PASSWORD":      testDbPass,
-				"MYSQL_ROOT_PASSWORD": testDbPass,
-				"MYSQL_USER":          testDbUser,
-				"MYSQL_DATABASE":      testDbName,
+				"MARIADB_PASSWORD":      testDbPass,
+				"MARIADB_ROOT_PASSWORD": testDbPass,
+				"MARIADB_USER":          testDbUser,
+				"MARIADB_DATABASE":      testDbName,
 			},
 			WaitingFor: wait.ForLog("ready for connections"),
 		}
