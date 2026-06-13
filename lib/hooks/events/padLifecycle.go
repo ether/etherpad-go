@@ -24,8 +24,8 @@ type PadLoadContext struct {
 // PadCreateContext is passed to the padCreate hook right after a pad's first
 // revision is persisted.
 type PadCreateContext struct {
-	Pad      any
-	PadId    string
+	Pad   any
+	PadId string
 	// AuthorId is the creating author; empty string when the pad is created
 	// without a known author (e.g. server-side operations). Unlike
 	// PadDefaultContentContext.AuthorId this is a plain string, not a pointer.
@@ -34,9 +34,9 @@ type PadCreateContext struct {
 
 // PadUpdateContext is passed to the padUpdate hook after a revision is appended.
 type PadUpdateContext struct {
-	Pad       any
-	PadId     string
-	AuthorId  string
+	Pad      any
+	PadId    string
+	AuthorId string
 	// Revs is the pad's new head revision number after this update.
 	Revs      int
 	Changeset string
