@@ -1591,7 +1591,7 @@ func SettingsPopup(translations map[string]string, availablefonts []string, sett
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 120, "\"></ep-checkbox></p><div class=\"dropdowns-container\"><p class=\"dropdown-line\"><label>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 120, "\"></ep-checkbox></p><div class=\"dropdowns-container\"><div class=\"dropdown-line\"><label>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1666,7 +1666,7 @@ func SettingsPopup(translations map[string]string, availablefonts []string, sett
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 127, "</div></ep-dropdown></p><p class=\"dropdown-line\"><label>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 127, "</div></ep-dropdown></div><div class=\"dropdown-line\"><label>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1728,7 +1728,7 @@ func SettingsPopup(translations map[string]string, availablefonts []string, sett
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 133, "</div></ep-dropdown></p></div><button id=\"delete-pad\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 133, "</div></ep-dropdown></div></div><button id=\"delete-pad\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
