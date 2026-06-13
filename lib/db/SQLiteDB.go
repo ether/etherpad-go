@@ -1308,26 +1308,28 @@ func NewSQLiteDB(path string) (*SQLiteDB, error) {
 		path = "file::memory:?cache=shared"
 	}
 
-	sqlDb, err := sql.Open("sqlite", path)
+	// Apply pragmas through the DSN so the modernc driver runs them on EVERY
+	// pooled connection. Setting them with a one-off Exec only configures the
+	// single connection that happens to serve it; the other connections in the
+	// database/sql pool keep busy_timeout=0 and fail immediately with
+	// SQLITE_BUSY ("database is locked") under concurrent access — and only
+	// that one connection would enforce foreign keys. This was the root cause
+	// of the flaky playwright failures (many parallel pad sockets hitting the
+	// same file DB). busy_timeout makes writers wait for the lock instead of
+	// erroring; WAL lets readers run concurrently with the single writer.
+	sep := "?"
+	if strings.Contains(path, "?") {
+		sep = "&"
+	}
+	dsn := path + sep + "_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=foreign_keys(ON)"
+
+	sqlDb, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, err
 	}
 
 	if strings.Contains(path, ":memory:") {
 		sqlDb.SetMaxOpenConns(1)
-	}
-
-	if _, err = sqlDb.Exec("PRAGMA journal_mode = WAL"); err != nil {
-		sqlDb.Close()
-		return nil, err
-	}
-	if _, err = sqlDb.Exec("PRAGMA busy_timeout = 5000"); err != nil {
-		sqlDb.Close()
-		return nil, err
-	}
-	if _, err = sqlDb.Exec("PRAGMA foreign_keys = ON"); err != nil {
-		sqlDb.Close()
-		return nil, err
 	}
 
 	migrationManager := migrations.NewMigrationManager(sqlDb, migrations.DialectSQLite)

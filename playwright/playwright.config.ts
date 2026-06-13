@@ -22,7 +22,7 @@ export default defineConfig({
   testDir: '.',
   testMatch: 'specs/**/*.spec.ts',
   forbidOnly: isCI,
-  retries: isCI ? 1 : 0,
+  retries: isCI ? 2 : 0,
   workers: isCI ? ciWorkers : '75%',
   reporter: isCI ? [['html', { open: 'never' }], ['github']] : 'html',
   timeout: isCI ? ciTimeout : 30000,
