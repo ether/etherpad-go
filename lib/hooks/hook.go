@@ -72,6 +72,78 @@ func (h *Hook) ExecutePreAuthzFailureHooks(ctx *events.PreAuthzFailureContext) {
 	h.ExecuteHooks(PreAuthzFailureString, ctx)
 }
 
+func (h *Hook) EnqueuePadDefaultContentHook(cb func(ctx *events.PadDefaultContentContext)) string {
+	return h.EnqueueHook(PadDefaultContentString, func(ctx any) {
+		if c, ok := ctx.(*events.PadDefaultContentContext); ok {
+			cb(c)
+		}
+	})
+}
+
+func (h *Hook) ExecutePadDefaultContentHooks(ctx *events.PadDefaultContentContext) {
+	h.ExecuteHooks(PadDefaultContentString, ctx)
+}
+
+func (h *Hook) EnqueuePadLoadHook(cb func(ctx *events.PadLoadContext)) string {
+	return h.EnqueueHook(PadLoadString, func(ctx any) {
+		if c, ok := ctx.(*events.PadLoadContext); ok {
+			cb(c)
+		}
+	})
+}
+
+func (h *Hook) ExecutePadLoadHooks(ctx *events.PadLoadContext) {
+	h.ExecuteHooks(PadLoadString, ctx)
+}
+
+func (h *Hook) EnqueuePadCreateHook(cb func(ctx *events.PadCreateContext)) string {
+	return h.EnqueueHook(PadCreateString, func(ctx any) {
+		if c, ok := ctx.(*events.PadCreateContext); ok {
+			cb(c)
+		}
+	})
+}
+
+func (h *Hook) ExecutePadCreateHooks(ctx *events.PadCreateContext) {
+	h.ExecuteHooks(PadCreateString, ctx)
+}
+
+func (h *Hook) EnqueuePadUpdateHook(cb func(ctx *events.PadUpdateContext)) string {
+	return h.EnqueueHook(PadUpdateString, func(ctx any) {
+		if c, ok := ctx.(*events.PadUpdateContext); ok {
+			cb(c)
+		}
+	})
+}
+
+func (h *Hook) ExecutePadUpdateHooks(ctx *events.PadUpdateContext) {
+	h.ExecuteHooks(PadUpdateString, ctx)
+}
+
+func (h *Hook) EnqueuePadCopyHook(cb func(ctx *events.PadCopyContext)) string {
+	return h.EnqueueHook(PadCopyString, func(ctx any) {
+		if c, ok := ctx.(*events.PadCopyContext); ok {
+			cb(c)
+		}
+	})
+}
+
+func (h *Hook) ExecutePadCopyHooks(ctx *events.PadCopyContext) {
+	h.ExecuteHooks(PadCopyString, ctx)
+}
+
+func (h *Hook) EnqueuePadRemoveHook(cb func(ctx *events.PadRemoveContext)) string {
+	return h.EnqueueHook(PadRemoveString, func(ctx any) {
+		if c, ok := ctx.(*events.PadRemoveContext); ok {
+			cb(c)
+		}
+	})
+}
+
+func (h *Hook) ExecutePadRemoveHooks(ctx *events.PadRemoveContext) {
+	h.ExecuteHooks(PadRemoveString, ctx)
+}
+
 func (h *Hook) EnqueueHook(key string, ctx func(ctx any)) string {
 	var uuid = utils.UUID()
 	h.hooks[key] = append(h.hooks[key], hookEntry{id: uuid, fn: ctx})

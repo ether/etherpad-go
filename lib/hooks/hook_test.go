@@ -1,6 +1,10 @@
 package hooks
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/ether/etherpad-go/lib/hooks/events"
+)
 
 func TestExecuteHooksRunsInRegistrationOrder(t *testing.T) {
 	h := NewHook()
@@ -72,5 +76,36 @@ func TestDequeueHookUnknownIdIsNoOp(t *testing.T) {
 
 	if len(order) != 2 || order[0] != "a" || order[1] != "b" {
 		t.Fatalf("expected [a b] unchanged after unknown-id dequeue, got %v", order)
+	}
+}
+
+func TestPadCreateTypedWrapperDeliversContext(t *testing.T) {
+	h := NewHook()
+	var gotPadId, gotAuthor string
+	h.EnqueuePadCreateHook(func(ctx *events.PadCreateContext) {
+		gotPadId = ctx.PadId
+		gotAuthor = ctx.AuthorId
+	})
+
+	h.ExecutePadCreateHooks(&events.PadCreateContext{PadId: "p1", AuthorId: "a1"})
+
+	if gotPadId != "p1" || gotAuthor != "a1" {
+		t.Fatalf("expected (p1,a1), got (%s,%s)", gotPadId, gotAuthor)
+	}
+}
+
+func TestPadDefaultContentTypedWrapperMutatesContent(t *testing.T) {
+	h := NewHook()
+	h.EnqueuePadDefaultContentHook(func(ctx *events.PadDefaultContentContext) {
+		want := "hello"
+		ctx.Content = &want
+	})
+
+	orig := "original"
+	ctx := &events.PadDefaultContentContext{Content: &orig}
+	h.ExecutePadDefaultContentHooks(ctx)
+
+	if ctx.Content == nil || *ctx.Content != "hello" {
+		t.Fatalf("expected content mutated to 'hello', got %v", ctx.Content)
 	}
 }
