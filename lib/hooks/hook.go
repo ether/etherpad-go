@@ -150,6 +150,108 @@ func (h *Hook) ExecutePadRemoveHooks(ctx *events.PadRemoveContext) {
 	h.ExecuteHooks(PadRemoveString, ctx)
 }
 
+// EnqueueHandleMessageHook registers a callback for the handleMessage hook,
+// fired before an incoming socket message is dispatched; a callback may drop it
+// (see events.HandleMessageContext).
+func (h *Hook) EnqueueHandleMessageHook(cb func(ctx *events.HandleMessageContext)) string {
+	return h.EnqueueHook(HandleMessageString, func(ctx any) {
+		if c, ok := ctx.(*events.HandleMessageContext); ok {
+			cb(c)
+		}
+	})
+}
+
+func (h *Hook) ExecuteHandleMessageHooks(ctx *events.HandleMessageContext) {
+	h.ExecuteHooks(HandleMessageString, ctx)
+}
+
+// EnqueueHandleMessageSecurityHook registers a callback for the
+// handleMessageSecurity hook, which may grant write access to a read-only
+// connection for a single message (see events.HandleMessageSecurityContext).
+func (h *Hook) EnqueueHandleMessageSecurityHook(cb func(ctx *events.HandleMessageSecurityContext)) string {
+	return h.EnqueueHook(HandleMessageSecurityString, func(ctx any) {
+		if c, ok := ctx.(*events.HandleMessageSecurityContext); ok {
+			cb(c)
+		}
+	})
+}
+
+func (h *Hook) ExecuteHandleMessageSecurityHooks(ctx *events.HandleMessageSecurityContext) {
+	h.ExecuteHooks(HandleMessageSecurityString, ctx)
+}
+
+// EnqueueClientReadyHook registers a callback for the clientReady hook, fired
+// once a client has finished joining a pad (see events.ClientReadyContext).
+func (h *Hook) EnqueueClientReadyHook(cb func(ctx *events.ClientReadyContext)) string {
+	return h.EnqueueHook(ClientReadyString, func(ctx any) {
+		if c, ok := ctx.(*events.ClientReadyContext); ok {
+			cb(c)
+		}
+	})
+}
+
+func (h *Hook) ExecuteClientReadyHooks(ctx *events.ClientReadyContext) {
+	h.ExecuteHooks(ClientReadyString, ctx)
+}
+
+// EnqueueClientVarsHook registers a callback for the clientVars hook, fired just
+// before the CLIENT_VARS payload is sent; a callback may mutate typed fields or
+// add keys via Extra (see events.ClientVarsContext).
+func (h *Hook) EnqueueClientVarsHook(cb func(ctx *events.ClientVarsContext)) string {
+	return h.EnqueueHook(ClientVarsString, func(ctx any) {
+		if c, ok := ctx.(*events.ClientVarsContext); ok {
+			cb(c)
+		}
+	})
+}
+
+func (h *Hook) ExecuteClientVarsHooks(ctx *events.ClientVarsContext) {
+	h.ExecuteHooks(ClientVarsString, ctx)
+}
+
+// EnqueueChatNewMessageHook registers a callback for the chatNewMessage hook,
+// fired before a chat message is stored and broadcast; a callback may edit the
+// text or drop it (see events.ChatNewMessageContext).
+func (h *Hook) EnqueueChatNewMessageHook(cb func(ctx *events.ChatNewMessageContext)) string {
+	return h.EnqueueHook(ChatNewMessageString, func(ctx any) {
+		if c, ok := ctx.(*events.ChatNewMessageContext); ok {
+			cb(c)
+		}
+	})
+}
+
+func (h *Hook) ExecuteChatNewMessageHooks(ctx *events.ChatNewMessageContext) {
+	h.ExecuteHooks(ChatNewMessageString, ctx)
+}
+
+// EnqueueUserJoinHook registers a callback for the userJoin hook, fired when a
+// user finishes joining a pad (see events.UserJoinLeaveContext).
+func (h *Hook) EnqueueUserJoinHook(cb func(ctx *events.UserJoinLeaveContext)) string {
+	return h.EnqueueHook(UserJoinString, func(ctx any) {
+		if c, ok := ctx.(*events.UserJoinLeaveContext); ok {
+			cb(c)
+		}
+	})
+}
+
+func (h *Hook) ExecuteUserJoinHooks(ctx *events.UserJoinLeaveContext) {
+	h.ExecuteHooks(UserJoinString, ctx)
+}
+
+// EnqueueUserLeaveHook registers a callback for the userLeave hook, fired when a
+// user disconnects from a pad (see events.UserJoinLeaveContext).
+func (h *Hook) EnqueueUserLeaveHook(cb func(ctx *events.UserJoinLeaveContext)) string {
+	return h.EnqueueHook(UserLeaveString, func(ctx any) {
+		if c, ok := ctx.(*events.UserJoinLeaveContext); ok {
+			cb(c)
+		}
+	})
+}
+
+func (h *Hook) ExecuteUserLeaveHooks(ctx *events.UserJoinLeaveContext) {
+	h.ExecuteHooks(UserLeaveString, ctx)
+}
+
 func (h *Hook) EnqueueHook(key string, ctx func(ctx any)) string {
 	var uuid = utils.UUID()
 	h.hooks[key] = append(h.hooks[key], hookEntry{id: uuid, fn: ctx})
