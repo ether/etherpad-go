@@ -9,6 +9,7 @@ import (
 	"github.com/ether/etherpad-go/lib/changeset"
 	"github.com/ether/etherpad-go/lib/db"
 	"github.com/ether/etherpad-go/lib/hooks"
+	"github.com/ether/etherpad-go/lib/hooks/events"
 	"github.com/ether/etherpad-go/lib/models/pad"
 	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/google/go-cmp/cmp"
@@ -64,9 +65,7 @@ func TestUseProvidedContent(t *testing.T) {
 	if want == settings.Displayed.DefaultPadText {
 		return
 	}
-	createdHooks.EnqueueHook(hooks.PadDefaultContentString, func(ctx any) {
-		var content = ctx.(*pad.DefaultContent)
-
+	createdHooks.EnqueuePadDefaultContentHook(func(content *events.PadDefaultContentContext) {
 		var emptyString = ""
 		content.Content = &emptyString
 		content.Content = &want
@@ -98,7 +97,7 @@ func TestApplyToAText(t *testing.T) {
 func TestRunWhenAPadIsCreated(t *testing.T) {
 	var called = false
 	var hook = hooks.NewHook()
-	hook.EnqueueHook(hooks.PadDefaultContentString, func(ctx any) {
+	hook.EnqueuePadDefaultContentHook(func(ctx *events.PadDefaultContentContext) {
 		called = true
 	})
 	var padManager = NewManager(db.NewMemoryDataStore(), &hook)
@@ -111,7 +110,7 @@ func TestRunWhenAPadIsCreated(t *testing.T) {
 func TestNotCalledWithSpecificText(t *testing.T) {
 	var called = false
 	var hook = hooks.NewHook()
-	hook.EnqueueHook(hooks.PadDefaultContentString, func(ctx any) {
+	hook.EnqueuePadDefaultContentHook(func(ctx *events.PadDefaultContentContext) {
 		called = true
 	})
 	var padManager = NewManager(db.NewMemoryDataStore(), &hook)
@@ -125,12 +124,12 @@ func TestNotCalledWithSpecificText(t *testing.T) {
 func TestDefaultsToSettingsPadText(t *testing.T) {
 	var hook = hooks.NewHook()
 	var padManager = NewManager(db.NewMemoryDataStore(), &hook)
-	hook.EnqueueHook(hooks.PadDefaultContentString, func(ctx any) {
-		if *ctx.(*pad.DefaultContent).Type != "text" {
+	hook.EnqueuePadDefaultContentHook(func(ctx *events.PadDefaultContentContext) {
+		if *ctx.Type != "text" {
 			t.Error("wrong type")
 		}
 
-		if *ctx.(*pad.DefaultContent).Content != settings.Displayed.DefaultPadText {
+		if *ctx.Content != settings.Displayed.DefaultPadText {
 			t.Error("Default pad text should be settings pad text")
 		}
 	})
@@ -141,8 +140,8 @@ func TestDefaultsToSettingsPadText(t *testing.T) {
 func TestPassesEmptyAuthorIdIfNotProvided(t *testing.T) {
 	var authorId *string
 	var hook = hooks.NewHook()
-	hook.EnqueueHook(hooks.PadDefaultContentString, func(ctx any) {
-		authorId = ctx.(*pad.DefaultContent).AuthorId
+	hook.EnqueuePadDefaultContentHook(func(ctx *events.PadDefaultContentContext) {
+		authorId = ctx.AuthorId
 	})
 	padManager := NewManager(db.NewMemoryDataStore(), &hook)
 
@@ -155,8 +154,8 @@ func TestPassesEmptyAuthorIdIfNotProvided(t *testing.T) {
 func TestPassesAuthorIdIfProvided(t *testing.T) {
 	var hook = hooks.NewHook()
 	var authorId string
-	hook.EnqueueHook(hooks.PadDefaultContentString, func(ctx any) {
-		authorId = *ctx.(*pad.DefaultContent).AuthorId
+	hook.EnqueuePadDefaultContentHook(func(ctx *events.PadDefaultContentContext) {
+		authorId = *ctx.AuthorId
 	})
 	padManager := NewManager(db.NewMemoryDataStore(), &hook)
 

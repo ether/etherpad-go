@@ -1,17 +1,24 @@
 package hooks
 
 import (
+	"slices"
+
 	"github.com/ether/etherpad-go/lib/hooks/events"
 	"github.com/gofiber/utils/v2"
 )
 
+type hookEntry struct {
+	id string
+	fn func(ctx any)
+}
+
 type Hook struct {
-	hooks map[string]map[string]func(ctx any)
+	hooks map[string][]hookEntry
 }
 
 func NewHook() Hook {
 	return Hook{
-		hooks: make(map[string]map[string]func(ctx any)),
+		hooks: make(map[string][]hookEntry),
 	}
 }
 
@@ -65,32 +72,102 @@ func (h *Hook) ExecutePreAuthzFailureHooks(ctx *events.PreAuthzFailureContext) {
 	h.ExecuteHooks(PreAuthzFailureString, ctx)
 }
 
+// EnqueuePadDefaultContentHook registers a callback for the padDefaultContent hook, which runs before a new pad's initial revision is written and may replace the default content (see events.PadDefaultContentContext).
+func (h *Hook) EnqueuePadDefaultContentHook(cb func(ctx *events.PadDefaultContentContext)) string {
+	return h.EnqueueHook(PadDefaultContentString, func(ctx any) {
+		if c, ok := ctx.(*events.PadDefaultContentContext); ok {
+			cb(c)
+		}
+	})
+}
+
+func (h *Hook) ExecutePadDefaultContentHooks(ctx *events.PadDefaultContentContext) {
+	h.ExecuteHooks(PadDefaultContentString, ctx)
+}
+
+// EnqueuePadLoadHook registers a callback for the padLoad hook, fired whenever a pad is materialized (see events.PadLoadContext).
+func (h *Hook) EnqueuePadLoadHook(cb func(ctx *events.PadLoadContext)) string {
+	return h.EnqueueHook(PadLoadString, func(ctx any) {
+		if c, ok := ctx.(*events.PadLoadContext); ok {
+			cb(c)
+		}
+	})
+}
+
+func (h *Hook) ExecutePadLoadHooks(ctx *events.PadLoadContext) {
+	h.ExecuteHooks(PadLoadString, ctx)
+}
+
+// EnqueuePadCreateHook registers a callback for the padCreate hook, fired right after a pad's first revision is persisted (see events.PadCreateContext).
+func (h *Hook) EnqueuePadCreateHook(cb func(ctx *events.PadCreateContext)) string {
+	return h.EnqueueHook(PadCreateString, func(ctx any) {
+		if c, ok := ctx.(*events.PadCreateContext); ok {
+			cb(c)
+		}
+	})
+}
+
+func (h *Hook) ExecutePadCreateHooks(ctx *events.PadCreateContext) {
+	h.ExecuteHooks(PadCreateString, ctx)
+}
+
+// EnqueuePadUpdateHook registers a callback for the padUpdate hook, fired after a revision is appended (see events.PadUpdateContext).
+func (h *Hook) EnqueuePadUpdateHook(cb func(ctx *events.PadUpdateContext)) string {
+	return h.EnqueueHook(PadUpdateString, func(ctx any) {
+		if c, ok := ctx.(*events.PadUpdateContext); ok {
+			cb(c)
+		}
+	})
+}
+
+func (h *Hook) ExecutePadUpdateHooks(ctx *events.PadUpdateContext) {
+	h.ExecuteHooks(PadUpdateString, ctx)
+}
+
+// EnqueuePadCopyHook registers a callback for the padCopy hook, fired after a pad is copied to a new destination (see events.PadCopyContext).
+func (h *Hook) EnqueuePadCopyHook(cb func(ctx *events.PadCopyContext)) string {
+	return h.EnqueueHook(PadCopyString, func(ctx any) {
+		if c, ok := ctx.(*events.PadCopyContext); ok {
+			cb(c)
+		}
+	})
+}
+
+func (h *Hook) ExecutePadCopyHooks(ctx *events.PadCopyContext) {
+	h.ExecuteHooks(PadCopyString, ctx)
+}
+
+// EnqueuePadRemoveHook registers a callback for the padRemove hook, fired when a pad is deleted (see events.PadRemoveContext).
+func (h *Hook) EnqueuePadRemoveHook(cb func(ctx *events.PadRemoveContext)) string {
+	return h.EnqueueHook(PadRemoveString, func(ctx any) {
+		if c, ok := ctx.(*events.PadRemoveContext); ok {
+			cb(c)
+		}
+	})
+}
+
+func (h *Hook) ExecutePadRemoveHooks(ctx *events.PadRemoveContext) {
+	h.ExecuteHooks(PadRemoveString, ctx)
+}
+
 func (h *Hook) EnqueueHook(key string, ctx func(ctx any)) string {
 	var uuid = utils.UUID()
-	var _, ok = h.hooks[key]
-
-	if !ok {
-		h.hooks[key] = make(map[string]func(ctx any))
-	}
-
-	h.hooks[key][uuid] = ctx
-
+	h.hooks[key] = append(h.hooks[key], hookEntry{id: uuid, fn: ctx})
 	return uuid
 }
 
 func (h *Hook) DequeueHook(key, id string) {
-	delete(h.hooks[key], id)
+	entries := h.hooks[key]
+	for i, e := range entries {
+		if e.id == id {
+			h.hooks[key] = slices.Delete(entries, i, i+1)
+			return
+		}
+	}
 }
 
 func (h *Hook) ExecuteHooks(key string, ctx any) {
-
-	var _, ok = h.hooks[key]
-
-	if !ok {
-		return
-	}
-
-	for _, v := range h.hooks[key] {
-		v(ctx)
+	for _, e := range h.hooks[key] {
+		e.fn(ctx)
 	}
 }

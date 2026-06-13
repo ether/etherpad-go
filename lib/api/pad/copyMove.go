@@ -6,7 +6,7 @@ import (
 	"github.com/ether/etherpad-go/lib"
 	errors2 "github.com/ether/etherpad-go/lib/api/errors"
 	utils2 "github.com/ether/etherpad-go/lib/api/utils"
-	"github.com/ether/etherpad-go/lib/hooks"
+	"github.com/ether/etherpad-go/lib/hooks/events"
 	db2 "github.com/ether/etherpad-go/lib/models/db"
 	padModel "github.com/ether/etherpad-go/lib/models/pad"
 	"github.com/gofiber/fiber/v3"
@@ -116,7 +116,7 @@ func firePadCopy(initStore *lib.InitStore, srcPad *padModel.Pad, dstId string) {
 		initStore.Logger.Errorf("padCopy hook: failed to load destination pad %s: %v", dstId, err)
 		return
 	}
-	initStore.Hooks.ExecuteHooks(hooks.PadCopyString, padModel.Copy{
+	initStore.Hooks.ExecutePadCopyHooks(&events.PadCopyContext{
 		SrcPad: srcPad,
 		DstPad: dstPad,
 		SrcId:  srcPad.Id,

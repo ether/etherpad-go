@@ -16,6 +16,7 @@ import (
 	"github.com/ether/etherpad-go/lib/changeset"
 	"github.com/ether/etherpad-go/lib/db"
 	"github.com/ether/etherpad-go/lib/hooks"
+	"github.com/ether/etherpad-go/lib/hooks/events"
 	db2 "github.com/ether/etherpad-go/lib/models/db"
 	"github.com/ether/etherpad-go/lib/models/revision"
 	"github.com/ether/etherpad-go/lib/settings"
@@ -364,14 +365,14 @@ func (p *Pad) Init(text *string, author *string, authorManager *author.Manager) 
 		if text == nil {
 			var padDefaultText = "text"
 			text = &settings.Displayed.DefaultPadText
-			var context = DefaultContent{
+			var context = events.PadDefaultContentContext{
 				AuthorId: author,
 				Type:     &padDefaultText,
 				Content:  text,
 				Pad:      p,
 				PadId:    p.Id,
 			}
-			p.hook.ExecuteHooks(hooks.PadDefaultContentString, &context)
+			p.hook.ExecutePadDefaultContentHooks(&context)
 			text = context.Content
 
 			if *context.Type != "text" {
@@ -391,14 +392,14 @@ func (p *Pad) Init(text *string, author *string, authorManager *author.Manager) 
 		if author != nil {
 			createAuthor = *author
 		}
-		p.hook.ExecuteHooks(hooks.PadCreateString, Create{
+		p.hook.ExecutePadCreateHooks(&events.PadCreateContext{
 			Pad:      p,
 			PadId:    p.Id,
 			AuthorId: createAuthor,
 		})
 	}
 
-	p.hook.ExecuteHooks(hooks.PadLoadString, Load{
+	p.hook.ExecutePadLoadHooks(&events.PadLoadContext{
 		Pad:   p,
 		PadId: p.Id,
 	})
@@ -619,7 +620,7 @@ func (p *Pad) AppendRevision(cs string, authorId *string) (*int, error) {
 		if authorId != nil {
 			updateAuthor = *authorId
 		}
-		p.hook.ExecuteHooks(hooks.PadUpdateString, Update{
+		p.hook.ExecutePadUpdateHooks(&events.PadUpdateContext{
 			Pad:       p,
 			PadId:     p.Id,
 			AuthorId:  updateAuthor,

@@ -9,6 +9,7 @@ import (
 	"github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/db"
 	"github.com/ether/etherpad-go/lib/hooks"
+	"github.com/ether/etherpad-go/lib/hooks/events"
 	"github.com/ether/etherpad-go/lib/models/pad"
 )
 
@@ -139,7 +140,7 @@ func (m *Manager) RemovePad(padID string) error {
 	m.globalPadCache.DeletePad(padID)
 	m.padList.RemovePad(padID)
 
-	m.hook.ExecuteHooks(hooks.PadRemoveString, pad.Remove{
+	m.hook.ExecutePadRemoveHooks(&events.PadRemoveContext{
 		Pad:   removedPad,
 		PadId: padID,
 	})
