@@ -4,7 +4,7 @@ import notifications from './notifications';
 import {editorBus} from './core/EventBus';
 import {padeditor} from './pad_editor';
 import {paduserlist} from './pad_userlist';
-import 'etherpad-webcomponents/EpChatMessage.js';
+import '@samtv12345/etherpad-webcomponents/EpChatMessage.js';
 
 // ---------------------------------------------------------------------------
 // Inline helpers (replaces padutils + padcookie dependencies)

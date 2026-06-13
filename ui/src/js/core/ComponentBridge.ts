@@ -1,5 +1,5 @@
 import { editorBus } from './EventBus'
-import { EpNotification, EpToastContainer } from 'etherpad-webcomponents'
+import { EpNotification, EpToastContainer } from '@samtv12345/etherpad-webcomponents'
 
 // Initialize toast container
 const toasts = EpToastContainer.getInstance()

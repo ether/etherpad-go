@@ -1,5 +1,5 @@
-import 'etherpad-webcomponents/EpNotification.js'
-import { EpNotification } from 'etherpad-webcomponents'
+import '@samtv12345/etherpad-webcomponents/EpNotification.js'
+import { EpNotification } from '@samtv12345/etherpad-webcomponents'
 
 export const notifications = {
   add(args: { title?: string; text: string | Node; class_name?: string; sticky?: boolean; time?: number; position?: 'top' | 'bottom' }): EpNotification {
