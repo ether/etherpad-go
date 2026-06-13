@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/ether/etherpad-go/lib/api/pad"
-	"github.com/ether/etherpad-go/lib/hooks"
+	"github.com/ether/etherpad-go/lib/hooks/events"
 	padModel "github.com/ether/etherpad-go/lib/models/pad"
 	"github.com/ether/etherpad-go/lib/test/testutils"
 	"github.com/stretchr/testify/assert"
@@ -1063,11 +1063,9 @@ func testPadCopyHookFires(t *testing.T, tsStore testutils.TestDataStore) {
 
 	createTestPad(t, tsStore, "copyhooksrc", "copy hook source\n")
 
-	var fired *padModel.Copy
-	tsStore.Hooks.EnqueueHook(hooks.PadCopyString, func(ctx any) {
-		if c, ok := ctx.(padModel.Copy); ok {
-			fired = &c
-		}
+	var fired *events.PadCopyContext
+	tsStore.Hooks.EnqueuePadCopyHook(func(ctx *events.PadCopyContext) {
+		fired = ctx
 	})
 
 	body, _ := json.Marshal(pad.CopyPadRequest{DestinationID: "copyhookdst"})
@@ -1093,11 +1091,9 @@ func testPadRemoveHookFires(t *testing.T, tsStore testutils.TestDataStore) {
 
 	createTestPad(t, tsStore, "removehooksrc", "remove hook source\n")
 
-	var fired *padModel.Remove
-	tsStore.Hooks.EnqueueHook(hooks.PadRemoveString, func(ctx any) {
-		if c, ok := ctx.(padModel.Remove); ok {
-			fired = &c
-		}
+	var fired *events.PadRemoveContext
+	tsStore.Hooks.EnqueuePadRemoveHook(func(ctx *events.PadRemoveContext) {
+		fired = ctx
 	})
 
 	body, _ := json.Marshal(pad.MovePadRequest{DestinationID: "removehookdst"})
