@@ -1,6 +1,8 @@
 package hooks
 
 import (
+	"slices"
+
 	"github.com/ether/etherpad-go/lib/hooks/events"
 	"github.com/gofiber/utils/v2"
 )
@@ -80,7 +82,7 @@ func (h *Hook) DequeueHook(key, id string) {
 	entries := h.hooks[key]
 	for i, e := range entries {
 		if e.id == id {
-			h.hooks[key] = append(entries[:i], entries[i+1:]...)
+			h.hooks[key] = slices.Delete(entries, i, i+1)
 			return
 		}
 	}
