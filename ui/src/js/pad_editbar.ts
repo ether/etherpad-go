@@ -83,8 +83,15 @@ class ToolbarItem {
 
   bind(callback) {
     if (this.isButton()) {
+      // Preventing the default mousedown stops the button from stealing focus
+      // from the editor, so its caret/selection survives the click. Commands
+      // like indent then apply at the user's caret and typing continues to
+      // work immediately. Without this the editor is blurred and the caret has
+      // to be restored on the next focus — which firefox does asynchronously,
+      // so typing right after (e.g. indent → type) lands in the wrong place and
+      // the list indent breaks.
+      this.el.addEventListener('mousedown', (event) => event.preventDefault());
       this.el.addEventListener('click', (event) => {
-        if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
         callback(this.getCommand(), this);
         event.preventDefault();
       });
