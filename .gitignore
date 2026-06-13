@@ -13,3 +13,10 @@ assets/js
 test.json
 test1.json
 assets/css/build
+
+# Go build artifacts
+etherpad-go.exe
+etherpad-go.exe~
+
+# Local Claude Code settings
+.claude/settings.local.json
