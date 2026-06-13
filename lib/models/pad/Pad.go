@@ -620,7 +620,7 @@ func (p *Pad) AppendRevision(cs string, authorId *string) (*int, error) {
 		if authorId != nil {
 			updateAuthor = *authorId
 		}
-		p.hook.ExecuteHooks(hooks.PadUpdateString, Update{
+		p.hook.ExecutePadUpdateHooks(&events.PadUpdateContext{
 			Pad:       p,
 			PadId:     p.Id,
 			AuthorId:  updateAuthor,
