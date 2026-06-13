@@ -12,8 +12,11 @@ process.env['NODE_ENV'] = 'production';
 process.env['ETHERPAD_LOADTEST'] = 'true'
 process.env['ETHERPAD_DEVMODE'] = 'false'
 
-// ARM CI runners are slower — use fewer workers and longer timeouts
-const ciWorkers = isARM ? 2 : 4;
+// ARM CI runners are slower — use fewer workers and longer timeouts.
+// Fewer parallel browser contexts also reduces the resource contention that
+// intermittently crashes a context mid-test ("Target page, context or browser
+// has been closed"), the dominant source of cross-platform flakiness.
+const ciWorkers = isARM ? 1 : 2;
 const ciTimeout = isARM ? 90000 : 60000;
 const ciNavTimeout = isARM ? 45000 : 30000;
 
@@ -22,7 +25,7 @@ export default defineConfig({
   testDir: '.',
   testMatch: 'specs/**/*.spec.ts',
   forbidOnly: isCI,
-  retries: isCI ? 1 : 0,
+  retries: isCI ? 2 : 0,
   workers: isCI ? ciWorkers : '75%',
   reporter: isCI ? [['html', { open: 'never' }], ['github']] : 'html',
   timeout: isCI ? ciTimeout : 30000,
