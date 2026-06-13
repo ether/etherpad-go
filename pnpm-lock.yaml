@@ -5,15 +5,15 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
-  etherpad-webcomponents: 0.0.11
+  '@samtv12345/etherpad-webcomponents': 0.0.13
 
 importers:
 
   .:
     dependencies:
-      etherpad-webcomponents:
-        specifier: 0.0.11
-        version: 0.0.11
+      '@samtv12345/etherpad-webcomponents':
+        specifier: 0.0.13
+        version: 0.0.13
     devDependencies:
       typescript:
         specifier: ^5.6.3
@@ -112,15 +112,15 @@ importers:
         specifier: ^29.0.3
         version: 29.0.3(rollup@4.59.0)
     devDependencies:
+      '@samtv12345/etherpad-webcomponents':
+        specifier: 0.0.13
+        version: 0.0.13
       '@types/node':
         specifier: ^25.9.2
         version: 25.9.2
       esbuild:
         specifier: 0.28.0
         version: 0.28.0
-      etherpad-webcomponents:
-        specifier: 0.0.11
-        version: 0.0.11
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
@@ -585,6 +585,9 @@ packages:
     cpu: [x64]
     os: [win32]
 
+  '@samtv12345/etherpad-webcomponents@0.0.13':
+    resolution: {integrity: sha512-jopdeaPKtm8e6ugj3cpypqjm9llTMz1Lut2Dx6ptwy2VaKfgTp65aUWFGsOKlkJGhVbAfa5k2T7VymdPHQbZMg==}
+
   '@tailwindcss/node@4.3.0':
     resolution: {integrity: sha512-aFb4gUhFOgdh9AXo4IzBEOzBkkAxm9VigwDJnMIYv3lcfXCJVesNfbEaBl4BNgVRyid92AmdviqwBUBRKSeY3g==}
 
@@ -774,9 +777,6 @@ packages:
 
   estree-walker@2.0.2:
     resolution: {integrity: sha512-Rfkk/Mp/DL7JVje3u18FxFujQlTNR2q6QfMSMB7AvCBx91NGj/ba3kCfza0f6dVDbw7YlRf/nDrn7pQrCCyQ/w==}
-
-  etherpad-webcomponents@0.0.11:
-    resolution: {integrity: sha512-4QrJuCAXHIAm7hxffAv4cIPaXesLLSd1rfJhpOvI8gaOCvjhMSJb9wDLItwjfCMnbTHkRPQTVdAZGwwqVkyM0Q==}
 
   fdir@6.5.0:
     resolution: {integrity: sha512-tIbYtZbucOs0BRGqPJkshJUYdL+SDH7dVM8gjy+ERp3WAUjLEFJE+02kanyHtwjWOnwrKYBiwAmM0p4kLJAnXg==}
@@ -1341,6 +1341,13 @@ snapshots:
   '@rollup/rollup-win32-x64-msvc@4.59.0':
     optional: true
 
+  '@samtv12345/etherpad-webcomponents@0.0.13':
+    dependencies:
+      '@lit/reactive-element': 2.1.2
+      lit: 3.3.2
+      lit-element: 4.2.2
+      lit-html: 3.3.2
+
   '@tailwindcss/node@4.3.0':
     dependencies:
       '@jridgewell/remapping': 2.3.5
@@ -1512,13 +1519,6 @@ snapshots:
   escalade@3.2.0: {}
 
   estree-walker@2.0.2: {}
-
-  etherpad-webcomponents@0.0.11:
-    dependencies:
-      '@lit/reactive-element': 2.1.2
-      lit: 3.3.2
-      lit-element: 4.2.2
-      lit-html: 3.3.2
 
   fdir@6.5.0(picomatch@4.0.4):
     optionalDependencies:

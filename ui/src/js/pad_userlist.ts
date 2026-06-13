@@ -18,7 +18,7 @@ import padutils from './pad_utils';
 import {editorBus} from './core';
 import html10n from './i18n';
 import {pad} from "./pad.ts";
-import 'etherpad-webcomponents/EpUserBadge.js';
+import '@samtv12345/etherpad-webcomponents/EpUserBadge.js';
 
 let myUserInfo: Record<string, any> = {};
 

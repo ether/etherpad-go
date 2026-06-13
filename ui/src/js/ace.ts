@@ -23,7 +23,7 @@
  * limitations under the License.
  */
 
-import {AceEditor} from 'etherpad-webcomponents';
+import {AceEditor} from '@samtv12345/etherpad-webcomponents';
 import {editorBus} from './core/EventBus';
 import * as pluginUtils from './pluginfw/shared';
 

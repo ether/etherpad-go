@@ -6,19 +6,19 @@
  * EpPluginToolbar is local-only (not in the npm package).
  */
 
-import 'etherpad-webcomponents/EpNotification.js';
-import 'etherpad-webcomponents/EpModal.js';
-import 'etherpad-webcomponents/EpToast.js';
-import 'etherpad-webcomponents/EpColorPicker.js';
-import 'etherpad-webcomponents/EpDropdown.js';
-import 'etherpad-webcomponents/EpToolbarSelect.js';
-import 'etherpad-webcomponents/EpCheckbox.js';
+import '@samtv12345/etherpad-webcomponents/EpNotification.js';
+import '@samtv12345/etherpad-webcomponents/EpModal.js';
+import '@samtv12345/etherpad-webcomponents/EpToast.js';
+import '@samtv12345/etherpad-webcomponents/EpColorPicker.js';
+import '@samtv12345/etherpad-webcomponents/EpDropdown.js';
+import '@samtv12345/etherpad-webcomponents/EpToolbarSelect.js';
+import '@samtv12345/etherpad-webcomponents/EpCheckbox.js';
 import './EpPluginToolbar';
 
-export {EpNotification} from 'etherpad-webcomponents';
-export {EpModal} from 'etherpad-webcomponents';
-export {EpToastContainer} from 'etherpad-webcomponents';
-export {EpColorPicker} from 'etherpad-webcomponents';
-export {EpDropdown, EpDropdownItem} from 'etherpad-webcomponents';
+export {EpNotification} from '@samtv12345/etherpad-webcomponents';
+export {EpModal} from '@samtv12345/etherpad-webcomponents';
+export {EpToastContainer} from '@samtv12345/etherpad-webcomponents';
+export {EpColorPicker} from '@samtv12345/etherpad-webcomponents';
+export {EpDropdown, EpDropdownItem} from '@samtv12345/etherpad-webcomponents';
 export {EpPluginToolbar} from './EpPluginToolbar';
-export {EpToolbarSelect} from 'etherpad-webcomponents';
+export {EpToolbarSelect} from '@samtv12345/etherpad-webcomponents';
