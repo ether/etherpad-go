@@ -50,8 +50,8 @@ type ClientReadyContext struct {
 // ClientVarsContext is passed to clientVars hooks just before the CLIENT_VARS
 // payload is sent. A callback may mutate the typed ClientVars fields and/or add
 // arbitrary top-level keys via Extra. On key collision the typed field wins
-// (Extra cannot clobber engine-owned keys). Extra is always non-nil when the
-// hook runs.
+// (Extra cannot clobber engine-owned keys). The fire site is responsible for
+// initializing Extra to a non-nil map before firing this hook.
 type ClientVarsContext struct {
 	ClientVars *clientVars.ClientVars
 	Extra      map[string]any
@@ -60,9 +60,11 @@ type ClientVarsContext struct {
 }
 
 // ChatNewMessageContext is passed to chatNewMessage hooks before a chat message
-// is stored and broadcast. Text is mutable (callbacks may set *ctx.Text or
-// reassign ctx.Text); a callback may call DropMessage() to suppress the message
-// entirely. Message is the chat message exposed as `any`.
+// is stored and broadcast. To change the text, set *ctx.Text = "..." (the
+// canonical form); reassigning ctx.Text = &newString also works because the
+// fire site reads ctx.Text back after the hooks run. A callback may call
+// DropMessage() to suppress the message entirely. Message is the chat message
+// exposed as `any`.
 type ChatNewMessageContext struct {
 	Message  any
 	Text     *string
