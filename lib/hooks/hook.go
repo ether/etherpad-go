@@ -72,6 +72,7 @@ func (h *Hook) ExecutePreAuthzFailureHooks(ctx *events.PreAuthzFailureContext) {
 	h.ExecuteHooks(PreAuthzFailureString, ctx)
 }
 
+// EnqueuePadDefaultContentHook registers a callback for the padDefaultContent hook, which runs before a new pad's initial revision is written and may replace the default content (see events.PadDefaultContentContext).
 func (h *Hook) EnqueuePadDefaultContentHook(cb func(ctx *events.PadDefaultContentContext)) string {
 	return h.EnqueueHook(PadDefaultContentString, func(ctx any) {
 		if c, ok := ctx.(*events.PadDefaultContentContext); ok {
@@ -84,6 +85,7 @@ func (h *Hook) ExecutePadDefaultContentHooks(ctx *events.PadDefaultContentContex
 	h.ExecuteHooks(PadDefaultContentString, ctx)
 }
 
+// EnqueuePadLoadHook registers a callback for the padLoad hook, fired whenever a pad is materialized (see events.PadLoadContext).
 func (h *Hook) EnqueuePadLoadHook(cb func(ctx *events.PadLoadContext)) string {
 	return h.EnqueueHook(PadLoadString, func(ctx any) {
 		if c, ok := ctx.(*events.PadLoadContext); ok {
@@ -96,6 +98,7 @@ func (h *Hook) ExecutePadLoadHooks(ctx *events.PadLoadContext) {
 	h.ExecuteHooks(PadLoadString, ctx)
 }
 
+// EnqueuePadCreateHook registers a callback for the padCreate hook, fired right after a pad's first revision is persisted (see events.PadCreateContext).
 func (h *Hook) EnqueuePadCreateHook(cb func(ctx *events.PadCreateContext)) string {
 	return h.EnqueueHook(PadCreateString, func(ctx any) {
 		if c, ok := ctx.(*events.PadCreateContext); ok {
@@ -108,6 +111,7 @@ func (h *Hook) ExecutePadCreateHooks(ctx *events.PadCreateContext) {
 	h.ExecuteHooks(PadCreateString, ctx)
 }
 
+// EnqueuePadUpdateHook registers a callback for the padUpdate hook, fired after a revision is appended (see events.PadUpdateContext).
 func (h *Hook) EnqueuePadUpdateHook(cb func(ctx *events.PadUpdateContext)) string {
 	return h.EnqueueHook(PadUpdateString, func(ctx any) {
 		if c, ok := ctx.(*events.PadUpdateContext); ok {
@@ -120,6 +124,7 @@ func (h *Hook) ExecutePadUpdateHooks(ctx *events.PadUpdateContext) {
 	h.ExecuteHooks(PadUpdateString, ctx)
 }
 
+// EnqueuePadCopyHook registers a callback for the padCopy hook, fired after a pad is copied to a new destination (see events.PadCopyContext).
 func (h *Hook) EnqueuePadCopyHook(cb func(ctx *events.PadCopyContext)) string {
 	return h.EnqueueHook(PadCopyString, func(ctx any) {
 		if c, ok := ctx.(*events.PadCopyContext); ok {
@@ -132,6 +137,7 @@ func (h *Hook) ExecutePadCopyHooks(ctx *events.PadCopyContext) {
 	h.ExecuteHooks(PadCopyString, ctx)
 }
 
+// EnqueuePadRemoveHook registers a callback for the padRemove hook, fired when a pad is deleted (see events.PadRemoveContext).
 func (h *Hook) EnqueuePadRemoveHook(cb func(ctx *events.PadRemoveContext)) string {
 	return h.EnqueueHook(PadRemoveString, func(ctx any) {
 		if c, ok := ctx.(*events.PadRemoveContext); ok {

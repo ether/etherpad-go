@@ -26,6 +26,9 @@ type PadLoadContext struct {
 type PadCreateContext struct {
 	Pad      any
 	PadId    string
+	// AuthorId is the creating author; empty string when the pad is created
+	// without a known author (e.g. server-side operations). Unlike
+	// PadDefaultContentContext.AuthorId this is a plain string, not a pointer.
 	AuthorId string
 }
 
@@ -34,6 +37,7 @@ type PadUpdateContext struct {
 	Pad       any
 	PadId     string
 	AuthorId  string
+	// Revs is the pad's new head revision number after this update.
 	Revs      int
 	Changeset string
 }
