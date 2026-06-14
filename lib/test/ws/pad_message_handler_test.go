@@ -8,6 +8,8 @@ import (
 
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/changeset"
+	"github.com/ether/etherpad-go/lib/hooks"
+	"github.com/ether/etherpad-go/lib/hooks/events"
 	"github.com/ether/etherpad-go/lib/models/ws"
 	"github.com/ether/etherpad-go/lib/test/testutils"
 	libws "github.com/ether/etherpad-go/lib/ws"
@@ -179,6 +181,14 @@ func TestPadMessageHandler_AllMethods(t *testing.T) {
 		testutils.TestRunConfig{
 			Name: "HandleMessage without session returns early",
 			Test: testHandleMessageNoSession,
+		},
+		testutils.TestRunConfig{
+			Name: "handleMessage hook drop stops dispatch",
+			Test: testHandleMessageDropStopsDispatch,
+		},
+		testutils.TestRunConfig{
+			Name: "handleMessageSecurity hook grants write on readonly",
+			Test: testHandleMessageSecurityGrantsWriteOnReadonly,
 		},
 	)
 	testDb.StartTestDBHandler()
@@ -1972,4 +1982,115 @@ func testSendCustomMessageToPad(t *testing.T, ds testutils.TestDataStore) {
 		}
 		assert.True(t, found, "client %d must receive the custom message, got: %v", i+1, messages)
 	}
+}
+
+func testHandleMessageDropStopsDispatch(t *testing.T, ds testutils.TestDataStore) {
+	padId := "test-pad-hm-drop"
+	token := "test-token-hm-drop"
+
+	// The session author must match the author granted by the security
+	// manager for the token, otherwise HandleMessage sends a
+	// {disconnect: "rejected"} userdup message and never queues the change.
+	tokenAuthor, err := ds.AuthorManager.GetAuthor4Token(token)
+	require.NoError(t, err)
+	authorId := tokenAuthor.Id
+
+	_, err = ds.PadManager.GetPad(padId, nil, &authorId)
+	require.NoError(t, err)
+
+	mockConn := libws.NewActualMockWebSocketconn()
+	sessionId := "test-session-hm-drop"
+	client := createTestClient(ds.Hub, sessionId, padId, mockConn)
+	defer func() { delete(ds.Hub.Clients, client) }()
+
+	ds.PadMessageHandler.SessionStore.InitSessionForTest(sessionId)
+	ds.PadMessageHandler.SessionStore.AddHandleClientInformationForTest(sessionId, padId, token)
+	ds.PadMessageHandler.SessionStore.SetAuthorForTest(sessionId, authorId)
+	ds.PadMessageHandler.SessionStore.SetPadIdForTest(sessionId, padId)
+	ds.PadMessageHandler.SessionStore.AddPadReadOnlyIdsForTest(sessionId, padId, "readonly-id", false)
+
+	retrievedPad, err := ds.PadManager.GetPad(padId, nil, &authorId)
+	require.NoError(t, err)
+	headBefore := retrievedPad.Head
+
+	id := ds.Hooks.EnqueueHandleMessageHook(func(ctx *events.HandleMessageContext) {
+		ctx.DropMessage()
+	})
+	defer ds.Hooks.DequeueHook(hooks.HandleMessageString, id)
+
+	userChange := ws.UserChange{
+		Event: "message",
+		Data: ws.UserChangeData{
+			Component: "pad",
+			Type:      "USER_CHANGES",
+			Data: ws.UserChangeDataData{
+				Apool:     ws.UserChangeDataDataApool{NumToAttrib: map[int][]string{}, NextNum: 0},
+				BaseRev:   0,
+				Changeset: "Z:1>3+3$abc",
+			},
+		},
+	}
+	initStore := ds.ToInitStore()
+	ds.PadMessageHandler.HandleMessage(userChange, client, initStore.RetrievedSettings, ds.Logger)
+	time.Sleep(100 * time.Millisecond)
+
+	retrievedPad, err = ds.PadManager.GetPad(padId, nil, &authorId)
+	require.NoError(t, err)
+	assert.Equal(t, headBefore, retrievedPad.Head, "dropped USER_CHANGES must not change the pad")
+}
+
+func testHandleMessageSecurityGrantsWriteOnReadonly(t *testing.T, ds testutils.TestDataStore) {
+	padId := "test-pad-hms-grant"
+	token := "test-token-hms-grant"
+
+	// The session author must match the author granted by the security
+	// manager for the token, otherwise HandleMessage sends a
+	// {disconnect: "rejected"} userdup message and never queues the change.
+	tokenAuthor, err := ds.AuthorManager.GetAuthor4Token(token)
+	require.NoError(t, err)
+	authorId := tokenAuthor.Id
+
+	_, err = ds.PadManager.GetPad(padId, nil, &authorId)
+	require.NoError(t, err)
+
+	mockConn := libws.NewActualMockWebSocketconn()
+	sessionId := "test-session-hms-grant"
+	client := createTestClient(ds.Hub, sessionId, padId, mockConn)
+	defer func() { delete(ds.Hub.Clients, client) }()
+
+	ds.PadMessageHandler.SessionStore.InitSessionForTest(sessionId)
+	ds.PadMessageHandler.SessionStore.AddHandleClientInformationForTest(sessionId, padId, token)
+	ds.PadMessageHandler.SessionStore.SetAuthorForTest(sessionId, authorId)
+	ds.PadMessageHandler.SessionStore.SetPadIdForTest(sessionId, padId)
+	ds.PadMessageHandler.SessionStore.AddPadReadOnlyIdsForTest(sessionId, padId, "readonly-id", true)
+	ds.PadMessageHandler.SessionStore.SetReadOnlyForTest(sessionId, true)
+
+	retrievedPad, err := ds.PadManager.GetPad(padId, nil, &authorId)
+	require.NoError(t, err)
+	headBefore := retrievedPad.Head
+
+	id := ds.Hooks.EnqueueHandleMessageSecurityHook(func(ctx *events.HandleMessageSecurityContext) {
+		ctx.GrantWriteAccess()
+	})
+	defer ds.Hooks.DequeueHook(hooks.HandleMessageSecurityString, id)
+
+	userChange := ws.UserChange{
+		Event: "message",
+		Data: ws.UserChangeData{
+			Component: "pad",
+			Type:      "USER_CHANGES",
+			Data: ws.UserChangeDataData{
+				Apool:     ws.UserChangeDataDataApool{NumToAttrib: map[int][]string{}, NextNum: 0},
+				BaseRev:   0,
+				Changeset: "Z:1>3+3$abc",
+			},
+		},
+	}
+	initStore := ds.ToInitStore()
+	ds.PadMessageHandler.HandleMessage(userChange, client, initStore.RetrievedSettings, ds.Logger)
+	time.Sleep(200 * time.Millisecond)
+
+	retrievedPad, err = ds.PadManager.GetPad(padId, nil, &authorId)
+	require.NoError(t, err)
+	assert.Greater(t, retrievedPad.Head, headBefore, "granted write must apply the change despite read-only")
 }
