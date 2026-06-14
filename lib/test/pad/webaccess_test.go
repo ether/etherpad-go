@@ -9,6 +9,8 @@ import (
 	"github.com/ether/etherpad-go/lib/db"
 	"github.com/ether/etherpad-go/lib/hooks"
 	"github.com/ether/etherpad-go/lib/hooks/events"
+	"github.com/ether/etherpad-go/lib/models/clientVars"
+	"github.com/ether/etherpad-go/lib/models/webaccess"
 	"github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/gofiber/fiber/v3"
@@ -280,4 +282,41 @@ func TestAuthzFailureHookOverridesResponse(t *testing.T) {
 	assert.Equal(t, 200, resp.StatusCode)
 	body, _ := io.ReadAll(resp.Body)
 	assert.Equal(t, "upgrade required", string(body))
+}
+
+// TestAuthorizeHookGrantStoresAuthorizationUnderBarePadId guards against a
+// key-mismatch bug: grant() must store the per-pad authorization under the bare
+// pad id ("testpad"), because SecurityManager.CheckAccess looks it up by the bare
+// socket pad id. Storing it under the "/p/"-prefixed full path match would make
+// hook-granted (and built-in) authorization invisible to SecurityManager.
+func TestAuthorizeHookGrantStoresAuthorizationUnderBarePadId(t *testing.T) {
+	hookSystem := hooks.NewHook()
+	hookSystem.EnqueueAuthenticateHook(func(ctx *events.AuthenticateContext) { ctx.Authenticate("u1") })
+	hookSystem.EnqueueAuthorizeHook(func(ctx *events.AuthorizeContext) { ctx.Grant("create") })
+
+	retrievedSettings := &settings.Settings{RequireAuthentication: true, RequireAuthorization: true}
+	readOnlyManager := pad.NewReadOnlyManager(db.NewMemoryDataStore())
+	logger := zap.NewNop().Sugar()
+
+	var captured *webaccess.SocketClientRequest
+	app := fiber.New()
+	app.Use(func(c fiber.Ctx) error {
+		return pad.CheckAccessWithHooks(c, logger, retrievedSettings, readOnlyManager, &hookSystem)
+	})
+	app.Get("/p/*", func(c fiber.Ctx) error {
+		if u, ok := c.Locals(clientVars.WebAccessStore).(*webaccess.SocketClientRequest); ok {
+			captured = u
+		}
+		return c.SendString("pad content")
+	})
+
+	resp, err := app.Test(httptest.NewRequest("GET", "/p/testpad", nil))
+	require.NoError(t, err)
+	require.Equal(t, 200, resp.StatusCode)
+	require.NotNil(t, captured)
+	require.NotNil(t, captured.PadAuthorizations)
+
+	m := *captured.PadAuthorizations
+	assert.Contains(t, m, "testpad", "authorization must be keyed by the bare pad id")
+	assert.NotContains(t, m, "/p/testpad", "authorization must not be keyed by the /p/-prefixed path")
 }

@@ -108,13 +108,16 @@ func CheckAccessWithHooks(ctx fiber.Ctx, logger *zap.SugaredLogger, retrievedSet
 				return true // This will happen if authentication is not required.
 			}
 
-			var encodedPadIds = encodedPadRegex.FindAllString(ctx.Path(), -1)
+			// Use the capture group (the bare pad id, e.g. "testpad"), not the full
+			// regex match ("/p/testpad"): SecurityManager.CheckAccess looks up
+			// PadAuthorizations by the bare socket pad id, so the keys must agree.
+			var encodedPadMatch = encodedPadRegex.FindStringSubmatch(ctx.Path())
 
-			if len(encodedPadIds) == 0 {
+			if len(encodedPadMatch) < 2 {
 				return true
 			}
 
-			encodedPadId := encodedPadIds[0]
+			encodedPadId := encodedPadMatch[1]
 
 			if utf8.RuneCountInString(encodedPadId) == 0 {
 				return true
@@ -127,7 +130,8 @@ func CheckAccessWithHooks(ctx fiber.Ctx, logger *zap.SugaredLogger, retrievedSet
 			}
 
 			if readOnlyManager.IsReadOnlyID(&padId) {
-				// pad is read-only, first get the real pad ID
+				// pad is read-only; store the authorization under the real pad id,
+				// because SecurityManager resolves to and looks up the real pad id.
 				var realPadId, err = readOnlyManager.GetPadId(padId)
 				if err != nil {
 					println("Error getting real pad ID:", err.Error())
@@ -136,6 +140,7 @@ func CheckAccessWithHooks(ctx fiber.Ctx, logger *zap.SugaredLogger, retrievedSet
 				if realPadId == nil {
 					return false
 				}
+				padId = *realPadId
 			}
 
 			if user.PadAuthorizations == nil {
