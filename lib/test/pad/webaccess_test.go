@@ -163,3 +163,48 @@ func TestPreAuthorizeDecisionSemantics(t *testing.T) {
 	adminCtx.Deny()
 	assert.Equal(t, events.PreAuthorizeDeny, adminCtx.Decision())
 }
+
+func TestAuthenticateHookSuccessGrantsAccess(t *testing.T) {
+	// An authenticate hook that calls Authenticate("pluginuser") should allow
+	// a request to succeed even when no basic-auth credentials are sent and
+	// RequireAuthentication is on.
+	hookSystem := hooks.NewHook()
+	hookSystem.EnqueueAuthenticateHook(func(ctx *events.AuthenticateContext) {
+		ctx.Authenticate("pluginuser")
+	})
+
+	app := newWebAccessApp(&hookSystem, &settings.Settings{RequireAuthentication: true})
+	resp, err := app.Test(httptest.NewRequest("GET", "/p/testpad", nil))
+	require.NoError(t, err)
+	// The protected handler returns "pad content" with 200 on success.
+	assert.Equal(t, 200, resp.StatusCode)
+}
+
+func TestAuthenticateHookRejectSends401(t *testing.T) {
+	// An authenticate hook that calls Reject() must produce a 401.
+	hookSystem := hooks.NewHook()
+	hookSystem.EnqueueAuthenticateHook(func(ctx *events.AuthenticateContext) {
+		ctx.Reject()
+	})
+
+	app := newWebAccessApp(&hookSystem, &settings.Settings{RequireAuthentication: true})
+	resp, err := app.Test(httptest.NewRequest("GET", "/p/testpad", nil))
+	require.NoError(t, err)
+	assert.Equal(t, 401, resp.StatusCode)
+}
+
+func TestAuthnFailureHookOverridesResponse(t *testing.T) {
+	// An authnFailure hook that calls Respond(302, "") and SetHeader("Location",
+	// "/login") should override the default 401 with a redirect.
+	hookSystem := hooks.NewHook()
+	hookSystem.EnqueueAuthnFailureHook(func(ctx *events.AuthnFailureContext) {
+		ctx.SetHeader("Location", "/login")
+		ctx.Respond(302, "")
+	})
+
+	app := newWebAccessApp(&hookSystem, &settings.Settings{RequireAuthentication: true})
+	resp, err := app.Test(httptest.NewRequest("GET", "/p/testpad", nil))
+	require.NoError(t, err)
+	assert.Equal(t, 302, resp.StatusCode)
+	assert.Equal(t, "/login", resp.Header.Get("Location"))
+}

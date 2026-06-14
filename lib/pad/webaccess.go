@@ -218,21 +218,20 @@ func CheckAccessWithHooks(ctx fiber.Ctx, logger *zap.SugaredLogger, retrievedSet
 		webAccessCtx.Password = &userNamePassword[1]
 	}
 
-	var foundUsers = retrievedSettings.Users
-
-	var password *string
-
-	if webAccessCtx.Username != nil {
-		retrievedUser, ok := foundUsers[*webAccessCtx.Username]
-		logger.Infof("Retrieved user: %s", *webAccessCtx.Username)
-		if ok {
-			password = retrievedUser.Password
-		}
-	}
-
-	if !httpBasicAuth || webAccessCtx.Username == nil || password == nil || *password != *webAccessCtx.Password {
+	// sendAuthnFailure fires the authnFailure hook then falls back to the
+	// default 401 response. It REPLACES all inline 401 logic below.
+	sendAuthnFailure := func() error {
 		logger.Infof("failed authentication from IP %s", ctx.IP())
-		// No plugin handled the authentication failure. Fall back to basic authentication.
+		if hookSystem != nil {
+			failCtx := &events.AuthnFailureContext{Path: ctx.Path(), RequireAdmin: requireAdmin}
+			hookSystem.ExecuteAuthnFailureHooks(failCtx)
+			if failCtx.Handled() {
+				for k, v := range failCtx.Headers() {
+					ctx.Set(k, v)
+				}
+				return ctx.Status(failCtx.Status()).SendString(failCtx.Body())
+			}
+		}
 		if !requireAdmin {
 			ctx.Set("WWW-Authenticate", `Basic realm="Restricted area"`)
 			return ctx.SendStatus(fiber.StatusUnauthorized)
@@ -240,26 +239,81 @@ func CheckAccessWithHooks(ctx fiber.Ctx, logger *zap.SugaredLogger, retrievedSet
 		time.Sleep(1 * time.Second)
 		return ctx.Status(401).SendString("Authentication Required")
 	}
-	var retrievedUserFromMap = retrievedSettings.Users[*webAccessCtx.Username]
-	// Make a shallow copy so that the password property can be deleted (to prevent it from
-	// appearing in logs or in the database) without breaking future authentication attempts.
-	ctx.Locals(clientVars.WebAccessStore, &webaccess.SocketClientRequest{
-		Username: retrievedUserFromMap.Username,
-		IsAdmin:  retrievedUserFromMap.IsAdmin != nil && *retrievedUserFromMap.IsAdmin,
-	})
 
-	retrievedUserFromMap.Username = webAccessCtx.Username
-	// Remove password
-	if webAccessCtx.Username == nil {
-		logger.Warn("authenticate hook failed to add user settings to session")
-		return ctx.Status(500).SendString("Internal Server Status")
-	}
-	if webAccessCtx.Username == nil {
-		var newUsername = "<no username>"
-		webAccessCtx.Username = &newUsername
+	pluginAuthenticated := false
+	if hookSystem != nil {
+		var inUser, inPass string
+		if webAccessCtx.Username != nil {
+			inUser = *webAccessCtx.Username
+		}
+		if webAccessCtx.Password != nil {
+			inPass = *webAccessCtx.Password
+		}
+		authCtx := &events.AuthenticateContext{
+			InputUsername: inUser,
+			InputPassword: inPass,
+			Path:          ctx.Path(),
+			RequireAdmin:  requireAdmin,
+			GetHeader:     func(k string) string { return ctx.Get(k) },
+		}
+		hookSystem.ExecuteAuthenticateHooks(authCtx)
+		if authCtx.Answered() {
+			if authCtx.Rejected() {
+				return sendAuthnFailure()
+			}
+			// Plugin authenticated the user. Populate the session user, looking up
+			// settings.Users for admin status when the username is known there.
+			username := authCtx.Username()
+			var isAdmin bool
+			if u, ok := retrievedSettings.Users[username]; ok {
+				isAdmin = u.IsAdmin != nil && *u.IsAdmin
+			}
+			unameCopy := username
+			ctx.Locals(clientVars.WebAccessStore, &webaccess.SocketClientRequest{
+				Username: &unameCopy,
+				IsAdmin:  isAdmin,
+			})
+			pluginAuthenticated = true
+		}
 	}
 
-	logger.Infof(fmt.Sprintf(`Successful authentication from IP %s for user %s`, ctx.IP(), *webAccessCtx.Username))
+	if !pluginAuthenticated {
+		var foundUsers = retrievedSettings.Users
+
+		var password *string
+
+		if webAccessCtx.Username != nil {
+			retrievedUser, ok := foundUsers[*webAccessCtx.Username]
+			logger.Infof("Retrieved user: %s", *webAccessCtx.Username)
+			if ok {
+				password = retrievedUser.Password
+			}
+		}
+
+		if !httpBasicAuth || webAccessCtx.Username == nil || password == nil || *password != *webAccessCtx.Password {
+			return sendAuthnFailure()
+		}
+		var retrievedUserFromMap = retrievedSettings.Users[*webAccessCtx.Username]
+		// Make a shallow copy so that the password property can be deleted (to prevent it from
+		// appearing in logs or in the database) without breaking future authentication attempts.
+		ctx.Locals(clientVars.WebAccessStore, &webaccess.SocketClientRequest{
+			Username: retrievedUserFromMap.Username,
+			IsAdmin:  retrievedUserFromMap.IsAdmin != nil && *retrievedUserFromMap.IsAdmin,
+		})
+
+		retrievedUserFromMap.Username = webAccessCtx.Username
+		// Remove password
+		if webAccessCtx.Username == nil {
+			logger.Warn("authenticate hook failed to add user settings to session")
+			return ctx.Status(500).SendString("Internal Server Status")
+		}
+		if webAccessCtx.Username == nil {
+			var newUsername = "<no username>"
+			webAccessCtx.Username = &newUsername
+		}
+
+		logger.Infof(fmt.Sprintf(`Successful authentication from IP %s for user %s`, ctx.IP(), *webAccessCtx.Username))
+	}
 	// ///////////////////////////////////////////////////////////////////////////////////////////////
 	// Step 4: Try to access the thing again. If this fails, give the user a 403 error. Plugins can
 	// use the authzFailure hook to override the default error handling behavior (e.g., to redirect to
