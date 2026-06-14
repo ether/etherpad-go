@@ -365,3 +365,36 @@ func TestShutdownFires(t *testing.T) {
 		t.Fatal("expected shutdown hook to fire")
 	}
 }
+
+func TestImportSetHTML(t *testing.T) {
+	h := NewHook()
+	h.EnqueueImportHook(func(ctx *events.ImportContext) { ctx.SetHTML("<p>x</p>") })
+	ctx := &events.ImportContext{FileEnding: ".custom", PadId: "p1"}
+	h.ExecuteImportHooks(ctx)
+	if !ctx.Handled() {
+		t.Fatal("expected handled after SetHTML")
+	}
+	html, ok := ctx.HTML()
+	if !ok || html != "<p>x</p>" {
+		t.Fatalf("expected html '<p>x</p>', got %q ok=%v", html, ok)
+	}
+	if _, ok := ctx.Text(); ok {
+		t.Fatal("did not expect text to be set")
+	}
+}
+
+func TestImportBareHandle(t *testing.T) {
+	h := NewHook()
+	h.EnqueueImportHook(func(ctx *events.ImportContext) { ctx.Handle() })
+	ctx := &events.ImportContext{FileEnding: ".custom", PadId: "p1"}
+	h.ExecuteImportHooks(ctx)
+	if !ctx.Handled() {
+		t.Fatal("expected handled after bare Handle()")
+	}
+	if _, ok := ctx.HTML(); ok {
+		t.Fatal("did not expect html to be set")
+	}
+	if _, ok := ctx.Text(); ok {
+		t.Fatal("did not expect text to be set")
+	}
+}
