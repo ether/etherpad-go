@@ -1455,6 +1455,14 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 		retrivedClientVars.CollabClientVars.InitialAttributedText.Text = atextSnapshot.Text
 		retrivedClientVars.CollabClientVars.InitialAttributedText.Attribs = atextSnapshot.Attribs
 
+		cvCtx := &events.ClientVarsContext{
+			ClientVars: retrivedClientVars,
+			Extra:      map[string]any{},
+			PadId:      thisSession.PadId,
+			AuthorId:   thisSession.Author,
+		}
+		p.hooks.ExecuteClientVarsHooks(cvCtx)
+
 		// Initialize session time before broadcasting so timeDelta calculations
 		// in UpdatePadClients don't produce nonsense values. Upstream #7480.
 		if thisSession.Time == 0 {
@@ -1462,9 +1470,21 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 		}
 		var arr = make([]interface{}, 2)
 		arr[0] = "message"
-		arr[1] = Message{
-			Data: *retrivedClientVars,
-			Type: "CLIENT_VARS",
+		if len(cvCtx.Extra) == 0 {
+			arr[1] = Message{
+				Data: *retrivedClientVars,
+				Type: "CLIENT_VARS",
+			}
+		} else {
+			merged, mergeErr := MergeClientVarsExtra(retrivedClientVars, cvCtx.Extra)
+			if mergeErr != nil {
+				p.Logger.Warn("Error merging clientVars extras", mergeErr.Error())
+				return
+			}
+			arr[1] = map[string]any{
+				"type": "CLIENT_VARS",
+				"data": merged,
+			}
 		}
 		var encoded, _ = json.Marshal(arr)
 		// Join the pad and start receiving updates
