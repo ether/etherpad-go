@@ -277,3 +277,91 @@ func TestAuthzFailureRespond(t *testing.T) {
 		t.Fatalf("expected handled 200 body, got handled=%v status=%d body=%q", ctx.Handled(), ctx.Status(), ctx.Body())
 	}
 }
+
+func TestExportFileNameFirstWins(t *testing.T) {
+	h := NewHook()
+	h.EnqueueExportFileNameHook(func(ctx *events.ExportFileNameContext) { ctx.SetFileName("first") })
+	h.EnqueueExportFileNameHook(func(ctx *events.ExportFileNameContext) { ctx.SetFileName("second") })
+	ctx := &events.ExportFileNameContext{PadId: "p1", ExportType: "html"}
+	h.ExecuteExportFileNameHooks(ctx)
+	if ctx.FileName() != "first" {
+		t.Fatalf("expected first, got %q", ctx.FileName())
+	}
+}
+
+func TestStylesForExportAccumulate(t *testing.T) {
+	h := NewHook()
+	h.EnqueueStylesForExportHook(func(ctx *events.StylesForExportContext) { ctx.AddStyle("a{}") })
+	h.EnqueueStylesForExportHook(func(ctx *events.StylesForExportContext) { ctx.AddStyle("b{}") })
+	ctx := &events.StylesForExportContext{PadId: "p1"}
+	h.ExecuteStylesForExportHooks(ctx)
+	if ctx.Styles() != "a{}b{}" {
+		t.Fatalf("expected concatenated styles, got %q", ctx.Styles())
+	}
+}
+
+func TestExportHTMLAdditionalContentAccumulate(t *testing.T) {
+	h := NewHook()
+	h.EnqueueExportHTMLAdditionalContentHook(func(ctx *events.ExportHTMLAdditionalContentContext) { ctx.Add("<p>1</p>") })
+	h.EnqueueExportHTMLAdditionalContentHook(func(ctx *events.ExportHTMLAdditionalContentContext) { ctx.Add("<p>2</p>") })
+	ctx := &events.ExportHTMLAdditionalContentContext{PadId: "p1"}
+	h.ExecuteExportHTMLAdditionalContentHooks(ctx)
+	if ctx.Content() != "<p>1</p><p>2</p>" {
+		t.Fatalf("expected concatenated content, got %q", ctx.Content())
+	}
+}
+
+func TestExportHTMLSendReplace(t *testing.T) {
+	h := NewHook()
+	h.EnqueueExportHTMLSendHook(func(ctx *events.ExportHTMLSendContext) { *ctx.HTML = "rewritten" })
+	html := "original"
+	ctx := &events.ExportHTMLSendContext{PadId: "p1", HTML: &html}
+	h.ExecuteExportHTMLSendHooks(ctx)
+	if *ctx.HTML != "rewritten" {
+		t.Fatalf("expected rewritten, got %q", *ctx.HTML)
+	}
+}
+
+func TestImportHandle(t *testing.T) {
+	h := NewHook()
+	h.EnqueueImportHook(func(ctx *events.ImportContext) { ctx.SetText("converted") })
+	ctx := &events.ImportContext{FileEnding: ".custom", PadId: "p1", AuthorId: "a1", Content: []byte("x")}
+	h.ExecuteImportHooks(ctx)
+	if !ctx.Handled() {
+		t.Fatal("expected handled after SetText")
+	}
+	txt, ok := ctx.Text()
+	if !ok || txt != "converted" {
+		t.Fatalf("expected text 'converted', got %q ok=%v", txt, ok)
+	}
+}
+
+func TestImportEtherpadDataVisible(t *testing.T) {
+	h := NewHook()
+	h.EnqueueImportEtherpadHook(func(ctx *events.ImportEtherpadContext) { ctx.Data["added"] = true })
+	ctx := &events.ImportEtherpadContext{PadId: "p1", SrcPadId: "src", Data: map[string]any{}}
+	h.ExecuteImportEtherpadHooks(ctx)
+	if ctx.Data["added"] != true {
+		t.Fatal("expected plugin to mutate Data map")
+	}
+}
+
+func TestLoadSettingsDelivers(t *testing.T) {
+	h := NewHook()
+	var got any
+	h.EnqueueLoadSettingsHook(func(ctx *events.LoadSettingsContext) { got = ctx.Settings })
+	h.ExecuteLoadSettingsHooks(&events.LoadSettingsContext{Settings: "the-settings"})
+	if got != "the-settings" {
+		t.Fatalf("expected settings delivered, got %v", got)
+	}
+}
+
+func TestShutdownFires(t *testing.T) {
+	h := NewHook()
+	fired := false
+	h.EnqueueShutdownHook(func(ctx *events.ShutdownContext) { fired = true })
+	h.ExecuteShutdownHooks(&events.ShutdownContext{})
+	if !fired {
+		t.Fatal("expected shutdown hook to fire")
+	}
+}
