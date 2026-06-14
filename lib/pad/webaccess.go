@@ -172,6 +172,28 @@ func CheckAccessWithHooks(ctx fiber.Ctx, logger *zap.SugaredLogger, retrievedSet
 		if !retrievedSettings.RequireAuthorization {
 			return grant("create")
 		}
+
+		if hookSystem != nil {
+			var padIdForHook string
+			if ids := regexp.MustCompile("^/p/([^/]*)").FindStringSubmatch(ctx.Path()); len(ids) == 2 {
+				if decoded, err := url.QueryUnescape(ids[1]); err == nil {
+					padIdForHook = decoded
+				}
+			}
+			authorizeCtx := &events.AuthorizeContext{
+				Path:         ctx.Path(),
+				PadId:        padIdForHook,
+				RequireAdmin: requireAdmin,
+				User:         sessionReq,
+			}
+			hookSystem.ExecuteAuthorizeHooks(authorizeCtx)
+			switch authorizeCtx.Decision() {
+			case events.AuthorizeGrant:
+				return grant(authorizeCtx.Level())
+			case events.AuthorizeDeny:
+				return false
+			}
+		}
 		return false
 	}
 
@@ -320,6 +342,20 @@ func CheckAccessWithHooks(ctx fiber.Ctx, logger *zap.SugaredLogger, retrievedSet
 	// a login page).
 	// ///////////////////////////////////////////////////////////////////////////////////////////////
 
+	sendAuthzFailure := func() error {
+		if hookSystem != nil {
+			failCtx := &events.AuthzFailureContext{Path: ctx.Path(), RequireAdmin: requireAdmin}
+			hookSystem.ExecuteAuthzFailureHooks(failCtx)
+			if failCtx.Handled() {
+				for k, v := range failCtx.Headers() {
+					ctx.Set(k, v)
+				}
+				return ctx.Status(failCtx.Status()).SendString(failCtx.Body())
+			}
+		}
+		return ctx.Status(403).SendString("Forbidden")
+	}
+
 	var auth = authorize()
 	if auth && !requireAdmin {
 		return ctx.Next()
@@ -329,8 +365,7 @@ func CheckAccessWithHooks(ctx fiber.Ctx, logger *zap.SugaredLogger, retrievedSet
 		return ctx.Status(200).SendString("Authorized")
 	}
 
-	// No plugin handled the authorization failure.
-	return ctx.Status(403).SendString("Forbidden")
+	return sendAuthzFailure()
 }
 
 // NormalizeAuthzLevel mirrors the original webaccess.normalizeAuthzLevel:
