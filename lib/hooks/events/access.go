@@ -185,12 +185,14 @@ type AuthzFailureContext struct {
 	headers map[string]string
 }
 
+// Respond marks the failure as handled and records the response to send.
 func (c *AuthzFailureContext) Respond(status int, body string) {
 	c.handled = true
 	c.status = status
 	c.body = body
 }
 
+// SetHeader records a response header to set alongside the Respond status/body.
 func (c *AuthzFailureContext) SetHeader(key, value string) {
 	if c.headers == nil {
 		c.headers = make(map[string]string)
@@ -198,6 +200,7 @@ func (c *AuthzFailureContext) SetHeader(key, value string) {
 	c.headers[key] = value
 }
 
+// Handled reports whether a callback overrode the default error response.
 func (c *AuthzFailureContext) Handled() bool              { return c.handled }
 func (c *AuthzFailureContext) Status() int                { return c.status }
 func (c *AuthzFailureContext) Body() string               { return c.body }
