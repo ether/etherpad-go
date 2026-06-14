@@ -5,13 +5,16 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/ether/etherpad-go/lib"
 	api2 "github.com/ether/etherpad-go/lib/api"
 	"github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/hooks"
+	"github.com/ether/etherpad-go/lib/hooks/events"
 	"github.com/ether/etherpad-go/lib/io"
 	"github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/plugins"
@@ -94,6 +97,7 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 
 	// init plugins
 	plugins.InitPlugins(epPluginStore)
+	retrievedHooks.ExecuteLoadSettingsHooks(&events.LoadSettingsContext{Settings: &settings})
 
 	var cookieStore = session.NewStore(session.Config{
 		CookieSameSite: settings.Cookie.SameSite,
@@ -228,9 +232,19 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 
 	fiberString := fmt.Sprintf("%s:%s", settings.IP, settings.Port)
 	setupLogger.Info("Starting Web UI on " + fiberString)
-	err = app.Listen(fiberString, fiber.ListenConfig{DisableStartupMessage: true})
-	if err != nil {
-		setupLogger.Error("Error starting web UI: " + err.Error())
-		os.Exit(1)
+	go func() {
+		if err := app.Listen(fiberString, fiber.ListenConfig{DisableStartupMessage: true}); err != nil {
+			setupLogger.Error("Error starting web UI: " + err.Error())
+			os.Exit(1)
+		}
+	}()
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	<-sigCh
+	setupLogger.Info("Shutting down Etherpad Go...")
+	retrievedHooks.ExecuteShutdownHooks(&events.ShutdownContext{})
+	if err := app.ShutdownWithTimeout(3 * time.Second); err != nil {
+		setupLogger.Warn("Error during shutdown: " + err.Error())
 	}
 }
