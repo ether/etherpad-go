@@ -154,8 +154,9 @@ func testImportLargeTextNoTruncation(t *testing.T, tsStore testutils.TestDataSto
 
 	const endMarker = "END-OF-IMPORT-MARKER"
 	content := "START-OF-IMPORT-MARKER\n" +
-		strings.Repeat("etherpad import payload line\n", 1024) +
-		endMarker // ~28 KB: large enough to plausibly span reads, under MySQL's 64 KB TEXT limit
+		strings.Repeat("etherpad import payload line\n", 4096) +
+		endMarker // ~115 KB: spans multiple reads AND exceeds MySQL's 64 KB TEXT limit
+	// (verifying both the doImport full-read fix and the LONGTEXT column migration)
 
 	body, ct := buildImportMultipartBody(t, "big.txt", []byte(content))
 	req := httptest.NewRequest("POST", "/p/"+padId+"/import", body)
