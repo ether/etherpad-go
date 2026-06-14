@@ -2080,9 +2080,17 @@ func testHandleMessageSecurityGrantsWriteOnReadonly(t *testing.T, ds testutils.T
 			Component: "pad",
 			Type:      "USER_CHANGES",
 			Data: ws.UserChangeDataData{
-				Apool:     ws.UserChangeDataDataApool{NumToAttrib: map[int][]string{}, NextNum: 0},
-				BaseRev:   0,
-				Changeset: "Z:1>3+3$abc",
+				// The '+' op must carry the session author attribute so
+				// handleUserChanges does not reject it as "badChangeset".
+				// Apool entry 0 → ["author", authorId]; changeset *0+3 tags
+				// the insert with that entry.  BaseRev must match the pad's
+				// current head so the rebasing loop is a no-op.
+				Apool: ws.UserChangeDataDataApool{
+					NumToAttrib: map[int][]string{0: {"author", authorId}},
+					NextNum:     1,
+				},
+				BaseRev:   headBefore,
+				Changeset: "Z:1>3*0+3$abc",
 			},
 		},
 	}
