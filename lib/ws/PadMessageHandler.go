@@ -533,6 +533,10 @@ func (p *PadMessageHandler) HandleMessage(message any, client *Client, retrieved
 		return
 	}
 
+	// handleMessage fires for every message type, including CLIENT_READY (whose
+	// session bootstrap above has already run). Dropping a CLIENT_READY therefore
+	// leaves the session half-initialised (auth/padId set, but no CLIENT_VARS
+	// sent) — matching the general message-interceptor semantics of the original.
 	hmCtx := &events.HandleMessageContext{
 		Message:  message,
 		Client:   client,
