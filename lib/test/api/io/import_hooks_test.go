@@ -8,13 +8,16 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	apiio "github.com/ether/etherpad-go/lib/api/io"
 	"github.com/ether/etherpad-go/lib/hooks"
 	"github.com/ether/etherpad-go/lib/hooks/events"
 	"github.com/ether/etherpad-go/lib/test/testutils"
+	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -29,6 +32,10 @@ func TestImportHooks(t *testing.T) {
 		testutils.TestRunConfig{
 			Name: "Hook importEtherpad observes data on etherpad import",
 			Test: testImportEtherpadHookObservesData,
+		},
+		testutils.TestRunConfig{
+			Name: "Large text import is not truncated or NUL-padded",
+			Test: testImportLargeTextNoTruncation,
 		},
 	)
 	defer testDb.StartTestDBHandler()
@@ -131,6 +138,41 @@ func testImportEtherpadHookObservesData(t *testing.T, tsStore testutils.TestData
 	assert.True(t, hookFired.Load(), "importEtherpad hook must have fired")
 	assert.Equal(t, padId, capturedPadId, "hook must receive the destination padId")
 	assert.Greater(t, capturedDataLen, 0, "hook Data map must be non-empty")
+}
+
+// testImportLargeTextNoTruncation guards the doImport file-read: a single
+// file.Read is not guaranteed to fill the buffer, so a sizable upload could end
+// up truncated or NUL-padded. Import a large .txt and assert both ends survive
+// and no NUL bytes leak in from an under-filled read buffer.
+func testImportLargeTextNoTruncation(t *testing.T, tsStore testutils.TestDataStore) {
+	padId := "importLargeTextPad"
+	token := createTestAuthorWithToken(t, tsStore)
+
+	tsInstance := tsStore.ToInitStore()
+	apiio.Init(tsInstance)
+	app := tsInstance.C
+
+	const endMarker = "END-OF-IMPORT-MARKER"
+	content := "START-OF-IMPORT-MARKER\n" +
+		strings.Repeat("etherpad import payload line\n", 1024) +
+		endMarker // ~28 KB: large enough to plausibly span reads, under MySQL's 64 KB TEXT limit
+
+	body, ct := buildImportMultipartBody(t, "big.txt", []byte(content))
+	req := httptest.NewRequest("POST", "/p/"+padId+"/import", body)
+	req.Header.Set("Content-Type", ct)
+	req.AddCookie(&http.Cookie{Name: "token", Value: token})
+
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 30 * time.Second})
+	assert.NoError(t, err)
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, 200, resp.StatusCode, "large .txt import should succeed: %s", string(respBody))
+
+	retrievedPad, err := tsStore.PadManager.GetPad(padId, nil, nil)
+	assert.NoError(t, err)
+	text := retrievedPad.Text()
+	assert.Contains(t, text, "START-OF-IMPORT-MARKER", "start of imported content must be present")
+	assert.Contains(t, text, endMarker, "end of imported content must be present (no truncation)")
+	assert.NotContains(t, text, "\x00", "imported content must not contain NUL bytes from an under-filled read buffer")
 }
 
 // buildMinimalEtherpadJSON constructs a minimal but valid .etherpad export JSON.

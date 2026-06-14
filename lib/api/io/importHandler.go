@@ -1,6 +1,7 @@
 package io
 
 import (
+	stdio "io"
 	"path/filepath"
 	"strings"
 
@@ -156,9 +157,11 @@ func (h *ImportHandler) doImport(ctx fiber.Ctx, padId string, authorId string) (
 	}
 	defer file.Close()
 
-	// Read file content
-	content := make([]byte, fileHeader.Size)
-	_, err = file.Read(content)
+	// Read the full file content. A single file.Read is not guaranteed to fill
+	// the buffer — it may return fewer bytes than requested, leaving trailing
+	// zero bytes (or truncating), which corrupts downstream parsing (e.g. the
+	// .etherpad json.Unmarshal in Importer.SetPadRaw). Read it all.
+	content, err := stdio.ReadAll(file)
 	if err != nil {
 		h.logger.Warnf("Import failed: could not read file: %v", err)
 		return false, &ImportError{Status: "uploadFailed", Message: "could not read file"}
