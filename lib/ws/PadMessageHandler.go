@@ -943,7 +943,13 @@ func (p *PadMessageHandler) SendChatMessageToPadClients(session *ws.Session, cha
 	if cmCtx.Dropped() {
 		return
 	}
-	chatMessage.Text = *cmCtx.Text
+	// A hook may reassign ctx.Text; guard against a plugin setting it to nil
+	// (the documented way to suppress is DropMessage()). Keep the original text.
+	if cmCtx.Text != nil {
+		chatMessage.Text = *cmCtx.Text
+	} else {
+		p.Logger.Warn("chatNewMessage hook set Text to nil; keeping original chat text")
+	}
 
 	var retrievedPad, err = p.padManager.GetPad(session.PadId, nil, chatMessage.AuthorId)
 	if err != nil {
@@ -1503,7 +1509,19 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 				"data": merged,
 			}
 		}
-		var encoded, _ = json.Marshal(arr)
+		encoded, encErr := json.Marshal(arr)
+		if encErr != nil {
+			// A clientVars hook likely placed a non-serializable value in Extra.
+			// Fall back to the typed payload without plugin extras so the client
+			// still receives a valid CLIENT_VARS message instead of empty bytes.
+			p.Logger.Warnf("Error marshaling CLIENT_VARS for pad %s author %s; sending without plugin extras: %v", thisSession.PadId, thisSession.Author, encErr)
+			arr[1] = Message{Data: *retrivedClientVars, Type: "CLIENT_VARS"}
+			encoded, encErr = json.Marshal(arr)
+			if encErr != nil {
+				p.Logger.Warn("Error marshaling fallback CLIENT_VARS", encErr.Error())
+				return
+			}
+		}
 		// Join the pad and start receiving updates
 		thisSession.PadId = retrievedPad.Id
 		// Send the clientVars to the Client

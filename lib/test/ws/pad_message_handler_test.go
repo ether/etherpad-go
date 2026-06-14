@@ -198,6 +198,10 @@ func TestPadMessageHandler_AllMethods(t *testing.T) {
 			Name: "chatNewMessage hook drop suppresses store",
 			Test: testChatNewMessageDropSuppresses,
 		},
+		testutils.TestRunConfig{
+			Name: "chatNewMessage hook setting Text=nil keeps original",
+			Test: testChatNewMessageNilTextKeepsOriginal,
+		},
 	)
 	testDb.StartTestDBHandler()
 }
@@ -2181,4 +2185,45 @@ func testChatNewMessageDropSuppresses(t *testing.T, ds testutils.TestDataStore) 
 	msgs, err := retrievedPad.GetChatMessages(0, 1)
 	require.NoError(t, err)
 	assert.Len(t, *msgs, 0, "dropped chat message must not be stored")
+}
+
+func testChatNewMessageNilTextKeepsOriginal(t *testing.T, ds testutils.TestDataStore) {
+	padId := "test-pad-chat-niltext"
+	authorId, err := setupPadAndAuthor(t, ds, padId, "ChatNilTextUser")
+	require.NoError(t, err)
+
+	mockConn := libws.NewActualMockWebSocketconn()
+	sessionId := "test-session-chat-niltext"
+	client := createTestClient(ds.Hub, sessionId, padId, mockConn)
+	defer func() { delete(ds.Hub.Clients, client) }()
+	wg := startMockWritePump(client, mockConn)
+
+	ds.PadMessageHandler.SessionStore.InitSessionForTest(sessionId)
+	ds.PadMessageHandler.SessionStore.AddHandleClientInformationForTest(sessionId, padId, "test-token")
+	ds.PadMessageHandler.SessionStore.SetAuthorForTest(sessionId, authorId)
+	ds.PadMessageHandler.SessionStore.SetPadIdForTest(sessionId, padId)
+	session := ds.PadMessageHandler.SessionStore.GetSessionForTest(sessionId)
+	require.NotNil(t, session)
+
+	// A misbehaving hook nils Text; the handler must not panic and must keep the
+	// original text (DropMessage() is the documented way to suppress).
+	id := ds.Hooks.EnqueueChatNewMessageHook(func(ctx *events.ChatNewMessageContext) {
+		ctx.Text = nil
+	})
+	defer ds.Hooks.DequeueHook(hooks.ChatNewMessageString, id)
+
+	chatTime := time.Now().UnixMilli()
+	assert.NotPanics(t, func() {
+		ds.PadMessageHandler.SendChatMessageToPadClients(session, ws.ChatMessageData{
+			Text: "original text", Time: &chatTime, AuthorId: &authorId,
+		})
+	})
+	wg.Wait()
+
+	retrievedPad, err := ds.PadManager.GetPad(padId, nil, &authorId)
+	require.NoError(t, err)
+	msgs, err := retrievedPad.GetChatMessages(0, 1)
+	require.NoError(t, err)
+	require.Len(t, *msgs, 1)
+	assert.Equal(t, "original text", (*msgs)[0].Message)
 }
