@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ether/etherpad-go/lib/hooks"
 	"github.com/ether/etherpad-go/lib/io"
 	"github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/settings"
@@ -49,6 +50,7 @@ type ImportHandler struct {
 	importer        *io.Importer
 	settings        *settings.Settings
 	logger          *zap.SugaredLogger
+	hooks           *hooks.Hook
 }
 
 // NewImportHandler creates a new ImportHandler
@@ -59,6 +61,7 @@ func NewImportHandler(
 	importer *io.Importer,
 	settings *settings.Settings,
 	logger *zap.SugaredLogger,
+	hooks *hooks.Hook,
 ) *ImportHandler {
 	return &ImportHandler{
 		padManager:      padManager,
@@ -67,6 +70,7 @@ func NewImportHandler(
 		importer:        importer,
 		settings:        settings,
 		logger:          logger,
+		hooks:           hooks,
 	}
 }
 

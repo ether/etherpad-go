@@ -76,7 +76,7 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 
 	padManager := pad.NewManager(dataStore, &retrievedHooks)
 	authorManager := author.NewManager(dataStore)
-	importer := io.NewImporter(padManager, authorManager, dataStore, setupLogger)
+	importer := io.NewImporter(padManager, authorManager, dataStore, setupLogger, &retrievedHooks)
 	globalHub := ws.NewHub()
 	sessionStore := ws.NewSessionStore()
 	padMessageHandler := ws.NewPadMessageHandler(dataStore, &retrievedHooks, padManager, &sessionStore, globalHub, setupLogger, uiAssets)

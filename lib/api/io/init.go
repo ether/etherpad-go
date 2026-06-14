@@ -8,7 +8,7 @@ import (
 
 func Init(store *lib.InitStore) {
 	exportEtherpad := io.NewExportEtherpad(store.Hooks, store.PadManager, store.Store, store.Logger, store.UiAssets)
-	importer := io.NewImporter(store.PadManager, store.AuthorManager, store.Store, store.Logger)
+	importer := io.NewImporter(store.PadManager, store.AuthorManager, store.Store, store.Logger, store.Hooks)
 	importHandler := NewImportHandler(
 		store.PadManager,
 		store.SecurityManager,
@@ -16,6 +16,7 @@ func Init(store *lib.InitStore) {
 		importer,
 		store.RetrievedSettings,
 		store.Logger,
+		store.Hooks,
 	)
 
 	store.C.Get("/p/:pad/:rev/export/:type", func(ctx fiber.Ctx) error {

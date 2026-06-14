@@ -17,6 +17,7 @@ import (
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/db"
+	"github.com/ether/etherpad-go/lib/hooks"
 	db2 "github.com/ether/etherpad-go/lib/models/db"
 	padModel "github.com/ether/etherpad-go/lib/models/pad"
 	"github.com/ether/etherpad-go/lib/pad"
@@ -32,14 +33,16 @@ type Importer struct {
 	authorManager *author.Manager
 	db            db.DataStore
 	logger        *zap.SugaredLogger
+	hooks         *hooks.Hook
 }
 
-func NewImporter(padManager *pad.Manager, authorManager *author.Manager, db db.DataStore, logger *zap.SugaredLogger) *Importer {
+func NewImporter(padManager *pad.Manager, authorManager *author.Manager, db db.DataStore, logger *zap.SugaredLogger, hooks *hooks.Hook) *Importer {
 	return &Importer{
 		padManager:    padManager,
 		authorManager: authorManager,
 		db:            db,
 		logger:        logger,
+		hooks:         hooks,
 	}
 }
 
