@@ -357,6 +357,229 @@ is useful for posting join/leave announcements to the chat sidebar.
 
 ---
 
+### Auth / access hooks (Phase C)
+
+These hooks integrate with the HTTP access pipeline
+(`lib/pad/webaccess.go` → `CheckAccessWithHooks`) and the socket access check
+(`lib/pad/SecurityManager.go` → `CheckAccess` / `resolveAuthorId`).
+
+#### `onAccessCheck`
+
+| | |
+|---|---|
+| Enqueue | `EnqueueOnAccessCheckHook(cb func(*events.OnAccessCheckContext)) string` |
+| Context type | `events.OnAccessCheckContext` |
+| Fires | In `SecurityManager.CheckAccess` when socket pad access is being checked, after read-only pad-id resolution |
+
+**Context fields:**
+
+| Field           | Type     | Notes                                      |
+|-----------------|----------|--------------------------------------------|
+| `PadId`         | `string` | The resolved (non-read-only) pad identifier |
+| `Token`         | `string` | The client's auth token                    |
+| `SessionCookie` | `string` | The client's session cookie                |
+
+**Accumulator methods:**
+
+| Method           | Effect                                               |
+|------------------|------------------------------------------------------|
+| `Deny()`         | Denies access to the pad (deny-wins: any single callback calling this blocks access) |
+| `Denied() bool`  | Reports whether any callback denied access           |
+
+If any callback calls `Deny()`, `CheckAccess` returns an error and the socket
+join is rejected. No answer from any callback leaves the decision to the
+remaining access logic.
+
+**Example** — deny access to a specific pad by name:
+
+```go
+store.HookSystem.EnqueueOnAccessCheckHook(func(ctx *events.OnAccessCheckContext) {
+    if ctx.PadId == "restricted-pad" {
+        ctx.Deny()
+    }
+})
+```
+
+---
+
+#### `getAuthorId`
+
+| | |
+|---|---|
+| Enqueue | `EnqueueGetAuthorIdHook(cb func(*events.GetAuthorIdContext)) string` |
+| Context type | `events.GetAuthorIdContext` |
+| Fires | During author resolution in `SecurityManager.resolveAuthorId`, called from `CheckAccess` |
+
+**Context fields:**
+
+| Field   | Type  | Notes                                                                           |
+|---------|-------|---------------------------------------------------------------------------------|
+| `Token` | `string` | The client's auth token                                                      |
+| `User`  | `any` | The authenticated user (type-assert to `*webaccess.SocketClientRequest`), or `nil` |
+
+**Accumulator methods:**
+
+| Method                      | Effect                                                        |
+|-----------------------------|---------------------------------------------------------------|
+| `SetAuthorId(id string)`    | Records the resolved author id; the first non-empty value wins |
+| `AuthorId() string`         | Returns the author id set by the winning callback, or `""`    |
+
+If no callback calls `SetAuthorId` with a non-empty value, the server falls
+back to the database token→author mapping.
+
+---
+
+#### `authenticate`
+
+| | |
+|---|---|
+| Enqueue | `EnqueueAuthenticateHook(cb func(*events.AuthenticateContext)) string` |
+| Context type | `events.AuthenticateContext` |
+| Fires | In `CheckAccessWithHooks` (HTTP pipeline) before the built-in basic-auth check |
+
+**Context fields:**
+
+| Field           | Type                    | Notes                                                               |
+|-----------------|-------------------------|---------------------------------------------------------------------|
+| `InputUsername` | `string`                | Username credential supplied by the client (from Basic auth header) |
+| `InputPassword` | `string`                | Password credential supplied by the client                         |
+| `Path`          | `string`                | The HTTP request path                                               |
+| `RequireAdmin`  | `bool`                  | True when the path requires admin access                            |
+| `GetHeader`     | `func(key string) string` | Reads an arbitrary HTTP request header by name                    |
+
+**Accumulator methods:**
+
+| Method                   | Effect                                                              |
+|--------------------------|---------------------------------------------------------------------|
+| `Authenticate(username)` | Confirms authentication as `username` (first answer wins)          |
+| `Reject()`               | Explicitly rejects the credentials (triggers `authnFailure`)        |
+| `Answered() bool`        | Reports whether any callback made a decision                        |
+| `Rejected() bool`        | Reports whether the decision was an explicit rejection              |
+| `Username() string`      | Returns the authenticated username (valid when `Answered && !Rejected`) |
+
+The first callback to call either `Authenticate` or `Reject` wins; subsequent
+callbacks cannot change the outcome. If no callback answers, the server falls
+back to its built-in Basic auth check against `settings.Users`.
+
+When a plugin authenticates a user, admin status is looked up from
+`settings.Users[username].IsAdmin` and stored in the session.
+
+---
+
+#### `authorize`
+
+| | |
+|---|---|
+| Enqueue | `EnqueueAuthorizeHook(cb func(*events.AuthorizeContext)) string` |
+| Context type | `events.AuthorizeContext` |
+| Fires | In `CheckAccessWithHooks` after authentication when both `requireAuthentication` and `requireAuthorization` are enabled and the user is not an admin |
+
+**Context fields:**
+
+| Field          | Type     | Notes                                                               |
+|----------------|----------|---------------------------------------------------------------------|
+| `Path`         | `string` | The HTTP request path                                               |
+| `PadId`        | `string` | Pad id extracted from the path (URL-decoded), or `""` for non-pad paths |
+| `RequireAdmin` | `bool`   | True when the path requires admin access                            |
+| `User`         | `any`    | The authenticated session user (type-assert to `*webaccess.SocketClientRequest`), or `nil` |
+
+**Accumulator methods:**
+
+| Method                      | Effect                                                           |
+|-----------------------------|------------------------------------------------------------------|
+| `Grant(level string)`       | Grants access at the given level: `"create"`, `"modify"`, or `"readOnly"` (first grant wins) |
+| `Deny()`                    | Denies authorization (deny wins over any grant)                  |
+| `Decision() AuthorizeDecision` | Returns `AuthorizeGrant`, `AuthorizeDeny`, or `AuthorizeDefer` |
+| `Level() string`            | Returns the granted level (valid when `Decision()==AuthorizeGrant`) |
+
+`AuthorizeDefer` (no callback answered) causes the server to deny access
+(there is no further fallback when `requireAuthorization` is true and the user
+is not an admin). The granted level is written into the user's per-pad
+authorization map and governs subsequent `UserCanModify` checks.
+
+**Example** — grant read-only access to all authenticated users:
+
+```go
+store.HookSystem.EnqueueAuthorizeHook(func(ctx *events.AuthorizeContext) {
+    // User is already authenticated (non-nil); grant read-only access to all pads.
+    if ctx.User != nil {
+        ctx.Grant("readOnly")
+    }
+})
+```
+
+---
+
+#### `authnFailure`
+
+| | |
+|---|---|
+| Enqueue | `EnqueueAuthnFailureHook(cb func(*events.AuthnFailureContext)) string` |
+| Context type | `events.AuthnFailureContext` |
+| Fires | In `CheckAccessWithHooks` when authentication fails (bad credentials, explicit `Reject()`, or missing credentials) |
+
+**Context fields:**
+
+| Field          | Type     | Notes                                       |
+|----------------|----------|---------------------------------------------|
+| `Path`         | `string` | The HTTP request path                       |
+| `RequireAdmin` | `bool`   | True when the path requires admin access    |
+
+**Accumulator methods:**
+
+| Method                         | Effect                                                              |
+|--------------------------------|---------------------------------------------------------------------|
+| `Respond(status int, body string)` | Marks the failure as handled and records the HTTP response to send |
+| `SetHeader(key, value string)` | Adds a response header alongside the `Respond` status/body (e.g. `Location` for a login redirect) |
+| `Handled() bool`               | Reports whether a callback took over the response                   |
+| `Status() int`                 | Returns the status code set by `Respond`                            |
+| `Body() string`                | Returns the body set by `Respond`                                   |
+| `Headers() map[string]string`  | Returns headers set by `SetHeader`                                  |
+
+If no callback calls `Respond`, the server sends its default 401 response
+(with `WWW-Authenticate: Basic realm="Restricted area"` for non-admin paths).
+
+---
+
+#### `authzFailure`
+
+| | |
+|---|---|
+| Enqueue | `EnqueueAuthzFailureHook(cb func(*events.AuthzFailureContext)) string` |
+| Context type | `events.AuthzFailureContext` |
+| Fires | In `CheckAccessWithHooks` when authorization fails after successful authentication |
+
+**Context fields:**
+
+| Field          | Type     | Notes                                       |
+|----------------|----------|---------------------------------------------|
+| `Path`         | `string` | The HTTP request path                       |
+| `RequireAdmin` | `bool`   | True when the path requires admin access    |
+
+**Accumulator methods:**
+
+| Method                         | Effect                                                              |
+|--------------------------------|---------------------------------------------------------------------|
+| `Respond(status int, body string)` | Marks the failure as handled and records the HTTP response to send |
+| `SetHeader(key, value string)` | Adds a response header alongside the `Respond` status/body (e.g. `Location` for a login redirect) |
+| `Handled() bool`               | Reports whether a callback took over the response                   |
+| `Status() int`                 | Returns the status code set by `Respond`                            |
+| `Body() string`                | Returns the body set by `Respond`                                   |
+| `Headers() map[string]string`  | Returns headers set by `SetHeader`                                  |
+
+If no callback calls `Respond`, the server sends its default `403 Forbidden`.
+
+**Example** — redirect to a login page instead of returning 403:
+
+```go
+store.HookSystem.EnqueueAuthzFailureHook(func(ctx *events.AuthzFailureContext) {
+    ctx.SetHeader("Location", "/login?next="+ctx.Path)
+    ctx.Respond(302, "")
+})
+```
+
+---
+
 ### Pre-existing hooks
 
 These hooks were implemented before Phase A/B and are available for completeness:

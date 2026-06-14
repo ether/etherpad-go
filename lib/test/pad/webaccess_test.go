@@ -1,6 +1,7 @@
 package pad
 
 import (
+	"io"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -8,6 +9,8 @@ import (
 	"github.com/ether/etherpad-go/lib/db"
 	"github.com/ether/etherpad-go/lib/hooks"
 	"github.com/ether/etherpad-go/lib/hooks/events"
+	"github.com/ether/etherpad-go/lib/models/clientVars"
+	"github.com/ether/etherpad-go/lib/models/webaccess"
 	"github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/gofiber/fiber/v3"
@@ -162,4 +165,158 @@ func TestPreAuthorizeDecisionSemantics(t *testing.T) {
 	// ...while a deny still counts.
 	adminCtx.Deny()
 	assert.Equal(t, events.PreAuthorizeDeny, adminCtx.Decision())
+}
+
+func TestAuthenticateHookSuccessGrantsAccess(t *testing.T) {
+	// An authenticate hook that calls Authenticate("pluginuser") should allow
+	// a request to succeed even when no basic-auth credentials are sent and
+	// RequireAuthentication is on.
+	hookSystem := hooks.NewHook()
+	hookSystem.EnqueueAuthenticateHook(func(ctx *events.AuthenticateContext) {
+		ctx.Authenticate("pluginuser")
+	})
+
+	app := newWebAccessApp(&hookSystem, &settings.Settings{RequireAuthentication: true})
+	resp, err := app.Test(httptest.NewRequest("GET", "/p/testpad", nil))
+	require.NoError(t, err)
+	// The protected handler returns "pad content" with 200 on success.
+	assert.Equal(t, 200, resp.StatusCode)
+}
+
+func TestAuthenticateHookRejectSends401(t *testing.T) {
+	// An authenticate hook that calls Reject() must produce a 401.
+	hookSystem := hooks.NewHook()
+	hookSystem.EnqueueAuthenticateHook(func(ctx *events.AuthenticateContext) {
+		ctx.Reject()
+	})
+
+	app := newWebAccessApp(&hookSystem, &settings.Settings{RequireAuthentication: true})
+	resp, err := app.Test(httptest.NewRequest("GET", "/p/testpad", nil))
+	require.NoError(t, err)
+	assert.Equal(t, 401, resp.StatusCode)
+}
+
+func TestAuthnFailureHookOverridesResponse(t *testing.T) {
+	// An authnFailure hook that calls Respond(302, "") and SetHeader("Location",
+	// "/login") should override the default 401 with a redirect.
+	hookSystem := hooks.NewHook()
+	hookSystem.EnqueueAuthnFailureHook(func(ctx *events.AuthnFailureContext) {
+		ctx.SetHeader("Location", "/login")
+		ctx.Respond(302, "")
+	})
+
+	app := newWebAccessApp(&hookSystem, &settings.Settings{RequireAuthentication: true})
+	resp, err := app.Test(httptest.NewRequest("GET", "/p/testpad", nil))
+	require.NoError(t, err)
+	assert.Equal(t, 302, resp.StatusCode)
+	assert.Equal(t, "/login", resp.Header.Get("Location"))
+}
+
+// ---- authorize hook tests ----
+// Setup: RequireAuthentication=true + RequireAuthorization=true; user is authenticated
+// via an authenticate hook (username "u1", not in settings.Users → non-admin). This is
+// exactly the code path where the authorize hook fires.
+
+func TestAuthorizeHookGrantAllowsAccess(t *testing.T) {
+	// authorize hook that calls Grant("readOnly") should let the request through (200).
+	hookSystem := hooks.NewHook()
+	hookSystem.EnqueueAuthenticateHook(func(ctx *events.AuthenticateContext) {
+		ctx.Authenticate("u1")
+	})
+	hookSystem.EnqueueAuthorizeHook(func(ctx *events.AuthorizeContext) {
+		ctx.Grant("readOnly")
+	})
+
+	app := newWebAccessApp(&hookSystem, &settings.Settings{
+		RequireAuthentication: true,
+		RequireAuthorization:  true,
+	})
+	resp, err := app.Test(httptest.NewRequest("GET", "/p/testpad", nil))
+	require.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+	body, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, "pad content", string(body))
+}
+
+func TestAuthorizeHookDenySends403(t *testing.T) {
+	// authorize hook that calls Deny() must produce a 403.
+	hookSystem := hooks.NewHook()
+	hookSystem.EnqueueAuthenticateHook(func(ctx *events.AuthenticateContext) {
+		ctx.Authenticate("u1")
+	})
+	hookSystem.EnqueueAuthorizeHook(func(ctx *events.AuthorizeContext) {
+		ctx.Deny()
+	})
+
+	app := newWebAccessApp(&hookSystem, &settings.Settings{
+		RequireAuthentication: true,
+		RequireAuthorization:  true,
+	})
+	resp, err := app.Test(httptest.NewRequest("GET", "/p/testpad", nil))
+	require.NoError(t, err)
+	assert.Equal(t, 403, resp.StatusCode)
+	body, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, "Forbidden", string(body))
+}
+
+func TestAuthzFailureHookOverridesResponse(t *testing.T) {
+	// authzFailure hook that calls Respond(200, "upgrade required") overrides the
+	// default 403 when the authorize hook denies.
+	hookSystem := hooks.NewHook()
+	hookSystem.EnqueueAuthenticateHook(func(ctx *events.AuthenticateContext) {
+		ctx.Authenticate("u1")
+	})
+	hookSystem.EnqueueAuthorizeHook(func(ctx *events.AuthorizeContext) {
+		ctx.Deny()
+	})
+	hookSystem.EnqueueAuthzFailureHook(func(ctx *events.AuthzFailureContext) {
+		ctx.Respond(200, "upgrade required")
+	})
+
+	app := newWebAccessApp(&hookSystem, &settings.Settings{
+		RequireAuthentication: true,
+		RequireAuthorization:  true,
+	})
+	resp, err := app.Test(httptest.NewRequest("GET", "/p/testpad", nil))
+	require.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+	body, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, "upgrade required", string(body))
+}
+
+// TestAuthorizeHookGrantStoresAuthorizationUnderBarePadId guards against a
+// key-mismatch bug: grant() must store the per-pad authorization under the bare
+// pad id ("testpad"), because SecurityManager.CheckAccess looks it up by the bare
+// socket pad id. Storing it under the "/p/"-prefixed full path match would make
+// hook-granted (and built-in) authorization invisible to SecurityManager.
+func TestAuthorizeHookGrantStoresAuthorizationUnderBarePadId(t *testing.T) {
+	hookSystem := hooks.NewHook()
+	hookSystem.EnqueueAuthenticateHook(func(ctx *events.AuthenticateContext) { ctx.Authenticate("u1") })
+	hookSystem.EnqueueAuthorizeHook(func(ctx *events.AuthorizeContext) { ctx.Grant("create") })
+
+	retrievedSettings := &settings.Settings{RequireAuthentication: true, RequireAuthorization: true}
+	readOnlyManager := pad.NewReadOnlyManager(db.NewMemoryDataStore())
+	logger := zap.NewNop().Sugar()
+
+	var captured *webaccess.SocketClientRequest
+	app := fiber.New()
+	app.Use(func(c fiber.Ctx) error {
+		return pad.CheckAccessWithHooks(c, logger, retrievedSettings, readOnlyManager, &hookSystem)
+	})
+	app.Get("/p/*", func(c fiber.Ctx) error {
+		if u, ok := c.Locals(clientVars.WebAccessStore).(*webaccess.SocketClientRequest); ok {
+			captured = u
+		}
+		return c.SendString("pad content")
+	})
+
+	resp, err := app.Test(httptest.NewRequest("GET", "/p/testpad", nil))
+	require.NoError(t, err)
+	require.Equal(t, 200, resp.StatusCode)
+	require.NotNil(t, captured)
+	require.NotNil(t, captured.PadAuthorizations)
+
+	m := *captured.PadAuthorizations
+	assert.Contains(t, m, "testpad", "authorization must be keyed by the bare pad id")
+	assert.NotContains(t, m, "/p/testpad", "authorization must not be keyed by the /p/-prefixed path")
 }

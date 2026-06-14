@@ -252,6 +252,96 @@ func (h *Hook) ExecuteUserLeaveHooks(ctx *events.UserJoinLeaveContext) {
 	h.ExecuteHooks(UserLeaveString, ctx)
 }
 
+// EnqueueOnAccessCheckHook registers a callback for the onAccessCheck hook, fired
+// when access to a concrete pad is being checked via the socket; a callback may
+// call Deny() to block access (see events.OnAccessCheckContext).
+func (h *Hook) EnqueueOnAccessCheckHook(cb func(ctx *events.OnAccessCheckContext)) string {
+	return h.EnqueueHook(OnAccessCheckString, func(ctx any) {
+		if c, ok := ctx.(*events.OnAccessCheckContext); ok {
+			cb(c)
+		}
+	})
+}
+
+func (h *Hook) ExecuteOnAccessCheckHooks(ctx *events.OnAccessCheckContext) {
+	h.ExecuteHooks(OnAccessCheckString, ctx)
+}
+
+// EnqueueGetAuthorIdHook registers a callback for the getAuthorId hook, which lets
+// plugins resolve or override the author id from a token (first non-empty answer
+// wins; see events.GetAuthorIdContext).
+func (h *Hook) EnqueueGetAuthorIdHook(cb func(ctx *events.GetAuthorIdContext)) string {
+	return h.EnqueueHook(GetAuthorIdString, func(ctx any) {
+		if c, ok := ctx.(*events.GetAuthorIdContext); ok {
+			cb(c)
+		}
+	})
+}
+
+func (h *Hook) ExecuteGetAuthorIdHooks(ctx *events.GetAuthorIdContext) {
+	h.ExecuteHooks(GetAuthorIdString, ctx)
+}
+
+// EnqueueAuthenticateHook registers a callback for the authenticate hook, fired
+// during HTTP authentication before the built-in basic-auth check; the first
+// callback to answer wins (see events.AuthenticateContext).
+func (h *Hook) EnqueueAuthenticateHook(cb func(ctx *events.AuthenticateContext)) string {
+	return h.EnqueueHook(AuthenticateString, func(ctx any) {
+		if c, ok := ctx.(*events.AuthenticateContext); ok {
+			cb(c)
+		}
+	})
+}
+
+func (h *Hook) ExecuteAuthenticateHooks(ctx *events.AuthenticateContext) {
+	h.ExecuteHooks(AuthenticateString, ctx)
+}
+
+// EnqueueAuthorizeHook registers a callback for the authorize hook, fired during
+// post-authentication authorization; Deny wins over any Grant, and the first
+// Grant level is used (see events.AuthorizeContext).
+func (h *Hook) EnqueueAuthorizeHook(cb func(ctx *events.AuthorizeContext)) string {
+	return h.EnqueueHook(AuthorizeString, func(ctx any) {
+		if c, ok := ctx.(*events.AuthorizeContext); ok {
+			cb(c)
+		}
+	})
+}
+
+func (h *Hook) ExecuteAuthorizeHooks(ctx *events.AuthorizeContext) {
+	h.ExecuteHooks(AuthorizeString, ctx)
+}
+
+// EnqueueAuthnFailureHook registers a callback for the authnFailure hook, fired
+// when authentication fails; a callback may override the default 401 response by
+// calling Respond (see events.AuthnFailureContext).
+func (h *Hook) EnqueueAuthnFailureHook(cb func(ctx *events.AuthnFailureContext)) string {
+	return h.EnqueueHook(AuthnFailureString, func(ctx any) {
+		if c, ok := ctx.(*events.AuthnFailureContext); ok {
+			cb(c)
+		}
+	})
+}
+
+func (h *Hook) ExecuteAuthnFailureHooks(ctx *events.AuthnFailureContext) {
+	h.ExecuteHooks(AuthnFailureString, ctx)
+}
+
+// EnqueueAuthzFailureHook registers a callback for the authzFailure hook, fired
+// when authorization fails; a callback may override the default 403 response by
+// calling Respond (see events.AuthzFailureContext).
+func (h *Hook) EnqueueAuthzFailureHook(cb func(ctx *events.AuthzFailureContext)) string {
+	return h.EnqueueHook(AuthzFailureString, func(ctx any) {
+		if c, ok := ctx.(*events.AuthzFailureContext); ok {
+			cb(c)
+		}
+	})
+}
+
+func (h *Hook) ExecuteAuthzFailureHooks(ctx *events.AuthzFailureContext) {
+	h.ExecuteHooks(AuthzFailureString, ctx)
+}
+
 func (h *Hook) EnqueueHook(key string, ctx func(ctx any)) string {
 	var uuid = utils.UUID()
 	h.hooks[key] = append(h.hooks[key], hookEntry{id: uuid, fn: ctx})

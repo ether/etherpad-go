@@ -7,6 +7,7 @@ import (
 	"github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/db"
 	"github.com/ether/etherpad-go/lib/hooks"
+	"github.com/ether/etherpad-go/lib/hooks/events"
 	"github.com/ether/etherpad-go/lib/models/webaccess"
 	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/ether/etherpad-go/lib/utils"
@@ -18,6 +19,7 @@ type SecurityManager struct {
 	PadManager      *Manager
 	AuthorManager   *author.Manager
 	SessionManager  *SessionManager
+	hooks           *hooks.Hook
 }
 
 func NewSecurityManager(db db.DataStore, hooks *hooks.Hook, padManager *Manager) *SecurityManager {
@@ -26,6 +28,7 @@ func NewSecurityManager(db db.DataStore, hooks *hooks.Hook, padManager *Manager)
 		PadManager:      padManager,
 		AuthorManager:   author.NewManager(db),
 		SessionManager:  NewSessionManager(db),
+		hooks:           hooks,
 	}
 }
 
@@ -49,17 +52,28 @@ func (s *SecurityManager) CheckAccess(padId *string, sessionCookie *string, toke
 		padId = foundPadId
 	}
 
-	if settings.Displayed.LoadTest {
-		retrievedAuthorFromToken, err := s.AuthorManager.GetAuthorId(*token)
+	if s.hooks != nil {
+		var tok string
+		if token != nil {
+			tok = *token
+		}
+		var cookie string
+		if sessionCookie != nil {
+			cookie = *sessionCookie
+		}
+		accessCtx := &events.OnAccessCheckContext{PadId: *padId, Token: tok, SessionCookie: cookie}
+		s.hooks.ExecuteOnAccessCheckHooks(accessCtx)
+		if accessCtx.Denied() {
+			return nil, errors.New("access denied: onAccessCheck hook denied access")
+		}
+	}
 
+	if settings.Displayed.LoadTest {
+		authorId, err := s.resolveAuthorId(token, userSettings)
 		if err != nil {
 			return nil, errors.New("access denied: invalid author token" + err.Error())
 		}
-
-		return &GrantedAccess{
-			AccessStatus: "grant",
-			AuthorId:     retrievedAuthorFromToken.Id,
-		}, nil
+		return &GrantedAccess{AccessStatus: "grant", AuthorId: authorId}, nil
 	} else if settings.Displayed.RequireAuthentication {
 		if userSettings == nil {
 			return nil, errors.New("userSettings is nil")
@@ -117,16 +131,12 @@ func (s *SecurityManager) CheckAccess(padId *string, sessionCookie *string, toke
 		return nil, errors.New("invalid author token")
 	}
 
-	retrievedAuthorFromToken, err := s.AuthorManager.GetAuthorId(*token)
+	authorId, err := s.resolveAuthorId(token, userSettings)
 	if err != nil {
 		println("An error occurred while retrieving author from token:", err.Error())
 		return nil, errors.New("access denied: invalid author token")
 	}
-
-	var grantedAccess = GrantedAccess{
-		AccessStatus: "grant",
-		AuthorId:     retrievedAuthorFromToken.Id,
-	}
+	var grantedAccess = GrantedAccess{AccessStatus: "grant", AuthorId: authorId}
 
 	if !strings.Contains(*padId, "$") {
 		return &grantedAccess, nil
@@ -147,6 +157,28 @@ func (s *SecurityManager) CheckAccess(padId *string, sessionCookie *string, toke
 	}
 
 	return &grantedAccess, nil
+}
+
+// resolveAuthorId resolves the author id for a token, first giving getAuthorId
+// hooks a chance to supply/override it (first non-empty wins), then falling back
+// to the database token->author mapping.
+func (s *SecurityManager) resolveAuthorId(token *string, userSettings *webaccess.SocketClientRequest) (string, error) {
+	var tok string
+	if token != nil {
+		tok = *token
+	}
+	if s.hooks != nil {
+		idCtx := &events.GetAuthorIdContext{Token: tok, User: userSettings}
+		s.hooks.ExecuteGetAuthorIdHooks(idCtx)
+		if idCtx.AuthorId() != "" {
+			return idCtx.AuthorId(), nil
+		}
+	}
+	retrievedAuthor, err := s.AuthorManager.GetAuthorId(tok)
+	if err != nil {
+		return "", err
+	}
+	return retrievedAuthor.Id, nil
 }
 
 func (s *SecurityManager) HasPadAccess(ctx fiber.Ctx) bool {
