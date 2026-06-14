@@ -199,3 +199,81 @@ func TestUserJoinLeaveTypedWrappers(t *testing.T) {
 		t.Fatalf("expected joiner/leaver, got %q/%q", joined, left)
 	}
 }
+
+func TestOnAccessCheckDenyWins(t *testing.T) {
+	h := NewHook()
+	h.EnqueueOnAccessCheckHook(func(ctx *events.OnAccessCheckContext) {}) // no opinion
+	h.EnqueueOnAccessCheckHook(func(ctx *events.OnAccessCheckContext) { ctx.Deny() })
+	ctx := &events.OnAccessCheckContext{PadId: "p1", Token: "t.x"}
+	h.ExecuteOnAccessCheckHooks(ctx)
+	if !ctx.Denied() {
+		t.Fatal("expected denied when any callback denies")
+	}
+}
+
+func TestGetAuthorIdFirstMatchWins(t *testing.T) {
+	h := NewHook()
+	h.EnqueueGetAuthorIdHook(func(ctx *events.GetAuthorIdContext) { ctx.SetAuthorId("a.first") })
+	h.EnqueueGetAuthorIdHook(func(ctx *events.GetAuthorIdContext) { ctx.SetAuthorId("a.second") })
+	ctx := &events.GetAuthorIdContext{Token: "t.x"}
+	h.ExecuteGetAuthorIdHooks(ctx)
+	if ctx.AuthorId() != "a.first" {
+		t.Fatalf("expected first author id to win, got %q", ctx.AuthorId())
+	}
+}
+
+func TestAuthenticateFirstAnswerWins(t *testing.T) {
+	h := NewHook()
+	h.EnqueueAuthenticateHook(func(ctx *events.AuthenticateContext) { ctx.Authenticate("alice") })
+	h.EnqueueAuthenticateHook(func(ctx *events.AuthenticateContext) { ctx.Reject() })
+	ctx := &events.AuthenticateContext{InputUsername: "alice"}
+	h.ExecuteAuthenticateHooks(ctx)
+	if !ctx.Answered() || ctx.Rejected() || ctx.Username() != "alice" {
+		t.Fatalf("expected first answer (authenticate alice) to win; answered=%v rejected=%v user=%q", ctx.Answered(), ctx.Rejected(), ctx.Username())
+	}
+}
+
+func TestAuthorizeDenyWinsOverGrant(t *testing.T) {
+	h := NewHook()
+	h.EnqueueAuthorizeHook(func(ctx *events.AuthorizeContext) { ctx.Grant("readOnly") })
+	h.EnqueueAuthorizeHook(func(ctx *events.AuthorizeContext) { ctx.Deny() })
+	ctx := &events.AuthorizeContext{Path: "/p/x"}
+	h.ExecuteAuthorizeHooks(ctx)
+	if ctx.Decision() != events.AuthorizeDeny {
+		t.Fatalf("expected deny to win, got %v", ctx.Decision())
+	}
+}
+
+func TestAuthorizeFirstGrantLevel(t *testing.T) {
+	h := NewHook()
+	h.EnqueueAuthorizeHook(func(ctx *events.AuthorizeContext) { ctx.Grant("modify") })
+	h.EnqueueAuthorizeHook(func(ctx *events.AuthorizeContext) { ctx.Grant("create") })
+	ctx := &events.AuthorizeContext{}
+	h.ExecuteAuthorizeHooks(ctx)
+	if ctx.Decision() != events.AuthorizeGrant || ctx.Level() != "modify" {
+		t.Fatalf("expected first grant 'modify', got decision=%v level=%q", ctx.Decision(), ctx.Level())
+	}
+}
+
+func TestAuthnFailureRespond(t *testing.T) {
+	h := NewHook()
+	h.EnqueueAuthnFailureHook(func(ctx *events.AuthnFailureContext) {
+		ctx.SetHeader("Location", "/login")
+		ctx.Respond(302, "")
+	})
+	ctx := &events.AuthnFailureContext{Path: "/p/x"}
+	h.ExecuteAuthnFailureHooks(ctx)
+	if !ctx.Handled() || ctx.Status() != 302 || ctx.Headers()["Location"] != "/login" {
+		t.Fatalf("expected handled 302 redirect, got handled=%v status=%d", ctx.Handled(), ctx.Status())
+	}
+}
+
+func TestAuthzFailureRespond(t *testing.T) {
+	h := NewHook()
+	h.EnqueueAuthzFailureHook(func(ctx *events.AuthzFailureContext) { ctx.Respond(200, "upgrade") })
+	ctx := &events.AuthzFailureContext{Path: "/p/x"}
+	h.ExecuteAuthzFailureHooks(ctx)
+	if !ctx.Handled() || ctx.Status() != 200 || ctx.Body() != "upgrade" {
+		t.Fatalf("expected handled 200 body, got handled=%v status=%d body=%q", ctx.Handled(), ctx.Status(), ctx.Body())
+	}
+}
