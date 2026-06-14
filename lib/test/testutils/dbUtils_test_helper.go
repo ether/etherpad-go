@@ -849,7 +849,7 @@ func (test *TestDBHandler) TestRun(
 		sess := ws.NewSessionStore()
 		padManager := pad.NewManager(ds, &hooks)
 		loggerPart := zap.NewNop().Sugar()
-		importer := io.NewImporter(padManager, authManager, ds, loggerPart)
+		importer := io.NewImporter(padManager, authManager, ds, loggerPart, &hooks)
 		padMessageHandler := ws.NewPadMessageHandler(
 			ds, &hooks, padManager, &sess, hub, loggerPart, TestAssets,
 		)

@@ -17,6 +17,8 @@ import (
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/db"
+	"github.com/ether/etherpad-go/lib/hooks"
+	"github.com/ether/etherpad-go/lib/hooks/events"
 	db2 "github.com/ether/etherpad-go/lib/models/db"
 	padModel "github.com/ether/etherpad-go/lib/models/pad"
 	"github.com/ether/etherpad-go/lib/pad"
@@ -32,14 +34,16 @@ type Importer struct {
 	authorManager *author.Manager
 	db            db.DataStore
 	logger        *zap.SugaredLogger
+	hooks         *hooks.Hook
 }
 
-func NewImporter(padManager *pad.Manager, authorManager *author.Manager, db db.DataStore, logger *zap.SugaredLogger) *Importer {
+func NewImporter(padManager *pad.Manager, authorManager *author.Manager, db db.DataStore, logger *zap.SugaredLogger, hooks *hooks.Hook) *Importer {
 	return &Importer{
 		padManager:    padManager,
 		authorManager: authorManager,
 		db:            db,
 		logger:        logger,
+		hooks:         hooks,
 	}
 }
 
@@ -72,6 +76,31 @@ func (i *Importer) SetPadRaw(padId string, content []byte, authorId string) erro
 
 	if !foundPadData {
 		return errors.New("no pad data found in etherpad file")
+	}
+
+	// Fire importEtherpad hook — observational; plugins may inspect or augment Data.
+	if i.hooks != nil {
+		var rawMap map[string]any
+		if err := json.Unmarshal(content, &rawMap); err != nil && i.logger != nil {
+			i.logger.Warnf("importEtherpad hook: could not unmarshal rawMap for hook: %v", err)
+		}
+
+		srcPadId := ""
+		for key := range rawData {
+			if padKeyRegex.MatchString(key) {
+				// Extract the pad name: "pad:<name>:"
+				trimmed := strings.TrimPrefix(key, "pad:")
+				trimmed = strings.TrimSuffix(trimmed, ":")
+				srcPadId = trimmed
+				break
+			}
+		}
+
+		i.hooks.ExecuteImportEtherpadHooks(&events.ImportEtherpadContext{
+			PadId:    padId,
+			SrcPadId: srcPadId,
+			Data:     rawMap,
+		})
 	}
 
 	_ = i.db.RemovePad(padId)

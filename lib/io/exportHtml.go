@@ -61,6 +61,19 @@ func (e *ExportHtml) GetPadHTMLDocument(padId string, revNum *int, readOnlyId *s
 		displayId = *readOnlyId
 	}
 
+	// exportHTMLAdditionalContent hook: plugins may append HTML to the body.
+	addCtx := &events.ExportHTMLAdditionalContentContext{PadId: padId}
+	e.Hooks.ExecuteExportHTMLAdditionalContentHooks(addCtx)
+	htmlContent += addCtx.Content()
+
+	// stylesForExport hook: plugins may append CSS; inject as <style> in body
+	// (the template's extraCSS slot is not interpolated in the generated code).
+	stylesCtx := &events.StylesForExportContext{PadId: padId}
+	e.Hooks.ExecuteStylesForExportHooks(stylesCtx)
+	if css := stylesCtx.Styles(); css != "" {
+		htmlContent += "<style>" + css + "</style>"
+	}
+
 	// Render the template
 	var buf bytes.Buffer
 	err = export.ExportTemplate(escapeHTMLContent(displayId), "", htmlContent).Render(context.Background(), &buf)

@@ -8,6 +8,7 @@ import (
 	"github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/db"
 	"github.com/ether/etherpad-go/lib/hooks"
+	"github.com/ether/etherpad-go/lib/hooks/events"
 	"github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/utils"
 	"github.com/gofiber/fiber/v3"
@@ -174,6 +175,22 @@ func (e *ExportEtherpad) DoExport(ctx fiber.Ctx, id string, readOnlyId *string, 
 	if readOnlyId != nil {
 		fileName = *readOnlyId
 	}
+
+	// exportFileName hook: plugins may override the download filename.
+	readOnlyIdStr := ""
+	if readOnlyId != nil {
+		readOnlyIdStr = *readOnlyId
+	}
+	fileNameCtx := &events.ExportFileNameContext{
+		PadId:      id,
+		ReadOnlyId: readOnlyIdStr,
+		ExportType: fileExportType,
+	}
+	e.hooks.ExecuteExportFileNameHooks(fileNameCtx)
+	if fileNameCtx.FileName() != "" {
+		fileName = fileNameCtx.FileName()
+	}
+
 	ctx.Attachment(fileName + "." + fileExportType)
 	optRev := ctx.Params("rev")
 	var optRevNum *int = nil
@@ -235,6 +252,9 @@ func (e *ExportEtherpad) DoExport(ctx fiber.Ctx, id string, readOnlyId *string, 
 			e.logger.Warnf("Failed to get html document for id: %s with cause %s", id, err.Error())
 			return ctx.Status(500).SendString(err.Error())
 		}
+		// exportHTMLSend hook: plugins may replace the full HTML document.
+		sendCtx := &events.ExportHTMLSendContext{PadId: id, HTML: &htmlContent}
+		e.hooks.ExecuteExportHTMLSendHooks(sendCtx)
 		return ctx.SendString(htmlContent)
 	case "markdown", "md":
 		ctx.Set("Content-Type", "text/markdown; charset=utf-8")

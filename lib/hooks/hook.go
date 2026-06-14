@@ -342,6 +342,126 @@ func (h *Hook) ExecuteAuthzFailureHooks(ctx *events.AuthzFailureContext) {
 	h.ExecuteHooks(AuthzFailureString, ctx)
 }
 
+// EnqueueExportFileNameHook registers a callback for the exportFileName hook,
+// which can override the export download filename (first non-empty SetFileName
+// wins; see events.ExportFileNameContext).
+func (h *Hook) EnqueueExportFileNameHook(cb func(ctx *events.ExportFileNameContext)) string {
+	return h.EnqueueHook(ExportFileNameString, func(ctx any) {
+		if c, ok := ctx.(*events.ExportFileNameContext); ok {
+			cb(c)
+		}
+	})
+}
+
+func (h *Hook) ExecuteExportFileNameHooks(ctx *events.ExportFileNameContext) {
+	h.ExecuteHooks(ExportFileNameString, ctx)
+}
+
+// EnqueueStylesForExportHook registers a callback for the stylesForExport hook,
+// fired during HTML export; each AddStyle appends CSS that is concatenated into
+// the document <style> (see events.StylesForExportContext).
+func (h *Hook) EnqueueStylesForExportHook(cb func(ctx *events.StylesForExportContext)) string {
+	return h.EnqueueHook(StylesForExportString, func(ctx any) {
+		if c, ok := ctx.(*events.StylesForExportContext); ok {
+			cb(c)
+		}
+	})
+}
+
+func (h *Hook) ExecuteStylesForExportHooks(ctx *events.StylesForExportContext) {
+	h.ExecuteHooks(StylesForExportString, ctx)
+}
+
+// EnqueueExportHTMLAdditionalContentHook registers a callback for the
+// exportHTMLAdditionalContent hook, fired during HTML export; each Add appends
+// HTML to the exported body (see events.ExportHTMLAdditionalContentContext).
+func (h *Hook) EnqueueExportHTMLAdditionalContentHook(cb func(ctx *events.ExportHTMLAdditionalContentContext)) string {
+	return h.EnqueueHook(ExportHTMLAdditionalContentString, func(ctx any) {
+		if c, ok := ctx.(*events.ExportHTMLAdditionalContentContext); ok {
+			cb(c)
+		}
+	})
+}
+
+func (h *Hook) ExecuteExportHTMLAdditionalContentHooks(ctx *events.ExportHTMLAdditionalContentContext) {
+	h.ExecuteHooks(ExportHTMLAdditionalContentString, ctx)
+}
+
+// EnqueueExportHTMLSendHook registers a callback for the exportHTMLSend hook,
+// fired just before the HTML export response is sent; a callback may replace the
+// document via *ctx.HTML (see events.ExportHTMLSendContext).
+func (h *Hook) EnqueueExportHTMLSendHook(cb func(ctx *events.ExportHTMLSendContext)) string {
+	return h.EnqueueHook(ExportHTMLSendString, func(ctx any) {
+		if c, ok := ctx.(*events.ExportHTMLSendContext); ok {
+			cb(c)
+		}
+	})
+}
+
+func (h *Hook) ExecuteExportHTMLSendHooks(ctx *events.ExportHTMLSendContext) {
+	h.ExecuteHooks(ExportHTMLSendString, ctx)
+}
+
+// EnqueueImportHook registers a callback for the import hook, fired before the
+// built-in file-extension dispatch; a callback may handle the import by calling
+// Handle(), SetHTML, or SetText (see events.ImportContext).
+func (h *Hook) EnqueueImportHook(cb func(ctx *events.ImportContext)) string {
+	return h.EnqueueHook(ImportString, func(ctx any) {
+		if c, ok := ctx.(*events.ImportContext); ok {
+			cb(c)
+		}
+	})
+}
+
+func (h *Hook) ExecuteImportHooks(ctx *events.ImportContext) {
+	h.ExecuteHooks(ImportString, ctx)
+}
+
+// EnqueueImportEtherpadHook registers a callback for the importEtherpad hook,
+// fired after a .etherpad file is parsed and before its records are persisted;
+// plugins may inspect or augment the Data map (see events.ImportEtherpadContext).
+func (h *Hook) EnqueueImportEtherpadHook(cb func(ctx *events.ImportEtherpadContext)) string {
+	return h.EnqueueHook(ImportEtherpadString, func(ctx any) {
+		if c, ok := ctx.(*events.ImportEtherpadContext); ok {
+			cb(c)
+		}
+	})
+}
+
+func (h *Hook) ExecuteImportEtherpadHooks(ctx *events.ImportEtherpadContext) {
+	h.ExecuteHooks(ImportEtherpadString, ctx)
+}
+
+// EnqueueLoadSettingsHook registers a callback for the loadSettings hook, fired
+// once settings are loaded and plugins have registered at server startup (see
+// events.LoadSettingsContext).
+func (h *Hook) EnqueueLoadSettingsHook(cb func(ctx *events.LoadSettingsContext)) string {
+	return h.EnqueueHook(LoadSettingsString, func(ctx any) {
+		if c, ok := ctx.(*events.LoadSettingsContext); ok {
+			cb(c)
+		}
+	})
+}
+
+func (h *Hook) ExecuteLoadSettingsHooks(ctx *events.LoadSettingsContext) {
+	h.ExecuteHooks(LoadSettingsString, ctx)
+}
+
+// EnqueueShutdownHook registers a callback for the shutdown hook, fired during
+// graceful shutdown; callbacks must return quickly as the database may be
+// unavailable (see events.ShutdownContext).
+func (h *Hook) EnqueueShutdownHook(cb func(ctx *events.ShutdownContext)) string {
+	return h.EnqueueHook(ShutdownString, func(ctx any) {
+		if c, ok := ctx.(*events.ShutdownContext); ok {
+			cb(c)
+		}
+	})
+}
+
+func (h *Hook) ExecuteShutdownHooks(ctx *events.ShutdownContext) {
+	h.ExecuteHooks(ShutdownString, ctx)
+}
+
 func (h *Hook) EnqueueHook(key string, ctx func(ctx any)) string {
 	var uuid = utils.UUID()
 	h.hooks[key] = append(h.hooks[key], hookEntry{id: uuid, fn: ctx})
