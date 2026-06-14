@@ -19,6 +19,10 @@ import (
 	"go.uber.org/zap"
 )
 
+// encodedPadRegex matches the encoded pad id in a "/p/<id>" request path. It is
+// compiled once (used on the per-request access hot path).
+var encodedPadRegex = regexp.MustCompile("^/p/([^/]*)")
+
 func UserCanModify(padId *string, req *webaccess.SocketClientRequest, readOnlyManager ReadOnlyManager) bool {
 	if readOnlyManager.IsReadOnlyID(padId) {
 		return false
@@ -104,8 +108,6 @@ func CheckAccessWithHooks(ctx fiber.Ctx, logger *zap.SugaredLogger, retrievedSet
 				return true // This will happen if authentication is not required.
 			}
 
-			var encodedPadRegex = regexp.MustCompile("^/p/([^/]*)")
-
 			var encodedPadIds = encodedPadRegex.FindAllString(ctx.Path(), -1)
 
 			if len(encodedPadIds) == 0 {
@@ -175,7 +177,7 @@ func CheckAccessWithHooks(ctx fiber.Ctx, logger *zap.SugaredLogger, retrievedSet
 
 		if hookSystem != nil {
 			var padIdForHook string
-			if ids := regexp.MustCompile("^/p/([^/]*)").FindStringSubmatch(ctx.Path()); len(ids) == 2 {
+			if ids := encodedPadRegex.FindStringSubmatch(ctx.Path()); len(ids) == 2 {
 				if decoded, err := url.QueryUnescape(ids[1]); err == nil {
 					padIdForHook = decoded
 				}
