@@ -533,6 +533,17 @@ func (p *PadMessageHandler) HandleMessage(message any, client *Client, retrieved
 		return
 	}
 
+	hmCtx := &events.HandleMessageContext{
+		Message:  message,
+		Client:   client,
+		PadId:    thisSessionNewRetrieved.PadId,
+		AuthorId: thisSessionNewRetrieved.Author,
+	}
+	p.hooks.ExecuteHandleMessageHooks(hmCtx)
+	if hmCtx.Dropped() {
+		return
+	}
+
 	switch expectedType := message.(type) {
 	case ws.ClientReady:
 		{
@@ -554,8 +565,16 @@ func (p *PadMessageHandler) HandleMessage(message any, client *Client, retrieved
 	case ws.UserChange:
 		{
 			if readonly {
-				p.Logger.Warn("write attempt on read-only pad")
-				return
+				secCtx := &events.HandleMessageSecurityContext{
+					Message:  expectedType,
+					PadId:    thisSessionNewRetrieved.PadId,
+					AuthorId: thisSessionNewRetrieved.Author,
+				}
+				p.hooks.ExecuteHandleMessageSecurityHooks(secCtx)
+				if !secCtx.WriteAccessGranted() {
+					p.Logger.Warn("write attempt on read-only pad")
+					return
+				}
 			}
 
 			p.padChannels.AddToQueue(client.Room, Task{
