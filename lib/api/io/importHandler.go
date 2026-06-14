@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/ether/etherpad-go/lib/hooks"
+	"github.com/ether/etherpad-go/lib/hooks/events"
 	"github.com/ether/etherpad-go/lib/io"
 	"github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/settings"
@@ -147,7 +148,40 @@ func (h *ImportHandler) doImport(ctx fiber.Ctx, padId string, authorId string) (
 	// Get file extension
 	fileEnding := strings.ToLower(filepath.Ext(fileHeader.Filename))
 
-	// Check if file extension is known
+	// Open the file
+	file, err := fileHeader.Open()
+	if err != nil {
+		h.logger.Warnf("Import failed: could not open file: %v", err)
+		return false, &ImportError{Status: "uploadFailed", Message: "could not open file"}
+	}
+	defer file.Close()
+
+	// Read file content
+	content := make([]byte, fileHeader.Size)
+	_, err = file.Read(content)
+	if err != nil {
+		h.logger.Warnf("Import failed: could not read file: %v", err)
+		return false, &ImportError{Status: "uploadFailed", Message: "could not read file"}
+	}
+
+	// Fire import hook before the built-in extension dispatch.
+	// A plugin may handle unknown or custom formats entirely; if handled, skip
+	// the built-in importer.
+	if h.hooks != nil {
+		importCtx := &events.ImportContext{FileEnding: fileEnding, PadId: padId, AuthorId: authorId, Content: content}
+		h.hooks.ExecuteImportHooks(importCtx)
+		if importCtx.Handled() {
+			if html, ok := importCtx.HTML(); ok {
+				return h.importHTML(padId, authorId, html)
+			}
+			if text, ok := importCtx.Text(); ok {
+				return h.importText(padId, authorId, text)
+			}
+			return false, nil
+		}
+	}
+
+	// Check if file extension is known (built-in formats only).
 	fileEndingKnown := false
 	for _, ending := range knownFileEndings {
 		if fileEnding == ending {
@@ -164,22 +198,6 @@ func (h *ImportHandler) doImport(ctx fiber.Ctx, padId string, authorId string) (
 			h.logger.Warnf("Import failed: unknown file type %s", fileEnding)
 			return false, &ImportError{Status: "uploadFailed", Message: "unknown file type"}
 		}
-	}
-
-	// Open the file
-	file, err := fileHeader.Open()
-	if err != nil {
-		h.logger.Warnf("Import failed: could not open file: %v", err)
-		return false, &ImportError{Status: "uploadFailed", Message: "could not open file"}
-	}
-	defer file.Close()
-
-	// Read file content
-	content := make([]byte, fileHeader.Size)
-	_, err = file.Read(content)
-	if err != nil {
-		h.logger.Warnf("Import failed: could not read file: %v", err)
-		return false, &ImportError{Status: "uploadFailed", Message: "could not read file"}
 	}
 
 	// Handle different file types
