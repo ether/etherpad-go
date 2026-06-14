@@ -580,6 +580,247 @@ store.HookSystem.EnqueueAuthzFailureHook(func(ctx *events.AuthzFailureContext) {
 
 ---
 
+### Export / import hooks (Phase D)
+
+#### `exportFileName`
+
+| | |
+|---|---|
+| Enqueue | `EnqueueExportFileNameHook(cb func(*events.ExportFileNameContext)) string` |
+| Context type | `events.ExportFileNameContext` |
+| Fires | In `ExportEtherpad.DoExport`, before `ctx.Attachment(filename)` is called |
+| Aggregation | First non-empty `SetFileName` wins |
+
+**Context fields:**
+
+| Field        | Type     | Notes                                                 |
+|--------------|----------|-------------------------------------------------------|
+| `PadId`      | `string` | Pad identifier                                        |
+| `ReadOnlyId` | `string` | Read-only alias used for the download (may be empty)  |
+| `ExportType` | `string` | Format string: `"html"`, `"txt"`, `"pdf"`, etc.       |
+
+**Accumulator methods:**
+
+| Method                   | Effect                                                         |
+|--------------------------|----------------------------------------------------------------|
+| `SetFileName(name string)` | Sets the base filename; the first non-empty call wins        |
+| `FileName() string`      | Returns the filename set by the winning callback, or `""`      |
+
+The file extension is always appended by core and **cannot** be overridden (security). If no callback calls `SetFileName` with a non-empty string, the pad id (or read-only id) is used as the base name.
+
+**Example** — override the filename for a specific pad:
+
+```go
+store.HookSystem.EnqueueExportFileNameHook(func(ctx *events.ExportFileNameContext) {
+    if ctx.PadId == "weekly-report" {
+        ctx.SetFileName("report-2024-W01")
+    }
+})
+```
+
+---
+
+#### `stylesForExport`
+
+| | |
+|---|---|
+| Enqueue | `EnqueueStylesForExportHook(cb func(*events.StylesForExportContext)) string` |
+| Context type | `events.StylesForExportContext` |
+| Fires | In `ExportHtml.GetPadHTMLDocument`, after the pad body HTML is assembled |
+| Aggregation | Accumulate — all `AddStyle` calls are concatenated |
+
+**Context fields:**
+
+| Field   | Type     | Notes          |
+|---------|----------|----------------|
+| `PadId` | `string` | Pad identifier |
+
+**Accumulator methods:**
+
+| Method                  | Effect                                              |
+|-------------------------|-----------------------------------------------------|
+| `AddStyle(css string)`  | Appends CSS text; all contributions are joined      |
+| `Styles() string`       | Returns the concatenated CSS after all hooks ran    |
+
+The combined CSS is injected as a `<style>` block appended to the document body (after the pad content and after `exportHTMLAdditionalContent`). The block is only emitted when at least one callback calls `AddStyle`.
+
+---
+
+#### `exportHTMLAdditionalContent`
+
+| | |
+|---|---|
+| Enqueue | `EnqueueExportHTMLAdditionalContentHook(cb func(*events.ExportHTMLAdditionalContentContext)) string` |
+| Context type | `events.ExportHTMLAdditionalContentContext` |
+| Fires | In `ExportHtml.GetPadHTMLDocument`, after the pad body HTML is assembled |
+| Aggregation | Accumulate — all `Add` calls are concatenated |
+
+**Context fields:**
+
+| Field   | Type     | Notes          |
+|---------|----------|----------------|
+| `PadId` | `string` | Pad identifier |
+
+**Accumulator methods:**
+
+| Method              | Effect                                              |
+|---------------------|-----------------------------------------------------|
+| `Add(html string)`  | Appends an HTML fragment; all contributions are joined |
+| `Content() string`  | Returns the concatenated HTML after all hooks ran   |
+
+The combined HTML is appended to the document body immediately after the pad content, before the `stylesForExport` `<style>` block.
+
+---
+
+#### `exportHTMLSend`
+
+| | |
+|---|---|
+| Enqueue | `EnqueueExportHTMLSendHook(cb func(*events.ExportHTMLSendContext)) string` |
+| Context type | `events.ExportHTMLSendContext` |
+| Fires | In `ExportEtherpad.DoExport`, for `"html"` exports, just before the response body is sent |
+| Aggregation | Replace — callbacks write to the `*HTML` pointer directly |
+
+**Context fields:**
+
+| Field   | Type      | Notes                                                              |
+|---------|-----------|--------------------------------------------------------------------|
+| `PadId` | `string`  | Pad identifier                                                     |
+| `HTML`  | `*string` | Pointer to the full HTML document string; assign `*ctx.HTML` to replace it |
+
+A callback may replace the entire exported HTML document by assigning to `*ctx.HTML`. All registered callbacks are called in order; later callbacks see the HTML as left by earlier ones (last write wins).
+
+---
+
+#### `import`
+
+| | |
+|---|---|
+| Enqueue | `EnqueueImportHook(cb func(*events.ImportContext)) string` |
+| Context type | `events.ImportContext` |
+| Fires | In `ImportHandler.doImport`, before the built-in file-extension dispatch |
+| Aggregation | First callback to mark the import handled wins; subsequent built-in dispatch is skipped |
+
+**Context fields:**
+
+| Field        | Type     | Notes                                        |
+|--------------|----------|----------------------------------------------|
+| `FileEnding` | `string` | Lowercase extension including the dot (e.g. `".mmd"`) |
+| `PadId`      | `string` | Destination pad identifier                   |
+| `AuthorId`   | `string` | The importing author                         |
+| `Content`    | `[]byte` | Raw uploaded file bytes                      |
+
+**Accumulator methods:**
+
+| Method                    | Effect                                                                        |
+|---------------------------|-------------------------------------------------------------------------------|
+| `Handle()`                | Marks the import as fully handled; core skips its built-in importer           |
+| `SetHTML(html string)`    | Provides converted HTML for core to import; also marks handled                |
+| `SetText(text string)`    | Provides converted plain text for core to import; also marks handled          |
+| `Handled() bool`          | Reports whether any callback handled the import                               |
+| `HTML() (string, bool)`   | Returns the HTML set by `SetHTML` (second value false if not set)             |
+| `Text() (string, bool)`   | Returns the text set by `SetText` (second value false if not set)             |
+
+If a callback calls `Handle()` without `SetHTML`/`SetText`, core treats the import as done and returns success. If `SetHTML` or `SetText` is called, core imports the returned content using its standard HTML or text importer. If no callback handles the import, the built-in file-extension dispatch runs as normal.
+
+**Example** — handle a custom Mermaid diagram format:
+
+```go
+store.HookSystem.EnqueueImportHook(func(ctx *events.ImportContext) {
+    if ctx.FileEnding != ".mmd" {
+        return
+    }
+    // Wrap the diagram source in a code block for plain-text import.
+    ctx.SetText("```\n" + string(ctx.Content) + "\n```\n")
+})
+```
+
+---
+
+#### `importEtherpad`
+
+| | |
+|---|---|
+| Enqueue | `EnqueueImportEtherpadHook(cb func(*events.ImportEtherpadContext)) string` |
+| Context type | `events.ImportEtherpadContext` |
+| Fires | In `Importer.SetPadRaw`, after the `.etherpad` JSON is parsed and before its records are persisted |
+| Aggregation | Observational — mutations to `Data` are visible to subsequent callbacks |
+
+**Context fields:**
+
+| Field      | Type              | Notes                                                                  |
+|------------|-------------------|------------------------------------------------------------------------|
+| `PadId`    | `string`          | Destination pad identifier                                             |
+| `SrcPadId` | `string`          | Source pad name as recorded in the `.etherpad` file                    |
+| `Data`     | `map[string]any`  | The full parsed top-level JSON object; plugins may inspect or augment it |
+
+This hook is observational in Go. The prefix-based extra-record and temporary
+`pad.db` model from etherpad-lite is intentionally not ported. A callback may
+inspect `Data` (e.g. to read custom keys written by another plugin's export) or
+add keys that a subsequent `importEtherpad` callback will read, but the core
+import logic only reads the standard pad/revision/author/chat keys.
+
+---
+
+### Server lifecycle hooks (Phase D)
+
+#### `loadSettings`
+
+| | |
+|---|---|
+| Enqueue | `EnqueueLoadSettingsHook(cb func(*events.LoadSettingsContext)) string` |
+| Context type | `events.LoadSettingsContext` |
+| Fires | In `server.InitServer`, after settings are loaded and all plugins have registered (once at startup) |
+| Aggregation | Notify — no accumulator; all callbacks are called |
+
+**Context fields:**
+
+| Field      | Type  | Notes                                                                                          |
+|------------|-------|------------------------------------------------------------------------------------------------|
+| `Settings` | `any` | The server settings; type-assert to `*settings.Settings` to access typed fields               |
+
+The `Settings` field is exposed as `any` to avoid an `events → settings` import
+cycle. Plugins that import `lib/settings` may type-assert safely:
+
+```go
+store.HookSystem.EnqueueLoadSettingsHook(func(ctx *events.LoadSettingsContext) {
+    s, ok := ctx.Settings.(*settings.Settings)
+    if !ok {
+        return
+    }
+    store.Logger.Infof("Etherpad listening on %s:%s", s.IP, s.Port)
+})
+```
+
+---
+
+#### `shutdown`
+
+| | |
+|---|---|
+| Enqueue | `EnqueueShutdownHook(cb func(*events.ShutdownContext)) string` |
+| Context type | `events.ShutdownContext` |
+| Fires | In `server.InitServer`, after `SIGINT` or `SIGTERM` is received, before `app.ShutdownWithTimeout` |
+| Aggregation | Notify — no accumulator; all callbacks are called |
+
+**Context fields:**
+
+`events.ShutdownContext` is an empty struct. There are no fields.
+
+Callbacks must return quickly. The server proceeds to shut down the HTTP listener
+with a 3-second timeout immediately after all `shutdown` hooks return. The
+database may become unavailable before or during shutdown; callbacks should avoid
+any database calls.
+
+```go
+store.HookSystem.EnqueueShutdownHook(func(_ *events.ShutdownContext) {
+    // flush any plugin-owned in-memory state to disk before shutdown
+    myPlugin.flushCache()
+})
+```
+
+---
+
 ### Pre-existing hooks
 
 These hooks were implemented before Phase A/B and are available for completeness:
