@@ -928,6 +928,23 @@ func (p *PadMessageHandler) getChangesetInfo(retrievedPad pad2.Pad, startNum int
 }
 
 func (p *PadMessageHandler) SendChatMessageToPadClients(session *ws.Session, chatMessage ws.ChatMessageData) {
+	var chatAuthorId string
+	if chatMessage.AuthorId != nil {
+		chatAuthorId = *chatMessage.AuthorId
+	}
+	text := chatMessage.Text
+	cmCtx := &events.ChatNewMessageContext{
+		Message:  chatMessage,
+		Text:     &text,
+		PadId:    session.PadId,
+		AuthorId: chatAuthorId,
+	}
+	p.hooks.ExecuteChatNewMessageHooks(cmCtx)
+	if cmCtx.Dropped() {
+		return
+	}
+	chatMessage.Text = *cmCtx.Text
+
 	var retrievedPad, err = p.padManager.GetPad(session.PadId, nil, chatMessage.AuthorId)
 	if err != nil {
 		p.Logger.Warn("Error retrieving pad for chat message", err)
@@ -1215,7 +1232,7 @@ func (p *PadMessageHandler) HandleDisconnectOfPadClient(client *Client, settings
 	// Fire userLeave hooks
 	padId := thisSession.PadId
 	authorId := thisSession.Author
-	p.hooks.ExecuteHooks("userLeave", &events.UserJoinLeaveContext{
+	p.hooks.ExecuteUserLeaveHooks(&events.UserJoinLeaveContext{
 		PadId:    padId,
 		AuthorId: authorId,
 		BroadcastChat: func(message map[string]any) {
@@ -1571,12 +1588,23 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 	}
 
 	// Fire userJoin hooks
-	p.hooks.ExecuteHooks("userJoin", &events.UserJoinLeaveContext{
+	p.hooks.ExecuteUserJoinHooks(&events.UserJoinLeaveContext{
 		PadId:    thisSession.PadId,
 		AuthorId: thisSession.Author,
 		BroadcastChat: func(message map[string]any) {
 			p.BroadcastSystemChatToRoom(thisSession.PadId, message)
 		},
+	})
+
+	// Fire clientReady hooks now that the client has fully joined the pad.
+	var clientReadyToken string
+	if thisSession.Auth != nil {
+		clientReadyToken = thisSession.Auth.Token
+	}
+	p.hooks.ExecuteClientReadyHooks(&events.ClientReadyContext{
+		PadId:    thisSession.PadId,
+		AuthorId: thisSession.Author,
+		Token:    clientReadyToken,
 	})
 }
 
