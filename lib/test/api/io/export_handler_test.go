@@ -10,6 +10,8 @@ import (
 
 	apiio "github.com/ether/etherpad-go/lib/api/io"
 	"github.com/ether/etherpad-go/lib/apool"
+	"github.com/ether/etherpad-go/lib/hooks"
+	"github.com/ether/etherpad-go/lib/hooks/events"
 	"github.com/ether/etherpad-go/lib/test/testutils"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
@@ -126,6 +128,22 @@ func TestExportHandler(t *testing.T) {
 		testutils.TestRunConfig{
 			Name: "Export Invalid Type Returns 400",
 			Test: testExportInvalidTypeReturns400,
+		},
+		testutils.TestRunConfig{
+			Name: "Hook exportFileName overrides download filename",
+			Test: testHookExportFileName,
+		},
+		testutils.TestRunConfig{
+			Name: "Hook stylesForExport injects CSS into HTML export",
+			Test: testHookStylesForExport,
+		},
+		testutils.TestRunConfig{
+			Name: "Hook exportHTMLAdditionalContent appends HTML to export body",
+			Test: testHookExportHTMLAdditionalContent,
+		},
+		testutils.TestRunConfig{
+			Name: "Hook exportHTMLSend replaces full HTML document",
+			Test: testHookExportHTMLSend,
 		},
 	)
 	defer testDb.StartTestDBHandler()
@@ -837,4 +855,97 @@ func testExportMixedFormattingPadAsOdt(t *testing.T, tsStore testutils.TestDataS
 
 	assert.True(t, len(body) > 4, "ODT body should not be empty")
 	assert.Equal(t, "PK", string(body[:2]), "ODT should start with PK (ZIP header)")
+}
+
+// Hook Tests
+
+func testHookExportFileName(t *testing.T, tsStore testutils.TestDataStore) {
+	padId := "hookFileNamePad"
+	testText := "Hook FileName Test"
+	token := createPadWithPlainText(t, tsStore, padId, testText)
+
+	id := tsStore.Hooks.EnqueueExportFileNameHook(func(ctx *events.ExportFileNameContext) {
+		ctx.SetFileName("custom-name")
+	})
+	defer tsStore.Hooks.DequeueHook(hooks.ExportFileNameString, id)
+
+	app := setupExportApp(tsStore)
+	req := httptest.NewRequest("GET", "/p/"+padId+"/export/html", nil)
+	req.AddCookie(&http.Cookie{Name: "token", Value: token})
+	resp, err := app.Test(req)
+	assert.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	contentDisposition := resp.Header.Get("Content-Disposition")
+	assert.True(t, strings.Contains(contentDisposition, "custom-name"),
+		"Content-Disposition should contain custom-name, got: %s", contentDisposition)
+}
+
+func testHookStylesForExport(t *testing.T, tsStore testutils.TestDataStore) {
+	padId := "hookStylesPad"
+	testText := "Hook Styles Test"
+	token := createPadWithPlainText(t, tsStore, padId, testText)
+
+	id := tsStore.Hooks.EnqueueStylesForExportHook(func(ctx *events.StylesForExportContext) {
+		ctx.AddStyle("body{x:1}")
+	})
+	defer tsStore.Hooks.DequeueHook(hooks.StylesForExportString, id)
+
+	app := setupExportApp(tsStore)
+	req := httptest.NewRequest("GET", "/p/"+padId+"/export/html", nil)
+	req.AddCookie(&http.Cookie{Name: "token", Value: token})
+	resp, err := app.Test(req)
+	assert.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	body, err := io.ReadAll(resp.Body)
+	assert.NoError(t, err)
+	assert.True(t, strings.Contains(string(body), "body{x:1}"),
+		"HTML export should contain injected CSS, got: %s", string(body))
+}
+
+func testHookExportHTMLAdditionalContent(t *testing.T, tsStore testutils.TestDataStore) {
+	padId := "hookAdditionalContentPad"
+	testText := "Hook Additional Content Test"
+	token := createPadWithPlainText(t, tsStore, padId, testText)
+
+	id := tsStore.Hooks.EnqueueExportHTMLAdditionalContentHook(func(ctx *events.ExportHTMLAdditionalContentContext) {
+		ctx.Add("<p>EXTRA</p>")
+	})
+	defer tsStore.Hooks.DequeueHook(hooks.ExportHTMLAdditionalContentString, id)
+
+	app := setupExportApp(tsStore)
+	req := httptest.NewRequest("GET", "/p/"+padId+"/export/html", nil)
+	req.AddCookie(&http.Cookie{Name: "token", Value: token})
+	resp, err := app.Test(req)
+	assert.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	body, err := io.ReadAll(resp.Body)
+	assert.NoError(t, err)
+	assert.True(t, strings.Contains(string(body), "<p>EXTRA</p>"),
+		"HTML export should contain additional content, got: %s", string(body))
+}
+
+func testHookExportHTMLSend(t *testing.T, tsStore testutils.TestDataStore) {
+	padId := "hookHTMLSendPad"
+	testText := "Hook HTMLSend Test"
+	token := createPadWithPlainText(t, tsStore, padId, testText)
+
+	id := tsStore.Hooks.EnqueueExportHTMLSendHook(func(ctx *events.ExportHTMLSendContext) {
+		*ctx.HTML = "REPLACED"
+	})
+	defer tsStore.Hooks.DequeueHook(hooks.ExportHTMLSendString, id)
+
+	app := setupExportApp(tsStore)
+	req := httptest.NewRequest("GET", "/p/"+padId+"/export/html", nil)
+	req.AddCookie(&http.Cookie{Name: "token", Value: token})
+	resp, err := app.Test(req)
+	assert.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	body, err := io.ReadAll(resp.Body)
+	assert.NoError(t, err)
+	assert.True(t, strings.Contains(string(body), "REPLACED"),
+		"HTML export body should be REPLACED, got: %s", string(body))
 }
