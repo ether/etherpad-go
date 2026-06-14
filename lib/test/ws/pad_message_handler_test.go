@@ -8,6 +8,8 @@ import (
 
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/changeset"
+	"github.com/ether/etherpad-go/lib/hooks"
+	"github.com/ether/etherpad-go/lib/hooks/events"
 	"github.com/ether/etherpad-go/lib/models/ws"
 	"github.com/ether/etherpad-go/lib/test/testutils"
 	libws "github.com/ether/etherpad-go/lib/ws"
@@ -179,6 +181,26 @@ func TestPadMessageHandler_AllMethods(t *testing.T) {
 		testutils.TestRunConfig{
 			Name: "HandleMessage without session returns early",
 			Test: testHandleMessageNoSession,
+		},
+		testutils.TestRunConfig{
+			Name: "handleMessage hook drop stops dispatch",
+			Test: testHandleMessageDropStopsDispatch,
+		},
+		testutils.TestRunConfig{
+			Name: "handleMessageSecurity hook grants write on readonly",
+			Test: testHandleMessageSecurityGrantsWriteOnReadonly,
+		},
+		testutils.TestRunConfig{
+			Name: "chatNewMessage hook rewrites text before store",
+			Test: testChatNewMessageRewritesText,
+		},
+		testutils.TestRunConfig{
+			Name: "chatNewMessage hook drop suppresses store",
+			Test: testChatNewMessageDropSuppresses,
+		},
+		testutils.TestRunConfig{
+			Name: "chatNewMessage hook setting Text=nil keeps original",
+			Test: testChatNewMessageNilTextKeepsOriginal,
 		},
 	)
 	testDb.StartTestDBHandler()
@@ -1972,4 +1994,236 @@ func testSendCustomMessageToPad(t *testing.T, ds testutils.TestDataStore) {
 		}
 		assert.True(t, found, "client %d must receive the custom message, got: %v", i+1, messages)
 	}
+}
+
+func testHandleMessageDropStopsDispatch(t *testing.T, ds testutils.TestDataStore) {
+	padId := "test-pad-hm-drop"
+	token := "test-token-hm-drop"
+
+	// The session author must match the author granted by the security
+	// manager for the token, otherwise HandleMessage sends a
+	// {disconnect: "rejected"} userdup message and never queues the change.
+	tokenAuthor, err := ds.AuthorManager.GetAuthor4Token(token)
+	require.NoError(t, err)
+	authorId := tokenAuthor.Id
+
+	_, err = ds.PadManager.GetPad(padId, nil, &authorId)
+	require.NoError(t, err)
+
+	mockConn := libws.NewActualMockWebSocketconn()
+	sessionId := "test-session-hm-drop"
+	client := createTestClient(ds.Hub, sessionId, padId, mockConn)
+	defer func() { delete(ds.Hub.Clients, client) }()
+
+	ds.PadMessageHandler.SessionStore.InitSessionForTest(sessionId)
+	ds.PadMessageHandler.SessionStore.AddHandleClientInformationForTest(sessionId, padId, token)
+	ds.PadMessageHandler.SessionStore.SetAuthorForTest(sessionId, authorId)
+	ds.PadMessageHandler.SessionStore.SetPadIdForTest(sessionId, padId)
+	ds.PadMessageHandler.SessionStore.AddPadReadOnlyIdsForTest(sessionId, padId, "readonly-id", false)
+
+	retrievedPad, err := ds.PadManager.GetPad(padId, nil, &authorId)
+	require.NoError(t, err)
+	headBefore := retrievedPad.Head
+
+	id := ds.Hooks.EnqueueHandleMessageHook(func(ctx *events.HandleMessageContext) {
+		ctx.DropMessage()
+	})
+	defer ds.Hooks.DequeueHook(hooks.HandleMessageString, id)
+
+	userChange := ws.UserChange{
+		Event: "message",
+		Data: ws.UserChangeData{
+			Component: "pad",
+			Type:      "USER_CHANGES",
+			Data: ws.UserChangeDataData{
+				Apool:     ws.UserChangeDataDataApool{NumToAttrib: map[int][]string{}, NextNum: 0},
+				BaseRev:   0,
+				Changeset: "Z:1>3+3$abc",
+			},
+		},
+	}
+	initStore := ds.ToInitStore()
+	ds.PadMessageHandler.HandleMessage(userChange, client, initStore.RetrievedSettings, ds.Logger)
+	time.Sleep(100 * time.Millisecond)
+
+	retrievedPad, err = ds.PadManager.GetPad(padId, nil, &authorId)
+	require.NoError(t, err)
+	assert.Equal(t, headBefore, retrievedPad.Head, "dropped USER_CHANGES must not change the pad")
+}
+
+func testHandleMessageSecurityGrantsWriteOnReadonly(t *testing.T, ds testutils.TestDataStore) {
+	padId := "test-pad-hms-grant"
+	token := "test-token-hms-grant"
+
+	// The session author must match the author granted by the security
+	// manager for the token, otherwise HandleMessage sends a
+	// {disconnect: "rejected"} userdup message and never queues the change.
+	tokenAuthor, err := ds.AuthorManager.GetAuthor4Token(token)
+	require.NoError(t, err)
+	authorId := tokenAuthor.Id
+
+	_, err = ds.PadManager.GetPad(padId, nil, &authorId)
+	require.NoError(t, err)
+
+	mockConn := libws.NewActualMockWebSocketconn()
+	sessionId := "test-session-hms-grant"
+	client := createTestClient(ds.Hub, sessionId, padId, mockConn)
+	defer func() { delete(ds.Hub.Clients, client) }()
+
+	ds.PadMessageHandler.SessionStore.InitSessionForTest(sessionId)
+	ds.PadMessageHandler.SessionStore.AddHandleClientInformationForTest(sessionId, padId, token)
+	ds.PadMessageHandler.SessionStore.SetAuthorForTest(sessionId, authorId)
+	ds.PadMessageHandler.SessionStore.SetPadIdForTest(sessionId, padId)
+	ds.PadMessageHandler.SessionStore.AddPadReadOnlyIdsForTest(sessionId, padId, "readonly-id", true)
+	ds.PadMessageHandler.SessionStore.SetReadOnlyForTest(sessionId, true)
+
+	retrievedPad, err := ds.PadManager.GetPad(padId, nil, &authorId)
+	require.NoError(t, err)
+	headBefore := retrievedPad.Head
+
+	id := ds.Hooks.EnqueueHandleMessageSecurityHook(func(ctx *events.HandleMessageSecurityContext) {
+		ctx.GrantWriteAccess()
+	})
+	defer ds.Hooks.DequeueHook(hooks.HandleMessageSecurityString, id)
+
+	userChange := ws.UserChange{
+		Event: "message",
+		Data: ws.UserChangeData{
+			Component: "pad",
+			Type:      "USER_CHANGES",
+			Data: ws.UserChangeDataData{
+				// The '+' op must carry the session author attribute so
+				// handleUserChanges does not reject it as "badChangeset".
+				// Apool entry 0 → ["author", authorId]; changeset *0+3 tags
+				// the insert with that entry.  BaseRev must match the pad's
+				// current head so the rebasing loop is a no-op.
+				Apool: ws.UserChangeDataDataApool{
+					NumToAttrib: map[int][]string{0: {"author", authorId}},
+					NextNum:     1,
+				},
+				BaseRev:   headBefore,
+				Changeset: "Z:1>3*0+3$abc",
+			},
+		},
+	}
+	initStore := ds.ToInitStore()
+	ds.PadMessageHandler.HandleMessage(userChange, client, initStore.RetrievedSettings, ds.Logger)
+	time.Sleep(200 * time.Millisecond)
+
+	retrievedPad, err = ds.PadManager.GetPad(padId, nil, &authorId)
+	require.NoError(t, err)
+	assert.Greater(t, retrievedPad.Head, headBefore, "granted write must apply the change despite read-only")
+}
+
+func testChatNewMessageRewritesText(t *testing.T, ds testutils.TestDataStore) {
+	padId := "test-pad-chat-rewrite"
+	authorId, err := setupPadAndAuthor(t, ds, padId, "ChatRewriteUser")
+	require.NoError(t, err)
+
+	mockConn := libws.NewActualMockWebSocketconn()
+	sessionId := "test-session-chat-rewrite"
+	client := createTestClient(ds.Hub, sessionId, padId, mockConn)
+	defer func() { delete(ds.Hub.Clients, client) }()
+	wg := startMockWritePump(client, mockConn)
+
+	ds.PadMessageHandler.SessionStore.InitSessionForTest(sessionId)
+	ds.PadMessageHandler.SessionStore.AddHandleClientInformationForTest(sessionId, padId, "test-token")
+	ds.PadMessageHandler.SessionStore.SetAuthorForTest(sessionId, authorId)
+	ds.PadMessageHandler.SessionStore.SetPadIdForTest(sessionId, padId)
+	session := ds.PadMessageHandler.SessionStore.GetSessionForTest(sessionId)
+	require.NotNil(t, session)
+
+	id := ds.Hooks.EnqueueChatNewMessageHook(func(ctx *events.ChatNewMessageContext) {
+		*ctx.Text = "REWRITTEN"
+	})
+	defer ds.Hooks.DequeueHook(hooks.ChatNewMessageString, id)
+
+	chatTime := time.Now().UnixMilli()
+	ds.PadMessageHandler.SendChatMessageToPadClients(session, ws.ChatMessageData{
+		Text: "original", Time: &chatTime, AuthorId: &authorId,
+	})
+	wg.Wait()
+
+	retrievedPad, err := ds.PadManager.GetPad(padId, nil, &authorId)
+	require.NoError(t, err)
+	msgs, err := retrievedPad.GetChatMessages(0, 1)
+	require.NoError(t, err)
+	require.Len(t, *msgs, 1)
+	assert.Equal(t, "REWRITTEN", (*msgs)[0].Message)
+}
+
+func testChatNewMessageDropSuppresses(t *testing.T, ds testutils.TestDataStore) {
+	padId := "test-pad-chat-drop"
+	authorId, err := setupPadAndAuthor(t, ds, padId, "ChatDropUser")
+	require.NoError(t, err)
+
+	mockConn := libws.NewActualMockWebSocketconn()
+	sessionId := "test-session-chat-drop"
+	client := createTestClient(ds.Hub, sessionId, padId, mockConn)
+	defer func() { delete(ds.Hub.Clients, client) }()
+
+	ds.PadMessageHandler.SessionStore.InitSessionForTest(sessionId)
+	ds.PadMessageHandler.SessionStore.AddHandleClientInformationForTest(sessionId, padId, "test-token")
+	ds.PadMessageHandler.SessionStore.SetAuthorForTest(sessionId, authorId)
+	ds.PadMessageHandler.SessionStore.SetPadIdForTest(sessionId, padId)
+	session := ds.PadMessageHandler.SessionStore.GetSessionForTest(sessionId)
+	require.NotNil(t, session)
+
+	id := ds.Hooks.EnqueueChatNewMessageHook(func(ctx *events.ChatNewMessageContext) {
+		ctx.DropMessage()
+	})
+	defer ds.Hooks.DequeueHook(hooks.ChatNewMessageString, id)
+
+	chatTime := time.Now().UnixMilli()
+	ds.PadMessageHandler.SendChatMessageToPadClients(session, ws.ChatMessageData{
+		Text: "should be dropped", Time: &chatTime, AuthorId: &authorId,
+	})
+	time.Sleep(50 * time.Millisecond)
+
+	retrievedPad, err := ds.PadManager.GetPad(padId, nil, &authorId)
+	require.NoError(t, err)
+	msgs, err := retrievedPad.GetChatMessages(0, 1)
+	require.NoError(t, err)
+	assert.Len(t, *msgs, 0, "dropped chat message must not be stored")
+}
+
+func testChatNewMessageNilTextKeepsOriginal(t *testing.T, ds testutils.TestDataStore) {
+	padId := "test-pad-chat-niltext"
+	authorId, err := setupPadAndAuthor(t, ds, padId, "ChatNilTextUser")
+	require.NoError(t, err)
+
+	mockConn := libws.NewActualMockWebSocketconn()
+	sessionId := "test-session-chat-niltext"
+	client := createTestClient(ds.Hub, sessionId, padId, mockConn)
+	defer func() { delete(ds.Hub.Clients, client) }()
+	wg := startMockWritePump(client, mockConn)
+
+	ds.PadMessageHandler.SessionStore.InitSessionForTest(sessionId)
+	ds.PadMessageHandler.SessionStore.AddHandleClientInformationForTest(sessionId, padId, "test-token")
+	ds.PadMessageHandler.SessionStore.SetAuthorForTest(sessionId, authorId)
+	ds.PadMessageHandler.SessionStore.SetPadIdForTest(sessionId, padId)
+	session := ds.PadMessageHandler.SessionStore.GetSessionForTest(sessionId)
+	require.NotNil(t, session)
+
+	// A misbehaving hook nils Text; the handler must not panic and must keep the
+	// original text (DropMessage() is the documented way to suppress).
+	id := ds.Hooks.EnqueueChatNewMessageHook(func(ctx *events.ChatNewMessageContext) {
+		ctx.Text = nil
+	})
+	defer ds.Hooks.DequeueHook(hooks.ChatNewMessageString, id)
+
+	chatTime := time.Now().UnixMilli()
+	assert.NotPanics(t, func() {
+		ds.PadMessageHandler.SendChatMessageToPadClients(session, ws.ChatMessageData{
+			Text: "original text", Time: &chatTime, AuthorId: &authorId,
+		})
+	})
+	wg.Wait()
+
+	retrievedPad, err := ds.PadManager.GetPad(padId, nil, &authorId)
+	require.NoError(t, err)
+	msgs, err := retrievedPad.GetChatMessages(0, 1)
+	require.NoError(t, err)
+	require.Len(t, *msgs, 1)
+	assert.Equal(t, "original text", (*msgs)[0].Message)
 }

@@ -533,6 +533,21 @@ func (p *PadMessageHandler) HandleMessage(message any, client *Client, retrieved
 		return
 	}
 
+	// handleMessage fires for every message type, including CLIENT_READY (whose
+	// session bootstrap above has already run). Dropping a CLIENT_READY therefore
+	// leaves the session half-initialised (auth/padId set, but no CLIENT_VARS
+	// sent) — matching the general message-interceptor semantics of the original.
+	hmCtx := &events.HandleMessageContext{
+		Message:  message,
+		Client:   client,
+		PadId:    thisSessionNewRetrieved.PadId,
+		AuthorId: thisSessionNewRetrieved.Author,
+	}
+	p.hooks.ExecuteHandleMessageHooks(hmCtx)
+	if hmCtx.Dropped() {
+		return
+	}
+
 	switch expectedType := message.(type) {
 	case ws.ClientReady:
 		{
@@ -554,8 +569,16 @@ func (p *PadMessageHandler) HandleMessage(message any, client *Client, retrieved
 	case ws.UserChange:
 		{
 			if readonly {
-				p.Logger.Warn("write attempt on read-only pad")
-				return
+				secCtx := &events.HandleMessageSecurityContext{
+					Message:  expectedType,
+					PadId:    thisSessionNewRetrieved.PadId,
+					AuthorId: thisSessionNewRetrieved.Author,
+				}
+				p.hooks.ExecuteHandleMessageSecurityHooks(secCtx)
+				if !secCtx.WriteAccessGranted() {
+					p.Logger.Warn("write attempt on read-only pad")
+					return
+				}
 			}
 
 			p.padChannels.AddToQueue(client.Room, Task{
@@ -905,6 +928,29 @@ func (p *PadMessageHandler) getChangesetInfo(retrievedPad pad2.Pad, startNum int
 }
 
 func (p *PadMessageHandler) SendChatMessageToPadClients(session *ws.Session, chatMessage ws.ChatMessageData) {
+	var chatAuthorId string
+	if chatMessage.AuthorId != nil {
+		chatAuthorId = *chatMessage.AuthorId
+	}
+	text := chatMessage.Text
+	cmCtx := &events.ChatNewMessageContext{
+		Message:  chatMessage,
+		Text:     &text,
+		PadId:    session.PadId,
+		AuthorId: chatAuthorId,
+	}
+	p.hooks.ExecuteChatNewMessageHooks(cmCtx)
+	if cmCtx.Dropped() {
+		return
+	}
+	// A hook may reassign ctx.Text; guard against a plugin setting it to nil
+	// (the documented way to suppress is DropMessage()). Keep the original text.
+	if cmCtx.Text != nil {
+		chatMessage.Text = *cmCtx.Text
+	} else {
+		p.Logger.Warn("chatNewMessage hook set Text to nil; keeping original chat text")
+	}
+
 	var retrievedPad, err = p.padManager.GetPad(session.PadId, nil, chatMessage.AuthorId)
 	if err != nil {
 		p.Logger.Warn("Error retrieving pad for chat message", err)
@@ -1192,7 +1238,7 @@ func (p *PadMessageHandler) HandleDisconnectOfPadClient(client *Client, settings
 	// Fire userLeave hooks
 	padId := thisSession.PadId
 	authorId := thisSession.Author
-	p.hooks.ExecuteHooks("userLeave", &events.UserJoinLeaveContext{
+	p.hooks.ExecuteUserLeaveHooks(&events.UserJoinLeaveContext{
 		PadId:    padId,
 		AuthorId: authorId,
 		BroadcastChat: func(message map[string]any) {
@@ -1432,6 +1478,14 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 		retrivedClientVars.CollabClientVars.InitialAttributedText.Text = atextSnapshot.Text
 		retrivedClientVars.CollabClientVars.InitialAttributedText.Attribs = atextSnapshot.Attribs
 
+		cvCtx := &events.ClientVarsContext{
+			ClientVars: retrivedClientVars,
+			Extra:      map[string]any{},
+			PadId:      thisSession.PadId,
+			AuthorId:   thisSession.Author,
+		}
+		p.hooks.ExecuteClientVarsHooks(cvCtx)
+
 		// Initialize session time before broadcasting so timeDelta calculations
 		// in UpdatePadClients don't produce nonsense values. Upstream #7480.
 		if thisSession.Time == 0 {
@@ -1439,11 +1493,35 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 		}
 		var arr = make([]interface{}, 2)
 		arr[0] = "message"
-		arr[1] = Message{
-			Data: *retrivedClientVars,
-			Type: "CLIENT_VARS",
+		if len(cvCtx.Extra) == 0 {
+			arr[1] = Message{
+				Data: *retrivedClientVars,
+				Type: "CLIENT_VARS",
+			}
+		} else {
+			merged, mergeErr := MergeClientVarsExtra(retrivedClientVars, cvCtx.Extra)
+			if mergeErr != nil {
+				p.Logger.Warn("Error merging clientVars extras", mergeErr.Error())
+				return
+			}
+			arr[1] = map[string]any{
+				"type": "CLIENT_VARS",
+				"data": merged,
+			}
 		}
-		var encoded, _ = json.Marshal(arr)
+		encoded, encErr := json.Marshal(arr)
+		if encErr != nil {
+			// A clientVars hook likely placed a non-serializable value in Extra.
+			// Fall back to the typed payload without plugin extras so the client
+			// still receives a valid CLIENT_VARS message instead of empty bytes.
+			p.Logger.Warnf("Error marshaling CLIENT_VARS for pad %s author %s; sending without plugin extras: %v", thisSession.PadId, thisSession.Author, encErr)
+			arr[1] = Message{Data: *retrivedClientVars, Type: "CLIENT_VARS"}
+			encoded, encErr = json.Marshal(arr)
+			if encErr != nil {
+				p.Logger.Warn("Error marshaling fallback CLIENT_VARS", encErr.Error())
+				return
+			}
+		}
 		// Join the pad and start receiving updates
 		thisSession.PadId = retrievedPad.Id
 		// Send the clientVars to the Client
@@ -1528,12 +1606,23 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 	}
 
 	// Fire userJoin hooks
-	p.hooks.ExecuteHooks("userJoin", &events.UserJoinLeaveContext{
+	p.hooks.ExecuteUserJoinHooks(&events.UserJoinLeaveContext{
 		PadId:    thisSession.PadId,
 		AuthorId: thisSession.Author,
 		BroadcastChat: func(message map[string]any) {
 			p.BroadcastSystemChatToRoom(thisSession.PadId, message)
 		},
+	})
+
+	// Fire clientReady hooks now that the client has fully joined the pad.
+	var clientReadyToken string
+	if thisSession.Auth != nil {
+		clientReadyToken = thisSession.Auth.Token
+	}
+	p.hooks.ExecuteClientReadyHooks(&events.ClientReadyContext{
+		PadId:    thisSession.PadId,
+		AuthorId: thisSession.Author,
+		Token:    clientReadyToken,
 	})
 }
 
