@@ -32,7 +32,7 @@ import (
 )
 
 type wsUpgradeData struct {
-	SessionID         string
+	SessionID string
 	// IntegratorSessionID is the integrator-set sessionID cookie value
 	// (from createSession() HTTP API), read from the socket.io handshake
 	// Cookie header so the cookie can be marked HttpOnly. Upstream
@@ -64,7 +64,7 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 		return
 	}
 
-	StartUpdateRoutine(setupLogger, dataStore, gitVersion)
+	upd := StartUpdater(setupLogger, &settings, gitVersion)
 
 	readOnlyManager := pad.NewReadOnlyManager(dataStore)
 
@@ -83,7 +83,7 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 	globalHub := ws.NewHub()
 	sessionStore := ws.NewSessionStore()
 	padMessageHandler := ws.NewPadMessageHandler(dataStore, &retrievedHooks, padManager, &sessionStore, globalHub, setupLogger, uiAssets)
-	adminMessageHandler := ws.NewAdminMessageHandler(dataStore, &retrievedHooks, padManager, padMessageHandler, setupLogger, globalHub, app)
+	adminMessageHandler := ws.NewAdminMessageHandler(dataStore, &retrievedHooks, padManager, padMessageHandler, setupLogger, globalHub, app, upd)
 	securityManager := pad.NewSecurityManager(dataStore, &retrievedHooks, padManager)
 
 	var epPluginStore = &interfaces.EpPluginStore{
@@ -134,6 +134,11 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 	var wsPreUpgrade sync.Map // map[string]wsUpgradeData
 	app.Use("/socket.io", func(c fiber.Ctx) error {
 		if fiberws.IsWebSocketUpgrade(c) {
+			// Refuse new pad connections while the updater is draining before a
+			// binary swap, so clients reconnect to the restarted instance.
+			if !upd.IsAcceptingConnections() {
+				return c.Status(fiber.StatusServiceUnavailable).SendString("server is draining for an update")
+			}
 			sess, err := cookieStore.Get(c)
 			if err != nil {
 				return c.Status(fiber.StatusInternalServerError).SendString("session error")
@@ -239,11 +244,20 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 		}
 	}()
 
+	// Once the server has come up and survived initial startup, confirm any
+	// pending post-update verification as healthy (cancels the rollback timer).
+	// The short delay ensures a binary that crashes on boot is not marked good.
+	go func() {
+		time.Sleep(3 * time.Second)
+		upd.MarkBootHealthy()
+	}()
+
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	<-sigCh
 	setupLogger.Info("Shutting down Etherpad Go...")
 	retrievedHooks.ExecuteShutdownHooks(&events.ShutdownContext{})
+	upd.Stop()
 	authenticator.Stop()
 	if err := app.ShutdownWithTimeout(3 * time.Second); err != nil {
 		setupLogger.Warn("Error during shutdown: " + err.Error())

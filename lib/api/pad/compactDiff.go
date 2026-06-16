@@ -63,7 +63,7 @@ func CompactPad(initStore *lib.InitStore) fiber.Handler {
 		// store, pad manager, pad message handler and logger, all of which are
 		// available from the InitStore, so a handler is wired up on the fly
 		// (hub is not used by DeleteRevisions).
-		adminHandler := ws.NewAdminMessageHandler(initStore.Store, initStore.Hooks, initStore.PadManager, initStore.Handler, initStore.Logger, nil, initStore.C)
+		adminHandler := ws.NewAdminMessageHandler(initStore.Store, initStore.Hooks, initStore.PadManager, initStore.Handler, initStore.Logger, nil, initStore.C, nil)
 		if err := adminHandler.DeleteRevisions(padId, request.KeepRevisions); err != nil {
 			initStore.Logger.Errorf("Error compacting pad %s: %v", padId, err)
 			return c.Status(500).JSON(errors2.InternalServerError)
