@@ -887,6 +887,65 @@ func (d PostgresDB) DeleteOIDCStorageValue(key string) error {
 	return err
 }
 
+// ============== SECRET ROTATION TABLE METHODS ==============
+
+func (d PostgresDB) SaveSecretParams(id string, prefix string, payload string) error {
+	ctx := context.Background()
+	sqlStr, args, err := psql.
+		Insert("secret_rotation").
+		Columns("id", "prefix", "payload").
+		Values(id, prefix, payload).
+		Suffix(`ON CONFLICT(id) DO UPDATE SET
+			prefix = excluded.prefix,
+			payload = excluded.payload,
+			updated_at = CURRENT_TIMESTAMP`).
+		ToSql()
+	if err != nil {
+		return err
+	}
+	_, err = d.pool.Exec(ctx, sqlStr, args...)
+	return err
+}
+
+func (d PostgresDB) ListSecretParams(prefix string) (map[string]string, error) {
+	ctx := context.Background()
+	sqlStr, args, err := psql.
+		Select("id", "payload").
+		From("secret_rotation").
+		Where(sq.Eq{"prefix": prefix}).
+		ToSql()
+	if err != nil {
+		return nil, err
+	}
+	rows, err := d.pool.Query(ctx, sqlStr, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := make(map[string]string)
+	for rows.Next() {
+		var id, payload string
+		if err := rows.Scan(&id, &payload); err != nil {
+			return nil, err
+		}
+		result[id] = payload
+	}
+	return result, rows.Err()
+}
+
+func (d PostgresDB) DeleteSecretParams(id string) error {
+	ctx := context.Background()
+	sqlStr, args, err := psql.
+		Delete("secret_rotation").
+		Where(sq.Eq{"id": id}).
+		ToSql()
+	if err != nil {
+		return err
+	}
+	_, err = d.pool.Exec(ctx, sqlStr, args...)
+	return err
+}
+
 // ============== OAUTH TOKEN TABLE METHODS ==============
 
 // Access tokens

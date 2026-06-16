@@ -22,6 +22,7 @@ type MemoryDataStore struct {
 	groupStore    map[string]string
 	serverVersion *db.ServerVersion
 	oidcStorage   map[string]string
+	secretParams  map[string]memorySecretRow
 
 	// oidc
 	accessTokens           map[string]fosite.Requester
@@ -671,6 +672,33 @@ func (m *MemoryDataStore) DeleteOIDCStorageValue(key string) error {
 	return nil
 }
 
+// ============== SECRET ROTATION ==============
+
+type memorySecretRow struct {
+	prefix  string
+	payload string
+}
+
+func (m *MemoryDataStore) SaveSecretParams(id string, prefix string, payload string) error {
+	m.secretParams[id] = memorySecretRow{prefix: prefix, payload: payload}
+	return nil
+}
+
+func (m *MemoryDataStore) ListSecretParams(prefix string) (map[string]string, error) {
+	result := make(map[string]string)
+	for id, row := range m.secretParams {
+		if row.prefix == prefix {
+			result[id] = row.payload
+		}
+	}
+	return result, nil
+}
+
+func (m *MemoryDataStore) DeleteSecretParams(id string) error {
+	delete(m.secretParams, id)
+	return nil
+}
+
 // ============== OAUTH TOKEN TABLE METHODS ==============
 
 // Access tokens
@@ -892,6 +920,7 @@ func NewMemoryDataStore() *MemoryDataStore {
 		sessionStore:           make(map[string]session2.Session),
 		groupStore:             make(map[string]string),
 		oidcStorage:            make(map[string]string),
+		secretParams:           make(map[string]memorySecretRow),
 		accessTokens:           make(map[string]fosite.Requester),
 		accessTokenRequestIDs:  make(map[string]string),
 		refreshTokens:          make(map[string]db.StoreRefreshToken),

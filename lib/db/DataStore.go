@@ -120,6 +120,19 @@ type OIDCMethods interface {
 	DeleteOIDCSession(signature string) error
 }
 
+// SecretMethods back the SecretRotator. Each published parameter set is
+// addressed by a random id within a rotator namespace (prefix), allowing
+// several rotators (and several Etherpad instances) to coexist in one table.
+type SecretMethods interface {
+	// SaveSecretParams upserts one published parameter set.
+	SaveSecretParams(id string, prefix string, payload string) error
+	// ListSecretParams returns all parameter sets for the given prefix as a
+	// map of id -> payload.
+	ListSecretParams(prefix string) (map[string]string, error)
+	// DeleteSecretParams removes a single parameter set by id.
+	DeleteSecretParams(id string) error
+}
+
 type DataStore interface {
 	PadMethods
 	AuthorMethods
@@ -128,6 +141,7 @@ type DataStore interface {
 	ChatMethods
 	ServerMethods
 	OIDCMethods
+	SecretMethods
 	Close() error
 	Ping() error
 }

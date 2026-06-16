@@ -244,6 +244,7 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 	<-sigCh
 	setupLogger.Info("Shutting down Etherpad Go...")
 	retrievedHooks.ExecuteShutdownHooks(&events.ShutdownContext{})
+	authenticator.Stop()
 	if err := app.ShutdownWithTimeout(3 * time.Second); err != nil {
 		setupLogger.Warn("Error during shutdown: " + err.Error())
 	}
