@@ -3,8 +3,6 @@ package updater
 import (
 	"encoding/json"
 	"os"
-	"runtime"
-	"syscall"
 	"time"
 )
 
@@ -72,17 +70,7 @@ func lockHeld(path string) bool {
 	return processAlive(info.PID)
 }
 
-func processAlive(pid int) bool {
-	if pid <= 0 {
-		return false
-	}
-	if runtime.GOOS == "windows" {
-		// No portable liveness probe on Windows; rely on the TTL staleness check.
-		return true
-	}
-	proc, err := os.FindProcess(pid)
-	if err != nil {
-		return false
-	}
-	return proc.Signal(syscall.Signal(0)) == nil
-}
+// processAlive reports whether a process with the given pid is currently
+// running. It is implemented per-platform (lock_unix.go / lock_windows.go) so a
+// crashed instance's lock is reaped promptly instead of blocking until the
+// staleness TTL elapses.

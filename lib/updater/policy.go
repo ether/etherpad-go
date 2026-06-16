@@ -55,14 +55,16 @@ func EvaluatePolicy(in PolicyInput) PolicyResult {
 		res.CanAuto = true
 	case TierAutonomous:
 		res.CanManual = true
-		res.CanAuto = true
-		res.CanAutonomous = in.WindowValid
-		if !in.WindowValid {
-			if in.WindowConfigured {
-				res.Reason = "maintenance-window-invalid"
-			} else {
-				res.Reason = "maintenance-window-missing"
-			}
+		// Autonomous mode REQUIRES a valid maintenance window. Without one it
+		// must NOT degrade into unrestricted auto-apply, so CanAuto stays false
+		// (the scheduler/trigger gate primarily on CanAuto). Manual stays allowed.
+		if in.WindowValid {
+			res.CanAuto = true
+			res.CanAutonomous = true
+		} else if in.WindowConfigured {
+			res.Reason = "maintenance-window-invalid"
+		} else {
+			res.Reason = "maintenance-window-missing"
 		}
 	}
 
