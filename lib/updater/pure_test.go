@@ -112,13 +112,17 @@ func TestEvaluatePolicy(t *testing.T) {
 	if r := EvaluatePolicy(PolicyInput{Tier: TierAuto, Latest: latest, CurrentVersion: "1.0.0", InstallMethod: InstallBinary}); !r.CanManual || !r.CanAuto || r.CanAutonomous {
 		t.Errorf("auto binary: %+v", r)
 	}
-	// autonomous valid window
-	if r := EvaluatePolicy(PolicyInput{Tier: TierAutonomous, Latest: latest, CurrentVersion: "1.0.0", InstallMethod: InstallBinary, WindowConfigured: true, WindowValid: true}); !r.CanAutonomous {
+	// autonomous valid window: auto + autonomous enabled
+	if r := EvaluatePolicy(PolicyInput{Tier: TierAutonomous, Latest: latest, CurrentVersion: "1.0.0", InstallMethod: InstallBinary, WindowConfigured: true, WindowValid: true}); !r.CanAutonomous || !r.CanAuto {
 		t.Errorf("autonomous valid window: %+v", r)
 	}
-	// autonomous invalid window
-	if r := EvaluatePolicy(PolicyInput{Tier: TierAutonomous, Latest: latest, CurrentVersion: "1.0.0", InstallMethod: InstallBinary, WindowConfigured: true, WindowValid: false}); r.CanAutonomous || r.Reason != "maintenance-window-invalid" {
-		t.Errorf("autonomous invalid window: %+v", r)
+	// autonomous invalid window: must NOT degrade into unrestricted auto-apply.
+	if r := EvaluatePolicy(PolicyInput{Tier: TierAutonomous, Latest: latest, CurrentVersion: "1.0.0", InstallMethod: InstallBinary, WindowConfigured: true, WindowValid: false}); r.CanAutonomous || r.CanAuto || !r.CanManual || r.Reason != "maintenance-window-invalid" {
+		t.Errorf("autonomous invalid window must block auto, keep manual: %+v", r)
+	}
+	// autonomous with no window configured: also blocks auto.
+	if r := EvaluatePolicy(PolicyInput{Tier: TierAutonomous, Latest: latest, CurrentVersion: "1.0.0", InstallMethod: InstallBinary, WindowConfigured: false, WindowValid: false}); r.CanAuto || r.Reason != "maintenance-window-missing" {
+		t.Errorf("autonomous missing window: %+v", r)
 	}
 	// rollback-failed blocks auto, keeps manual
 	if r := EvaluatePolicy(PolicyInput{Tier: TierAuto, Latest: latest, CurrentVersion: "1.0.0", InstallMethod: InstallBinary, ExecutionStatus: StatusRollbackFailed}); r.CanAuto || !r.CanManual || r.Reason != "rollback-failed-terminal" {
@@ -194,6 +198,16 @@ func TestStateRoundTrip(t *testing.T) {
 	got := LoadState(path)
 	if got.LastETag != "abc" || got.Latest == nil || got.Latest.Tag != "v2.0.0" || got.Execution.Status != StatusScheduled {
 		t.Errorf("round-trip mismatch: %+v", got)
+	}
+
+	// Saving over an existing file must succeed (atomic replace must be
+	// portable, incl. Windows where rename-over-existing needs REPLACE_EXISTING).
+	want.LastETag = "def"
+	if err := SaveState(path, want); err != nil {
+		t.Fatalf("second SaveState over existing file failed: %v", err)
+	}
+	if LoadState(path).LastETag != "def" {
+		t.Error("second save did not take effect")
 	}
 
 	// Corrupt file -> empty state.

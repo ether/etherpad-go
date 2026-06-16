@@ -34,6 +34,24 @@ func TestMatchAsset(t *testing.T) {
 	}
 }
 
+func TestSignatureAssetSelectionPrefersVerifiable(t *testing.T) {
+	// .asc is listed first but is not ed25519-verifiable; selection must pick
+	// the .sig so a valid update is not failed by asset ordering.
+	assets := []ghAsset{
+		{Name: "checksums.txt"},
+		{Name: "checksums.txt.asc"},
+		{Name: "checksums.txt.sig"},
+	}
+	sig, ok := findMeta(assets, isEd25519SignatureAsset)
+	if !ok || sig.Name != "checksums.txt.sig" {
+		t.Errorf("expected to select .sig, got %+v ok=%v", sig, ok)
+	}
+	// .asc / .minisig are still excluded from binary asset selection.
+	if !isMetaAsset("checksums.txt.asc") || !isMetaAsset("x.minisig") {
+		t.Error("non-ed25519 signature artifacts must still be excluded from binary matching")
+	}
+}
+
 func TestParseChecksums(t *testing.T) {
 	content := "abc123  etherpad-go_linux_amd64\n" +
 		"DEF456 *etherpad-go_windows_amd64.exe\n" +

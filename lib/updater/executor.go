@@ -69,7 +69,10 @@ func (e *Executor) Apply(target ReleaseInfo) ExecResult {
 	}
 
 	if e.verifier.Require {
-		sigAsset, ok := findMeta(rel.Assets, isSignatureAsset)
+		// Only ".sig" (raw ed25519) is verifiable by SignatureVerifier. Do not
+		// select ".asc"/".minisig" here, or asset ordering could pick a format
+		// we cannot verify and fail an otherwise-valid update.
+		sigAsset, ok := findMeta(rel.Assets, isEd25519SignatureAsset)
 		if !ok {
 			return execFail("no-signature-asset")
 		}
@@ -171,8 +174,16 @@ func isChecksumsAsset(name string) bool {
 	return strings.Contains(name, "checksums") || strings.HasSuffix(name, ".sha256")
 }
 
+// isSignatureAsset matches any signature artifact, used to exclude such files
+// from binary asset selection.
 func isSignatureAsset(name string) bool {
 	return strings.HasSuffix(name, ".sig") || strings.HasSuffix(name, ".minisig") || strings.HasSuffix(name, ".asc")
+}
+
+// isEd25519SignatureAsset matches only the signature format SignatureVerifier
+// can actually check (raw ed25519 over the checksums file, ".sig").
+func isEd25519SignatureAsset(name string) bool {
+	return strings.HasSuffix(name, ".sig")
 }
 
 func isMetaAsset(name string) bool {
