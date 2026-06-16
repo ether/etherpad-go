@@ -192,6 +192,23 @@ var Registry = []ConfigKey{
 		Default:     1 * 24 * 60 * 60 * 1000,
 		Description: "Cookie session refresh interval",
 	},
+
+	// ---------------------------------------------------------------------
+	// Self-update (lib/updater)
+	// ---------------------------------------------------------------------
+	{Key: UpdatesTier, Default: "notify", Description: "Update tier: off|notify|manual|auto|autonomous"},
+	{Key: UpdatesGithubRepo, Default: "ether/etherpad-go", Description: "GitHub repo to poll for releases"},
+	{Key: UpdatesCheckIntervalHours, Default: 6, Description: "Hours between release checks"},
+	{Key: UpdatesInstallMethod, Default: "auto", Description: "Install method: auto|binary|docker|managed"},
+	{Key: UpdatesPreApplyGraceMinutes, Default: 0, Description: "Grace minutes before an auto-apply fires"},
+	{Key: UpdatesDrainSeconds, Default: 60, Description: "Seconds to drain connections before swapping the binary"},
+	{Key: UpdatesRollbackHealthCheckSeconds, Default: 60, Description: "Seconds to wait for a healthy boot before rolling back"},
+	{Key: UpdatesRequireSignature, Default: false, Description: "Require ed25519 verification of the release checksums file"},
+	{Key: UpdatesTrustedPublicKey, Default: "", Description: "Base64 ed25519 public key for checksums verification"},
+	{Key: UpdatesStateFile, Default: "var/update-state.json", Description: "Path to the persisted update state file"},
+	{Key: UpdatesMaintenanceWindowStart, Default: "", Description: "Autonomous maintenance window start (HH:MM)"},
+	{Key: UpdatesMaintenanceWindowEnd, Default: "", Description: "Autonomous maintenance window end (HH:MM)"},
+	{Key: UpdatesMaintenanceWindowTz, Default: "local", Description: "Maintenance window timezone: local|utc"},
 	{Key: RequireAuthentication, Default: false, Description: "Require authentication"},
 	{Key: RequireAuthorization, Default: false, Description: "Require authorization"},
 	{Key: SsoIssuer, Default: "http://localhost:3000", Description: "SSO issuer"},

@@ -856,7 +856,7 @@ func (test *TestDBHandler) TestRun(
 		app := fiber.New()
 		adminMessageHandler := ws.NewAdminMessageHandler(
 			ds, &hooks, padManager, padMessageHandler, loggerPart, hub,
-			app,
+			app, nil,
 		)
 		validatorEvaluator := validator.New(validator.WithRequiredStructEnabled())
 
