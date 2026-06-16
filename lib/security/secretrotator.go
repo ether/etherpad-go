@@ -11,11 +11,13 @@
 package security
 
 import (
+	"bytes"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"strconv"
 	"sync"
@@ -96,6 +98,9 @@ func (h hkdfAlgorithm) derive(algParams json.RawMessage, info string) ([]byte, e
 	if err := json.Unmarshal(algParams, &p); err != nil {
 		return nil, err
 	}
+	if p.KeyLen <= 0 || p.KeyLen > 1024 {
+		return nil, fmt.Errorf("invalid hkdf keyLen %d", p.KeyLen)
+	}
 	// secret/salt are hex strings; their literal bytes are used as IKM and salt.
 	// Internal consistency is all that matters (Go-only deployment), so the
 	// exact byte interpretation need not match Node's crypto.hkdf.
@@ -175,13 +180,23 @@ func (r *SecretRotator) Secrets() [][]byte {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	out := make([][]byte, len(r.secrets))
-	copy(out, r.secrets)
+	for i, s := range r.secrets {
+		// Deep-copy each secret so callers cannot mutate the rotator's internal
+		// signing/verification material.
+		out[i] = bytes.Clone(s)
+	}
 	return out
 }
 
 // Start performs the first update synchronously (so Secrets is populated before
 // use) and schedules subsequent rotations.
 func (r *SecretRotator) Start() error {
+	if r.interval <= 0 {
+		return fmt.Errorf("secret rotator interval must be positive, got %d ms", r.interval)
+	}
+	if r.lifetime < 0 {
+		return fmt.Errorf("secret rotator lifetime must not be negative, got %d ms", r.lifetime)
+	}
 	return r.update()
 }
 
@@ -289,6 +304,19 @@ func (r *SecretRotator) update() error {
 		if err := json.Unmarshal([]byte(payload), &p); err != nil {
 			if r.logger != nil {
 				r.logger.Warnf("secret-rotation %s: dropping unparseable params %s: %v", r.prefix, id, err)
+			}
+			continue
+		}
+		// Defend against corrupted/tampered rows: an out-of-range algId would
+		// index past `algorithms`, and a non-positive interval would divide by
+		// zero in intervalStart(). Skip such rows so a bad row can never crash a
+		// scheduled rotation.
+		if !validParams(p) {
+			if r.logger != nil {
+				r.logger.Warnf("secret-rotation %s: dropping invalid params %s (algId=%d)", r.prefix, id, p.AlgID)
+			}
+			if err := r.store.DeleteSecretParams(id); err != nil && r.logger != nil {
+				r.logger.Warnf("secret-rotation %s: failed to remove invalid params %s: %v", r.prefix, id, err)
 			}
 			continue
 		}
@@ -412,6 +440,22 @@ func (r *SecretRotator) update() error {
 		r.onRotate()
 	}
 	return nil
+}
+
+// validParams reports whether a persisted parameter set is safe to use. It
+// guards the two values consumed without further checks downstream: AlgID
+// (indexes the algorithms slice) and Interval (used as a modulo divisor).
+func validParams(p secretParams) bool {
+	if p.AlgID < 0 || p.AlgID >= len(algorithms) {
+		return false
+	}
+	if p.Interval != nil && *p.Interval <= 0 {
+		return false
+	}
+	if p.Lifetime < 0 {
+		return false
+	}
+	return true
 }
 
 // legacyCovered reports whether an existing legacy params set already covers the

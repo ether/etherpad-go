@@ -187,6 +187,65 @@ func TestSecretRotator_RemovesExpiredParams(t *testing.T) {
 	}
 }
 
+func TestSecretRotator_SkipsInvalidParams(t *testing.T) {
+	store := newFakeStore()
+	now := int64(0)
+	r := newTestRotator(store, time.Hour, time.Hour, &now)
+
+	// A row with an out-of-range algId and one with interval=0 would otherwise
+	// panic (slice index / divide-by-zero). They must be skipped and removed.
+	badAlg := `{"algId":99,"algParams":{},"start":0,"end":1,"interval":3600000,"lifetime":3600000}`
+	zeroIv := `{"algId":1,"algParams":{"digest":"sha256","keyLen":32,"salt":"00","secret":"00"},"start":0,"end":1,"interval":0,"lifetime":3600000}`
+	if err := store.SaveSecretParams("bad-alg", "test", badAlg); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SaveSecretParams("zero-iv", "test", zeroIv); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := r.update(); err != nil {
+		t.Fatalf("update must not fail on invalid rows: %v", err)
+	}
+	if _, ok := store.data["bad-alg"]; ok {
+		t.Error("invalid algId row was not removed")
+	}
+	if _, ok := store.data["zero-iv"]; ok {
+		t.Error("zero-interval row was not removed")
+	}
+	// A fresh valid current secret must still have been generated.
+	if len(r.Secrets()) == 0 {
+		t.Error("expected a valid current secret despite invalid rows")
+	}
+}
+
+func TestSecretRotator_SecretsAreDeepCopied(t *testing.T) {
+	store := newFakeStore()
+	now := int64(0)
+	r := newTestRotator(store, time.Hour, time.Hour, &now)
+	if err := r.update(); err != nil {
+		t.Fatal(err)
+	}
+
+	snap := r.Secrets()
+	if len(snap) == 0 || len(snap[0]) == 0 {
+		t.Fatal("expected a non-empty active secret")
+	}
+	// Mutating the returned slice must not affect the rotator's internal secret.
+	snap[0][0] ^= 0xFF
+	if bytes.Equal(snap[0], r.Secrets()[0]) {
+		t.Error("Secrets() returned an aliased slice; caller mutation leaked into rotator state")
+	}
+}
+
+func TestSecretRotator_StartRejectsBadInterval(t *testing.T) {
+	store := newFakeStore()
+	r := NewSecretRotator(store, "test", 0, time.Hour, nil, nil)
+	r.stopped = true
+	if err := r.Start(); err == nil {
+		t.Error("Start should reject a non-positive interval")
+	}
+}
+
 func TestSecretRotator_LegacyStaticSecretIncluded(t *testing.T) {
 	store := newFakeStore()
 	now := int64(0)
