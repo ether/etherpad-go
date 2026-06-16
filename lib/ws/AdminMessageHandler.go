@@ -19,6 +19,7 @@ import (
 	"github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/plugins"
 	"github.com/ether/etherpad-go/lib/settings"
+	"github.com/ether/etherpad-go/lib/updater"
 	libutils "github.com/ether/etherpad-go/lib/utils"
 	"github.com/gofiber/fiber/v3"
 	"go.uber.org/zap"
@@ -32,9 +33,10 @@ type AdminMessageHandler struct {
 	padMessageHandler *PadMessageHandler
 	Logger            *zap.SugaredLogger
 	App               *fiber.App
+	updater           *updater.Updater
 }
 
-func NewAdminMessageHandler(store db.DataStore, h *hooks.Hook, m *pad.Manager, padMessHandler *PadMessageHandler, logger *zap.SugaredLogger, hub *Hub, app *fiber.App) AdminMessageHandler {
+func NewAdminMessageHandler(store db.DataStore, h *hooks.Hook, m *pad.Manager, padMessHandler *PadMessageHandler, logger *zap.SugaredLogger, hub *Hub, app *fiber.App, upd *updater.Updater) AdminMessageHandler {
 	return AdminMessageHandler{
 		store:             store,
 		hook:              h,
@@ -43,6 +45,7 @@ func NewAdminMessageHandler(store db.DataStore, h *hooks.Hook, m *pad.Manager, p
 		Logger:            logger,
 		hub:               hub,
 		App:               app,
+		updater:           upd,
 	}
 }
 
@@ -63,24 +66,36 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 		}
 	case "checkUpdates":
 		{
-			latestVersion, err := h.store.GetServerVersion()
-			if err != nil {
-				h.Logger.Errorf("Error getting server version from database: %s", err.Error())
-				return
-			}
-
-			if latestVersion == nil {
-				h.Logger.Errorf("No server version found in database")
-				return
-			}
-
-			currentVersion := retrievedSettings.GitVersion
-			updateAvailable := libutils.IsUpdateAvailable(currentVersion, latestVersion.Version)
-
-			result := admin.UpdateCheckResult{
-				CurrentVersion:  currentVersion,
-				LatestVersion:   latestVersion.Version,
-				UpdateAvailable: updateAvailable,
+			var result admin.UpdateCheckResult
+			if h.updater != nil {
+				status := h.updater.CheckNowSync()
+				latestVersion := status.CurrentVersion
+				if status.Latest != nil {
+					latestVersion = status.Latest.Version
+				}
+				result = admin.UpdateCheckResult{
+					CurrentVersion:  status.CurrentVersion,
+					LatestVersion:   latestVersion,
+					UpdateAvailable: status.UpdateAvailable,
+				}
+			} else {
+				// Fallback for contexts without a wired updater (tests, updater
+				// disabled): report against the persisted server version.
+				latestVersion, err := h.store.GetServerVersion()
+				if err != nil {
+					h.Logger.Errorf("Error getting server version from database: %s", err.Error())
+					return
+				}
+				if latestVersion == nil {
+					h.Logger.Errorf("No server version found in database")
+					return
+				}
+				currentVersion := retrievedSettings.GitVersion
+				result = admin.UpdateCheckResult{
+					CurrentVersion:  currentVersion,
+					LatestVersion:   latestVersion.Version,
+					UpdateAvailable: libutils.IsUpdateAvailable(currentVersion, latestVersion.Version),
+				}
 			}
 
 			resp := make([]interface{}, 2)
@@ -93,6 +108,26 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 				return
 			}
 			c.SafeSend(responseBytes)
+		}
+	case "applyUpdate":
+		{
+			if h.updater == nil {
+				h.Logger.Error("Updater not available")
+				return
+			}
+			resp := make([]interface{}, 2)
+			resp[0] = "results:applyUpdate"
+			if err := h.updater.ApplyNow(); err != nil {
+				h.Logger.Warnf("Manual update apply rejected: %s", err.Error())
+				resp[1] = map[string]any{"ok": false, "error": err.Error()}
+			} else {
+				// On success the process applies the binary and exits 75 to
+				// restart; this acknowledgement may not reach the client.
+				resp[1] = map[string]any{"ok": true}
+			}
+			if responseBytes, err := json.Marshal(resp); err == nil {
+				c.SafeSend(responseBytes)
+			}
 		}
 	case "createPad":
 		{
