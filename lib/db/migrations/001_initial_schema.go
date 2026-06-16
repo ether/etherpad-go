@@ -12,6 +12,7 @@ func GetMigrations() []Migration {
 		migration003OIDCStorage(),
 		migration004OAuthTokens(),
 		migration005LargeTextColumns(),
+		migration006SecretRotation(),
 	}
 }
 

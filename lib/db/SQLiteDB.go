@@ -1129,6 +1129,62 @@ func (d SQLiteDB) DeleteOIDCStorageValue(key string) error {
 	return err
 }
 
+// ============== SECRET ROTATION TABLE METHODS ==============
+
+func (d SQLiteDB) SaveSecretParams(id string, prefix string, payload string) error {
+	resultedSQL, args, err := sq.
+		Insert("secret_rotation").
+		Columns("id", "prefix", "payload").
+		Values(id, prefix, payload).
+		Suffix(`ON CONFLICT(id) DO UPDATE SET
+			prefix = excluded.prefix,
+			payload = excluded.payload,
+			updated_at = CURRENT_TIMESTAMP`).
+		ToSql()
+	if err != nil {
+		return err
+	}
+	_, err = d.sqlDB.Exec(resultedSQL, args...)
+	return err
+}
+
+func (d SQLiteDB) ListSecretParams(prefix string) (map[string]string, error) {
+	resultedSQL, args, err := sq.
+		Select("id", "payload").
+		From("secret_rotation").
+		Where(sq.Eq{"prefix": prefix}).
+		ToSql()
+	if err != nil {
+		return nil, err
+	}
+	rows, err := d.sqlDB.Query(resultedSQL, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := make(map[string]string)
+	for rows.Next() {
+		var id, payload string
+		if err := rows.Scan(&id, &payload); err != nil {
+			return nil, err
+		}
+		result[id] = payload
+	}
+	return result, rows.Err()
+}
+
+func (d SQLiteDB) DeleteSecretParams(id string) error {
+	resultedSQL, args, err := sq.
+		Delete("secret_rotation").
+		Where(sq.Eq{"id": id}).
+		ToSql()
+	if err != nil {
+		return err
+	}
+	_, err = d.sqlDB.Exec(resultedSQL, args...)
+	return err
+}
+
 // ============== OAUTH TOKEN TABLE METHODS ==============
 
 // Access tokens

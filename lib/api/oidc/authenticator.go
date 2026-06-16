@@ -11,12 +11,14 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"sync"
 	"time"
 
 	"github.com/ether/etherpad-go/assets/login"
 	"github.com/ether/etherpad-go/lib/api/constants"
 	db "github.com/ether/etherpad-go/lib/db"
 	"github.com/ether/etherpad-go/lib/models/oidc"
+	"github.com/ether/etherpad-go/lib/security"
 	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/ory/fosite"
 	"github.com/ory/fosite/compose"
@@ -27,10 +29,14 @@ import (
 )
 
 type Authenticator struct {
+	// provider is rebuilt whenever the SecretRotator rotates the global HMAC
+	// secret, so it is guarded by mu. Read it via currentProvider().
+	mu                sync.RWMutex
 	provider          fosite.OAuth2Provider
 	store             *MemoryStore
 	privateKey        *rsa.PrivateKey
 	retrievedSettings *settings.Settings
+	rotator           *security.SecretRotator
 }
 
 func NewAuthenticator(retrievedSettings *settings.Settings, persistence db.DataStore) *Authenticator {
@@ -79,11 +85,6 @@ func NewAuthenticator(retrievedSettings *settings.Settings, persistence db.DataS
 		}
 	}
 
-	secret := []byte("some-cool-secret-that-is-32bytes")
-	config := &fosite.Config{
-		AccessTokenLifespan: time.Minute * 30,
-		GlobalSecret:        secret,
-	}
 	privateKey, _ := rsa.GenerateKey(rand.Reader, 2048)
 	privateKey, err := loadOrCreatePrivateKey(persistence, privateKey)
 	if err != nil {
@@ -93,13 +94,74 @@ func NewAuthenticator(retrievedSettings *settings.Settings, persistence db.DataS
 		log.Fatalf("Error loading oidc store snapshot: %v", err)
 	}
 
-	var oauth2 = compose.ComposeAllEnabled(config, store, privateKey)
-
-	return &Authenticator{
-		provider:          oauth2,
+	a := &Authenticator{
 		store:             store,
 		privateKey:        privateKey,
 		retrievedSettings: retrievedSettings,
+	}
+
+	// The fosite GlobalSecret (used to HMAC short-lived artifacts such as
+	// authorize codes) was previously hard-coded. It is now a randomly
+	// generated, database-persisted secret that rotates on the configured
+	// cookie key-rotation interval. Old secrets remain valid for verification
+	// for the session lifetime so in-flight artifacts keep working across a
+	// rotation. See lib/security/secretrotator.go.
+	interval := time.Duration(retrievedSettings.Cookie.KeyRotationInterval) * time.Millisecond
+	if interval <= 0 {
+		interval = 24 * time.Hour
+	}
+	lifetime := time.Duration(retrievedSettings.Cookie.SessionLifetime) * time.Millisecond
+	if lifetime <= 0 {
+		lifetime = interval
+	}
+	a.rotator = security.NewSecretRotator(persistence, "oidc_global_secret", interval, lifetime, nil, nil)
+	a.rotator.OnRotate(a.rebuildProvider)
+	if err := a.rotator.Start(); err != nil {
+		log.Fatalf("Error starting oidc secret rotator: %v", err)
+	}
+	// Start triggers the first update which fires OnRotate -> rebuildProvider,
+	// but guard against an empty provider just in case.
+	if a.currentProvider() == nil {
+		a.rebuildProvider()
+	}
+	return a
+}
+
+// rebuildProvider composes a fresh OAuth2 provider using the rotator's current
+// secrets. A brand-new fosite.Config is built each time (never mutated in
+// place) so that requests holding an older provider keep reading a consistent
+// secret. Invoked on startup and on every rotation.
+func (a *Authenticator) rebuildProvider() {
+	secrets := a.rotator.Secrets()
+	var global []byte
+	var rotated [][]byte
+	if len(secrets) > 0 {
+		global = secrets[0]
+		rotated = secrets[1:]
+	}
+	cfg := &fosite.Config{
+		AccessTokenLifespan:  time.Minute * 30,
+		GlobalSecret:         global,
+		RotatedGlobalSecrets: rotated,
+	}
+	prov := compose.ComposeAllEnabled(cfg, a.store, a.privateKey)
+	a.mu.Lock()
+	a.provider = prov
+	a.mu.Unlock()
+}
+
+// currentProvider returns the active OAuth2 provider. Capture it once per
+// request so a concurrent rotation cannot swap the provider mid-handler.
+func (a *Authenticator) currentProvider() fosite.OAuth2Provider {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.provider
+}
+
+// Stop halts the background secret rotation. Call during server shutdown.
+func (a *Authenticator) Stop() {
+	if a.rotator != nil {
+		a.rotator.Stop()
 	}
 }
 
@@ -179,26 +241,28 @@ func (a *Authenticator) JwksEndpoint(rw http.ResponseWriter, req *http.Request) 
 
 func (a *Authenticator) IntrospectionEndpoint(rw http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
+	provider := a.currentProvider()
 	mySessionData := a.newSession(nil, "")
-	ir, err := a.provider.NewIntrospectionRequest(ctx, req, mySessionData)
+	ir, err := provider.NewIntrospectionRequest(ctx, req, mySessionData)
 	if err != nil {
 		log.Printf("Error occurred in NewIntrospectionRequest: %+v", err)
-		a.provider.WriteIntrospectionError(ctx, rw, err)
+		provider.WriteIntrospectionError(ctx, rw, err)
 		return
 	}
-	a.provider.WriteIntrospectionResponse(ctx, rw, ir)
+	provider.WriteIntrospectionResponse(ctx, rw, ir)
 }
 
 func (a *Authenticator) TokenEndpoint(rw http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
+	provider := a.currentProvider()
 	clientId := req.Form.Get("client_id")
 
 	mySessionData := a.newSession(nil, clientId)
 
-	accessRequest, err := a.provider.NewAccessRequest(ctx, req, mySessionData)
+	accessRequest, err := provider.NewAccessRequest(ctx, req, mySessionData)
 	if err != nil {
 		log.Printf("Error occurred in NewAccessRequest: %+v", err)
-		a.provider.WriteAccessError(ctx, rw, accessRequest, err)
+		provider.WriteAccessError(ctx, rw, accessRequest, err)
 		return
 	}
 
@@ -208,25 +272,26 @@ func (a *Authenticator) TokenEndpoint(rw http.ResponseWriter, req *http.Request)
 		}
 	}
 
-	response, err := a.provider.NewAccessResponse(ctx, accessRequest)
+	response, err := provider.NewAccessResponse(ctx, accessRequest)
 	if err != nil {
 		log.Printf("Error occurred in NewAccessResponse: %+v", err)
-		a.provider.WriteAccessError(ctx, rw, accessRequest, err)
+		provider.WriteAccessError(ctx, rw, accessRequest, err)
 		return
 	}
 
-	a.provider.WriteAccessResponse(ctx, rw, accessRequest, response)
+	provider.WriteAccessResponse(ctx, rw, accessRequest, response)
 }
 
 func (a *Authenticator) RevokeEndpoint(rw http.ResponseWriter, req *http.Request) {
 	// This context will be passed to all methods.
 	ctx := req.Context()
+	provider := a.currentProvider()
 
 	// This will accept the token revocation request and validate various parameters.
-	err := a.provider.NewRevocationRequest(ctx, req)
+	err := provider.NewRevocationRequest(ctx, req)
 
 	// All done, send the response.
-	a.provider.WriteRevocationResponse(ctx, rw, err)
+	provider.WriteRevocationResponse(ctx, rw, err)
 }
 
 func (a *Authenticator) OicWellKnown(rw http.ResponseWriter, req *http.Request, retrievedSettings *settings.Settings) {
@@ -320,12 +385,13 @@ func renderLoginPage(rw http.ResponseWriter, req *http.Request, clients []settin
 
 func (a *Authenticator) AuthEndpoint(rw http.ResponseWriter, req *http.Request, setupLogger *zap.SugaredLogger, retrievedSettings *settings.Settings) {
 	ctx := req.Context()
+	provider := a.currentProvider()
 	req.ParseForm()
 
-	ar, err := a.provider.NewAuthorizeRequest(ctx, req)
+	ar, err := provider.NewAuthorizeRequest(ctx, req)
 	if err != nil {
 		setupLogger.Error("Error occurred in NewAuthorizeRequest: ", err)
-		a.provider.WriteAuthorizeError(ctx, rw, ar, err)
+		provider.WriteAuthorizeError(ctx, rw, ar, err)
 		return
 	}
 	hydrateAuthorizeRequestForm(req, ar)
@@ -352,13 +418,13 @@ func (a *Authenticator) AuthEndpoint(rw http.ResponseWriter, req *http.Request, 
 	}
 
 	mySessionData := a.newSession(&user, clientId)
-	response, err := a.provider.NewAuthorizeResponse(ctx, ar, mySessionData)
+	response, err := provider.NewAuthorizeResponse(ctx, ar, mySessionData)
 	if err != nil {
 		log.Printf("Error occurred in NewAuthorizeResponse: %+v", err)
-		a.provider.WriteAuthorizeError(ctx, rw, ar, err)
+		provider.WriteAuthorizeError(ctx, rw, ar, err)
 		return
 	}
-	a.provider.WriteAuthorizeResponse(ctx, rw, ar, response)
+	provider.WriteAuthorizeResponse(ctx, rw, ar, response)
 }
 
 func (a *Authenticator) newSession(user *MemoryUserRelation, clientId string) *openid.DefaultSession {
