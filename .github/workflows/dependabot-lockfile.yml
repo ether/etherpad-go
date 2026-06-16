@@ -1,0 +1,43 @@
+name: dependabot-lockfile
+
+# Dependabot uses an internally bundled pnpm (<= 9.4.0) that can't regenerate
+# this repo's lockfileVersion 9.0 pnpm-lock.yaml, so it bumps the manifest but
+# leaves the lockfile stale -> ci fails with ERR_PNPM_OUTDATED_LOCKFILE. This
+# workflow re-syncs the lockfile on Dependabot PRs and commits it back.
+#
+# Note: the push uses the default GITHUB_TOKEN, which does NOT trigger a new ci
+# run (GitHub's anti-recursion rule). After this commit lands, re-run the ci
+# checks manually (or close/reopen the PR) to validate the synced lockfile.
+on:
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  fix-lockfile:
+    if: github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.head_ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - name: Install pnpm
+        run: npm install -g pnpm@latest
+      - name: Sync lockfile
+        run: pnpm install --lockfile-only --no-frozen-lockfile
+      - name: Commit updated lockfile
+        run: |
+          if ! git diff --quiet pnpm-lock.yaml; then
+            git config user.name 'github-actions'
+            git config user.email 'noreply@github.com'
+            git add pnpm-lock.yaml
+            git commit -m "chore: sync pnpm-lock.yaml for dependabot bump"
+            git push
+          fi
