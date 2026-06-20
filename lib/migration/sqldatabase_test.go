@@ -12,6 +12,7 @@ import (
 	"time"
 
 	mysql2 "github.com/go-sql-driver/mysql"
+	"github.com/moby/moby/api/types/network"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
@@ -175,10 +176,10 @@ func setupPostgresContainer(t *testing.T) *TestContainerConfig {
 			ctx, "postgres:alpine",
 			testcontainers.WithExposedPorts("5432/tcp"),
 			testcontainers.WithWaitStrategy(
-				wait.ForSQL("5432/tcp", "pgx", func(host string, port string) string {
+				wait.ForSQL("5432/tcp", "pgx", func(host string, port network.Port) string {
 					return fmt.Sprintf(
 						"postgres://%s:%s@%s:%s/%s?sslmode=disable",
-						testDbUser, testDbPass, host, normalizeContainerPort(port), testDbName,
+						testDbUser, testDbPass, host, normalizeContainerPort(port.Port()), testDbName,
 					)
 				}).WithStartupTimeout(30*time.Second).WithQuery("SELECT 1"),
 			),
