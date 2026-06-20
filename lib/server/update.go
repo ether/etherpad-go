@@ -66,10 +66,15 @@ func buildUpdaterConfig(s *settings.Settings, currentVersion string) updater.Con
 	}
 }
 
-// StartUpdater builds, starts and returns the self-update orchestrator.
-func StartUpdater(logger *zap.SugaredLogger, s *settings.Settings, currentVersion string) *updater.Updater {
+// StartUpdater builds, starts and returns the self-update orchestrator. The
+// broadcast callback (may be nil) is invoked with the seconds remaining at each
+// drain announcement so connected clients can be warned of the restart.
+func StartUpdater(logger *zap.SugaredLogger, s *settings.Settings, currentVersion string, broadcast func(secsLeft int)) *updater.Updater {
 	upd := updater.New(buildUpdaterConfig(s, currentVersion), logger, func(secsLeft int) {
 		logger.Warnf("updater: %d seconds until restart for update", secsLeft)
+		if broadcast != nil {
+			broadcast(secsLeft)
+		}
 	})
 	upd.Start()
 	return upd

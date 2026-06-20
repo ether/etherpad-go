@@ -7,6 +7,9 @@ export function useAdminActions() {
   return useMemo(() => ({
     loadSettings: () => emit('load'),
     checkUpdates: () => emit('checkUpdates'),
+    getUpdateStatus: () => emit('getUpdateStatus'),
+    applyUpdate: () => emit('applyUpdate'),
+    acknowledgeUpdate: () => emit('acknowledgeUpdate'),
     getInstalled: () => emit('getInstalled'),
     getStats: () => emit('getStats'),
     requestPads: (opts: {
@@ -30,6 +33,7 @@ export function useAdminActions() {
     bulkDeletePads: (padNames: string[]) => emit('bulkDeletePads', { padNames }),
     refreshAll: () => {
       emit('checkUpdates')
+      emit('getUpdateStatus')
       emit('getInstalled')
       emit('getStats')
     },

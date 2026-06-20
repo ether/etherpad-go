@@ -91,6 +91,29 @@ func TestCheckPendingVerificationCrashLoopRollsBack(t *testing.T) {
 	}
 }
 
+func TestAcknowledge(t *testing.T) {
+	u, _ := newTestUpdater(t, filepath.Join(t.TempDir(), "etherpad"))
+
+	// Nothing to acknowledge when not in rollback-failed.
+	u.state = EmptyState()
+	if err := u.Acknowledge(); err == nil {
+		t.Error("Acknowledge should error when not rollback-failed")
+	}
+
+	// Clears the terminal state back to idle.
+	u.state.Execution = Execution{Status: StatusRollbackFailed, TargetTag: "v2.0.0", Reason: "boom"}
+	u.state.BootCount = 5
+	if err := u.Acknowledge(); err != nil {
+		t.Fatalf("Acknowledge should succeed on rollback-failed: %v", err)
+	}
+	if u.state.Execution.Status != StatusIdle {
+		t.Errorf("expected idle after acknowledge, got %q", u.state.Execution.Status)
+	}
+	if u.state.BootCount != 0 {
+		t.Errorf("bootCount should reset, got %d", u.state.BootCount)
+	}
+}
+
 func TestCheckPendingVerificationArmsHealthTimer(t *testing.T) {
 	u, _ := newTestUpdater(t, filepath.Join(t.TempDir(), "etherpad"))
 	u.state = EmptyState()

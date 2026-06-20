@@ -64,8 +64,6 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 		return
 	}
 
-	upd := StartUpdater(setupLogger, &settings, gitVersion)
-
 	readOnlyManager := pad.NewReadOnlyManager(dataStore)
 
 	app := fiber.New(fiber.Config{})
@@ -81,6 +79,11 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 	authorManager := author.NewManager(dataStore)
 	importer := io.NewImporter(padManager, authorManager, dataStore, setupLogger, &retrievedHooks)
 	globalHub := ws.NewHub()
+	// Started after the hub so a drain can warn connected clients of the
+	// imminent restart via a sticky shout.
+	upd := StartUpdater(setupLogger, &settings, gitVersion, func(secsLeft int) {
+		globalHub.BroadcastShout(fmt.Sprintf("This server is updating and will restart in %d seconds. Your changes are saved.", secsLeft), true)
+	})
 	sessionStore := ws.NewSessionStore()
 	padMessageHandler := ws.NewPadMessageHandler(dataStore, &retrievedHooks, padManager, &sessionStore, globalHub, setupLogger, uiAssets)
 	adminMessageHandler := ws.NewAdminMessageHandler(dataStore, &retrievedHooks, padManager, padMessageHandler, setupLogger, globalHub, app, upd)
