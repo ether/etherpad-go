@@ -84,6 +84,23 @@
     "sessionRefreshInterval": 86400000,
     "sessionCleanup": true
   },
+  "updates": {
+    "tier": "notify",
+    "githubRepo": "ether/etherpad-go",
+    "checkIntervalHours": 6,
+    "installMethod": "auto",
+    "preApplyGraceMinutes": 0,
+    "drainSeconds": 60,
+    "rollbackHealthCheckSeconds": 60,
+    "requireSignature": false,
+    "trustedPublicKey": "",
+    "stateFile": "var/update-state.json",
+    "maintenanceWindow": {
+      "start": "",
+      "end": "",
+      "tz": "local"
+    }
+  },
   "disableIPlogging": false,
   "automaticReconnectionTimeout": 0,
   "scrollWhenFocusLineIsOutOfViewport": {

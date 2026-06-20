@@ -1,6 +1,12 @@
 package ws
 
-import "sync"
+import (
+	"encoding/json"
+	"sync"
+	"time"
+
+	"github.com/ether/etherpad-go/lib/models/ws/admin"
+)
 
 // Hub maintains the set of active Clients and broadcasts messages to the
 // Clients.
@@ -25,6 +31,29 @@ func NewHub() *Hub {
 		Register:   make(chan *Client),
 		Unregister: make(chan *Client),
 		Clients:    make(map[*Client]bool),
+	}
+}
+
+// BroadcastShout sends a sticky/non-sticky notice to every connected client
+// using the same COLLABROOM/result:shout envelope the admin "shout" command
+// uses. Used by the updater to announce an imminent restart during draining.
+func (h *Hub) BroadcastShout(message string, sticky bool) {
+	resp := admin.ShoutMessageResponse{Type: "COLLABROOM"}
+	resp.Data.Type = "result:shout"
+	resp.Data.Payload = admin.ShoutMessage{
+		Timestamp: time.Now().UnixMilli(),
+		Message:   admin.ShoutMessageRequest{Message: message, Sticky: sticky},
+	}
+	payload, err := json.Marshal([]any{"result:shout", resp})
+	if err != nil {
+		return
+	}
+	h.ClientsRWMutex.RLock()
+	defer h.ClientsRWMutex.RUnlock()
+	for client := range h.Clients {
+		if client != nil {
+			client.SafeSend(payload)
+		}
 	}
 }
 

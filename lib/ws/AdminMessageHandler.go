@@ -129,6 +129,36 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 				c.SafeSend(responseBytes)
 			}
 		}
+	case "getUpdateStatus":
+		{
+			if h.updater == nil {
+				h.Logger.Error("Updater not available")
+				return
+			}
+			resp := make([]interface{}, 2)
+			resp[0] = "results:updateStatus"
+			resp[1] = h.updater.Status()
+			if responseBytes, err := json.Marshal(resp); err == nil {
+				c.SafeSend(responseBytes)
+			}
+		}
+	case "acknowledgeUpdate":
+		{
+			if h.updater == nil {
+				h.Logger.Error("Updater not available")
+				return
+			}
+			resp := make([]interface{}, 2)
+			resp[0] = "results:acknowledgeUpdate"
+			if err := h.updater.Acknowledge(); err != nil {
+				resp[1] = map[string]any{"ok": false, "error": err.Error()}
+			} else {
+				resp[1] = map[string]any{"ok": true}
+			}
+			if responseBytes, err := json.Marshal(resp); err == nil {
+				c.SafeSend(responseBytes)
+			}
+		}
 	case "createPad":
 		{
 			var padCreateData admin.PadCreateData

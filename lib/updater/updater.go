@@ -465,6 +465,22 @@ func (u *Updater) ApplyNow() error {
 	return nil
 }
 
+// Acknowledge clears the terminal rollback-failed state so automatic applies
+// can resume once an admin has resolved the underlying problem. It returns an
+// error if there is nothing to acknowledge.
+func (u *Updater) Acknowledge() error {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	if u.state.Execution.Status != StatusRollbackFailed {
+		return errors.New("no rollback-failed state to acknowledge")
+	}
+	u.state.Execution = Execution{Status: StatusIdle}
+	u.state.BootCount = 0
+	u.saveLocked()
+	u.logger.Info("updater: rollback-failed state acknowledged; auto-apply re-enabled")
+	return nil
+}
+
 // Status is a snapshot for the admin UI.
 type Status struct {
 	Tier            Tier          `json:"tier"`
