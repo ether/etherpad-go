@@ -52,7 +52,7 @@ jobs:
           --health-retries 20
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Set up Go
@@ -151,7 +151,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Set up Go
@@ -213,7 +213,7 @@ jobs:
     runs-on: ${{ matrix.runs-on }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-tags: 'true'
           fetch-depth: '0'
@@ -281,7 +281,7 @@ jobs:
       - build
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-tags: 'true'
           fetch-depth: '0'
@@ -342,7 +342,7 @@ jobs:
 
       - name: Checkout ether-charts
         if: github.ref == 'refs/heads/main'
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           path: ether-charts
           repository: ether/ether-charts
@@ -374,7 +374,7 @@ jobs:
 
       - name: Checkout ether-charts (release)
         if: startsWith(github.ref, 'refs/tags/')
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           path: ether-charts
           repository: ether/ether-charts
@@ -418,7 +418,7 @@ jobs:
             suffix: windows-amd64.exe
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -462,7 +462,7 @@ jobs:
       - merge
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Download all binaries
         uses: actions/download-artifact@v8
