@@ -25,6 +25,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	mysql2 "github.com/go-sql-driver/mysql"
 	"github.com/gofiber/fiber/v3"
+	"github.com/moby/moby/api/types/network"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 	"go.uber.org/zap"
@@ -493,9 +494,9 @@ func PreparePostgresDB() (*TestContainerConfiguration, error) {
 			Image:        "postgres:alpine",
 			ExposedPorts: []string{"5432/tcp"},
 			Env:          env,
-			WaitingFor: wait.ForSQL("5432/tcp", "pgx", func(host string, port string) string {
+			WaitingFor: wait.ForSQL("5432/tcp", "pgx", func(host string, port network.Port) string {
 				return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",
-					DbUser, DbPass, host, normalizeContainerPort(port), DbName)
+					DbUser, DbPass, host, normalizeContainerPort(port.Port()), DbName)
 			}).WithStartupTimeout(time.Second * 60).WithQuery("SELECT 10"),
 		},
 		Started: true,
