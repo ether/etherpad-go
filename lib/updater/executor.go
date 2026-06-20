@@ -57,11 +57,12 @@ func (e *Executor) Apply(target ReleaseInfo) ExecResult {
 
 	dir := filepath.Dir(e.exePath)
 	tmpNew := filepath.Join(dir, ".ep-update-new")
+	// Clean up the temp file unless it gets renamed into place. Installed
+	// before the download so a partial/failed download cannot leak it.
+	defer os.Remove(tmpNew)
 	if err := e.downloadToFile(asset.BrowserDownloadURL, tmpNew); err != nil {
 		return execFail("download-failed")
 	}
-	// If we don't end up renaming tmpNew into place, clean it up.
-	defer os.Remove(tmpNew)
 
 	sums, err := e.downloadBytes(sumAsset.BrowserDownloadURL)
 	if err != nil {

@@ -3,6 +3,7 @@
 package updater
 
 import (
+	"errors"
 	"os"
 	"syscall"
 )
@@ -16,5 +17,9 @@ func processAlive(pid int) bool {
 	if err != nil {
 		return false
 	}
-	return proc.Signal(syscall.Signal(0)) == nil
+	err = proc.Signal(syscall.Signal(0))
+	// nil  -> the process exists and we may signal it.
+	// EPERM -> it exists but is owned by another user (still alive).
+	// ESRCH (and anything else) -> not running.
+	return err == nil || errors.Is(err, syscall.EPERM)
 }
