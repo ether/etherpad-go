@@ -471,6 +471,12 @@ jobs:
           pattern: binary-*
           merge-multiple: true
 
+      - name: Generate checksums
+        # The self-updater (lib/updater) requires a checksums asset to verify
+        # downloaded binaries (sha256). Filenames must match the release asset
+        # names; the updater keys on the basename.
+        run: cd binaries && sha256sum etherpad-go-* > checksums.txt
+
       - name: Create Release
         uses: softprops/action-gh-release@v3
         with:

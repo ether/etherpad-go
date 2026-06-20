@@ -4,9 +4,20 @@ import React from 'react'
 // ── Types ──────────────────────────────────────────────────────────────────
 
 export interface UpdateCheckResult {
-  version?: string
+  currentVersion?: string
   latestVersion?: string
-  needsUpdate?: boolean
+  updateAvailable?: boolean
+}
+
+export interface UpdateStatus {
+  tier?: string
+  installMethod?: string
+  currentVersion?: string
+  latest?: { version: string; tag: string; htmlUrl?: string } | null
+  updateAvailable?: boolean
+  execution?: { status: string; targetTag?: string; reason?: string }
+  lastResult?: { outcome: string; targetTag?: string; reason?: string; at?: string } | null
+  policy?: { canManual?: boolean; canAuto?: boolean; canAutonomous?: boolean; reason?: string }
 }
 
 export interface PadRecord {
@@ -36,6 +47,7 @@ export interface AdminState {
   loading: boolean
   toast: Toast | null
   update: UpdateCheckResult | null
+  updateStatus: UpdateStatus | null
   pads: PadRecord[]
   padsTotal: number
   padSearch: string
@@ -65,6 +77,7 @@ type Action =
   | { type: 'SET_CURRENT_PAGE'; payload: string }
   | { type: 'SET_SETTINGS'; payload: string }
   | { type: 'SET_UPDATE'; payload: UpdateCheckResult }
+  | { type: 'SET_UPDATE_STATUS'; payload: UpdateStatus }
   | { type: 'SET_PADS'; payload: { pads: PadRecord[]; total: number } }
   | { type: 'SET_PLUGINS'; payload: PluginRecord[] }
   | { type: 'SET_TOTAL_USERS'; payload: number }
@@ -90,6 +103,7 @@ const initialState: AdminState = {
   loading: false,
   toast: null,
   update: null,
+  updateStatus: null,
   pads: [],
   padsTotal: 0,
   padSearch: '',
@@ -126,6 +140,8 @@ function adminReducer(state: AdminState, action: Action): AdminState {
       return { ...state, settings: action.payload }
     case 'SET_UPDATE':
       return { ...state, update: action.payload }
+    case 'SET_UPDATE_STATUS':
+      return { ...state, updateStatus: action.payload }
     case 'SET_PADS':
       return { ...state, pads: action.payload.pads, padsTotal: action.payload.total }
     case 'SET_PLUGINS':
@@ -257,6 +273,26 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       case 'results:checkUpdates':
         dispatch({ type: 'SET_UPDATE', payload: payload as UpdateCheckResult })
         dispatch({ type: 'SET_LAST_UPDATED', payload: new Date() })
+        break
+      case 'results:updateStatus':
+        dispatch({ type: 'SET_UPDATE_STATUS', payload: payload as UpdateStatus })
+        dispatch({ type: 'SET_LAST_UPDATED', payload: new Date() })
+        break
+      case 'results:applyUpdate':
+        dispatch({
+          type: 'SET_TOAST',
+          payload: payload?.ok
+            ? { kind: 'info', message: 'Update started — the server will restart shortly.' }
+            : { kind: 'error', message: payload?.error ?? 'Failed to start update' },
+        })
+        break
+      case 'results:acknowledgeUpdate':
+        dispatch({
+          type: 'SET_TOAST',
+          payload: payload?.ok
+            ? { kind: 'success', message: 'Update state acknowledged.' }
+            : { kind: 'error', message: payload?.error ?? 'Failed to acknowledge' },
+        })
         break
       case 'results:padLoad':
         dispatch({

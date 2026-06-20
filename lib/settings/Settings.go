@@ -110,6 +110,40 @@ type Cookie struct {
 	SessionCleanup *bool `json:"sessionCleanup" mapstructure:"sessionCleanup"`
 }
 
+// Updates configures the self-update subsystem (lib/updater).
+type Updates struct {
+	// Tier: off | notify | manual | auto | autonomous.
+	Tier string `json:"tier" mapstructure:"tier"`
+	// GithubRepo to poll for releases, e.g. "ether/etherpad-go".
+	GithubRepo string `json:"githubRepo" mapstructure:"githubRepo"`
+	// CheckIntervalHours between release checks.
+	CheckIntervalHours int `json:"checkIntervalHours" mapstructure:"checkIntervalHours"`
+	// InstallMethod: auto | binary | docker | managed.
+	InstallMethod string `json:"installMethod" mapstructure:"installMethod"`
+	// PreApplyGraceMinutes between scheduling and applying an auto update.
+	PreApplyGraceMinutes int `json:"preApplyGraceMinutes" mapstructure:"preApplyGraceMinutes"`
+	// DrainSeconds to block new connections before swapping the binary.
+	DrainSeconds int `json:"drainSeconds" mapstructure:"drainSeconds"`
+	// RollbackHealthCheckSeconds to wait for a healthy boot before rolling back.
+	RollbackHealthCheckSeconds int `json:"rollbackHealthCheckSeconds" mapstructure:"rollbackHealthCheckSeconds"`
+	// RequireSignature enforces ed25519 verification of the checksums file.
+	RequireSignature bool `json:"requireSignature" mapstructure:"requireSignature"`
+	// TrustedPublicKey is the base64-encoded ed25519 public key used when
+	// RequireSignature is true.
+	TrustedPublicKey string `json:"trustedPublicKey" mapstructure:"trustedPublicKey"`
+	// StateFile path for the persisted update state.
+	StateFile string `json:"stateFile" mapstructure:"stateFile"`
+	// MaintenanceWindow restricts autonomous applies to a daily wall-clock window.
+	MaintenanceWindow MaintenanceWindowSettings `json:"maintenanceWindow" mapstructure:"maintenanceWindow"`
+}
+
+// MaintenanceWindowSettings is a daily wall-clock window ("HH:MM" start/end).
+type MaintenanceWindowSettings struct {
+	Start string `json:"start" mapstructure:"start"`
+	End   string `json:"end" mapstructure:"end"`
+	TZ    string `json:"tz" mapstructure:"tz"`
+}
+
 type SSOClient struct {
 	ClientId      string   `json:"client_id" mapstructure:"client_id"`
 	ClientSecret  *string  `json:"client_secret" mapstructure:"client_secret"`
@@ -222,6 +256,8 @@ type Settings struct {
 	TrustProxy bool `json:"trustProxy" mapstructure:"trustProxy"`
 
 	Cookie Cookie `json:"cookie" mapstructure:"cookie"`
+
+	Updates Updates `json:"updates" mapstructure:"updates"`
 
 	RequireAuthentication bool `json:"requireAuthentication" mapstructure:"requireAuthentication"`
 	RequireAuthorization  bool `json:"requireAuthorization" mapstructure:"requireAuthorization"`

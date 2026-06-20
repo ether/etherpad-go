@@ -1,91 +1,81 @@
 package server
 
 import (
-	"encoding/json"
-	"net/http"
+	"path/filepath"
+	"strings"
 	"time"
 
-	"github.com/ether/etherpad-go/lib/db"
-	"github.com/ether/etherpad-go/lib/utils"
+	"github.com/ether/etherpad-go/lib/settings"
+	"github.com/ether/etherpad-go/lib/updater"
 	"go.uber.org/zap"
 )
 
-type UpdateChecker struct {
-	httpClient *http.Client
-	logger     *zap.SugaredLogger
-	db         db.DataStore
-	apiURL     string
-}
+// buildUpdaterConfig resolves the updater configuration from settings, keeping
+// the updater package itself free of any settings dependency.
+func buildUpdaterConfig(s *settings.Settings, currentVersion string) updater.Config {
+	u := s.Updates
 
-func NewUpdateChecker(logger *zap.SugaredLogger, db db.DataStore) *UpdateChecker {
-	return &UpdateChecker{
-		httpClient: &http.Client{},
-		logger:     logger,
-		db:         db,
-		apiURL:     "https://api.github.com/repos/ether/etherpad-go/releases/latest",
+	tier := updater.Tier(strings.ToLower(strings.TrimSpace(u.Tier)))
+	if tier == "" {
+		tier = updater.TierNotify
 	}
-}
+	interval := time.Duration(u.CheckIntervalHours) * time.Hour
+	if interval <= 0 {
+		interval = 6 * time.Hour
+	}
+	install := updater.InstallMethod(strings.ToLower(strings.TrimSpace(u.InstallMethod)))
+	if install == "" {
+		install = updater.InstallAuto
+	}
+	repo := strings.TrimSpace(u.GithubRepo)
+	if repo == "" {
+		repo = "ether/etherpad-go"
+	}
+	statePath := strings.TrimSpace(u.StateFile)
+	if statePath == "" {
+		statePath = filepath.Join("var", "update-state.json")
+	}
+	health := u.RollbackHealthCheckSeconds
+	if health <= 0 {
+		health = 60
+	}
+	drain := max(u.DrainSeconds, 0)
 
-type GitHubRelease struct {
-	TagName string `json:"tag_name"`
-}
-
-func StartUpdateRoutine(logger *zap.SugaredLogger, db db.DataStore, currentVersion string) {
-	uc := NewUpdateChecker(logger, db)
-	go func() {
-		ticker := time.NewTicker(24 * time.Hour)
-		defer ticker.Stop()
-
-		serverVers, err := db.GetServerVersion()
-		if err != nil {
-			uc.logger.Warnf("Failed to get server version from database: %v", err)
+	var window *updater.MaintenanceWindow
+	windowConfigured := u.MaintenanceWindow.Start != "" || u.MaintenanceWindow.End != ""
+	if windowConfigured {
+		if w, ok := updater.ParseWindow(u.MaintenanceWindow.Start, u.MaintenanceWindow.End, strings.ToLower(strings.TrimSpace(u.MaintenanceWindow.TZ))); ok {
+			window = w
 		}
-
-		// Only check for updates if we haven't checked in the last 24 hours
-		if serverVers == nil || serverVers.UpdatedAt.Add(24*time.Hour).Before(time.Now()) {
-			uc.performUpdateCheck(currentVersion)
-		}
-
-		for range ticker.C {
-			uc.performUpdateCheck(currentVersion)
-		}
-	}()
-}
-
-func (uc *UpdateChecker) performUpdateCheck(currentVersion string) {
-	updateAvailable, err := uc.CheckForUpdates(currentVersion)
-	if err != nil {
-		uc.logger.Warnf("Failed to check for updates: %v", err)
-		return
 	}
 
-	if updateAvailable != nil && *updateAvailable {
-		uc.logger.Info("A new version of Etherpad Go is available! Please update to the latest version.")
-	}
-
-	if err := uc.db.SaveServerVersion(currentVersion); err != nil {
-		uc.logger.Warnf("Failed to persist current version to database: %v", err)
+	return updater.Config{
+		Tier:               tier,
+		Repo:               repo,
+		CurrentVersion:     currentVersion,
+		CheckInterval:      interval,
+		GraceMinutes:       u.PreApplyGraceMinutes,
+		DrainSeconds:       drain,
+		HealthCheckSeconds: health,
+		InstallMethod:      install,
+		Window:             window,
+		WindowConfigured:   windowConfigured,
+		Verifier:           updater.SignatureVerifier{Require: u.RequireSignature, PublicKey: u.TrustedPublicKey},
+		StatePath:          statePath,
+		LockPath:           statePath + ".lock",
 	}
 }
 
-func (uc *UpdateChecker) CheckForUpdates(currentVersion string) (*bool, error) {
-	resp, err := uc.httpClient.Get(uc.apiURL)
-	if err != nil {
-		return nil, err
-	}
-
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, nil
-	}
-
-	var release GitHubRelease
-	err = json.NewDecoder(resp.Body).Decode(&release)
-	if err != nil {
-		return nil, err
-	}
-
-	update := utils.IsUpdateAvailable(currentVersion, release.TagName)
-	return &update, nil
+// StartUpdater builds, starts and returns the self-update orchestrator. The
+// broadcast callback (may be nil) is invoked with the seconds remaining at each
+// drain announcement so connected clients can be warned of the restart.
+func StartUpdater(logger *zap.SugaredLogger, s *settings.Settings, currentVersion string, broadcast func(secsLeft int)) *updater.Updater {
+	upd := updater.New(buildUpdaterConfig(s, currentVersion), logger, func(secsLeft int) {
+		logger.Warnf("updater: %d seconds until restart for update", secsLeft)
+		if broadcast != nil {
+			broadcast(secsLeft)
+		}
+	})
+	upd.Start()
+	return upd
 }

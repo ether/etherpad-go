@@ -22,7 +22,24 @@ export function OverviewPage() {
   }, [])
 
   const activePluginCount = store.plugins.filter((p) => p.enabled).length
-  const versionValue = store.update?.version ?? 'n/a'
+  const versionValue = store.update?.currentVersion ?? store.updateStatus?.currentVersion ?? 'n/a'
+
+  const execStatus = store.updateStatus?.execution?.status
+  const updateBusy =
+    execStatus === 'scheduled' ||
+    execStatus === 'preflight' ||
+    execStatus === 'draining' ||
+    execStatus === 'executing' ||
+    execStatus === 'pending-verification' ||
+    execStatus === 'rolling-back'
+  const rollbackFailed = execStatus === 'rollback-failed'
+  const canApply = store.updateStatus?.policy?.canManual !== false
+
+  const handleApply = () => {
+    actions.applyUpdate()
+    // Reflect the new execution state shortly after triggering.
+    setTimeout(() => actions.getUpdateStatus(), 1500)
+  }
 
   return (
     <div className="mx-auto max-w-7xl p-6 lg:p-8">
@@ -35,10 +52,44 @@ export function OverviewPage() {
       </div>
 
       {/* Update banner */}
-      {store.update?.needsUpdate && (
-        <div className="mb-6 rounded-lg border border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-950 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
-          Update available: {store.update.version} &rarr;{' '}
-          {store.update.latestVersion}
+      {store.update?.updateAvailable && (
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-950 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
+          <span>
+            Update available: {store.update.currentVersion} &rarr;{' '}
+            {store.update.latestVersion}
+          </span>
+          {canApply && (
+            <button
+              type="button"
+              onClick={handleApply}
+              disabled={updateBusy}
+              className="rounded-lg border border-amber-400 dark:border-amber-500 px-3 py-1.5 text-xs font-medium text-amber-900 dark:text-amber-100 transition-colors hover:bg-amber-100 dark:hover:bg-amber-900 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {updateBusy ? 'Updating…' : 'Apply update'}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Update execution status */}
+      {execStatus && execStatus !== 'idle' && execStatus !== 'verified' && (
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
+          <span>
+            Update status: <span className="font-medium">{execStatus}</span>
+            {store.updateStatus?.execution?.reason ? ` — ${store.updateStatus.execution.reason}` : ''}
+          </span>
+          {rollbackFailed && (
+            <button
+              type="button"
+              onClick={() => {
+                actions.acknowledgeUpdate()
+                setTimeout(() => actions.getUpdateStatus(), 1000)
+              }}
+              className="rounded-lg border border-red-300 dark:border-red-700 px-3 py-1.5 text-xs font-medium text-red-700 dark:text-red-300 transition-colors hover:bg-red-50 dark:hover:bg-red-950"
+            >
+              Acknowledge
+            </button>
+          )}
         </div>
       )}
 
