@@ -49,6 +49,7 @@ type Pad struct {
 	ChatHead       int
 	Head           int
 	PublicStatus   bool
+	DocumentType   string
 	SavedRevisions []revision.SavedRevision
 	Pool           apool.APool
 	AText          apool.AText
@@ -66,6 +67,7 @@ func NewPad(id string, db db.DataStore, hook *hooks.Hook) Pad {
 	p.Head = -1
 	p.ChatHead = -1
 	p.PublicStatus = false
+	p.DocumentType = "text"
 	p.SavedRevisions = make([]revision.SavedRevision, 0)
 	p.hook = hook
 
@@ -507,6 +509,7 @@ func (p *Pad) Save() error {
 		ATextText:      p.AText.Text,
 		ID:             p.Id,
 		PublicStatus:   p.PublicStatus,
+		DocumentType:   p.DocumentType,
 		UpdatedAt:      &updatedAt,
 		CreatedAt:      p.CreatedAt,
 		ReadOnlyId:     p.ReadonlyId,

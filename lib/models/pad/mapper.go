@@ -10,6 +10,11 @@ func mapDBPadToModel(dbPad *db.PadDB, padToAssignTo *Pad) {
 	padToAssignTo.ChatHead = dbPad.ChatHead
 	padToAssignTo.Head = dbPad.Head
 	padToAssignTo.PublicStatus = dbPad.PublicStatus
+	if dbPad.DocumentType == "" {
+		padToAssignTo.DocumentType = "text"
+	} else {
+		padToAssignTo.DocumentType = dbPad.DocumentType
+	}
 	padToAssignTo.CreatedAt = dbPad.CreatedAt
 	padToAssignTo.UpdatedAt = dbPad.UpdatedAt
 

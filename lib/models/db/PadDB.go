@@ -35,6 +35,7 @@ type PadDB struct {
 	Pool           RevPool         `json:"pool"`
 	ChatHead       int             `json:"chatHead"`
 	PublicStatus   bool            `json:"publicStatus"`
+	DocumentType   string          `json:"documentType"`
 	ATextText      string          `json:"atextText"`
 	ATextAttribs   string          `json:"atextAttribs"`
 	CreatedAt      time.Time       `json:"createdAt"`
