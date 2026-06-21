@@ -19,9 +19,23 @@ import (
 	"go.uber.org/zap"
 )
 
-// encodedPadRegex matches the encoded pad id in a "/p/<id>" request path. It is
-// compiled once (used on the per-request access hot path).
-var encodedPadRegex = regexp.MustCompile("^/p/([^/]*)")
+// encodedPadRegex matches the encoded pad id in a "/p/<id>" or "/s/<id>"
+// request path. Spreadsheet ("/s/") pages share the pad authorization model, so
+// their pad id must be extracted here too — otherwise PadAuthorizations is never
+// populated for sheets and the authorize hook receives an empty PadId. Compiled
+// once (used on the per-request access hot path).
+var encodedPadRegex = regexp.MustCompile("^/[ps]/([^/]*)")
+
+// extractEncodedPadId returns the still-encoded pad id from a "/p/<id>" or
+// "/s/<id>" request path, or "" when the path is neither (or has no id). The
+// caller is responsible for URL-unescaping the result.
+func extractEncodedPadId(path string) string {
+	m := encodedPadRegex.FindStringSubmatch(path)
+	if len(m) < 2 || m[1] == "" {
+		return ""
+	}
+	return m[1]
+}
 
 func UserCanModify(padId *string, req *webaccess.SocketClientRequest, readOnlyManager ReadOnlyManager) bool {
 	if readOnlyManager.IsReadOnlyID(padId) {
@@ -108,16 +122,10 @@ func CheckAccessWithHooks(ctx fiber.Ctx, logger *zap.SugaredLogger, retrievedSet
 				return true // This will happen if authentication is not required.
 			}
 
-			// Use the capture group (the bare pad id, e.g. "testpad"), not the full
-			// regex match ("/p/testpad"): SecurityManager.CheckAccess looks up
+			// Use the bare pad id (e.g. "testpad"), not the full path ("/p/testpad"
+			// or "/s/testpad"): SecurityManager.CheckAccess looks up
 			// PadAuthorizations by the bare socket pad id, so the keys must agree.
-			var encodedPadMatch = encodedPadRegex.FindStringSubmatch(ctx.Path())
-
-			if len(encodedPadMatch) < 2 {
-				return true
-			}
-
-			encodedPadId := encodedPadMatch[1]
+			encodedPadId := extractEncodedPadId(ctx.Path())
 
 			if utf8.RuneCountInString(encodedPadId) == 0 {
 				return true
@@ -182,8 +190,8 @@ func CheckAccessWithHooks(ctx fiber.Ctx, logger *zap.SugaredLogger, retrievedSet
 
 		if hookSystem != nil {
 			var padIdForHook string
-			if ids := encodedPadRegex.FindStringSubmatch(ctx.Path()); len(ids) == 2 {
-				if decoded, err := url.QueryUnescape(ids[1]); err == nil {
+			if enc := extractEncodedPadId(ctx.Path()); enc != "" {
+				if decoded, err := url.QueryUnescape(enc); err == nil {
 					padIdForHook = decoded
 				}
 			}
