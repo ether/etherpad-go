@@ -14,6 +14,7 @@ func GetMigrations() []Migration {
 		migration005LargeTextColumns(),
 		migration006SecretRotation(),
 		migration007DocumentType(),
+		migration008Sheets(),
 	}
 }
 
