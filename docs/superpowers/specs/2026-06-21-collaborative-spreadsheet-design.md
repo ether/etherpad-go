@@ -134,7 +134,7 @@ Zellen sind **atomare Einheiten mit totaler Server-Ordnung** — das macht Kolla
 
 Headless Formel-Engine (~400 Funktionen, Abhängigkeitsgraph, Array-Formeln, A1- & R1C1-Notation). Läuft im Browser, hält pro geöffnetem Dokument eine In-Memory-Instanz parallel zum Grid.
 
-> **Lizenz-Vorbehalt (offene Frage 1):** HyperFormula ist GPLv3 **oder** kommerziell. Das muss bewusst akzeptiert oder vorab geklärt werden — es beeinflusst die Lizenz des Gesamtprojekts. Falls GPLv3 nicht passt, ist dies die Stelle für eine MIT-Alternative.
+> **Lizenz-Entscheidung:** HyperFormula ist GPLv3 oder kommerziell. **Entschieden (2026-06-21): GPLv3 wird bewusst akzeptiert.** Die Engine bleibt trotzdem hinter dem `FormulaEngine`-Wrapper gekapselt, sodass ein späterer Austausch ohne Eingriff in den Kollaborations-Kern möglich bleibt.
 
 ### Berechnungs-Fluss
 
@@ -263,7 +263,7 @@ internes Workbook → excelize-Builder → .xlsx-Download
 
 ## 8. Offene Punkte
 
-1. **HyperFormula-Lizenz (GPLv3)** — bewusst akzeptieren oder MIT-Alternative wählen? (Blockierend für die Engine-Wahl.)
+1. ~~HyperFormula-Lizenz (GPLv3)~~ — **entschieden (2026-06-21): GPLv3 akzeptiert.** Engine bleibt hinter dem `FormulaEngine`-Wrapper kapselbar/austauschbar.
 2. **Konkrete Canvas-Grid-Library** — Auswahl als erster Implementierungsschritt, hinter der `SheetView`-Schnittstelle (unkritisch, austauschbar).
 3. **Serverseitige Formel-Neuberechnung** — out-of-scope v1, als Folge-Teilprojekt notiert.
 
