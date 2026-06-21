@@ -13,6 +13,7 @@ func GetMigrations() []Migration {
 		migration004OAuthTokens(),
 		migration005LargeTextColumns(),
 		migration006SecretRotation(),
+		migration007DocumentType(),
 	}
 }
 
