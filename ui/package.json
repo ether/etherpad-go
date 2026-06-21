@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --port 5173",
-    "build": "tsc && vite build --mode pad && vite build --mode welcome && vite build --mode timeslider",
+    "build": "tsc && vite build --mode pad && vite build --mode welcome && vite build --mode timeslider && vite build --mode sheet",
     "preview": "vite preview"
   },
   "devDependencies": {
