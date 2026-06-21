@@ -142,6 +142,7 @@ type SheetMethods interface {
 	RemoveSheet(padId string) error
 	SaveSheetOp(padId string, rev int, op string, authorId *string, timestamp int64) error
 	GetSheetOps(padId string, startRev int, endRev int) (*[]db.SheetOpDB, error)
+	RemoveSheetOps(padId string) error
 }
 
 type DataStore interface {

@@ -54,6 +54,11 @@ func (d PostgresDB) SaveSheetOp(padId string, rev int, op string, authorId *stri
 	return err
 }
 
+func (d PostgresDB) RemoveSheetOps(padId string) error {
+	_, err := d.pool.Exec(context.Background(), `DELETE FROM sheet_op WHERE id = $1`, padId)
+	return err
+}
+
 func (d PostgresDB) GetSheetOps(padId string, startRev int, endRev int) (*[]db.SheetOpDB, error) {
 	rows, err := d.pool.Query(context.Background(),
 		`SELECT id, rev, op, author_id, timestamp FROM sheet_op

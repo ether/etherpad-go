@@ -47,6 +47,11 @@ func (m *MemoryDataStore) SaveSheetOp(padId string, rev int, op string, authorId
 	return nil
 }
 
+func (m *MemoryDataStore) RemoveSheetOps(padId string) error {
+	delete(m.sheetOps, padId)
+	return nil
+}
+
 func (m *MemoryDataStore) GetSheetOps(padId string, startRev int, endRev int) (*[]db.SheetOpDB, error) {
 	out := make([]db.SheetOpDB, 0)
 	for r := startRev; r <= endRev; r++ {

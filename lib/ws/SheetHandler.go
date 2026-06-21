@@ -7,6 +7,7 @@ import (
 
 	"github.com/ether/etherpad-go/lib/models/ws"
 	"github.com/ether/etherpad-go/lib/sheet"
+	"github.com/ether/etherpad-go/lib/sheetdoc"
 )
 
 // SheetTask is one queued SHEET_OP awaiting serialized processing per document.
@@ -44,6 +45,27 @@ func (c *SheetChannelOperator) AddToQueue(ch string, t SheetTask) {
 	}
 	c.mu.Unlock()
 	chChan <- t
+}
+
+// SheetManager exposes the shared sheet document manager so HTTP handlers
+// (xlsx import/export) operate on the same live state as the websocket clients.
+func (p *PadMessageHandler) SheetManager() *sheetdoc.Manager {
+	return p.sheetManager
+}
+
+// BroadcastSheetReload tells every client of a sheet to re-fetch its state
+// (used after an xlsx import replaces the workbook).
+func (p *PadMessageHandler) BroadcastSheetReload(padId string) {
+	encoded, err := json.Marshal([]any{"message", map[string]any{
+		"type": "COLLABROOM",
+		"data": map[string]any{"type": "SHEET_RELOAD"},
+	}})
+	if err != nil {
+		return
+	}
+	for _, socket := range p.GetRoomSockets(padId) {
+		socket.SafeSend(encoded)
+	}
 }
 
 // EnqueueSheetOp routes a SHEET_OP to the per-document serialization goroutine.

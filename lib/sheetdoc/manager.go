@@ -114,6 +114,27 @@ func (m *Manager) Submit(padId string, op sheet.Op, authorId *string, tsMillis i
 	return rebased, rev, nil
 }
 
+// SetWorkbook replaces the document's workbook (e.g. from an xlsx import),
+// resetting it to revision 0 with an empty op-log. Existing persisted ops are
+// cleared so the write-once sheet_op primary key does not block later edits.
+func (m *Manager) SetWorkbook(padId string, wb *sheet.Workbook) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	doc := sheet.NewDocument(wb)
+	snapBytes, err := json.Marshal(doc.Workbook().Snapshot())
+	if err != nil {
+		return err
+	}
+	if err := m.store.RemoveSheetOps(padId); err != nil {
+		return err
+	}
+	if err := m.store.SaveSheet(padId, 0, string(snapBytes)); err != nil {
+		return err
+	}
+	m.docs[padId] = &entry{doc: doc}
+	return nil
+}
+
 // Snapshot returns the current workbook snapshot and head (for the initial
 // client state on connect).
 func (m *Manager) Snapshot(padId string) (sheet.WorkbookSnapshot, int, error) {

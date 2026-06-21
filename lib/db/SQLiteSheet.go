@@ -82,6 +82,15 @@ func (d SQLiteDB) SaveSheetOp(padId string, rev int, op string, authorId *string
 	return err
 }
 
+func (d SQLiteDB) RemoveSheetOps(padId string) error {
+	q, args, err := sq.Delete("sheet_op").Where(sq.Eq{"id": padId}).ToSql()
+	if err != nil {
+		return err
+	}
+	_, err = d.sqlDB.Exec(q, args...)
+	return err
+}
+
 func (d SQLiteDB) GetSheetOps(padId string, startRev int, endRev int) (*[]db.SheetOpDB, error) {
 	q, args, err := sq.Select("id", "rev", "op", "author_id", "timestamp").
 		From("sheet_op").
