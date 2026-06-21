@@ -60,6 +60,12 @@ export class WorkbookState {
     return this.sheetById(sheetId)?.cells.get(key(row, col));
   }
 
+  clone(): WorkbookState {
+    const cp = new WorkbookState();
+    cp.sheets = this.sheets.map((s) => ({ id: s.id, name: s.name, cells: new Map(s.cells) }));
+    return cp;
+  }
+
   loadSnapshot(snap: WorkbookSnapshot): void {
     this.sheets = (snap.sheets ?? []).map((ss) => {
       const cells = new Map<string, Cell>();
