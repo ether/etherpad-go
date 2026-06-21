@@ -64,6 +64,27 @@ func TestSubmitRejectsBadBaseRev(t *testing.T) {
 	}
 }
 
+func TestNewDocumentAtRebasesAgainstLoadedLog(t *testing.T) {
+	// Simulate a reload: workbook already materialized, log restored.
+	wb := NewWorkbook()
+	wb.AddSheet("s1", "Sheet1")
+	log := []Op{{Type: OpInsertRows, Sheet: "s1", Index: 0, Count: 2, BaseRev: 0}}
+	if err := wb.Apply(log[0]); err != nil { // materialize workbook to head 1
+		t.Fatalf("apply: %v", err)
+	}
+	d := NewDocumentAt(wb, log)
+	if d.Head() != 1 {
+		t.Fatalf("head must equal len(log): got %d", d.Head())
+	}
+	// A stale op (baseRev 0) must rebase past the loaded insert.
+	if _, err := d.Submit(Op{Type: OpSetCell, Sheet: "s1", Row: 1, Col: 0, Raw: ptr("x"), BaseRev: 0}); err != nil {
+		t.Fatalf("submit: %v", err)
+	}
+	if d.Workbook().SheetByID("s1").GetCell(CellRef{3, 0}).Raw != "x" {
+		t.Fatal("stale op not rebased against loaded log")
+	}
+}
+
 func TestConvergenceTwoClients(t *testing.T) {
 	d := newDoc(t)
 	_, _ = d.Submit(Op{Type: OpSetCell, Sheet: "s1", Row: 0, Col: 0, Raw: ptr("x"), BaseRev: 0})

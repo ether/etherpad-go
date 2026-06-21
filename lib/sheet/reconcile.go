@@ -16,6 +16,16 @@ func NewDocument(wb *Workbook) *Document {
 	return &Document{wb: wb, log: []Op{}, head: 0}
 }
 
+// NewDocumentAt builds a Document whose workbook is already materialized to the
+// end of log; head becomes len(log). Used when loading a persisted document
+// (workbook from the snapshot, log from sheet_op) so stale-op rebasing keeps
+// working after a server restart.
+func NewDocumentAt(wb *Workbook, log []Op) *Document {
+	cp := make([]Op, len(log))
+	copy(cp, log)
+	return &Document{wb: wb, log: cp, head: len(cp)}
+}
+
 func (d *Document) Head() int           { return d.head }
 func (d *Document) Workbook() *Workbook { return d.wb }
 func (d *Document) Log() []Op           { return d.log }
