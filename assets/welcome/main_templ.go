@@ -95,14 +95,14 @@ func Page(settings *settings.Settings, translations map[string]string, socialMet
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "</label><form action=\"#\" id=\"go2Name\"><ep-input type=\"text\" id=\"padname\" maxlength=\"50\" autofocus></ep-input> <ep-button type=\"submit\" variant=\"primary\">OK</ep-button></form></div></div><script type=\"module\" src=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "</label><form action=\"#\" id=\"go2Name\"><ep-input type=\"text\" id=\"padname\" maxlength=\"50\" autofocus></ep-input> <ep-button type=\"submit\" variant=\"primary\">OK</ep-button></form><ep-button variant=\"secondary\" id=\"newSheet\">New spreadsheet</ep-button></div></div><script type=\"module\" src=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs("/js/welcome/assets/welcome.js?v=" + strconv.Itoa(utils.RandomVersionString))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `assets/welcome/main.templ`, Line: 30, Col: 104}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `assets/welcome/main.templ`, Line: 31, Col: 104}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {
