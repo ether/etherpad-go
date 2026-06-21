@@ -1268,6 +1268,14 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 		p.authorManager.SetAuthorColor(thisSession.Author, *ready.Data.UserInfo.ColorId)
 	}
 
+	// Spreadsheet documents take a separate path: SHEET_VARS instead of
+	// CLIENT_VARS, backed by the sheet document manager rather than the text
+	// changeset model. The /s/:pad client identifies itself via component.
+	if ready.Data.Component == "sheet" {
+		p.HandleSheetClientReady(ready, client, thisSession)
+		return
+	}
+
 	var retrievedPad, err = p.padManager.GetPad(thisSession.PadId, nil, &thisSession.Author)
 
 	if err != nil {
