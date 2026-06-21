@@ -15,6 +15,7 @@ func GetMigrations() []Migration {
 		migration006SecretRotation(),
 		migration007DocumentType(),
 		migration008Sheets(),
+		migration009AuthorTokenBackfill(),
 	}
 }
 
