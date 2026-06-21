@@ -176,6 +176,29 @@ func (m *Manager) GetPad(padID string, text *string, authorId *string) (*pad.Pad
 	return &newPad, nil
 }
 
+// GetTypedPad loads or creates a pad of a specific document type. For an
+// existing pad the stored type is kept; documentType only applies on first
+// creation (it is set before Init so Init -> AppendRevision -> Save persists
+// it via CreatePad).
+func (m *Manager) GetTypedPad(padID string, documentType string, authorId *string) (*pad.Pad, error) {
+	if !m.IsValidPadId(padID) {
+		return nil, errors.New("invalid pad id")
+	}
+
+	if cachedPad := m.globalPadCache.GetPad(padID); cachedPad != nil {
+		return cachedPad, nil
+	}
+
+	newPad := pad.NewPad(padID, m.store, m.hook)
+	newPad.DocumentType = documentType
+
+	if err := newPad.Init(nil, authorId, m.author); err != nil {
+		return nil, err
+	}
+	m.globalPadCache.SetPad(padID, &newPad)
+	return &newPad, nil
+}
+
 func (m *Manager) UnloadPad(id string) {
 	m.globalPadCache.DeletePad(id)
 	m.padList.RemovePad(id)
