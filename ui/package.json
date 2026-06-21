@@ -6,16 +6,19 @@
   "scripts": {
     "dev": "vite --port 5173",
     "build": "tsc && vite build --mode pad && vite build --mode welcome && vite build --mode timeslider && vite build --mode sheet",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run"
   },
   "devDependencies": {
     "@samtv12345/etherpad-webcomponents": "^0.0.13",
     "@types/node": "^25.9.3",
     "esbuild": "0.28.1",
     "typescript": "^6.0.3",
-    "vite": "^8.0.16"
+    "vite": "^8.0.16",
+    "vitest": "^4.1.9"
   },
   "dependencies": {
-    "@rollup/plugin-commonjs": "^29.0.3"
+    "@rollup/plugin-commonjs": "^29.0.3",
+    "hyperformula": "^3.3.0"
   }
 }
