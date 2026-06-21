@@ -133,6 +133,18 @@ type SecretMethods interface {
 	DeleteSecretParams(id string) error
 }
 
+// SheetMethods persist spreadsheet documents (header snapshot + op-log),
+// keyed by pad id (a sheet document is a pad with document_type "sheet").
+type SheetMethods interface {
+	SaveSheet(padId string, head int, snapshot string) error
+	GetSheet(padId string) (*db.SheetDB, error)
+	DoesSheetExist(padId string) (*bool, error)
+	RemoveSheet(padId string) error
+	SaveSheetOp(padId string, rev int, op string, authorId *string, timestamp int64) error
+	GetSheetOps(padId string, startRev int, endRev int) (*[]db.SheetOpDB, error)
+	RemoveSheetOps(padId string) error
+}
+
 type DataStore interface {
 	PadMethods
 	AuthorMethods
@@ -142,6 +154,7 @@ type DataStore interface {
 	ServerMethods
 	OIDCMethods
 	SecretMethods
+	SheetMethods
 	Close() error
 	Ping() error
 }

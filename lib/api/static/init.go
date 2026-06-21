@@ -281,6 +281,10 @@ func Init(store *lib.InitStore) {
 		return pad2.HandlePadOpen(ctx, store.UiAssets, store.RetrievedSettings, store.Hooks)
 	})
 
+	store.C.Get("/s/:pad", func(ctx fiber.Ctx) error {
+		return pad2.HandleSheetOpen(ctx)
+	})
+
 	store.C.Get("/p/:pad/qr", func(ctx fiber.Ctx) error {
 		return pad2.HandlePadQr(ctx, store)
 	})
@@ -309,6 +313,7 @@ func Init(store *lib.InitStore) {
 		registerEmbeddedStatic(store.C, "/js/welcome/assets/", "assets/js/welcome/assets", store.UiAssets)
 		registerEmbeddedStatic(store.C, "/admin/assets", "assets/js/admin/assets", store.UiAssets)
 		registerEmbeddedStatic(store.C, "/js/timeslider/assets/", "assets/js/timeslider/assets", store.UiAssets)
+		registerEmbeddedStatic(store.C, "/js/sheet/assets/", "assets/js/sheet/assets", store.UiAssets)
 	} else {
 		store.C.Get("/js/*", func(c fiber.Ctx) error {
 			if devHMR == nil {

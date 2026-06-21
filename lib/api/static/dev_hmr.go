@@ -35,6 +35,8 @@ func (h *esbuildDevHMR) bundleFromPath(requestPath string) *devBundleState {
 		return h.bundles["welcome"]
 	case strings.Contains(requestPath, "timeslider"):
 		return h.bundles["timeslider"]
+	case strings.Contains(requestPath, "sheet"):
+		return h.bundles["sheet"]
 	default:
 		return h.bundles["pad"]
 	}
@@ -190,6 +192,7 @@ func startEsbuildDevHMR(store *lib.InitStore) (*esbuildDevHMR, error) {
 		{name: "pad", entryPoint: "./src/pad.js"},
 		{name: "welcome", entryPoint: "./src/welcome.js"},
 		{name: "timeslider", entryPoint: "./src/timeslider.js"},
+		{name: "sheet", entryPoint: "./src/sheet.entry.ts"},
 	}
 
 	for _, spec := range specs {

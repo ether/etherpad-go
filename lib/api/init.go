@@ -11,6 +11,7 @@ import (
 	"github.com/ether/etherpad-go/lib/api/oidc"
 	"github.com/ether/etherpad-go/lib/api/pad"
 	"github.com/ether/etherpad-go/lib/api/session"
+	"github.com/ether/etherpad-go/lib/api/sheetio"
 	"github.com/ether/etherpad-go/lib/api/static"
 	"github.com/ether/etherpad-go/lib/api/stats"
 	swagger2 "github.com/ether/etherpad-go/lib/api/swagger"
@@ -56,6 +57,7 @@ func InitAPI(store *lib.InitStore) *oidc.Authenticator {
 	session.Init(store)
 	static.Init(store)
 	io.Init(store)
+	sheetio.Init(store)
 	stats.Init(store)
 	return authenticator
 }

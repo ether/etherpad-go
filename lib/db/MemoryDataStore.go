@@ -23,6 +23,8 @@ type MemoryDataStore struct {
 	serverVersion *db.ServerVersion
 	oidcStorage   map[string]string
 	secretParams  map[string]memorySecretRow
+	sheetStore    map[string]db.SheetDB
+	sheetOps      map[string]map[int]db.SheetOpDB
 
 	// oidc
 	accessTokens           map[string]fosite.Requester
@@ -921,6 +923,8 @@ func NewMemoryDataStore() *MemoryDataStore {
 		groupStore:             make(map[string]string),
 		oidcStorage:            make(map[string]string),
 		secretParams:           make(map[string]memorySecretRow),
+		sheetStore:             make(map[string]db.SheetDB),
+		sheetOps:               make(map[string]map[int]db.SheetOpDB),
 		accessTokens:           make(map[string]fosite.Requester),
 		accessTokenRequestIDs:  make(map[string]string),
 		refreshTokens:          make(map[string]db.StoreRefreshToken),

@@ -15,6 +15,9 @@ export default defineConfig(({ mode }) => {
     } else if (mode === 'timeslider') {
         entry = { timeslider: path.resolve(__dirname, 'src/timeslider.entry.ts') };
         outDir = '../assets/js/timeslider';
+    } else if (mode === 'sheet') {
+        entry = { sheet: path.resolve(__dirname, 'src/sheet.entry.ts') };
+        outDir = '../assets/js/sheet';
     }
 
 

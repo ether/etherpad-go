@@ -173,6 +173,14 @@ func (c *Client) readPump(retrievedSettings *settings.Settings, logger *zap.Suga
 			}
 
 			c.Handler.HandleMessage(userchange, c, retrievedSettings, logger)
+		} else if strings.Contains(decodedMessage, "SHEET_OP") {
+			var sheetOp ws.SheetOpIncoming
+			err := json.Unmarshal(message, &sheetOp)
+			if err != nil {
+				logger.Error("Error unmarshalling SHEET_OP: ", err)
+				continue
+			}
+			c.Handler.EnqueueSheetOp(c, sheetOp)
 		} else if strings.Contains(decodedMessage, "USERINFO_UPDATE") {
 			var userInfoChange UserInfoUpdateWrapper
 			errorUserInfoChange := json.Unmarshal(message, &userInfoChange)

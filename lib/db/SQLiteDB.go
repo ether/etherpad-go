@@ -40,9 +40,9 @@ func (d SQLiteDB) CreatePad(padID string, padDB db.PadDB) error {
 	resultedSQL, args, err := sq.
 		Insert("pad").
 		Columns("id", "head", "saved_revisions", "readonly_id", "pool", "chat_head",
-			"public_status", "atext_text", "atext_attribs").
+			"public_status", "document_type", "atext_text", "atext_attribs").
 		Values(padID, padDB.Head, string(savedRevisions), padDB.ReadOnlyId, string(pool),
-			padDB.ChatHead, padDB.PublicStatus, padDB.ATextText, padDB.ATextAttribs).
+			padDB.ChatHead, padDB.PublicStatus, padDB.DocumentType, padDB.ATextText, padDB.ATextAttribs).
 		Suffix(`ON CONFLICT(id) DO UPDATE SET
 			head = excluded.head,
 			saved_revisions = excluded.saved_revisions,
@@ -50,6 +50,7 @@ func (d SQLiteDB) CreatePad(padID string, padDB db.PadDB) error {
 			pool = excluded.pool,
 			chat_head = excluded.chat_head,
 			public_status = excluded.public_status,
+			document_type = excluded.document_type,
 			atext_text = excluded.atext_text,
 			atext_attribs = excluded.atext_attribs,
 			updated_at = CURRENT_TIMESTAMP`).
@@ -66,7 +67,7 @@ func (d SQLiteDB) CreatePad(padID string, padDB db.PadDB) error {
 func (d SQLiteDB) GetPad(padID string) (*db.PadDB, error) {
 	resultedSQL, args, err := sq.
 		Select("id", "head", "saved_revisions", "readonly_id", "pool", "chat_head",
-			"public_status", "atext_text", "atext_attribs", "created_at", "updated_at").
+			"public_status", "document_type", "atext_text", "atext_attribs", "created_at", "updated_at").
 		From("pad").
 		Where(sq.Eq{"id": padID}).
 		ToSql()

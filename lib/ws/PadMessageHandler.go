@@ -27,6 +27,7 @@ import (
 	"github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/ether/etherpad-go/lib/settings/clientVars"
+	"github.com/ether/etherpad-go/lib/sheetdoc"
 	"github.com/ether/etherpad-go/lib/utils"
 	"github.com/ether/etherpad-go/lib/ws/constants"
 	"go.uber.org/zap"
@@ -97,6 +98,8 @@ type PadMessageHandler struct {
 	hub             *Hub
 	Logger          *zap.SugaredLogger
 	hooks           *hooks.Hook
+	sheetManager    *sheetdoc.Manager
+	sheetChannels   SheetChannelOperator
 }
 
 func NewPadMessageHandler(db db2.DataStore, hooks *hooks.Hook, padManager *pad.Manager, sessionStore *SessionStore, hub *Hub, logger *zap.SugaredLogger, uiAssets embed.FS) *PadMessageHandler {
@@ -114,8 +117,10 @@ func NewPadMessageHandler(db db2.DataStore, hooks *hooks.Hook, padManager *pad.M
 		hub:          hub,
 		Logger:       logger,
 		hooks:        hooks,
+		sheetManager: sheetdoc.NewManager(db),
 	}
 	padMessageHandler.padChannels = NewChannelOperator(&padMessageHandler)
+	padMessageHandler.sheetChannels = NewSheetChannelOperator(&padMessageHandler)
 	return &padMessageHandler
 }
 
@@ -1261,6 +1266,14 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 
 	if ready.Data.UserInfo.ColorId != nil {
 		p.authorManager.SetAuthorColor(thisSession.Author, *ready.Data.UserInfo.ColorId)
+	}
+
+	// Spreadsheet documents take a separate path: SHEET_VARS instead of
+	// CLIENT_VARS, backed by the sheet document manager rather than the text
+	// changeset model. The /s/:pad client identifies itself via component.
+	if ready.Data.Component == "sheet" {
+		p.HandleSheetClientReady(ready, client, thisSession)
+		return
 	}
 
 	var retrievedPad, err = p.padManager.GetPad(thisSession.PadId, nil, &thisSession.Author)

@@ -65,6 +65,11 @@ const initWelcomeScreen = (): void => {
     window.location.href = `p/${randomPadName()}`;
   });
 
+  const newSheetButton = byId<HTMLButtonElement>('newSheet');
+  newSheetButton.addEventListener('click', () => {
+    window.location.href = `s/${randomPadName()}`;
+  });
+
   // start the custom js
   if (typeof window.customStart === 'function') window.customStart();
 };
