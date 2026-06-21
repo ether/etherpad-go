@@ -20,3 +20,4 @@ etherpad-go.exe~
 
 # Local Claude Code settings
 .claude/settings.local.json
+admin/dist
