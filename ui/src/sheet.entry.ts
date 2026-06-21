@@ -1,4 +1,6 @@
+import { startSheetEditor } from './js/sheet/sheetEditor';
+
 const root = document.getElementById('sheet-root');
 if (root) {
-  root.textContent = `Spreadsheet editor for "${root.dataset.padName ?? ''}" — coming soon.`;
+  startSheetEditor(root);
 }

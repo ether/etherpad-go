@@ -44,6 +44,26 @@ export class FormulaEngine {
     return { value: v == null ? '' : String(v), type };
   }
 
+  // setGrid replaces the whole sheet content from a list of populated cells,
+  // keeping the engine in sync with the collaborative workbook state (cells
+  // removed by structural ops are dropped because the grid is rebuilt).
+  setGrid(cells: Array<{ row: number; col: number; raw: string }>): void {
+    let maxRow = -1;
+    let maxCol = -1;
+    for (const c of cells) {
+      if (c.row > maxRow) maxRow = c.row;
+      if (c.col > maxCol) maxCol = c.col;
+    }
+    const grid: string[][] = [];
+    for (let r = 0; r <= maxRow; r++) {
+      grid.push(new Array<string>(maxCol + 1).fill(''));
+    }
+    for (const c of cells) {
+      grid[c.row][c.col] = c.raw;
+    }
+    this.hf.setSheetContent(this.sheetId, grid);
+  }
+
   // setCell sets the raw content and returns its computed result plus the list
   // of cells whose values changed (for targeted re-render).
   setCell(row: number, col: number, raw: string): SetCellResult {
