@@ -20,7 +20,13 @@ updates:
           - "minor"
           - "patch"
   - package-ecosystem: "npm"
-    directory: "/ui"
+    # This is a pnpm workspace: pnpm-workspace.yaml and pnpm-lock.yaml live at
+    # the repo root. Dependabot's pnpm support refuses to update a workspace
+    # from inside a subdirectory ("Updating workspaces from inside a workspace
+    # subdirectory is not supported ... should only update from the root
+    # workspace"), so a single root entry covers all members (ui, admin,
+    # playwright, plugins/*).
+    directory: "/"
     schedule:
       interval: "daily"
     versioning-strategy: "increase"
@@ -29,24 +35,6 @@ updates:
     # latest pnpm, which enforces a 24h minimumReleaseAge supply-chain gate on
     # the lockfile; opening PRs sooner just produces runs that fail that gate.
     # The cooldown keeps the protection and avoids the doomed PRs.
-    cooldown:
-      default-days: 3
-    groups:
-      dev-dependencies:
-        dependency-type: "development"
-      prod-minor-patch:
-        dependency-type: "production"
-        update-types:
-          - "minor"
-          - "patch"
-  - package-ecosystem: "npm"
-    directory: "/admin"
-    schedule:
-      interval: "daily"
-    versioning-strategy: "increase"
-    open-pull-requests-limit: 30
-    # See the /ui config above: cooldown clears pnpm's 24h minimumReleaseAge
-    # supply-chain gate so Dependabot doesn't open PRs that are sure to fail CI.
     cooldown:
       default-days: 3
     groups:
