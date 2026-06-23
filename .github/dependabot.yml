@@ -1,15 +1,4 @@
 version: 2
-# Pin the npm base registry to public npmjs. Dependabot's environment otherwise
-# routes npm resolution through GitHub Packages (npm.pkg.github.com), which
-# serves stale metadata for some packages (e.g. @types/react-dom maxes out at
-# 17.0.11 there) and makes pnpm fail with ERR_PNPM_NO_MATCHING_VERSION instead
-# of falling back to npmjs. replaces-base makes npmjs the base registry so the
-# whole workspace resolves against it. Public registry, so no token needed.
-registries:
-  npmjs:
-    type: npm-registry
-    url: https://registry.npmjs.org
-    replaces-base: true
 updates:
   # Maintain dependencies for GitHub Actions
   - package-ecosystem: "github-actions"
@@ -38,9 +27,6 @@ updates:
     # workspace"), so a single root entry covers all members (ui, admin,
     # playwright, plugins/*).
     directory: "/"
-    # Force npm resolution through public npmjs (see registries block above).
-    registries:
-      - npmjs
     schedule:
       interval: "daily"
     versioning-strategy: "increase"
