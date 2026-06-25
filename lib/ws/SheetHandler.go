@@ -169,6 +169,9 @@ func (p *PadMessageHandler) HandlePresence(client *Client, msg ws.SheetPresenceI
 			name = *a.Name
 		}
 		color = a.ColorId
+	} else if err != nil {
+		p.Logger.Warn("SHEET_PRESENCE: author lookup failed for ", session.Author, ": ", err)
+		// relay continues with empty name/color — presence is best-effort
 	}
 
 	out := ws.SheetPresence{Type: "COLLABROOM"}

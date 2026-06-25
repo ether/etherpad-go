@@ -204,6 +204,42 @@ func TestHandlePresenceRelaysWithStampedIdentity(t *testing.T) {
 	}
 }
 
+func TestHandlePresenceUnknownAuthorRelaysAnonymously(t *testing.T) {
+	h, ss, hub := newSheetTestHandler(t)
+	const sidA, sidB = "sess-a", "sess-b"
+	// sidA's author is NOT created in the author manager.
+	ss.InitSessionForTest(sidA)
+	ss.SetPadIdForTest(sidA, "p1")
+	ss.SetAuthorForTest(sidA, "a.unknown")
+	authorB, _ := h.authorManager.CreateAuthor(nil)
+	ss.InitSessionForTest(sidB)
+	ss.SetPadIdForTest(sidB, "p1")
+	ss.SetAuthorForTest(sidB, authorB.Id)
+
+	a := &Client{SessionId: sidA, Send: make(chan []byte, 256), Hub: hub}
+	b := &Client{SessionId: sidB, Send: make(chan []byte, 256), Hub: hub}
+	hub.Clients[a] = true
+	hub.Clients[b] = true
+
+	h.HandlePresence(a, buildPresenceMsg(sheetdoc.DefaultSheetID, 3, 4, false, ""))
+
+	select {
+	case f := <-b.Send:
+		sp := decodePresence(t, f)
+		if sp.Data.UserId != "a.unknown" {
+			t.Fatalf("userId not stamped from session: %+v", sp.Data)
+		}
+		if sp.Data.Name != "" || sp.Data.Color != "" {
+			t.Fatalf("expected empty identity for unknown author, got %+v", sp.Data)
+		}
+		if sp.Data.Row != 3 || sp.Data.Col != 4 {
+			t.Fatalf("position lost: %+v", sp.Data)
+		}
+	default:
+		t.Fatal("frame for unknown author was not relayed (presence must be best-effort)")
+	}
+}
+
 func TestHandlePresenceReadOnlyStripsLiveEdit(t *testing.T) {
 	h, ss, hub := newSheetTestHandler(t)
 	const sidRO, sidB = "sess-ro", "sess-b"
