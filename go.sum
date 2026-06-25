@@ -163,12 +163,12 @@ github.com/gobuffalo/tags/v3 v3.1.4/go.mod h1:ArRNo3ErlHO8BtdA0REaZxijuWnWzF6PUX
 github.com/gobuffalo/validate/v3 v3.3.3/go.mod h1:YC7FsbJ/9hW/VjQdmXPvFqvRis4vrRYFxr69WiNZw6g=
 github.com/gofiber/contrib/v3/swaggo v1.0.7 h1:NwjBOldwhl4JaUVpo3XQ+L9d5vl7bjc24GJx4e5rqfs=
 github.com/gofiber/contrib/v3/swaggo v1.0.7/go.mod h1:UouDgg79E4BRhRN7KAJlMMYnbW3VVXW2Sc2q6O5hfnU=
-github.com/gofiber/contrib/v3/websocket v1.2.0 h1:wjkzC3exbhRL3cPCVLRYN3MFq3yhMvtBeGwqEYQk+yc=
-github.com/gofiber/contrib/v3/websocket v1.2.0/go.mod h1:fpqdn3mVAKAKfSOt8yHXhO70bZ1mz6z6NhY87CjM3k8=
+github.com/gofiber/contrib/v3/websocket v1.2.1 h1:E4I1dVCvNF56ELdKksUJilo1r7dpw7lgt1DmsJd7hOo=
+github.com/gofiber/contrib/v3/websocket v1.2.1/go.mod h1:rQO2z0SbC/l8lP36gXTKrD1QZBXzHKwt9E8c5em1IiA=
 github.com/gofiber/fiber/v3 v3.3.0 h1:QBd3sYCqdy6Qs5gJYzSw4I4SbqL204jPqpdub/ueiw8=
 github.com/gofiber/fiber/v3 v3.3.0/go.mod h1:YH7/TAoRaU4kF8slDCtQuFJ1NzC+3MtxUI4KfvQtaIA=
-github.com/gofiber/schema v1.7.2 h1:/0+siRIDYfMTh/edbdSNDXYZESBAFAu0CjKDUjo3g9Q=
-github.com/gofiber/schema v1.7.2/go.mod h1:lmbXPQ8hvzXSLkdS2DS7pb4kpunC2Roh7Sj3HMjGfzA=
+github.com/gofiber/schema v1.8.0 h1:NGsC9toPHmj8Xg4KpznuXBzNmHG6V5YV0tXKpKMcmis=
+github.com/gofiber/schema v1.8.0/go.mod h1:lmbXPQ8hvzXSLkdS2DS7pb4kpunC2Roh7Sj3HMjGfzA=
 github.com/gofiber/utils/v2 v2.1.0 h1:WSu4COJhJw9moNfJu2nQvaM9AFvAQ/nZbigjhHqKgOQ=
 github.com/gofiber/utils/v2 v2.1.0/go.mod h1:DdOgEVwQTi8cou/AKWPqhXOR4fHGRVhA/rEWL3IXG7Q=
 github.com/gofrs/uuid v4.0.0+incompatible/go.mod h1:b2aQJv3Z4Fp6yNu3cdSllBxTCLRxnplIgP/c0N/04lM=
