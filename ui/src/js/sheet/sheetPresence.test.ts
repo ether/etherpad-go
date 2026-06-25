@@ -60,4 +60,14 @@ describe('effectiveCells overlay drives live recompute', () => {
     expect(engine.getValue(1, 2).value).toBe('31'); // C2 = B2+1
     expect(cells.find((c) => c.row === 1 && c.col === 1)?.raw).toBe('=A1*3');
   });
+
+  it('live edit wins over a committed cell at the same coordinate', () => {
+    // The load-bearing overlay property: a remote in-progress raw must REPLACE
+    // the committed raw at the same (row,col), not merely add another entry.
+    const base = [{ row: 1, col: 1, raw: '=A1*99' }];
+    const live = [{ userId: 'a', name: 'A', color: '#f00', sheet: 's1', row: 1, col: 1, raw: '=A1*3' }];
+    const cells = effectiveCells(base, live);
+    expect(cells.filter((c) => c.row === 1 && c.col === 1)).toHaveLength(1);
+    expect(cells.find((c) => c.row === 1 && c.col === 1)?.raw).toBe('=A1*3');
+  });
 });

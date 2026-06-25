@@ -334,6 +334,9 @@ const results = await Promise.allSettled([
   esbuild.build({ ...esbuildOpts, entryPoints: ["./src/pad.js"], outdir: '../assets/js/pad/assets', alias, loader: loaders, logLevel: 'info' }),
   esbuild.build({ ...esbuildOpts, entryPoints: ["./src/welcome.js"], outdir: '../assets/js/welcome/assets', alias, loader: loaders, logLevel: 'info' }),
   esbuild.build({ ...esbuildOpts, entryPoints: ["./src/timeslider.js"], outdir: '../assets/js/timeslider/assets', alias, loader: loaders, logLevel: 'info' }),
+  // entryPoints object form so the output is sheet.js (matches /js/sheet/assets/sheet.js
+  // served by lib/api/pad/sheetFrontend.go), not sheet.entry.js.
+  esbuild.build({ ...esbuildOpts, entryPoints: { sheet: "./src/sheet.entry.ts" }, outdir: '../assets/js/sheet/assets', alias, loader: loaders, logLevel: 'info' }),
   // CSS bundles
   esbuild.build({ ...esbuildOpts, entryPoints: ['../assets/css/skin/colibris/pad.css'], outdir: '../assets/css/build/skin/colibris', external: ['*.woff', '*.woff2', '*.ttf', '*.eot', '*.svg', '*.png', '*.jpg', '*.gif'], loader: loaders, logLevel: 'info' }),
   esbuild.build({ ...esbuildOpts, entryPoints: ['../assets/css/static/pad.css'], outdir: '../assets/css/build/static', external: ['*.woff', '*.woff2', '*.ttf', '*.eot', '*.svg', '*.png', '*.jpg', '*.gif', '/font/*', 'font/*'], loader: loaders, logLevel: 'info' }),

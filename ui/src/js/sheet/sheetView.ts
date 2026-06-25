@@ -23,6 +23,7 @@ export interface SheetViewOptions {
   onSelect?: (row: number, col: number) => void;
   onLiveEdit?: (row: number, col: number, raw: string) => void;
   onEditEnd?: (row: number, col: number, committed: boolean) => void;
+  readOnly?: boolean;
 }
 
 function colName(c: number): string {
@@ -44,6 +45,7 @@ const CSS = `
 .sheet-grid td { outline: none; position: relative; }
 .sheet-grid td:focus { box-shadow: inset 0 0 0 2px #64d29b; }
 .sheet-remote-tag { position: absolute; top: -15px; left: -1px; font: 10px/14px system-ui, sans-serif; padding: 0 4px; color: #fff; border-radius: 3px 3px 3px 0; white-space: nowrap; z-index: 5; pointer-events: none; }
+.sheet-remote-tag::after { content: attr(data-label); }
 `;
 
 export class DomSheetView {
@@ -83,7 +85,9 @@ export class DomSheetView {
       const rowCells: HTMLTableCellElement[] = [];
       for (let c = 0; c < opts.cols; c++) {
         const td = document.createElement('td');
-        td.contentEditable = 'true';
+        // Read-only viewers get non-editable cells: with no typing, no live-edit
+        // or commit frames originate from the client (the server strips them too).
+        td.contentEditable = opts.readOnly ? 'false' : 'true';
         this.attach(td, r, c);
         tr.appendChild(td);
         rowCells.push(td);
@@ -174,7 +178,9 @@ export class DomSheetView {
           td.style.boxShadow = `inset 0 0 0 2px ${deco.color}`;
           const tag = document.createElement('span');
           tag.className = 'sheet-remote-tag';
-          tag.textContent = deco.name || 'anon';
+          // Label via a CSS ::after pseudo-element (data-label), NOT a text node,
+          // so the peer's name never leaks into the cell's textContent.
+          tag.setAttribute('data-label', deco.name || 'anon');
           tag.style.background = deco.color;
           td.appendChild(tag);
           this.decorated.add(td);
