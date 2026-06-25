@@ -57,3 +57,43 @@ type NewSheetOpData struct {
 	NewRev int             `json:"newRev"`
 	Author string          `json:"author"`
 }
+
+// SheetPresenceIncoming is the client->server SHEET_PRESENCE frame. Ephemeral:
+// never persisted, never ordered through the per-doc goroutine. Wire shape
+// mirrors SheetOpIncoming: {"event":"message","data":{"component":"sheet",
+// "type":"COLLABROOM","data":{"type":"SHEET_PRESENCE","sheet":..,"row":..,
+// "col":..,"editing":bool,"raw":".."}}}.
+type SheetPresenceIncoming struct {
+	Event string `json:"event"`
+	Data  struct {
+		Component string `json:"component"` // "sheet"
+		Type      string `json:"type"`      // "COLLABROOM"
+		Data      struct {
+			Type    string `json:"type"` // "SHEET_PRESENCE"
+			Sheet   string `json:"sheet"`
+			Row     int    `json:"row"`
+			Col     int    `json:"col"`
+			Editing bool   `json:"editing"`
+			Raw     string `json:"raw"`
+		} `json:"data"`
+	} `json:"data"`
+}
+
+// SheetPresence is the server->clients relay of a cursor / live-edit frame.
+// Sent as ["message", SheetPresence]. Identity is stamped server-side.
+type SheetPresence struct {
+	Type string            `json:"type"` // "COLLABROOM"
+	Data SheetPresenceData `json:"data"`
+}
+
+type SheetPresenceData struct {
+	Type    string `json:"type"` // "SHEET_PRESENCE"
+	UserId  string `json:"userId"`
+	Name    string `json:"name"`
+	Color   string `json:"color"`
+	Sheet   string `json:"sheet"`
+	Row     int    `json:"row"`
+	Col     int    `json:"col"`
+	Editing bool   `json:"editing"`
+	Raw     string `json:"raw,omitempty"`
+}

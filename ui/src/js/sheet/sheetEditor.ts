@@ -3,6 +3,7 @@ import padutils, { Cookies } from '../pad_utils';
 import { SheetCollabClient } from './sheetCollabClient';
 import { FormulaEngine } from './formulaEngine';
 import { DomSheetView } from './sheetView';
+import { SheetPresence, effectiveCells, type PresenceFrame } from './sheetPresence';
 import type { Op } from './op';
 import type { WorkbookSnapshot } from './workbookState';
 
@@ -15,8 +16,8 @@ interface SheetVarsData {
 }
 
 // startSheetEditor connects to the collaborative spreadsheet backend, performs
-// the CLIENT_READY handshake (component "sheet" so the server replies with
-// SHEET_VARS), and wires the collaboration client, formula engine and grid view.
+// the CLIENT_READY handshake (component "sheet"), and wires the collaboration
+// client, formula engine, grid view and ephemeral presence.
 export function startSheetEditor(root: HTMLElement): void {
   const padId = decodeURIComponent(
     location.pathname.substring(location.pathname.lastIndexOf('/') + 1),
@@ -25,6 +26,7 @@ export function startSheetEditor(root: HTMLElement): void {
 
   let collab: SheetCollabClient | null = null;
   let view: DomSheetView | null = null;
+  let presence: SheetPresence | null = null;
   let activeSheetId = 's1';
   const engine = new FormulaEngine();
 
@@ -35,6 +37,39 @@ export function startSheetEditor(root: HTMLElement): void {
         component: 'sheet',
         data: { type: 'SHEET_OP', op, baseRev: op.baseRev },
       }),
+  };
+
+  const sendPresence = (row: number, col: number, editing: boolean, raw?: string): void =>
+    socket.emit('message', {
+      type: 'COLLABROOM',
+      component: 'sheet',
+      data: { type: 'SHEET_PRESENCE', sheet: activeSheetId, row, col, editing, raw },
+    });
+
+  // Live-edit throttle (trailing, ~60ms) so typing does not flood the socket.
+  let liveTimer: ReturnType<typeof setTimeout> | null = null;
+  let lastLive: { row: number; col: number; raw: string } | null = null;
+  const sendLiveEdit = (row: number, col: number, raw: string): void => {
+    lastLive = { row, col, raw };
+    if (liveTimer) return;
+    liveTimer = setTimeout(() => {
+      liveTimer = null;
+      if (lastLive) sendPresence(lastLive.row, lastLive.col, true, lastLive.raw);
+    }, 60);
+  };
+  const cancelPendingLive = (): void => {
+    if (liveTimer) {
+      clearTimeout(liveTimer);
+      liveTimer = null;
+    }
+    lastLive = null;
+  };
+
+  // Selection debounce (~50ms) against arrow-key spam.
+  let selTimer: ReturnType<typeof setTimeout> | null = null;
+  const sendSelect = (row: number, col: number): void => {
+    if (selTimer) clearTimeout(selTimer);
+    selTimer = setTimeout(() => sendPresence(row, col, false), 50);
   };
 
   const cellsOfActive = (): Array<{ row: number; col: number; raw: string }> => {
@@ -59,7 +94,20 @@ export function startSheetEditor(root: HTMLElement): void {
   };
 
   const onChange = (): void => {
-    engine.setGrid(cellsOfActive());
+    const live = presence ? presence.liveEditsForSheet(activeSheetId) : [];
+    engine.setGrid(effectiveCells(cellsOfActive(), live));
+    if (view && presence) {
+      view.setRemoteCursors(
+        presence.cursorsForSheet(activeSheetId).map((c) => ({
+          userId: c.userId, name: c.name, color: c.color, row: c.row, col: c.col,
+        })),
+      );
+      view.setRemoteLiveEdits(
+        live.map((e) => ({
+          userId: e.userId, name: e.name, color: e.color, row: e.row, col: e.col, raw: e.raw,
+        })),
+      );
+    }
     view?.render();
   };
 
@@ -67,6 +115,8 @@ export function startSheetEditor(root: HTMLElement): void {
     activeSheetId = data.snapshot.sheets?.[0]?.id ?? 's1';
     collab = new SheetCollabClient(data.snapshot, data.head, transport);
     collab.onChange = onChange;
+    presence = new SheetPresence(data.userId);
+    presence.onChange = onChange;
     view = new DomSheetView(root, {
       rows: 50,
       cols: 20,
@@ -75,6 +125,14 @@ export function startSheetEditor(root: HTMLElement): void {
       onEdit: (r, c, raw) => {
         if (!collab) return;
         collab.applyLocal({ type: 'setCell', sheet: activeSheetId, baseRev: collab.rev, row: r, col: c, raw });
+      },
+      onSelect: (r, c) => sendSelect(r, c),
+      onLiveEdit: (r, c, raw) => sendLiveEdit(r, c, raw),
+      onEditEnd: (r, c, committed) => {
+        cancelPendingLive();
+        // Commit path: the setCell op clears the overlay on receivers via
+        // NEW_SHEET_OP.author — sending editing:false here would flicker.
+        if (!committed) sendPresence(r, c, false);
       },
     });
     onChange();
@@ -105,7 +163,11 @@ export function startSheetEditor(root: HTMLElement): void {
     if (msg.type === 'COLLABROOM' && msg.data) {
       const d = msg.data;
       if (d.type === 'ACCEPT_SHEET_OP') collab?.onAccept(d.newRev);
-      else if (d.type === 'NEW_SHEET_OP') collab?.onRemote(d.op as Op, d.newRev);
+      else if (d.type === 'NEW_SHEET_OP') {
+        collab?.onRemote(d.op as Op, d.newRev);
+        if (d.author) presence?.clearLiveEdit(d.author);
+      } else if (d.type === 'SHEET_PRESENCE') presence?.applyPresence(d as PresenceFrame);
+      else if (d.type === 'USER_LEAVE') presence?.drop(d.userInfo?.userId);
       else if (d.type === 'SHEET_RELOAD') location.reload();
     }
   });

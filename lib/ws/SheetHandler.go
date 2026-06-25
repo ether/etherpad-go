@@ -145,6 +145,60 @@ func (p *PadMessageHandler) broadcastNewSheetOp(padId string, senderSessionId st
 	}
 }
 
+// HandlePresence relays an ephemeral cursor / live-edit frame to the other
+// clients of the sheet. It is NOT persisted and NOT ordered through the per-doc
+// goroutine. Identity is stamped server-side from the session author (no client
+// spoofing); read-only sessions may move a cursor but never broadcast a live
+// edit.
+func (p *PadMessageHandler) HandlePresence(client *Client, msg ws.SheetPresenceIncoming) {
+	session := p.SessionStore.getSession(client.SessionId)
+	if session == nil || session.PadId == "" {
+		return
+	}
+
+	editing := msg.Data.Data.Editing
+	raw := msg.Data.Data.Raw
+	if session.ReadOnly {
+		editing = false
+		raw = ""
+	}
+
+	var name, color string
+	if a, err := p.authorManager.GetAuthor(session.Author); err == nil && a != nil {
+		if a.Name != nil {
+			name = *a.Name
+		}
+		color = a.ColorId
+	} else if err != nil {
+		p.Logger.Warn("SHEET_PRESENCE: author lookup failed for ", session.Author, ": ", err)
+		// relay continues with empty name/color — presence is best-effort
+	}
+
+	out := ws.SheetPresence{Type: "COLLABROOM"}
+	out.Data = ws.SheetPresenceData{
+		Type:    "SHEET_PRESENCE",
+		UserId:  session.Author,
+		Name:    name,
+		Color:   color,
+		Sheet:   msg.Data.Data.Sheet,
+		Row:     msg.Data.Data.Row,
+		Col:     msg.Data.Data.Col,
+		Editing: editing,
+		Raw:     raw,
+	}
+	encoded, err := json.Marshal([]any{"message", out})
+	if err != nil {
+		p.Logger.Warn("marshal SHEET_PRESENCE: ", err)
+		return
+	}
+	for _, socket := range p.GetRoomSockets(session.PadId) {
+		if socket.SessionId == client.SessionId {
+			continue
+		}
+		socket.SafeSend(encoded)
+	}
+}
+
 // HandleSheetClientReady materializes the pad as a sheet, then either sends the
 // full SHEET_VARS snapshot (fresh connect) or the missed ops (reconnect), and
 // announces presence to the other clients of the document.
