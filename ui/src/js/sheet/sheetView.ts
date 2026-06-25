@@ -44,6 +44,7 @@ const CSS = `
 .sheet-grid td { outline: none; position: relative; }
 .sheet-grid td:focus { box-shadow: inset 0 0 0 2px #64d29b; }
 .sheet-remote-tag { position: absolute; top: -15px; left: -1px; font: 10px/14px system-ui, sans-serif; padding: 0 4px; color: #fff; border-radius: 3px 3px 3px 0; white-space: nowrap; z-index: 5; pointer-events: none; }
+.sheet-remote-tag::after { content: attr(data-label); }
 `;
 
 export class DomSheetView {
@@ -174,7 +175,9 @@ export class DomSheetView {
           td.style.boxShadow = `inset 0 0 0 2px ${deco.color}`;
           const tag = document.createElement('span');
           tag.className = 'sheet-remote-tag';
-          tag.textContent = deco.name || 'anon';
+          // Label via a CSS ::after pseudo-element (data-label), NOT a text node,
+          // so the peer's name never leaks into the cell's textContent.
+          tag.setAttribute('data-label', deco.name || 'anon');
           tag.style.background = deco.color;
           td.appendChild(tag);
           this.decorated.add(td);
