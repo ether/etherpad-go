@@ -44,8 +44,10 @@ export default defineConfig(({ mode }) => {
                 '@': path.resolve(__dirname, '/src'),
             },
         },
-        plugins: [
-            commonjs(),
-        ],
+        // rolldown-vite (v8) handles CommonJS natively. The @rollup/plugin-commonjs
+        // plugin deadlocks the rolldown transform while bundling HyperFormula, so it
+        // is skipped for the sheet entry (rolldown's native CJS handling covers it).
+        // Other entries still load it unchanged.
+        plugins: mode === 'sheet' ? [] : [commonjs()],
     };
 });
