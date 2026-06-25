@@ -23,6 +23,7 @@ export interface SheetViewOptions {
   onSelect?: (row: number, col: number) => void;
   onLiveEdit?: (row: number, col: number, raw: string) => void;
   onEditEnd?: (row: number, col: number, committed: boolean) => void;
+  readOnly?: boolean;
 }
 
 function colName(c: number): string {
@@ -84,7 +85,9 @@ export class DomSheetView {
       const rowCells: HTMLTableCellElement[] = [];
       for (let c = 0; c < opts.cols; c++) {
         const td = document.createElement('td');
-        td.contentEditable = 'true';
+        // Read-only viewers get non-editable cells: with no typing, no live-edit
+        // or commit frames originate from the client (the server strips them too).
+        td.contentEditable = opts.readOnly ? 'false' : 'true';
         this.attach(td, r, c);
         tr.appendChild(td);
         rowCells.push(td);

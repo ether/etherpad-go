@@ -122,6 +122,7 @@ export function startSheetEditor(root: HTMLElement): void {
       cols: 20,
       rawValue,
       displayValue,
+      readOnly: data.readonly,
       onEdit: (r, c, raw) => {
         if (!collab) return;
         collab.applyLocal({ type: 'setCell', sheet: activeSheetId, baseRev: collab.rev, row: r, col: c, raw });
