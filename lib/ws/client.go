@@ -181,6 +181,13 @@ func (c *Client) readPump(retrievedSettings *settings.Settings, logger *zap.Suga
 				continue
 			}
 			c.Handler.EnqueueSheetOp(c, sheetOp)
+		} else if strings.Contains(decodedMessage, "SHEET_PRESENCE") {
+			var presence ws.SheetPresenceIncoming
+			if err := json.Unmarshal(message, &presence); err != nil {
+				logger.Error("Error unmarshalling SHEET_PRESENCE: ", err)
+				continue
+			}
+			c.Handler.HandlePresence(c, presence)
 		} else if strings.Contains(decodedMessage, "USERINFO_UPDATE") {
 			var userInfoChange UserInfoUpdateWrapper
 			errorUserInfoChange := json.Unmarshal(message, &userInfoChange)
