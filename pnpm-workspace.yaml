@@ -12,3 +12,8 @@ overrides:
 
 minimumReleaseAgeExclude:
   - "@samtv12345/etherpad-webcomponents@0.0.13"
+  # Pure browser-data packages that publish multiple times a day, so a fresh
+  # lockfile resolution always pulls a version newer than the 24h release-age
+  # gate. Low supply-chain risk (data only); exclude all versions from the gate.
+  - "caniuse-lite"
+  - "electron-to-chromium"
