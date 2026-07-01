@@ -56,3 +56,19 @@ describe('WorkbookState.applyOp (port of Go Apply)', () => {
     expect(w2.getCell('s1', 2, 3)?.raw).toBe('hi');
   });
 });
+
+describe('WorkbookState style props', () => {
+  it('setStyle op interns props and getStyleProps resolves them', () => {
+    const wb = new WorkbookState();
+    wb.loadSnapshot({ sheets: [{ id: 's1', name: 'S', cells: [] }] });
+    wb.applyOp({ type: 'setStyle', sheet: 's1', baseRev: 0, row: 0, col: 0, props: { bold: '1' } });
+    expect(wb.getStyleProps('s1', 0, 0)).toEqual({ bold: '1' });
+  });
+  it('setCell op can carry raw and props together', () => {
+    const wb = new WorkbookState();
+    wb.loadSnapshot({ sheets: [{ id: 's1', name: 'S', cells: [] }] });
+    wb.applyOp({ type: 'setCell', sheet: 's1', baseRev: 0, row: 1, col: 1, raw: '5', props: { align: 'right' } });
+    expect(wb.getCell('s1', 1, 1)?.raw).toBe('5');
+    expect(wb.getStyleProps('s1', 1, 1)).toEqual({ align: 'right' });
+  });
+});

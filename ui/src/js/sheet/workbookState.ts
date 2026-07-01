@@ -1,4 +1,5 @@
 import type { Op } from './op';
+import { StylePoolMirror, type StyleProps } from './stylePool';
 
 export interface Cell {
   raw: string;
@@ -45,6 +46,7 @@ export interface WorkbookSnapshot {
 // lib/sheet/apply.go exactly so client optimistic state matches the server.
 export class WorkbookState {
   sheets: SheetState[] = [];
+  styles = new StylePoolMirror();
 
   sheetById(id: string): SheetState | undefined {
     return this.sheets.find((s) => s.id === id);
@@ -63,6 +65,7 @@ export class WorkbookState {
   clone(): WorkbookState {
     const cp = new WorkbookState();
     cp.sheets = this.sheets.map((s) => ({ id: s.id, name: s.name, cells: new Map(s.cells) }));
+    cp.styles = this.styles; // shared pool: interning is monotonic + content-deduped
     return cp;
   }
 
@@ -79,6 +82,12 @@ export class WorkbookState {
       }
       return { id: ss.id, name: ss.name, cells };
     });
+    this.styles.seed(snap.styles);
+  }
+
+  getStyleProps(sheetId: string, row: number, col: number): StyleProps {
+    const id = this.getCell(sheetId, row, col)?.styleId ?? 0;
+    return this.styles.get(id) ?? {};
   }
 
   private setCell(sheet: SheetState, row: number, col: number, cell: Cell): void {
@@ -120,13 +129,17 @@ export class WorkbookState {
         }
         if (op.value !== undefined) cur.value = op.value;
         if (op.valueType !== undefined) cur.valueType = op.valueType;
-        if (op.styleId !== undefined) cur.styleId = op.styleId;
+        if (op.props !== undefined) {
+          cur.styleId = this.styles.put(op.props);
+        } else if (op.styleId !== undefined) {
+          cur.styleId = op.styleId;
+        }
         this.setCell(sheet, row, col, cur);
         break;
       }
       case 'setStyle': {
         const cur: Cell = { ...(sheet.cells.get(key(row, col)) ?? { raw: '' }) };
-        cur.styleId = op.styleId;
+        cur.styleId = op.props !== undefined ? this.styles.put(op.props) : op.styleId;
         this.setCell(sheet, row, col, cur);
         break;
       }
