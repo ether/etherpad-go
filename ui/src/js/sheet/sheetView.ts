@@ -3,6 +3,7 @@
 // grid replace it later without touching the collaboration layer.
 
 import { type Selection, selFromSingle, normalize, selContains } from './sheetSelection';
+import { styleToCss } from './styleCss';
 
 export interface RemoteCursorDeco {
   userId: string;
@@ -28,6 +29,7 @@ export interface SheetViewOptions {
   onEditEnd?: (row: number, col: number, committed: boolean) => void;
   onFill?: (src: Selection, target: Selection) => void;
   readOnly?: boolean;
+  styleOf?: (row: number, col: number) => Record<string, string>;
 }
 
 function colName(c: number): string {
@@ -266,6 +268,24 @@ export class DomSheetView {
         const k = `${r}:${c}`;
         const live = this.liveByKey.get(k);
         td.textContent = live ? live.raw : this.opts.displayValue(r, c);
+        // Reset then apply cell formatting (props resolved by the editor).
+        td.style.fontWeight = '';
+        td.style.fontStyle = '';
+        td.style.textDecoration = '';
+        td.style.color = '';
+        td.style.background = '';
+        td.style.textAlign = '';
+        td.style.border = '';
+        if (this.opts.styleOf) {
+          const css = styleToCss(this.opts.styleOf(r, c));
+          if (css.fontWeight) td.style.fontWeight = css.fontWeight;
+          if (css.fontStyle) td.style.fontStyle = css.fontStyle;
+          if (css.textDecoration) td.style.textDecoration = css.textDecoration;
+          if (css.color) td.style.color = css.color;
+          if (css.background) td.style.background = css.background;
+          if (css.textAlign) td.style.textAlign = css.textAlign;
+          if (css.border) td.style.border = css.border;
+        }
         const deco: RemoteCursorDeco | undefined = live ?? this.cursorByKey.get(k);
         if (deco) {
           td.style.boxShadow = `inset 0 0 0 2px ${deco.color}`;
