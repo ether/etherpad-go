@@ -107,6 +107,12 @@ export function startSheetEditor(root: HTMLElement): void {
 
   const applyStyleToSelection = (change: Record<string, string>): void => {
     if (readOnly || !collab) return;
+    // Blur first: a setStyle op only ever changes styleId, never raw, so the
+    // focused cell's DOM text still matches its stored raw at blur time and
+    // the blur listener's commit check (raw !== prev) is false — nothing to
+    // clobber. Clearing `editing` lets the render() below repaint it too
+    // (render() otherwise skips repainting the currently-focused cell).
+    blurActiveCell();
     for (const { row, col } of selCells(selection)) {
       const merged = mergeProps(propsOf(row, col), change);
       collab.applyLocal({ type: 'setStyle', sheet: activeSheetId, baseRev: collab.rev, row, col, props: merged });
