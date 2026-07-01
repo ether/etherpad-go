@@ -103,9 +103,13 @@ export function createFormulaBar(cb: FormulaBarCallbacks): FormulaBarHandle {
     el: bar,
     setActive(ref: string, raw: string): void {
       nameBox.textContent = ref;
-      lastRaw = raw;
-      // Don't stomp the user's in-progress typing in the bar.
-      if (document.activeElement !== input) input.value = raw;
+      // Don't stomp the user's in-progress typing — and freeze the Escape
+      // revert target (lastRaw) too, so a concurrent remote edit can't
+      // silently redefine what Escape restores mid-edit.
+      if (document.activeElement !== input) {
+        lastRaw = raw;
+        input.value = raw;
+      }
     },
   };
 }
