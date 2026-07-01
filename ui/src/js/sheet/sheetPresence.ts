@@ -8,6 +8,8 @@ export interface RemoteCursor {
   sheet: string;
   row: number;
   col: number;
+  focusRow?: number;
+  focusCol?: number;
 }
 
 export interface RemoteLiveEdit extends RemoteCursor {
@@ -24,6 +26,8 @@ export interface PresenceFrame {
   col: number;
   editing: boolean;
   raw?: string;
+  focusRow?: number;
+  focusCol?: number;
 }
 
 export class SheetPresence {
@@ -39,7 +43,8 @@ export class SheetPresence {
   applyPresence(f: PresenceFrame): void {
     if (f.userId === this.ownUserId) return; // never render our own cursor
     this.cursors.set(f.userId, {
-      userId: f.userId, name: f.name, color: f.color, sheet: f.sheet, row: f.row, col: f.col,
+      userId: f.userId, name: f.name, color: f.color, sheet: f.sheet,
+      row: f.row, col: f.col, focusRow: f.focusRow, focusCol: f.focusCol,
     });
     if (f.editing) {
       this.liveEdits.set(f.userId, {

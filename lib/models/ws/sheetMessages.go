@@ -69,12 +69,14 @@ type SheetPresenceIncoming struct {
 		Component string `json:"component"` // "sheet"
 		Type      string `json:"type"`      // "COLLABROOM"
 		Data      struct {
-			Type    string `json:"type"` // "SHEET_PRESENCE"
-			Sheet   string `json:"sheet"`
-			Row     int    `json:"row"`
-			Col     int    `json:"col"`
-			Editing bool   `json:"editing"`
-			Raw     string `json:"raw"`
+			Type     string `json:"type"` // "SHEET_PRESENCE"
+			Sheet    string `json:"sheet"`
+			Row      int    `json:"row"`
+			Col      int    `json:"col"`
+			Editing  bool   `json:"editing"`
+			Raw      string `json:"raw"`
+			FocusRow int    `json:"focusRow,omitempty"`
+			FocusCol int    `json:"focusCol,omitempty"`
 		} `json:"data"`
 	} `json:"data"`
 }
@@ -87,13 +89,15 @@ type SheetPresence struct {
 }
 
 type SheetPresenceData struct {
-	Type    string `json:"type"` // "SHEET_PRESENCE"
-	UserId  string `json:"userId"`
-	Name    string `json:"name"`
-	Color   string `json:"color"`
-	Sheet   string `json:"sheet"`
-	Row     int    `json:"row"`
-	Col     int    `json:"col"`
-	Editing bool   `json:"editing"`
-	Raw     string `json:"raw,omitempty"`
+	Type     string `json:"type"` // "SHEET_PRESENCE"
+	UserId   string `json:"userId"`
+	Name     string `json:"name"`
+	Color    string `json:"color"`
+	Sheet    string `json:"sheet"`
+	Row      int    `json:"row"`
+	Col      int    `json:"col"`
+	Editing  bool   `json:"editing"`
+	Raw      string `json:"raw,omitempty"`
+	FocusRow int    `json:"focusRow,omitempty"`
+	FocusCol int    `json:"focusCol,omitempty"`
 }
