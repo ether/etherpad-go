@@ -31,6 +31,7 @@ export interface SheetViewOptions {
   onFill?: (src: Selection, target: Selection) => void;
   readOnly?: boolean;
   styleOf?: (row: number, col: number) => Record<string, string>;
+  errorOf?: (row: number, col: number) => string | undefined;
 }
 
 const STYLE_ID = 'sheet-grid-style';
@@ -47,6 +48,7 @@ const CSS = `
 .sheet-grid td.sheet-remote-sel { box-shadow: inset 0 0 0 2px var(--rsel, #888); }
 .sheet-fill-handle { position: absolute; right: -4px; bottom: -4px; width: 8px; height: 8px; background: #2f9e6b; border: 1px solid #fff; cursor: crosshair; z-index: 6; }
 .sheet-grid td.sheet-fill-target { box-shadow: inset 0 0 0 1px #2f9e6b; }
+.sheet-grid td.sheet-cell-error { color: #c0392b; }
 `;
 
 export class DomSheetView {
@@ -276,6 +278,9 @@ export class DomSheetView {
           if (css.textAlign) td.style.textAlign = css.textAlign;
           if (css.border) td.style.border = css.border;
         }
+        const err = this.opts.errorOf?.(r, c);
+        td.classList.toggle('sheet-cell-error', !!err);
+        if (err) td.title = err; else td.removeAttribute('title');
         const deco: RemoteCursorDeco | undefined = live ?? this.cursorByKey.get(k);
         if (deco) {
           td.style.boxShadow = `inset 0 0 0 2px ${deco.color}`;
