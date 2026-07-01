@@ -127,10 +127,7 @@ export function startSheetEditor(root: HTMLElement): void {
     view?.render();
   };
 
-  const editingNow = (): boolean => {
-    const el = document.activeElement as HTMLElement | null;
-    return !!el && el.tagName === 'TD' && el.isContentEditable;
-  };
+  const editingNow = (): boolean => view?.isEditing() ?? false;
 
   const initSheet = (data: SheetVarsData): void => {
     activeSheetId = data.snapshot.sheets?.[0]?.id ?? 's1';
@@ -175,12 +172,14 @@ export function startSheetEditor(root: HTMLElement): void {
     if (!collab) return;
     const mod = e.ctrlKey || e.metaKey;
     if (mod && (e.key === 'c' || e.key === 'C') && !editingNow()) {
+      e.preventDefault();
       // ponytail: async Clipboard API only (requires secure context); a
       // hidden-textarea fallback is the upgrade path for plain-HTTP deploys.
       void navigator.clipboard.writeText(rangeToTSV(selection, rawValue));
       return;
     }
     if (mod && (e.key === 'x' || e.key === 'X') && !editingNow()) {
+      e.preventDefault();
       void navigator.clipboard.writeText(rangeToTSV(selection, rawValue));
       if (readOnly) return;
       const { r0, c0, r1, c1 } = normalize(selection);

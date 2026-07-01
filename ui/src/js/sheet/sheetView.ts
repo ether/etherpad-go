@@ -62,6 +62,7 @@ export class DomSheetView {
   private cells: HTMLTableCellElement[][] = [];
   private editing: { row: number; col: number } | null = null;
   private escaped = false;
+  private activeEdit = false;
   private cursorByKey = new Map<string, RemoteCursorDeco>();
   private liveByKey = new Map<string, RemoteLiveEditDeco>();
   private decorated = new Set<HTMLTableCellElement>();
@@ -161,12 +162,14 @@ export class DomSheetView {
     td.addEventListener('focus', () => {
       this.editing = { row: r, col: c };
       this.escaped = false;
+      this.activeEdit = false;
       td.style.boxShadow = '';
       td.querySelector('.sheet-remote-tag')?.remove();
       td.textContent = this.opts.rawValue(r, c);
       this.opts.onSelect?.(r, c);
     });
     td.addEventListener('input', () => {
+      this.activeEdit = true;
       this.opts.onLiveEdit?.(r, c, td.textContent ?? '');
     });
     td.addEventListener('keydown', (e: KeyboardEvent) => {
@@ -205,6 +208,7 @@ export class DomSheetView {
       const raw = td.textContent ?? '';
       const prev = this.opts.rawValue(r, c);
       this.editing = null;
+      this.activeEdit = false;
       if (this.escaped) {
         this.opts.onEditEnd?.(r, c, false);
       } else {
@@ -230,6 +234,13 @@ export class DomSheetView {
 
   getSelection(): Selection {
     return this.selection;
+  }
+
+  // isEditing reports whether the user is actively typing into a cell (as
+  // opposed to merely having a cell selected/focused). Clipboard and
+  // range-delete shortcuts must NOT fire while actively editing.
+  isEditing(): boolean {
+    return this.activeEdit;
   }
 
   setRemoteSelections(list: Array<{ userId: string; color: string; sel: Selection }>): void {
