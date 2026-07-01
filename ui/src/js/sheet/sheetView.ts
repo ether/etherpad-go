@@ -4,6 +4,7 @@
 
 import { type Selection, selFromSingle, normalize, selContains } from './sheetSelection';
 import { styleToCss } from './styleCss';
+import { colName } from './a1';
 
 export interface RemoteCursorDeco {
   userId: string;
@@ -30,17 +31,6 @@ export interface SheetViewOptions {
   onFill?: (src: Selection, target: Selection) => void;
   readOnly?: boolean;
   styleOf?: (row: number, col: number) => Record<string, string>;
-}
-
-function colName(c: number): string {
-  let s = '';
-  let n = c + 1;
-  while (n > 0) {
-    const rem = (n - 1) % 26;
-    s = String.fromCharCode(65 + rem) + s;
-    n = Math.floor((n - 1) / 26);
-  }
-  return s;
 }
 
 const STYLE_ID = 'sheet-grid-style';
