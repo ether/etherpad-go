@@ -26,6 +26,7 @@ export interface SheetViewOptions {
   onSelectionChange?: (sel: Selection) => void;
   onLiveEdit?: (row: number, col: number, raw: string) => void;
   onEditEnd?: (row: number, col: number, committed: boolean) => void;
+  onFill?: (src: Selection, target: Selection) => void;
   readOnly?: boolean;
 }
 
@@ -52,6 +53,8 @@ const CSS = `
 .sheet-grid td.sheet-sel { background: rgba(100, 210, 155, 0.15); }
 .sheet-grid td.sheet-sel-focus { box-shadow: inset 0 0 0 2px #2f9e6b; }
 .sheet-grid td.sheet-remote-sel { box-shadow: inset 0 0 0 2px var(--rsel, #888); }
+.sheet-fill-handle { position: absolute; right: -4px; bottom: -4px; width: 8px; height: 8px; background: #2f9e6b; border: 1px solid #fff; cursor: crosshair; z-index: 6; }
+.sheet-grid td.sheet-fill-target { box-shadow: inset 0 0 0 1px #2f9e6b; }
 `;
 
 export class DomSheetView {
@@ -64,6 +67,9 @@ export class DomSheetView {
   private decorated = new Set<HTMLTableCellElement>();
   private selection: Selection = selFromSingle(0, 0);
   private dragging = false;
+  private filling = false;
+  private fillSrc: Selection | null = null;
+  private fillTarget: Selection | null = null;
   private remoteSel: Array<{ userId: string; color: string; sel: Selection }> = [];
 
   constructor(root: HTMLElement, opts: SheetViewOptions) {
@@ -107,7 +113,16 @@ export class DomSheetView {
     table.appendChild(tbody);
     root.appendChild(table);
     document.addEventListener('mouseup', () => {
+      if (this.filling && this.fillSrc && this.fillTarget) {
+        this.opts.onFill?.(this.fillSrc, this.fillTarget);
+        this.selection = this.fillTarget;
+        this.opts.onSelectionChange?.(this.selection);
+      }
       this.dragging = false;
+      this.filling = false;
+      this.fillSrc = null;
+      this.fillTarget = null;
+      this.render();
     });
     this.render();
   }
@@ -132,6 +147,11 @@ export class DomSheetView {
       this.render();
     });
     td.addEventListener('mouseover', () => {
+      if (this.filling && this.fillSrc) {
+        this.fillTarget = { anchor: this.fillSrc.anchor, focus: { row: r, col: c } };
+        this.render();
+        return;
+      }
       if (!this.dragging) return;
       this.selection = { anchor: this.selection.anchor, focus: { row: r, col: c } };
       this.opts.onSelectionChange?.(this.selection);
@@ -220,9 +240,10 @@ export class DomSheetView {
   render(): void {
     for (const td of this.decorated) {
       td.style.boxShadow = '';
-      td.classList.remove('sheet-remote-sel');
+      td.classList.remove('sheet-remote-sel', 'sheet-fill-target');
       td.style.removeProperty('--rsel');
       td.querySelector('.sheet-remote-tag')?.remove();
+      td.querySelector('.sheet-fill-handle')?.remove();
     }
     this.decorated.clear();
 
@@ -270,6 +291,32 @@ export class DomSheetView {
           td.style.setProperty('--rsel', rs.color);
           td.classList.add('sheet-remote-sel');
           this.decorated.add(td);
+        }
+      }
+    }
+
+    // fill handle at the bottom-right corner of the current selection
+    const { r1, c1 } = normalize(this.selection);
+    const brCell = this.cells[r1]?.[c1];
+    if (brCell && !this.opts.readOnly) {
+      const h = document.createElement('span');
+      h.className = 'sheet-fill-handle';
+      h.addEventListener('mousedown', (e: MouseEvent) => {
+        e.stopPropagation();
+        e.preventDefault();
+        this.filling = true;
+        this.fillSrc = this.selection;
+        this.fillTarget = this.selection;
+      });
+      brCell.appendChild(h);
+      this.decorated.add(brCell);
+    }
+    if (this.fillTarget) {
+      const t = normalize(this.fillTarget);
+      for (let r = t.r0; r <= t.r1; r++) {
+        for (let c = t.c0; c <= t.c1; c++) {
+          const td = this.cells[r]?.[c];
+          if (td) { td.classList.add('sheet-fill-target'); this.decorated.add(td); }
         }
       }
     }
