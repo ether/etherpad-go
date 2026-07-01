@@ -168,6 +168,18 @@ export function startSheetEditor(root: HTMLElement): void {
 
   // Copy/Cut/Paste (TSV) and range delete. Skipped when a cell is mid-edit so
   // native in-cell text editing keeps its own clipboard/Delete behavior.
+  //
+  // These branches only run when !editingNow(), so the focused cell (if any)
+  // has no unsaved edit: its DOM text matches its stored raw. We blur it
+  // before applying the op so DomSheetView.render() (which otherwise skips
+  // repainting `this.editing`) repaints the focused cell too. Blurring must
+  // happen BEFORE the op, not after: after would make the blur listener's
+  // commit check compare stale DOM text against the already-updated model
+  // and clobber it.
+  const blurActiveCell = (): void => {
+    const el = document.activeElement as HTMLElement | null;
+    if (el && el.tagName === 'TD' && el.isContentEditable) el.blur();
+  };
   document.addEventListener('keydown', (e) => {
     if (!collab) return;
     const mod = e.ctrlKey || e.metaKey;
@@ -182,12 +194,14 @@ export function startSheetEditor(root: HTMLElement): void {
       e.preventDefault();
       void navigator.clipboard.writeText(rangeToTSV(selection, rawValue));
       if (readOnly) return;
+      blurActiveCell();
       const { r0, c0, r1, c1 } = normalize(selection);
       collab.applyLocal({ type: 'clearRange', sheet: activeSheetId, baseRev: collab.rev, row: r0, col: c0, endRow: r1, endCol: c1 });
       return;
     }
     if (mod && (e.key === 'v' || e.key === 'V') && !editingNow() && !readOnly) {
       e.preventDefault();
+      blurActiveCell();
       void navigator.clipboard.readText().then((text) => {
         if (!collab) return;
         const grid = parseTSV(text);
@@ -198,6 +212,7 @@ export function startSheetEditor(root: HTMLElement): void {
     }
     if ((e.key === 'Delete' || e.key === 'Backspace') && !editingNow() && !readOnly && !selIsSingle(selection)) {
       e.preventDefault();
+      blurActiveCell();
       const { r0, c0, r1, c1 } = normalize(selection);
       collab.applyLocal({ type: 'clearRange', sheet: activeSheetId, baseRev: collab.rev, row: r0, col: c0, endRow: r1, endCol: c1 });
     }
