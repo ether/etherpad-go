@@ -200,6 +200,9 @@ export function startSheetEditor(root: HTMLElement): void {
       displayValue,
       readOnly: data.readonly,
       styleOf: (r, c) => propsOf(r, c),
+      // ponytail: second engine.getValue per formula cell per render (displayValue
+      // already does one). Cheap: HyperFormula caches, and the raw.startsWith('=')
+      // gate skips non-formula cells. Fold into displayValue if the grid grows.
       errorOf: (r, c) => {
         const cell = collab?.display.getCell(activeSheetId, r, c);
         if (!cell || !cell.raw.startsWith('=')) return undefined;
