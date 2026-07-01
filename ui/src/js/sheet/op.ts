@@ -26,6 +26,8 @@ export interface Op {
   value?: string;
   valueType?: string;
   styleId?: number;
+  // setCell / setStyle style properties, interned into the workbook style pool.
+  props?: Record<string, string>;
   // structural ops
   index?: number;
   count?: number;

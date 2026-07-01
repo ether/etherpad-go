@@ -87,3 +87,50 @@ func TestApplyUnknownSheet(t *testing.T) {
 		t.Fatal("apply to unknown sheet must error")
 	}
 }
+
+func TestApplySetStyleInternsProps(t *testing.T) {
+	w := NewWorkbook()
+	w.AddSheet("s1", "Sheet1")
+
+	props := map[string]string{"bold": "1", "color": "#cc0000"}
+	if err := w.Apply(Op{Type: OpSetStyle, Sheet: "s1", Row: 1, Col: 2, Props: props}); err != nil {
+		t.Fatal(err)
+	}
+	cell := w.SheetByID("s1").GetCell(CellRef{1, 2})
+	if cell.StyleId == 0 {
+		t.Fatalf("expected non-zero styleId after interning props")
+	}
+	got, ok := w.Styles.Get(cell.StyleId)
+	if !ok || got.Props["bold"] != "1" || got.Props["color"] != "#cc0000" {
+		t.Fatalf("pool did not store props: %+v ok=%v", got, ok)
+	}
+
+	// Dedup: identical props reused on another cell -> same id.
+	if err := w.Apply(Op{Type: OpSetStyle, Sheet: "s1", Row: 3, Col: 4, Props: props}); err != nil {
+		t.Fatal(err)
+	}
+	if w.SheetByID("s1").GetCell(CellRef{3, 4}).StyleId != cell.StyleId {
+		t.Fatalf("identical props should dedup to the same id")
+	}
+
+	// Different props -> different id.
+	if err := w.Apply(Op{Type: OpSetStyle, Sheet: "s1", Row: 5, Col: 6, Props: map[string]string{"italic": "1"}}); err != nil {
+		t.Fatal(err)
+	}
+	if w.SheetByID("s1").GetCell(CellRef{5, 6}).StyleId == cell.StyleId {
+		t.Fatalf("different props must not share an id")
+	}
+}
+
+func TestApplySetCellWithPropsInterns(t *testing.T) {
+	w := NewWorkbook()
+	w.AddSheet("s1", "Sheet1")
+	raw := "42"
+	if err := w.Apply(Op{Type: OpSetCell, Sheet: "s1", Row: 0, Col: 0, Raw: &raw, Props: map[string]string{"align": "right"}}); err != nil {
+		t.Fatal(err)
+	}
+	cell := w.SheetByID("s1").GetCell(CellRef{0, 0})
+	if cell.Raw != "42" || cell.StyleId == 0 {
+		t.Fatalf("setCell should set raw AND intern props: %+v", cell)
+	}
+}
