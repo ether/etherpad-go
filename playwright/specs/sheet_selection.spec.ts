@@ -106,17 +106,17 @@ test.describe('Sheet selection, fill, and clipboard', () => {
   });
 
   test.describe('clipboard', () => {
+    // Firefox's Playwright build rejects the clipboard-read permission at
+    // CONTEXT creation — before any test body runs — so an inner test.fixme is
+    // too late (the context is built by test.use's `permissions` first). A
+    // describe-level test.skip on browserName is evaluated before the
+    // page/context fixture is built, so firefox is skipped cleanly. The fill
+    // test above already proves the op pipeline without the OS clipboard;
+    // chromium/webkit exercise the real Ctrl+C/Ctrl+V path here.
+    test.skip(({ browserName }) => browserName === 'firefox', 'Firefox does not support clipboard-read/write permission grants in Playwright');
     test.use({ permissions: ['clipboard-read', 'clipboard-write'] });
 
-    test('copy and paste a TSV range', async ({ page, browserName }) => {
-      // Firefox's Playwright build does not support granting clipboard-read/
-      // clipboard-write permissions, so the async Clipboard API calls in
-      // sheetEditor.ts's Ctrl+C/Ctrl+V handlers silently no-op there. The fill
-      // test above already proves the underlying op pipeline (setCell via
-      // collab.applyLocal) without depending on the OS clipboard, so this is
-      // a real-browser-support gap, not an untested code path.
-      test.fixme(browserName === 'firefox', 'Firefox does not support clipboard-read/write permission grants in Playwright');
-
+    test('copy and paste a TSV range', async ({ page }) => {
       const padId = `sheet-clip-${Date.now()}`;
       await openSheet(page, padId);
 
