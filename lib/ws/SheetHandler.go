@@ -176,15 +176,17 @@ func (p *PadMessageHandler) HandlePresence(client *Client, msg ws.SheetPresenceI
 
 	out := ws.SheetPresence{Type: "COLLABROOM"}
 	out.Data = ws.SheetPresenceData{
-		Type:    "SHEET_PRESENCE",
-		UserId:  session.Author,
-		Name:    name,
-		Color:   color,
-		Sheet:   msg.Data.Data.Sheet,
-		Row:     msg.Data.Data.Row,
-		Col:     msg.Data.Data.Col,
-		Editing: editing,
-		Raw:     raw,
+		Type:     "SHEET_PRESENCE",
+		UserId:   session.Author,
+		Name:     name,
+		Color:    color,
+		Sheet:    msg.Data.Data.Sheet,
+		Row:      msg.Data.Data.Row,
+		Col:      msg.Data.Data.Col,
+		Editing:  editing,
+		Raw:      raw,
+		FocusRow: msg.Data.Data.FocusRow,
+		FocusCol: msg.Data.Data.FocusCol,
 	}
 	encoded, err := json.Marshal([]any{"message", out})
 	if err != nil {

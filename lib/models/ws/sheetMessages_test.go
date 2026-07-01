@@ -2,6 +2,7 @@ package ws
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -57,5 +58,17 @@ func TestAcceptAndNewSheetOpMarshal(t *testing.T) {
 	var got NewSheetOp
 	if err := json.Unmarshal(b, &got); err != nil || got.Data.NewRev != 5 {
 		t.Fatalf("roundtrip: %v %+v", err, got)
+	}
+}
+
+func TestSheetPresenceFocusZeroNotOmitted(t *testing.T) {
+	d := SheetPresenceData{Type: "SHEET_PRESENCE", Row: 0, Col: 0, FocusRow: 0, FocusCol: 0}
+	b, err := json.Marshal(d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(b)
+	if !strings.Contains(s, `"focusRow"`) || !strings.Contains(s, `"focusCol"`) {
+		t.Fatalf("focusRow/focusCol must not be omitted at zero: %s", s)
 	}
 }

@@ -42,6 +42,14 @@ describe('SheetPresence reducer', () => {
     expect(p.cursorsForSheet('s1')).toHaveLength(1);
     expect(p.cursorsForSheet('s2')).toHaveLength(1);
   });
+
+  it('keeps selection focus (focusRow/focusCol) on the cursor', () => {
+    const p = new SheetPresence('me');
+    p.applyPresence(frame({ userId: 'a', row: 1, col: 1, focusRow: 3, focusCol: 4 }));
+    const cur = p.cursorsForSheet('s1')[0];
+    expect(cur.focusRow).toBe(3);
+    expect(cur.focusCol).toBe(4);
+  });
 });
 
 describe('effectiveCells overlay drives live recompute', () => {
