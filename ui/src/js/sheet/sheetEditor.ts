@@ -5,7 +5,10 @@ import { FormulaEngine } from './formulaEngine';
 import { DomSheetView } from './sheetView';
 import { SheetPresence, effectiveCells, type PresenceFrame } from './sheetPresence';
 import { rangeToTSV, parseTSV, pasteOps, fillOps } from './sheetClipboard';
-import { normalize, selIsSingle, type Selection } from './sheetSelection';
+import { normalize, selCells, selIsSingle, type Selection } from './sheetSelection';
+import { createToolbar } from './sheetToolbar';
+import { mergeProps } from './styleCss';
+import { formatValue } from './format';
 import type { Op } from './op';
 import type { WorkbookSnapshot } from './workbookState';
 
@@ -92,11 +95,22 @@ export function startSheetEditor(root: HTMLElement): void {
   const rawValue = (r: number, c: number): string =>
     collab?.display.getCell(activeSheetId, r, c)?.raw ?? '';
 
+  const propsOf = (r: number, c: number): Record<string, string> =>
+    collab ? collab.display.getStyleProps(activeSheetId, r, c) : {};
+
   const displayValue = (r: number, c: number): string => {
     const cell = collab?.display.getCell(activeSheetId, r, c);
     if (!cell || cell.raw === '') return '';
-    if (cell.raw.startsWith('=')) return engine.getValue(r, c).value;
-    return cell.raw;
+    const raw = cell.raw.startsWith('=') ? engine.getValue(r, c).value : cell.raw;
+    return formatValue(raw, '', propsOf(r, c).numFmt);
+  };
+
+  const applyStyleToSelection = (change: Record<string, string>): void => {
+    if (readOnly || !collab) return;
+    for (const { row, col } of selCells(selection)) {
+      const merged = mergeProps(propsOf(row, col), change);
+      collab.applyLocal({ type: 'setStyle', sheet: activeSheetId, baseRev: collab.rev, row, col, props: merged });
+    }
   };
 
   const onChange = (): void => {
@@ -136,12 +150,28 @@ export function startSheetEditor(root: HTMLElement): void {
     collab.onChange = onChange;
     presence = new SheetPresence(data.userId);
     presence.onChange = onChange;
-    view = new DomSheetView(root, {
+
+    // The view clears its container's innerHTML in its constructor, so the
+    // toolbar gets its own sibling container (gridHost) rather than sharing
+    // root with it.
+    root.innerHTML = '';
+    const toolbar = createToolbar({
+      getProps: (r, c) => propsOf(r, c),
+      focusCell: () => selection.focus,
+      applyToSelection: applyStyleToSelection,
+      readOnly: data.readonly,
+    });
+    const gridHost = document.createElement('div');
+    root.appendChild(toolbar);
+    root.appendChild(gridHost);
+
+    view = new DomSheetView(gridHost, {
       rows: 50,
       cols: 20,
       rawValue,
       displayValue,
       readOnly: data.readonly,
+      styleOf: (r, c) => propsOf(r, c),
       onEdit: (r, c, raw) => {
         if (!collab) return;
         collab.applyLocal({ type: 'setCell', sheet: activeSheetId, baseRev: collab.rev, row: r, col: c, raw });

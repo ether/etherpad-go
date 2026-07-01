@@ -85,6 +85,8 @@ export class WorkbookState {
     this.styles.seed(snap.styles);
   }
 
+  // Returns the LIVE pool object for the cell's style — never mutate it in
+  // place; spread it into a new object (e.g. via mergeProps) before changing.
   getStyleProps(sheetId: string, row: number, col: number): StyleProps {
     const id = this.getCell(sheetId, row, col)?.styleId ?? 0;
     return this.styles.get(id) ?? {};

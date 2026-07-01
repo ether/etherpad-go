@@ -26,6 +26,8 @@ export class StylePoolMirror {
     return id;
   }
 
+  // Returns the LIVE pool object (not a copy) — mutating it in place would
+  // corrupt dedup/convergence for every other cell sharing this style id.
   get(id: number): StyleProps | undefined {
     if (id === 0) return {};
     return this.idToStyle.get(id);
