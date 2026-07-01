@@ -95,6 +95,11 @@ export function startSheetEditor(root: HTMLElement): void {
   const rawValue = (r: number, c: number): string =>
     collab?.display.getCell(activeSheetId, r, c)?.raw ?? '';
 
+  // ponytail: styleId is client-internal — only `props` travel on the wire and
+  // are persisted, and each cell's styleId+pool entry are set together in one
+  // applyOp. So an optimistic local put() assigning a different nextId than the
+  // server (before the op is confirmed) is unobservable: rendering keys off
+  // props, and reconnect re-seeds the pool. No cross-client render/persist drift.
   const propsOf = (r: number, c: number): Record<string, string> =>
     collab ? collab.display.getStyleProps(activeSheetId, r, c) : {};
 
