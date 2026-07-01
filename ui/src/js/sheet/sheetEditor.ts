@@ -4,6 +4,8 @@ import { SheetCollabClient } from './sheetCollabClient';
 import { FormulaEngine } from './formulaEngine';
 import { DomSheetView } from './sheetView';
 import { SheetPresence, effectiveCells, type PresenceFrame } from './sheetPresence';
+import { rangeToTSV, parseTSV, pasteOps, fillOps } from './sheetClipboard';
+import { normalize, selIsSingle, type Selection } from './sheetSelection';
 import type { Op } from './op';
 import type { WorkbookSnapshot } from './workbookState';
 
@@ -29,6 +31,8 @@ export function startSheetEditor(root: HTMLElement): void {
   let presence: SheetPresence | null = null;
   let activeSheetId = 's1';
   const engine = new FormulaEngine();
+  let selection: Selection = { anchor: { row: 0, col: 0 }, focus: { row: 0, col: 0 } };
+  let readOnly = false;
 
   const transport = {
     send: (op: Op) =>
@@ -39,11 +43,13 @@ export function startSheetEditor(root: HTMLElement): void {
       }),
   };
 
-  const sendPresence = (row: number, col: number, editing: boolean, raw?: string): void =>
+  const sendPresence = (
+    row: number, col: number, editing: boolean, raw?: string, focusRow?: number, focusCol?: number,
+  ): void =>
     socket.emit('message', {
       type: 'COLLABROOM',
       component: 'sheet',
-      data: { type: 'SHEET_PRESENCE', sheet: activeSheetId, row, col, editing, raw },
+      data: { type: 'SHEET_PRESENCE', sheet: activeSheetId, row, col, editing, raw, focusRow, focusCol },
     });
 
   // Live-edit throttle (trailing, ~60ms) so typing does not flood the socket.
@@ -107,12 +113,28 @@ export function startSheetEditor(root: HTMLElement): void {
           userId: e.userId, name: e.name, color: e.color, row: e.row, col: e.col, raw: e.raw,
         })),
       );
+      view.setRemoteSelections(
+        presence
+          .cursorsForSheet(activeSheetId)
+          .filter((c) => c.focusRow !== undefined && c.focusCol !== undefined)
+          .map((c) => ({
+            userId: c.userId,
+            color: c.color,
+            sel: { anchor: { row: c.row, col: c.col }, focus: { row: c.focusRow as number, col: c.focusCol as number } },
+          })),
+      );
     }
     view?.render();
   };
 
+  const editingNow = (): boolean => {
+    const el = document.activeElement as HTMLElement | null;
+    return !!el && el.tagName === 'TD' && el.isContentEditable;
+  };
+
   const initSheet = (data: SheetVarsData): void => {
     activeSheetId = data.snapshot.sheets?.[0]?.id ?? 's1';
+    readOnly = data.readonly;
     collab = new SheetCollabClient(data.snapshot, data.head, transport);
     collab.onChange = onChange;
     presence = new SheetPresence(data.userId);
@@ -128,6 +150,10 @@ export function startSheetEditor(root: HTMLElement): void {
         collab.applyLocal({ type: 'setCell', sheet: activeSheetId, baseRev: collab.rev, row: r, col: c, raw });
       },
       onSelect: (r, c) => sendSelect(r, c),
+      onSelectionChange: (sel) => {
+        selection = sel;
+        sendPresence(sel.anchor.row, sel.anchor.col, false, undefined, sel.focus.row, sel.focus.col);
+      },
       onLiveEdit: (r, c, raw) => sendLiveEdit(r, c, raw),
       onEditEnd: (r, c, committed) => {
         cancelPendingLive();
@@ -135,9 +161,48 @@ export function startSheetEditor(root: HTMLElement): void {
         // NEW_SHEET_OP.author — sending editing:false here would flicker.
         if (!committed) sendPresence(r, c, false);
       },
+      onFill: (src, target) => {
+        if (readOnly || !collab) return;
+        for (const op of fillOps(src, target, activeSheetId, collab.rev, rawValue)) collab.applyLocal(op);
+      },
     });
     onChange();
   };
+
+  // Copy/Cut/Paste (TSV) and range delete. Skipped when a cell is mid-edit so
+  // native in-cell text editing keeps its own clipboard/Delete behavior.
+  document.addEventListener('keydown', (e) => {
+    if (!collab) return;
+    const mod = e.ctrlKey || e.metaKey;
+    if (mod && (e.key === 'c' || e.key === 'C') && !editingNow()) {
+      // ponytail: async Clipboard API only (requires secure context); a
+      // hidden-textarea fallback is the upgrade path for plain-HTTP deploys.
+      void navigator.clipboard.writeText(rangeToTSV(selection, rawValue));
+      return;
+    }
+    if (mod && (e.key === 'x' || e.key === 'X') && !editingNow()) {
+      void navigator.clipboard.writeText(rangeToTSV(selection, rawValue));
+      if (readOnly) return;
+      const { r0, c0, r1, c1 } = normalize(selection);
+      collab.applyLocal({ type: 'clearRange', sheet: activeSheetId, baseRev: collab.rev, row: r0, col: c0, endRow: r1, endCol: c1 });
+      return;
+    }
+    if (mod && (e.key === 'v' || e.key === 'V') && !editingNow() && !readOnly) {
+      e.preventDefault();
+      void navigator.clipboard.readText().then((text) => {
+        if (!collab) return;
+        const grid = parseTSV(text);
+        const { r0, c0 } = normalize(selection);
+        for (const op of pasteOps(grid, { row: r0, col: c0 }, activeSheetId, collab.rev)) collab.applyLocal(op);
+      });
+      return;
+    }
+    if ((e.key === 'Delete' || e.key === 'Backspace') && !editingNow() && !readOnly && !selIsSingle(selection)) {
+      e.preventDefault();
+      const { r0, c0, r1, c1 } = normalize(selection);
+      collab.applyLocal({ type: 'clearRange', sheet: activeSheetId, baseRev: collab.rev, row: r0, col: c0, endRow: r1, endCol: c1 });
+    }
+  });
 
   const sendClientReady = (): void => {
     let token = Cookies.get('token');
