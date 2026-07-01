@@ -31,12 +31,17 @@ export function pasteOps(grid: string[][], anchor: CellPos, sheet: string, baseR
   return ops;
 }
 
-// A1-style ref token: optional $ before col letters, optional $ before row digits.
-const REF = /(\$?)([A-Z]+)(\$?)(\d+)/g;
+// ponytail: heuristic A1-ref shift, not a full parser. A ref must not be
+// preceded by a letter and not followed by word chars or '(', so LOG10(A1)
+// matches only A1, not the function name. Case-insensitive so lowercase refs
+// shift too (output normalized to uppercase, as Excel does).
+// Known limit: digit-suffixed string literals inside the formula (e.g. ="abc5")
+// can still be mis-shifted; upgrade path is HyperFormula's parser if it matters.
+const REF = /(?<![A-Za-z])(\$?)([A-Za-z]+)(\$?)(\d+)(?![\w(])/g;
 
 function colToNum(letters: string): number {
   let n = 0;
-  for (const ch of letters) n = n * 26 + (ch.charCodeAt(0) - 64);
+  for (const ch of letters.toUpperCase()) n = n * 26 + (ch.charCodeAt(0) - 64);
   return n - 1; // zero-based
 }
 

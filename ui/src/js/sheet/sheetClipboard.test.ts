@@ -41,6 +41,14 @@ describe('adjustFormula relative-ref shift', () => {
     expect(adjustFormula('hello', 3, 3)).toBe('hello');
     expect(adjustFormula('42', 3, 3)).toBe('42');
   });
+  it('does not corrupt function names ending in digits', () => {
+    expect(adjustFormula('=LOG10(A1)', 1, 0)).toBe('=LOG10(A2)');
+    expect(adjustFormula('=ATAN2(A1,B1)', 0, 1)).toBe('=ATAN2(B1,C1)');
+  });
+  it('shifts lowercase refs, normalizing column letters to uppercase', () => {
+    expect(adjustFormula('=a1', 1, 0)).toBe('=A2');
+    expect(adjustFormula('=sum(a1:a3)', 2, 0)).toBe('=sum(A3:A5)');
+  });
 });
 
 describe('fillOps', () => {
