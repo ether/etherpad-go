@@ -54,6 +54,8 @@ test.describe('Sheet formula bar', () => {
 
     const ac = page.locator('.sheet-fx-ac');
     await expect(ac).toBeVisible();
-    await expect(ac.locator('div', { hasText: 'SUM' })).toHaveCount(1);
+    // Exact match: hasText is substring-based and would also count SUMIF,
+    // SUMSQ, ... — six entries match the 'SU' prefix.
+    await expect(ac.locator('div').filter({ hasText: /^SUM$/ })).toHaveCount(1);
   });
 });
