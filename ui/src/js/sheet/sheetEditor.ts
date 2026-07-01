@@ -203,6 +203,7 @@ export function startSheetEditor(root: HTMLElement): void {
       e.preventDefault();
       blurActiveCell();
       void navigator.clipboard.readText().then((text) => {
+        if (text === '') return;
         if (!collab) return;
         const grid = parseTSV(text);
         const { r0, c0 } = normalize(selection);

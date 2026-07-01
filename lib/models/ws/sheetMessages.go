@@ -75,8 +75,8 @@ type SheetPresenceIncoming struct {
 			Col      int    `json:"col"`
 			Editing  bool   `json:"editing"`
 			Raw      string `json:"raw"`
-			FocusRow int    `json:"focusRow,omitempty"`
-			FocusCol int    `json:"focusCol,omitempty"`
+			FocusRow int    `json:"focusRow"`
+			FocusCol int    `json:"focusCol"`
 		} `json:"data"`
 	} `json:"data"`
 }
@@ -98,6 +98,6 @@ type SheetPresenceData struct {
 	Col      int    `json:"col"`
 	Editing  bool   `json:"editing"`
 	Raw      string `json:"raw,omitempty"`
-	FocusRow int    `json:"focusRow,omitempty"`
-	FocusCol int    `json:"focusCol,omitempty"`
+	FocusRow int    `json:"focusRow"`
+	FocusCol int    `json:"focusCol"`
 }
