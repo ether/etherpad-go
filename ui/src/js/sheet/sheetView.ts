@@ -2,6 +2,8 @@
 // HTML table with contenteditable cells. The SheetView contract lets a canvas
 // grid replace it later without touching the collaboration layer.
 
+import { type Selection, selFromSingle, normalize, selContains } from './sheetSelection';
+
 export interface RemoteCursorDeco {
   userId: string;
   name: string;
@@ -21,6 +23,7 @@ export interface SheetViewOptions {
   displayValue: (row: number, col: number) => string;
   onEdit: (row: number, col: number, raw: string) => void;
   onSelect?: (row: number, col: number) => void;
+  onSelectionChange?: (sel: Selection) => void;
   onLiveEdit?: (row: number, col: number, raw: string) => void;
   onEditEnd?: (row: number, col: number, committed: boolean) => void;
   readOnly?: boolean;
@@ -46,6 +49,9 @@ const CSS = `
 .sheet-grid td:focus { box-shadow: inset 0 0 0 2px #64d29b; }
 .sheet-remote-tag { position: absolute; top: -15px; left: -1px; font: 10px/14px system-ui, sans-serif; padding: 0 4px; color: #fff; border-radius: 3px 3px 3px 0; white-space: nowrap; z-index: 5; pointer-events: none; }
 .sheet-remote-tag::after { content: attr(data-label); }
+.sheet-grid td.sheet-sel { background: rgba(100, 210, 155, 0.15); }
+.sheet-grid td.sheet-sel-focus { box-shadow: inset 0 0 0 2px #2f9e6b; }
+.sheet-grid td.sheet-remote-sel { box-shadow: inset 0 0 0 2px var(--rsel, #888); }
 `;
 
 export class DomSheetView {
@@ -56,6 +62,9 @@ export class DomSheetView {
   private cursorByKey = new Map<string, RemoteCursorDeco>();
   private liveByKey = new Map<string, RemoteLiveEditDeco>();
   private decorated = new Set<HTMLTableCellElement>();
+  private selection: Selection = selFromSingle(0, 0);
+  private dragging = false;
+  private remoteSel: Array<{ userId: string; color: string; sel: Selection }> = [];
 
   constructor(root: HTMLElement, opts: SheetViewOptions) {
     this.opts = opts;
@@ -97,6 +106,9 @@ export class DomSheetView {
     }
     table.appendChild(tbody);
     root.appendChild(table);
+    document.addEventListener('mouseup', () => {
+      this.dragging = false;
+    });
     this.render();
   }
 
@@ -109,6 +121,22 @@ export class DomSheetView {
   }
 
   private attach(td: HTMLTableCellElement, r: number, c: number): void {
+    td.addEventListener('mousedown', (e: MouseEvent) => {
+      if (e.shiftKey) {
+        this.selection = { anchor: this.selection.anchor, focus: { row: r, col: c } };
+      } else {
+        this.selection = selFromSingle(r, c);
+        this.dragging = true;
+      }
+      this.opts.onSelectionChange?.(this.selection);
+      this.render();
+    });
+    td.addEventListener('mouseover', () => {
+      if (!this.dragging) return;
+      this.selection = { anchor: this.selection.anchor, focus: { row: r, col: c } };
+      this.opts.onSelectionChange?.(this.selection);
+      this.render();
+    });
     td.addEventListener('focus', () => {
       this.editing = { row: r, col: c };
       this.escaped = false;
@@ -121,6 +149,28 @@ export class DomSheetView {
       this.opts.onLiveEdit?.(r, c, td.textContent ?? '');
     });
     td.addEventListener('keydown', (e: KeyboardEvent) => {
+      const move = (dr: number, dc: number, extend: boolean) => {
+        e.preventDefault();
+        const f = this.selection.focus;
+        const nr = Math.min(this.opts.rows - 1, Math.max(0, f.row + dr));
+        const nc = Math.min(this.opts.cols - 1, Math.max(0, f.col + dc));
+        this.selection = extend
+          ? { anchor: this.selection.anchor, focus: { row: nr, col: nc } }
+          : selFromSingle(nr, nc);
+        if (!extend) this.opts.onSelect?.(nr, nc);
+        this.opts.onSelectionChange?.(this.selection);
+        this.render();
+      };
+      if (e.key === 'ArrowUp') return move(-1, 0, e.shiftKey);
+      if (e.key === 'ArrowDown') return move(1, 0, e.shiftKey);
+      if (e.key === 'ArrowLeft') return move(0, -1, e.shiftKey);
+      if (e.key === 'ArrowRight') return move(0, 1, e.shiftKey);
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'a' || e.key === 'A')) {
+        e.preventDefault();
+        this.selection = { anchor: { row: 0, col: 0 }, focus: { row: this.opts.rows - 1, col: this.opts.cols - 1 } };
+        this.opts.onSelectionChange?.(this.selection);
+        return this.render();
+      }
       if (e.key === 'Enter') {
         e.preventDefault();
         td.blur();
@@ -157,11 +207,21 @@ export class DomSheetView {
     this.liveByKey = new Map(list.map((d) => [`${d.row}:${d.col}`, d]));
   }
 
+  getSelection(): Selection {
+    return this.selection;
+  }
+
+  setRemoteSelections(list: Array<{ userId: string; color: string; sel: Selection }>): void {
+    this.remoteSel = list;
+  }
+
   // render refreshes every non-editing cell to its display value, then paints
   // remote live-edit text and cursor/live-edit decorations.
   render(): void {
     for (const td of this.decorated) {
       td.style.boxShadow = '';
+      td.classList.remove('sheet-remote-sel');
+      td.style.removeProperty('--rsel');
       td.querySelector('.sheet-remote-tag')?.remove();
     }
     this.decorated.clear();
@@ -183,6 +243,32 @@ export class DomSheetView {
           tag.setAttribute('data-label', deco.name || 'anon');
           tag.style.background = deco.color;
           td.appendChild(tag);
+          this.decorated.add(td);
+        }
+      }
+    }
+
+    // local selection
+    for (let r = 0; r < this.opts.rows; r++) {
+      for (let c = 0; c < this.opts.cols; c++) {
+        const td = this.cells[r][c];
+        td.classList.toggle('sheet-sel', selContains(this.selection, r, c));
+        td.classList.toggle(
+          'sheet-sel-focus',
+          r === this.selection.focus.row && c === this.selection.focus.col,
+        );
+      }
+    }
+    // remote selections (outline only, multi-cell)
+    for (const rs of this.remoteSel) {
+      const { r0, c0, r1, c1 } = normalize(rs.sel);
+      if (r1 - r0 === 0 && c1 - c0 === 0) continue; // single cell handled by cursor deco
+      for (let r = r0; r <= r1; r++) {
+        for (let c = c0; c <= c1; c++) {
+          const td = this.cells[r]?.[c];
+          if (!td) continue;
+          td.style.setProperty('--rsel', rs.color);
+          td.classList.add('sheet-remote-sel');
           this.decorated.add(td);
         }
       }
