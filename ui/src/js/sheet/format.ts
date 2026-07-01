@@ -3,7 +3,8 @@
 
 function parseFmt(numFmt: string): { kind: string; decimals: number | undefined } {
   const [kind, d] = numFmt.split(':');
-  return { kind, decimals: d === undefined ? undefined : Number(d) };
+  const n = d === undefined ? undefined : Number(d);
+  return { kind, decimals: n === undefined || Number.isNaN(n) ? undefined : n };
 }
 
 export function formatValue(value: string, _valueType: string, numFmt: string | undefined): string {
@@ -14,7 +15,7 @@ export function formatValue(value: string, _valueType: string, numFmt: string | 
     const d = /^\d+(\.\d+)?$/.test(value)
       ? new Date(Date.UTC(1899, 11, 30) + Number(value) * 86400000) // spreadsheet serial
       : new Date(value);
-    return isNaN(d.getTime()) ? value : d.toLocaleDateString();
+    return isNaN(d.getTime()) ? value : d.toLocaleDateString('en-US');
   }
 
   const n = Number(value);
