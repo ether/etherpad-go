@@ -73,4 +73,11 @@ export class FormulaEngine {
       .map((c) => ({ row: c.address.row, col: c.address.col }));
     return { ...this.getValue(row, col), changed };
   }
+
+  // functionNames returns the HyperFormula-registered function names (for the
+  // formula bar's autocomplete). Uses the default 'enGB' language pack that
+  // buildEmpty registers.
+  functionNames(): string[] {
+    return HyperFormula.getRegisteredFunctionNames('enGB');
+  }
 }
