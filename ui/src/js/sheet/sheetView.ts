@@ -148,7 +148,8 @@ export class DomSheetView {
     });
     td.addEventListener('mouseover', () => {
       if (this.filling && this.fillSrc) {
-        this.fillTarget = { anchor: this.fillSrc.anchor, focus: { row: r, col: c } };
+        const { r0, c0 } = normalize(this.fillSrc);
+        this.fillTarget = { anchor: { row: r0, col: c0 }, focus: { row: r, col: c } };
         this.render();
         return;
       }
@@ -306,7 +307,8 @@ export class DomSheetView {
         e.preventDefault();
         this.filling = true;
         this.fillSrc = this.selection;
-        this.fillTarget = this.selection;
+        const { r0, c0, r1, c1 } = normalize(this.selection);
+        this.fillTarget = { anchor: { row: r0, col: c0 }, focus: { row: r1, col: c1 } };
       });
       brCell.appendChild(h);
       this.decorated.add(brCell);
