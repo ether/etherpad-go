@@ -35,6 +35,9 @@ type Op struct {
 	ValueType *string `json:"valueType,omitempty"`
 	// setCell + setStyle payload.
 	StyleId *int `json:"styleId,omitempty"`
+	// setCell + setStyle: style properties to intern into the workbook StylePool.
+	// When present, Apply interns them and sets the cell's StyleId to the result.
+	Props map[string]string `json:"props,omitempty"`
 
 	// Structural ops (insert/delete rows/cols).
 	Index int `json:"index,omitempty"`
@@ -56,15 +59,15 @@ func (o Op) Validate() error {
 	}
 	switch o.Type {
 	case OpSetCell:
-		if o.Raw == nil && o.StyleId == nil {
-			return fmt.Errorf("setCell needs raw and/or styleId")
+		if o.Raw == nil && o.StyleId == nil && o.Props == nil {
+			return fmt.Errorf("setCell needs raw, styleId, and/or props")
 		}
 		if o.Row < 0 || o.Col < 0 {
 			return fmt.Errorf("setCell negative coord")
 		}
 	case OpSetStyle:
-		if o.StyleId == nil {
-			return fmt.Errorf("setStyle needs styleId")
+		if o.StyleId == nil && o.Props == nil {
+			return fmt.Errorf("setStyle needs styleId or props")
 		}
 		if o.Row < 0 || o.Col < 0 {
 			return fmt.Errorf("setStyle negative coord")

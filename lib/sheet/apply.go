@@ -27,13 +27,19 @@ func (w *Workbook) Apply(op Op) error {
 		if op.ValueType != nil {
 			cur.ValueType = *op.ValueType
 		}
-		if op.StyleId != nil {
+		if op.Props != nil {
+			cur.StyleId = w.Styles.Put(Style{Props: op.Props})
+		} else if op.StyleId != nil {
 			cur.StyleId = *op.StyleId
 		}
 		s.SetCell(CellRef{op.Row, op.Col}, cur)
 	case OpSetStyle:
 		cur := s.GetCell(CellRef{op.Row, op.Col})
-		cur.StyleId = *op.StyleId
+		if op.Props != nil {
+			cur.StyleId = w.Styles.Put(Style{Props: op.Props})
+		} else {
+			cur.StyleId = *op.StyleId
+		}
 		s.SetCell(CellRef{op.Row, op.Col}, cur)
 	case OpClearRange:
 		for ref := range s.Cells {

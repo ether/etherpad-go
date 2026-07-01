@@ -71,3 +71,26 @@ func TestConvergencePropertyManyTrials(t *testing.T) {
 		}
 	}
 }
+
+// TestConvergenceStyleProps: two documents applying the same two style ops in
+// the same order must end with identical pool ids on the affected cells (ids
+// stay in lockstep).
+func TestConvergenceStyleProps(t *testing.T) {
+	mk := func() *Workbook { w := NewWorkbook(); w.AddSheet("s1", "Sheet1"); return w }
+	a, b := mk(), mk()
+	ops := []Op{
+		{Type: OpSetStyle, Sheet: "s1", Row: 0, Col: 0, Props: map[string]string{"bold": "1"}},
+		{Type: OpSetStyle, Sheet: "s1", Row: 1, Col: 1, Props: map[string]string{"italic": "1"}},
+	}
+	for _, op := range ops {
+		if err := a.Apply(op); err != nil {
+			t.Fatal(err)
+		}
+		if err := b.Apply(op); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if a.SheetByID("s1").GetCell(CellRef{0, 0}).StyleId != b.SheetByID("s1").GetCell(CellRef{0, 0}).StyleId {
+		t.Fatalf("style ids diverged between documents")
+	}
+}
