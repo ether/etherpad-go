@@ -15,6 +15,20 @@ func TestStylePoolDedup(t *testing.T) {
 	}
 }
 
+func TestStylePoolPutCopiesProps(t *testing.T) {
+	p := NewStylePool()
+	props := map[string]string{"bold": "1"}
+	id := p.Put(Style{Props: props})
+	props["bold"] = "0" // caller mutates its map after interning
+	got, _ := p.Get(id)
+	if got.Props["bold"] != "1" {
+		t.Fatal("Put must copy props; pooled style was mutated through the caller's map")
+	}
+	if again := p.Put(Style{Props: map[string]string{"bold": "1"}}); again != id {
+		t.Fatalf("dedup broken after caller mutation: got %d, want %d", again, id)
+	}
+}
+
 func TestStylePoolEmptyIsZero(t *testing.T) {
 	p := NewStylePool()
 	if got := p.Put(Style{}); got != 0 {

@@ -1,6 +1,9 @@
 package sheet
 
-import "fmt"
+import (
+	"fmt"
+	"regexp"
+)
 
 type OpType string
 
@@ -65,12 +68,18 @@ func (o Op) Validate() error {
 		if o.Row < 0 || o.Col < 0 {
 			return fmt.Errorf("setCell negative coord")
 		}
+		if err := validateProps(o.Props); err != nil {
+			return err
+		}
 	case OpSetStyle:
 		if o.StyleId == nil && o.Props == nil {
 			return fmt.Errorf("setStyle needs styleId or props")
 		}
 		if o.Row < 0 || o.Col < 0 {
 			return fmt.Errorf("setStyle negative coord")
+		}
+		if err := validateProps(o.Props); err != nil {
+			return err
 		}
 	case OpClearRange:
 		if o.Row < 0 || o.Col < 0 || o.EndRow < o.Row || o.EndCol < o.Col {
@@ -85,6 +94,38 @@ func (o Op) Validate() error {
 		}
 	default:
 		return fmt.Errorf("unknown op type %q", o.Type)
+	}
+	return nil
+}
+
+var (
+	hexColorRe = regexp.MustCompile(`^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$`)
+	numFmtRe   = regexp.MustCompile(`^(general|text|date|(number|currency|percent)(:\d{1,2})?)$`)
+)
+
+// validateProps allowlists style prop keys and values. Props come from
+// arbitrary collaborators and end up as inline CSS on every viewer's DOM, so
+// anything outside the known vocabulary is rejected (e.g. bg: "url(...)").
+func validateProps(props map[string]string) error {
+	for k, v := range props {
+		ok := false
+		switch k {
+		case "bold", "italic", "underline":
+			ok = v == "1"
+		case "color", "bg":
+			ok = hexColorRe.MatchString(v)
+		case "align":
+			ok = v == "left" || v == "center" || v == "right"
+		case "border":
+			ok = v == "all"
+		case "numFmt":
+			ok = numFmtRe.MatchString(v)
+		default:
+			return fmt.Errorf("props: unknown key %q", k)
+		}
+		if !ok {
+			return fmt.Errorf("props: invalid value %q for %q", v, k)
+		}
 	}
 	return nil
 }
