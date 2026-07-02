@@ -16,10 +16,12 @@ export interface FormulaBarHandle {
 }
 
 const CSS = `
-.sheet-formula-bar { display: flex; align-items: stretch; gap: 6px; padding: 3px 4px; border-bottom: 1px solid #d2d2d2; font: 13px system-ui, sans-serif; position: relative; }
-.sheet-namebox { min-width: 72px; padding: 2px 6px; border: 1px solid #ccc; background: #f8f9fa; text-align: center; align-self: center; border-radius: 3px; }
-.sheet-fx-input { flex: 1; padding: 2px 6px; border: 1px solid #ccc; font: 13px/1.4 ui-monospace, monospace; }
-.sheet-fx-ac { position: absolute; top: 100%; left: 84px; z-index: 20; background: #fff; border: 1px solid #bbb; box-shadow: 0 2px 6px rgba(0,0,0,.15); min-width: 180px; max-height: 180px; overflow-y: auto; }
+.sheet-formula-bar { display: flex; align-items: stretch; gap: 6px; padding: 3px 4px; border-bottom: 1px solid #d4d8dd; background: #fff; font: 13px system-ui, sans-serif; position: relative; }
+.sheet-namebox { min-width: 72px; padding: 2px 6px; border: 1px solid #d4d8dd; background: #fff; text-align: center; align-self: center; border-radius: 3px; }
+.sheet-fx-label { align-self: center; font: italic 13px Georgia, 'Times New Roman', serif; color: #8a8f95; pointer-events: none; user-select: none; }
+.sheet-fx-input { flex: 1; padding: 2px 6px; border: 1px solid #d4d8dd; background: #fff; font: 13px/1.4 ui-monospace, monospace; outline: none; }
+.sheet-fx-input:focus { border-color: #107c41; }
+.sheet-fx-ac { position: absolute; top: 100%; left: 104px; z-index: 20; background: #fff; border: 1px solid #bbb; box-shadow: 0 2px 6px rgba(0,0,0,.15); min-width: 180px; max-height: 180px; overflow-y: auto; }
 .sheet-fx-ac div { padding: 2px 8px; cursor: pointer; font: 12px/1.5 ui-monospace, monospace; }
 .sheet-fx-ac div.hl { background: #cfeede; }
 `;
@@ -38,6 +40,10 @@ export function createFormulaBar(cb: FormulaBarCallbacks): FormulaBarHandle {
   nameBox.className = 'sheet-namebox';
   nameBox.textContent = 'A1';
 
+  const fx = document.createElement('span');
+  fx.className = 'sheet-fx-label';
+  fx.textContent = 'fx';
+
   const input = document.createElement('input');
   input.className = 'sheet-fx-input';
   input.type = 'text';
@@ -47,7 +53,7 @@ export function createFormulaBar(cb: FormulaBarCallbacks): FormulaBarHandle {
   ac.className = 'sheet-fx-ac';
   ac.style.display = 'none';
 
-  bar.append(nameBox, input, ac);
+  bar.append(nameBox, fx, input, ac);
 
   let lastRaw = '';
   let acItems: string[] = [];
