@@ -27,4 +27,11 @@ describe('FormulaEngine (HyperFormula wrapper)', () => {
     expect(e.setCell(0, 0, 'hello').type).toBe('text');
     expect(e.setCell(1, 0, '42').type).toBe('number');
   });
+
+  it('functionNames lists common spreadsheet functions', () => {
+    const names = new FormulaEngine().functionNames();
+    expect(names).toContain('SUM');
+    expect(names).toContain('IF');
+    expect(names.length).toBeGreaterThan(50);
+  });
 });

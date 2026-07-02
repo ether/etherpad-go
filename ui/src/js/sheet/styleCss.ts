@@ -7,14 +7,19 @@ export type CellCss = {
   color?: string; background?: string; textAlign?: string; border?: string;
 };
 
+// Defense in depth: props are validated server-side (lib/sheet/op.go), but a
+// value like bg: "url(...)" must never reach td.style even if bad data slips in.
+const HEX_COLOR = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+const ALIGNS = new Set(['left', 'center', 'right']);
+
 export function styleToCss(props: Record<string, string>): CellCss {
   const css: CellCss = {};
   if (props.bold === '1') css.fontWeight = 'bold';
   if (props.italic === '1') css.fontStyle = 'italic';
   if (props.underline === '1') css.textDecoration = 'underline';
-  if (props.color) css.color = props.color;
-  if (props.bg) css.background = props.bg;
-  if (props.align) css.textAlign = props.align;
+  if (props.color && HEX_COLOR.test(props.color)) css.color = props.color;
+  if (props.bg && HEX_COLOR.test(props.bg)) css.background = props.bg;
+  if (props.align && ALIGNS.has(props.align)) css.textAlign = props.align;
   if (props.border === 'all') css.border = '1px solid #333';
   return css;
 }

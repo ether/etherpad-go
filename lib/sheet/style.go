@@ -1,6 +1,7 @@
 package sheet
 
 import (
+	"maps"
 	"sort"
 	"strings"
 )
@@ -56,7 +57,9 @@ func (p *StylePool) Put(s Style) int {
 	}
 	id := p.NextId
 	p.NextId++
-	p.IdToStyle[id] = s
+	// Copy the props map: callers (e.g. Apply) pass maps they own, and a later
+	// mutation of an aliased map would desync keyToId from the stored content.
+	p.IdToStyle[id] = Style{Props: maps.Clone(s.Props)}
 	p.keyToId[key] = id
 	return id
 }
@@ -83,7 +86,7 @@ func (p *StylePool) rebuildIndex() {
 func (p *StylePool) clone() *StylePool {
 	cp := &StylePool{IdToStyle: make(map[int]Style, len(p.IdToStyle)), NextId: p.NextId}
 	for id, s := range p.IdToStyle {
-		cp.IdToStyle[id] = s
+		cp.IdToStyle[id] = Style{Props: maps.Clone(s.Props)}
 	}
 	cp.rebuildIndex()
 	return cp

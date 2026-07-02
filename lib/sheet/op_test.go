@@ -45,3 +45,31 @@ func TestOpValidate(t *testing.T) {
 		t.Fatal("missing sheet must be invalid")
 	}
 }
+
+func TestOpValidateProps(t *testing.T) {
+	ok := map[string]string{
+		"bold": "1", "italic": "1", "underline": "1",
+		"color": "#c00", "bg": "#ffcc00", "align": "center",
+		"border": "all", "numFmt": "currency:2",
+	}
+	if err := (Op{Type: OpSetStyle, Sheet: "s1", Props: ok}).Validate(); err != nil {
+		t.Fatalf("valid props rejected: %v", err)
+	}
+	bad := []map[string]string{
+		{"bg": "url(https://evil.example/x)"},  // CSS injection
+		{"color": "red"},                       // not hex
+		{"bold": "yes"},                        // not "1"
+		{"align": "justify"},                   // outside vocabulary
+		{"numFmt": "number:999"},               // decimals capped at 2 digits
+		{"expression": "alert(1)"},             // unknown key
+		{"border": "1px solid url(https://x)"}, // only "all"
+	}
+	for _, props := range bad {
+		if (Op{Type: OpSetStyle, Sheet: "s1", Props: props}).Validate() == nil {
+			t.Fatalf("props %v must be invalid", props)
+		}
+		if (Op{Type: OpSetCell, Sheet: "s1", Props: props}).Validate() == nil {
+			t.Fatalf("setCell props %v must be invalid", props)
+		}
+	}
+}

@@ -11,6 +11,11 @@ describe('styleToCss', () => {
     expect(styleToCss({ border: 'all' }).border).toBe('1px solid #333');
     expect(styleToCss({})).toEqual({});
   });
+  it('ignores non-allowlisted values (defense against CSS injection)', () => {
+    expect(styleToCss({ bg: 'url(https://evil.example/x)' })).toEqual({});
+    expect(styleToCss({ color: 'red' })).toEqual({});
+    expect(styleToCss({ align: 'justify; background: url(https://x)' })).toEqual({});
+  });
 });
 
 describe('mergeProps / toggleProp', () => {

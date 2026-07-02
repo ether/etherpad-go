@@ -7,6 +7,8 @@ import { SheetPresence, effectiveCells, type PresenceFrame } from './sheetPresen
 import { rangeToTSV, parseTSV, pasteOps, fillOps } from './sheetClipboard';
 import { normalize, selCells, selIsSingle, type Selection } from './sheetSelection';
 import { createToolbar } from './sheetToolbar';
+import { createFormulaBar, type FormulaBarHandle } from './sheetFormulaBar';
+import { rangeRefA1 } from './a1';
 import { mergeProps } from './styleCss';
 import { formatValue } from './format';
 import type { Op } from './op';
@@ -31,6 +33,7 @@ export function startSheetEditor(root: HTMLElement): void {
 
   let collab: SheetCollabClient | null = null;
   let view: DomSheetView | null = null;
+  let formulaBar: FormulaBarHandle | null = null;
   let presence: SheetPresence | null = null;
   let activeSheetId = 's1';
   const engine = new FormulaEngine();
@@ -150,6 +153,10 @@ export function startSheetEditor(root: HTMLElement): void {
       );
     }
     view?.render();
+    if (formulaBar) {
+      const { r0, c0, r1, c1 } = normalize(selection);
+      formulaBar.setActive(rangeRefA1(r0, c0, r1, c1), rawValue(selection.focus.row, selection.focus.col));
+    }
   };
 
   const editingNow = (): boolean => view?.isEditing() ?? false;
@@ -172,8 +179,18 @@ export function startSheetEditor(root: HTMLElement): void {
       applyToSelection: applyStyleToSelection,
       readOnly: data.readonly,
     });
+    formulaBar = createFormulaBar({
+      readOnly: data.readonly,
+      getFunctionNames: () => engine.functionNames(),
+      onCommit: (raw) => {
+        if (readOnly || !collab) return;
+        const { row, col } = selection.focus;
+        collab.applyLocal({ type: 'setCell', sheet: activeSheetId, baseRev: collab.rev, row, col, raw });
+      },
+    });
     const gridHost = document.createElement('div');
     root.appendChild(toolbar);
+    root.appendChild(formulaBar.el);
     root.appendChild(gridHost);
 
     view = new DomSheetView(gridHost, {
@@ -183,6 +200,15 @@ export function startSheetEditor(root: HTMLElement): void {
       displayValue,
       readOnly: data.readonly,
       styleOf: (r, c) => propsOf(r, c),
+      // ponytail: second engine.getValue per formula cell per render (displayValue
+      // already does one). Cheap: HyperFormula caches, and the raw.startsWith('=')
+      // gate skips non-formula cells. Fold into displayValue if the grid grows.
+      errorOf: (r, c) => {
+        const cell = collab?.display.getCell(activeSheetId, r, c);
+        if (!cell || !cell.raw.startsWith('=')) return undefined;
+        const res = engine.getValue(r, c);
+        return res.type === 'error' ? res.value : undefined;
+      },
       onEdit: (r, c, raw) => {
         if (!collab) return;
         collab.applyLocal({ type: 'setCell', sheet: activeSheetId, baseRev: collab.rev, row: r, col: c, raw });
@@ -191,6 +217,8 @@ export function startSheetEditor(root: HTMLElement): void {
       onSelectionChange: (sel) => {
         selection = sel;
         sendPresence(sel.anchor.row, sel.anchor.col, false, undefined, sel.focus.row, sel.focus.col);
+        const { r0, c0, r1, c1 } = normalize(sel);
+        formulaBar?.setActive(rangeRefA1(r0, c0, r1, c1), rawValue(sel.focus.row, sel.focus.col));
       },
       onLiveEdit: (r, c, raw) => sendLiveEdit(r, c, raw),
       onEditEnd: (r, c, committed) => {
