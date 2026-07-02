@@ -12,6 +12,10 @@ export interface SheetState {
   id: string;
   name: string;
   cells: Map<string, Cell>; // key "row:col"
+  colWidths: Map<number, number>; // sparse px overrides
+  rowHeights: Map<number, number>;
+  frozenRows: number; // 0 or 1
+  frozenCols: number;
 }
 
 const key = (row: number, col: number): string => `${row}:${col}`;
@@ -22,6 +26,27 @@ const parseKey = (k: string): [number, number] => {
 
 const cellIsEmpty = (c: Cell): boolean =>
   c.raw === '' && (c.styleId === undefined || c.styleId === 0) && (c.value === undefined || c.value === '');
+
+const emptySheet = (id: string, name: string): SheetState => ({
+  id, name, cells: new Map(), colWidths: new Map(), rowHeights: new Map(), frozenRows: 0, frozenCols: 0,
+});
+
+// shiftDims mirrors Go shiftDims: rebuild a sparse dimension map after an
+// insert (delta>0) / delete of -delta indices at index (in-band entries drop).
+const shiftDims = (m: Map<number, number>, index: number, delta: number): Map<number, number> => {
+  if (m.size === 0) return m;
+  const next = new Map<number, number>();
+  for (const [i, v] of m) {
+    if (delta < 0 && i >= index && i < index - delta) continue;
+    next.set(shiftIdx(i, index, delta), v);
+  }
+  return next;
+};
+
+const shiftIdx = (coord: number, index: number, delta: number): number => {
+  if (delta >= 0) return coord >= index ? coord + delta : coord;
+  return coord < index ? coord : coord + delta;
+};
 
 // Snapshot shapes mirror the Go sheet.WorkbookSnapshot JSON.
 export interface CellSnapshot {
@@ -36,6 +61,10 @@ export interface SheetSnapshot {
   id: string;
   name: string;
   cells: CellSnapshot[];
+  colWidths?: Record<string, number>; // JSON object keys are stringified indices
+  rowHeights?: Record<string, number>;
+  frozenRows?: number;
+  frozenCols?: number;
 }
 export interface WorkbookSnapshot {
   sheets: SheetSnapshot[];
@@ -53,7 +82,7 @@ export class WorkbookState {
   }
 
   addSheet(id: string, name: string): SheetState {
-    const s: SheetState = { id, name, cells: new Map() };
+    const s = emptySheet(id, name);
     this.sheets.push(s);
     return s;
   }
@@ -64,23 +93,31 @@ export class WorkbookState {
 
   clone(): WorkbookState {
     const cp = new WorkbookState();
-    cp.sheets = this.sheets.map((s) => ({ id: s.id, name: s.name, cells: new Map(s.cells) }));
+    cp.sheets = this.sheets.map((s) => ({
+      id: s.id, name: s.name, cells: new Map(s.cells),
+      colWidths: new Map(s.colWidths), rowHeights: new Map(s.rowHeights),
+      frozenRows: s.frozenRows, frozenCols: s.frozenCols,
+    }));
     cp.styles = this.styles; // shared pool: interning is monotonic + content-deduped
     return cp;
   }
 
   loadSnapshot(snap: WorkbookSnapshot): void {
     this.sheets = (snap.sheets ?? []).map((ss) => {
-      const cells = new Map<string, Cell>();
+      const s = emptySheet(ss.id, ss.name);
       for (const c of ss.cells ?? []) {
-        cells.set(key(c.row, c.col), {
+        s.cells.set(key(c.row, c.col), {
           raw: c.raw,
           value: c.value,
           valueType: c.valueType,
           styleId: c.styleId,
         });
       }
-      return { id: ss.id, name: ss.name, cells };
+      for (const [i, v] of Object.entries(ss.colWidths ?? {})) s.colWidths.set(Number(i), v);
+      for (const [i, v] of Object.entries(ss.rowHeights ?? {})) s.rowHeights.set(Number(i), v);
+      s.frozenRows = ss.frozenRows ?? 0;
+      s.frozenCols = ss.frozenCols ?? 0;
+      return s;
     });
     this.styles.seed(snap.styles);
   }
@@ -113,8 +150,37 @@ export class WorkbookState {
   // applyOp mirrors Go Workbook.Apply. The op is assumed already rebased to the
   // current revision. Cell ops are last-writer-wins.
   applyOp(op: Op): void {
+    // Sheet-list ops manage the sheet list itself (mirrors Go Apply).
+    switch (op.type) {
+      case 'addSheet': {
+        if (this.sheetById(op.sheet)) return; // concurrent duplicate add: first wins
+        const s = emptySheet(op.sheet, op.name ?? '');
+        this.sheets.splice(Math.min(op.index ?? 0, this.sheets.length), 0, s);
+        return;
+      }
+      case 'deleteSheet': {
+        if (this.sheets.length <= 1) return; // never delete the last sheet
+        const i = this.sheets.findIndex((s) => s.id === op.sheet);
+        if (i >= 0) this.sheets.splice(i, 1);
+        return;
+      }
+      case 'renameSheet': {
+        const s = this.sheetById(op.sheet);
+        if (s) s.name = op.name ?? s.name;
+        return;
+      }
+      case 'moveSheet': {
+        const i = this.sheets.findIndex((s) => s.id === op.sheet);
+        if (i < 0) return;
+        const [s] = this.sheets.splice(i, 1);
+        this.sheets.splice(Math.min(op.toIndex ?? 0, this.sheets.length), 0, s);
+        return;
+      }
+    }
+
     const sheet = this.sheetById(op.sheet);
-    if (!sheet) throw new Error(`applyOp: unknown sheet ${op.sheet}`);
+    // Deleted by an earlier-ordered op: converge as a no-op (mirrors Go Apply).
+    if (!sheet) return;
 
     const row = op.row ?? 0;
     const col = op.col ?? 0;
@@ -154,8 +220,21 @@ export class WorkbookState {
         }
         break;
       }
+      case 'setDimension': {
+        // Mirror the Go server validation: axis col/row, size 1..4096.
+        const size = op.size ?? 0;
+        if ((op.axis !== 'col' && op.axis !== 'row') || !Number.isInteger(size) || size <= 0 || size > 4096) break;
+        if (op.axis === 'col') sheet.colWidths.set(index, size);
+        else sheet.rowHeights.set(index, size);
+        break;
+      }
+      case 'setFreeze':
+        sheet.frozenRows = op.frozenRows ?? 0;
+        sheet.frozenCols = op.frozenCols ?? 0;
+        break;
       case 'insertRows':
         this.remap(sheet, (r, c) => (r >= index ? [r + count, c, true] : [r, c, true]));
+        sheet.rowHeights = shiftDims(sheet.rowHeights, index, count);
         break;
       case 'deleteRows':
         this.remap(sheet, (r, c) => {
@@ -163,9 +242,11 @@ export class WorkbookState {
           if (r >= index + count) return [r - count, c, true];
           return [r, c, true];
         });
+        sheet.rowHeights = shiftDims(sheet.rowHeights, index, -count);
         break;
       case 'insertCols':
         this.remap(sheet, (r, c) => (c >= index ? [r, c + count, true] : [r, c, true]));
+        sheet.colWidths = shiftDims(sheet.colWidths, index, count);
         break;
       case 'deleteCols':
         this.remap(sheet, (r, c) => {
@@ -173,6 +254,7 @@ export class WorkbookState {
           if (c >= index + count) return [r, c - count, true];
           return [r, c, true];
         });
+        sheet.colWidths = shiftDims(sheet.colWidths, index, -count);
         break;
       default:
         throw new Error(`applyOp: unhandled op type ${(op as Op).type}`);

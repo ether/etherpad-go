@@ -1,14 +1,22 @@
 package sheet
 
+import "maps"
+
 // Sheet is a single tab: sparse cells plus structural metadata.
 type Sheet struct {
 	Id    string           `json:"id"`
 	Name  string           `json:"name"`
 	Cells map[CellRef]Cell `json:"-"` // sparse; JSON handled by the snapshot/persistence layer
+	// Sparse per-index pixel overrides; unset = view default.
+	ColWidths  map[int]int `json:"-"`
+	RowHeights map[int]int `json:"-"`
+	// 0 or 1 each: freeze the first row / first col (position: sticky in the view).
+	FrozenRows int `json:"-"`
+	FrozenCols int `json:"-"`
 }
 
 func NewSheet(id, name string) *Sheet {
-	return &Sheet{Id: id, Name: name, Cells: map[CellRef]Cell{}}
+	return &Sheet{Id: id, Name: name, Cells: map[CellRef]Cell{}, ColWidths: map[int]int{}, RowHeights: map[int]int{}}
 }
 
 // SetCell stores a cell, dropping it from storage if empty (keeps it sparse).
@@ -26,11 +34,30 @@ func (s *Sheet) GetCell(ref CellRef) Cell {
 }
 
 func (s *Sheet) clone() *Sheet {
-	cp := &Sheet{Id: s.Id, Name: s.Name, Cells: make(map[CellRef]Cell, len(s.Cells))}
-	for k, v := range s.Cells {
-		cp.Cells[k] = v
+	cp := &Sheet{
+		Id: s.Id, Name: s.Name, Cells: make(map[CellRef]Cell, len(s.Cells)),
+		ColWidths: maps.Clone(s.ColWidths), RowHeights: maps.Clone(s.RowHeights),
+		FrozenRows: s.FrozenRows, FrozenCols: s.FrozenCols,
 	}
+	maps.Copy(cp.Cells, s.Cells)
 	return cp
+}
+
+// shiftDims rebuilds a sparse dimension map after an insert/delete at index.
+// delta > 0 inserts (indices at/after move up); delta < 0 deletes a band of
+// -delta indices (entries inside the band are dropped).
+func shiftDims(m map[int]int, index, delta int) map[int]int {
+	if len(m) == 0 {
+		return m
+	}
+	next := make(map[int]int, len(m))
+	for i, v := range m {
+		if delta < 0 && i >= index && i < index-delta {
+			continue // deleted band
+		}
+		next[shiftCoord(i, index, delta)] = v
+	}
+	return next
 }
 
 // remap rebuilds the sparse cell map by transforming each ref. The fn returns
