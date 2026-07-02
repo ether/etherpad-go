@@ -15,7 +15,9 @@ export function formatValue(value: string, _valueType: string, numFmt: string | 
     const d = /^\d+(\.\d+)?$/.test(value)
       ? new Date(Date.UTC(1899, 11, 30) + Number(value) * 86400000) // spreadsheet serial
       : new Date(value);
-    return isNaN(d.getTime()) ? value : d.toLocaleDateString('en-US');
+    // timeZone: 'UTC' so the calendar day is the same for every collaborator
+    // regardless of their local offset (values are date-only, stored as UTC).
+    return isNaN(d.getTime()) ? value : d.toLocaleDateString('en-US', { timeZone: 'UTC' });
   }
 
   const n = Number(value);

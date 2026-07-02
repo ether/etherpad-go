@@ -14,6 +14,10 @@ describe('functionPrefix', () => {
     expect(functionPrefix('=SUM(A1', 7)).toBeNull();     // typing args: ref inside call
     expect(functionPrefix('=SUM(A1,2', 9)).toBeNull();   // typing numeric arg
   });
+  it('does not pop on single-letter partial refs', () => {
+    expect(functionPrefix('=A', 2)).toBeNull();          // could be ref A1 being typed
+    expect(functionPrefix('=SUM(A', 6)).toBeNull();      // partial ref inside args
+  });
 });
 
 describe('filterFunctions', () => {

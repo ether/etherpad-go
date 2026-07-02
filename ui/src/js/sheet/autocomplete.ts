@@ -13,6 +13,9 @@ export function functionPrefix(raw: string, caret: number): string | null {
   const after = raw.slice(caret);
   if (after.startsWith('(')) return null; // already a completed call head
   if (/^[0-9]/.test(after)) return null; // cell ref being typed, not a function
+  // ponytail: min-2-chars heuristic so partial refs ("=A", "=SUM(A") don't pop
+  // the dropdown before their digit arrives; a real parser if this ever fails.
+  if (m[1].length < 2) return null;
   return m[1].toUpperCase();
 }
 
