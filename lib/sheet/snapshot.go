@@ -49,11 +49,13 @@ func (w *Workbook) Snapshot() WorkbookSnapshot {
 			return cells[a].Col < cells[b].Col
 		})
 		ss := SheetSnapshot{Id: s.Id, Name: s.Name, Cells: cells, FrozenRows: s.FrozenRows, FrozenCols: s.FrozenCols}
+		// Clone: snapshots are consumed after the document lock is released
+		// (export), so aliasing the live maps would race with Apply().
 		if len(s.ColWidths) > 0 {
-			ss.ColWidths = s.ColWidths
+			ss.ColWidths = maps.Clone(s.ColWidths)
 		}
 		if len(s.RowHeights) > 0 {
-			ss.RowHeights = s.RowHeights
+			ss.RowHeights = maps.Clone(s.RowHeights)
 		}
 		out.Sheets[i] = ss
 	}
