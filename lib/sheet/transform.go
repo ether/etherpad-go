@@ -31,6 +31,9 @@ func shiftRows(in Op, index, delta int) Op {
 	if in.Type == OpInsertRows || in.Type == OpDeleteRows {
 		in.Index = shiftCoord(in.Index, index, delta)
 	}
+	if in.Type == OpSetDimension && in.Axis == "row" {
+		in.Index = shiftCoord(in.Index, index, delta)
+	}
 	return in
 }
 
@@ -40,6 +43,9 @@ func shiftCols(in Op, index, delta int) Op {
 		in.EndCol = shiftCoord(in.EndCol, index, delta)
 	}
 	if in.Type == OpInsertCols || in.Type == OpDeleteCols {
+		in.Index = shiftCoord(in.Index, index, delta)
+	}
+	if in.Type == OpSetDimension && in.Axis == "col" {
 		in.Index = shiftCoord(in.Index, index, delta)
 	}
 	return in

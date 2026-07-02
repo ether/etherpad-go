@@ -1,6 +1,9 @@
 package sheet
 
-import "sort"
+import (
+	"maps"
+	"sort"
+)
 
 // CellSnapshot is the serializable form of one populated cell (map keys can't
 // be JSON-encoded, so cells become a flat slice).
@@ -17,6 +20,11 @@ type SheetSnapshot struct {
 	Id    string         `json:"id"`
 	Name  string         `json:"name"`
 	Cells []CellSnapshot `json:"cells"`
+	// Sparse dimension overrides; JSON object keys are stringified indices.
+	ColWidths  map[int]int `json:"colWidths,omitempty"`
+	RowHeights map[int]int `json:"rowHeights,omitempty"`
+	FrozenRows int         `json:"frozenRows,omitempty"`
+	FrozenCols int         `json:"frozenCols,omitempty"`
 }
 
 // WorkbookSnapshot is the JSON-serializable form of a Workbook for persistence.
@@ -40,7 +48,14 @@ func (w *Workbook) Snapshot() WorkbookSnapshot {
 			}
 			return cells[a].Col < cells[b].Col
 		})
-		out.Sheets[i] = SheetSnapshot{Id: s.Id, Name: s.Name, Cells: cells}
+		ss := SheetSnapshot{Id: s.Id, Name: s.Name, Cells: cells, FrozenRows: s.FrozenRows, FrozenCols: s.FrozenCols}
+		if len(s.ColWidths) > 0 {
+			ss.ColWidths = s.ColWidths
+		}
+		if len(s.RowHeights) > 0 {
+			ss.RowHeights = s.RowHeights
+		}
+		out.Sheets[i] = ss
 	}
 	return out
 }
@@ -66,6 +81,9 @@ func WorkbookFromSnapshot(snap WorkbookSnapshot) *Workbook {
 		for _, c := range ss.Cells {
 			sh.Cells[CellRef{c.Row, c.Col}] = Cell{Raw: c.Raw, Value: c.Value, ValueType: c.ValueType, StyleId: c.StyleId}
 		}
+		maps.Copy(sh.ColWidths, ss.ColWidths)
+		maps.Copy(sh.RowHeights, ss.RowHeights)
+		sh.FrozenRows, sh.FrozenCols = ss.FrozenRows, ss.FrozenCols
 		w.Sheets[i] = sh
 	}
 	return w
