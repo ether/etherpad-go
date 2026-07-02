@@ -24,6 +24,19 @@ interface SheetVarsData {
   readonly: boolean;
 }
 
+// Editor-level chrome (title bar above the ribbon, status bar below the tabs).
+const CHROME_CSS = `
+.sheet-titlebar { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; background: #107c41; color: #fff; font: 14px system-ui, sans-serif; }
+.sheet-titlebar svg { flex: none; display: block; }
+.sheet-title-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sheet-statusbar { display: flex; align-items: center; justify-content: space-between; height: 22px; padding: 0 10px; background: #f5f6f7; border-top: 1px solid #d4d8dd; font: 12px system-ui, sans-serif; color: #444; }
+.sheet-stats { display: flex; gap: 16px; }
+`;
+const TITLE_ICON_SVG =
+  '<svg width="18" height="18" viewBox="0 0 16 16" aria-hidden="true">' +
+  '<rect x="1" y="1" width="14" height="14" rx="1.5" fill="none" stroke="#fff" stroke-width="1.4"/>' +
+  '<path d="M1 5.7h14M1 10.3h14M5.7 1v14M10.3 1v14" stroke="#fff" stroke-width="1" fill="none"/></svg>';
+
 // startSheetEditor connects to the collaborative spreadsheet backend, performs
 // the CLIENT_READY handshake (component "sheet"), and wires the collaboration
 // client, formula engine, grid view and ephemeral presence.
@@ -105,6 +118,38 @@ export function startSheetEditor(root: HTMLElement): void {
   const rawValue = (r: number, c: number): string =>
     collab?.display.getCell(activeSheetId, r, c)?.raw ?? '';
 
+  // Status-bar stats (Excel wording): Average/Sum over numeric raw values,
+  // Count = non-empty cells. Shown only for multi-cell selections with at
+  // least one numeric cell; empty otherwise.
+  let statsEl: HTMLElement | null = null;
+  const updateStats = (): void => {
+    if (!statsEl) return;
+    statsEl.textContent = '';
+    if (selIsSingle(selection)) return;
+    let sum = 0;
+    let numCount = 0;
+    let count = 0;
+    for (const { row, col } of selCells(selection)) {
+      const raw = rawValue(row, col);
+      if (raw === '') continue;
+      count++;
+      const n = Number(raw);
+      if (raw.trim() !== '' && Number.isFinite(n)) {
+        sum += n;
+        numCount++;
+      }
+    }
+    if (numCount === 0) return;
+    // toPrecision(12) strips float noise (0.1+0.2 -> 0.3) without truncating
+    // typical spreadsheet magnitudes.
+    const f = (n: number): string => String(parseFloat(n.toPrecision(12)));
+    for (const part of [`Average: ${f(sum / numCount)}`, `Count: ${count}`, `Sum: ${f(sum)}`]) {
+      const s = document.createElement('span');
+      s.textContent = part;
+      statsEl.appendChild(s);
+    }
+  };
+
   // ponytail: styleId is client-internal — only `props` travel on the wire and
   // are persisted, and each cell's styleId+pool entry are set together in one
   // applyOp. So an optimistic local put() assigning a different nextId than the
@@ -165,6 +210,7 @@ export function startSheetEditor(root: HTMLElement): void {
       const { r0, c0, r1, c1 } = normalize(selection);
       formulaBar.setActive(rangeRefA1(r0, c0, r1, c1), rawValue(selection.focus.row, selection.focus.col));
     }
+    updateStats();
   };
 
   const editingNow = (): boolean => view?.isEditing() ?? false;
@@ -181,6 +227,20 @@ export function startSheetEditor(root: HTMLElement): void {
     // toolbar gets its own sibling container (gridHost) rather than sharing
     // root with it.
     root.innerHTML = '';
+    if (!document.getElementById('sheet-chrome-style')) {
+      const s = document.createElement('style');
+      s.id = 'sheet-chrome-style';
+      s.textContent = CHROME_CSS;
+      document.head.appendChild(s);
+    }
+    const titlebar = document.createElement('div');
+    titlebar.className = 'sheet-titlebar';
+    titlebar.innerHTML = TITLE_ICON_SVG;
+    const titleName = document.createElement('span');
+    titleName.className = 'sheet-title-name';
+    titleName.textContent = padId;
+    titlebar.appendChild(titleName);
+    root.appendChild(titlebar);
     const toolbar = createToolbar({
       getProps: (r, c) => propsOf(r, c),
       focusCell: () => selection.focus,
@@ -238,6 +298,17 @@ export function startSheetEditor(root: HTMLElement): void {
           })
           .catch((err) => alert(String(err)));
       },
+      // NOTE: clipboardAction/autoSum are added to ToolbarCallbacks in a
+      // parallel sheetToolbar.ts change; until it lands tsc flags these two
+      // object-literal properties as unknown here (expected).
+      clipboardAction: (a: 'cut' | 'copy' | 'paste') => {
+        if (a === 'copy') doCopy();
+        else if (a === 'cut') doCut();
+        else doPaste();
+      },
+      autoSum: () => {
+        if (!readOnly) formulaBar?.beginFormula('=SUM(');
+      },
     });
     formulaBar = createFormulaBar({
       readOnly: data.readonly,
@@ -287,6 +358,15 @@ export function startSheetEditor(root: HTMLElement): void {
     });
     root.appendChild(tabs.el);
 
+    const statusbar = document.createElement('div');
+    statusbar.className = 'sheet-statusbar';
+    const readyEl = document.createElement('span');
+    readyEl.textContent = 'Ready';
+    statsEl = document.createElement('span');
+    statsEl.className = 'sheet-stats';
+    statusbar.append(readyEl, statsEl);
+    root.appendChild(statusbar);
+
     view = new DomSheetView(gridHost, {
       rows: GRID_ROWS,
       cols: GRID_COLS,
@@ -324,6 +404,7 @@ export function startSheetEditor(root: HTMLElement): void {
         sendPresence(sel.anchor.row, sel.anchor.col, false, undefined, sel.focus.row, sel.focus.col);
         const { r0, c0, r1, c1 } = normalize(sel);
         formulaBar?.setActive(rangeRefA1(r0, c0, r1, c1), rawValue(sel.focus.row, sel.focus.col));
+        updateStats();
       },
       onLiveEdit: (r, c, raw) => sendLiveEdit(r, c, raw),
       onEditEnd: (r, c, committed) => {
@@ -354,35 +435,47 @@ export function startSheetEditor(root: HTMLElement): void {
     const el = document.activeElement as HTMLElement | null;
     if (el && el.tagName === 'TD' && el.isContentEditable) el.blur();
   };
+  // doCopy/doCut/doPaste back both the Ctrl+C/X/V shortcuts and the ribbon's
+  // clipboardAction buttons (same semantics: TSV, blur before ops, readOnly guards).
+  const doCopy = (): void => {
+    // ponytail: async Clipboard API only (requires secure context); a
+    // hidden-textarea fallback is the upgrade path for plain-HTTP deploys.
+    void navigator.clipboard.writeText(rangeToTSV(selection, rawValue));
+  };
+  const doCut = (): void => {
+    void navigator.clipboard.writeText(rangeToTSV(selection, rawValue));
+    if (readOnly || !collab) return;
+    blurActiveCell();
+    const { r0, c0, r1, c1 } = normalize(selection);
+    collab.applyLocal({ type: 'clearRange', sheet: activeSheetId, baseRev: collab.rev, row: r0, col: c0, endRow: r1, endCol: c1 });
+  };
+  const doPaste = (): void => {
+    if (readOnly || !collab) return;
+    blurActiveCell();
+    void navigator.clipboard.readText().then((text) => {
+      if (text === '') return;
+      if (!collab) return;
+      const grid = parseTSV(text);
+      const { r0, c0 } = normalize(selection);
+      for (const op of pasteOps(grid, { row: r0, col: c0 }, activeSheetId, collab.rev)) collab.applyLocal(op);
+    });
+  };
   document.addEventListener('keydown', (e) => {
     if (!collab) return;
     const mod = e.ctrlKey || e.metaKey;
     if (mod && (e.key === 'c' || e.key === 'C') && !editingNow()) {
       e.preventDefault();
-      // ponytail: async Clipboard API only (requires secure context); a
-      // hidden-textarea fallback is the upgrade path for plain-HTTP deploys.
-      void navigator.clipboard.writeText(rangeToTSV(selection, rawValue));
+      doCopy();
       return;
     }
     if (mod && (e.key === 'x' || e.key === 'X') && !editingNow()) {
       e.preventDefault();
-      void navigator.clipboard.writeText(rangeToTSV(selection, rawValue));
-      if (readOnly) return;
-      blurActiveCell();
-      const { r0, c0, r1, c1 } = normalize(selection);
-      collab.applyLocal({ type: 'clearRange', sheet: activeSheetId, baseRev: collab.rev, row: r0, col: c0, endRow: r1, endCol: c1 });
+      doCut();
       return;
     }
     if (mod && (e.key === 'v' || e.key === 'V') && !editingNow() && !readOnly) {
       e.preventDefault();
-      blurActiveCell();
-      void navigator.clipboard.readText().then((text) => {
-        if (text === '') return;
-        if (!collab) return;
-        const grid = parseTSV(text);
-        const { r0, c0 } = normalize(selection);
-        for (const op of pasteOps(grid, { row: r0, col: c0 }, activeSheetId, collab.rev)) collab.applyLocal(op);
-      });
+      doPaste();
       return;
     }
     if ((e.key === 'Delete' || e.key === 'Backspace') && !editingNow() && !readOnly && !selIsSingle(selection)) {
