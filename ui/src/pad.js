@@ -9,6 +9,9 @@ import * as padModule from './js/pad';
 import * as padEditbarModule from './js/pad_editbar';
 import * as pluginClientModule from './js/pluginfw/client_plugins';
 import { loadEnabledPlugins } from './js/pluginfw/plugin_registry';
+import { recordCurrentDoc } from './js/recentDocs';
+
+recordCurrentDoc(); // feed the welcome launcher's "recently edited" list
 
 const unwrapModule = (moduleValue) => {
   if (moduleValue && typeof moduleValue === 'object' && 'default' in moduleValue) {
