@@ -14,6 +14,11 @@ async function typeInto(page: Page, r: number, c: number, text: string): Promise
   await page.keyboard.press('Enter');
 }
 
+// Ribbon groups of inactive tabs are display:none — activate the tab first.
+async function ribbonTab(page: Page, name: 'Home' | 'Data' | 'View'): Promise<void> {
+  await page.locator('.sheet-ribbon-tabs button', { hasText: name }).click();
+}
+
 test.describe('Sheet M4 structural', () => {
   test('tabs: add, switch, rename; data stays per sheet', async ({ page }) => {
     await openSheet(page, `m4-tabs-${Date.now()}`);
@@ -58,7 +63,8 @@ test.describe('Sheet M4 structural', () => {
   test('freeze first row makes it sticky', async ({ page }) => {
     await openSheet(page, `m4-freeze-${Date.now()}`);
     await typeInto(page, 0, 0, 'kopf');
-    await page.locator('.sheet-toolbar button', { hasText: '❄R' }).click();
+    await ribbonTab(page, 'View');
+    await page.locator('.sheet-toolbar button', { hasText: '❄ Row' }).click();
     await page.waitForTimeout(400);
     await expect(page.locator('.sheet-grid')).toHaveClass(/sheet-frozen-r/);
     const sticky = await cell(page, 0, 0).evaluate((el) => getComputedStyle(el).position);
@@ -75,6 +81,7 @@ test.describe('Sheet M4 structural', () => {
     await page.mouse.down();
     await cell(page, 2, 0).hover();
     await page.mouse.up();
+    await ribbonTab(page, 'Data');
     await page.locator('.sheet-toolbar button', { hasText: 'A→Z' }).click();
     await page.waitForTimeout(600);
     await expect(cell(page, 0, 0)).toHaveText('1');
@@ -88,6 +95,7 @@ test.describe('Sheet M4 structural', () => {
     await typeInto(page, 1, 0, 'y');
     await typeInto(page, 2, 0, 'x');
     await cell(page, 0, 0).click();
+    await ribbonTab(page, 'Data');
     // The dropdown fills its options lazily on open; selectOption() bypasses
     // the native open, so trigger the repopulation explicitly first.
     await page.locator('.sheet-toolbar select').last().dispatchEvent('mousedown');
