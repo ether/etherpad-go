@@ -51,6 +51,7 @@ func TestOpValidateProps(t *testing.T) {
 		"bold": "1", "italic": "1", "underline": "1",
 		"color": "#c00", "bg": "#ffcc00", "align": "center",
 		"border": "all", "numFmt": "currency:2",
+		"fontFamily": "Times New Roman", "fontSize": "96", "wrap": "1",
 	}
 	if err := (Op{Type: OpSetStyle, Sheet: "s1", Props: ok}).Validate(); err != nil {
 		t.Fatalf("valid props rejected: %v", err)
@@ -63,6 +64,12 @@ func TestOpValidateProps(t *testing.T) {
 		{"numFmt": "number:999"},               // decimals capped at 2 digits
 		{"expression": "alert(1)"},             // unknown key
 		{"border": "1px solid url(https://x)"}, // only "all"
+		{"fontFamily": "Comic Sans MS"},        // outside allowlist
+		{"fontSize": "0"},                      // below range
+		{"fontSize": "97"},                     // above range
+		{"fontSize": "012"},                    // leading zero
+		{"fontSize": "12.5"},                   // not an integer
+		{"wrap": "yes"},                        // only "1"
 	}
 	for _, props := range bad {
 		if (Op{Type: OpSetStyle, Sheet: "s1", Props: props}).Validate() == nil {
