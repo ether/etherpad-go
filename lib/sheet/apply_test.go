@@ -82,9 +82,11 @@ func TestApplyInsertColsShiftsCells(t *testing.T) {
 }
 
 func TestApplyUnknownSheet(t *testing.T) {
+	// No-op, not an error: after a deleteSheet, late ops targeting the gone
+	// sheet must not poison the ordered-log replay (M4 convergence rule).
 	w := mkWB(t)
-	if err := w.Apply(Op{Type: OpSetCell, Sheet: "nope", Row: 0, Col: 0, Raw: ptr("x")}); err == nil {
-		t.Fatal("apply to unknown sheet must error")
+	if err := w.Apply(Op{Type: OpSetCell, Sheet: "nope", Row: 0, Col: 0, Raw: ptr("x")}); err != nil {
+		t.Fatalf("apply to unknown sheet must be a silent no-op, got %v", err)
 	}
 }
 
