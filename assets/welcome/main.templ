@@ -6,28 +6,95 @@ import (
 	"strconv"
 )
 
+// tr returns the translation for key, falling back to the given English
+// default: locale files other than en/de may not carry the launcher keys yet.
+func tr(t map[string]string, key, fallback string) string {
+	if v, ok := t[key]; ok && v != "" {
+		return v
+	}
+	return fallback
+}
+
 templ Page(settings *settings.Settings, translations map[string]string, socialMetaHTML string) {
 	<html lang="en">
 		<head>
-			<link rel="stylesheet" href="/css/welcome/main.css"/>
+			// Skin first, launcher styles second: the launcher owns the page layout;
+			// skins can still override via more specific selectors.
 			<link rel="stylesheet" href={"/css/skin/"+ settings.SkinName + "/index.css"}/>
+			<link rel="stylesheet" href="/css/welcome/main.css"/>
 			<link rel="localizations" type="application/l10n+json" href="locales.json"/>
 			<title>{settings.Title}</title>
 			// Open Graph + Twitter Card preview metadata. Upstream #7635.
 			@templ.Raw(socialMetaHTML)
 		</head>
-		<body>
-			<div id="wrapper">
-				<div id="inner">
-				<ep-button variant="primary" id="button">{translations["index.newPad"]}</ep-button>
-					<label id="label" for="padname">{translations["index.createOpenPad"]}</label>
-					<form action="#" id="go2Name">
-						<ep-input type="text" id="padname" maxlength="50" autofocus></ep-input>
-						<ep-button type="submit" variant="primary">OK</ep-button>
-					</form>
-					<ep-button variant="default" id="newSheet">New spreadsheet</ep-button>
+		<body class="launcher-body">
+			<header class="topbar">
+				<div class="brand">
+					<span class="brand-mark"></span>
+					<span class="brand-name">{settings.Title}</span>
 				</div>
-			</div>
+			</header>
+
+			<main class="launcher">
+				<div class="launcher-col">
+					<div class="kicker" id="dateline"></div>
+					<h1
+						class="greeting"
+						id="greeting"
+						data-morning={tr(translations, "index.greetingMorning", "Good morning")}
+						data-day={tr(translations, "index.greetingDay", "Hello")}
+						data-evening={tr(translations, "index.greetingEvening", "Good evening")}
+					></h1>
+					<p class="subtitle">{tr(translations, "index.startPrompt", "What would you like to start?")}</p>
+
+					<div class="create-cards">
+						// id "newPad", not legacy "button": skins style #button (border:none).
+						<button type="button" class="card card-pad" id="newPad">
+							<span class="card-icon icon-pad">
+								<span></span><span></span><span></span>
+							</span>
+							<span class="card-title">{tr(translations, "index.newPad", "New Pad")}</span>
+							<span class="card-desc">{tr(translations, "index.newPadDesc", "Write text together")}</span>
+						</button>
+
+						<button type="button" class="card card-sheet" id="newSheet">
+							<span class="card-icon icon-sheet">
+								<span class="c1"></span><span class="c1"></span><span class="c1"></span>
+								<span class="c2"></span><span class="c2"></span><span class="c2"></span>
+								<span class="c2"></span><span class="c2"></span><span class="c2"></span>
+							</span>
+							<span class="card-title">{tr(translations, "index.newSheet", "New spreadsheet")}</span>
+							<span class="card-desc">{tr(translations, "index.newSheetDesc", "Calculate like in Excel")}</span>
+						</button>
+
+						<div class="card card-soon" aria-disabled="true">
+							<span class="soon-badge">{tr(translations, "index.soon", "SOON")}</span>
+							<span class="card-icon icon-slides"><span></span></span>
+							<span class="card-title">{tr(translations, "index.presentation", "Presentation")}</span>
+							<span class="card-desc">{tr(translations, "index.presentationDesc", "Create slides")}</span>
+						</div>
+					</div>
+
+					<form action="#" id="go2Name" class="open-row">
+						<label class="open-field">
+							<span class="open-icon" aria-hidden="true"></span>
+							<input
+								type="text"
+								id="padname"
+								maxlength="50"
+								autofocus
+								placeholder={tr(translations, "index.openPadPlaceholder", "Open pad by name…")}
+							/>
+						</label>
+						<button type="submit" class="btn-dark">{tr(translations, "index.open", "Open")}</button>
+					</form>
+
+					<section class="recent" id="recentSection" hidden>
+						<div class="kicker">{tr(translations, "index.recent", "Recently edited")}</div>
+						<div id="recentList"></div>
+					</section>
+				</div>
+			</main>
 			<script type="module" src={"/js/welcome/assets/welcome.js?v="+strconv.Itoa(utils.RandomVersionString)}></script>
 		</body>
 	</html>

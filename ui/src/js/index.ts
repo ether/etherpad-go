@@ -18,6 +18,8 @@
  */
 
 
+import { listRecent } from './recentDocs';
+
 const randomPadName = () => {
   // the number of distinct chars (64) is chosen to ensure that the selection will be uniform when
   // using the PRNG below
@@ -46,10 +48,64 @@ const byId = <T extends HTMLElement>(id: string): T => {
   return element as T;
 };
 
+const lang = (): string => {
+  const c = document.cookie.match(/(?:^|; )language=([^;]+)/)?.[1];
+  if (c) {
+    try {
+      Intl.getCanonicalLocales(c); // throws on invalid tags — fall through
+      return c;
+    } catch { /* invalid cookie value */ }
+  }
+  return navigator.language;
+};
+
+// Greeting + date line for the launcher header. The three greeting variants
+// come server-translated as data attributes on the <h1>.
+const renderHeader = (): void => {
+  const greeting = byId<HTMLHeadingElement>('greeting');
+  const hour = new Date().getHours();
+  const key = hour < 11 ? 'morning' : hour < 18 ? 'day' : 'evening';
+  greeting.textContent = greeting.dataset[key] ?? '';
+  byId('dateline').textContent = new Intl.DateTimeFormat(lang(), {
+    weekday: 'long', day: 'numeric', month: 'long',
+  }).format(new Date());
+};
+
+const relTime = (ts: number): string => {
+  const mins = Math.round((ts - Date.now()) / 60000);
+  const rtf = new Intl.RelativeTimeFormat(lang(), { numeric: 'auto' });
+  if (mins > -60) return rtf.format(mins, 'minute');
+  if (mins > -60 * 24) return rtf.format(Math.round(mins / 60), 'hour');
+  return rtf.format(Math.round(mins / (60 * 24)), 'day');
+};
+
+const renderRecent = (): void => {
+  const docs = listRecent().slice(0, 5);
+  if (docs.length === 0) return; // section stays hidden
+  const section = byId('recentSection');
+  const list = byId('recentList');
+  for (const doc of docs) {
+    const a = document.createElement('a');
+    a.className = 'recent-item';
+    a.href = `${doc.type}/${encodeURIComponent(doc.name)}`;
+    const dot = document.createElement('span');
+    dot.className = doc.type === 's' ? 'recent-dot sheet' : 'recent-dot';
+    const name = document.createElement('span');
+    name.className = 'recent-name';
+    name.textContent = doc.name;
+    const time = document.createElement('span');
+    time.className = 'recent-time';
+    time.textContent = relTime(doc.ts);
+    a.append(dot, name, time);
+    list.appendChild(a);
+  }
+  section.hidden = false;
+};
+
 const initWelcomeScreen = (): void => {
   const goToNameForm = byId<HTMLFormElement>('go2Name');
   const padNameInput = byId<HTMLInputElement>('padname');
-  const randomButton = byId<HTMLButtonElement>('button');
+  const randomButton = byId<HTMLButtonElement>('newPad');
 
   goToNameForm.addEventListener('submit', (event) => {
     event.preventDefault();
@@ -69,6 +125,9 @@ const initWelcomeScreen = (): void => {
   newSheetButton.addEventListener('click', () => {
     window.location.href = `s/${randomPadName()}`;
   });
+
+  renderHeader();
+  renderRecent();
 
   // start the custom js
   if (typeof window.customStart === 'function') window.customStart();
