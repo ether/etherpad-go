@@ -38,8 +38,8 @@ test.describe('Sheet formatting', () => {
     await commitCell(page, 0, 0, '1234.5'); // A1
 
     await cell(page, 0, 0).click();
-    // Number-format select is the FIRST select in the toolbar (Home tab, default).
-    await page.locator('.sheet-toolbar select').first().selectOption('number:2');
+    // Toolbar selects are only unique by title (the Excel ribbon reordered them).
+    await page.locator('select[title="Number format"]').selectOption('number:2');
 
     await expect(cell(page, 0, 0)).toHaveText('1,234.50');
   });
