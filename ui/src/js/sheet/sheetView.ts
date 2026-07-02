@@ -49,6 +49,11 @@ const CSS = `
 .sheet-grid { border-collapse: separate; border-spacing: 0; border-top: 1px solid #d4d4d4; border-left: 1px solid #d4d4d4; font: 13px/1.4 system-ui, sans-serif; }
 .sheet-grid th, .sheet-grid td { border-right: 1px solid #d4d4d4; border-bottom: 1px solid #d4d4d4; min-width: 80px; height: 22px; padding: 2px 6px; }
 .sheet-grid th { background: #f5f6f7; color: #5f6b7a; font-weight: 600; text-align: center; position: relative; }
+/* Excel keeps headers visible while the grid scrolls: column letters stick to
+   the top, row numbers to the left of the scroll container (sheet-grid-host). */
+.sheet-grid thead th { position: sticky; top: 0; z-index: 8; }
+.sheet-grid thead th:first-child { left: 0; z-index: 9; }
+.sheet-grid tbody th { position: sticky; left: 0; z-index: 4; }
 .sheet-grid th.sheet-head-hl { background: #e6f2ec; color: #0f6b3a; }
 .sheet-grid thead th.sheet-head-hl { box-shadow: inset 0 -2px 0 #107c41; }
 .sheet-grid tbody th.sheet-head-hl { box-shadow: inset -2px 0 0 #107c41; }

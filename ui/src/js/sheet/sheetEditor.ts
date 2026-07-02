@@ -25,8 +25,15 @@ interface SheetVarsData {
 }
 
 // Editor-level chrome (title bar above the ribbon, status bar below the tabs).
+// Excel window layout: the chrome is pinned to the viewport and only the grid
+// scrolls (sheet-grid-host is the scroll container; the freeze-pane sticky
+// offsets resolve against it).
 const CHROME_CSS = `
-.sheet-titlebar { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; background: #107c41; color: #fff; font: 14px system-ui, sans-serif; }
+html, body { height: 100%; }
+body { margin: 0; overflow: hidden; }
+.sheet-app { display: flex; flex-direction: column; height: 100vh; }
+.sheet-grid-host { flex: 1; overflow: auto; min-height: 0; position: relative; }
+.sheet-titlebar { display: flex; align-items: center; gap: 8px; height: 36px; flex: none; padding: 0 12px; background: #107c41; color: #fff; font: 14px system-ui, sans-serif; }
 .sheet-titlebar svg { flex: none; display: block; }
 .sheet-title-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sheet-statusbar { display: flex; align-items: center; justify-content: space-between; height: 22px; padding: 0 10px; background: #f5f6f7; border-top: 1px solid #d4d8dd; font: 12px system-ui, sans-serif; color: #444; }
@@ -118,9 +125,10 @@ export function startSheetEditor(root: HTMLElement): void {
   const rawValue = (r: number, c: number): string =>
     collab?.display.getCell(activeSheetId, r, c)?.raw ?? '';
 
-  // Status-bar stats (Excel wording): Average/Sum over numeric raw values,
-  // Count = non-empty cells. Shown only for multi-cell selections with at
-  // least one numeric cell; empty otherwise.
+  // Status-bar stats (Excel wording): Average/Sum over numeric values —
+  // formula cells count with their COMPUTED value, like Excel. Count =
+  // non-empty cells. Shown only for multi-cell selections with at least one
+  // numeric cell; empty otherwise.
   let statsEl: HTMLElement | null = null;
   const updateStats = (): void => {
     if (!statsEl) return;
@@ -133,8 +141,9 @@ export function startSheetEditor(root: HTMLElement): void {
       const raw = rawValue(row, col);
       if (raw === '') continue;
       count++;
-      const n = Number(raw);
-      if (raw.trim() !== '' && Number.isFinite(n)) {
+      const value = raw.startsWith('=') ? engine.getValue(row, col).value : raw;
+      const n = Number(value);
+      if (value.trim() !== '' && Number.isFinite(n)) {
         sum += n;
         numCount++;
       }
@@ -233,6 +242,7 @@ export function startSheetEditor(root: HTMLElement): void {
       s.textContent = CHROME_CSS;
       document.head.appendChild(s);
     }
+    root.classList.add('sheet-app');
     const titlebar = document.createElement('div');
     titlebar.className = 'sheet-titlebar';
     titlebar.innerHTML = TITLE_ICON_SVG;
@@ -320,6 +330,7 @@ export function startSheetEditor(root: HTMLElement): void {
       },
     });
     const gridHost = document.createElement('div');
+    gridHost.className = 'sheet-grid-host';
     root.appendChild(toolbar);
     root.appendChild(formulaBar.el);
     root.appendChild(gridHost);
