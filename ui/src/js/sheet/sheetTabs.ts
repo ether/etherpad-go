@@ -15,10 +15,12 @@ export interface TabsCallbacks {
 
 const STYLE_ID = 'sheet-tabs-style';
 const CSS = `
-.sheet-tabs { display: flex; gap: 2px; align-items: center; padding: 4px 2px; font: 12px/1.4 system-ui, sans-serif; }
-.sheet-tabs button { border: 1px solid #d2d2d2; background: #f2f3f4; color: #485365; padding: 3px 12px; cursor: pointer; border-radius: 0 0 4px 4px; }
-.sheet-tabs button.sheet-tab-active { background: #fff; font-weight: 600; border-top-color: #fff; }
-.sheet-tabs button.sheet-tab-add { padding: 3px 8px; font-weight: 700; }
+.sheet-tabs { display: flex; gap: 1px; align-items: center; padding: 0 6px; font: 12px/1.4 system-ui, sans-serif; background: #f5f6f7; border-top: 1px solid #d4d8dd; }
+.sheet-tabs button { border: none; border-bottom: 2px solid transparent; background: #fff; color: #5f6b7a; padding: 5px 14px 3px; cursor: pointer; }
+.sheet-tabs button:hover { color: #107c41; }
+.sheet-tabs button.sheet-tab-active { background: #fff; color: #107c41; font-weight: 600; border-bottom-color: #107c41; }
+.sheet-tabs button.sheet-tab-add { width: 22px; height: 22px; padding: 0; margin-left: 4px; border: none; border-radius: 50%; background: none; color: #5f6b7a; font-weight: 700; font-size: 14px; line-height: 1; }
+.sheet-tabs button.sheet-tab-add:hover { background: #e6f2ec; color: #107c41; }
 `;
 
 export function createSheetTabs(cb: TabsCallbacks): { el: HTMLElement; refresh: () => void } {

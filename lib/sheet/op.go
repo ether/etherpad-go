@@ -3,6 +3,7 @@ package sheet
 import (
 	"fmt"
 	"regexp"
+	"strconv"
 )
 
 type OpType string
@@ -152,7 +153,13 @@ func (o Op) Validate() error {
 var (
 	hexColorRe = regexp.MustCompile(`^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$`)
 	numFmtRe   = regexp.MustCompile(`^(general|text|date|(number|currency|percent)(:\d{1,2})?)$`)
+	fontSizeRe = regexp.MustCompile(`^[1-9]\d?$`) // 1-2 digits, no leading zeros; range-checked below
 )
+
+var fontFamilies = map[string]bool{
+	"Calibri": true, "Arial": true, "Times New Roman": true,
+	"Courier New": true, "Georgia": true, "Verdana": true,
+}
 
 // validateProps allowlists style prop keys and values. Props come from
 // arbitrary collaborators and end up as inline CSS on every viewer's DOM, so
@@ -171,6 +178,15 @@ func validateProps(props map[string]string) error {
 			ok = v == "all"
 		case "numFmt":
 			ok = numFmtRe.MatchString(v)
+		case "fontFamily":
+			ok = fontFamilies[v]
+		case "fontSize":
+			if fontSizeRe.MatchString(v) {
+				n, _ := strconv.Atoi(v)
+				ok = n >= 6 && n <= 96
+			}
+		case "wrap":
+			ok = v == "1"
 		default:
 			return fmt.Errorf("props: unknown key %q", k)
 		}

@@ -11,10 +11,21 @@ describe('styleToCss', () => {
     expect(styleToCss({ border: 'all' }).border).toBe('1px solid #333');
     expect(styleToCss({})).toEqual({});
   });
+  it('maps fontFamily, fontSize, and wrap', () => {
+    expect(styleToCss({ fontFamily: 'Calibri', fontSize: '11', wrap: '1' }))
+      .toEqual({ fontFamily: 'Calibri', fontSize: '11pt', whiteSpace: 'normal' });
+    expect(styleToCss({ fontSize: '6' }).fontSize).toBe('6pt');
+    expect(styleToCss({ fontSize: '96' }).fontSize).toBe('96pt');
+  });
   it('ignores non-allowlisted values (defense against CSS injection)', () => {
     expect(styleToCss({ bg: 'url(https://evil.example/x)' })).toEqual({});
     expect(styleToCss({ color: 'red' })).toEqual({});
     expect(styleToCss({ align: 'justify; background: url(https://x)' })).toEqual({});
+    expect(styleToCss({ fontFamily: 'Hack;background:url(x)' })).toEqual({});
+    expect(styleToCss({ fontSize: '999' })).toEqual({});
+    expect(styleToCss({ fontSize: '0' })).toEqual({});
+    expect(styleToCss({ fontSize: '012' })).toEqual({});
+    expect(styleToCss({ wrap: 'yes' })).toEqual({});
   });
 });
 

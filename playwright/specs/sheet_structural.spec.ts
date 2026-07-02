@@ -96,15 +96,17 @@ test.describe('Sheet M4 structural', () => {
     await typeInto(page, 2, 0, 'x');
     await cell(page, 0, 0).click();
     await ribbonTab(page, 'Data');
-    // The dropdown fills its options lazily on open; selectOption() bypasses
-    // the native open, so trigger the repopulation explicitly first.
-    await page.locator('.sheet-toolbar select').last().dispatchEvent('mousedown');
-    await page.locator('.sheet-toolbar select').last().selectOption('x');
+    // Toolbar selects are only unique by title (the Excel ribbon reordered
+    // them). The dropdown fills its options lazily on open; selectOption()
+    // bypasses the native open, so trigger the repopulation explicitly first.
+    const filter = page.locator('select[title="Filter rows by the focused column"]');
+    await filter.dispatchEvent('mousedown');
+    await filter.selectOption('x');
     await expect(page.locator('.sheet-grid tbody tr').nth(1)).toBeHidden();
     await expect(page.locator('.sheet-grid tbody tr').nth(0)).toBeVisible();
     await expect(page.locator('.sheet-grid tbody tr').nth(2)).toBeVisible();
     // clear
-    await page.locator('.sheet-toolbar select').last().selectOption('');
+    await filter.selectOption('');
     await expect(page.locator('.sheet-grid tbody tr').nth(1)).toBeVisible();
   });
 });

@@ -26,6 +26,11 @@ async function ribbonTab(page: Page, name: 'Home' | 'Data' | 'View'): Promise<vo
 const toolbarButton = (page: Page, text: string | RegExp) =>
   page.locator('.sheet-toolbar button').filter({ hasText: text });
 
+// Import/Export buttons are only unique by title in the Excel ribbon (the
+// File menu carries similar labels).
+const exportBtn = (page: Page) => page.locator('.sheet-toolbar button[title="Export as .xlsx"]');
+const importBtn = (page: Page) => page.locator('.sheet-toolbar button[title="Import .xlsx (replaces this sheet)"]');
+
 test.describe('Sheet ribbon', () => {
   test('tab switch shows the active group and hides the rest', async ({ page }) => {
     await openSheet(page, `ribbon-tabs-${Date.now()}`);
@@ -76,7 +81,7 @@ test.describe('Sheet ribbon', () => {
 
     await ribbonTab(page, 'Data');
     const downloadPromise = page.waitForEvent('download');
-    await toolbarButton(page, '⬇ Export').click();
+    await exportBtn(page).click();
     const download = await downloadPromise;
     expect(download.suggestedFilename()).toMatch(/\.xlsx$/);
   });
@@ -88,12 +93,12 @@ test.describe('Sheet ribbon', () => {
 
     await ribbonTab(page, 'Data');
     const downloadPromise = page.waitForEvent('download');
-    await toolbarButton(page, '⬇ Export').click();
+    await exportBtn(page).click();
     const download = await downloadPromise;
     const buffer = fs.readFileSync(await download.path());
 
     const chooserPromise = page.waitForEvent('filechooser');
-    await toolbarButton(page, '⬆ Import').click();
+    await importBtn(page).click();
     const chooser = await chooserPromise;
     // Import triggers SHEET_RELOAD — arm the load waiter before setFiles.
     const reloaded = page.waitForEvent('load', { timeout: 20000 });
