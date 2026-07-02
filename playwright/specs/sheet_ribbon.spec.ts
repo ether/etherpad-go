@@ -100,14 +100,20 @@ test.describe('Sheet ribbon', () => {
     const chooserPromise = page.waitForEvent('filechooser');
     await importBtn(page).click();
     const chooser = await chooserPromise;
-    // Import triggers SHEET_RELOAD — arm the load waiter before setFiles.
-    const reloaded = page.waitForEvent('load', { timeout: 20000 });
+    // Import triggers SHEET_RELOAD (location.reload). Firefox does not reliably
+    // surface that as a page "load" event, so detect the reload via a window
+    // sentinel that only survives until navigation.
+    await page.evaluate(() => { (window as { __preImport?: number }).__preImport = 1; });
     await chooser.setFiles({
       name: 'wb.xlsx',
       mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       buffer,
     });
-    await reloaded;
+    await page.waitForFunction(
+      () => (window as { __preImport?: number }).__preImport === undefined,
+      undefined,
+      { timeout: 20000 },
+    );
     await page.locator('.sheet-grid').waitFor({ state: 'visible', timeout: 20000 });
 
     await expect(cell(page, 0, 0)).toHaveText('alpha');

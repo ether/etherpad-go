@@ -296,7 +296,15 @@ export function startSheetEditor(root: HTMLElement): void {
         collab.applyLocal(ops[action]);
       },
       exportXlsx: () => {
-        window.location.href = location.pathname + '/export.xlsx';
+        // Anchor click, not location.href: Firefox treats the href navigation
+        // as an unload and kills the websocket even though the response is a
+        // download — the session would silently stop receiving broadcasts.
+        const a = document.createElement('a');
+        a.href = location.pathname + '/export.xlsx';
+        a.download = '';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
       },
       importXlsx: (file: File) => {
         const body = new FormData();
@@ -512,7 +520,12 @@ export function startSheetEditor(root: HTMLElement): void {
     });
   };
 
-  socket.once('connect', () => sendClientReady());
+  // on, not once: after a reconnect the server has a fresh connection that is
+  // not joined to the pad until CLIENT_READY is sent again — with `once` the
+  // session silently stops receiving broadcasts after any network blip. The
+  // SHEET_VARS reply re-runs initSheet with a fresh snapshot, which is exactly
+  // the SHEET_RELOAD semantic.
+  socket.on('connect', () => sendClientReady());
   socket.on('message', (msg: { type?: string; data?: any }) => {
     if (!msg || typeof msg !== 'object') return;
     if (msg.type === 'SHEET_VARS') {
