@@ -209,6 +209,35 @@ export function startSheetEditor(root: HTMLElement): void {
         hiddenRows = value === null ? new Set() : hiddenRowsForFilter(selection.focus.col, value, GRID_ROWS, rawValue);
         view?.render();
       },
+      // Explicit param types: until the ToolbarCallbacks interface gains these
+      // optional fields (built in parallel), there is no contextual type.
+      structural: (action: 'insRowAbove' | 'insRowBelow' | 'insColLeft' | 'insColRight' | 'delRows' | 'delCols') => {
+        if (readOnly || !collab) return;
+        blurActiveCell();
+        const { r0, c0, r1, c1 } = normalize(selection);
+        const ops: Record<typeof action, Op> = {
+          insRowAbove: { type: 'insertRows', sheet: activeSheetId, baseRev: collab.rev, index: r0, count: 1 },
+          insRowBelow: { type: 'insertRows', sheet: activeSheetId, baseRev: collab.rev, index: r1 + 1, count: 1 },
+          insColLeft: { type: 'insertCols', sheet: activeSheetId, baseRev: collab.rev, index: c0, count: 1 },
+          insColRight: { type: 'insertCols', sheet: activeSheetId, baseRev: collab.rev, index: c1 + 1, count: 1 },
+          delRows: { type: 'deleteRows', sheet: activeSheetId, baseRev: collab.rev, index: r0, count: r1 - r0 + 1 },
+          delCols: { type: 'deleteCols', sheet: activeSheetId, baseRev: collab.rev, index: c0, count: c1 - c0 + 1 },
+        };
+        collab.applyLocal(ops[action]);
+      },
+      exportXlsx: () => {
+        window.location.href = location.pathname + '/export.xlsx';
+      },
+      importXlsx: (file: File) => {
+        const body = new FormData();
+        body.append('file', file);
+        void fetch(location.pathname + '/import', { method: 'POST', body, credentials: 'same-origin' })
+          .then(async (res) => {
+            // On success the server broadcasts SHEET_RELOAD; the message handler reloads.
+            if (!res.ok) alert(await res.text());
+          })
+          .catch((err) => alert(String(err)));
+      },
     });
     formulaBar = createFormulaBar({
       readOnly: data.readonly,
