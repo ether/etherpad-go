@@ -32,14 +32,30 @@ export interface SheetViewOptions {
   readOnly?: boolean;
   styleOf?: (row: number, col: number) => Record<string, string>;
   errorOf?: (row: number, col: number) => string | undefined;
+  // M4: sparse dimension overrides (px), freeze state, and resize commits.
+  colWidth?: (col: number) => number | undefined;
+  rowHeight?: (row: number) => number | undefined;
+  frozen?: () => { rows: number; cols: number };
+  onResize?: (axis: 'col' | 'row', index: number, sizePx: number) => void;
+  // Client-local row filter: hidden rows collapse via display:none.
+  rowHidden?: (row: number) => boolean;
 }
 
 const STYLE_ID = 'sheet-grid-style';
+// border-collapse: separate (not collapse) because position: sticky drops
+// collapsed borders while a frozen row/col sticks. Right/bottom-only borders
+// keep the 1px grid look without doubling.
 const CSS = `
-.sheet-grid { border-collapse: collapse; font: 13px/1.4 system-ui, sans-serif; }
-.sheet-grid th, .sheet-grid td { border: 1px solid #d2d2d2; min-width: 80px; height: 22px; padding: 2px 6px; }
-.sheet-grid th { background: #f2f3f4; color: #485365; font-weight: 600; text-align: center; }
-.sheet-grid td { outline: none; position: relative; }
+.sheet-grid { border-collapse: separate; border-spacing: 0; border-top: 1px solid #d2d2d2; border-left: 1px solid #d2d2d2; font: 13px/1.4 system-ui, sans-serif; }
+.sheet-grid th, .sheet-grid td { border-right: 1px solid #d2d2d2; border-bottom: 1px solid #d2d2d2; min-width: 80px; height: 22px; padding: 2px 6px; }
+.sheet-grid th { background: #f2f3f4; color: #485365; font-weight: 600; text-align: center; position: relative; }
+.sheet-grid td { outline: none; position: relative; background: #fff; }
+.sheet-resizer-col { position: absolute; top: 0; right: -3px; width: 6px; height: 100%; cursor: col-resize; z-index: 9; }
+.sheet-resizer-row { position: absolute; left: 0; bottom: -3px; height: 6px; width: 100%; cursor: row-resize; z-index: 9; }
+.sheet-grid.sheet-frozen-r thead th { position: sticky; top: 0; z-index: 8; }
+.sheet-grid.sheet-frozen-r tbody tr:first-child th, .sheet-grid.sheet-frozen-r tbody tr:first-child td { position: sticky; top: var(--fr-top, 24px); z-index: 7; }
+.sheet-grid.sheet-frozen-c tbody th, .sheet-grid.sheet-frozen-c thead th:first-child { position: sticky; left: 0; z-index: 8; }
+.sheet-grid.sheet-frozen-c thead th:nth-child(2), .sheet-grid.sheet-frozen-c tbody td:first-of-type { position: sticky; left: var(--fc-left, 40px); z-index: 6; }
 .sheet-grid td:focus { box-shadow: inset 0 0 0 2px #64d29b; }
 .sheet-remote-tag { position: absolute; top: -15px; left: -1px; font: 10px/14px system-ui, sans-serif; padding: 0 4px; color: #fff; border-radius: 3px 3px 3px 0; white-space: nowrap; z-index: 5; pointer-events: none; }
 .sheet-remote-tag::after { content: attr(data-label); }
@@ -71,6 +87,10 @@ export class DomSheetView {
   // editable cell races the caret and re-renders can delete typed text.
   private fillHandle: HTMLSpanElement;
   private table: HTMLTableElement;
+  private thead: HTMLTableSectionElement;
+  private colHeads: HTMLTableCellElement[] = [];
+  private rowHeads: HTMLTableCellElement[] = [];
+  private rows: HTMLTableRowElement[] = [];
 
   constructor(root: HTMLElement, opts: SheetViewOptions) {
     this.opts = opts;
@@ -95,12 +115,18 @@ export class DomSheetView {
     });
     root.appendChild(this.fillHandle);
 
+    // ponytail: every cell is a DOM node (~200x52 = 10k contenteditables).
+    // Virtualization (render only the visible viewport) is the upgrade path
+    // when larger grids hurt; not built here.
     const thead = document.createElement('thead');
+    this.thead = thead;
     const headRow = document.createElement('tr');
     headRow.appendChild(document.createElement('th')); // corner
     for (let c = 0; c < opts.cols; c++) {
       const th = document.createElement('th');
       th.textContent = colName(c);
+      this.attachResizer(th, 'col', c);
+      this.colHeads.push(th);
       headRow.appendChild(th);
     }
     thead.appendChild(headRow);
@@ -109,8 +135,11 @@ export class DomSheetView {
     const tbody = document.createElement('tbody');
     for (let r = 0; r < opts.rows; r++) {
       const tr = document.createElement('tr');
+      this.rows.push(tr);
       const rowHead = document.createElement('th');
       rowHead.textContent = String(r + 1);
+      this.attachResizer(rowHead, 'row', r);
+      this.rowHeads.push(rowHead);
       tr.appendChild(rowHead);
       const rowCells: HTMLTableCellElement[] = [];
       for (let c = 0; c < opts.cols; c++) {
@@ -140,6 +169,56 @@ export class DomSheetView {
       this.render();
     });
     this.render();
+  }
+
+  // attachResizer adds a drag strip to a header cell edge. Dragging previews
+  // the size live via inline style and commits once on mouseup via onResize.
+  private attachResizer(th: HTMLTableCellElement, axis: 'col' | 'row', index: number): void {
+    if (this.opts.readOnly) return;
+    const grip = document.createElement('span');
+    grip.className = axis === 'col' ? 'sheet-resizer-col' : 'sheet-resizer-row';
+    grip.addEventListener('mousedown', (e: MouseEvent) => {
+      e.stopPropagation();
+      e.preventDefault();
+      const startPos = axis === 'col' ? e.clientX : e.clientY;
+      const startSize = axis === 'col' ? th.offsetWidth : th.offsetHeight;
+      const minSize = axis === 'col' ? 40 : 18;
+      let size = startSize;
+      const onMove = (me: MouseEvent) => {
+        size = Math.max(minSize, startSize + ((axis === 'col' ? me.clientX : me.clientY) - startPos));
+        this.applyDim(axis, index, size);
+      };
+      const onUp = () => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        this.opts.onResize?.(axis, index, size);
+      };
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+    th.appendChild(grip);
+  }
+
+  // applyDim paints one dimension override. Column widths also need min-width
+  // relaxed on every cell in the column (the CSS default is min-width: 80px).
+  private applyDim(axis: 'col' | 'row', index: number, size: number | undefined): void {
+    const px = size === undefined ? '' : `${size}px`;
+    if (axis === 'col') {
+      const th = this.colHeads[index];
+      if (!th) return;
+      th.style.width = px;
+      th.style.minWidth = px;
+      th.style.maxWidth = px;
+      for (let r = 0; r < this.opts.rows; r++) {
+        const td = this.cells[r][index];
+        td.style.minWidth = px;
+        td.style.maxWidth = px;
+      }
+    } else {
+      const th = this.rowHeads[index];
+      if (!th) return;
+      th.style.height = px;
+    }
   }
 
   private ensureStyle(): void {
@@ -271,6 +350,18 @@ export class DomSheetView {
       td.querySelector('.sheet-remote-tag')?.remove();
     }
     this.decorated.clear();
+
+    // M4: dimension overrides, client-local row filter, freeze panes.
+    for (let c = 0; c < this.opts.cols; c++) this.applyDim('col', c, this.opts.colWidth?.(c));
+    for (let r = 0; r < this.opts.rows; r++) {
+      this.applyDim('row', r, this.opts.rowHeight?.(r));
+      this.rows[r].style.display = this.opts.rowHidden?.(r) ? 'none' : '';
+    }
+    const fz = this.opts.frozen?.() ?? { rows: 0, cols: 0 };
+    this.table.classList.toggle('sheet-frozen-r', fz.rows > 0);
+    this.table.classList.toggle('sheet-frozen-c', fz.cols > 0);
+    if (fz.rows > 0) this.table.style.setProperty('--fr-top', `${this.thead.offsetHeight}px`);
+    if (fz.cols > 0) this.table.style.setProperty('--fc-left', `${this.rowHeads[0]?.offsetWidth ?? 40}px`);
 
     for (let r = 0; r < this.opts.rows; r++) {
       for (let c = 0; c < this.opts.cols; c++) {
