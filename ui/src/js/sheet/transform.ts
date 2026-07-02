@@ -32,6 +32,9 @@ function shiftRows(inOp: Op, index: number, delta: number): Op {
   if (out.type === 'insertRows' || out.type === 'deleteRows') {
     out.index = shiftCoord(out.index ?? 0, index, delta);
   }
+  if (out.type === 'setDimension' && out.axis === 'row') {
+    out.index = shiftCoord(out.index ?? 0, index, delta);
+  }
   return out;
 }
 
@@ -42,6 +45,9 @@ function shiftCols(inOp: Op, index: number, delta: number): Op {
     out.endCol = shiftCoord(out.endCol ?? 0, index, delta);
   }
   if (out.type === 'insertCols' || out.type === 'deleteCols') {
+    out.index = shiftCoord(out.index ?? 0, index, delta);
+  }
+  if (out.type === 'setDimension' && out.axis === 'col') {
     out.index = shiftCoord(out.index ?? 0, index, delta);
   }
   return out;
