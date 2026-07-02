@@ -7,6 +7,13 @@ export interface ToolbarCallbacks {
   focusCell: () => { row: number; col: number };
   applyToSelection: (change: Record<string, string>) => void;
   readOnly: boolean;
+  // M4 structural actions.
+  sortSelection?: (asc: boolean) => void;
+  toggleFreeze?: (kind: 'row' | 'col') => void;
+  frozenState?: () => { rows: number; cols: number };
+  // Filter on the focus column: values() fills the dropdown lazily, apply(null) clears.
+  filterValues?: () => string[];
+  applyFilter?: (value: string | null) => void;
 }
 
 const CSS = `
@@ -79,6 +86,59 @@ export function createToolbar(cb: ToolbarCallbacks): HTMLElement {
   }
   numFmt.addEventListener('change', () => cb.applyToSelection({ numFmt: numFmt.value }));
   bar.appendChild(numFmt);
+
+  if (cb.sortSelection) {
+    const az = document.createElement('button');
+    az.textContent = 'A→Z';
+    az.title = 'Sort selection ascending by the focused column';
+    az.addEventListener('click', () => cb.sortSelection?.(true));
+    bar.appendChild(az);
+    const za = document.createElement('button');
+    za.textContent = 'Z→A';
+    za.title = 'Sort selection descending by the focused column';
+    za.addEventListener('click', () => cb.sortSelection?.(false));
+    bar.appendChild(za);
+  }
+
+  if (cb.toggleFreeze) {
+    const mk = (label: string, kind: 'row' | 'col', title: string) => {
+      const b = document.createElement('button');
+      b.textContent = label;
+      b.title = title;
+      b.addEventListener('click', () => {
+        cb.toggleFreeze?.(kind);
+        const fz = cb.frozenState?.() ?? { rows: 0, cols: 0 };
+        b.classList.toggle('on', kind === 'row' ? fz.rows > 0 : fz.cols > 0);
+      });
+      const fz = cb.frozenState?.() ?? { rows: 0, cols: 0 };
+      b.classList.toggle('on', kind === 'row' ? fz.rows > 0 : fz.cols > 0);
+      bar.appendChild(b);
+    };
+    mk('❄R', 'row', 'Freeze first row');
+    mk('❄C', 'col', 'Freeze first column');
+  }
+
+  if (cb.filterValues && cb.applyFilter) {
+    const filter = document.createElement('select');
+    filter.title = 'Filter rows by the focused column';
+    const fill = () => {
+      filter.innerHTML = '';
+      const all = document.createElement('option');
+      all.value = '';
+      all.textContent = '▼ Filter: (all)';
+      filter.appendChild(all);
+      for (const v of cb.filterValues?.() ?? []) {
+        const o = document.createElement('option');
+        o.value = v;
+        o.textContent = v;
+        filter.appendChild(o);
+      }
+    };
+    fill();
+    filter.addEventListener('mousedown', fill); // repopulate lazily on open
+    filter.addEventListener('change', () => cb.applyFilter?.(filter.value === '' ? null : filter.value));
+    bar.appendChild(filter);
+  }
 
   return bar;
 }

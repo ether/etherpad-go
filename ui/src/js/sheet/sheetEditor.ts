@@ -7,6 +7,8 @@ import { SheetPresence, effectiveCells, type PresenceFrame } from './sheetPresen
 import { rangeToTSV, parseTSV, pasteOps, fillOps } from './sheetClipboard';
 import { normalize, selCells, selIsSingle, type Selection } from './sheetSelection';
 import { createToolbar } from './sheetToolbar';
+import { createSheetTabs } from './sheetTabs';
+import { sortRangeOps, distinctValues, hiddenRowsForFilter } from './sheetSortFilter';
 import { createFormulaBar, type FormulaBarHandle } from './sheetFormulaBar';
 import { rangeRefA1 } from './a1';
 import { mergeProps } from './styleCss';
@@ -39,6 +41,11 @@ export function startSheetEditor(root: HTMLElement): void {
   const engine = new FormulaEngine();
   let selection: Selection = { anchor: { row: 0, col: 0 }, focus: { row: 0, col: 0 } };
   let readOnly = false;
+  const GRID_ROWS = 200;
+  const GRID_COLS = 52;
+  // Client-local filter state (per active sheet, reset on switch — not collaborative).
+  let hiddenRows = new Set<number>();
+  let tabs: { el: HTMLElement; refresh: () => void } | null = null;
 
   const transport = {
     send: (op: Op) =>
@@ -153,6 +160,7 @@ export function startSheetEditor(root: HTMLElement): void {
       );
     }
     view?.render();
+    tabs?.refresh();
     if (formulaBar) {
       const { r0, c0, r1, c1 } = normalize(selection);
       formulaBar.setActive(rangeRefA1(r0, c0, r1, c1), rawValue(selection.focus.row, selection.focus.col));
@@ -178,6 +186,29 @@ export function startSheetEditor(root: HTMLElement): void {
       focusCell: () => selection.focus,
       applyToSelection: applyStyleToSelection,
       readOnly: data.readonly,
+      sortSelection: (asc) => {
+        if (readOnly || !collab || selIsSingle(selection)) return;
+        blurActiveCell();
+        for (const op of sortRangeOps(selection, selection.focus.col, asc, activeSheetId, collab.rev, rawValue)) {
+          collab.applyLocal(op);
+        }
+      },
+      toggleFreeze: (kind) => {
+        if (readOnly || !collab) return;
+        const s = collab.display.sheetById(activeSheetId);
+        const rows = kind === 'row' ? ((s?.frozenRows ?? 0) > 0 ? 0 : 1) : (s?.frozenRows ?? 0);
+        const cols = kind === 'col' ? ((s?.frozenCols ?? 0) > 0 ? 0 : 1) : (s?.frozenCols ?? 0);
+        collab.applyLocal({ type: 'setFreeze', sheet: activeSheetId, baseRev: collab.rev, frozenRows: rows, frozenCols: cols });
+      },
+      frozenState: () => {
+        const s = collab?.display.sheetById(activeSheetId);
+        return { rows: s?.frozenRows ?? 0, cols: s?.frozenCols ?? 0 };
+      },
+      filterValues: () => distinctValues(selection.focus.col, GRID_ROWS, rawValue),
+      applyFilter: (value) => {
+        hiddenRows = value === null ? new Set() : hiddenRowsForFilter(selection.focus.col, value, GRID_ROWS, rawValue);
+        view?.render();
+      },
     });
     formulaBar = createFormulaBar({
       readOnly: data.readonly,
@@ -193,13 +224,58 @@ export function startSheetEditor(root: HTMLElement): void {
     root.appendChild(formulaBar.el);
     root.appendChild(gridHost);
 
+    const setActiveSheet = (id: string): void => {
+      if (id === activeSheetId) return;
+      activeSheetId = id;
+      hiddenRows = new Set(); // the filter is per-sheet and client-local
+      onChange();
+    };
+    tabs = createSheetTabs({
+      sheets: () => (collab ? collab.display.sheets.map((s) => ({ id: s.id, name: s.name })) : []),
+      activeId: () => activeSheetId,
+      readOnly: data.readonly,
+      onSwitch: setActiveSheet,
+      onAdd: () => {
+        if (!collab) return;
+        const id = `s-${Math.random().toString(36).slice(2, 10)}`;
+        collab.applyLocal({
+          type: 'addSheet', sheet: id, baseRev: collab.rev,
+          name: `Sheet${collab.display.sheets.length + 1}`, index: collab.display.sheets.length,
+        });
+        setActiveSheet(id);
+      },
+      onRename: (id, name) => {
+        collab?.applyLocal({ type: 'renameSheet', sheet: id, baseRev: collab.rev, name });
+      },
+      onDelete: (id) => {
+        if (!collab) return;
+        collab.applyLocal({ type: 'deleteSheet', sheet: id, baseRev: collab.rev });
+        if (id === activeSheetId) setActiveSheet(collab.display.sheets[0]?.id ?? 's1');
+      },
+      onMove: (id, toIndex) => {
+        collab?.applyLocal({ type: 'moveSheet', sheet: id, baseRev: collab.rev, toIndex });
+      },
+    });
+    root.appendChild(tabs.el);
+
     view = new DomSheetView(gridHost, {
-      rows: 50,
-      cols: 20,
+      rows: GRID_ROWS,
+      cols: GRID_COLS,
       rawValue,
       displayValue,
       readOnly: data.readonly,
       styleOf: (r, c) => propsOf(r, c),
+      colWidth: (c) => collab?.display.sheetById(activeSheetId)?.colWidths.get(c),
+      rowHeight: (r) => collab?.display.sheetById(activeSheetId)?.rowHeights.get(r),
+      frozen: () => {
+        const s = collab?.display.sheetById(activeSheetId);
+        return { rows: s?.frozenRows ?? 0, cols: s?.frozenCols ?? 0 };
+      },
+      onResize: (axis, index, size) => {
+        if (readOnly || !collab) return;
+        collab.applyLocal({ type: 'setDimension', sheet: activeSheetId, baseRev: collab.rev, axis, index, size });
+      },
+      rowHidden: (r) => hiddenRows.has(r),
       // ponytail: second engine.getValue per formula cell per render (displayValue
       // already does one). Cheap: HyperFormula caches, and the raw.startsWith('=')
       // gate skips non-formula cells. Fold into displayValue if the grid grows.
