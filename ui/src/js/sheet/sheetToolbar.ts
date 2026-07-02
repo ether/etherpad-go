@@ -136,6 +136,7 @@ export function createToolbar(cb: ToolbarCallbacks): HTMLElement {
     };
     fill();
     filter.addEventListener('mousedown', fill); // repopulate lazily on open
+    filter.addEventListener('focus', fill); // and for keyboard users
     filter.addEventListener('change', () => cb.applyFilter?.(filter.value === '' ? null : filter.value));
     bar.appendChild(filter);
   }
