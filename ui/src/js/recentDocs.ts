@@ -33,7 +33,7 @@ export function listRecent(): RecentDoc[] {
         !!d && typeof d === 'object' &&
         typeof (d as RecentDoc).name === 'string' &&
         ((d as RecentDoc).type === 'p' || (d as RecentDoc).type === 's') &&
-        typeof (d as RecentDoc).ts === 'number',
+        Number.isFinite((d as RecentDoc).ts),
     );
   } catch {
     return [];
@@ -44,5 +44,12 @@ export function listRecent(): RecentDoc[] {
 // /p/<name> or /s/<name> URL. Call from the pad/sheet entry points.
 export function recordCurrentDoc(): void {
   const m = /\/(p|s)\/([^/?#]+)/.exec(location.pathname);
-  if (m) recordRecent(m[1] as 'p' | 's', decodeURIComponent(m[2]));
+  if (!m) return;
+  let name = m[2];
+  try {
+    name = decodeURIComponent(name);
+  } catch {
+    // malformed percent-encoding: keep the raw segment, never block editor boot
+  }
+  recordRecent(m[1] as 'p' | 's', name);
 }

@@ -48,7 +48,16 @@ const byId = <T extends HTMLElement>(id: string): T => {
   return element as T;
 };
 
-const lang = (): string => document.cookie.match(/(?:^|; )language=([^;]+)/)?.[1] ?? navigator.language;
+const lang = (): string => {
+  const c = document.cookie.match(/(?:^|; )language=([^;]+)/)?.[1];
+  if (c) {
+    try {
+      Intl.getCanonicalLocales(c); // throws on invalid tags — fall through
+      return c;
+    } catch { /* invalid cookie value */ }
+  }
+  return navigator.language;
+};
 
 // Greeting + date line for the launcher header. The three greeting variants
 // come server-translated as data attributes on the <h1>.
