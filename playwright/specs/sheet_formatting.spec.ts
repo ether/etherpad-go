@@ -24,9 +24,9 @@ test.describe('Sheet formatting', () => {
 
     await commitCell(page, 0, 0, 'hi'); // A1
 
-    // Re-select A1, then toggle bold via the toolbar.
+    // Re-select A1, then toggle bold via the ribbon (Home tab is the default).
     await cell(page, 0, 0).click();
-    await page.locator('.sheet-toolbar button[data-key=bold]').click();
+    await page.locator('.sheet-toolbar button').filter({ hasText: /^B$/ }).click();
 
     await expect(cell(page, 0, 0)).toHaveCSS('font-weight', /700|bold/);
   });
@@ -38,7 +38,8 @@ test.describe('Sheet formatting', () => {
     await commitCell(page, 0, 0, '1234.5'); // A1
 
     await cell(page, 0, 0).click();
-    await page.locator('.sheet-toolbar select[title="Number format"]').selectOption('number:2');
+    // Toolbar selects are only unique by title (the Excel ribbon reordered them).
+    await page.locator('select[title="Number format"]').selectOption('number:2');
 
     await expect(cell(page, 0, 0)).toHaveText('1,234.50');
   });

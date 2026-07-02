@@ -5,12 +5,15 @@
 export type CellCss = {
   fontWeight?: string; fontStyle?: string; textDecoration?: string;
   color?: string; background?: string; textAlign?: string; border?: string;
+  fontFamily?: string; fontSize?: string; whiteSpace?: string;
 };
 
 // Defense in depth: props are validated server-side (lib/sheet/op.go), but a
 // value like bg: "url(...)" must never reach td.style even if bad data slips in.
 const HEX_COLOR = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 const ALIGNS = new Set(['left', 'center', 'right']);
+const FONT_FAMILIES = new Set(['Calibri', 'Arial', 'Times New Roman', 'Courier New', 'Georgia', 'Verdana']);
+const FONT_SIZE = /^[1-9]\d?$/; // 6..96, range-checked below
 
 export function styleToCss(props: Record<string, string>): CellCss {
   const css: CellCss = {};
@@ -21,6 +24,12 @@ export function styleToCss(props: Record<string, string>): CellCss {
   if (props.bg && HEX_COLOR.test(props.bg)) css.background = props.bg;
   if (props.align && ALIGNS.has(props.align)) css.textAlign = props.align;
   if (props.border === 'all') css.border = '1px solid #333';
+  if (props.fontFamily && FONT_FAMILIES.has(props.fontFamily)) css.fontFamily = props.fontFamily;
+  if (props.fontSize && FONT_SIZE.test(props.fontSize)) {
+    const n = Number(props.fontSize);
+    if (n >= 6 && n <= 96) css.fontSize = `${n}pt`;
+  }
+  if (props.wrap === '1') css.whiteSpace = 'normal';
   return css;
 }
 

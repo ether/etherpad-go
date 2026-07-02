@@ -46,24 +46,32 @@ const STYLE_ID = 'sheet-grid-style';
 // collapsed borders while a frozen row/col sticks. Right/bottom-only borders
 // keep the 1px grid look without doubling.
 const CSS = `
-.sheet-grid { border-collapse: separate; border-spacing: 0; border-top: 1px solid #d2d2d2; border-left: 1px solid #d2d2d2; font: 13px/1.4 system-ui, sans-serif; }
-.sheet-grid th, .sheet-grid td { border-right: 1px solid #d2d2d2; border-bottom: 1px solid #d2d2d2; min-width: 80px; height: 22px; padding: 2px 6px; }
-.sheet-grid th { background: #f2f3f4; color: #485365; font-weight: 600; text-align: center; position: relative; }
-.sheet-grid td { outline: none; position: relative; background: #fff; }
+.sheet-grid { border-collapse: separate; border-spacing: 0; border-top: 1px solid #d4d4d4; border-left: 1px solid #d4d4d4; font: 13px/1.4 system-ui, sans-serif; }
+.sheet-grid th, .sheet-grid td { border-right: 1px solid #d4d4d4; border-bottom: 1px solid #d4d4d4; min-width: 80px; height: 22px; padding: 2px 6px; }
+.sheet-grid th { background: #f5f6f7; color: #5f6b7a; font-weight: 600; text-align: center; position: relative; }
+/* Excel keeps headers visible while the grid scrolls: column letters stick to
+   the top, row numbers to the left of the scroll container (sheet-grid-host). */
+.sheet-grid thead th { position: sticky; top: 0; z-index: 8; }
+.sheet-grid thead th:first-child { left: 0; z-index: 9; }
+.sheet-grid tbody th { position: sticky; left: 0; z-index: 4; }
+.sheet-grid th.sheet-head-hl { background: #e6f2ec; color: #0f6b3a; }
+.sheet-grid thead th.sheet-head-hl { box-shadow: inset 0 -2px 0 #107c41; }
+.sheet-grid tbody th.sheet-head-hl { box-shadow: inset -2px 0 0 #107c41; }
+.sheet-grid td { outline: none; position: relative; background: #fff; white-space: nowrap; overflow: hidden; }
 .sheet-resizer-col { position: absolute; top: 0; right: -3px; width: 6px; height: 100%; cursor: col-resize; z-index: 9; }
 .sheet-resizer-row { position: absolute; left: 0; bottom: -3px; height: 6px; width: 100%; cursor: row-resize; z-index: 9; }
 .sheet-grid.sheet-frozen-r thead th { position: sticky; top: 0; z-index: 8; }
 .sheet-grid.sheet-frozen-r tbody tr:first-child th, .sheet-grid.sheet-frozen-r tbody tr:first-child td { position: sticky; top: var(--fr-top, 24px); z-index: 7; }
 .sheet-grid.sheet-frozen-c tbody th, .sheet-grid.sheet-frozen-c thead th:first-child { position: sticky; left: 0; z-index: 8; }
 .sheet-grid.sheet-frozen-c thead th:nth-child(2), .sheet-grid.sheet-frozen-c tbody td:first-of-type { position: sticky; left: var(--fc-left, 40px); z-index: 6; }
-.sheet-grid td:focus { box-shadow: inset 0 0 0 2px #64d29b; }
+.sheet-grid td:focus { box-shadow: inset 0 0 0 2px #107c41; overflow: visible; z-index: 3; }
 .sheet-remote-tag { position: absolute; top: -15px; left: -1px; font: 10px/14px system-ui, sans-serif; padding: 0 4px; color: #fff; border-radius: 3px 3px 3px 0; white-space: nowrap; z-index: 5; pointer-events: none; }
 .sheet-remote-tag::after { content: attr(data-label); }
-.sheet-grid td.sheet-sel { background: rgba(100, 210, 155, 0.15); }
-.sheet-grid td.sheet-sel-focus { box-shadow: inset 0 0 0 2px #2f9e6b; }
+.sheet-grid td.sheet-sel { background: rgba(16, 124, 65, 0.10); }
+.sheet-grid td.sheet-sel-focus { box-shadow: inset 0 0 0 2px #107c41; }
 .sheet-grid td.sheet-remote-sel { box-shadow: inset 0 0 0 2px var(--rsel, #888); }
-.sheet-fill-handle { position: absolute; width: 8px; height: 8px; background: #2f9e6b; border: 1px solid #fff; cursor: crosshair; z-index: 6; }
-.sheet-grid td.sheet-fill-target { box-shadow: inset 0 0 0 1px #2f9e6b; }
+.sheet-fill-handle { position: absolute; width: 8px; height: 8px; background: #107c41; border: 1px solid #fff; cursor: crosshair; z-index: 6; }
+.sheet-grid td.sheet-fill-target { box-shadow: inset 0 0 0 1px #107c41; }
 .sheet-grid td.sheet-cell-error { color: #c0392b; }
 `;
 
@@ -347,6 +355,7 @@ export class DomSheetView {
   render(): void {
     for (const td of this.decorated) {
       td.style.boxShadow = '';
+      td.style.overflow = '';
       td.classList.remove('sheet-remote-sel', 'sheet-fill-target');
       td.style.removeProperty('--rsel');
       td.querySelector('.sheet-remote-tag')?.remove();
@@ -380,7 +389,14 @@ export class DomSheetView {
         td.style.background = '';
         td.style.textAlign = '';
         td.style.border = '';
+        td.style.fontFamily = '';
+        td.style.fontSize = '';
+        // whiteSpace: normal (wrap) overrides the CSS nowrap default via inline style.
+        td.style.whiteSpace = '';
         if (this.opts.styleOf) {
+          // NOTE: fontFamily/fontSize/whiteSpace are added to CellCss in a
+          // parallel styleCss.ts change; until it lands tsc flags these three
+          // property accesses as unknown (expected).
           const css = styleToCss(this.opts.styleOf(r, c));
           if (css.fontWeight) td.style.fontWeight = css.fontWeight;
           if (css.fontStyle) td.style.fontStyle = css.fontStyle;
@@ -389,6 +405,9 @@ export class DomSheetView {
           if (css.background) td.style.background = css.background;
           if (css.textAlign) td.style.textAlign = css.textAlign;
           if (css.border) td.style.border = css.border;
+          if (css.fontFamily) td.style.fontFamily = css.fontFamily;
+          if (css.fontSize) td.style.fontSize = css.fontSize;
+          if (css.whiteSpace) td.style.whiteSpace = css.whiteSpace;
         }
         const err = this.opts.errorOf?.(r, c);
         td.classList.toggle('sheet-cell-error', !!err);
@@ -403,6 +422,9 @@ export class DomSheetView {
           tag.setAttribute('data-label', deco.name || 'anon');
           tag.style.background = deco.color;
           td.appendChild(tag);
+          // The tag sits above the cell (top: -15px) — lift the td's
+          // overflow: hidden default so it is not clipped (reset on cleanup).
+          td.style.overflow = 'visible';
           this.decorated.add(td);
         }
       }
@@ -419,6 +441,10 @@ export class DomSheetView {
         );
       }
     }
+    // Excel-style header highlight for the selected range.
+    const selN = normalize(this.selection);
+    this.colHeads.forEach((th, c) => th.classList.toggle('sheet-head-hl', c >= selN.c0 && c <= selN.c1));
+    this.rowHeads.forEach((th, r) => th.classList.toggle('sheet-head-hl', r >= selN.r0 && r <= selN.r1));
     // remote selections (outline only, multi-cell)
     for (const rs of this.remoteSel) {
       const { r0, c0, r1, c1 } = normalize(rs.sel);

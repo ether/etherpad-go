@@ -13,13 +13,22 @@ export interface FormulaBarCallbacks {
 export interface FormulaBarHandle {
   el: HTMLElement;
   setActive: (ref: string, raw: string) => void;
+  // beginFormula focuses the input with `prefix)` and the caret right after
+  // the prefix — e.g. beginFormula('=SUM(') leaves the caret between the parens.
+  beginFormula: (prefix: string) => void;
 }
 
 const CSS = `
-.sheet-formula-bar { display: flex; align-items: stretch; gap: 6px; padding: 3px 4px; border-bottom: 1px solid #d2d2d2; font: 13px system-ui, sans-serif; position: relative; }
-.sheet-namebox { min-width: 72px; padding: 2px 6px; border: 1px solid #ccc; background: #f8f9fa; text-align: center; align-self: center; border-radius: 3px; }
-.sheet-fx-input { flex: 1; padding: 2px 6px; border: 1px solid #ccc; font: 13px/1.4 ui-monospace, monospace; }
-.sheet-fx-ac { position: absolute; top: 100%; left: 84px; z-index: 20; background: #fff; border: 1px solid #bbb; box-shadow: 0 2px 6px rgba(0,0,0,.15); min-width: 180px; max-height: 180px; overflow-y: auto; }
+.sheet-formula-bar { display: flex; align-items: stretch; gap: 6px; padding: 3px 4px; border-bottom: 1px solid #d4d8dd; background: #fff; font: 13px system-ui, sans-serif; position: relative; }
+.sheet-namebox { min-width: 72px; padding: 2px 6px; border: 1px solid #d4d8dd; background: #fff; text-align: center; align-self: center; border-radius: 3px; }
+.sheet-fx-sep { width: 1px; background: #d4d8dd; margin: 2px 0; }
+.sheet-fx-cancel, .sheet-fx-commit { align-self: center; width: 22px; height: 22px; padding: 0; border: none; border-radius: 2px; background: none; color: #8a8f95; font: 12px/1 system-ui, sans-serif; cursor: pointer; }
+.sheet-fx-cancel:hover, .sheet-fx-commit:hover { background: #e6f2ec; color: #107c41; }
+.sheet-fx-cancel:disabled, .sheet-fx-commit:disabled { opacity: .4; cursor: default; }
+.sheet-fx-label { align-self: center; font: italic 13px Georgia, 'Times New Roman', serif; color: #8a8f95; pointer-events: none; user-select: none; }
+.sheet-fx-input { flex: 1; padding: 2px 6px; border: 1px solid #d4d8dd; background: #fff; font: 13px/1.4 ui-monospace, monospace; outline: none; }
+.sheet-fx-input:focus { border-color: #107c41; }
+.sheet-fx-ac { position: absolute; top: 100%; left: 152px; z-index: 20; background: #fff; border: 1px solid #bbb; box-shadow: 0 2px 6px rgba(0,0,0,.15); min-width: 180px; max-height: 180px; overflow-y: auto; }
 .sheet-fx-ac div { padding: 2px 8px; cursor: pointer; font: 12px/1.5 ui-monospace, monospace; }
 .sheet-fx-ac div.hl { background: #cfeede; }
 `;
@@ -38,6 +47,27 @@ export function createFormulaBar(cb: FormulaBarCallbacks): FormulaBarHandle {
   nameBox.className = 'sheet-namebox';
   nameBox.textContent = 'A1';
 
+  const sep = document.createElement('span');
+  sep.className = 'sheet-fx-sep';
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.type = 'button';
+  cancelBtn.className = 'sheet-fx-cancel';
+  cancelBtn.title = 'Cancel';
+  cancelBtn.textContent = '✕';
+  cancelBtn.disabled = cb.readOnly;
+
+  const commitBtn = document.createElement('button');
+  commitBtn.type = 'button';
+  commitBtn.className = 'sheet-fx-commit';
+  commitBtn.title = 'Enter';
+  commitBtn.textContent = '✓';
+  commitBtn.disabled = cb.readOnly;
+
+  const fx = document.createElement('span');
+  fx.className = 'sheet-fx-label';
+  fx.textContent = 'fx';
+
   const input = document.createElement('input');
   input.className = 'sheet-fx-input';
   input.type = 'text';
@@ -47,7 +77,7 @@ export function createFormulaBar(cb: FormulaBarCallbacks): FormulaBarHandle {
   ac.className = 'sheet-fx-ac';
   ac.style.display = 'none';
 
-  bar.append(nameBox, input, ac);
+  bar.append(nameBox, sep, cancelBtn, commitBtn, fx, input, ac);
 
   let lastRaw = '';
   let acItems: string[] = [];
@@ -99,6 +129,13 @@ export function createFormulaBar(cb: FormulaBarCallbacks): FormulaBarHandle {
     else if (e.key === 'Escape') { e.preventDefault(); input.value = lastRaw; input.blur(); }
   });
 
+  // ✕/✓ mirror Escape/Enter in the input. mousedown is prevented so the click
+  // does not blur the input first (same trick as the autocomplete list).
+  cancelBtn.addEventListener('mousedown', (e) => e.preventDefault());
+  cancelBtn.addEventListener('click', () => { closeAc(); input.value = lastRaw; input.blur(); });
+  commitBtn.addEventListener('mousedown', (e) => e.preventDefault());
+  commitBtn.addEventListener('click', () => { closeAc(); cb.onCommit(input.value); input.blur(); });
+
   return {
     el: bar,
     setActive(ref: string, raw: string): void {
@@ -110,6 +147,12 @@ export function createFormulaBar(cb: FormulaBarCallbacks): FormulaBarHandle {
         lastRaw = raw;
         input.value = raw;
       }
+    },
+    beginFormula(prefix: string): void {
+      if (cb.readOnly) return;
+      input.focus();
+      input.value = prefix + ')';
+      input.setSelectionRange(prefix.length, prefix.length);
     },
   };
 }
