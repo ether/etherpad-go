@@ -129,13 +129,20 @@ func (c *Client) readPump(retrievedSettings *settings.Settings, logger *zap.Suga
 			c.Handler.HandleDisconnectOfPadClient(c, retrievedSettings, logger)
 			break
 		}
-		retrievedSettings.CommitRateLimiting.LoadTest = retrievedSettings.LoadTest
-		if err := ratelimiter.CheckRateLimit(ratelimiter.IPAddress(c.ClientIP), retrievedSettings.CommitRateLimiting); err != nil {
-			logger.Warn("Rate limit exceeded:", err.Error())
-			continue
-		}
 		message = bytes.TrimSpace(bytes.Replace(message, newline, space, -1))
 		decodedMessage := string(message[:])
+
+		// CommitRateLimiting only covers commits (USER_CHANGES / SHEET_OP), as
+		// in etherpad-lite. Ephemeral traffic like SHEET_PRESENCE arrives per
+		// keystroke and must not burn the commit budget — a drained budget
+		// silently drops the commit itself and edits are lost.
+		if strings.Contains(decodedMessage, "USER_CHANGES") || strings.Contains(decodedMessage, "SHEET_OP") {
+			retrievedSettings.CommitRateLimiting.LoadTest = retrievedSettings.LoadTest
+			if err := ratelimiter.CheckRateLimit(ratelimiter.IPAddress(c.ClientIP), retrievedSettings.CommitRateLimiting); err != nil {
+				logger.Warn("Rate limit exceeded:", err.Error())
+				continue
+			}
+		}
 
 		if strings.Contains(decodedMessage, "CLIENT_READY") {
 			var clientReady ws.ClientReady
@@ -236,8 +243,6 @@ func (c *Client) readPump(retrievedSettings *settings.Settings, logger *zap.Suga
 			}
 			c.Handler.HandleMessage(clientMessage, c, retrievedSettings, logger)
 		}
-
-		c.Hub.Broadcast <- message
 	}
 }
 
