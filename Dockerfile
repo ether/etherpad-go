@@ -17,6 +17,7 @@ COPY ./assets/js/admin ./assets/js/admin
 COPY ./assets/js/timeslider/assets/timeslider.js ./assets/js/timeslider/assets/timeslider.js
 COPY ./assets/js/pad/assets/pad.js ./assets/js/pad/assets/pad.js
 COPY ./assets/js/welcome/assets/welcome.js ./assets/js/welcome/assets/welcome.js
+COPY ./assets/js/sheet/assets/sheet.js ./assets/js/sheet/assets/sheet.js
 COPY ./assets/css/build ./assets/css/build
 
 RUN templ generate

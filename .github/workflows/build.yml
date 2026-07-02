@@ -87,11 +87,13 @@ jobs:
           mkdir -p built-assets/js/timeslider/assets
           mkdir -p built-assets/js/pad/assets
           mkdir -p built-assets/js/welcome/assets
+          mkdir -p built-assets/js/sheet/assets
           mkdir -p built-assets/css/build
           cp -r assets/js/admin/* built-assets/js/admin/
           cp assets/js/timeslider/assets/timeslider.js built-assets/js/timeslider/assets/
           cp assets/js/pad/assets/pad.js built-assets/js/pad/assets/
           cp assets/js/welcome/assets/welcome.js built-assets/js/welcome/assets/
+          cp assets/js/sheet/assets/sheet.js built-assets/js/sheet/assets/
           cp -r assets/css/build/* built-assets/css/build/
       - name: Upload assets
         if: matrix.arch == 'amd64'
