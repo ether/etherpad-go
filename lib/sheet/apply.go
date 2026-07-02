@@ -1,6 +1,9 @@
 package sheet
 
-import "fmt"
+import (
+	"fmt"
+	"slices"
+)
 
 // Apply mutates the workbook by op. The op is assumed already rebased to the
 // current revision (see reconcile.go). Cell ops are last-writer-wins; the
@@ -9,9 +12,47 @@ func (w *Workbook) Apply(op Op) error {
 	if err := op.Validate(); err != nil {
 		return err
 	}
+
+	// Sheet-list ops manage w.Sheets itself and never need an existing sheet.
+	switch op.Type {
+	case OpAddSheet:
+		if w.SheetByID(op.Sheet) != nil {
+			return nil // concurrent duplicate add: first wins
+		}
+		w.Sheets = slices.Insert(w.Sheets, min(op.Index, len(w.Sheets)), NewSheet(op.Sheet, op.Name))
+		return nil
+	case OpDeleteSheet:
+		if len(w.Sheets) <= 1 {
+			return nil // never delete the last sheet
+		}
+		for i, s := range w.Sheets {
+			if s.Id == op.Sheet {
+				w.Sheets = slices.Delete(w.Sheets, i, i+1)
+				return nil
+			}
+		}
+		return nil
+	case OpRenameSheet:
+		if s := w.SheetByID(op.Sheet); s != nil {
+			s.Name = op.Name
+		}
+		return nil
+	case OpMoveSheet:
+		for i, s := range w.Sheets {
+			if s.Id == op.Sheet {
+				rest := slices.Delete(slices.Clone(w.Sheets), i, i+1)
+				w.Sheets = slices.Insert(rest, min(op.ToIndex, len(rest)), s)
+				return nil
+			}
+		}
+		return nil
+	}
+
 	s := w.SheetByID(op.Sheet)
 	if s == nil {
-		return fmt.Errorf("apply: unknown sheet %q", op.Sheet)
+		// The sheet was deleted by an op ordered earlier; late ops targeting it
+		// converge as no-ops instead of poisoning the ordered-log replay.
+		return nil
 	}
 	switch op.Type {
 	case OpSetCell:
@@ -47,6 +88,15 @@ func (w *Workbook) Apply(op Op) error {
 				delete(s.Cells, ref)
 			}
 		}
+	case OpSetDimension:
+		if op.Axis == "col" {
+			s.ColWidths[op.Index] = op.Size
+		} else {
+			s.RowHeights[op.Index] = op.Size
+		}
+	case OpSetFreeze:
+		s.FrozenRows = op.FrozenRows
+		s.FrozenCols = op.FrozenCols
 	case OpInsertRows:
 		s.remap(func(r CellRef) (CellRef, bool) {
 			if r.Row >= op.Index {
@@ -54,6 +104,7 @@ func (w *Workbook) Apply(op Op) error {
 			}
 			return r, true
 		})
+		s.RowHeights = shiftDims(s.RowHeights, op.Index, op.Count)
 	case OpDeleteRows:
 		s.remap(func(r CellRef) (CellRef, bool) {
 			if r.Row >= op.Index && r.Row < op.Index+op.Count {
@@ -64,6 +115,7 @@ func (w *Workbook) Apply(op Op) error {
 			}
 			return r, true
 		})
+		s.RowHeights = shiftDims(s.RowHeights, op.Index, -op.Count)
 	case OpInsertCols:
 		s.remap(func(r CellRef) (CellRef, bool) {
 			if r.Col >= op.Index {
@@ -71,6 +123,7 @@ func (w *Workbook) Apply(op Op) error {
 			}
 			return r, true
 		})
+		s.ColWidths = shiftDims(s.ColWidths, op.Index, op.Count)
 	case OpDeleteCols:
 		s.remap(func(r CellRef) (CellRef, bool) {
 			if r.Col >= op.Index && r.Col < op.Index+op.Count {
@@ -81,6 +134,7 @@ func (w *Workbook) Apply(op Op) error {
 			}
 			return r, true
 		})
+		s.ColWidths = shiftDims(s.ColWidths, op.Index, -op.Count)
 	default:
 		return fmt.Errorf("apply: unhandled op type %q", op.Type)
 	}

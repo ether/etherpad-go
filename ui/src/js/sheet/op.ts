@@ -9,7 +9,13 @@ export type OpType =
   | 'insertRows'
   | 'deleteRows'
   | 'insertCols'
-  | 'deleteCols';
+  | 'deleteCols'
+  | 'addSheet'
+  | 'renameSheet'
+  | 'deleteSheet'
+  | 'moveSheet'
+  | 'setDimension'
+  | 'setFreeze';
 
 export interface Op {
   type: OpType;
@@ -28,9 +34,18 @@ export interface Op {
   styleId?: number;
   // setCell / setStyle style properties, interned into the workbook style pool.
   props?: Record<string, string>;
-  // structural ops
+  // structural ops; index doubles as the insertion position for addSheet
   index?: number;
   count?: number;
+  // sheet-list ops
+  name?: string; // addSheet, renameSheet
+  toIndex?: number; // moveSheet
+  // setDimension
+  axis?: 'col' | 'row';
+  size?: number; // px
+  // setFreeze (0 or 1 each)
+  frozenRows?: number;
+  frozenCols?: number;
 }
 
 // serializeOp produces the JSON the Go server unmarshals into sheet.Op.
