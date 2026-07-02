@@ -220,10 +220,14 @@ export class WorkbookState {
         }
         break;
       }
-      case 'setDimension':
-        if (op.axis === 'col') sheet.colWidths.set(index, op.size ?? 0);
-        else sheet.rowHeights.set(index, op.size ?? 0);
+      case 'setDimension': {
+        // Mirror the Go server validation: axis col/row, size 1..4096.
+        const size = op.size ?? 0;
+        if ((op.axis !== 'col' && op.axis !== 'row') || !Number.isInteger(size) || size <= 0 || size > 4096) break;
+        if (op.axis === 'col') sheet.colWidths.set(index, size);
+        else sheet.rowHeights.set(index, size);
         break;
+      }
       case 'setFreeze':
         sheet.frozenRows = op.frozenRows ?? 0;
         sheet.frozenCols = op.frozenCols ?? 0;

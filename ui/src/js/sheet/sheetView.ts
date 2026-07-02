@@ -182,7 +182,9 @@ export class DomSheetView {
       e.preventDefault();
       const startPos = axis === 'col' ? e.clientX : e.clientY;
       const startSize = axis === 'col' ? th.offsetWidth : th.offsetHeight;
-      const minSize = axis === 'col' ? 40 : 18;
+      // ponytail: row floor matches the CSS td height (22px) — table cells
+      // treat height as min-height, so rows cannot render below it anyway.
+      const minSize = axis === 'col' ? 40 : 22;
       let size = startSize;
       const onMove = (me: MouseEvent) => {
         size = Math.max(minSize, startSize + ((axis === 'col' ? me.clientX : me.clientY) - startPos));
@@ -191,7 +193,7 @@ export class DomSheetView {
       const onUp = () => {
         document.removeEventListener('mousemove', onMove);
         document.removeEventListener('mouseup', onUp);
-        this.opts.onResize?.(axis, index, size);
+        if (size !== startSize) this.opts.onResize?.(axis, index, size);
       };
       document.addEventListener('mousemove', onMove);
       document.addEventListener('mouseup', onUp);
