@@ -41,6 +41,7 @@ export class SheetPresence {
   }
 
   applyPresence(f: PresenceFrame): void {
+    if (!f.userId) return; // not a server-authored frame (e.g. a relayed echo)
     if (f.userId === this.ownUserId) return; // never render our own cursor
     this.cursors.set(f.userId, {
       userId: f.userId, name: f.name, color: f.color, sheet: f.sheet,

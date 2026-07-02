@@ -46,7 +46,7 @@ const CSS = `
 .sheet-grid td.sheet-sel { background: rgba(100, 210, 155, 0.15); }
 .sheet-grid td.sheet-sel-focus { box-shadow: inset 0 0 0 2px #2f9e6b; }
 .sheet-grid td.sheet-remote-sel { box-shadow: inset 0 0 0 2px var(--rsel, #888); }
-.sheet-fill-handle { position: absolute; right: -4px; bottom: -4px; width: 8px; height: 8px; background: #2f9e6b; border: 1px solid #fff; cursor: crosshair; z-index: 6; }
+.sheet-fill-handle { position: absolute; width: 8px; height: 8px; background: #2f9e6b; border: 1px solid #fff; cursor: crosshair; z-index: 6; }
 .sheet-grid td.sheet-fill-target { box-shadow: inset 0 0 0 1px #2f9e6b; }
 .sheet-grid td.sheet-cell-error { color: #c0392b; }
 `;
@@ -66,14 +66,34 @@ export class DomSheetView {
   private fillSrc: Selection | null = null;
   private fillTarget: Selection | null = null;
   private remoteSel: Array<{ userId: string; color: string; sel: Selection }> = [];
+  // Single fill-handle overlay, positioned over the selection's bottom-right
+  // corner. It lives OUTSIDE the contenteditable tds: a decoration inside an
+  // editable cell races the caret and re-renders can delete typed text.
+  private fillHandle: HTMLSpanElement;
+  private table: HTMLTableElement;
 
   constructor(root: HTMLElement, opts: SheetViewOptions) {
     this.opts = opts;
     this.ensureStyle();
     root.innerHTML = '';
+    if (getComputedStyle(root).position === 'static') root.style.position = 'relative';
 
     const table = document.createElement('table');
     table.className = 'sheet-grid';
+    this.table = table;
+
+    this.fillHandle = document.createElement('span');
+    this.fillHandle.className = 'sheet-fill-handle';
+    this.fillHandle.style.display = 'none';
+    this.fillHandle.addEventListener('mousedown', (e: MouseEvent) => {
+      e.stopPropagation();
+      e.preventDefault();
+      this.filling = true;
+      this.fillSrc = this.selection;
+      const { r0, c0, r1, c1 } = normalize(this.selection);
+      this.fillTarget = { anchor: { row: r0, col: c0 }, focus: { row: r1, col: c1 } };
+    });
+    root.appendChild(this.fillHandle);
 
     const thead = document.createElement('thead');
     const headRow = document.createElement('tr');
@@ -249,7 +269,6 @@ export class DomSheetView {
       td.classList.remove('sheet-remote-sel', 'sheet-fill-target');
       td.style.removeProperty('--rsel');
       td.querySelector('.sheet-remote-tag')?.remove();
-      td.querySelector('.sheet-fill-handle')?.remove();
     }
     this.decorated.clear();
 
@@ -322,22 +341,18 @@ export class DomSheetView {
       }
     }
 
-    // fill handle at the bottom-right corner of the current selection
+    // fill handle overlay at the bottom-right corner of the current selection.
+    // Hidden while typing (Excel does the same); positioned relative to the
+    // root, so it never touches the contenteditable td's content.
     const { r1, c1 } = normalize(this.selection);
     const brCell = this.cells[r1]?.[c1];
-    if (brCell && !this.opts.readOnly) {
-      const h = document.createElement('span');
-      h.className = 'sheet-fill-handle';
-      h.addEventListener('mousedown', (e: MouseEvent) => {
-        e.stopPropagation();
-        e.preventDefault();
-        this.filling = true;
-        this.fillSrc = this.selection;
-        const { r0, c0, r1, c1 } = normalize(this.selection);
-        this.fillTarget = { anchor: { row: r0, col: c0 }, focus: { row: r1, col: c1 } };
-      });
-      brCell.appendChild(h);
-      this.decorated.add(brCell);
+    const editingBr = this.activeEdit && this.editing?.row === r1 && this.editing?.col === c1;
+    if (brCell && !this.opts.readOnly && !editingBr) {
+      this.fillHandle.style.left = `${this.table.offsetLeft + brCell.offsetLeft + brCell.offsetWidth - 4}px`;
+      this.fillHandle.style.top = `${this.table.offsetTop + brCell.offsetTop + brCell.offsetHeight - 4}px`;
+      this.fillHandle.style.display = '';
+    } else {
+      this.fillHandle.style.display = 'none';
     }
     if (this.fillTarget) {
       const t = normalize(this.fillTarget);
