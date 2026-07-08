@@ -146,6 +146,7 @@
     "issuer": "http://localhost:9001",
     "clients": [
       {
+        "type": "admin",
         "client_id": "admin_client",
         "client_secret": "admin",
         "grant_types": ["authorization_code"],
@@ -153,6 +154,7 @@
         "redirect_uris": ["http://localhost:9001/admin/"]
       },
       {
+        "type": "user",
         "client_id": "user_client",
         "client_secret": "user",
         "grant_types": ["authorization_code"],
