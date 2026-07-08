@@ -469,7 +469,7 @@ jobs:
           fetch-depth: 0
 
       - name: Generate release notes
-        id: git-cliff
+        id: git_cliff
         uses: orhun/git-cliff-action@v4
         with:
           config: cliff.toml
@@ -494,7 +494,7 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           files: binaries/*
-          body: ${{ steps.git-cliff.outputs.content }}
+          body: ${{ steps.git_cliff.outputs.content }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

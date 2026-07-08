@@ -47,7 +47,7 @@ filter_unconventional = true
 split_commits = false
 protect_breaking_commits = false
 filter_commits = false
-tag_pattern = "v[0-9]*"
+tag_pattern = '^v[0-9]+\.[0-9]+\.[0-9]+'
 topo_order = false
 sort_commits = "oldest"
 
