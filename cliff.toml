@@ -1,0 +1,75 @@
+# git-cliff configuration — https://git-cliff.org/docs/configuration
+# Generates release notes from Conventional Commits + semver (v*) tags.
+# Used by the `create-release` job in .github/workflows/build.yml.
+
+[changelog]
+header = """
+# Changelog
+
+All notable changes to this project are documented here.\n
+"""
+# Release-notes body for a single version. GitHub links are hard-coded to the
+# repo so the template works whether or not remote enrichment is active.
+body = """
+{% if version %}\
+    {% if previous.version %}\
+        ## [{{ version | trim_start_matches(pat="v") }}](https://github.com/ether/etherpad-go/compare/{{ previous.version }}..{{ version }}) - {{ timestamp | date(format="%Y-%m-%d") }}
+    {% else %}\
+        ## [{{ version | trim_start_matches(pat="v") }}](https://github.com/ether/etherpad-go/tree/{{ version }}) - {{ timestamp | date(format="%Y-%m-%d") }}
+    {% endif %}\
+{% else %}\
+    ## [unreleased]
+{% endif %}\
+{% for group, commits in commits | group_by(attribute="group") %}
+    ### {{ group | striptags | trim | upper_first }}
+    {% for commit in commits %}
+        - {% if commit.scope %}*({{ commit.scope }})* {% endif %}\
+            {% if commit.breaking %}[**breaking**] {% endif %}\
+            {{ commit.message | upper_first }}\
+            {% if commit.remote.username %} by @{{ commit.remote.username }}{% endif %}\
+            {% if commit.remote.pr_number %} in [#{{ commit.remote.pr_number }}](https://github.com/ether/etherpad-go/pull/{{ commit.remote.pr_number }}){% endif %}\
+    {% endfor %}
+{% endfor %}
+{% if github.contributors | filter(attribute="is_first_time", value=true) | length != 0 %}
+    ### New Contributors ❤️
+    {% for contributor in github.contributors | filter(attribute="is_first_time", value=true) %}
+        - @{{ contributor.username }} made their first contribution\
+            {% if contributor.pr_number %} in [#{{ contributor.pr_number }}](https://github.com/ether/etherpad-go/pull/{{ contributor.pr_number }}){% endif %}
+    {% endfor %}
+{% endif %}\n
+"""
+footer = ""
+trim = true
+
+[git]
+conventional_commits = true
+filter_unconventional = true
+split_commits = false
+protect_breaking_commits = false
+filter_commits = false
+tag_pattern = "v[0-9]*"
+topo_order = false
+sort_commits = "oldest"
+
+# Strip the trailing " (#123)" squash-merge suffix so the PR link isn't duplicated.
+commit_preprocessors = [
+  { pattern = ' *\(#[0-9]+\)', replace = "" },
+]
+
+commit_parsers = [
+  { message = "^feat", group = "<!-- 0 -->🚀 Features" },
+  { message = "^fix", group = "<!-- 1 -->🐛 Bug Fixes" },
+  { message = "^perf", group = "<!-- 2 -->⚡ Performance" },
+  { message = "^refactor", group = "<!-- 3 -->🚜 Refactor" },
+  { message = "^docs", group = "<!-- 4 -->📚 Documentation" },
+  { message = "^test", group = "<!-- 5 -->🧪 Testing" },
+  { message = "^(ci|build)", group = "<!-- 6 -->⚙️ CI & Build" },
+  { message = "^chore\\(deps.*\\)", skip = true },
+  { message = "^chore\\(release\\)", skip = true },
+  { message = "^(chore|style)", group = "<!-- 7 -->🧹 Miscellaneous" },
+  { message = "^revert", group = "<!-- 8 -->◀️ Revert" },
+]
+
+[remote.github]
+owner = "ether"
+repo = "etherpad-go"
