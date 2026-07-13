@@ -9,7 +9,7 @@
     "typecheck:plugins": "pnpm -r --filter ./plugins/* exec tsc --noEmit"
   },
   "devDependencies": {
-    "typescript": "^6.0.3"
+    "typescript": "^7.0.2"
   },
   "dependencies": {
     "@samtv12345/etherpad-webcomponents": "^0.0.13"
