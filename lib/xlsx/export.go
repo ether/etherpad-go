@@ -10,8 +10,8 @@ import (
 
 // Export renders a workbook to .xlsx bytes. Cells whose raw starts with '='
 // become formulas; numeric-looking raw is written as a number, the rest as a
-// string. Cell styles, column widths / row heights and freeze panes are
-// carried over; merges are not (the sheet model does not store them).
+// string. Cell styles, column widths / row heights, merged ranges and freeze
+// panes are carried over.
 func Export(wb *sheet.Workbook) ([]byte, error) {
 	f := excelize.NewFile()
 	defer f.Close()

@@ -16,8 +16,8 @@ const (
 
 // Import parses an .xlsx into a WorkbookSnapshot. Sheet id == sheet name. Cells
 // carry their raw value, or "=<formula>" when a formula is present. Cell styles
-// (allowlisted props only), column widths / row heights and freeze panes are
-// imported; merges are skipped (the sheet model does not store them).
+// (allowlisted props only), column widths / row heights, merged ranges and
+// freeze panes are imported.
 func Import(r io.Reader) (sheet.WorkbookSnapshot, error) {
 	f, err := excelize.OpenReader(r)
 	if err != nil {

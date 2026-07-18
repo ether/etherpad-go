@@ -76,6 +76,13 @@ describe('WorkbookState merges (port of Go Apply)', () => {
     expect(wb.sheetById('s1')!.merges.size).toBe(0);
   });
 
+  it('insert at the trailing edge does not grow the merge', () => {
+    // rows 2-4: inserting at row 5 (right after) must leave the span at 3
+    wb.applyOp({ type: 'mergeCells', sheet: 's1', baseRev: 0, row: 2, col: 1, endRow: 4, endCol: 2 });
+    wb.applyOp({ type: 'insertRows', sheet: 's1', baseRev: 0, index: 5, count: 2 });
+    expect(wb.sheetById('s1')!.merges.get('2:1')).toEqual({ rows: 3, cols: 2 });
+  });
+
   it('structural ops shift, grow, shrink and drop merges', () => {
     // rows 2-4, cols 1-2
     wb.applyOp({ type: 'mergeCells', sheet: 's1', baseRev: 0, row: 2, col: 1, endRow: 4, endCol: 2 });

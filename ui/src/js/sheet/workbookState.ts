@@ -52,7 +52,7 @@ const shiftMerges = (m: Map<string, Span>, axis: 'row' | 'col', index: number, d
     const lo = axis === 'row' ? r : c;
     const span = axis === 'row' ? sp.rows : sp.cols;
     const nlo = shiftIdx2(lo, index, delta);
-    const nspan = shiftIdx2(lo + span, index, delta) - nlo;
+    const nspan = shiftEnd(lo + span, index, delta) - nlo;
     if (nspan <= 0) continue;
     const nr = axis === 'row' ? nlo : r;
     const nc = axis === 'col' ? nlo : c;
@@ -62,6 +62,11 @@ const shiftMerges = (m: Map<string, Span>, axis: 'row' | 'col', index: number, d
   }
   return next;
 };
+
+// shiftEnd mirrors Go shiftEnd: shifts an EXCLUSIVE upper bound — an insert
+// exactly at the bound (the merge's trailing edge) must not grow the merge.
+const shiftEnd = (coord: number, index: number, delta: number): number =>
+  delta >= 0 && coord === index ? coord : shiftIdx2(coord, index, delta);
 
 // shiftIdx2 mirrors Go shiftCoord (in-band coords clamp to index on delete);
 // shiftIdx above keeps dimension-map semantics (band entries dropped earlier).

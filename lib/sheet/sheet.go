@@ -92,10 +92,12 @@ func shiftMerges(m map[CellRef]Span, axis string, index, delta int) map[CellRef]
 		if axis == "col" {
 			lo, span = a.Col, sp.Cols
 		}
-		// Shift the anchor and the EXCLUSIVE end: shiftCoord clamps in-band
-		// coords to index, which is exactly right for an exclusive bound.
+		// Shift the anchor and the EXCLUSIVE end. The end needs shiftEnd: on
+		// insert an exclusive bound only moves for index STRICTLY inside
+		// (coord > index), or an insert at the merge's trailing edge would
+		// grow it; on delete shiftCoord's in-band clamp is exactly right.
 		nlo := shiftCoord(lo, index, delta)
-		nspan := shiftCoord(lo+span, index, delta) - nlo
+		nspan := shiftEnd(lo+span, index, delta) - nlo
 		if nspan <= 0 {
 			continue // merge entirely inside a deleted band
 		}
@@ -111,6 +113,15 @@ func shiftMerges(m map[CellRef]Span, axis string, index, delta int) map[CellRef]
 		next[na] = nsp
 	}
 	return next
+}
+
+// shiftEnd shifts an EXCLUSIVE upper bound: like shiftCoord, except an insert
+// exactly at the bound (coord == index) does not move it.
+func shiftEnd(coord, index, delta int) int {
+	if delta >= 0 && coord == index {
+		return coord
+	}
+	return shiftCoord(coord, index, delta)
 }
 
 // remap rebuilds the sparse cell map by transforming each ref. The fn returns

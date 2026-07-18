@@ -64,6 +64,14 @@ func TestMergeStructuralShifts(t *testing.T) {
 		t.Fatalf("insert above: %v", wb.SheetByID("s1").Merges)
 	}
 
+	// Insert exactly at the trailing edge (row 5, right after rows 2-4):
+	// the merge must NOT grow (qodo finding on the exclusive-end shift).
+	wb = newWb()
+	_ = wb.Apply(Op{Type: OpInsertRows, Sheet: "s1", Index: 5, Count: 2})
+	if sp, ok := wb.SheetByID("s1").Merges[CellRef{2, 1}]; !ok || sp != (Span{3, 2}) {
+		t.Fatalf("insert at trailing edge: %v", wb.SheetByID("s1").Merges)
+	}
+
 	// Insert inside: merge grows.
 	wb = newWb()
 	_ = wb.Apply(Op{Type: OpInsertRows, Sheet: "s1", Index: 3, Count: 1})
