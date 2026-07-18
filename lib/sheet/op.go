@@ -90,7 +90,7 @@ func (o Op) Validate() error {
 		if o.Row < 0 || o.Col < 0 {
 			return fmt.Errorf("setCell negative coord")
 		}
-		if err := validateProps(o.Props); err != nil {
+		if err := ValidateProps(o.Props); err != nil {
 			return err
 		}
 	case OpSetStyle:
@@ -100,7 +100,7 @@ func (o Op) Validate() error {
 		if o.Row < 0 || o.Col < 0 {
 			return fmt.Errorf("setStyle negative coord")
 		}
-		if err := validateProps(o.Props); err != nil {
+		if err := ValidateProps(o.Props); err != nil {
 			return err
 		}
 	case OpClearRange:
@@ -161,10 +161,10 @@ var fontFamilies = map[string]bool{
 	"Courier New": true, "Georgia": true, "Verdana": true,
 }
 
-// validateProps allowlists style prop keys and values. Props come from
+// ValidateProps allowlists style prop keys and values. Props come from
 // arbitrary collaborators and end up as inline CSS on every viewer's DOM, so
 // anything outside the known vocabulary is rejected (e.g. bg: "url(...)").
-func validateProps(props map[string]string) error {
+func ValidateProps(props map[string]string) error {
 	for k, v := range props {
 		ok := false
 		switch k {
