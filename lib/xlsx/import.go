@@ -106,6 +106,17 @@ func Import(r io.Reader) (sheet.WorkbookSnapshot, error) {
 			}
 		}
 
+		if mcs, merr := f.GetMergeCells(name); merr == nil {
+			for _, mc := range mcs {
+				c0, r0, e0 := excelize.CellNameToCoordinates(mc.GetStartAxis())
+				c1, r1, e1 := excelize.CellNameToCoordinates(mc.GetEndAxis())
+				if e0 != nil || e1 != nil || (r1 == r0 && c1 == c0) {
+					continue
+				}
+				sh.Merges[sheet.CellRef{Row: r0 - 1, Col: c0 - 1}] = sheet.Span{Rows: r1 - r0 + 1, Cols: c1 - c0 + 1}
+			}
+		}
+
 		// Freeze panes: the model only supports freezing the first row/col.
 		if panes, err := f.GetPanes(name); err == nil && panes.Freeze {
 			if panes.YSplit > 0 {

@@ -57,6 +57,45 @@ describe('WorkbookState.applyOp (port of Go Apply)', () => {
   });
 });
 
+describe('WorkbookState merges (port of Go Apply)', () => {
+  it('mergeCells stores span; overlapping merge absorbs', () => {
+    wb.applyOp({ type: 'mergeCells', sheet: 's1', baseRev: 0, row: 1, col: 1, endRow: 3, endCol: 2 });
+    let s = wb.sheetById('s1')!;
+    expect(s.merges.get('1:1')).toEqual({ rows: 3, cols: 2 });
+    wb.applyOp({ type: 'mergeCells', sheet: 's1', baseRev: 0, row: 2, col: 2, endRow: 5, endCol: 5 });
+    s = wb.sheetById('s1')!;
+    expect(s.merges.size).toBe(1);
+    expect(s.merges.get('2:2')).toEqual({ rows: 4, cols: 4 });
+  });
+
+  it('unmergeCells drops intersecting merges; 1x1 merge is a no-op', () => {
+    wb.applyOp({ type: 'mergeCells', sheet: 's1', baseRev: 0, row: 1, col: 1, endRow: 3, endCol: 2 });
+    wb.applyOp({ type: 'unmergeCells', sheet: 's1', baseRev: 0, row: 2, col: 2, endRow: 2, endCol: 2 });
+    expect(wb.sheetById('s1')!.merges.size).toBe(0);
+    wb.applyOp({ type: 'mergeCells', sheet: 's1', baseRev: 0, row: 0, col: 0, endRow: 0, endCol: 0 });
+    expect(wb.sheetById('s1')!.merges.size).toBe(0);
+  });
+
+  it('structural ops shift, grow, shrink and drop merges', () => {
+    // rows 2-4, cols 1-2
+    wb.applyOp({ type: 'mergeCells', sheet: 's1', baseRev: 0, row: 2, col: 1, endRow: 4, endCol: 2 });
+    wb.applyOp({ type: 'insertRows', sheet: 's1', baseRev: 0, index: 3, count: 1 }); // inside: grows
+    expect(wb.sheetById('s1')!.merges.get('2:1')).toEqual({ rows: 4, cols: 2 });
+    wb.applyOp({ type: 'deleteRows', sheet: 's1', baseRev: 0, index: 0, count: 2 }); // above: moves up
+    expect(wb.sheetById('s1')!.merges.get('0:1')).toEqual({ rows: 4, cols: 2 });
+    wb.applyOp({ type: 'deleteCols', sheet: 's1', baseRev: 0, index: 1, count: 2 }); // all cols: dropped
+    expect(wb.sheetById('s1')!.merges.size).toBe(0);
+  });
+
+  it('loadSnapshot restores merges', () => {
+    const w2 = new WorkbookState();
+    w2.loadSnapshot({
+      sheets: [{ id: 's1', name: 'S', cells: [], merges: [{ row: 0, col: 0, rows: 2, cols: 3 }] }],
+    });
+    expect(w2.sheetById('s1')!.merges.get('0:0')).toEqual({ rows: 2, cols: 3 });
+  });
+});
+
 describe('WorkbookState style props', () => {
   it('setStyle op interns props and getStyleProps resolves them', () => {
     const wb = new WorkbookState();

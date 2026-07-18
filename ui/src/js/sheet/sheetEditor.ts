@@ -327,6 +327,28 @@ export function startSheetEditor(root: HTMLElement): void {
       autoSum: () => {
         if (!readOnly) formulaBar?.beginFormula('=SUM(');
       },
+      mergeToggle: () => {
+        if (readOnly || !collab) return;
+        blurActiveCell();
+        const { r0, c0, r1, c1 } = normalize(selection);
+        const s = collab.display.sheetById(activeSheetId);
+        // Any merge intersecting the selection → unmerge; otherwise merge.
+        let hit = false;
+        for (const [k, sp] of s?.merges ?? []) {
+          const i = k.indexOf(':');
+          const mr = Number(k.slice(0, i));
+          const mc = Number(k.slice(i + 1));
+          if (mr <= r1 && mr + sp.rows - 1 >= r0 && mc <= c1 && mc + sp.cols - 1 >= c0) {
+            hit = true;
+            break;
+          }
+        }
+        if (!hit && r0 === r1 && c0 === c1) return; // 1x1 merge is meaningless
+        collab.applyLocal({
+          type: hit ? 'unmergeCells' : 'mergeCells',
+          sheet: activeSheetId, baseRev: collab.rev, row: r0, col: c0, endRow: r1, endCol: c1,
+        });
+      },
     });
     formulaBar = createFormulaBar({
       readOnly: data.readonly,
@@ -404,6 +426,14 @@ export function startSheetEditor(root: HTMLElement): void {
         collab.applyLocal({ type: 'setDimension', sheet: activeSheetId, baseRev: collab.rev, axis, index, size });
       },
       rowHidden: (r) => hiddenRows.has(r),
+      merges: () => {
+        const s = collab?.display.sheetById(activeSheetId);
+        if (!s) return [];
+        return [...s.merges].map(([k, sp]) => {
+          const i = k.indexOf(':');
+          return { row: Number(k.slice(0, i)), col: Number(k.slice(i + 1)), rows: sp.rows, cols: sp.cols };
+        });
+      },
       // ponytail: second engine.getValue per formula cell per render (displayValue
       // already does one). Cheap: HyperFormula caches, and the raw.startsWith('=')
       // gate skips non-formula cells. Fold into displayValue if the grid grows.

@@ -100,6 +100,20 @@ func Export(wb *sheet.Workbook) ([]byte, error) {
 			}
 		}
 
+		for a, sp := range s.Merges {
+			start, err := excelize.CoordinatesToCellName(a.Col+1, a.Row+1)
+			if err != nil {
+				return nil, err
+			}
+			end, err := excelize.CoordinatesToCellName(a.Col+sp.Cols, a.Row+sp.Rows)
+			if err != nil {
+				return nil, err
+			}
+			if err := f.MergeCell(name, start, end); err != nil {
+				return nil, err
+			}
+		}
+
 		if s.FrozenRows > 0 || s.FrozenCols > 0 {
 			topLeft, err := excelize.CoordinatesToCellName(s.FrozenCols+1, s.FrozenRows+1)
 			if err != nil {

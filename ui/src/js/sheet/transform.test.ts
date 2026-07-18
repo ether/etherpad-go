@@ -34,4 +34,15 @@ describe('transform (port of Go Transform)', () => {
     const applied: Op = { type: 'insertCols', sheet: 's1', baseRev: 0, index: 1, count: 2 };
     expect(transform(setCell(0, 3), applied).col).toBe(5);
   });
+
+  it('mergeCells rectangle shifts like clearRange', () => {
+    const merge: Op = { type: 'mergeCells', sheet: 's1', baseRev: 0, row: 2, col: 1, endRow: 4, endCol: 2 };
+    const out = transform(merge, { type: 'insertRows', sheet: 's1', baseRev: 0, index: 3, count: 2 });
+    expect(out.row).toBe(2);
+    expect(out.endRow).toBe(6);
+    // delete of the whole range collapses to a degenerate rectangle (applyOp no-ops it)
+    const gone = transform(merge, { type: 'deleteRows', sheet: 's1', baseRev: 0, index: 2, count: 3 });
+    expect(gone.row).toBe(2);
+    expect(gone.endRow).toBe(2);
+  });
 });

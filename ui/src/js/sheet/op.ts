@@ -15,7 +15,9 @@ export type OpType =
   | 'deleteSheet'
   | 'moveSheet'
   | 'setDimension'
-  | 'setFreeze';
+  | 'setFreeze'
+  | 'mergeCells'
+  | 'unmergeCells';
 
 export interface Op {
   type: OpType;
@@ -24,7 +26,7 @@ export interface Op {
   // cell / range top-left
   row?: number;
   col?: number;
-  // range end (inclusive) for clearRange
+  // range end (inclusive) for clearRange / mergeCells / unmergeCells
   endRow?: number;
   endCol?: number;
   // setCell / setStyle payload

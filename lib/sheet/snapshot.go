@@ -16,15 +16,24 @@ type CellSnapshot struct {
 	StyleId   int    `json:"styleId,omitempty"`
 }
 
+// MergeSnapshot is one merged range: top-left anchor plus its span.
+type MergeSnapshot struct {
+	Row  int `json:"row"`
+	Col  int `json:"col"`
+	Rows int `json:"rows"`
+	Cols int `json:"cols"`
+}
+
 type SheetSnapshot struct {
 	Id    string         `json:"id"`
 	Name  string         `json:"name"`
 	Cells []CellSnapshot `json:"cells"`
 	// Sparse dimension overrides; JSON object keys are stringified indices.
-	ColWidths  map[int]int `json:"colWidths,omitempty"`
-	RowHeights map[int]int `json:"rowHeights,omitempty"`
-	FrozenRows int         `json:"frozenRows,omitempty"`
-	FrozenCols int         `json:"frozenCols,omitempty"`
+	ColWidths  map[int]int     `json:"colWidths,omitempty"`
+	RowHeights map[int]int     `json:"rowHeights,omitempty"`
+	FrozenRows int             `json:"frozenRows,omitempty"`
+	FrozenCols int             `json:"frozenCols,omitempty"`
+	Merges     []MergeSnapshot `json:"merges,omitempty"`
 }
 
 // WorkbookSnapshot is the JSON-serializable form of a Workbook for persistence.
@@ -57,6 +66,15 @@ func (w *Workbook) Snapshot() WorkbookSnapshot {
 		if len(s.RowHeights) > 0 {
 			ss.RowHeights = maps.Clone(s.RowHeights)
 		}
+		for a, sp := range s.Merges {
+			ss.Merges = append(ss.Merges, MergeSnapshot{a.Row, a.Col, sp.Rows, sp.Cols})
+		}
+		sort.Slice(ss.Merges, func(a, b int) bool {
+			if ss.Merges[a].Row != ss.Merges[b].Row {
+				return ss.Merges[a].Row < ss.Merges[b].Row
+			}
+			return ss.Merges[a].Col < ss.Merges[b].Col
+		})
 		out.Sheets[i] = ss
 	}
 	return out
@@ -86,6 +104,9 @@ func WorkbookFromSnapshot(snap WorkbookSnapshot) *Workbook {
 		maps.Copy(sh.ColWidths, ss.ColWidths)
 		maps.Copy(sh.RowHeights, ss.RowHeights)
 		sh.FrozenRows, sh.FrozenCols = ss.FrozenRows, ss.FrozenCols
+		for _, m := range ss.Merges {
+			sh.Merges[CellRef{m.Row, m.Col}] = Span{Rows: m.Rows, Cols: m.Cols}
+		}
 		w.Sheets[i] = sh
 	}
 	return w

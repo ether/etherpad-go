@@ -24,6 +24,9 @@ const (
 	// Grid metadata ops.
 	OpSetDimension OpType = "setDimension"
 	OpSetFreeze    OpType = "setFreeze"
+	// Merged cells: both carry the Row/Col..EndRow/EndCol rectangle.
+	OpMergeCells   OpType = "mergeCells"
+	OpUnmergeCells OpType = "unmergeCells"
 )
 
 // Op is one cell-based operation. BaseRev is the workbook revision the client
@@ -103,9 +106,11 @@ func (o Op) Validate() error {
 		if err := ValidateProps(o.Props); err != nil {
 			return err
 		}
-	case OpClearRange:
+	// mergeCells allows a degenerate 1x1 rectangle (Apply no-ops it): rebasing
+	// past a concurrent row/col delete can collapse a valid merge to one cell.
+	case OpClearRange, OpMergeCells, OpUnmergeCells:
 		if o.Row < 0 || o.Col < 0 || o.EndRow < o.Row || o.EndCol < o.Col {
-			return fmt.Errorf("clearRange invalid bounds")
+			return fmt.Errorf("%s invalid bounds", o.Type)
 		}
 	case OpInsertRows, OpDeleteRows, OpInsertCols, OpDeleteCols:
 		if o.Index < 0 {

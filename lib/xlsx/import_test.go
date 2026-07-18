@@ -57,6 +57,7 @@ func TestRoundTripStylesDimsAndFreeze(t *testing.T) {
 	s.ColWidths[2] = 150
 	s.RowHeights[3] = 40
 	s.FrozenRows, s.FrozenCols = 1, 1
+	s.Merges[sheet.CellRef{Row: 4, Col: 0}] = sheet.Span{Rows: 2, Cols: 3}
 
 	data, err := Export(wb)
 	if err != nil {
@@ -95,6 +96,9 @@ func TestRoundTripStylesDimsAndFreeze(t *testing.T) {
 	}
 	if len(sh.ColWidths) != 1 || len(sh.RowHeights) != 1 {
 		t.Errorf("dims not sparse: cols=%v rows=%v", sh.ColWidths, sh.RowHeights)
+	}
+	if len(sh.Merges) != 1 || sh.Merges[sheet.CellRef{Row: 4, Col: 0}] != (sheet.Span{Rows: 2, Cols: 3}) {
+		t.Errorf("merges = %v", sh.Merges)
 	}
 }
 
