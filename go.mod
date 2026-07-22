@@ -14,7 +14,7 @@ require (
 	github.com/gofiber/contrib/v3/swaggo v1.0.8
 	github.com/gofiber/contrib/v3/websocket v1.2.1
 	github.com/gofiber/fiber/v3 v3.4.0
-	github.com/gofiber/utils/v2 v2.2.0
+	github.com/gofiber/utils/v2 v2.3.0
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
