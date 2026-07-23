@@ -4,7 +4,7 @@ import { SheetCollabClient } from './sheetCollabClient';
 import { FormulaEngine } from './formulaEngine';
 import { DomSheetView } from './sheetView';
 import { SheetPresence, effectiveCells, type PresenceFrame } from './sheetPresence';
-import { rangeToTSV, parseTSV, pasteOps, fillOps } from './sheetClipboard';
+import { rangeToTSV, rangeToCSV, parseTSV, pasteOps, fillOps } from './sheetClipboard';
 import { normalize, selCells, selIsSingle, type Selection } from './sheetSelection';
 import { createToolbar } from './sheetToolbar';
 import { createSheetTabs } from './sheetTabs';
@@ -305,6 +305,28 @@ export function startSheetEditor(root: HTMLElement): void {
         document.body.appendChild(a);
         a.click();
         a.remove();
+      },
+      exportCsv: () => {
+        // Client-side: serialize the active sheet's used range with computed
+        // values (what the user sees), then download. No websocket-killing nav.
+        const cells = cellsOfActive();
+        let maxRow = 0;
+        let maxCol = 0;
+        for (const { row, col, raw } of cells) {
+          if (raw === '') continue;
+          if (row > maxRow) maxRow = row;
+          if (col > maxCol) maxCol = col;
+        }
+        const sel = { anchor: { row: 0, col: 0 }, focus: { row: maxRow, col: maxCol } };
+        const csv = rangeToCSV(sel, displayValue);
+        const name = collab?.display.sheetById(activeSheetId)?.name || 'sheet';
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+        a.download = `${name}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(a.href);
       },
       importXlsx: (file: File) => {
         const body = new FormData();

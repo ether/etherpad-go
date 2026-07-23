@@ -19,6 +19,8 @@ export interface ToolbarCallbacks {
   // Ribbon: workbook import/export (server round-trip).
   importXlsx?: (file: File) => void;
   exportXlsx?: () => void;
+  // Ribbon: client-side CSV export of the active sheet (no server round-trip).
+  exportCsv?: () => void;
   // Ribbon: clipboard + quick aggregation (wired by the editor).
   clipboardAction?: (a: 'cut' | 'copy' | 'paste') => void;
   autoSum?: () => void;
@@ -144,6 +146,7 @@ export function createToolbar(cb: ToolbarCallbacks): HTMLElement {
   };
   if (cb.importXlsx) fileMenuItem('Import (.xlsx)', () => fileInput.click());
   if (cb.exportXlsx) fileMenuItem('Export (.xlsx)', () => cb.exportXlsx?.());
+  if (cb.exportCsv) fileMenuItem('Export (.csv)', () => cb.exportCsv?.());
   fileWrap.append(fileBtn, fileMenu);
   tabsEl.appendChild(fileWrap);
 
