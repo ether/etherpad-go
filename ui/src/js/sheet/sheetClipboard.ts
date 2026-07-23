@@ -31,6 +31,32 @@ export function rangeToCSV(sel: Selection, valueAt: (r: number, c: number) => st
   return rows.join('\r\n');
 }
 
+// parseCSV is an RFC-4180 reader: comma-separated fields, CRLF or LF records,
+// double-quoted fields that may contain commas/newlines, and "" for a literal
+// quote inside a quoted field. A single trailing newline yields no empty row.
+export function parseCSV(text: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = '';
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; } // escaped quote
+        else inQuotes = false;
+      } else field += ch;
+      continue;
+    }
+    if (ch === '"') inQuotes = true;
+    else if (ch === ',') { row.push(field); field = ''; }
+    else if (ch === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+    else if (ch !== '\r') field += ch; // drop bare CR outside quotes (CRLF)
+  }
+  if (field !== '' || row.length > 0) { row.push(field); rows.push(row); }
+  return rows;
+}
+
 export function parseTSV(text: string): string[][] {
   const trimmed = text.replace(/\r/g, '').replace(/\n$/, '');
   return trimmed.split('\n').map((line) => line.split('\t'));

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { rangeToTSV, rangeToCSV, parseTSV, pasteOps, fillOps, adjustFormula } from './sheetClipboard';
+import { rangeToTSV, rangeToCSV, parseTSV, parseCSV, pasteOps, fillOps, adjustFormula } from './sheetClipboard';
 
 const raw = (grid: Record<string, string>) => (r: number, c: number) => grid[`${r}:${c}`] ?? '';
 
@@ -37,6 +37,31 @@ describe('CSV export', () => {
     const sel = { anchor: { row: 0, col: 0 }, focus: { row: 0, col: 3 } };
     const g = raw({ '0:0': 'a,b', '0:1': 'say "hi"', '0:2': 'line1\nline2', '0:3': 'plain' });
     expect(rangeToCSV(sel, g)).toBe('"a,b","say ""hi""","line1\nline2",plain');
+  });
+});
+
+describe('CSV import', () => {
+  it('parseCSV splits fields/records and tolerates CRLF + one trailing newline', () => {
+    expect(parseCSV('a,b\r\nc,d\r\n')).toEqual([['a', 'b'], ['c', 'd']]);
+    expect(parseCSV('x')).toEqual([['x']]);
+    expect(parseCSV('')).toEqual([]);
+  });
+
+  it('unquotes fields, un-doubles quotes, and keeps commas/newlines inside quotes', () => {
+    expect(parseCSV('"a,b","say ""hi""","line1\nline2",plain')).toEqual([
+      ['a,b', 'say "hi"', 'line1\nline2', 'plain'],
+    ]);
+  });
+
+  it('preserves a trailing empty field and empty lines', () => {
+    expect(parseCSV('a,')).toEqual([['a', '']]);
+    expect(parseCSV('a\r\n\r\nb')).toEqual([['a'], [''], ['b']]);
+  });
+
+  it('round-trips with rangeToCSV', () => {
+    const sel = { anchor: { row: 0, col: 0 }, focus: { row: 1, col: 1 } };
+    const g = raw({ '0:0': 'a,b', '0:1': 'say "hi"', '1:0': 'line1\nline2', '1:1': 'plain' });
+    expect(parseCSV(rangeToCSV(sel, g))).toEqual([['a,b', 'say "hi"'], ['line1\nline2', 'plain']]);
   });
 });
 
