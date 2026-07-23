@@ -137,6 +137,8 @@ export function startSheetEditor(root: HTMLElement): void {
     let sum = 0;
     let numCount = 0;
     let count = 0;
+    let min = Infinity;
+    let max = -Infinity;
     for (const { row, col } of selCells(selection)) {
       const raw = rawValue(row, col);
       if (raw === '') continue;
@@ -146,13 +148,16 @@ export function startSheetEditor(root: HTMLElement): void {
       if (value.trim() !== '' && Number.isFinite(n)) {
         sum += n;
         numCount++;
+        if (n < min) min = n;
+        if (n > max) max = n;
       }
     }
     if (numCount === 0) return;
     // toPrecision(12) strips float noise (0.1+0.2 -> 0.3) without truncating
     // typical spreadsheet magnitudes.
     const f = (n: number): string => String(parseFloat(n.toPrecision(12)));
-    for (const part of [`Average: ${f(sum / numCount)}`, `Count: ${count}`, `Sum: ${f(sum)}`]) {
+    // Excel status-bar order: Average, Count, Min, Max, Sum.
+    for (const part of [`Average: ${f(sum / numCount)}`, `Count: ${count}`, `Min: ${f(min)}`, `Max: ${f(max)}`, `Sum: ${f(sum)}`]) {
       const s = document.createElement('span');
       s.textContent = part;
       statsEl.appendChild(s);
