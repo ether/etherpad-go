@@ -51,6 +51,24 @@ test.describe('Sheet Excel chrome', () => {
     await expect(cell(page, 0, 0)).toHaveCSS('font-size', /^26\.6/);
   });
 
+  test('Ctrl+B/I/U toggle bold, italic, underline on the selection', async ({ page }) => {
+    const padId = `xl-fmtkeys-${Date.now()}`;
+    await openSheet(page, padId);
+    await commitCell(page, 0, 0, 'x'); // A1
+    await cell(page, 0, 0).click();
+
+    await page.keyboard.press('Control+b');
+    await expect(cell(page, 0, 0)).toHaveCSS('font-weight', /700|bold/);
+    await page.keyboard.press('Control+i');
+    await expect(cell(page, 0, 0)).toHaveCSS('font-style', 'italic');
+    await page.keyboard.press('Control+u');
+    await expect(cell(page, 0, 0)).toHaveCSS('text-decoration', /underline/);
+
+    // Ctrl+B again toggles bold back off.
+    await page.keyboard.press('Control+b');
+    await expect(cell(page, 0, 0)).toHaveCSS('font-weight', /400|normal/);
+  });
+
   test('wrap text switches the cell to normal white-space', async ({ page }) => {
     const padId = `xl-wrap-${Date.now()}`;
     await openSheet(page, padId);
