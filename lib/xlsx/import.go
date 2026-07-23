@@ -16,8 +16,8 @@ const (
 
 // Import parses an .xlsx into a WorkbookSnapshot. Sheet id == sheet name. Cells
 // carry their raw value, or "=<formula>" when a formula is present. Cell styles
-// (allowlisted props only), column widths / row heights and freeze panes are
-// imported; merges are skipped (the sheet model does not store them).
+// (allowlisted props only), column widths / row heights, merged ranges and
+// freeze panes are imported.
 func Import(r io.Reader) (sheet.WorkbookSnapshot, error) {
 	f, err := excelize.OpenReader(r)
 	if err != nil {
@@ -103,6 +103,17 @@ func Import(r io.Reader) (sheet.WorkbookSnapshot, error) {
 		for r := range maxRows {
 			if h, err := f.GetRowHeight(name, r+1); err == nil && math.Abs(h-baseH) > 0.01 {
 				sh.RowHeights[r] = rowHeightToPx(h)
+			}
+		}
+
+		if mcs, merr := f.GetMergeCells(name); merr == nil {
+			for _, mc := range mcs {
+				c0, r0, e0 := excelize.CellNameToCoordinates(mc.GetStartAxis())
+				c1, r1, e1 := excelize.CellNameToCoordinates(mc.GetEndAxis())
+				if e0 != nil || e1 != nil || (r1 == r0 && c1 == c0) {
+					continue
+				}
+				sh.Merges[sheet.CellRef{Row: r0 - 1, Col: c0 - 1}] = sheet.Span{Rows: r1 - r0 + 1, Cols: c1 - c0 + 1}
 			}
 		}
 

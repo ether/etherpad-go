@@ -10,8 +10,8 @@ import (
 
 // Export renders a workbook to .xlsx bytes. Cells whose raw starts with '='
 // become formulas; numeric-looking raw is written as a number, the rest as a
-// string. Cell styles, column widths / row heights and freeze panes are
-// carried over; merges are not (the sheet model does not store them).
+// string. Cell styles, column widths / row heights, merged ranges and freeze
+// panes are carried over.
 func Export(wb *sheet.Workbook) ([]byte, error) {
 	f := excelize.NewFile()
 	defer f.Close()
@@ -96,6 +96,20 @@ func Export(wb *sheet.Workbook) ([]byte, error) {
 		}
 		for row, px := range s.RowHeights {
 			if err := f.SetRowHeight(name, row+1, pxToRowHeight(px)); err != nil {
+				return nil, err
+			}
+		}
+
+		for a, sp := range s.Merges {
+			start, err := excelize.CoordinatesToCellName(a.Col+1, a.Row+1)
+			if err != nil {
+				return nil, err
+			}
+			end, err := excelize.CoordinatesToCellName(a.Col+sp.Cols, a.Row+sp.Rows)
+			if err != nil {
+				return nil, err
+			}
+			if err := f.MergeCell(name, start, end); err != nil {
 				return nil, err
 			}
 		}

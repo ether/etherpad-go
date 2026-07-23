@@ -23,9 +23,14 @@ func Transform(in, applied Op) Op {
 
 // shiftRows moves row coordinates of `in` by delta for rows at/after index.
 // delta > 0 is an insert; delta < 0 is a delete (band [index, index-delta)).
+// hasRange reports whether the op carries an EndRow/EndCol rectangle.
+func hasRange(t OpType) bool {
+	return t == OpClearRange || t == OpMergeCells || t == OpUnmergeCells
+}
+
 func shiftRows(in Op, index, delta int) Op {
 	in.Row = shiftCoord(in.Row, index, delta)
-	if in.Type == OpClearRange {
+	if hasRange(in.Type) {
 		in.EndRow = shiftCoord(in.EndRow, index, delta)
 	}
 	if in.Type == OpInsertRows || in.Type == OpDeleteRows {
@@ -39,7 +44,7 @@ func shiftRows(in Op, index, delta int) Op {
 
 func shiftCols(in Op, index, delta int) Op {
 	in.Col = shiftCoord(in.Col, index, delta)
-	if in.Type == OpClearRange {
+	if hasRange(in.Type) {
 		in.EndCol = shiftCoord(in.EndCol, index, delta)
 	}
 	if in.Type == OpInsertCols || in.Type == OpDeleteCols {

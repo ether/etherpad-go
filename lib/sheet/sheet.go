@@ -2,6 +2,13 @@ package sheet
 
 import "maps"
 
+// Span is the extent of a merged-cell range, keyed by its top-left anchor.
+// Rows/Cols >= 1; a 1x1 span is never stored.
+type Span struct {
+	Rows int `json:"rows"`
+	Cols int `json:"cols"`
+}
+
 // Sheet is a single tab: sparse cells plus structural metadata.
 type Sheet struct {
 	Id    string           `json:"id"`
@@ -13,10 +20,13 @@ type Sheet struct {
 	// 0 or 1 each: freeze the first row / first col (position: sticky in the view).
 	FrozenRows int `json:"-"`
 	FrozenCols int `json:"-"`
+	// Merged-cell ranges keyed by top-left anchor. Non-anchor cells keep their
+	// content (hidden by the view); unmerge reveals it again.
+	Merges map[CellRef]Span `json:"-"`
 }
 
 func NewSheet(id, name string) *Sheet {
-	return &Sheet{Id: id, Name: name, Cells: map[CellRef]Cell{}, ColWidths: map[int]int{}, RowHeights: map[int]int{}}
+	return &Sheet{Id: id, Name: name, Cells: map[CellRef]Cell{}, ColWidths: map[int]int{}, RowHeights: map[int]int{}, Merges: map[CellRef]Span{}}
 }
 
 // SetCell stores a cell, dropping it from storage if empty (keeps it sparse).
@@ -38,6 +48,7 @@ func (s *Sheet) clone() *Sheet {
 		Id: s.Id, Name: s.Name, Cells: make(map[CellRef]Cell, len(s.Cells)),
 		ColWidths: maps.Clone(s.ColWidths), RowHeights: maps.Clone(s.RowHeights),
 		FrozenRows: s.FrozenRows, FrozenCols: s.FrozenCols,
+		Merges: maps.Clone(s.Merges),
 	}
 	maps.Copy(cp.Cells, s.Cells)
 	return cp
@@ -58,6 +69,59 @@ func shiftDims(m map[int]int, index, delta int) map[int]int {
 		next[shiftCoord(i, index, delta)] = v
 	}
 	return next
+}
+
+// intersects reports whether the merge at anchor overlaps the inclusive
+// rectangle [r0..r1] x [c0..c1].
+func intersects(anchor CellRef, sp Span, r0, c0, r1, c1 int) bool {
+	return anchor.Row <= r1 && anchor.Row+sp.Rows-1 >= r0 &&
+		anchor.Col <= c1 && anchor.Col+sp.Cols-1 >= c0
+}
+
+// shiftMerges rebuilds the merge map after a row (axis "row") or col insert
+// (delta > 0) / delete of -delta indices at index. Endpoints shift like cell
+// coordinates (an insert inside a merge grows it, a delete shrinks it);
+// merges that collapse to a single cell are dropped.
+func shiftMerges(m map[CellRef]Span, axis string, index, delta int) map[CellRef]Span {
+	if len(m) == 0 {
+		return m
+	}
+	next := make(map[CellRef]Span, len(m))
+	for a, sp := range m {
+		lo, span := a.Row, sp.Rows
+		if axis == "col" {
+			lo, span = a.Col, sp.Cols
+		}
+		// Shift the anchor and the EXCLUSIVE end. The end needs shiftEnd: on
+		// insert an exclusive bound only moves for index STRICTLY inside
+		// (coord > index), or an insert at the merge's trailing edge would
+		// grow it; on delete shiftCoord's in-band clamp is exactly right.
+		nlo := shiftCoord(lo, index, delta)
+		nspan := shiftEnd(lo+span, index, delta) - nlo
+		if nspan <= 0 {
+			continue // merge entirely inside a deleted band
+		}
+		na, nsp := a, sp
+		if axis == "col" {
+			na.Col, nsp.Cols = nlo, nspan
+		} else {
+			na.Row, nsp.Rows = nlo, nspan
+		}
+		if nsp.Rows <= 1 && nsp.Cols <= 1 {
+			continue // collapsed to a single cell
+		}
+		next[na] = nsp
+	}
+	return next
+}
+
+// shiftEnd shifts an EXCLUSIVE upper bound: like shiftCoord, except an insert
+// exactly at the bound (coord == index) does not move it.
+func shiftEnd(coord, index, delta int) int {
+	if delta >= 0 && coord == index {
+		return coord
+	}
+	return shiftCoord(coord, index, delta)
 }
 
 // remap rebuilds the sparse cell map by transforming each ref. The fn returns

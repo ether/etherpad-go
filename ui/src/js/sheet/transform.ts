@@ -23,10 +23,14 @@ export function transform(inOp: Op, applied: Op): Op {
   }
 }
 
+// hasRange mirrors Go: ops that carry an endRow/endCol rectangle.
+const hasRange = (t: Op['type']): boolean =>
+  t === 'clearRange' || t === 'mergeCells' || t === 'unmergeCells';
+
 function shiftRows(inOp: Op, index: number, delta: number): Op {
   const out: Op = { ...inOp };
   out.row = shiftCoord(out.row ?? 0, index, delta);
-  if (out.type === 'clearRange') {
+  if (hasRange(out.type)) {
     out.endRow = shiftCoord(out.endRow ?? 0, index, delta);
   }
   if (out.type === 'insertRows' || out.type === 'deleteRows') {
@@ -41,7 +45,7 @@ function shiftRows(inOp: Op, index: number, delta: number): Op {
 function shiftCols(inOp: Op, index: number, delta: number): Op {
   const out: Op = { ...inOp };
   out.col = shiftCoord(out.col ?? 0, index, delta);
-  if (out.type === 'clearRange') {
+  if (hasRange(out.type)) {
     out.endCol = shiftCoord(out.endCol ?? 0, index, delta);
   }
   if (out.type === 'insertCols' || out.type === 'deleteCols') {

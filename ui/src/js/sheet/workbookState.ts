@@ -8,6 +8,11 @@ export interface Cell {
   styleId?: number;
 }
 
+export interface Span {
+  rows: number;
+  cols: number;
+}
+
 export interface SheetState {
   id: string;
   name: string;
@@ -16,6 +21,7 @@ export interface SheetState {
   rowHeights: Map<number, number>;
   frozenRows: number; // 0 or 1
   frozenCols: number;
+  merges: Map<string, Span>; // key "row:col" = top-left anchor
 }
 
 const key = (row: number, col: number): string => `${row}:${col}`;
@@ -29,7 +35,48 @@ const cellIsEmpty = (c: Cell): boolean =>
 
 const emptySheet = (id: string, name: string): SheetState => ({
   id, name, cells: new Map(), colWidths: new Map(), rowHeights: new Map(), frozenRows: 0, frozenCols: 0,
+  merges: new Map(),
 });
+
+// intersects mirrors Go: merge at (row,col) x span overlaps [r0..r1]x[c0..c1].
+const mergeIntersects = (row: number, col: number, sp: Span, r0: number, c0: number, r1: number, c1: number): boolean =>
+  row <= r1 && row + sp.rows - 1 >= r0 && col <= c1 && col + sp.cols - 1 >= c0;
+
+// shiftMerges mirrors Go shiftMerges: shift anchors and EXCLUSIVE ends like
+// cell coordinates; drop merges that collapse inside a deleted band or to 1x1.
+const shiftMerges = (m: Map<string, Span>, axis: 'row' | 'col', index: number, delta: number): Map<string, Span> => {
+  if (m.size === 0) return m;
+  const next = new Map<string, Span>();
+  for (const [k, sp] of m) {
+    const [r, c] = parseKey(k);
+    const lo = axis === 'row' ? r : c;
+    const span = axis === 'row' ? sp.rows : sp.cols;
+    const nlo = shiftIdx2(lo, index, delta);
+    const nspan = shiftEnd(lo + span, index, delta) - nlo;
+    if (nspan <= 0) continue;
+    const nr = axis === 'row' ? nlo : r;
+    const nc = axis === 'col' ? nlo : c;
+    const nsp: Span = axis === 'row' ? { rows: nspan, cols: sp.cols } : { rows: sp.rows, cols: nspan };
+    if (nsp.rows <= 1 && nsp.cols <= 1) continue;
+    next.set(key(nr, nc), nsp);
+  }
+  return next;
+};
+
+// shiftEnd mirrors Go shiftEnd: shifts an EXCLUSIVE upper bound — an insert
+// exactly at the bound (the merge's trailing edge) must not grow the merge.
+const shiftEnd = (coord: number, index: number, delta: number): number =>
+  delta >= 0 && coord === index ? coord : shiftIdx2(coord, index, delta);
+
+// shiftIdx2 mirrors Go shiftCoord (in-band coords clamp to index on delete);
+// shiftIdx above keeps dimension-map semantics (band entries dropped earlier).
+const shiftIdx2 = (coord: number, index: number, delta: number): number => {
+  if (delta >= 0) return coord >= index ? coord + delta : coord;
+  const band = -delta;
+  if (coord < index) return coord;
+  if (coord < index + band) return index;
+  return coord - band;
+};
 
 // shiftDims mirrors Go shiftDims: rebuild a sparse dimension map after an
 // insert (delta>0) / delete of -delta indices at index (in-band entries drop).
@@ -57,6 +104,12 @@ export interface CellSnapshot {
   valueType?: string;
   styleId?: number;
 }
+export interface MergeSnapshot {
+  row: number;
+  col: number;
+  rows: number;
+  cols: number;
+}
 export interface SheetSnapshot {
   id: string;
   name: string;
@@ -65,6 +118,7 @@ export interface SheetSnapshot {
   rowHeights?: Record<string, number>;
   frozenRows?: number;
   frozenCols?: number;
+  merges?: MergeSnapshot[];
 }
 export interface WorkbookSnapshot {
   sheets: SheetSnapshot[];
@@ -97,6 +151,7 @@ export class WorkbookState {
       id: s.id, name: s.name, cells: new Map(s.cells),
       colWidths: new Map(s.colWidths), rowHeights: new Map(s.rowHeights),
       frozenRows: s.frozenRows, frozenCols: s.frozenCols,
+      merges: new Map(s.merges),
     }));
     cp.styles = this.styles; // shared pool: interning is monotonic + content-deduped
     return cp;
@@ -117,6 +172,7 @@ export class WorkbookState {
       for (const [i, v] of Object.entries(ss.rowHeights ?? {})) s.rowHeights.set(Number(i), v);
       s.frozenRows = ss.frozenRows ?? 0;
       s.frozenCols = ss.frozenCols ?? 0;
+      for (const m of ss.merges ?? []) s.merges.set(key(m.row, m.col), { rows: m.rows, cols: m.cols });
       return s;
     });
     this.styles.seed(snap.styles);
@@ -232,9 +288,31 @@ export class WorkbookState {
         sheet.frozenRows = op.frozenRows ?? 0;
         sheet.frozenCols = op.frozenCols ?? 0;
         break;
+      case 'mergeCells': {
+        const endRow = op.endRow ?? 0;
+        const endCol = op.endCol ?? 0;
+        if (endRow === row && endCol === col) break; // degenerate 1x1: no-op
+        // Excel semantics: merging over existing merges absorbs them.
+        for (const [k, sp] of [...sheet.merges]) {
+          const [r, c] = parseKey(k);
+          if (mergeIntersects(r, c, sp, row, col, endRow, endCol)) sheet.merges.delete(k);
+        }
+        sheet.merges.set(key(row, col), { rows: endRow - row + 1, cols: endCol - col + 1 });
+        break;
+      }
+      case 'unmergeCells': {
+        const endRow = op.endRow ?? 0;
+        const endCol = op.endCol ?? 0;
+        for (const [k, sp] of [...sheet.merges]) {
+          const [r, c] = parseKey(k);
+          if (mergeIntersects(r, c, sp, row, col, endRow, endCol)) sheet.merges.delete(k);
+        }
+        break;
+      }
       case 'insertRows':
         this.remap(sheet, (r, c) => (r >= index ? [r + count, c, true] : [r, c, true]));
         sheet.rowHeights = shiftDims(sheet.rowHeights, index, count);
+        sheet.merges = shiftMerges(sheet.merges, 'row', index, count);
         break;
       case 'deleteRows':
         this.remap(sheet, (r, c) => {
@@ -243,10 +321,12 @@ export class WorkbookState {
           return [r, c, true];
         });
         sheet.rowHeights = shiftDims(sheet.rowHeights, index, -count);
+        sheet.merges = shiftMerges(sheet.merges, 'row', index, -count);
         break;
       case 'insertCols':
         this.remap(sheet, (r, c) => (c >= index ? [r, c + count, true] : [r, c, true]));
         sheet.colWidths = shiftDims(sheet.colWidths, index, count);
+        sheet.merges = shiftMerges(sheet.merges, 'col', index, count);
         break;
       case 'deleteCols':
         this.remap(sheet, (r, c) => {
@@ -255,6 +335,7 @@ export class WorkbookState {
           return [r, c, true];
         });
         sheet.colWidths = shiftDims(sheet.colWidths, index, -count);
+        sheet.merges = shiftMerges(sheet.merges, 'col', index, -count);
         break;
       default:
         throw new Error(`applyOp: unhandled op type ${(op as Op).type}`);

@@ -39,6 +39,9 @@ export interface SheetViewOptions {
   onResize?: (axis: 'col' | 'row', index: number, sizePx: number) => void;
   // Client-local row filter: hidden rows collapse via display:none.
   rowHidden?: (row: number) => boolean;
+  // Merged ranges (top-left anchor + span). The anchor td gets rowSpan/colSpan,
+  // covered tds are display:none.
+  merges?: () => Array<{ row: number; col: number; rows: number; cols: number }>;
 }
 
 const STYLE_ID = 'sheet-grid-style';
@@ -94,6 +97,7 @@ export class DomSheetView {
   // corner. It lives OUTSIDE the contenteditable tds: a decoration inside an
   // editable cell races the caret and re-renders can delete typed text.
   private fillHandle: HTMLSpanElement;
+  private mergedTds = new Set<HTMLTableCellElement>();
   private table: HTMLTableElement;
   private thead: HTMLTableSectionElement;
   private colHeads: HTMLTableCellElement[] = [];
@@ -279,8 +283,23 @@ export class DomSheetView {
       const move = (dr: number, dc: number, extend: boolean) => {
         e.preventDefault();
         const f = this.selection.focus;
-        const nr = Math.min(this.opts.rows - 1, Math.max(0, f.row + dr));
-        const nc = Math.min(this.opts.cols - 1, Math.max(0, f.col + dc));
+        let nr = Math.min(this.opts.rows - 1, Math.max(0, f.row + dr));
+        let nc = Math.min(this.opts.cols - 1, Math.max(0, f.col + dc));
+        // Merged ranges: a covered (hidden) cell can't take focus — snap to
+        // the merge anchor, and step past the whole merge when leaving it.
+        const m = this.mergeAt(nr, nc);
+        if (m && !extend) {
+          if (m.row === f.row && m.col === f.col) {
+            // moving within our own merge: jump to the far side
+            nr = Math.min(this.opts.rows - 1, Math.max(0, dr > 0 ? m.row + m.rows : dr < 0 ? m.row - 1 : nr));
+            nc = Math.min(this.opts.cols - 1, Math.max(0, dc > 0 ? m.col + m.cols : dc < 0 ? m.col - 1 : nc));
+            const m2 = this.mergeAt(nr, nc);
+            if (m2) { nr = m2.row; nc = m2.col; }
+          } else {
+            nr = m.row;
+            nc = m.col;
+          }
+        }
         this.selection = extend
           ? { anchor: this.selection.anchor, focus: { row: nr, col: nc } }
           : selFromSingle(nr, nc);
@@ -350,6 +369,16 @@ export class DomSheetView {
     this.remoteSel = list;
   }
 
+  // mergeAt returns the merge covering (r, c), or null.
+  // ponytail: linear scan per lookup; merges per sheet are few. Index by cell
+  // key if sheets ever carry hundreds of merges.
+  private mergeAt(r: number, c: number): { row: number; col: number; rows: number; cols: number } | null {
+    for (const m of this.opts.merges?.() ?? []) {
+      if (r >= m.row && r < m.row + m.rows && c >= m.col && c < m.col + m.cols) return m;
+    }
+    return null;
+  }
+
   // render refreshes every non-editing cell to its display value, then paints
   // remote live-edit text and cursor/live-edit decorations.
   render(): void {
@@ -368,6 +397,31 @@ export class DomSheetView {
       this.applyDim('row', r, this.opts.rowHeight?.(r));
       this.rows[r].style.display = this.opts.rowHidden?.(r) ? 'none' : '';
     }
+    // Merged ranges: reset last render's spans, then apply the current set.
+    for (const td of this.mergedTds) {
+      td.rowSpan = 1;
+      td.colSpan = 1;
+      td.style.display = '';
+    }
+    this.mergedTds.clear();
+    for (const m of this.opts.merges?.() ?? []) {
+      const anchor = this.cells[m.row]?.[m.col];
+      if (!anchor) continue;
+      anchor.rowSpan = Math.min(m.rows, this.opts.rows - m.row);
+      anchor.colSpan = Math.min(m.cols, this.opts.cols - m.col);
+      this.mergedTds.add(anchor);
+      for (let r = m.row; r < Math.min(m.row + m.rows, this.opts.rows); r++) {
+        for (let c = m.col; c < Math.min(m.col + m.cols, this.opts.cols); c++) {
+          if (r === m.row && c === m.col) continue;
+          const td = this.cells[r]?.[c];
+          if (td) {
+            td.style.display = 'none';
+            this.mergedTds.add(td);
+          }
+        }
+      }
+    }
+
     const fz = this.opts.frozen?.() ?? { rows: 0, cols: 0 };
     this.table.classList.toggle('sheet-frozen-r', fz.rows > 0);
     this.table.classList.toggle('sheet-frozen-c', fz.cols > 0);

@@ -22,6 +22,8 @@ export interface ToolbarCallbacks {
   // Ribbon: clipboard + quick aggregation (wired by the editor).
   clipboardAction?: (a: 'cut' | 'copy' | 'paste') => void;
   autoSum?: () => void;
+  // Merge/unmerge the current selection (the editor decides which).
+  mergeToggle?: () => void;
 }
 
 const CSS = `
@@ -72,6 +74,7 @@ const IC = {
   alignCenter: '<path d="M2.5 4h11M4.5 7h7M2.5 10h11M4.5 13h7"/>',
   alignRight: '<path d="M2.5 4h11M6.5 7h7M2.5 10h11M6.5 13h7"/>',
   wrap: '<path d="M2.5 4h11M2.5 8h8.5a2.5 2.5 0 0 1 0 5H8M2.5 12h3"/><path d="M9.5 11.5 8 13l1.5 1.5"/>',
+  merge: '<rect x="1.5" y="4.5" width="13" height="7"/><path d="M4.5 8h7M9.5 6 11.5 8 9.5 10M6.5 6 4.5 8l2 2"/>',
   insRowAbove: '<rect x="2.5" y="10.5" width="11" height="3"/><path d="M8 8.5V3M5.5 5.5 8 3l2.5 2.5"/>',
   insRowBelow: '<rect x="2.5" y="2.5" width="11" height="3"/><path d="M8 7.5V13M5.5 10.5 8 13l2.5-2.5"/>',
   insColLeft: '<rect x="10.5" y="2.5" width="3" height="11"/><path d="M8.5 8H3M5.5 5.5 3 8l2.5 2.5"/>',
@@ -281,6 +284,9 @@ export function createToolbar(cb: ToolbarCallbacks): HTMLElement {
     btn(alignRow, { icon: alignIcons[a] }, `Align ${a}`, () => cb.applyToSelection({ align: a }));
   }
   toggleBtn(alignRow, { icon: IC.wrap }, 'Wrap text', 'wrap');
+  if (cb.mergeToggle) {
+    btn(alignRow, { icon: IC.merge }, 'Merge / unmerge cells', () => cb.mergeToggle?.());
+  }
 
   // --- Home: Number ---
   const numRow = group('Home', 'Number');

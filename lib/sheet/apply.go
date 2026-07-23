@@ -97,6 +97,24 @@ func (w *Workbook) Apply(op Op) error {
 	case OpSetFreeze:
 		s.FrozenRows = op.FrozenRows
 		s.FrozenCols = op.FrozenCols
+	case OpMergeCells:
+		if op.EndRow == op.Row && op.EndCol == op.Col {
+			return nil // degenerate 1x1 (e.g. collapsed by a rebase): no-op
+		}
+		// Excel semantics: merging over existing merges absorbs them. Cell
+		// content is kept (the view hides non-anchor cells; unmerge reveals it).
+		for a, sp := range s.Merges {
+			if intersects(a, sp, op.Row, op.Col, op.EndRow, op.EndCol) {
+				delete(s.Merges, a)
+			}
+		}
+		s.Merges[CellRef{op.Row, op.Col}] = Span{Rows: op.EndRow - op.Row + 1, Cols: op.EndCol - op.Col + 1}
+	case OpUnmergeCells:
+		for a, sp := range s.Merges {
+			if intersects(a, sp, op.Row, op.Col, op.EndRow, op.EndCol) {
+				delete(s.Merges, a)
+			}
+		}
 	case OpInsertRows:
 		s.remap(func(r CellRef) (CellRef, bool) {
 			if r.Row >= op.Index {
@@ -105,6 +123,7 @@ func (w *Workbook) Apply(op Op) error {
 			return r, true
 		})
 		s.RowHeights = shiftDims(s.RowHeights, op.Index, op.Count)
+		s.Merges = shiftMerges(s.Merges, "row", op.Index, op.Count)
 	case OpDeleteRows:
 		s.remap(func(r CellRef) (CellRef, bool) {
 			if r.Row >= op.Index && r.Row < op.Index+op.Count {
@@ -116,6 +135,7 @@ func (w *Workbook) Apply(op Op) error {
 			return r, true
 		})
 		s.RowHeights = shiftDims(s.RowHeights, op.Index, -op.Count)
+		s.Merges = shiftMerges(s.Merges, "row", op.Index, -op.Count)
 	case OpInsertCols:
 		s.remap(func(r CellRef) (CellRef, bool) {
 			if r.Col >= op.Index {
@@ -124,6 +144,7 @@ func (w *Workbook) Apply(op Op) error {
 			return r, true
 		})
 		s.ColWidths = shiftDims(s.ColWidths, op.Index, op.Count)
+		s.Merges = shiftMerges(s.Merges, "col", op.Index, op.Count)
 	case OpDeleteCols:
 		s.remap(func(r CellRef) (CellRef, bool) {
 			if r.Col >= op.Index && r.Col < op.Index+op.Count {
@@ -135,6 +156,7 @@ func (w *Workbook) Apply(op Op) error {
 			return r, true
 		})
 		s.ColWidths = shiftDims(s.ColWidths, op.Index, -op.Count)
+		s.Merges = shiftMerges(s.Merges, "col", op.Index, -op.Count)
 	default:
 		return fmt.Errorf("apply: unhandled op type %q", op.Type)
 	}
