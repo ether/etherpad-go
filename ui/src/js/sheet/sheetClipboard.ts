@@ -16,6 +16,21 @@ export function rangeToTSV(sel: Selection, rawAt: (r: number, c: number) => stri
   return rows.join('\n');
 }
 
+// rangeToCSV serializes a range as RFC-4180 CSV: a field is quoted only when it
+// contains a comma, quote, CR or LF, and embedded quotes are doubled. Rows are
+// joined with CRLF, which every spreadsheet app accepts.
+export function rangeToCSV(sel: Selection, valueAt: (r: number, c: number) => string): string {
+  const { r0, c0, r1, c1 } = normalize(sel);
+  const esc = (v: string): string => (/[",\r\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
+  const rows: string[] = [];
+  for (let r = r0; r <= r1; r++) {
+    const cols: string[] = [];
+    for (let c = c0; c <= c1; c++) cols.push(esc(valueAt(r, c)));
+    rows.push(cols.join(','));
+  }
+  return rows.join('\r\n');
+}
+
 export function parseTSV(text: string): string[][] {
   const trimmed = text.replace(/\r/g, '').replace(/\n$/, '');
   return trimmed.split('\n').map((line) => line.split('\t'));

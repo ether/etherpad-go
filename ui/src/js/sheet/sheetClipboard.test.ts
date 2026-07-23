@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { rangeToTSV, parseTSV, pasteOps, fillOps, adjustFormula } from './sheetClipboard';
+import { rangeToTSV, rangeToCSV, parseTSV, pasteOps, fillOps, adjustFormula } from './sheetClipboard';
 
 const raw = (grid: Record<string, string>) => (r: number, c: number) => grid[`${r}:${c}`] ?? '';
 
@@ -23,6 +23,20 @@ describe('TSV clipboard', () => {
       { type: 'setCell', sheet: 's1', baseRev: 0, row: 3, col: 3, raw: 'c' },
       { type: 'setCell', sheet: 's1', baseRev: 0, row: 3, col: 4, raw: 'd' },
     ]);
+  });
+});
+
+describe('CSV export', () => {
+  it('rangeToCSV joins cols with comma, rows with CRLF', () => {
+    const sel = { anchor: { row: 0, col: 0 }, focus: { row: 1, col: 1 } };
+    const g = raw({ '0:0': 'a', '0:1': 'b', '1:0': 'c', '1:1': 'd' });
+    expect(rangeToCSV(sel, g)).toBe('a,b\r\nc,d');
+  });
+
+  it('quotes fields containing comma, quote, CR or LF and doubles quotes', () => {
+    const sel = { anchor: { row: 0, col: 0 }, focus: { row: 0, col: 3 } };
+    const g = raw({ '0:0': 'a,b', '0:1': 'say "hi"', '0:2': 'line1\nline2', '0:3': 'plain' });
+    expect(rangeToCSV(sel, g)).toBe('"a,b","say ""hi""","line1\nline2",plain');
   });
 });
 
