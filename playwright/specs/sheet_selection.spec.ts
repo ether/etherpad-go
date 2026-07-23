@@ -135,4 +135,26 @@ test.describe('Sheet selection, fill, and clipboard', () => {
       await expect(cell(page, 2, 1)).toHaveText('bar', { timeout: 10000 });
     });
   });
+
+  test('Delete clears a single selected cell', async ({ page }) => {
+    const padId = `sheet-del1-${Date.now()}`;
+    await openSheet(page, padId);
+    await commitCell(page, 0, 0, 'hallo'); // A1
+    await cell(page, 0, 0).click();
+    await page.keyboard.press('Delete');
+    await expect(cell(page, 0, 0)).toHaveText('');
+  });
+
+  test('Backspace in the formula bar edits the formula, not clears the cell', async ({ page }) => {
+    const padId = `sheet-fxbksp-${Date.now()}`;
+    await openSheet(page, padId);
+    await commitCell(page, 0, 0, 'abc'); // A1
+    await cell(page, 0, 0).click();
+    const fx = page.locator('.sheet-fx-input');
+    await fx.click();
+    await page.keyboard.press('Backspace'); // must act on fx text, not wipe A1
+    await page.keyboard.press('Escape'); // cancel the edit
+    // If the document Delete handler had fired, A1 would be empty regardless.
+    await expect(cell(page, 0, 0)).toHaveText('abc');
+  });
 });

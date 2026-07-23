@@ -573,7 +573,15 @@ export function startSheetEditor(root: HTMLElement): void {
       doPaste();
       return;
     }
-    if ((e.key === 'Delete' || e.key === 'Backspace') && !editingNow() && !readOnly && !selIsSingle(selection)) {
+    // Clear the selection (single cell or range), like Excel. The grid-focus
+    // guard replaces the old single-cell exclusion: it lets Delete clear one
+    // cell while still keeping Backspace working in the formula bar and any
+    // other input outside the grid (selection is single there too).
+    if (
+      (e.key === 'Delete' || e.key === 'Backspace') &&
+      !editingNow() && !readOnly &&
+      (e.target as HTMLElement | null)?.closest?.('.sheet-grid')
+    ) {
       e.preventDefault();
       blurActiveCell();
       const { r0, c0, r1, c1 } = normalize(selection);
