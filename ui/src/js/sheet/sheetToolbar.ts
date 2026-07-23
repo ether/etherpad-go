@@ -19,8 +19,9 @@ export interface ToolbarCallbacks {
   // Ribbon: workbook import/export (server round-trip).
   importXlsx?: (file: File) => void;
   exportXlsx?: () => void;
-  // Ribbon: client-side CSV export of the active sheet (no server round-trip).
+  // Ribbon: client-side CSV export/import of the active sheet (no server round-trip).
   exportCsv?: () => void;
+  importCsv?: (file: File) => void;
   // Ribbon: clipboard + quick aggregation (wired by the editor).
   clipboardAction?: (a: 'cut' | 'copy' | 'paste') => void;
   autoSum?: () => void;
@@ -116,6 +117,18 @@ export function createToolbar(cb: ToolbarCallbacks): HTMLElement {
   });
   bar.appendChild(fileInput);
 
+  // Separate hidden .csv input (client-side import, replaces the active sheet).
+  const csvInput = document.createElement('input');
+  csvInput.type = 'file';
+  csvInput.accept = '.csv,text/csv';
+  csvInput.style.display = 'none';
+  csvInput.addEventListener('change', () => {
+    const f = csvInput.files?.[0];
+    if (f) cb.importCsv?.(f);
+    csvInput.value = '';
+  });
+  bar.appendChild(csvInput);
+
   // --- File tab: green, opens a dropdown menu instead of switching tabs ---
   const fileWrap = document.createElement('div');
   fileWrap.className = 'sheet-file-wrap';
@@ -147,6 +160,7 @@ export function createToolbar(cb: ToolbarCallbacks): HTMLElement {
   if (cb.importXlsx) fileMenuItem('Import (.xlsx)', () => fileInput.click());
   if (cb.exportXlsx) fileMenuItem('Export (.xlsx)', () => cb.exportXlsx?.());
   if (cb.exportCsv) fileMenuItem('Export (.csv)', () => cb.exportCsv?.());
+  if (cb.importCsv) fileMenuItem('Import (.csv)', () => csvInput.click());
   fileWrap.append(fileBtn, fileMenu);
   tabsEl.appendChild(fileWrap);
 

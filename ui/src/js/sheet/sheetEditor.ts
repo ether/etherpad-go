@@ -4,7 +4,7 @@ import { SheetCollabClient } from './sheetCollabClient';
 import { FormulaEngine } from './formulaEngine';
 import { DomSheetView } from './sheetView';
 import { SheetPresence, effectiveCells, type PresenceFrame } from './sheetPresence';
-import { rangeToTSV, rangeToCSV, parseTSV, pasteOps, fillOps } from './sheetClipboard';
+import { rangeToTSV, rangeToCSV, parseTSV, parseCSV, pasteOps, fillOps } from './sheetClipboard';
 import { normalize, selCells, selIsSingle, type Selection } from './sheetSelection';
 import { createToolbar } from './sheetToolbar';
 import { createSheetTabs } from './sheetTabs';
@@ -327,6 +327,25 @@ export function startSheetEditor(root: HTMLElement): void {
         a.click();
         a.remove();
         URL.revokeObjectURL(a.href);
+      },
+      importCsv: (file: File) => {
+        if (readOnly || !collab) return;
+        blurActiveCell();
+        void file.text().then((text) => {
+          if (!collab) return;
+          const grid = parseCSV(text);
+          // Replace semantics (like xlsx import): clear the current used range,
+          // then lay the parsed grid down from A1.
+          let maxRow = 0;
+          let maxCol = 0;
+          for (const { row, col, raw } of cellsOfActive()) {
+            if (raw === '') continue;
+            if (row > maxRow) maxRow = row;
+            if (col > maxCol) maxCol = col;
+          }
+          collab.applyLocal({ type: 'clearRange', sheet: activeSheetId, baseRev: collab.rev, row: 0, col: 0, endRow: maxRow, endCol: maxCol });
+          for (const op of pasteOps(grid, { row: 0, col: 0 }, activeSheetId, collab.rev)) collab.applyLocal(op);
+        });
       },
       importXlsx: (file: File) => {
         const body = new FormData();
