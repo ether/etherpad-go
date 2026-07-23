@@ -104,7 +104,7 @@ test.describe('Sheet Excel chrome', () => {
     await expect(cell(page, 0, 0)).toHaveText('neu2');
   });
 
-  test('statusbar shows average, count, and sum for a numeric selection', async ({ page }) => {
+  test('statusbar shows average, count, min, max, and sum for a numeric selection', async ({ page }) => {
     const padId = `xl-stats-${Date.now()}`;
     await openSheet(page, padId);
     await commitCell(page, 0, 0, '1'); // A1
@@ -116,6 +116,8 @@ test.describe('Sheet Excel chrome', () => {
     const stats = page.locator('.sheet-statusbar .sheet-stats');
     await expect(stats).toContainText('Average: 2');
     await expect(stats).toContainText('Count: 3');
+    await expect(stats).toContainText('Min: 1');
+    await expect(stats).toContainText('Max: 3');
     await expect(stats).toContainText('Sum: 6');
   });
 
