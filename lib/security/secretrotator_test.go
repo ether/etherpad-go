@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -235,6 +236,52 @@ func TestSecretRotator_SecretsAreDeepCopied(t *testing.T) {
 	if bytes.Equal(snap[0], r.Secrets()[0]) {
 		t.Error("Secrets() returned an aliased slice; caller mutation leaked into rotator state")
 	}
+}
+
+// TestSecretRotator_ConcurrentReadsDuringRotation models production: a single
+// background goroutine rotates secrets (as the scheduled timer would) while many
+// callers read Secrets() concurrently. Run under -race to catch unguarded access
+// to r.secrets. Reads must always see a usable active secret.
+func TestSecretRotator_ConcurrentReadsDuringRotation(t *testing.T) {
+	store := newFakeStore()
+	var now atomic.Int64
+	interval := time.Hour
+	r := NewSecretRotator(store, "test", interval, time.Hour, nil, nil)
+	r.nowFn = now.Load
+	r.stopped = true // drive update() by hand instead of the real timer
+
+	if err := r.update(); err != nil {
+		t.Fatal(err)
+	}
+
+	var wg sync.WaitGroup
+	// One writer advancing the clock a full interval each time and rotating.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 1; i <= 50; i++ {
+			now.Store(int64(i) * interval.Milliseconds())
+			if err := r.update(); err != nil {
+				t.Errorf("update: %v", err)
+				return
+			}
+		}
+	}()
+	// Many readers hammering Secrets() throughout the rotations.
+	for g := 0; g < 8; g++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := 0; i < 500; i++ {
+				s := r.Secrets()
+				if len(s) == 0 || len(s[0]) < 32 {
+					t.Errorf("read a non-usable active secret: %v", s)
+					return
+				}
+			}
+		}()
+	}
+	wg.Wait()
 }
 
 func TestSecretRotator_StartRejectsBadInterval(t *testing.T) {
