@@ -79,4 +79,23 @@ test.describe('Sheet merged cells', () => {
     await expect(cell(page, 4, 0)).toHaveAttribute('rowspan', '2');
     await expect(cell(page, 3, 0)).not.toHaveAttribute('rowspan', '2');
   });
+
+  // Model semantics (absorb-on-overlap, insert-at-trailing-edge, delete-shrink)
+  // are covered by unit tests in workbookState.test.ts / merge_test.go and are
+  // not reachable through the toolbar toggle, so they stay out of the e2e layer.
+
+  test('arrow keys snap to the anchor and step past covered cells', async ({ page }) => {
+    await openSheet(page, `merge-nav-${Date.now()}`);
+    await selectRange(page, 1, 0, 2, 0); // merge A2:A3 (rows 1..2, col 0)
+    await mergeBtn(page).click();
+    await page.waitForTimeout(400);
+    await expect(cell(page, 1, 0)).toHaveAttribute('rowspan', '2');
+    await expect(cell(page, 2, 0)).toBeHidden();
+
+    await cell(page, 0, 0).click();
+    await page.keyboard.press('ArrowDown'); // into the merge → snaps to anchor
+    await expect(cell(page, 1, 0)).toHaveClass(/sheet-sel-focus/);
+    await page.keyboard.press('ArrowDown'); // leaving the merge → skips covered row
+    await expect(cell(page, 3, 0)).toHaveClass(/sheet-sel-focus/);
+  });
 });
