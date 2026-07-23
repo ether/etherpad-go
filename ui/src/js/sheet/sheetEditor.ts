@@ -573,6 +573,24 @@ export function startSheetEditor(root: HTMLElement): void {
       doPaste();
       return;
     }
+    // Ctrl/Cmd+B/I/U toggle the style on the selection, mirroring the ribbon's
+    // toggle buttons. Applying a style blurs the active cell, so the next
+    // shortcut arrives with focus on <body> — we must NOT require grid focus
+    // (that would break chaining B then I). Instead just skip real form fields
+    // so the formula bar keeps these keys. preventDefault stops the browser's
+    // contenteditable rich-text default on the focused cell.
+    const tag = (e.target as HTMLElement | null)?.tagName;
+    const inField = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+    if (mod && !editingNow() && !readOnly && !inField) {
+      const k = e.key.toLowerCase();
+      const styleKey = k === 'b' ? 'bold' : k === 'i' ? 'italic' : k === 'u' ? 'underline' : null;
+      if (styleKey) {
+        e.preventDefault();
+        const on = propsOf(selection.focus.row, selection.focus.col)[styleKey] === '1';
+        applyStyleToSelection({ [styleKey]: on ? '' : '1' });
+        return;
+      }
+    }
     // Clear the selection (single cell or range), like Excel. The grid-focus
     // guard replaces the old single-cell exclusion: it lets Delete clear one
     // cell while still keeping Backspace working in the formula bar and any
