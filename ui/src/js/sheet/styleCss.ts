@@ -5,13 +5,14 @@
 export type CellCss = {
   fontWeight?: string; fontStyle?: string; textDecoration?: string;
   color?: string; background?: string; textAlign?: string; border?: string;
-  fontFamily?: string; fontSize?: string; whiteSpace?: string;
+  fontFamily?: string; fontSize?: string; whiteSpace?: string; verticalAlign?: string;
 };
 
 // Defense in depth: props are validated server-side (lib/sheet/op.go), but a
 // value like bg: "url(...)" must never reach td.style even if bad data slips in.
 const HEX_COLOR = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 const ALIGNS = new Set(['left', 'center', 'right']);
+const VALIGNS = new Set(['top', 'middle', 'bottom']);
 const FONT_FAMILIES = new Set(['Calibri', 'Arial', 'Times New Roman', 'Courier New', 'Georgia', 'Verdana']);
 const FONT_SIZE = /^[1-9]\d?$/; // 6..96, range-checked below
 
@@ -19,7 +20,9 @@ export function styleToCss(props: Record<string, string>): CellCss {
   const css: CellCss = {};
   if (props.bold === '1') css.fontWeight = 'bold';
   if (props.italic === '1') css.fontStyle = 'italic';
-  if (props.underline === '1') css.textDecoration = 'underline';
+  // Excel allows underline and strikethrough together; CSS wants one property.
+  const lines = [props.underline === '1' ? 'underline' : '', props.strike === '1' ? 'line-through' : ''].filter(Boolean);
+  if (lines.length > 0) css.textDecoration = lines.join(' ');
   if (props.color && HEX_COLOR.test(props.color)) css.color = props.color;
   if (props.bg && HEX_COLOR.test(props.bg)) css.background = props.bg;
   if (props.align && ALIGNS.has(props.align)) css.textAlign = props.align;
@@ -30,6 +33,7 @@ export function styleToCss(props: Record<string, string>): CellCss {
     if (n >= 6 && n <= 96) css.fontSize = `${n}pt`;
   }
   if (props.wrap === '1') css.whiteSpace = 'normal';
+  if (props.valign && VALIGNS.has(props.valign)) css.verticalAlign = props.valign;
   return css;
 }
 

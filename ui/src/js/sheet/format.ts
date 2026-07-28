@@ -7,6 +7,16 @@ function parseFmt(numFmt: string): { kind: string; decimals: number | undefined 
   return { kind, decimals: n === undefined || Number.isNaN(n) ? undefined : n };
 }
 
+// stepDecimals implements Excel's "increase/decrease decimal" buttons: it keeps
+// the format kind and moves the digit count by `delta`, clamped to 0..9. A cell
+// still on General becomes a plain number format, exactly like Excel.
+export function stepDecimals(numFmt: string | undefined, delta: number): string {
+  const current = !numFmt || numFmt === 'general' || numFmt === 'text' || numFmt === 'date' ? 'number:2' : numFmt;
+  const { kind, decimals } = parseFmt(current);
+  const next = Math.min(9, Math.max(0, (decimals ?? 2) + delta));
+  return `${kind}:${next}`;
+}
+
 export function formatValue(value: string, _valueType: string, numFmt: string | undefined): string {
   if (!numFmt || numFmt === 'general' || numFmt === 'text') return value;
   const { kind, decimals } = parseFmt(numFmt);

@@ -29,6 +29,18 @@ describe('styleToCss', () => {
   });
 });
 
+describe('strikethrough and vertical alignment', () => {
+  it('combines underline and strike into one text-decoration', () => {
+    expect(styleToCss({ strike: '1' }).textDecoration).toBe('line-through');
+    expect(styleToCss({ underline: '1', strike: '1' }).textDecoration).toBe('underline line-through');
+    expect(styleToCss({}).textDecoration).toBeUndefined();
+  });
+  it('maps valign and rejects anything outside the vocabulary', () => {
+    expect(styleToCss({ valign: 'top' }).verticalAlign).toBe('top');
+    expect(styleToCss({ valign: 'baseline' }).verticalAlign).toBeUndefined();
+  });
+});
+
 describe('mergeProps / toggleProp', () => {
   it('merge overlays and empty-string removes', () => {
     expect(mergeProps({ bold: '1', color: '#c00' }, { italic: '1' })).toEqual({ bold: '1', color: '#c00', italic: '1' });

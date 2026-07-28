@@ -6,7 +6,7 @@ import { DomSheetView } from './sheetView';
 import { SheetPresence, effectiveCells, type PresenceFrame } from './sheetPresence';
 import { rangeToTSV, rangeToCSV, parseTSV, parseCSV, pasteOps, fillOps } from './sheetClipboard';
 import { normalize, selCells, selIsSingle, type Selection } from './sheetSelection';
-import { createToolbar } from './sheetToolbar';
+import { createToolbar, type ToolbarCallbacks } from './sheetToolbar';
 import { createSheetTabs } from './sheetTabs';
 import { sortRangeOps, distinctValues, hiddenRowsForFilter } from './sheetSortFilter';
 import { createFormulaBar, type FormulaBarHandle } from './sheetFormulaBar';
@@ -33,6 +33,13 @@ html, body { height: 100%; }
 body { margin: 0; overflow: hidden; }
 .sheet-app { display: flex; flex-direction: column; height: 100vh; }
 .sheet-grid-host { flex: 1; overflow: auto; min-height: 0; position: relative; }
+/* View tab toggles (client-local, like Excel's Show checkboxes). */
+.sheet-no-gridlines .sheet-grid, .sheet-no-gridlines .sheet-grid td { border-color: transparent; }
+.sheet-no-headings .sheet-grid thead, .sheet-no-headings .sheet-grid tbody th { display: none; }
+.sheet-ctx-menu { position: fixed; z-index: 40; min-width: 170px; background: #fff; border: 1px solid #d4d8dd; box-shadow: 0 4px 10px rgba(0,0,0,0.15); padding: 4px 0; font: 13px system-ui, sans-serif; }
+.sheet-ctx-menu button { display: block; width: 100%; text-align: left; border: none; background: none; padding: 7px 14px; font: inherit; color: #333; cursor: pointer; }
+.sheet-ctx-menu button:hover { background: #e6f2ec; }
+.sheet-ctx-menu hr { border: none; border-top: 1px solid #e3e6e9; margin: 4px 0; }
 .sheet-titlebar { display: flex; align-items: center; gap: 8px; height: 36px; flex: none; padding: 0 12px; background: #107c41; color: #fff; font: 14px system-ui, sans-serif; }
 .sheet-titlebar svg { flex: none; display: block; }
 .sheet-title-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -262,7 +269,9 @@ export function startSheetEditor(root: HTMLElement): void {
     titleName.textContent = padId;
     titlebar.appendChild(titleName);
     root.appendChild(titlebar);
-    const toolbar = createToolbar({
+    // Held in a named object so the cell context menu can trigger the same
+    // actions as the ribbon instead of duplicating them.
+    const actions: ToolbarCallbacks = {
       getProps: (r, c) => propsOf(r, c),
       focusCell: () => selection.focus,
       applyToSelection: applyStyleToSelection,
@@ -376,8 +385,32 @@ export function startSheetEditor(root: HTMLElement): void {
         else if (a === 'cut') doCut();
         else doPaste();
       },
-      autoSum: () => {
-        if (!readOnly) formulaBar?.beginFormula('=SUM(');
+      autoSum: (fn = 'SUM') => {
+        if (!readOnly) formulaBar?.beginFormula(`=${fn}(`);
+      },
+      fill: doFill,
+      clear: (what: 'all' | 'formats' | 'contents') => {
+        if (readOnly || !collab) return;
+        blurActiveCell();
+        const { r0, c0, r1, c1 } = normalize(selection);
+        if (what !== 'formats') {
+          collab.applyLocal({ type: 'clearRange', sheet: activeSheetId, baseRev: collab.rev, row: r0, col: c0, endRow: r1, endCol: c1 });
+        }
+        if (what !== 'contents') {
+          for (const { row, col } of selCells(selection)) {
+            if (Object.keys(propsOf(row, col)).length === 0) continue;
+            collab.applyLocal({ type: 'setStyle', sheet: activeSheetId, baseRev: collab.rev, row, col, props: {} });
+          }
+        }
+      },
+      viewOption: (opt: 'gridlines' | 'headings' | 'zoom', value: boolean | number) => {
+        if (opt === 'zoom') {
+          // font-size scaling, not a CSS transform: the grid keeps laying out
+          // normally, so sticky headers and hit testing stay correct.
+          gridHost.style.fontSize = `${(Number(value) * 13) / 100}px`;
+          return;
+        }
+        gridHost.classList.toggle(`sheet-no-${opt}`, value === false);
       },
       mergeToggle: () => {
         if (readOnly || !collab) return;
@@ -401,7 +434,8 @@ export function startSheetEditor(root: HTMLElement): void {
           sheet: activeSheetId, baseRev: collab.rev, row: r0, col: c0, endRow: r1, endCol: c1,
         });
       },
-    });
+    };
+    const toolbar = createToolbar(actions);
     formulaBar = createFormulaBar({
       readOnly: data.readonly,
       getFunctionNames: () => engine.functionNames(),
@@ -413,6 +447,54 @@ export function startSheetEditor(root: HTMLElement): void {
     });
     const gridHost = document.createElement('div');
     gridHost.className = 'sheet-grid-host';
+
+    // Right-click menu on the grid, wired to the same actions as the ribbon.
+    gridHost.addEventListener('contextmenu', (e) => {
+      if (!(e.target as HTMLElement).closest('td')) return;
+      e.preventDefault();
+      document.querySelector('.sheet-ctx-menu')?.remove();
+      const menu = document.createElement('div');
+      menu.className = 'sheet-ctx-menu';
+      const items: Array<[string, () => void] | null> = readOnly
+        ? [['Copy', () => actions.clipboardAction?.('copy')]]
+        : [
+            ['Cut', () => actions.clipboardAction?.('cut')],
+            ['Copy', () => actions.clipboardAction?.('copy')],
+            ['Paste', () => actions.clipboardAction?.('paste')],
+            null,
+            ['Insert row above', () => actions.structural?.('insRowAbove')],
+            ['Insert column left', () => actions.structural?.('insColLeft')],
+            ['Delete rows', () => actions.structural?.('delRows')],
+            ['Delete columns', () => actions.structural?.('delCols')],
+            null,
+            ['Clear contents', () => actions.clear?.('contents')],
+            ['Merge / unmerge', () => actions.mergeToggle?.()],
+          ];
+      const close = () => {
+        menu.remove();
+        document.removeEventListener('mousedown', outside, true);
+      };
+      const outside = (ev: MouseEvent) => {
+        if (!menu.contains(ev.target as Node)) close();
+      };
+      for (const item of items) {
+        if (!item) {
+          menu.appendChild(document.createElement('hr'));
+          continue;
+        }
+        const [label, run] = item;
+        const b = document.createElement('button');
+        b.textContent = label;
+        b.addEventListener('click', () => { close(); run(); });
+        menu.appendChild(b);
+      }
+      // Positioned inside the viewport (fixed coordinates, so no scroll math).
+      menu.style.left = `${Math.min(e.clientX, window.innerWidth - 180)}px`;
+      menu.style.top = `${Math.min(e.clientY, window.innerHeight - menu.childElementCount * 30 - 16)}px`;
+      document.body.appendChild(menu);
+      document.addEventListener('mousedown', outside, true);
+    });
+
     root.appendChild(toolbar);
     root.appendChild(formulaBar.el);
     root.appendChild(gridHost);
@@ -562,6 +644,15 @@ export function startSheetEditor(root: HTMLElement): void {
       for (const op of pasteOps(grid, { row: r0, col: c0 }, activeSheetId, collab.rev)) collab.applyLocal(op);
     });
   };
+  // Fill the selection from its first row (down) or first column (right).
+  // fillOps adjusts relative references, so formulas fill like in Excel.
+  const doFill = (dir: 'down' | 'right'): void => {
+    if (readOnly || !collab || selIsSingle(selection)) return;
+    blurActiveCell();
+    const { r0, c0, r1, c1 } = normalize(selection);
+    const src = { anchor: { row: r0, col: c0 }, focus: dir === 'down' ? { row: r0, col: c1 } : { row: r1, col: c0 } };
+    for (const op of fillOps(src, selection, activeSheetId, collab.rev, rawValue)) collab.applyLocal(op);
+  };
   document.addEventListener('keydown', (e) => {
     if (!collab) return;
     const mod = e.ctrlKey || e.metaKey;
@@ -578,6 +669,12 @@ export function startSheetEditor(root: HTMLElement): void {
     if (mod && (e.key === 'v' || e.key === 'V') && !editingNow() && !readOnly) {
       e.preventDefault();
       doPaste();
+      return;
+    }
+    // Ctrl+D / Ctrl+R fill the selection from its first row / column, like Excel.
+    if (mod && !editingNow() && !readOnly && (e.key === 'd' || e.key === 'D' || e.key === 'r' || e.key === 'R')) {
+      e.preventDefault();
+      doFill(e.key.toLowerCase() === 'd' ? 'down' : 'right');
       return;
     }
     // Ctrl/Cmd+B/I/U toggle the style on the selection, mirroring the ribbon's

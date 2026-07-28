@@ -173,12 +173,14 @@ func ValidateProps(props map[string]string) error {
 	for k, v := range props {
 		ok := false
 		switch k {
-		case "bold", "italic", "underline":
+		case "bold", "italic", "underline", "strike":
 			ok = v == "1"
 		case "color", "bg":
 			ok = hexColorRe.MatchString(v)
 		case "align":
 			ok = v == "left" || v == "center" || v == "right"
+		case "valign":
+			ok = v == "top" || v == "middle" || v == "bottom"
 		case "border":
 			ok = v == "all"
 		case "numFmt":

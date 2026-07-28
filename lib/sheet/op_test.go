@@ -61,6 +61,8 @@ func TestOpValidateProps(t *testing.T) {
 		{"color": "red"},                       // not hex
 		{"bold": "yes"},                        // not "1"
 		{"align": "justify"},                   // outside vocabulary
+		{"valign": "baseline"},                 // outside vocabulary
+		{"strike": "yes"},                      // not "1"
 		{"numFmt": "number:999"},               // decimals capped at 2 digits
 		{"expression": "alert(1)"},             // unknown key
 		{"border": "1px solid url(https://x)"}, // only "all"
