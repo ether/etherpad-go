@@ -11,6 +11,7 @@ import {
   HyperFormula,
   SimpleRangeValue,
 } from 'hyperformula';
+import { BondFunctionsPlugin, bondFunctionNames } from './bondFunctions';
 
 // HyperFormula's interpreter types (ProcedureAst, InterpreterState,
 // InternalScalarValue) are not part of its public API, so plugin methods and
@@ -1026,17 +1027,23 @@ ExcelExtrasPlugin.aliases = {
   'FORECAST.LINEAR': 'FORECAST',
 };
 
-const names = [...Object.keys(ExcelExtrasPlugin.implementedFunctions), ...Object.keys(ExcelExtrasPlugin.aliases)];
+const extraNames = [...Object.keys(ExcelExtrasPlugin.implementedFunctions), ...Object.keys(ExcelExtrasPlugin.aliases ?? {})];
+const names = [...extraNames, ...bondFunctionNames];
 
 let registered = false;
+
+const translate = (plugin: Parameters<typeof HyperFormula.registerFunctionPlugin>[0], ids: string[]): void => {
+  const translations = Object.fromEntries(ids.map((n) => [n, n]));
+  HyperFormula.registerFunctionPlugin(plugin, { enGB: translations, enUS: translations });
+};
 
 // registerExcelFunctions is idempotent — HyperFormula's registry is global and
 // throws on a duplicate function id.
 export function registerExcelFunctions(): void {
   if (registered) return;
   registered = true;
-  const translations = Object.fromEntries(names.map((n) => [n, n]));
-  HyperFormula.registerFunctionPlugin(ExcelExtrasPlugin, { enGB: translations, enUS: translations });
+  translate(ExcelExtrasPlugin, extraNames);
+  translate(BondFunctionsPlugin, bondFunctionNames);
 }
 
 export const excelExtraFunctionNames = names;
