@@ -26,6 +26,21 @@ const DATE_RESULT = 'NUMBER_DATE' as unknown as ImplementedFunctions[string]['re
 
 const VALID_FREQUENCIES = [1, 2, 4];
 
+// solve finds the yield where `f` crosses zero. Bisection over the plausible
+// yield range: slower than Newton, but it cannot diverge on the odd-period
+// price curves, and 200 steps land well inside double precision.
+const solve = (f: (y: number) => number): number | CellError => {
+  let lo = -0.99;
+  let hi = 10;
+  if (f(lo) * f(hi) > 0) return numErr('Yield could not be determined.');
+  for (let i = 0; i < 200; i++) {
+    const mid = (lo + hi) / 2;
+    if (f(lo) * f(mid) <= 0) hi = mid;
+    else lo = mid;
+  }
+  return (lo + hi) / 2;
+};
+
 export class BondFunctionsPlugin extends FunctionPlugin {
   // --- day counts -----------------------------------------------------------
 
@@ -167,6 +182,161 @@ export class BondFunctionsPlugin extends FunctionPlugin {
     return price - (coupon * a) / e;
   }
 
+  // --- odd first/last period ------------------------------------------------
+
+  // quasiPeriods lists the notional coupon dates of an odd first period: the
+  // first coupon date, then one schedule step back at a time until the issue
+  // date is covered. Descending, so q[i+1] .. q[i] is one quasi-coupon period.
+  private quasiPeriods(firstCoupon: number, frequency: number, issue: number): number[] {
+    const anchor = this.date(firstCoupon);
+    const step = 12 / frequency;
+    const dates = [Math.trunc(firstCoupon)];
+    for (let k = 1; k < 4000; k++) {
+      const d = this.stepMonths(anchor, -step * k);
+      dates.push(d);
+      if (d <= Math.trunc(issue)) break;
+    }
+    return dates;
+  }
+
+  private quasiLength(dates: number[], i: number, frequency: number, basis: number): number {
+    return basis === 1 ? dates[i] - dates[i + 1] : (basis === 3 ? 365 : 360) / frequency;
+  }
+
+  // periodFraction sums, over the quasi-coupon periods, the share of each period
+  // covered by [from, to] — Excel's Σ DCi/NLi and Σ Ai/NLi.
+  private periodFraction(dates: number[], from: number, to: number, frequency: number, basis: number): number {
+    let sum = 0;
+    for (let i = 0; i < dates.length - 1; i++) {
+      const start = Math.max(from, dates[i + 1]);
+      const end = Math.min(to, dates[i]);
+      if (end > start) sum += this.dayDiff(start, end, basis) / this.quasiLength(dates, i, frequency, basis);
+    }
+    return sum;
+  }
+
+  // oddfPriceOf covers both the short and the long odd first period: with a
+  // short one there is a single quasi-coupon period, so the whole-period count
+  // Nq is 0 and this collapses to the plain PRICE shape.
+  private oddfPriceOf(
+    settlement: number,
+    maturity: number,
+    issue: number,
+    firstCoupon: number,
+    rate: number,
+    yld: number,
+    redemption: number,
+    frequency: number,
+    basis: number,
+  ): number {
+    const dates = this.quasiPeriods(firstCoupon, frequency, issue);
+    // The quasi period holding the settlement date; everything before it is a
+    // whole period that has to be discounted as well.
+    let nq = 0;
+    while (nq < dates.length - 1 && Math.trunc(settlement) < dates[nq + 1]) nq++;
+    const dsc = this.dayDiff(Math.trunc(settlement), dates[nq], basis);
+    const nl = this.quasiLength(dates, nq, frequency, basis);
+    const stub = nq + dsc / nl;
+    const n = this.coupons(firstCoupon - 1, maturity, frequency).num;
+    const coupon = (100 * rate) / frequency;
+    const discount = 1 + yld / frequency;
+    const oddCoupon = coupon * this.periodFraction(dates, Math.trunc(issue), Math.trunc(firstCoupon), frequency, basis);
+    const accrued = coupon * this.periodFraction(dates, Math.trunc(issue), Math.trunc(settlement), frequency, basis);
+    let price = redemption / discount ** (n - 1 + stub) + oddCoupon / discount ** stub;
+    for (let k = 2; k <= n; k++) price += coupon / discount ** (k - 1 + stub);
+    return price - accrued;
+  }
+
+  // The odd last period has no compounding left to model: one discounting step
+  // over the remaining (possibly stretched) period, minus accrued interest.
+  private oddlPriceOf(
+    settlement: number,
+    maturity: number,
+    lastInterest: number,
+    rate: number,
+    yld: number,
+    redemption: number,
+    frequency: number,
+    basis: number,
+  ): number {
+    const periods = (from: number, to: number): number => this.yearFrac(from, to, basis) * frequency;
+    const coupon = (100 * rate) / frequency;
+    const total = redemption + coupon * periods(lastInterest, maturity);
+    return total / (1 + (periods(settlement, maturity) * yld) / frequency) - coupon * periods(lastInterest, settlement);
+  }
+
+  private checkOdd(settlement: number, maturity: number, boundary: number, frequency: number, before: boolean): CellError | undefined {
+    const bad = this.check(settlement, maturity, frequency);
+    if (bad) return bad;
+    // ODDF: issue < settlement < first coupon <= maturity.
+    // ODDL: last interest < settlement < maturity.
+    if (before && Math.trunc(boundary) >= Math.trunc(settlement)) return numErr('Date must be before settlement.');
+    if (!before && Math.trunc(boundary) <= Math.trunc(settlement)) return numErr('Date must be after settlement.');
+    return undefined;
+  }
+
+  oddfprice(ast: Val, state: Val): Val {
+    return this.runFunction(
+      ast.args,
+      state,
+      this.metadata('ODDFPRICE'),
+      (
+        s: number,
+        m: number,
+        issue: number,
+        first: number,
+        rate: number,
+        yld: number,
+        redemption: number,
+        f: number,
+        b: number,
+      ) =>
+        this.checkOdd(s, m, issue, f, true) ??
+        this.checkOdd(s, m, first, f, false) ??
+        this.oddfPriceOf(s, m, issue, first, rate, yld, redemption, f, b),
+    );
+  }
+
+  oddfyield(ast: Val, state: Val): Val {
+    return this.runFunction(
+      ast.args,
+      state,
+      this.metadata('ODDFYIELD'),
+      (s: number, m: number, issue: number, first: number, rate: number, pr: number, redemption: number, f: number, b: number) =>
+        this.checkOdd(s, m, issue, f, true) ??
+        this.checkOdd(s, m, first, f, false) ??
+        solve((y) => this.oddfPriceOf(s, m, issue, first, rate, y, redemption, f, b) - pr),
+    );
+  }
+
+  oddlprice(ast: Val, state: Val): Val {
+    return this.runFunction(
+      ast.args,
+      state,
+      this.metadata('ODDLPRICE'),
+      (s: number, m: number, last: number, rate: number, yld: number, redemption: number, f: number, b: number) =>
+        this.checkOdd(s, m, last, f, true) ?? this.oddlPriceOf(s, m, last, rate, yld, redemption, f, b),
+    );
+  }
+
+  oddlyield(ast: Val, state: Val): Val {
+    return this.runFunction(
+      ast.args,
+      state,
+      this.metadata('ODDLYIELD'),
+      (s: number, m: number, last: number, rate: number, pr: number, redemption: number, f: number, b: number) => {
+        const bad = this.checkOdd(s, m, last, f, true);
+        if (bad) return bad;
+        // ODDLPRICE is linear in the yield, so this inverts exactly.
+        const periods = (from: number, to: number): number => this.yearFrac(from, to, b) * f;
+        const coupon = (100 * rate) / f;
+        const total = redemption + coupon * periods(last, m);
+        const paid = pr + coupon * periods(last, s);
+        return (total / paid - 1) * (f / periods(s, m));
+      },
+    );
+  }
+
   // --- coupon date functions ------------------------------------------------
 
   coupdaybs(ast: Val, state: Val): Val {
@@ -223,20 +393,9 @@ export class BondFunctionsPlugin extends FunctionPlugin {
       state,
       this.metadata('YIELD'),
       (s: number, m: number, rate: number, pr: number, redemption: number, f: number, b: number) => {
-        const bad = this.check(s, m, f);
-        if (bad) return bad;
         // ponytail: one numeric solve for all cases instead of Excel's separate
         // closed form for the final coupon period — same root, less code.
-        const target = (y: number): number => this.priceOf(s, m, rate, y, redemption, f, b) - pr;
-        let lo = -0.99;
-        let hi = 10;
-        if (target(lo) * target(hi) > 0) return numErr('Yield could not be determined.');
-        for (let i = 0; i < 200; i++) {
-          const mid = (lo + hi) / 2;
-          if (target(lo) * target(mid) <= 0) hi = mid;
-          else lo = mid;
-        }
-        return (lo + hi) / 2;
+        return this.check(s, m, f) ?? solve((y) => this.priceOf(s, m, rate, y, redemption, f, b) - pr);
       },
     );
   }
@@ -449,6 +608,22 @@ BondFunctionsPlugin.implementedFunctions = {
   RECEIVED: { method: 'received', parameters: [dateArg, dateArg, cashArg, rateArg, basisArg] },
   PRICEDISC: { method: 'pricedisc', parameters: [dateArg, dateArg, rateArg, cashArg, basisArg] },
   YIELDDISC: { method: 'yielddisc', parameters: [dateArg, dateArg, cashArg, cashArg, basisArg] },
+  ODDFPRICE: {
+    method: 'oddfprice',
+    parameters: [dateArg, dateArg, dateArg, dateArg, rateArg, rateArg, cashArg, { argumentType: T.INTEGER }, basisArg],
+  },
+  ODDFYIELD: {
+    method: 'oddfyield',
+    parameters: [dateArg, dateArg, dateArg, dateArg, rateArg, cashArg, cashArg, { argumentType: T.INTEGER }, basisArg],
+  },
+  ODDLPRICE: {
+    method: 'oddlprice',
+    parameters: [dateArg, dateArg, dateArg, rateArg, rateArg, cashArg, { argumentType: T.INTEGER }, basisArg],
+  },
+  ODDLYIELD: {
+    method: 'oddlyield',
+    parameters: [dateArg, dateArg, dateArg, rateArg, cashArg, cashArg, { argumentType: T.INTEGER }, basisArg],
+  },
   PRICEMAT: { method: 'pricemat', parameters: [dateArg, dateArg, dateArg, rateArg, rateArg, basisArg] },
   YIELDMAT: { method: 'yieldmat', parameters: [dateArg, dateArg, dateArg, rateArg, cashArg, basisArg] },
 };
