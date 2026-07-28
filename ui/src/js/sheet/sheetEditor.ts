@@ -174,7 +174,13 @@ export function startSheetEditor(root: HTMLElement): void {
 
   const displayValue = (r: number, c: number): string => {
     const cell = collab?.display.getCell(activeSheetId, r, c);
-    if (!cell || cell.raw === '') return '';
+    if (!cell || cell.raw === '') {
+      // Cell has no content of its own, but an array formula elsewhere may
+      // spill into it (=UNIQUE(..), =SORT(..), =SEQUENCE(..)). Excel shows
+      // those spilled values, so ask the engine.
+      const spilled = engine.getValue(r, c);
+      return spilled.type === 'empty' ? '' : formatValue(spilled.value, '', propsOf(r, c).numFmt);
+    }
     const raw = cell.raw.startsWith('=') ? engine.getValue(r, c).value : cell.raw;
     return formatValue(raw, '', propsOf(r, c).numFmt);
   };
@@ -485,7 +491,8 @@ export function startSheetEditor(root: HTMLElement): void {
       // gate skips non-formula cells. Fold into displayValue if the grid grows.
       errorOf: (r, c) => {
         const cell = collab?.display.getCell(activeSheetId, r, c);
-        if (!cell || !cell.raw.startsWith('=')) return undefined;
+        // '' included: an array formula can spill an error into a blank cell.
+        if (cell && cell.raw !== '' && !cell.raw.startsWith('=')) return undefined;
         const res = engine.getValue(r, c);
         return res.type === 'error' ? res.value : undefined;
       },

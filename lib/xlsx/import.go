@@ -57,7 +57,7 @@ func Import(r io.Reader) (sheet.WorkbookSnapshot, error) {
 				}
 				raw := val
 				if formula, ferr := f.GetCellFormula(name, axis); ferr == nil && formula != "" {
-					raw = "=" + formula
+					raw = "=" + stripFunctionPrefixes(formula)
 				}
 				styleId := 0
 				if xid, serr := f.GetCellStyle(name, axis); serr == nil && xid != 0 {
