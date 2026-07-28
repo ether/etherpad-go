@@ -201,6 +201,43 @@ test.describe('Sheet Excel chrome', () => {
     await expect(cell(page, 1, 0)).toHaveText('b');
   });
 
+  test('find selects the matching cell, replace all rewrites every match', async ({ page }) => {
+    const padId = `xl-find-${Date.now()}`;
+    await openSheet(page, padId);
+    await commitCell(page, 0, 0, 'alpha'); // A1
+    await commitCell(page, 1, 0, 'beta'); // A2
+    await commitCell(page, 2, 0, 'alphabet'); // A3
+
+    await cell(page, 0, 1).click(); // park the selection outside the matches
+    await page.keyboard.press('Control+f');
+    const dialog = page.locator('.sheet-find');
+    await expect(dialog).toBeVisible();
+
+    await dialog.locator('input[type=text]').first().fill('alpha');
+    await dialog.locator('button', { hasText: 'Find Next' }).click();
+    // A1 is the first match in row-major order and becomes the focused cell.
+    await expect(cell(page, 0, 0)).toHaveClass(/sheet-sel-focus/);
+    await expect(dialog.locator('.sheet-find-status')).toContainText('2 cells found');
+
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+
+    await cell(page, 0, 1).click(); // focus back on the grid before the shortcut
+    await page.keyboard.press('Control+h');
+    await dialog.locator('input[type=text]').first().fill('alpha');
+    await dialog.locator('input[type=text]').nth(1).fill('gamma');
+    await dialog.locator('button', { hasText: 'Replace All' }).click();
+    await expect(cell(page, 0, 0)).toHaveText('gamma');
+    await expect(cell(page, 2, 0)).toHaveText('gammabet');
+    await expect(cell(page, 1, 0)).toHaveText('beta'); // untouched
+
+    // The sweep is one undo step.
+    await page.keyboard.press('Escape');
+    await page.locator('.sheet-toolbar button[title="Undo (Ctrl+Z)"]').click();
+    await expect(cell(page, 0, 0)).toHaveText('alpha');
+    await expect(cell(page, 2, 0)).toHaveText('alphabet');
+  });
+
   test('selected cell highlights its row and column headers', async ({ page }) => {
     const padId = `xl-headhl-${Date.now()}`;
     await openSheet(page, padId);

@@ -364,6 +364,16 @@ export class DomSheetView {
     return this.selection;
   }
 
+  // setSelection moves the selection programmatically (Find Next, Go To) and
+  // scrolls the focused cell into view. Notifies like a click would, so the
+  // editor's selection mirror and the formula bar follow along.
+  setSelection(sel: Selection): void {
+    this.selection = sel;
+    this.opts.onSelectionChange?.(sel);
+    this.render();
+    this.cells[sel.focus.row]?.[sel.focus.col]?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }
+
   // isEditing reports whether the user is actively typing into a cell (as
   // opposed to merely having a cell selected/focused). Clipboard and
   // range-delete shortcuts must NOT fire while actively editing.
