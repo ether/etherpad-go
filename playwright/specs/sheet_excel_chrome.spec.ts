@@ -159,11 +159,36 @@ test.describe('Sheet Excel chrome', () => {
     await ctx.close();
   });
 
+  test('typing over a selected cell replaces it, F2 and double-click edit it', async ({ page }) => {
+    const padId = `xl-overwrite-${Date.now()}`;
+    await openSheet(page, padId);
+    await commitCell(page, 0, 0, 'old'); // A1
+
+    // Selected, not editing: the first keystroke wipes the old content.
+    await cell(page, 0, 0).click();
+    await page.keyboard.type('new', { delay: 30 });
+    await page.keyboard.press('Enter');
+    await expect(cell(page, 0, 0)).toHaveText('new');
+
+    // F2 keeps the content and appends at the end.
+    await cell(page, 0, 0).click();
+    await page.keyboard.press('F2');
+    await page.keyboard.type('er', { delay: 30 });
+    await page.keyboard.press('Enter');
+    await expect(cell(page, 0, 0)).toHaveText('newer');
+
+    // Double-click also edits in place instead of overwriting.
+    await cell(page, 0, 0).dblclick();
+    await page.keyboard.type('!', { delay: 30 });
+    await page.keyboard.press('Enter');
+    await expect(cell(page, 0, 0)).toHaveText(/newer/);
+    await expect(cell(page, 0, 0)).toHaveText(/!/);
+  });
+
   test('undo and redo revert and reapply an edit', async ({ page }) => {
     const padId = `xl-undo-${Date.now()}`;
     await openSheet(page, padId);
-    // Typing into a cell appends to its content, so each value goes into a
-    // fresh cell — this test is about the history, not about cell editing.
+    // Two separate cells, so each edit is its own history entry.
     await commitCell(page, 0, 0, 'first'); // A1
     await commitCell(page, 1, 0, 'second'); // A2
 
