@@ -33,6 +33,11 @@ export interface ToolbarCallbacks {
   clear?: (what: 'all' | 'formats' | 'contents') => void;
   // Ribbon: View toggles that only affect this client (never sent on the wire).
   viewOption?: (opt: 'gridlines' | 'headings' | 'zoom', value: boolean | number) => void;
+  // Undo/redo of this client's own edits. history() drives the button states;
+  // the editor calls the returned refresh() whenever the workbook changes.
+  undo?: () => void;
+  redo?: () => void;
+  history?: () => { canUndo: boolean; canRedo: boolean };
   // Merge/unmerge the current selection (the editor decides which).
   mergeToggle?: () => void;
 }
@@ -100,9 +105,15 @@ const IC = {
   fillDown: '<rect x="3.5" y="1.5" width="9" height="3.5"/><path d="M8 6.5V13M5.5 10.5 8 13l2.5-2.5"/>',
   fillRight: '<rect x="1.5" y="3.5" width="3.5" height="9"/><path d="M6.5 8H13M10.5 5.5 13 8l-2.5 2.5"/>',
   clear: '<path d="M3 13h10"/><path d="m5.5 10.5 6-6a1.5 1.5 0 0 0-2-2l-6 6z"/><path d="M9 3.5 12.5 7"/>',
+  undo: '<path d="M3 8h7a3.5 3.5 0 0 1 0 7H6"/><path d="M5.5 5 2.5 8l3 3"/>',
+  redo: '<path d="M13 8H6a3.5 3.5 0 0 0 0 7h4"/><path d="M10.5 5l3 3-3 3"/>',
 };
 
-export function createToolbar(cb: ToolbarCallbacks): HTMLElement {
+// The returned element carries refreshHistory(): the editor calls it after every
+// workbook change so the undo/redo buttons show whether there is anything left.
+export type ToolbarElement = HTMLElement & { refreshHistory: () => void };
+
+export function createToolbar(cb: ToolbarCallbacks): ToolbarElement {
   if (!document.getElementById('sheet-toolbar-style')) {
     const s = document.createElement('style');
     s.id = 'sheet-toolbar-style';
@@ -283,6 +294,22 @@ export function createToolbar(cb: ToolbarCallbacks): HTMLElement {
     b.dataset.key = key;
     return b;
   };
+
+  // --- Home: Undo (Excel keeps these in the quick-access bar; same actions) ---
+  let refreshHistory = (): void => {};
+  if (cb.undo && cb.redo) {
+    const hist = row(group('Home', 'Undo'));
+    const undoBtn = btn(hist, { icon: IC.undo }, 'Undo (Ctrl+Z)', () => cb.undo?.());
+    const redoBtn = btn(hist, { icon: IC.redo }, 'Redo (Ctrl+Y)', () => cb.redo?.());
+    refreshHistory = () => {
+      const state = cb.history?.() ?? { canUndo: false, canRedo: false };
+      undoBtn.disabled = !state.canUndo;
+      redoBtn.disabled = !state.canRedo;
+      undoBtn.style.opacity = state.canUndo ? '' : '0.4';
+      redoBtn.style.opacity = state.canRedo ? '' : '0.4';
+    };
+    refreshHistory();
+  }
 
   // --- Home: Clipboard ---
   if (cb.clipboardAction) {
@@ -541,5 +568,5 @@ export function createToolbar(cb: ToolbarCallbacks): HTMLElement {
   }
 
   selectTab('Home');
-  return bar;
+  return Object.assign(bar, { refreshHistory: () => refreshHistory() });
 }

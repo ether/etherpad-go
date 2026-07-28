@@ -159,6 +159,48 @@ test.describe('Sheet Excel chrome', () => {
     await ctx.close();
   });
 
+  test('undo and redo revert and reapply an edit', async ({ page }) => {
+    const padId = `xl-undo-${Date.now()}`;
+    await openSheet(page, padId);
+    // Typing into a cell appends to its content, so each value goes into a
+    // fresh cell — this test is about the history, not about cell editing.
+    await commitCell(page, 0, 0, 'first'); // A1
+    await commitCell(page, 1, 0, 'second'); // A2
+
+    // Toolbar path: undo the second edit, redo it.
+    await page.locator('.sheet-toolbar button[title="Undo (Ctrl+Z)"]').click();
+    await expect(cell(page, 1, 0)).toHaveText('');
+    await expect(cell(page, 0, 0)).toHaveText('first'); // the older edit stands
+    await page.locator('.sheet-toolbar button[title="Redo (Ctrl+Y)"]').click();
+    await expect(cell(page, 1, 0)).toHaveText('second');
+
+    // Keyboard path, stepping back through both edits.
+    await cell(page, 3, 3).click(); // focus a cell outside the edited ones
+    await page.keyboard.press('Control+z');
+    await expect(cell(page, 1, 0)).toHaveText('');
+    await page.keyboard.press('Control+z');
+    await expect(cell(page, 0, 0)).toHaveText('');
+    await page.keyboard.press('Control+y');
+    await expect(cell(page, 0, 0)).toHaveText('first');
+  });
+
+  test('undoing a multi-cell action reverts it in one step', async ({ page }) => {
+    const padId = `xl-undogroup-${Date.now()}`;
+    await openSheet(page, padId);
+    await commitCell(page, 0, 0, 'a'); // A1
+    await commitCell(page, 1, 0, 'b'); // A2
+
+    // Clear Contents writes one op per cell; undo must restore both at once.
+    await dragSelect(page, 0, 0, 1, 0);
+    await page.locator('.sheet-toolbar button[title="Clear"]').click();
+    await page.locator('.sheet-file-menu button', { hasText: 'Clear Contents' }).click();
+    await expect(cell(page, 0, 0)).toHaveText('');
+
+    await page.locator('.sheet-toolbar button[title="Undo (Ctrl+Z)"]').click();
+    await expect(cell(page, 0, 0)).toHaveText('a');
+    await expect(cell(page, 1, 0)).toHaveText('b');
+  });
+
   test('selected cell highlights its row and column headers', async ({ page }) => {
     const padId = `xl-headhl-${Date.now()}`;
     await openSheet(page, padId);

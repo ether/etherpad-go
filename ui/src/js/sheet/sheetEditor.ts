@@ -6,7 +6,7 @@ import { DomSheetView } from './sheetView';
 import { SheetPresence, effectiveCells, type PresenceFrame } from './sheetPresence';
 import { rangeToTSV, rangeToCSV, parseTSV, parseCSV, pasteOps, fillOps } from './sheetClipboard';
 import { normalize, selCells, selIsSingle, type Selection } from './sheetSelection';
-import { createToolbar, type ToolbarCallbacks } from './sheetToolbar';
+import { createToolbar, type ToolbarCallbacks, type ToolbarElement } from './sheetToolbar';
 import { createSheetTabs } from './sheetTabs';
 import { sortRangeOps, distinctValues, hiddenRowsForFilter } from './sheetSortFilter';
 import { createFormulaBar, type FormulaBarHandle } from './sheetFormulaBar';
@@ -73,6 +73,7 @@ export function startSheetEditor(root: HTMLElement): void {
   // Client-local filter state (per active sheet, reset on switch — not collaborative).
   let hiddenRows = new Set<number>();
   let tabs: { el: HTMLElement; refresh: () => void } | null = null;
+  let toolbarEl: ToolbarElement | null = null;
 
   const transport = {
     send: (op: Op) =>
@@ -233,6 +234,7 @@ export function startSheetEditor(root: HTMLElement): void {
     }
     view?.render();
     tabs?.refresh();
+    toolbarEl?.refreshHistory();
     if (formulaBar) {
       const { r0, c0, r1, c1 } = normalize(selection);
       formulaBar.setActive(rangeRefA1(r0, c0, r1, c1), rawValue(selection.focus.row, selection.focus.col));
@@ -389,6 +391,9 @@ export function startSheetEditor(root: HTMLElement): void {
         if (!readOnly) formulaBar?.beginFormula(`=${fn}(`);
       },
       fill: doFill,
+      undo: () => doHistory('undo'),
+      redo: () => doHistory('redo'),
+      history: () => ({ canUndo: collab?.canUndo() ?? false, canRedo: collab?.canRedo() ?? false }),
       clear: (what: 'all' | 'formats' | 'contents') => {
         if (readOnly || !collab) return;
         blurActiveCell();
@@ -436,6 +441,7 @@ export function startSheetEditor(root: HTMLElement): void {
       },
     };
     const toolbar = createToolbar(actions);
+    toolbarEl = toolbar;
     formulaBar = createFormulaBar({
       readOnly: data.readonly,
       getFunctionNames: () => engine.functionNames(),
@@ -644,6 +650,15 @@ export function startSheetEditor(root: HTMLElement): void {
       for (const op of pasteOps(grid, { row: r0, col: c0 }, activeSheetId, collab.rev)) collab.applyLocal(op);
     });
   };
+  // Undo/redo this client's own edits. Blur first so a half-typed cell does not
+  // get committed over the restored value by the blur handler.
+  const doHistory = (which: 'undo' | 'redo'): void => {
+    if (readOnly || !collab) return;
+    blurActiveCell();
+    if (which === 'undo') collab.undo();
+    else collab.redo();
+  };
+
   // Fill the selection from its first row (down) or first column (right).
   // fillOps adjusts relative references, so formulas fill like in Excel.
   const doFill = (dir: 'down' | 'right'): void => {
@@ -670,6 +685,21 @@ export function startSheetEditor(root: HTMLElement): void {
       e.preventDefault();
       doPaste();
       return;
+    }
+    // Ctrl+Z / Ctrl+Y (and Ctrl+Shift+Z) — only outside cell editing, where the
+    // browser's own text undo still owns the keystroke.
+    if (mod && !editingNow() && !readOnly) {
+      const k = e.key.toLowerCase();
+      if (k === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        doHistory('undo');
+        return;
+      }
+      if (k === 'y' || (k === 'z' && e.shiftKey)) {
+        e.preventDefault();
+        doHistory('redo');
+        return;
+      }
     }
     // Ctrl+D / Ctrl+R fill the selection from its first row / column, like Excel.
     if (mod && !editingNow() && !readOnly && (e.key === 'd' || e.key === 'D' || e.key === 'r' || e.key === 'R')) {
