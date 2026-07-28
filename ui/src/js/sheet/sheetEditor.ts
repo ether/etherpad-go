@@ -5,11 +5,13 @@ import { FormulaEngine } from './formulaEngine';
 import { DomSheetView } from './sheetView';
 import { SheetPresence, effectiveCells, type PresenceFrame } from './sheetPresence';
 import { rangeToTSV, rangeToCSV, parseTSV, parseCSV, pasteOps, fillOps } from './sheetClipboard';
-import { normalize, selCells, selIsSingle, type Selection } from './sheetSelection';
+import { normalize, selCells, selFromSingle, selIsSingle, type Selection } from './sheetSelection';
 import { createToolbar, type ToolbarCallbacks, type ToolbarElement } from './sheetToolbar';
 import { createSheetTabs } from './sheetTabs';
 import { sortRangeOps, distinctValues, hiddenRowsForFilter } from './sheetSortFilter';
 import { createFormulaBar, type FormulaBarHandle } from './sheetFormulaBar';
+import { createFindDialog } from './sheetFindDialog';
+import { findAll, findNext, matches, replaceAll, replaceInRaw } from './findReplace';
 import { rangeRefA1 } from './a1';
 import { mergeProps } from './styleCss';
 import { formatValue } from './format';
@@ -394,6 +396,7 @@ export function startSheetEditor(root: HTMLElement): void {
       undo: () => doHistory('undo'),
       redo: () => doHistory('redo'),
       history: () => ({ canUndo: collab?.canUndo() ?? false, canRedo: collab?.canRedo() ?? false }),
+      openFind: (mode: 'find' | 'replace') => findDialog.open(readOnly ? 'find' : mode),
       clear: (what: 'all' | 'formats' | 'contents') => {
         if (readOnly || !collab) return;
         blurActiveCell();
@@ -504,6 +507,7 @@ export function startSheetEditor(root: HTMLElement): void {
     root.appendChild(toolbar);
     root.appendChild(formulaBar.el);
     root.appendChild(gridHost);
+    root.appendChild(findDialog.el);
 
     const setActiveSheet = (id: string): void => {
       if (id === activeSheetId) return;
@@ -650,6 +654,44 @@ export function startSheetEditor(root: HTMLElement): void {
       for (const op of pasteOps(grid, { row: r0, col: c0 }, activeSheetId, collab.rev)) collab.applyLocal(op);
     });
   };
+  // --- Find & Replace ---------------------------------------------------
+  // Searches the raw cell content (Excel's default "Look in: Formulas"), so a
+  // formula is found by its text and a replacement rewrites the formula.
+  const findDialog = createFindDialog({
+    readOnly: false, // re-checked per action: `readOnly` is only known after the handshake
+    findNext: (query, opts) => {
+      const cells = cellsOfActive();
+      const hit = findNext(cells, query, selection.focus, opts);
+      if (hit) view?.setSelection(selFromSingle(hit.row, hit.col));
+      return { found: hit !== null, total: findAll(cells, query, opts).length };
+    },
+    replace: (query, replacement, opts) => {
+      const here = selection.focus;
+      const raw = rawValue(here.row, here.col);
+      let replaced = false;
+      if (!readOnly && collab && matches(raw, query, opts)) {
+        collab.applyLocal({
+          type: 'setCell', sheet: activeSheetId, baseRev: collab.rev,
+          row: here.row, col: here.col, raw: replaceInRaw(raw, query, replacement, opts),
+        });
+        replaced = true;
+      }
+      const hit = findNext(cellsOfActive(), query, here, opts);
+      if (hit) view?.setSelection(selFromSingle(hit.row, hit.col));
+      return { replaced, total: findAll(cellsOfActive(), query, opts).length };
+    },
+    replaceAll: (query, replacement, opts) => {
+      if (readOnly || !collab) return 0;
+      blurActiveCell();
+      const changed = replaceAll(cellsOfActive(), query, replacement, opts);
+      // One tick, so the whole sweep is a single undo step.
+      for (const c of changed) {
+        collab.applyLocal({ type: 'setCell', sheet: activeSheetId, baseRev: collab.rev, row: c.row, col: c.col, raw: c.raw });
+      }
+      return changed.length;
+    },
+  });
+
   // Undo/redo this client's own edits. Blur first so a half-typed cell does not
   // get committed over the restored value by the blur handler.
   const doHistory = (which: 'undo' | 'redo'): void => {
@@ -684,6 +726,12 @@ export function startSheetEditor(root: HTMLElement): void {
     if (mod && (e.key === 'v' || e.key === 'V') && !editingNow() && !readOnly) {
       e.preventDefault();
       doPaste();
+      return;
+    }
+    // Ctrl+F / Ctrl+H open the dialog (Ctrl+H only when it can replace).
+    if (mod && !editingNow() && (e.key === 'f' || e.key === 'F' || e.key === 'h' || e.key === 'H')) {
+      e.preventDefault();
+      findDialog.open(e.key.toLowerCase() === 'h' && !readOnly ? 'replace' : 'find');
       return;
     }
     // Ctrl+Z / Ctrl+Y (and Ctrl+Shift+Z) — only outside cell editing, where the
