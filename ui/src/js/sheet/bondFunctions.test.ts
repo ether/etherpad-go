@@ -134,6 +134,53 @@ describe('discounted securities', () => {
   });
 });
 
+describe('odd first and last periods', () => {
+  it('ODDFPRICE matches the documented example', () => {
+    // Long odd first period: issued 15 Oct 2008, first coupon only 1 Mar 2009.
+    expect(num('=ODDFPRICE(DATE(2008,11,11),DATE(2021,3,1),DATE(2008,10,15),DATE(2009,3,1),0.0785,0.0625,100,2,1)')).toBeCloseTo(
+      113.597717,
+      4,
+    );
+  });
+
+  it('ODDFYIELD inverts ODDFPRICE', () => {
+    expect(num('=ODDFYIELD(DATE(2008,11,11),DATE(2021,3,1),DATE(2008,10,15),DATE(2009,3,1),0.0575,84.5,100,2,0)')).toBeCloseTo(
+      0.0772,
+      4,
+    );
+    const price = num('=ODDFPRICE(DATE(2008,11,11),DATE(2021,3,1),DATE(2008,10,15),DATE(2009,3,1),0.0785,0.0625,100,2,1)');
+    expect(
+      num(`=ODDFYIELD(DATE(2008,11,11),DATE(2021,3,1),DATE(2008,10,15),DATE(2009,3,1),0.0785,${price},100,2,1)`),
+    ).toBeCloseTo(0.0625, 8);
+  });
+
+  it('a short odd first period agrees with PRICE', () => {
+    // Issue on the previous coupon date makes the first period a regular one,
+    // so ODDFPRICE must return exactly what PRICE returns.
+    const odd = num('=ODDFPRICE(DATE(2008,3,15),DATE(2017,11,15),DATE(2007,11,15),DATE(2008,5,15),0.0575,0.065,100,2,0)');
+    expect(odd).toBeCloseTo(num('=PRICE(DATE(2008,3,15),DATE(2017,11,15),0.0575,0.065,100,2,0)'), 8);
+  });
+
+  it('ODDLPRICE and ODDLYIELD match the documented examples', () => {
+    expect(num('=ODDLPRICE(DATE(2008,2,7),DATE(2008,6,15),DATE(2007,10,15),0.0375,0.0405,100,2,0)')).toBeCloseTo(99.87829, 4);
+    expect(num('=ODDLYIELD(DATE(2008,4,20),DATE(2008,6,15),DATE(2007,12,24),0.0375,99.875,100,2,0)')).toBeCloseTo(0.045192, 5);
+  });
+
+  it('ODDLYIELD inverts ODDLPRICE', () => {
+    const price = num('=ODDLPRICE(DATE(2008,2,7),DATE(2008,6,15),DATE(2007,10,15),0.0375,0.0405,100,2,0)');
+    expect(num(`=ODDLYIELD(DATE(2008,2,7),DATE(2008,6,15),DATE(2007,10,15),0.0375,${price},100,2,0)`)).toBeCloseTo(0.0405, 10);
+  });
+
+  it('rejects boundary dates on the wrong side of settlement', () => {
+    // Issue after settlement, and a first coupon before settlement.
+    expect(text('=ODDFPRICE(DATE(2008,11,11),DATE(2021,3,1),DATE(2008,12,15),DATE(2009,3,1),0.0785,0.0625,100,2,1)')).toBe('#NUM!');
+    expect(text('=ODDFPRICE(DATE(2008,11,11),DATE(2021,3,1),DATE(2008,10,15),DATE(2008,10,20),0.0785,0.0625,100,2,1)')).toBe(
+      '#NUM!',
+    );
+    expect(text('=ODDLPRICE(DATE(2008,2,7),DATE(2008,6,15),DATE(2008,3,15),0.0375,0.0405,100,2,0)')).toBe('#NUM!');
+  });
+});
+
 describe('securities paying interest at maturity', () => {
   it('PRICEMAT matches the documented example', () => {
     expect(num('=PRICEMAT(DATE(2008,2,15),DATE(2008,4,13),DATE(2007,11,11),0.061,0.061,0)')).toBeCloseTo(99.98449888, 6);
