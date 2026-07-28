@@ -243,6 +243,24 @@ export class DomSheetView {
     document.head.appendChild(style);
   }
 
+  // caretToEnd collapses the caret behind the cell's text.
+  private caretToEnd(td: HTMLTableCellElement): void {
+    const sel = window.getSelection();
+    if (!sel) return;
+    const range = document.createRange();
+    range.selectNodeContents(td);
+    range.collapse(false);
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+
+  // beginOverwrite empties the cell and puts the caret in it, so the keystroke
+  // that triggered it replaces the old content instead of appending to it.
+  private beginOverwrite(td: HTMLTableCellElement): void {
+    td.textContent = '';
+    this.caretToEnd(td);
+  }
+
   private attach(td: HTMLTableCellElement, r: number, c: number): void {
     td.addEventListener('mousedown', (e: MouseEvent) => {
       // Right-click inside an existing selection keeps it (Excel behaviour), so
@@ -285,6 +303,16 @@ export class DomSheetView {
       this.activeEdit = true;
       this.opts.onLiveEdit?.(r, c, td.textContent ?? '');
     });
+    // Double-click is Excel's "edit in place": keep the content and the caret
+    // where the user clicked, so the next keystroke does not wipe the cell.
+    td.addEventListener('dblclick', () => {
+      this.activeEdit = true;
+    });
+    // IME composition is the other way text starts arriving without a printable
+    // keydown we can see.
+    td.addEventListener('compositionstart', () => {
+      if (!this.activeEdit) this.beginOverwrite(td);
+    });
     td.addEventListener('keydown', (e: KeyboardEvent) => {
       const move = (dr: number, dc: number, extend: boolean) => {
         e.preventDefault();
@@ -322,6 +350,20 @@ export class DomSheetView {
         this.selection = { anchor: { row: 0, col: 0 }, focus: { row: this.opts.rows - 1, col: this.opts.cols - 1 } };
         this.opts.onSelectionChange?.(this.selection);
         return this.render();
+      }
+      // F2 enters edit mode on the existing content with the caret at the end,
+      // like Excel — the escape hatch from overwrite-on-typing below.
+      if (e.key === 'F2') {
+        e.preventDefault();
+        this.activeEdit = true;
+        this.caretToEnd(td);
+        return;
+      }
+      // Typing on a merely selected cell replaces its content (Excel): clear it
+      // and let the keystroke land in the empty cell.
+      if (!this.activeEdit && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        this.beginOverwrite(td);
+        return;
       }
       if (e.key === 'Enter') {
         e.preventDefault();
