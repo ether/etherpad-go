@@ -143,6 +143,9 @@ func propsToStyle(props map[string]string) *excelize.Style {
 	if props["underline"] == "1" {
 		font.Underline, hasFont = "single", true
 	}
+	if props["strike"] == "1" {
+		font.Strike, hasFont = true, true
+	}
 	if c := props["color"]; c != "" {
 		font.Color, hasFont = expandHex(c), true
 	}
@@ -158,8 +161,13 @@ func propsToStyle(props map[string]string) *excelize.Style {
 	if bg := props["bg"]; bg != "" {
 		st.Fill = excelize.Fill{Type: "pattern", Pattern: 1, Color: []string{expandHex(bg)}}
 	}
-	if props["align"] != "" || props["wrap"] == "1" {
-		st.Alignment = &excelize.Alignment{Horizontal: props["align"], WrapText: props["wrap"] == "1"}
+	if props["align"] != "" || props["valign"] != "" || props["wrap"] == "1" {
+		// xlsx spells the middle vertical alignment "center".
+		vertical := props["valign"]
+		if vertical == "middle" {
+			vertical = "center"
+		}
+		st.Alignment = &excelize.Alignment{Horizontal: props["align"], Vertical: vertical, WrapText: props["wrap"] == "1"}
 	}
 	if props["border"] == "all" {
 		for _, side := range []string{"left", "right", "top", "bottom"} {
@@ -186,6 +194,9 @@ func styleToProps(st *excelize.Style) map[string]string {
 		if f.Underline != "" && f.Underline != "none" {
 			props["underline"] = "1"
 		}
+		if f.Strike {
+			props["strike"] = "1"
+		}
 		if c := normalizeHex(f.Color); c != "" {
 			props["color"] = c
 		}
@@ -204,6 +215,12 @@ func styleToProps(st *excelize.Style) map[string]string {
 	if a := st.Alignment; a != nil {
 		if a.Horizontal == "left" || a.Horizontal == "center" || a.Horizontal == "right" {
 			props["align"] = a.Horizontal
+		}
+		switch a.Vertical {
+		case "top", "bottom":
+			props["valign"] = a.Vertical
+		case "center":
+			props["valign"] = "middle"
 		}
 		if a.WrapText {
 			props["wrap"] = "1"

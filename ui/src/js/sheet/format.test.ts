@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatValue } from './format';
+import { formatValue, stepDecimals } from './format';
 
 describe('formatValue', () => {
   it('general / text / undefined return the value unchanged', () => {
@@ -29,5 +29,19 @@ describe('formatValue', () => {
     expect(() => formatValue('1234.5', 'number', 'number:abc')).not.toThrow();
     // With NaN decimals treated as "no explicit fraction digits", grouping still applies:
     expect(formatValue('1234.5', 'number', 'number:abc')).toBe('1,234.5');
+  });
+});
+
+describe('stepDecimals', () => {
+  it('steps within a format and clamps at the ends', () => {
+    expect(stepDecimals('number:2', 1)).toBe('number:3');
+    expect(stepDecimals('currency:2', -1)).toBe('currency:1');
+    expect(stepDecimals('number:0', -1)).toBe('number:0');
+    expect(stepDecimals('percent:9', 1)).toBe('percent:9');
+  });
+  it('turns a non-numeric format into a number format, like Excel', () => {
+    expect(stepDecimals(undefined, 1)).toBe('number:3');
+    expect(stepDecimals('general', -1)).toBe('number:1');
+    expect(stepDecimals('date', 1)).toBe('number:3');
   });
 });

@@ -2,6 +2,8 @@
 // for the current selection; the editor merges them onto each cell's existing
 // props and sends setStyle ops. Uses native inputs and inline SVGs (no assets).
 
+import { stepDecimals } from './format';
+
 export interface ToolbarCallbacks {
   getProps: (row: number, col: number) => Record<string, string>;
   focusCell: () => { row: number; col: number };
@@ -24,7 +26,13 @@ export interface ToolbarCallbacks {
   importCsv?: (file: File) => void;
   // Ribbon: clipboard + quick aggregation (wired by the editor).
   clipboardAction?: (a: 'cut' | 'copy' | 'paste') => void;
-  autoSum?: () => void;
+  autoSum?: (fn?: 'SUM' | 'AVERAGE' | 'COUNT' | 'MAX' | 'MIN') => void;
+  // Ribbon: Editing group — fill the selection from its first row/column and
+  // clear contents and/or formatting, like Excel's Fill and Clear menus.
+  fill?: (dir: 'down' | 'right') => void;
+  clear?: (what: 'all' | 'formats' | 'contents') => void;
+  // Ribbon: View toggles that only affect this client (never sent on the wire).
+  viewOption?: (opt: 'gridlines' | 'headings' | 'zoom', value: boolean | number) => void;
   // Merge/unmerge the current selection (the editor decides which).
   mergeToggle?: () => void;
 }
@@ -86,6 +94,12 @@ const IC = {
   delCols: '<rect x="6.5" y="2.5" width="3" height="11"/><path d="M11.5 6.5l3 3M14.5 6.5l-3 3"/>',
   importFile: '<path d="M2.5 10.5v3h11v-3"/><path d="M8 2v7.5M4.5 6 8 9.5 11.5 6"/>',
   exportFile: '<path d="M2.5 10.5v3h11v-3"/><path d="M8 9.5V2M4.5 5.5 8 2l3.5 3.5"/>',
+  alignTop: '<path d="M2.5 2.5h11M5 13V5.5M5 5.5 3 7.5M5 5.5l2 2"/><path d="M11 13V5.5"/>',
+  alignMiddle: '<path d="M2.5 8h11M5 3v2.5M5 13v-2.5M11 3v2.5M11 13v-2.5"/>',
+  alignBottom: '<path d="M2.5 13.5h11M5 3v7.5M5 10.5 3 8.5M5 10.5l2-2"/><path d="M11 3v7.5"/>',
+  fillDown: '<rect x="3.5" y="1.5" width="9" height="3.5"/><path d="M8 6.5V13M5.5 10.5 8 13l2.5-2.5"/>',
+  fillRight: '<rect x="1.5" y="3.5" width="3.5" height="9"/><path d="M6.5 8H13M10.5 5.5 13 8l-2.5 2.5"/>',
+  clear: '<path d="M3 13h10"/><path d="m5.5 10.5 6-6a1.5 1.5 0 0 0-2-2l-6 6z"/><path d="M9 3.5 12.5 7"/>',
 };
 
 export function createToolbar(cb: ToolbarCallbacks): HTMLElement {
@@ -227,6 +241,38 @@ export function createToolbar(cb: ToolbarCallbacks): HTMLElement {
     return b;
   };
 
+  // Drop-down button (Excel's little ▾ menus: AutoSum, Fill, Clear). Same
+  // open/close mechanics as the File menu, reusing its styles.
+  const menuBtn = (parent: HTMLElement, content: { icon?: string; text?: string }, title: string, items: [string, () => void][]): void => {
+    const wrap = document.createElement('div');
+    wrap.className = 'sheet-file-wrap';
+    const menu = document.createElement('div');
+    menu.className = 'sheet-file-menu';
+    menu.style.display = 'none';
+    const close = () => {
+      menu.style.display = 'none';
+      document.removeEventListener('mousedown', outside, true);
+    };
+    const outside = (e: MouseEvent) => {
+      if (!wrap.contains(e.target as Node)) close();
+    };
+    const b = btn(wrap, { ...content, text: `${content.text ?? ''} ▾` }, title, () => {
+      if (menu.style.display === 'none') {
+        menu.style.display = '';
+        document.addEventListener('mousedown', outside, true);
+      } else close();
+    });
+    b.style.position = 'relative';
+    for (const [label, onClick] of items) {
+      const item = document.createElement('button');
+      item.textContent = label;
+      item.addEventListener('click', () => { close(); onClick(); });
+      menu.appendChild(item);
+    }
+    wrap.appendChild(menu);
+    parent.appendChild(wrap);
+  };
+
   const curProps = () => { const f = cb.focusCell(); return cb.getProps(f.row, f.col); };
   // Toggle a boolean style prop; `on` is derived from the focus cell's props.
   const toggleBtn = (parent: HTMLElement, content: { icon?: string; text?: string }, title: string, key: string): HTMLButtonElement => {
@@ -274,10 +320,25 @@ export function createToolbar(cb: ToolbarCallbacks): HTMLElement {
   fontSize.addEventListener('change', () => cb.applyToSelection({ fontSize: fontSize.value }));
   fontTop.appendChild(fontSize);
 
+  // Grow/shrink font, stepping through the same sizes the dropdown offers.
+  const SIZES = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 36, 48];
+  const stepSize = (delta: number) => {
+    const now = Number(curProps().fontSize ?? 11);
+    let i = SIZES.indexOf(now);
+    if (i === -1) i = SIZES.findIndex((s) => s >= now); // off-grid size: snap first
+    if (i === -1) i = SIZES.length - 1;
+    const next = SIZES[Math.min(SIZES.length - 1, Math.max(0, i + delta))];
+    fontSize.value = String(next);
+    cb.applyToSelection({ fontSize: String(next) });
+  };
+  btn(fontTop, { text: 'A▲' }, 'Increase font size', () => stepSize(1));
+  btn(fontTop, { text: 'A▼' }, 'Decrease font size', () => stepSize(-1));
+
   const fontRow = row(fontCol);
   toggleBtn(fontRow, { text: 'B' }, 'bold', 'bold').style.fontWeight = 'bold';
   toggleBtn(fontRow, { text: 'I' }, 'italic', 'italic').style.fontStyle = 'italic';
   toggleBtn(fontRow, { text: 'U' }, 'underline', 'underline').style.textDecoration = 'underline';
+  toggleBtn(fontRow, { text: 'S' }, 'strikethrough', 'strike').style.textDecoration = 'line-through';
   btn(fontRow, { icon: IC.borders }, 'Borders', () => {
     const on = curProps().border === 'all';
     cb.applyToSelection({ border: on ? '' : 'all' });
@@ -295,7 +356,13 @@ export function createToolbar(cb: ToolbarCallbacks): HTMLElement {
   fontRow.appendChild(color);
 
   // --- Home: Alignment ---
-  const alignRow = group('Home', 'Alignment');
+  const alignGroup = col(group('Home', 'Alignment'));
+  const valignRow = row(alignGroup);
+  const valignIcons = { top: IC.alignTop, middle: IC.alignMiddle, bottom: IC.alignBottom } as const;
+  for (const v of ['top', 'middle', 'bottom'] as const) {
+    btn(valignRow, { icon: valignIcons[v] }, `Align ${v}`, () => cb.applyToSelection({ valign: v }));
+  }
+  const alignRow = row(alignGroup);
   const alignIcons = { left: IC.alignLeft, center: IC.alignCenter, right: IC.alignRight } as const;
   for (const a of ['left', 'center', 'right'] as const) {
     btn(alignRow, { icon: alignIcons[a] }, `Align ${a}`, () => cb.applyToSelection({ align: a }));
@@ -306,7 +373,8 @@ export function createToolbar(cb: ToolbarCallbacks): HTMLElement {
   }
 
   // --- Home: Number ---
-  const numRow = group('Home', 'Number');
+  const numCol = col(group('Home', 'Number'));
+  const numRow = row(numCol);
   const numFmt = document.createElement('select');
   numFmt.title = 'Number format';
   for (const [v, label] of [['general', 'General'], ['number:2', 'Number'], ['currency:2', 'Currency'], ['percent:0', 'Percent'], ['date', 'Date'], ['text', 'Text']] as const) {
@@ -314,6 +382,27 @@ export function createToolbar(cb: ToolbarCallbacks): HTMLElement {
   }
   numFmt.addEventListener('change', () => cb.applyToSelection({ numFmt: numFmt.value }));
   numRow.appendChild(numFmt);
+
+  // Excel's one-click formats and the two decimal-stepping buttons.
+  const quickRow = row(numCol);
+  const quick = [
+    ['$', 'currency:2', 'Currency format'],
+    ['%', 'percent:0', 'Percent format'],
+    [',', 'number:2', 'Comma style'],
+  ] as const;
+  for (const [label, value, title] of quick) {
+    btn(quickRow, { text: label }, title, () => {
+      numFmt.value = value;
+      cb.applyToSelection({ numFmt: value });
+    });
+  }
+  const stepDecimal = (delta: number) => {
+    const next = stepDecimals(curProps().numFmt, delta);
+    numFmt.value = numFmt.querySelector(`option[value="${next}"]`) ? next : numFmt.value;
+    cb.applyToSelection({ numFmt: next });
+  };
+  btn(quickRow, { text: '.0+' }, 'Increase decimal places', () => stepDecimal(1));
+  btn(quickRow, { text: '.0−' }, 'Decrease decimal places', () => stepDecimal(-1));
 
   // --- Home: Cells ---
   if (cb.structural) {
@@ -334,9 +423,31 @@ export function createToolbar(cb: ToolbarCallbacks): HTMLElement {
   }
 
   // --- Home: Editing ---
-  if (cb.autoSum) {
+  if (cb.autoSum || cb.fill || cb.clear) {
     const editing = group('Home', 'Editing');
-    btn(editing, { text: 'Σ' }, 'AutoSum', () => cb.autoSum?.());
+    if (cb.autoSum) {
+      const sum = col(editing);
+      btn(row(sum), { text: 'Σ' }, 'AutoSum', () => cb.autoSum?.());
+      menuBtn(row(sum), { text: 'Σ' }, 'More functions', [
+        ['Sum', () => cb.autoSum?.('SUM')],
+        ['Average', () => cb.autoSum?.('AVERAGE')],
+        ['Count Numbers', () => cb.autoSum?.('COUNT')],
+        ['Max', () => cb.autoSum?.('MAX')],
+        ['Min', () => cb.autoSum?.('MIN')],
+      ]);
+    }
+    if (cb.fill) {
+      const fillCol = col(editing);
+      btn(row(fillCol), { icon: IC.fillDown }, 'Fill down (Ctrl+D)', () => cb.fill?.('down'));
+      btn(row(fillCol), { icon: IC.fillRight }, 'Fill right (Ctrl+R)', () => cb.fill?.('right'));
+    }
+    if (cb.clear) {
+      menuBtn(editing, { icon: IC.clear }, 'Clear', [
+        ['Clear All', () => cb.clear?.('all')],
+        ['Clear Formats', () => cb.clear?.('formats')],
+        ['Clear Contents', () => cb.clear?.('contents')],
+      ]);
+    }
   }
 
   // --- Data: Get & Transform ---
@@ -401,6 +512,33 @@ export function createToolbar(cb: ToolbarCallbacks): HTMLElement {
   };
   mkFreeze('Row', 'row', 'Freeze first row');
   mkFreeze('Col', 'col', 'Freeze first column');
+
+  // --- View: Show / Zoom (local to this client, nothing goes on the wire) ---
+  if (cb.viewOption) {
+    const show = col(group('View', 'Show'));
+    for (const [opt, label] of [['gridlines', 'Gridlines'], ['headings', 'Headings']] as const) {
+      const wrap = document.createElement('label');
+      wrap.style.cssText = 'display:flex;align-items:center;gap:4px;font-size:12px;color:#333;cursor:pointer';
+      const box = document.createElement('input');
+      box.type = 'checkbox';
+      box.checked = true;
+      box.addEventListener('change', () => cb.viewOption?.(opt, box.checked));
+      wrap.append(box, label);
+      row(show).appendChild(wrap);
+    }
+    const zoomRow = row(col(group('View', 'Zoom')));
+    const zoom = document.createElement('select');
+    zoom.title = 'Zoom';
+    for (const z of [50, 75, 90, 100, 125, 150, 200]) {
+      const o = document.createElement('option');
+      o.value = String(z);
+      o.textContent = `${z}%`;
+      zoom.appendChild(o);
+    }
+    zoom.value = '100';
+    zoom.addEventListener('change', () => cb.viewOption?.('zoom', Number(zoom.value)));
+    zoomRow.appendChild(zoom);
+  }
 
   selectTab('Home');
   return bar;

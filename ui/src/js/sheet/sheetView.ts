@@ -245,6 +245,12 @@ export class DomSheetView {
 
   private attach(td: HTMLTableCellElement, r: number, c: number): void {
     td.addEventListener('mousedown', (e: MouseEvent) => {
+      // Right-click inside an existing selection keeps it (Excel behaviour), so
+      // the context menu acts on the whole range instead of one cell.
+      if (e.button === 2) {
+        const { r0, c0, r1, c1 } = normalize(this.selection);
+        if (r >= r0 && r <= r1 && c >= c0 && c <= c1) return;
+      }
       if (e.shiftKey) {
         this.selection = { anchor: this.selection.anchor, focus: { row: r, col: c } };
       } else {
