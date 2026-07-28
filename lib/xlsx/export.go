@@ -60,7 +60,7 @@ func Export(wb *sheet.Workbook) ([]byte, error) {
 				return nil, err
 			}
 			if strings.HasPrefix(cell.Raw, "=") {
-				if err := f.SetCellFormula(name, axis, cell.Raw[1:]); err != nil {
+				if err := f.SetCellFormula(name, axis, addFunctionPrefixes(cell.Raw[1:])); err != nil {
 					return nil, err
 				}
 			} else if n, err := strconv.ParseFloat(cell.Raw, 64); err == nil && cell.Raw != "" {

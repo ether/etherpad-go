@@ -1,4 +1,5 @@
 import { HyperFormula, type ExportedChange, type ExportedCellChange } from 'hyperformula';
+import { registerExcelFunctions } from './excelFunctions';
 
 export interface CellResult {
   value: string;
@@ -18,6 +19,7 @@ export class FormulaEngine {
   private sheetId: number;
 
   constructor() {
+    registerExcelFunctions();
     this.hf = HyperFormula.buildEmpty({ licenseKey: 'gpl-v3' });
     const name = this.hf.addSheet('Sheet1');
     this.sheetId = this.hf.getSheetId(name) as number;
