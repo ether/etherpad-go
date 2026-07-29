@@ -14,7 +14,7 @@ require (
 	github.com/gofiber/contrib/v3/swaggo v1.0.8
 	github.com/gofiber/contrib/v3/websocket v1.2.2
 	github.com/gofiber/fiber/v3 v3.4.0
-	github.com/gofiber/utils/v2 v2.4.0
+	github.com/gofiber/utils/v2 v2.4.1
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
@@ -35,7 +35,7 @@ require (
 	golang.org/x/crypto v0.54.0
 	golang.org/x/net v0.57.0
 	golang.org/x/sys v0.47.0
-	modernc.org/sqlite v1.54.0
+	modernc.org/sqlite v1.55.0
 	mvdan.cc/xurls/v2 v2.6.0
 )
 
