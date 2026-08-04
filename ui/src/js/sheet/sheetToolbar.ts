@@ -38,6 +38,8 @@ export interface ToolbarCallbacks {
   undo?: () => void;
   redo?: () => void;
   history?: () => { canUndo: boolean; canRedo: boolean };
+  // Ribbon: Excel's "Find & Select" entry in the Editing group.
+  openFind?: (mode: 'find' | 'replace') => void;
   // Merge/unmerge the current selection (the editor decides which).
   mergeToggle?: () => void;
 }
@@ -105,6 +107,7 @@ const IC = {
   fillDown: '<rect x="3.5" y="1.5" width="9" height="3.5"/><path d="M8 6.5V13M5.5 10.5 8 13l2.5-2.5"/>',
   fillRight: '<rect x="1.5" y="3.5" width="3.5" height="9"/><path d="M6.5 8H13M10.5 5.5 13 8l-2.5 2.5"/>',
   clear: '<path d="M3 13h10"/><path d="m5.5 10.5 6-6a1.5 1.5 0 0 0-2-2l-6 6z"/><path d="M9 3.5 12.5 7"/>',
+  find: '<circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/>',
   undo: '<path d="M3 8h7a3.5 3.5 0 0 1 0 7H6"/><path d="M5.5 5 2.5 8l3 3"/>',
   redo: '<path d="M13 8H6a3.5 3.5 0 0 0 0 7h4"/><path d="M10.5 5l3 3-3 3"/>',
 };
@@ -450,8 +453,14 @@ export function createToolbar(cb: ToolbarCallbacks): ToolbarElement {
   }
 
   // --- Home: Editing ---
-  if (cb.autoSum || cb.fill || cb.clear) {
+  if (cb.autoSum || cb.fill || cb.clear || cb.openFind) {
     const editing = group('Home', 'Editing');
+    if (cb.openFind) {
+      menuBtn(editing, { icon: IC.find }, 'Find & Select', [
+        ['Find… (Ctrl+F)', () => cb.openFind?.('find')],
+        ['Replace… (Ctrl+H)', () => cb.openFind?.('replace')],
+      ]);
+    }
     if (cb.autoSum) {
       const sum = col(editing);
       btn(row(sum), { text: 'Σ' }, 'AutoSum', () => cb.autoSum?.());
