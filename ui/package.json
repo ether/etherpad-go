@@ -11,10 +11,10 @@
   },
   "devDependencies": {
     "@samtv12345/etherpad-webcomponents": "^0.0.13",
-    "@types/node": "^26.1.1",
+    "@types/node": "^26.1.2",
     "esbuild": "0.28.1",
     "typescript": "^7.0.2",
-    "vite": "^8.1.5",
+    "vite": "^8.2.0",
     "vitest": "^4.1.10"
   },
   "dependencies": {
