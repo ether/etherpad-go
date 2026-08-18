@@ -112,8 +112,8 @@ importers:
         specifier: ^29.0.3
         version: 29.0.3(rollup@4.59.0)
       hyperformula:
-        specifier: ^3.3.0
-        version: 3.3.0
+        specifier: ^3.4.0
+        version: 3.4.0
     devDependencies:
       '@samtv12345/etherpad-webcomponents':
         specifier: 0.0.13
@@ -965,8 +965,8 @@ packages:
   graceful-fs@4.2.11:
     resolution: {integrity: sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ==}
 
-  hyperformula@3.3.0:
-    resolution: {integrity: sha512-Mkc7AxP9WQDM4xHo1/XpAwzcpMLkwMand4HO9rfRzP502TBzoR1Z96zoCzRrwXodLSVyh+MD7FvzRVALDxmRFQ==}
+  hyperformula@3.4.0:
+    resolution: {integrity: sha512-w1N11JWfdHedHpNoSgYBd3Mz7e1yr1BEQ+g4GFJbLv+qlYVXyC4I8xy1mSwj13FhcoDBGNU5yxPCdXB6vwaYaA==}
 
   is-reference@1.2.1:
     resolution: {integrity: sha512-U82MsXXiFIrjCK4otLT+o2NA2Cd2g5MLoOVXUZjIOhLurrRxpEXzI8O0KZHr3IjLvlAH1kTPYSuqer5T9ZVBKQ==}
@@ -1939,7 +1939,7 @@ snapshots:
 
   graceful-fs@4.2.11: {}
 
-  hyperformula@3.3.0:
+  hyperformula@3.4.0:
     dependencies:
       chevrotain: 6.5.0
       tiny-emitter: 2.1.0
