@@ -10,11 +10,11 @@
   },
   "dependencies": {
     "clsx": "^2.1.1",
-    "lucide-react": "^1.45.0",
+    "lucide-react": "^1.46.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "react-router-dom": "^7.18.3",
-    "tailwind-merge": "^3.6.0"
+    "tailwind-merge": "^3.7.0"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",
