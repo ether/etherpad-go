@@ -2,6 +2,7 @@ package io
 
 import (
 	"bytes"
+	"context"
 	"embed"
 	"encoding/json"
 	"fmt"
@@ -155,7 +156,8 @@ func (e *ExportPDF) embedEtherpadData(pdfContent []byte, padId string) ([]byte, 
 	conf := model.NewDefaultConfiguration()
 	conf.ValidationMode = model.ValidationRelaxed
 
-	err = api.AddAttachmentsFile(inputPdfPath, outputPdfPath, []string{jsonPath}, false, conf)
+	ctx := context.Background()
+	err = api.AddAttachmentsFile(ctx, inputPdfPath, outputPdfPath, []string{jsonPath}, false, conf)
 	if err != nil {
 		return nil, fmt.Errorf("could not embed attachment: %w", err)
 	}

@@ -3,6 +3,7 @@ package io
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"encoding/json"
 	"encoding/xml"
 	"errors"
@@ -995,10 +996,11 @@ func (i *Importer) ExtractEtherpadFromPdf(content []byte) ([]byte, error) {
 		return nil, fmt.Errorf("could not create output dir: %w", err)
 	}
 
-	err = api.ExtractAttachmentsFile(inputPdfPath, outputDir, []string{"etherpad.json"}, conf)
+	ctx := context.Background()
+	err = api.ExtractAttachmentsFile(ctx, inputPdfPath, outputDir, []string{"etherpad.json"}, conf)
 	if err != nil {
 		// Try extracting all attachments if specific one fails
-		err = api.ExtractAttachmentsFile(inputPdfPath, outputDir, nil, conf)
+		err = api.ExtractAttachmentsFile(ctx, inputPdfPath, outputDir, nil, conf)
 		if err != nil {
 			return nil, fmt.Errorf("could not extract attachments: %w", err)
 		}
