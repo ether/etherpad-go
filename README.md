@@ -3,7 +3,7 @@
 **A fast, modern, real-time collaborative editor written in Go**
 
 [![CI](https://github.com/ether/etherpad-go/actions/workflows/build.yml/badge.svg)](https://github.com/ether/etherpad-go/actions)
-[![Go Version](https://img.shields.io/badge/Go-1.25%2B-00ADD8?logo=go)](https://golang.org)
+[![Go Version](https://img.shields.io/badge/Go-1.27%2B-00ADD8?logo=go)](https://golang.org)
 [![License](https://img.shields.io/github/license/ether/etherpad-go)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/ether/etherpad-go)](https://github.com/ether/etherpad-go/releases)
 [![Docker Image](https://img.shields.io/badge/docker-ghcr.io%2Fether%2Fetherpad--go-blue?logo=docker)](https://ghcr.io/ether/etherpad-go)
@@ -122,7 +122,7 @@ ghcr.io/ether/etherpad-go:<version>
 
 ### Requirements
 
-- [Go 1.25+](https://golang.org/dl/)
+- [Go 1.27+](https://golang.org/dl/)
 - [Node.js 22+](https://nodejs.org/en/download/)
 - [pnpm](https://pnpm.io/installation)
 
