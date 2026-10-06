@@ -23,10 +23,17 @@ export const getPadBody = async (page: Page): Promise<Locator> => {
 // component reflects its state via the `checked` attribute on the host
 // element and toggles on click. Use this helper whenever a test needs to
 // set or assert the state of an <ep-checkbox>.
+//
+// Click .track, not the host: <ep-checkbox> only attaches click handlers to
+// .track and .label, never to the host itself. Playwright's locator.click()
+// aims at the centre of the host's box, and with a narrow label that centre
+// lands in the 8px gap between the two — the click then hits the
+// handler-less host and the checkbox never toggles. Label width depends on
+// font metrics, so that failure only shows up on some runners.
 export const setEpCheckbox = async (locator: Locator, want: boolean) => {
     const isChecked = () => locator.evaluate((el: Element) => el.hasAttribute('checked'));
     if ((await isChecked()) !== want) {
-        await locator.click({force: true});
+        await locator.locator('.track').click();
     }
     await expect.poll(isChecked).toBe(want);
 }
