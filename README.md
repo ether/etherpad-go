@@ -116,6 +116,19 @@ Prebuilt images are available via GitHub Container Registry:
 ghcr.io/ether/etherpad-go:<version>
 ```
 
+To open a shell in a running container:
+
+```sh
+docker exec -it etherpad_go /bin/sh
+```
+
+The configuration CLI is available in the same image:
+
+```sh
+docker exec etherpad_go /app config show
+docker exec etherpad_go /app config get port
+```
+
 ---
 
 ## Building from Source
