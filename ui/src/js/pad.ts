@@ -48,6 +48,32 @@ import * as socketio from './socketio';
 import {colorutils} from './colorutils';
 import {editorBus} from './core/EventBus';
 
+const showPadRetentionNotice = (info: any) => {
+    if (!info) return;
+    if (info.state === 'expired') {
+        notifications.add({
+            title: html10n.get('pad.retention.expired.title'),
+            text: html10n.get('pad.retention.expired.text', {count: info.deleteAfterDays}),
+            position: 'bottom',
+            time: 15000,
+            class_name: 'pad-retention-notice',
+        });
+        return;
+    }
+    if (info.state !== 'expiring') return;
+    const hoursRemaining = Math.max(1, Math.ceil(info.msRemaining / (60 * 60 * 1000)));
+    const daysRemaining = Math.ceil(hoursRemaining / 24);
+    notifications.add({
+        title: html10n.get('pad.retention.expiring.title'),
+        text: html10n.get(daysRemaining > 1 ? 'pad.retention.expiring.days' : 'pad.retention.expiring.hours', {
+            count: daysRemaining > 1 ? daysRemaining : hoursRemaining,
+        }),
+        sticky: true,
+        position: 'bottom',
+        class_name: 'pad-retention-notice',
+    });
+};
+
 // ---------------------------------------------------------------------------
 // Native DOM helpers (no jQuery)
 // ---------------------------------------------------------------------------
@@ -535,6 +561,7 @@ const pad = {
         };
 
         const postAceInit = () => {
+            showPadRetentionNotice(clientVars.padRetention);
             padeditbar.init();
             // Skip link (a11y, upstream #7255 / #7758): href="#editorcontainer"
             // gives a working no-JS fallback, but the real focus target is

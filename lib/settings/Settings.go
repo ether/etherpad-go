@@ -173,6 +173,19 @@ type Cleanup struct {
 	KeepRevisions int  `json:"keepRevisions" mapstructure:"keepRevisions"`
 }
 
+// PadRetention controls automatic removal of inactive pads. It is opt-in and
+// defaults to a dry run so an installation cannot lose data by merely adding
+// the setting to its configuration.
+type PadRetention struct {
+	Enabled            bool   `json:"enabled" mapstructure:"enabled"`
+	DryRun             bool   `json:"dryRun" mapstructure:"dryRun"`
+	DeleteAfterDays    int    `json:"deleteAfterDays" mapstructure:"deleteAfterDays"`
+	WarnBeforeDays     int    `json:"warnBeforeDays" mapstructure:"warnBeforeDays"`
+	SweepIntervalHours int    `json:"sweepIntervalHours" mapstructure:"sweepIntervalHours"`
+	ExcludeGroupPads   bool   `json:"excludeGroupPads" mapstructure:"excludeGroupPads"`
+	ExcludePattern     string `json:"excludePattern" mapstructure:"excludePattern"`
+}
+
 type ImportExportRateLimiting struct {
 	WindowMS int `json:"windowMS" mapstructure:"windowMs"`
 	Max      int `json:"max" mapstructure:"max"`
@@ -277,6 +290,8 @@ type Settings struct {
 	Toolbar Toolbar `json:"toolbar" mapstructure:"toolbar"`
 
 	Cleanup Cleanup `json:"cleanup" mapstructure:"cleanup"`
+
+	PadRetention PadRetention `json:"padRetention" mapstructure:"padRetention"`
 
 	ExposeVersion bool `json:"exposeVersion" mapstructure:"exposeVersion"`
 

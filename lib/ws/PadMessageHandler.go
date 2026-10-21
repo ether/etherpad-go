@@ -20,6 +20,7 @@ import (
 	db2 "github.com/ether/etherpad-go/lib/db"
 	"github.com/ether/etherpad-go/lib/hooks"
 	"github.com/ether/etherpad-go/lib/hooks/events"
+	clientVarsModel "github.com/ether/etherpad-go/lib/models/clientVars"
 	"github.com/ether/etherpad-go/lib/models/db"
 	pad2 "github.com/ether/etherpad-go/lib/models/pad"
 	"github.com/ether/etherpad-go/lib/models/webaccess"
@@ -100,6 +101,7 @@ type PadMessageHandler struct {
 	hooks           *hooks.Hook
 	sheetManager    *sheetdoc.Manager
 	sheetChannels   SheetChannelOperator
+	retention       *pad.Retention
 }
 
 func NewPadMessageHandler(db db2.DataStore, hooks *hooks.Hook, padManager *pad.Manager, sessionStore *SessionStore, hub *Hub, logger *zap.SugaredLogger, uiAssets embed.FS) *PadMessageHandler {
@@ -122,6 +124,10 @@ func NewPadMessageHandler(db db2.DataStore, hooks *hooks.Hook, padManager *pad.M
 	padMessageHandler.padChannels = NewChannelOperator(&padMessageHandler)
 	padMessageHandler.sheetChannels = NewSheetChannelOperator(&padMessageHandler)
 	return &padMessageHandler
+}
+
+func (p *PadMessageHandler) SetRetention(retention *pad.Retention) {
+	p.retention = retention
 }
 
 // sendDisconnectMessage tells the client to disconnect for the given reason
@@ -1276,6 +1282,11 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 		return
 	}
 
+	var retentionNotice *pad.RetentionNotice
+	if p.retention != nil {
+		retentionNotice = p.retention.CheckOnOpen(thisSession.PadId)
+	}
+
 	var retrievedPad, err = p.padManager.GetPad(thisSession.PadId, nil, &thisSession.Author)
 
 	if err != nil {
@@ -1485,6 +1496,13 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 		if err != nil {
 			p.Logger.Warn("Error creating client vars", err.Error())
 			return
+		}
+		if retentionNotice != nil {
+			retrivedClientVars.PadRetention = &clientVarsModel.PadRetention{
+				State:           retentionNotice.State,
+				MsRemaining:     retentionNotice.MsRemaining,
+				DeleteAfterDays: retentionNotice.DeleteAfterDays,
+			}
 		}
 		// Honor the atomic snapshot in the outgoing CLIENT_VARS.
 		retrivedClientVars.CollabClientVars.Rev = headRevSnapshot

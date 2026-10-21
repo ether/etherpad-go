@@ -102,6 +102,10 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 	plugins.InitPlugins(epPluginStore)
 	retrievedHooks.ExecuteLoadSettingsHooks(&events.LoadSettingsContext{Settings: &settings})
 
+	retention := pad.NewRetention(padManager, dataStore, &settings, setupLogger)
+	padMessageHandler.SetRetention(retention)
+	retention.Start()
+
 	var cookieStore = session.NewStore(session.Config{
 		CookieSameSite: settings.Cookie.SameSite,
 		IdleTimeout:    time.Duration(settings.Cookie.SessionLifetime),
@@ -260,6 +264,7 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 	<-sigCh
 	setupLogger.Info("Shutting down Etherpad Go...")
 	retrievedHooks.ExecuteShutdownHooks(&events.ShutdownContext{})
+	retention.Stop()
 	upd.Stop()
 	authenticator.Stop()
 	if err := app.ShutdownWithTimeout(3 * time.Second); err != nil {

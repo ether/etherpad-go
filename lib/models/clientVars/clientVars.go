@@ -74,6 +74,12 @@ type SavedRevisionClient struct {
 	Timestamp int64   `json:"timestamp"`
 }
 
+type PadRetention struct {
+	State           string `json:"state"`
+	MsRemaining     int64  `json:"msRemaining,omitempty"`
+	DeleteAfterDays int    `json:"deleteAfterDays,omitempty"`
+}
+
 type ClientVars struct {
 	SkinName                           string                             `json:"skinName"`
 	SkinVariants                       string                             `json:"skinVariants"`
@@ -112,5 +118,6 @@ type ClientVars struct {
 	// EnablePluginPadOptions mirrors settings.enablePluginPadOptions so the
 	// client can decide whether to forward plugin-namespaced ep_* keys
 	// through padOptions. Upstream #7698.
-	EnablePluginPadOptions bool `json:"enablePluginPadOptions"`
+	EnablePluginPadOptions bool          `json:"enablePluginPadOptions"`
+	PadRetention           *PadRetention `json:"padRetention"`
 }

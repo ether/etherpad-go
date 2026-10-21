@@ -227,6 +227,13 @@ var Registry = []ConfigKey{
 		Default:     100,
 		Description: "Revisions to keep",
 	},
+	{Key: PadRetentionEnabled, Default: false, Description: "Enable automatic pad retention"},
+	{Key: PadRetentionDryRun, Default: true, Description: "Log pad retention deletions without deleting"},
+	{Key: PadRetentionDeleteAfterDays, Default: 365, Description: "Delete pads after this many inactive days"},
+	{Key: PadRetentionWarnBeforeDays, Default: 7, Description: "Warn users this many days before pad deletion"},
+	{Key: PadRetentionSweepIntervalHours, Default: 1, Description: "Pad retention sweep interval in hours"},
+	{Key: PadRetentionExcludeGroupPads, Default: true, Description: "Exclude group pads from retention"},
+	{Key: PadRetentionExcludePattern, Default: "", Description: "Regular expression for pads excluded from retention"},
 	{Key: ExposeVersion, Default: false, Description: "Expose version"},
 	{
 		Key:         ImportExportRateLimitingWindowMs,

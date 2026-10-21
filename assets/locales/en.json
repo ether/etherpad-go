@@ -226,6 +226,11 @@
   "pad.editor.toolbar.actions": "Pad actions toolbar",
   "pad.editor.toolbar.showMore": "Show more toolbar buttons",
   "pad.social.description": "A collaborative real-time text editor.",
+  "pad.retention.expiring.title": "This pad is approaching its retention limit",
+  "pad.retention.expiring.days": "It will be deleted in {{count}} days unless it is edited.",
+  "pad.retention.expiring.hours": "It will be deleted in {{count}} hours unless it is edited.",
+  "pad.retention.expired.title": "This pad reached its retention limit",
+  "pad.retention.expired.text": "The pad was inactive for {{count}} days and has been recreated.",
   "pad.editbar.clearcolors": "Clear authorship colors on entire document? This cannot be undone",
 
   "pad.impexp.importbutton": "Import Now",

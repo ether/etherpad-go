@@ -12,6 +12,15 @@
     "enabled": false,
     "keepRevisions": 5
   },
+  "padRetention": {
+    "enabled": false,
+    "dryRun": true,
+    "deleteAfterDays": 365,
+    "warnBeforeDays": 7,
+    "sweepIntervalHours": 1,
+    "excludeGroupPads": true,
+    "excludePattern": ""
+  },
   "authenticationMethod": "sso",
   "enableDarkMode": true,
   "updateServer": "https://etherpad.org/ep_infos",
