@@ -25,6 +25,10 @@
 import {escapeHtml, escapeHtmlAttribute} from './html_escape';
 import {editorBus} from './core/EventBus';
 import {lineAttributeMarker} from './linestylefilter';
+// Elements that give a line its own AT semantics, so it must not also be
+// exposed as role="paragraph" (#7778).
+const semanticBlockSelector =
+    'p,ul,ol,li,dl,h1,h2,h3,h4,h5,h6,pre,blockquote,table,figure,hr';
 const noop = () => {};
 const identity = (value) => value;
 
@@ -138,8 +142,11 @@ domline.createDomLine = (nonEmpty, doesWrap, optBrowser, optDocument) => {
     }
     if (cls.indexOf('tag') >= 0) {
       cls = cls.replace(/(^| )tag:(\S+)/g, (x0, space, tag) => {
-        if (!simpleTags) simpleTags = [];
-        simpleTags.push(tag.toLowerCase());
+        // The tag name is emitted raw as <tag>, so only accept a bare element name.
+        if (/^[a-z][a-z0-9-]*$/i.test(tag)) {
+          if (!simpleTags) simpleTags = [];
+          simpleTags.push(tag.toLowerCase());
+        }
         return space + tag;
       });
     }
@@ -216,6 +223,13 @@ domline.createDomLine = (nonEmpty, doesWrap, optBrowser, optDocument) => {
       result.node.innerHTML = curHTML;
     }
     if (lineClass != null) result.node.className = lineClass;
+    if (document && result.node.setAttribute) {
+      if (result.node.querySelector(semanticBlockSelector)) {
+        if (result.node.hasAttribute('role')) result.node.removeAttribute('role');
+      } else if (result.node.getAttribute('role') !== 'paragraph') {
+        result.node.setAttribute('role', 'paragraph');
+      }
+    }
 
   };
   result.prepareForAdd = writeHTML;

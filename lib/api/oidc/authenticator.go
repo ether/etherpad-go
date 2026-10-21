@@ -3,6 +3,7 @@ package oidc
 import (
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -409,7 +410,7 @@ func (a *Authenticator) AuthEndpoint(rw http.ResponseWriter, req *http.Request, 
 	clientId := ar.GetClient().GetID()
 
 	user, ok := a.store.Users[username]
-	if !ok || user.Password != password {
+	if !ok || user.Password == "" || subtle.ConstantTimeCompare([]byte(user.Password), []byte(password)) != 1 {
 		time.Sleep(500 * time.Millisecond)
 		rw.WriteHeader(http.StatusOK)
 		usernameOrPasswordInvalid := "Username or password invalid"

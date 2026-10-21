@@ -35,6 +35,10 @@ func NewExportHtml(padManager *padLib.Manager, authorManager *author.Manager, ho
 // HTML Tags mapped to their property names
 var htmlTags = []string{"h1", "h2", "strong", "em", "u", "s"}
 var htmlProps = []string{"heading1", "heading2", "bold", "italic", "underline", "strikethrough"}
+var (
+	safeAuthorIDRegex = regexp.MustCompile(`[^A-Za-z0-9_-]`)
+	safeCssColorRegex = regexp.MustCompile(`^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$`)
+)
 
 type openList struct {
 	level    int
@@ -123,7 +127,7 @@ func (e *ExportHtml) getHTMLFromAtext(padId string, padPool *apool.APool, atext 
 	var css strings.Builder
 
 	stripDotFromAuthorID := func(id string) string {
-		return strings.ReplaceAll(id, ".", "_")
+		return safeAuthorIDRegex.ReplaceAllString(id, "_")
 	}
 
 	// Build author color styles if author colors are provided
@@ -137,7 +141,7 @@ func (e *ExportHtml) getHTMLFromAtext(padId string, padPool *apool.APool, atext 
 				props = append(props, propName)
 				anumMap[num] = newIndex
 
-				if color, ok := authorColors[attr.Value]; ok {
+				if color, ok := authorColors[attr.Value]; ok && safeCssColorRegex.MatchString(color) {
 					css.WriteString("." + propName + " {background-color: " + color + "}\n")
 				}
 			} else if attr.Key == "removed" {

@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ether/etherpad-go/lib/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -337,6 +338,16 @@ func TestSetPadRaw_NoPadData(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "no pad data found")
+}
+
+func TestSanitizeImportedColorId(t *testing.T) {
+	assert.Equal(t, "#abc", sanitizeImportedColorId("#abc"))
+	assert.Equal(t, utils.ColorPalette[1], sanitizeImportedColorId("1"))
+	assert.Equal(t, utils.ColorPalette[2], sanitizeImportedColorId(float64(2)))
+
+	for _, value := range []any{"-1", len(utils.ColorPalette), true, nil} {
+		assert.Contains(t, utils.ColorPalette, sanitizeImportedColorId(value))
+	}
 }
 
 func TestExtractTextFromDocx_InvalidFile(t *testing.T) {

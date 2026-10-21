@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand"
 	"os"
 	"regexp"
 	"strconv"
@@ -23,6 +24,7 @@ import (
 	db2 "github.com/ether/etherpad-go/lib/models/db"
 	padModel "github.com/ether/etherpad-go/lib/models/pad"
 	"github.com/ether/etherpad-go/lib/pad"
+	"github.com/ether/etherpad-go/lib/utils"
 	"github.com/ledongthuc/pdf"
 	"github.com/pdfcpu/pdfcpu/pkg/api"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/model"
@@ -46,6 +48,30 @@ func NewImporter(padManager *pad.Manager, authorManager *author.Manager, db db.D
 		logger:        logger,
 		hooks:         hooks,
 	}
+}
+
+var validHexColorRegex = regexp.MustCompile(`^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$`)
+
+func sanitizeImportedColorId(rawColorId any) string {
+	switch v := rawColorId.(type) {
+	case string:
+		if validHexColorRegex.MatchString(v) {
+			return v
+		}
+		if idx, err := strconv.Atoi(v); err == nil && idx >= 0 && idx < len(utils.ColorPalette) {
+			return utils.ColorPalette[idx]
+		}
+	case float64:
+		idx := int(v)
+		if float64(idx) == v && idx >= 0 && idx < len(utils.ColorPalette) {
+			return utils.ColorPalette[idx]
+		}
+	case int:
+		if v >= 0 && v < len(utils.ColorPalette) {
+			return utils.ColorPalette[v]
+		}
+	}
+	return utils.ColorPalette[rand.Intn(len(utils.ColorPalette))]
 }
 
 type EtherpadImport struct {
@@ -147,17 +173,18 @@ func (i *Importer) SetPadRaw(padId string, content []byte, authorId string) erro
 			authorIdFromFile := matches[1]
 			var authorData GlobalAuthor
 			if err := json.Unmarshal(value, &authorData); err == nil {
+				colorId := sanitizeImportedColorId(authorData.ColorId)
 				existingAuthor, _ := i.authorManager.GetAuthor(authorIdFromFile)
 				if existingAuthor == nil {
 					i.db.SaveAuthor(db2.AuthorDB{
 						ID:        authorIdFromFile,
 						Name:      authorData.Name,
-						ColorId:   authorData.ColorId,
+						ColorId:   colorId,
 						Timestamp: authorData.Timestamp,
 					})
 				} else {
-					if authorData.ColorId != "" {
-						i.authorManager.SetAuthorColor(authorIdFromFile, authorData.ColorId)
+					if colorId != "" {
+						i.authorManager.SetAuthorColor(authorIdFromFile, colorId)
 					}
 					if authorData.Name != nil {
 						i.authorManager.SetAuthorName(authorIdFromFile, *authorData.Name)

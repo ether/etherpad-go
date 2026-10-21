@@ -210,6 +210,34 @@ func TestAuthEndpoint_POST_InvalidCredentials(t *testing.T) {
 	assert.Contains(t, w.Body.String(), `name="code_challenge_method" type="hidden" value="S256"`)
 }
 
+func TestAuthEndpoint_POST_EmptyPasswordRejected(t *testing.T) {
+	settingsAuth := testSettings()
+	emptyPass := ""
+	isAdmin := false
+	settingsAuth.Users["emptyuser"] = settings.User{Password: &emptyPass, IsAdmin: &isAdmin}
+	auth := NewAuthenticator(settingsAuth, db.NewMemoryDataStore())
+	setupLogger := zap.NewNop().Sugar()
+
+	form := url.Values{}
+	form.Add("username", "emptyuser")
+	form.Add("password", "")
+	form.Add("scopes", "openid")
+	form.Add("client_id", "test-client")
+	form.Add("redirect_uri", "http://localhost/callback")
+	form.Add("response_type", "code")
+	form.Add("state", "xyz12323123123")
+
+	req := httptest.NewRequest("POST", "/oauth2/auth", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.PostForm = form
+	w := httptest.NewRecorder()
+
+	auth.AuthEndpoint(w, req, setupLogger, settingsAuth)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), "Username or password invalid")
+}
+
 func TestAuthEndpoint_PKCESurvivesFailedLoginRetry(t *testing.T) {
 	settingsAuth := testSettings()
 	auth := NewAuthenticator(settingsAuth, db.NewMemoryDataStore())

@@ -1,6 +1,7 @@
 package pad
 
 import (
+	"crypto/subtle"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -327,7 +328,7 @@ func CheckAccessWithHooks(ctx fiber.Ctx, logger *zap.SugaredLogger, retrievedSet
 			}
 		}
 
-		if !httpBasicAuth || webAccessCtx.Username == nil || password == nil || *password != *webAccessCtx.Password {
+		if !httpBasicAuth || webAccessCtx.Username == nil || password == nil || *password == "" || subtle.ConstantTimeCompare([]byte(*password), []byte(*webAccessCtx.Password)) != 1 {
 			return sendAuthnFailure()
 		}
 		var retrievedUserFromMap = retrievedSettings.Users[*webAccessCtx.Username]

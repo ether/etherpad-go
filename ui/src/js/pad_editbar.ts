@@ -156,6 +156,7 @@ export const padeditbar = new class {
     this._editbarPosition = 0;
     this.commands = {};
     this.dropdowns = [];
+    this._openedPopup = false;
     this._boundToolbarScrollSync = null;
   }
 
@@ -228,12 +229,16 @@ export const padeditbar = new class {
     });
   }
   triggerCommand(cmd, item) {
+    this._openedPopup = false;
     if (this.isEnabled() && this.commands[cmd]) {
       this.commands[cmd](cmd, padeditor.ace, item);
     }
     // EventBus: emit toolbar:command when a toolbar command is executed
     editorBus.emit('toolbar:command', {command: cmd, value: item?.getValue?.()});
-    if (padeditor.ace) padeditor.ace.focus();
+    // A command that opened a popup has already moved focus into it (see
+    // toggleDropDown). Sending focus back to the editor here would undo that,
+    // and Escape and typing would then go to the editor instead of the popup.
+    if (padeditor.ace && !this._openedPopup) padeditor.ace.focus();
   }
 
   // cb is deprecated (this function is synchronous so a callback is unnecessary).
@@ -279,6 +284,7 @@ export const padeditbar = new class {
             q(`li[data-key=${thisModuleName}] > a`)?.classList.remove('selected');
             module.classList.remove('popup-show');
           } else if (thisModuleName === moduleName) {
+            this._openedPopup = true;
             q(`li[data-key=${thisModuleName}] > a`)?.classList.add('selected');
             module?.classList.add('popup-show');
           }

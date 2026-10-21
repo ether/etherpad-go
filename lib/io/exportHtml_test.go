@@ -860,3 +860,49 @@ func TestGetHTMLFromAtext_MultipleBulletItems(t *testing.T) {
 		t.Errorf("should have 3 <li>, got %d", liCount)
 	}
 }
+
+func TestGetHTMLFromAtext_AuthorColorXSS(t *testing.T) {
+	exporter := &ExportHtml{
+		Hooks: &hooksToUse,
+	}
+	pool := apool.NewAPool()
+	evilAuthorID := `a.x"><img src=x onerror=alert(1)>{}</style><script>alert(2)</script>`
+	pool.PutAttrib(apool.Attribute{Key: "author", Value: evilAuthorID}, nil)
+
+	atext := apool.AText{
+		Text:    "foo\n",
+		Attribs: "*0+3|1+1",
+	}
+
+	authorColors := map[string]string{
+		evilAuthorID: `red}</style><script>alert(1)</script><style>{`,
+	}
+
+	result, err := exporter.getHTMLFromAtext("test-pad", &pool, atext, authorColors)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if strings.Contains(result, "<script") {
+		t.Errorf("HTML output must not contain <script: %s", result)
+	}
+	if strings.Contains(result, "<img") {
+		t.Errorf("HTML output must not contain <img: %s", result)
+	}
+	if strings.Contains(result, ` onerror=`) {
+		t.Errorf("HTML output must not contain an event-handler attribute: %s", result)
+	}
+
+	// Valid color test
+	validPool := apool.NewAPool()
+	validPool.PutAttrib(apool.Attribute{Key: "author", Value: "a.123"}, nil)
+	validResult, err := exporter.getHTMLFromAtext("test-pad", &validPool, atext, map[string]string{
+		"a.123": "#ff0000",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(validResult, ".authora_123 {background-color: #ff0000}") {
+		t.Errorf("Expected valid author color in style, got: %s", validResult)
+	}
+}

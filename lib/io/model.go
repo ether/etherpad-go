@@ -28,7 +28,7 @@ type PadData struct {
 }
 
 type GlobalAuthor struct {
-	ColorId   string  `json:"colorId"`
+	ColorId   any     `json:"colorId"`
 	Timestamp int64   `json:"timestamp"`
 	PadIDs    string  `json:"padIDs"`
 	Name      *string `json:"name"`
