@@ -89,7 +89,22 @@ func shouldServeAdminSPA(requestPath string) bool {
 	}
 }
 
-var loaderConfig = map[string]api.Loader{".css": api.LoaderCSS, ".svg": api.LoaderDataURL, ".woff2": api.LoaderDataURL, ".woff": api.LoaderDataURL, ".ttf": api.LoaderDataURL, ".eot": api.LoaderDataURL, ".otf": api.LoaderDataURL}
+var loaderConfig = map[string]api.Loader{".css": api.LoaderCSS, ".svg": api.LoaderDataURL}
+
+// externalFonts keeps font files out of bundled CSS. The query strings on the
+// icon font URLs (for example, "fontawesome-etherpad.woff?2") are part of the
+// path seen by esbuild, so this cannot be expressed reliably with a simple
+// external glob.
+var externalFonts = api.Plugin{
+	Name: "external-fonts",
+	Setup: func(build api.PluginBuild) {
+		build.OnResolve(api.OnResolveOptions{
+			Filter: `\.(ttf|otf|woff2?|eot)(\?.*)?$`,
+		}, func(args api.OnResolveArgs) (api.OnResolveResult, error) {
+			return api.OnResolveResult{Path: args.Path, External: true}, nil
+		})
+	},
+}
 
 func isDevEnabled(retrievedSettings *settings.Settings) bool {
 	if retrievedSettings != nil {
@@ -111,6 +126,7 @@ func buildColibrisCssInDev(retrievedSettings *settings.Settings) {
 			Outdir:        outDir,
 			LogLevel:      api.LogLevelWarning,
 			Loader:        loaderConfig,
+			Plugins:       []api.Plugin{externalFonts},
 		})
 		if len(result.Errors) > 0 {
 			panic("Error building css/static/pad.css")
@@ -134,6 +150,7 @@ func buildStaticPadCSSInDev(retrievedSettings *settings.Settings) {
 			AssetNames:    "fonts/[name]-[hash]",
 			PublicPath:    "/font",
 			Loader:        loaderConfig,
+			Plugins:       []api.Plugin{externalFonts},
 		})
 		if len(result.Errors) > 0 {
 			panic("Error building css/static/pad.css")
