@@ -8,14 +8,19 @@ import {goToNewPad, setEpCheckbox} from "../helper/padHelper";
 // fail on some CI runners, where the rendered font is narrower than the one the
 // click point was computed against.
 //
-// The font-size override below reproduces that layout deterministically; the
+// The fixed label width below reproduces that layout deterministically; the
 // test fails if the helper ever goes back to clicking the host.
 test('setEpCheckbox toggles when the host centre falls into the track/label gap', async ({page}) => {
     await goToNewPad(page);
-    await page.addStyleTag({content: 'ep-checkbox { font-size: 8px !important; }'});
     await page.locator('li[data-key="share_qr"] button').click();
     await page.locator('#share_qr').evaluate((el) =>
         Promise.all(el.getAnimations({subtree: true}).map((a) => a.finished.catch(() => {}))));
+    await page.locator('#qrreadonlyinput').evaluate((el) => {
+        const label = el.shadowRoot?.querySelector<HTMLElement>('.label');
+        if (!label) throw new Error('ep-checkbox label not found');
+        label.style.display = 'inline-block';
+        label.style.width = '40px';
+    });
 
     const centreInGap = await page.evaluate(() => {
         const host = document.getElementById('qrreadonlyinput')!;
