@@ -178,7 +178,8 @@ templ EmbedPopup(translations map[string]string) {
           <div id="embed" class="popup"><div class="popup-content">
               <h1>{translations["pad.share"]}</h1>
               <div id="embedreadonly" class="acl-write">
-                  <ep-checkbox id="readonlyinput" label={translations["pad.share.readonly"]}></ep-checkbox>
+                  <ep-checkbox id="readonlyinput" aria-describedby="readonly-explanation" label={translations["pad.share.readonly"]}></ep-checkbox>
+                  <p id="readonly-explanation">{translations["pad.share.readonly-explanation"]}</p>
               </div>
               <div id="linkcode">
                   <h2>{translations["pad.share.link"]}</h2>

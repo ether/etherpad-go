@@ -1860,7 +1860,7 @@ func EmbedPopup(translations map[string]string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 143, "</h1><div id=\"embedreadonly\" class=\"acl-write\"><ep-checkbox id=\"readonlyinput\" label=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 143, "</h1><div id=\"embedreadonly\" class=\"acl-write\"><ep-checkbox id=\"readonlyinput\" aria-describedby=\"readonly-explanation\" label=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1873,20 +1873,20 @@ func EmbedPopup(translations map[string]string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 144, "\"></ep-checkbox></div><div id=\"linkcode\"><h2>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 144, "\"></ep-checkbox><p id=\"readonly-explanation\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var134 string
-		templ_7745c5c3_Var134, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.share.link"])
+		templ_7745c5c3_Var134, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.share.readonly-explanation"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `assets/pad/pad.templ`, Line: 184, Col: 53}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `assets/pad/pad.templ`, Line: 182, Col: 94}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var134))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 145, "</h2><input id=\"linkinput\" type=\"text\" value=\"\" onclick=\"this.select()\"></div><div id=\"embedcode\"><h2>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 145, "</p></div><div id=\"linkcode\"><h2>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
