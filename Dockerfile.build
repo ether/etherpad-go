@@ -19,7 +19,7 @@ RUN templ generate
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -ldflags="-s -w" -o app .
 
 
-FROM alpine:3.22 AS busybox
+FROM alpine:3.24 AS busybox
 RUN apk add --no-cache busybox-static \
     && mkdir -p /rootfs/bin \
     && cp /bin/busybox.static /rootfs/bin/busybox \

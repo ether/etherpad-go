@@ -24,7 +24,7 @@ RUN templ generate
 RUN go build -o app .
 
 
-FROM alpine:3.22 AS busybox
+FROM alpine:3.24 AS busybox
 RUN apk add --no-cache busybox-static \
     && mkdir -p /rootfs/bin \
     && cp /bin/busybox.static /rootfs/bin/busybox \
