@@ -12,10 +12,10 @@ require (
 	github.com/go-playground/validator/v10 v10.30.6
 	github.com/go-sql-driver/mysql v1.10.1
 	github.com/gofiber/contrib/v3/swaggo v1.0.15
-	github.com/gofiber/contrib/v3/websocket v1.2.10
+	github.com/gofiber/contrib/v3/websocket v1.2.12
 	github.com/gofiber/fiber/v3 v3.6.1
-	github.com/gofiber/utils/v2 v2.6.3
-	github.com/gofrs/flock v0.8.1
+	github.com/gofiber/utils/v2 v2.6.4
+	github.com/gofrs/flock v0.13.1
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
@@ -84,7 +84,7 @@ require (
 	github.com/go-playground/universal-translator v0.18.2 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
 	github.com/gobuffalo/pop/v6 v6.1.1 // indirect
-	github.com/gofiber/schema v1.9.1 // indirect
+	github.com/gofiber/schema v1.9.3 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/mock v1.6.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0 // indirect
@@ -173,7 +173,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.45.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.11.0 // indirect
 	go.uber.org/multierr v1.10.0 // indirect
-	go.yaml.in/yaml/v3 v3.0.5 // indirect
+	go.yaml.in/yaml/v3 v3.0.6 // indirect
 	golang.org/x/image v0.47.0 // indirect
 	golang.org/x/mod v0.42.0 // indirect
 	golang.org/x/oauth2 v0.37.0 // indirect
