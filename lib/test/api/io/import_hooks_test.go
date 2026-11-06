@@ -186,7 +186,7 @@ func buildMinimalEtherpadJSON(t *testing.T, srcPadName string) []byte {
 	padData := map[string]any{
 		"atext": map[string]any{
 			"text":    "Hello etherpad\n",
-			"attribs": "*0*1*2+g|1+1",
+			"attribs": "*0*1*2+e|1+1",
 		},
 		"pool": map[string]any{
 			"numToAttrib": map[string]any{
@@ -203,10 +203,17 @@ func buildMinimalEtherpadJSON(t *testing.T, srcPadName string) []byte {
 	}
 
 	rev0 := map[string]any{
-		"changeset": "Z:1>g|1+g$Hello etherpad\n",
+		// Rev 0 turns the initial "\n" into "Hello etherpad\n" (14 chars
+		// inserted before the trailing newline); key revisions carry their
+		// atext.
+		"changeset": "Z:1>e*0*1*2+e$Hello etherpad",
 		"meta": map[string]any{
 			"author":    "a.test",
 			"timestamp": 1700000000000,
+			"atext": map[string]any{
+				"text":    "Hello etherpad\n",
+				"attribs": "*0*1*2+e|1+1",
+			},
 		},
 	}
 

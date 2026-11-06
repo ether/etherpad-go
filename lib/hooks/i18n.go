@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/gofiber/fiber/v3"
+	"go.uber.org/zap"
 )
 
 type LanguageContainer struct {
@@ -570,14 +571,14 @@ func getAllLocales(uiAssets embed.FS) Locales {
 	locales2paths := map[string][]string{}
 	var localeEmbed, err = fs.Sub(uiAssets, "assets/locales")
 	if err != nil {
-		println("Error accessing embedded locales: " + err.Error())
+		zap.S().Errorf("Error accessing embedded locales: %v", err)
 		return nil
 	}
 	var extractLangs func(dir string)
 	extractLangs = func(dir string) {
 		entries, err := fs.ReadDir(localeEmbed, dir)
 		if err != nil {
-			println("Error reading locale dir: " + dir + " " + err.Error())
+			zap.S().Errorf("Error reading locale dir %s: %v", dir, err)
 			return
 		}
 
@@ -615,7 +616,7 @@ func getAllLocales(uiAssets embed.FS) Locales {
 			}
 			var mapOfStrings map[string]interface{}
 			if err := json.Unmarshal(data, &mapOfStrings); err != nil {
-				println("Error reading locale from " + p + " " + err.Error())
+				zap.S().Errorf("Error reading locale from %s: %v", p, err)
 				continue
 			}
 

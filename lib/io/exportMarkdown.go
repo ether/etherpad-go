@@ -135,8 +135,7 @@ func (em *ExportMarkdown) analyzeLine(text, aline *string, attribPool *apool.APo
 					line.ListTypeName = listType[1]
 					line.ListLevel, err = strconv.Atoi(listType[2])
 					if err != nil {
-						println("Error in analyzing line", err.Error())
-						return nil, err
+						return nil, fmt.Errorf("analyzing markdown line: invalid list level %q: %w", listType[2], err)
 					}
 				}
 			}

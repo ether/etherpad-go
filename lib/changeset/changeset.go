@@ -12,6 +12,7 @@ import (
 
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/utils"
+	"go.uber.org/zap"
 )
 
 type Changeset struct {
@@ -1443,13 +1444,13 @@ func MoveOpsToNewPool(cs string, oldPool *apool.APool, newPool *apool.APool) str
 
 		oldNum, err := utils.ParseNum(a)
 		if err != nil {
-			println("Error parsing attribute number during pool move:", match, err)
+			zap.S().Warnf("Error parsing attribute number %q during pool move: %v", match, err)
 			return ""
 		}
 
 		pair, _ := oldPool.GetAttrib(oldNum)
 		if pair == nil {
-			println("Removing unknown attribute from changeset during pool move:", match)
+			zap.S().Warnf("Removing unknown attribute %q from changeset during pool move", match)
 			// Attribut eventuell nicht im alten Pool -> wie JS: entfernen
 			return ""
 		}

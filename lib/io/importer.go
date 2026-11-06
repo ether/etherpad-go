@@ -12,6 +12,7 @@ import (
 	"math/rand"
 	"os"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -74,6 +75,12 @@ func sanitizeImportedColorId(rawColorId any) string {
 	return utils.ColorPalette[rand.Intn(len(utils.ColorPalette))]
 }
 
+// ErrImportChangesCreator is returned by SetPadRaw when someone other than
+// the pad's creator imports a .etherpad file whose revision 0 names a
+// different author. The rev-0 author is the creator, who may delete the pad,
+// so handing that role over is reserved to the creator (etherpad-lite #8420).
+var ErrImportChangesCreator = errors.New("only the pad creator can import a file with a different creator")
+
 type EtherpadImport struct {
 	rawData map[string]json.RawMessage
 }
@@ -87,7 +94,9 @@ func (i *Importer) SetPadRaw(padId string, content []byte, authorId string) erro
 	var padData PadData
 	var foundPadData bool
 
-	padKeyRegex := regexp.MustCompile(`^pad:[^:]+:$`)
+	// etherpad-lite stores the pad record under "pad:<id>"; older etherpad-go
+	// exports used "pad:<id>:". Accept both.
+	padKeyRegex := regexp.MustCompile(`^pad:[^:]+:?$`)
 	for key, value := range rawData {
 		if padKeyRegex.MatchString(key) {
 			// Try to parse as PadData
@@ -130,7 +139,49 @@ func (i *Importer) SetPadRaw(padId string, content []byte, authorId string) erro
 		})
 	}
 
-	_ = i.db.RemovePad(padId)
+	// Security metadata comes from the target pad, never from the file: an
+	// importer only needs write access, so the file must not be able to make
+	// a private group pad public, reset its read-only link or make someone
+	// else its creator (etherpad-lite #8420).
+	targetPad, targetErr := i.db.GetPad(padId)
+	targetExists := targetErr == nil && targetPad != nil
+	creatorId := authorId
+	if rev0, err := i.db.GetRevision(padId, 0); err == nil && rev0 != nil {
+		creatorId = ""
+		if rev0.AuthorId != nil {
+			creatorId = *rev0.AuthorId
+		}
+	}
+	importerIsCreator := !targetExists || (authorId != "" && creatorId == authorId)
+
+	revisions := make(map[int]Revision)
+	revisionRegex := regexp.MustCompile(`^pad:[^:]+:revs:(\d+)$`)
+	for key, value := range rawData {
+		matches := revisionRegex.FindStringSubmatch(key)
+		if matches != nil {
+			revNum, _ := strconv.Atoi(matches[1])
+			var rev Revision
+			if err := json.Unmarshal(value, &rev); err == nil {
+				revisions[revNum] = rev
+			}
+		}
+	}
+	if rev0, ok := revisions[0]; ok && !importerIsCreator {
+		fileCreator := ""
+		if rev0.Meta.Author != nil {
+			fileCreator = *rev0.Meta.Author
+		}
+		if fileCreator != creatorId {
+			return ErrImportChangesCreator
+		}
+	}
+
+	publicStatus := false
+	var readOnlyId *string
+	if targetExists {
+		publicStatus = targetPad.PublicStatus
+		readOnlyId = targetPad.ReadOnlyId
+	}
 
 	pool := apool.NewAPool()
 	for numStr, attrib := range padData.Pool.NumToAttrib {
@@ -147,91 +198,178 @@ func (i *Importer) SetPadRaw(padId string, content []byte, authorId string) erro
 	}
 	pool.NextNum = padData.Pool.NextNum
 
-	atext := apool.AText{
-		Text:    padData.AText.Text,
-		Attribs: padData.AText.Attribs,
+	imp := &parsedEtherpad{
+		pad: db2.PadDB{
+			SavedRevisions: make([]db2.SavedRevision, 0),
+			Head:           padData.Head,
+			Pool:           pool.ToRevDB(),
+			ATextText:      padData.AText.Text,
+			ATextAttribs:   padData.AText.Attribs,
+			CreatedAt:      time.Now(),
+			ReadOnlyId:     readOnlyId,
+			ID:             padId,
+			PublicStatus:   publicStatus,
+		},
+		revisions: revisions,
+		authors:   make(map[string]GlobalAuthor),
 	}
-
-	revisions := make(map[int]Revision)
-	revisionRegex := regexp.MustCompile(`^pad:[^:]+:revs:(\d+)$`)
-
-	for key, value := range rawData {
-		matches := revisionRegex.FindStringSubmatch(key)
-		if matches != nil {
-			revNum, _ := strconv.Atoi(matches[1])
-			var rev Revision
-			if err := json.Unmarshal(value, &rev); err == nil {
-				revisions[revNum] = rev
-			}
+	pool.EachAttrib(func(a apool.Attribute) {
+		if a.Key == "author" && a.Value != "" {
+			imp.referencedAuthors = append(imp.referencedAuthors, a.Value)
+		}
+	})
+	for _, rev := range revisions {
+		if rev.Meta.Author != nil && *rev.Meta.Author != "" {
+			imp.referencedAuthors = append(imp.referencedAuthors, *rev.Meta.Author)
 		}
 	}
 
 	authorRegex := regexp.MustCompile(`^globalAuthor:(.+)$`)
+	chatRegex := regexp.MustCompile(`^pad:[^:]+:chat:(\d+)$`)
+	type indexedChat struct {
+		idx int
+		msg ChatMessage
+	}
+	var chats []indexedChat
 	for key, value := range rawData {
-		matches := authorRegex.FindStringSubmatch(key)
-		if matches != nil {
-			authorIdFromFile := matches[1]
+		if m := authorRegex.FindStringSubmatch(key); m != nil {
 			var authorData GlobalAuthor
 			if err := json.Unmarshal(value, &authorData); err == nil {
-				colorId := sanitizeImportedColorId(authorData.ColorId)
-				existingAuthor, _ := i.authorManager.GetAuthor(authorIdFromFile)
-				if existingAuthor == nil {
-					i.db.SaveAuthor(db2.AuthorDB{
-						ID:        authorIdFromFile,
-						Name:      authorData.Name,
-						ColorId:   colorId,
-						Timestamp: authorData.Timestamp,
-					})
-				} else {
-					if colorId != "" {
-						i.authorManager.SetAuthorColor(authorIdFromFile, colorId)
-					}
-					if authorData.Name != nil {
-						i.authorManager.SetAuthorName(authorIdFromFile, *authorData.Name)
-					}
+				imp.authors[m[1]] = authorData
+			}
+		} else if m := chatRegex.FindStringSubmatch(key); m != nil {
+			idx, _ := strconv.Atoi(m[1])
+			var chat ChatMessage
+			if err := json.Unmarshal(value, &chat); err == nil {
+				chats = append(chats, indexedChat{idx: idx, msg: chat})
+				if chat.UserId != nil && *chat.UserId != "" {
+					imp.referencedAuthors = append(imp.referencedAuthors, *chat.UserId)
 				}
 			}
 		}
 	}
+	// Keep the file's chat order and store it contiguously from 0; map
+	// iteration order is random.
+	sort.Slice(chats, func(a, b int) bool { return chats[a].idx < chats[b].idx })
+	for _, c := range chats {
+		imp.chats = append(imp.chats, c.msg)
+	}
+	imp.pad.ChatHead = len(imp.chats) - 1
 
-	dbPad := db2.PadDB{
-		SavedRevisions: make([]db2.SavedRevision, 0),
-		Head:           padData.Head,
-		Pool:           pool.ToRevDB(),
-		ATextText:      atext.Text,
-		CreatedAt:      time.Now(),
-		ReadOnlyId:     nil,
-		ID:             padId,
-		ATextAttribs:   atext.Attribs,
-		UpdatedAt:      nil,
-		ChatHead:       padData.ChatHead,
-		PublicStatus:   padData.PublicStatus,
+	// Like etherpad-lite, validate the whole import in a scratch store before
+	// anything is written: a broken file must be rejected while the target
+	// pad is still intact, not leave a half-imported pad behind.
+	if err := i.validateImport(padId, imp); err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidEtherpadFile, err)
 	}
 
-	if err := i.db.CreatePad(padId, dbPad); err != nil {
-		return errors.New("failed to save pad: " + err.Error())
+	_ = i.db.RemovePad(padId)
+	if err := i.writeImport(i.db, imp, true); err != nil {
+		return fmt.Errorf("import into %s failed: %w", padId, err)
 	}
+	return nil
+}
 
-	for revNum, rev := range revisions {
-		var revAuthor *string
-		if rev.Meta.Author != nil {
-			revAuthor = rev.Meta.Author
+// ErrInvalidEtherpadFile wraps every reason a .etherpad file is rejected
+// before it is written.
+var ErrInvalidEtherpadFile = errors.New("invalid etherpad file")
+
+// parsedEtherpad is a .etherpad import, parsed and remapped to the target
+// pad but not yet written.
+type parsedEtherpad struct {
+	pad               db2.PadDB
+	revisions         map[int]Revision
+	authors           map[string]GlobalAuthor
+	chats             []ChatMessage
+	referencedAuthors []string
+}
+
+// validateImport writes imp into an in-memory store and runs the pad
+// consistency check on the result.
+func (i *Importer) validateImport(padId string, imp *parsedEtherpad) error {
+	scratch := db.NewMemoryDataStore()
+	if err := i.writeImport(scratch, imp, false); err != nil {
+		return err
+	}
+	// A hook instance without listeners: plugins must not see the probe load.
+	noHooks := hooks.NewHook()
+	probe := padModel.NewPad(padId, scratch, &noHooks)
+	if err := probe.Init(nil, nil, author.NewManager(scratch)); err != nil {
+		return err
+	}
+	return probe.Check()
+}
+
+// writeImport stores imp in store. Every write error is returned: an import
+// that silently drops a revision leaves a pad that can't be loaded.
+func (i *Importer) writeImport(store db.DataStore, imp *parsedEtherpad, live bool) error {
+	padId := imp.pad.ID
+
+	known := make(map[string]bool)
+	for authorIdFromFile, authorData := range imp.authors {
+		known[authorIdFromFile] = true
+		colorId := sanitizeImportedColorId(authorData.ColorId)
+		existing, _ := store.GetAuthor(authorIdFromFile)
+		if existing == nil {
+			if err := store.SaveAuthor(db2.AuthorDB{
+				ID:        authorIdFromFile,
+				Name:      authorData.Name,
+				ColorId:   colorId,
+				Timestamp: authorData.Timestamp,
+			}); err != nil {
+				return fmt.Errorf("saving author %s: %w", authorIdFromFile, err)
+			}
+			continue
 		}
+		if !live {
+			continue
+		}
+		if colorId != "" {
+			if err := i.authorManager.SetAuthorColor(authorIdFromFile, colorId); err != nil {
+				return fmt.Errorf("updating author %s: %w", authorIdFromFile, err)
+			}
+		}
+		if authorData.Name != nil {
+			if err := i.authorManager.SetAuthorName(authorIdFromFile, *authorData.Name); err != nil {
+				return fmt.Errorf("updating author %s: %w", authorIdFromFile, err)
+			}
+		}
+	}
+	// Revisions and chat reference their authors; files that lack an author
+	// record (hand-made or trimmed exports) get a nameless placeholder so the
+	// rows can be stored (SQL datastores enforce the reference).
+	for _, id := range imp.referencedAuthors {
+		if known[id] {
+			continue
+		}
+		known[id] = true
+		if existing, _ := store.GetAuthor(id); existing != nil {
+			continue
+		}
+		if err := store.SaveAuthor(db2.AuthorDB{ID: id, ColorId: "#808080", Timestamp: time.Now().UnixMilli()}); err != nil {
+			return fmt.Errorf("saving placeholder author %s: %w", id, err)
+		}
+	}
+
+	if err := store.CreatePad(padId, imp.pad); err != nil {
+		return fmt.Errorf("saving pad: %w", err)
+	}
+
+	revNums := make([]int, 0, len(imp.revisions))
+	for n := range imp.revisions {
+		revNums = append(revNums, n)
+	}
+	sort.Ints(revNums)
+	for _, revNum := range revNums {
+		rev := imp.revisions[revNum]
 		var timestamp int64
 		if rev.Meta.Timestamp != nil {
 			timestamp = *rev.Meta.Timestamp
 		}
-
-		// Get atext from revision meta if available
 		var revAText db2.AText
 		if rev.Meta.AText != nil {
-			revAText = db2.AText{
-				Text:    rev.Meta.AText.Text,
-				Attribs: rev.Meta.AText.Attribs,
-			}
+			revAText = db2.AText{Text: rev.Meta.AText.Text, Attribs: rev.Meta.AText.Attribs}
 		}
-
-		// Get pool from revision meta if available
 		var revPool db2.RevPool
 		if rev.Meta.Pool != nil {
 			revPool = db2.RevPool{
@@ -240,40 +378,29 @@ func (i *Importer) SetPadRaw(padId string, content []byte, authorId string) erro
 				NextNum:     rev.Meta.Pool.NextNum,
 			}
 		}
-
-		err := i.db.SaveRevision(padId, revNum, rev.Changeset, revAText, revPool, revAuthor, timestamp)
-		if err != nil {
-			if i.logger != nil {
-				i.logger.Warnf("Failed to save revision %d: %v", revNum, err)
-			}
+		if err := store.SaveRevision(padId, revNum, rev.Changeset, revAText, revPool, rev.Meta.Author, timestamp); err != nil {
+			return fmt.Errorf("saving revision %d: %w", revNum, err)
 		}
 	}
 
-	newText := "\n"
-	retrievedPad, err := i.padManager.GetPad(padId, &newText, nil)
-	if err != nil {
-		i.logger.Warnf("Could not get pad for chat import: %v", err)
-	} else {
-		chatRegex := regexp.MustCompile(`^pad:[^:]+:chat:(\d+)$`)
-		for key, value := range rawData {
-			matches := chatRegex.FindStringSubmatch(key)
-			if matches != nil {
-				var chat ChatMessage
-				if err := json.Unmarshal(value, &chat); err == nil {
-					var time int64
-					if chat.Time != nil {
-						time = *chat.Time
-					}
-					var userId string
-					if chat.UserId != nil {
-						userId = *chat.UserId
-					}
-					retrievedPad.AppendChatMessage(&userId, time, chat.Text)
-				}
-			}
+	for idx, chat := range imp.chats {
+		var ts int64
+		if chat.Time != nil {
+			ts = *chat.Time
+		}
+		var userId *string
+		if chat.UserId != nil && *chat.UserId != "" {
+			userId = chat.UserId
+		}
+		if err := store.SaveChatMessage(padId, idx, userId, ts, chat.Text); err != nil {
+			return fmt.Errorf("saving chat message %d: %w", idx, err)
 		}
 	}
-
+	if len(imp.chats) > 0 {
+		if err := store.SaveChatHeadOfPad(padId, len(imp.chats)-1); err != nil {
+			return fmt.Errorf("saving chat head: %w", err)
+		}
+	}
 	return nil
 }
 

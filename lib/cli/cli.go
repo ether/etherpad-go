@@ -560,7 +560,7 @@ func (p *Pad) OnNewContents(callback func(atext apool.AText)) {
 				callback(*atext)
 			}
 		} else {
-			println("OnNewContents: invalid data type received")
+			p.logger.Warnf("OnNewContents: invalid data type received: %T", data)
 		}
 	})
 }

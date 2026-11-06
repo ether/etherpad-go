@@ -6,6 +6,7 @@ import (
 
 	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/gofiber/fiber/v3"
+	"go.uber.org/zap"
 )
 
 type Plugin struct {
@@ -101,14 +102,14 @@ func LoadPlugin(plugin Plugin, plugins map[string]Plugin, parts map[string]Part)
 	}
 
 	if err != nil {
-		println("Error reading plugin file " + plugin.RealPath + ": " + err.Error())
+		zap.S().Errorf("Error reading plugin file %s: %v", plugin.RealPath, err)
 		return
 	}
 
 	var pluginDef PluginDef
 	err = json.Unmarshal(bytes, &pluginDef)
 	if err != nil {
-		println("Error parsing plugin file " + plugin.RealPath + ": " + err.Error())
+		zap.S().Errorf("Error parsing plugin file %s: %v", plugin.RealPath, err)
 		return
 	}
 

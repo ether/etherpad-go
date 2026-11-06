@@ -441,7 +441,15 @@ func (p *PadMessageHandler) HandleMessage(message any, client *Client, retrieved
 				client.legacySessionIdWarned = true
 			}
 		}
-		thisSession = p.SessionStore.addHandleClientInformation(client.SessionId, castedMessage.Data.PadID, castedMessage.Data.Token)
+		// A connection without a token gets a fresh one for this session only;
+		// passing "" on would map every such connection to one shared author
+		// (GHSA-746x-9w89-7xv6). It is stored in the session so later
+		// messages of this connection resolve to the same author.
+		resolvedToken := castedMessage.Data.Token
+		if resolvedToken == "" {
+			resolvedToken = utils.GenerateAuthorToken()
+		}
+		thisSession = p.SessionStore.addHandleClientInformation(client.SessionId, castedMessage.Data.PadID, resolvedToken)
 		thisSession.Auth.IntegratorSessionID = resolvedSessionID
 		exists, err := p.padManager.DoesPadExist(thisSession.Auth.PadId)
 
@@ -1569,8 +1577,11 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 
 		// Flush any revisions that landed between the atomic snapshot and
 		// this socket officially joining the pad room. Upstream #7480.
+		// Only the joining socket is behind; catching up the whole room
+		// here could advance another session's revision behind the back of
+		// its own commit in flight. Upstream #8409.
 		if retrievedPad.Head > headRevSnapshot {
-			p.UpdatePadClients(retrievedPad)
+			p.updatePadClients(retrievedPad, client)
 		}
 	}
 
@@ -1664,8 +1675,19 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 	})
 }
 
+// UpdatePadClients sends every client of the pad the revisions it hasn't
+// seen yet (NEW_CHANGES).
 func (p *PadMessageHandler) UpdatePadClients(pad *pad2.Pad) {
+	p.updatePadClients(pad, nil)
+}
+
+// updatePadClients is UpdatePadClients, restricted to the session of only
+// when it is non-nil.
+func (p *PadMessageHandler) updatePadClients(pad *pad2.Pad, only *Client) {
 	var roomSockets = p.GetRoomSockets(pad.Id)
+	if only != nil {
+		roomSockets = slices.DeleteFunc(roomSockets, func(c Client) bool { return c.SessionId != only.SessionId })
+	}
 	if len(roomSockets) == 0 {
 		return
 	}
@@ -1680,10 +1702,15 @@ func (p *PadMessageHandler) UpdatePadClients(pad *pad2.Pad) {
 		}
 
 		for sessionInfo.Revision < pad.Head {
-			p.Logger.Warn("Sending NEW_CHANGES to client for pad", pad.Id, "from rev", sessionInfo.Revision, "to", pad.Head)
+			p.Logger.Debugf("Sending NEW_CHANGES to client for pad %s from rev %d to %d", pad.Id, sessionInfo.Revision, pad.Head)
 			var r = sessionInfo.Revision + 1
 			if _, ok := revCache[r]; !ok {
-				revCache[r], _ = pad.GetRevision(r)
+				rev, err := pad.GetRevision(r)
+				if err != nil || rev == nil {
+					p.Logger.Warnf("Cannot load revision %d of pad %s for NEW_CHANGES: %v", r, pad.Id, err)
+					break
+				}
+				revCache[r] = rev
 			}
 			var revision = revCache[r]
 			var authorFromRev = revision.AuthorId

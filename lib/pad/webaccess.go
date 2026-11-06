@@ -143,7 +143,7 @@ func CheckAccessWithHooks(ctx fiber.Ctx, logger *zap.SugaredLogger, retrievedSet
 				// because SecurityManager resolves to and looks up the real pad id.
 				var realPadId, err = readOnlyManager.GetPadId(padId)
 				if err != nil {
-					println("Error getting real pad ID:", err.Error())
+					logger.Warnf("Error getting real pad ID for %s: %v", padId, err)
 					return false
 				}
 				if realPadId == nil {

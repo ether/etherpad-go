@@ -4,11 +4,13 @@ import (
 	"embed"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/db"
 	"github.com/ether/etherpad-go/lib/hooks"
 	"github.com/ether/etherpad-go/lib/hooks/events"
+	dbmodels "github.com/ether/etherpad-go/lib/models/db"
 	"github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/utils"
 	"github.com/gofiber/fiber/v3"
@@ -60,7 +62,11 @@ func NewExportEtherpad(hooks *hooks.Hook, padManager *pad.Manager, db db.DataSto
 	return exportEtherpad
 }
 
-func (e *ExportEtherpad) GetPadRaw(padId string, readOnlyId *string) (*EtherpadExport, error) {
+// GetPadRaw builds a .etherpad export. With revNum set (a /:rev/export
+// request) the export is a point-in-time snapshot: head, text and revisions
+// stop at that revision, and chat only contains messages posted no later than
+// it (etherpad-lite #8389). Without it the whole pad is exported.
+func (e *ExportEtherpad) GetPadRaw(padId string, readOnlyId *string, revNum *int) (*EtherpadExport, error) {
 	var dstPfx string
 	var padIdToUse string
 	if readOnlyId != nil {
@@ -82,6 +88,40 @@ func (e *ExportEtherpad) GetPadRaw(padId string, readOnlyId *string) (*EtherpadE
 		return nil, err
 	}
 
+	padHead := retrievedPad.Head
+	effectiveHead := padHead
+	if revNum != nil && *revNum >= 0 && *revNum < padHead {
+		effectiveHead = *revNum
+	}
+	exportAText := AText{Text: retrievedPad.AText.Text, Attribs: retrievedPad.AText.Attribs}
+	if effectiveHead < padHead {
+		bound := retrievedPad.GetInternalRevisionAText(effectiveHead)
+		if bound == nil {
+			return nil, fmt.Errorf("could not reconstruct revision %d of pad %s", effectiveHead, padId)
+		}
+		exportAText = AText{Text: bound.Text, Attribs: bound.Attribs}
+	}
+	exportChatHead := retrievedPad.ChatHead
+	if revNum != nil {
+		// Any rev-specific export (rev == head included) only carries chat
+		// posted no later than that revision. Chat times can be set through
+		// the API, so filter rather than stop at the first later message, and
+		// renumber the kept messages so the export stays contiguous.
+		var revTime *int64
+		if effectiveHead >= 0 {
+			revTime, _ = retrievedPad.GetRevisionDate(effectiveHead)
+		}
+		kept := make([]dbmodels.ChatMessageDBWithDisplayName, 0, len(*chatMessages))
+		for _, m := range *chatMessages {
+			if revTime != nil && m.Time != nil && *m.Time <= *revTime {
+				m.Head = len(kept)
+				kept = append(kept, m)
+			}
+		}
+		*chatMessages = kept
+		exportChatHead = len(kept) - 1
+	}
+
 	export := &EtherpadExport{
 		Pad:       make(map[string]PadData),
 		Authors:   make(map[string]GlobalAuthor),
@@ -96,11 +136,13 @@ func (e *ExportEtherpad) GetPadRaw(padId string, readOnlyId *string) (*EtherpadE
 		}
 	}
 
-	export.Pad[dstPfx] = PadData{
-		AText:          AText{Text: retrievedPad.AText.Text, Attribs: retrievedPad.AText.Attribs},
+	// The pad record itself is "pad:<id>" (no trailing colon), as in
+	// etherpad-lite, so exports can be imported there and vice versa.
+	export.Pad[strings.TrimSuffix(dstPfx, ":")] = PadData{
+		AText:          exportAText,
 		Pool:           Pool{NumToAttrib: numToAttrib, NextNum: retrievedPad.Pool.NextNum},
-		Head:           retrievedPad.Head,
-		ChatHead:       retrievedPad.ChatHead,
+		Head:           effectiveHead,
+		ChatHead:       exportChatHead,
 		PublicStatus:   retrievedPad.PublicStatus,
 		SavedRevisions: make([]any, 0),
 	}
@@ -131,7 +173,7 @@ func (e *ExportEtherpad) GetPadRaw(padId string, readOnlyId *string) (*EtherpadE
 		}
 	}
 
-	revisions, err := retrievedPad.GetRevisions(0, retrievedPad.Head)
+	revisions, err := retrievedPad.GetRevisions(0, effectiveHead)
 	if err != nil {
 		return nil, err
 	}
@@ -205,7 +247,7 @@ func (e *ExportEtherpad) DoExport(ctx fiber.Ctx, id string, readOnlyId *string, 
 
 	switch fileExportType {
 	case "etherpad":
-		exportedPad, err := e.GetPadRaw(id, readOnlyId)
+		exportedPad, err := e.GetPadRaw(id, readOnlyId, optRevNum)
 		if err != nil {
 			return ctx.Status(500).SendString(err.Error())
 		}

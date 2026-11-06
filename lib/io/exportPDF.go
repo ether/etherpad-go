@@ -112,7 +112,7 @@ func (e *ExportPDF) GetPadPdfDocument(padId string, optRevNum *int) ([]byte, err
 		return nil, err
 	}
 
-	pdfBytes, err := e.embedEtherpadData(buf.Bytes(), padId)
+	pdfBytes, err := e.embedEtherpadData(buf.Bytes(), padId, optRevNum)
 	if err != nil {
 		return buf.Bytes(), nil
 	}
@@ -120,12 +120,15 @@ func (e *ExportPDF) GetPadPdfDocument(padId string, optRevNum *int) ([]byte, err
 	return pdfBytes, nil
 }
 
-func (e *ExportPDF) embedEtherpadData(pdfContent []byte, padId string) ([]byte, error) {
+// embedEtherpadData attaches the .etherpad export to the PDF. For a
+// revision-bound PDF the attachment is bound to the same revision, so it
+// can't leak later edits or chat.
+func (e *ExportPDF) embedEtherpadData(pdfContent []byte, padId string, optRevNum *int) ([]byte, error) {
 	if e.exportEtherpad == nil {
 		return pdfContent, nil
 	}
 
-	etherpadExport, err := e.exportEtherpad.GetPadRaw(padId, nil)
+	etherpadExport, err := e.exportEtherpad.GetPadRaw(padId, nil, optRevNum)
 	if err != nil {
 		return nil, fmt.Errorf("could not get etherpad export: %w", err)
 	}

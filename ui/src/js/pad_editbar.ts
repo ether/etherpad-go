@@ -26,6 +26,7 @@ import {browserFlags as browser} from './browser_flags';
 import {editorBus} from './core/EventBus';
 import html10n from './i18n';
 import padutils from "./pad_utils";
+import {getReturnToPadUrl} from './timesliderReturnUrl';
 import {padeditor} from './pad_editor';
 import * as padsavedrevs from './pad_savedrevs';
 
@@ -594,14 +595,9 @@ export const padeditbar = new class {
     });
 
     this.registerCommand('timeslider_returnToPad', (cmd) => {
-      if (document.referrer.length > 0 &&
-          document.referrer.substring(document.referrer.lastIndexOf('/') - 1,
-              document.referrer.lastIndexOf('/')) === 'p') {
-        document.location = document.referrer;
-      } else {
-        document.location = document.location.href
-            .substring(0, document.location.href.lastIndexOf('/'));
-      }
+      // Only a same-origin referrer that is this pad's page is followed
+      // (GHSA-35rj-7vrx-29wq, etherpad-lite #8397).
+      document.location = getReturnToPadUrl(document.referrer, document.location.href);
     });
   }
 }();

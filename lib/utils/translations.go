@@ -23,8 +23,7 @@ func LoadPluginTranslations(language string, uiAssets embed.FS, pluginName strin
 	}
 	var keyValues map[string]interface{}
 	if err := json.Unmarshal(content, &keyValues); err != nil {
-		println(err.Error())
-		return nil, err
+		return nil, fmt.Errorf("parse translations: %w", err)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("read file: %w", err)
@@ -71,8 +70,7 @@ func LoadTranslations(language string, uiAssets embed.FS, hooks *hooks.Hook) (ma
 	var keyValues map[string]interface{}
 
 	if err := json.Unmarshal(content, &keyValues); err != nil {
-		println(err.Error())
-		return nil, err
+		return nil, fmt.Errorf("parse translations: %w", err)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("read file: %w", err)

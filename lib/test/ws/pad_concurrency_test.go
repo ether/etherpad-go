@@ -11,7 +11,6 @@ import (
 	"testing"
 
 	apipad "github.com/ether/etherpad-go/lib/api/pad"
-	"github.com/ether/etherpad-go/lib/db"
 	"github.com/ether/etherpad-go/lib/models/ws"
 	"github.com/ether/etherpad-go/lib/test/testutils"
 	libws "github.com/ether/etherpad-go/lib/ws"
@@ -20,31 +19,13 @@ import (
 )
 
 func TestPadConcurrentWriters(t *testing.T) {
-	// Datastores run one after another, not in parallel like
-	// StartTestDBHandler does: ToInitStore writes the global settings, which
-	// the other datastore's goroutines would be reading, and that test-only
-	// race would drown out real reports under -race.
-	testDb := testutils.NewTestDBHandler(t)
-	conf := testutils.TestRunConfig{
+	// Datastores run one after another: ToInitStore writes the global
+	// settings, which a parallel run's goroutines would be reading, and that
+	// test-only race would drown out real reports under -race.
+	testutils.RunSequentialMemorySQLite(t, testutils.TestRunConfig{
 		Name: "USER_CHANGES and HTTP API writes to one pad are serialised",
 		Test: testConcurrentUserChangesAndAPIWrites,
-	}
-	datastores := []struct {
-		name  string
-		newDS func() db.DataStore
-	}{
-		{"Memory", func() db.DataStore { return db.NewMemoryDataStore() }},
-		{"SQLite", func() db.DataStore {
-			sqliteDB, err := db.NewSQLiteDB(":memory:")
-			require.NoError(t, err)
-			return sqliteDB
-		}},
-	}
-	for _, d := range datastores {
-		t.Run(d.name, func(t *testing.T) {
-			testDb.TestRun(t, conf, d.newDS, d.name)
-		})
-	}
+	})
 }
 
 // testConcurrentUserChangesAndAPIWrites fires websocket commits and HTTP API
@@ -165,13 +146,9 @@ func testConcurrentUserChangesAndAPIWrites(t *testing.T, ds testutils.TestDataSt
 // TestUserChangesLeaveNoGoroutines: USER_CHANGES used to start a goroutine
 // per pad that ran forever, so every pad ever edited leaked one.
 func TestUserChangesLeaveNoGoroutines(t *testing.T) {
-	testDb := testutils.NewTestDBHandler(t)
-	conf := testutils.TestRunConfig{
+	testutils.RunSequentialMemorySQLite(t, testutils.TestRunConfig{
 		Name: "editing many pads does not grow the goroutine count",
 		Test: testUserChangesLeaveNoGoroutines,
-	}
-	t.Run("Memory", func(t *testing.T) {
-		testDb.TestRun(t, conf, func() db.DataStore { return db.NewMemoryDataStore() }, "Memory")
 	})
 }
 

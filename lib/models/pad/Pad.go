@@ -113,7 +113,7 @@ func (p *Pad) Check() error {
 		isKeyRev := r == p.getKeyRevisionNumber(r)
 		revChangeset, err := p.GetRevisionChangeset(r)
 		if err != nil {
-			return errors.New("pad revision " + string(rune(r)) + " retrieval failed: " + err.Error())
+			return errors.New("pad revision " + strconv.Itoa(r) + " retrieval failed: " + err.Error())
 		}
 		revAuthor, err := p.GetRevisionAuthor(r)
 		if err != nil {
@@ -121,12 +121,12 @@ func (p *Pad) Check() error {
 		}
 		revTimestamp, err := p.GetRevisionDate(r)
 		if err != nil {
-			return errors.New("pad revision " + string(rune(r)) + " timestamp retrieval failed: " + err.Error())
+			return errors.New("pad revision " + strconv.Itoa(r) + " timestamp retrieval failed: " + err.Error())
 		}
 
 		atext, err := p.getKeyRevisionAText(r)
 		if err != nil {
-			return errors.New("pad revision " + string(rune(r)) + " atext retrieval failed: " + err.Error())
+			return errors.New("pad revision " + strconv.Itoa(r) + " atext retrieval failed: " + err.Error())
 		}
 
 		revs = append(revs, utils2.CreateRevision(*revChangeset, *revTimestamp, isKeyRev, revAuthor, *atext, padPool))
@@ -152,7 +152,9 @@ func (p *Pad) Check() error {
 			return errors.New("pad revision has invalid changeset: " + err.Error())
 		}
 
-		text := atext.Text
+		// Changeset lengths count runes, so slice the text as runes: slicing
+		// bytes broke on any non-ASCII text.
+		text := []rune(atext.Text)
 
 		deserializedOps, err := changeset.DeserializeOps(unpackedChangeset.Ops)
 		if err != nil {
@@ -160,10 +162,10 @@ func (p *Pad) Check() error {
 		}
 		for _, op := range *deserializedOps {
 			if op.OpCode == "=" || op.OpCode == "-" {
-				if text == "" || utf8.RuneCountInString(text) < op.Chars {
+				if len(text) < op.Chars {
 					return errors.New("pad revision has changeset op exceeding atext length")
 				}
-				consumed := text[0:op.Chars]
+				consumed := string(text[:op.Chars])
 				nlines := utils.CountLines(consumed, '\n')
 				if nlines != op.Lines {
 					return errors.New("pad revision has changeset op with mismatched lines count")

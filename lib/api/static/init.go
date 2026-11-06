@@ -184,7 +184,7 @@ func Init(store *lib.InitStore) {
 		if store.CookieStore != nil {
 			var _, err = store.CookieStore.Get(c)
 			if err != nil {
-				println("Error with session")
+				store.Logger.Warnf("Error loading session cookie: %v", err)
 			}
 		}
 

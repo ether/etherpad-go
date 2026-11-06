@@ -2,6 +2,7 @@ package pad
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/ether/etherpad-go/lib/author"
@@ -98,8 +99,7 @@ func (s *SecurityManager) CheckAccess(padId *string, sessionCookie *string, toke
 		var level, err = NormalizeAuthzLevel(entry)
 
 		if err != nil {
-			println("Access denied: unauthorized")
-			return nil, err
+			return nil, fmt.Errorf("access denied: unauthorized: %w", err)
 		}
 
 		if level != nil {
@@ -111,8 +111,7 @@ func (s *SecurityManager) CheckAccess(padId *string, sessionCookie *string, toke
 
 	var padExists, err = s.PadManager.DoesPadExist(*padId)
 	if err != nil {
-		println("An error occurred while checking pad existence:", err.Error())
-		return nil, errors.New("internal error while checking pad existence")
+		return nil, fmt.Errorf("internal error while checking pad existence: %w", err)
 	}
 
 	if !*padExists && !canCreate {
@@ -127,19 +126,29 @@ func (s *SecurityManager) CheckAccess(padId *string, sessionCookie *string, toke
 		return nil, errors.New("access denied: HTTP API session is required")
 	}
 
-	if sessionAuthorID == nil && token != nil && !utils.IsValidAuthorToken(*token) {
+	// A missing token is fine (resolveAuthorId hands out a fresh one); a
+	// malformed one is rejected.
+	if sessionAuthorID == nil && token != nil && *token != "" && !utils.IsValidAuthorToken(*token) {
 		return nil, errors.New("invalid author token")
 	}
 
-	authorId, err := s.resolveAuthorId(token, userSettings)
-	if err != nil {
-		println("An error occurred while retrieving author from token:", err.Error())
-		return nil, errors.New("access denied: invalid author token")
+	// Resolve the author only once access is granted, so a denied request
+	// does not leave an author record behind. An integrator session's author
+	// takes precedence over the token's author, as in etherpad-lite.
+	grant := func() (*GrantedAccess, error) {
+		if sessionAuthorID != nil {
+			return &GrantedAccess{AccessStatus: "grant", AuthorId: *sessionAuthorID}, nil
+		}
+		authorId, err := s.resolveAuthorId(token, userSettings)
+		if err != nil {
+			return nil, fmt.Errorf("access denied: invalid author token: %w", err)
+		}
+		return &GrantedAccess{AccessStatus: "grant", AuthorId: authorId}, nil
 	}
-	var grantedAccess = GrantedAccess{AccessStatus: "grant", AuthorId: authorId}
 
 	if !strings.Contains(*padId, "$") {
-		return &grantedAccess, nil
+		// Only group pads can be private, so there is nothing more to check.
+		return grant()
 	}
 
 	if !*padExists {
@@ -147,7 +156,7 @@ func (s *SecurityManager) CheckAccess(padId *string, sessionCookie *string, toke
 			return nil, errors.New("access denied: must have an HTTP API session to create a group pad")
 		}
 		// Creating a group pad, so there is no public status to check.
-		return &grantedAccess, nil
+		return grant()
 	}
 
 	var pad, _ = s.PadManager.GetPad(*padId, nil, nil)
@@ -156,12 +165,17 @@ func (s *SecurityManager) CheckAccess(padId *string, sessionCookie *string, toke
 		return nil, errors.New("must have an HTTP API session to access private group pads")
 	}
 
-	return &grantedAccess, nil
+	return grant()
 }
 
 // resolveAuthorId resolves the author id for a token, first giving getAuthorId
 // hooks a chance to supply/override it (first non-empty wins), then falling back
 // to the database token->author mapping.
+//
+// A missing token reaches the hooks as "" (etherpad-lite: null) but is never
+// looked up itself: every token-less caller would share the author mapped to
+// the empty token and could impersonate the others, e.g. delete pads they
+// created (GHSA-746x-9w89-7xv6). It gets a fresh token instead.
 func (s *SecurityManager) resolveAuthorId(token *string, userSettings *webaccess.SocketClientRequest) (string, error) {
 	var tok string
 	if token != nil {
@@ -173,6 +187,9 @@ func (s *SecurityManager) resolveAuthorId(token *string, userSettings *webaccess
 		if idCtx.AuthorId() != "" {
 			return idCtx.AuthorId(), nil
 		}
+	}
+	if tok == "" {
+		tok = utils.GenerateAuthorToken()
 	}
 	retrievedAuthor, err := s.AuthorManager.GetAuthorId(tok)
 	if err != nil {
