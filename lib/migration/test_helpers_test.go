@@ -1,17 +1,13 @@
 package migration
 
 import (
-	"context"
 	"database/sql"
 	"encoding/json"
-	"fmt"
 	"testing"
-	"time"
 
 	"github.com/ether/etherpad-go/lib/db"
+	"github.com/ether/etherpad-go/lib/test/testdb"
 	"github.com/stretchr/testify/assert"
-	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/wait"
 	"go.uber.org/zap"
 )
 
@@ -314,64 +310,13 @@ func startMigratorPipeline(t *testing.T, oldDB *SQLDatabase, newDB db.DataStore)
 
 }
 
+// startMySQL returns a fresh MySQL database with an etherpad-lite "store"
+// table. The database is dropped when the test ends; the returned cleanup
+// only exists for the callers' defer.
 func startMySQL(t *testing.T) (*sql.DB, func()) {
-	ctx := context.Background()
-	var container testcontainers.Container
-	host := ""
-	port := ""
-
-	if isEPCIMode() {
-		host = envOrDefault(epMySQLHostEnv, "127.0.0.1")
-		port = envOrDefault(epMySQLPortEnv, "3306")
-		waitForMySQLReady(t, host, port)
-	} else {
-		req := testcontainers.ContainerRequest{
-			Image:        "mariadb:lts",
-			ExposedPorts: []string{"3306/tcp"},
-			Env: map[string]string{
-				"MARIADB_PASSWORD":      testDbPass,
-				"MARIADB_ROOT_PASSWORD": testDbPass,
-				"MARIADB_USER":          testDbUser,
-				"MARIADB_DATABASE":      testDbName,
-			},
-			WaitingFor: wait.ForLog("ready for connections"),
-		}
-
-		var err error
-		container, err = testcontainers.GenericContainer(ctx,
-			testcontainers.GenericContainerRequest{
-				ContainerRequest: req,
-				Started:          true,
-			})
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		mappedPort, err := container.MappedPort(ctx, "3306")
-		if err != nil {
-			t.Fatal(err)
-		}
-		port = mappedPort.Port()
-
-		host, err = container.Host(ctx)
-		if err != nil {
-			t.Fatal(err)
-		}
-		waitForMySQLReady(t, host, port)
-	}
-
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true", testDbUser, testDbPass, host, port, testDbName)
-	db, err := sql.Open("mysql", dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	_, err = db.Exec("DROP TABLE IF EXISTS `store`")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	_, err = db.Exec(`
+	t.Helper()
+	db := openTestDatabase(t, testdb.MySQL)
+	_, err := db.Exec(`
 		CREATE TABLE store (
 			` + "`key`" + ` VARCHAR(255) PRIMARY KEY,
 			` + "`value`" + ` LONGTEXT NOT NULL
@@ -380,112 +325,21 @@ func startMySQL(t *testing.T) (*sql.DB, func()) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	cleanup := func() {
-		_ = db.Close()
-		if container != nil {
-			_ = container.Terminate(ctx)
-		}
-	}
-
-	return db, cleanup
+	return db, func() {}
 }
 
+// startPostgres is startMySQL for Postgres.
 func startPostgres(t *testing.T) (*sql.DB, func()) {
 	t.Helper()
-
-	ctx := context.Background()
-	var container testcontainers.Container
-	host := ""
-	port := ""
-
-	if isEPCIMode() {
-		host = envOrDefault(epPostgresHostEnv, "127.0.0.1")
-		port = envOrDefault(epPostgresPortEnv, "5432")
-		waitForPostgresReady(t, host, port)
-	} else {
-		req := testcontainers.ContainerRequest{
-			Image:        "postgres:16-alpine",
-			ExposedPorts: []string{"5432/tcp"},
-			Env: map[string]string{
-				"POSTGRES_USER":     testDbUser,
-				"POSTGRES_PASSWORD": testDbPass,
-				"POSTGRES_DB":       testDbName,
-			},
-			WaitingFor: wait.
-				ForListeningPort("5432/tcp").
-				WithStartupTimeout(60 * time.Second),
-		}
-
-		var err error
-		container, err = testcontainers.GenericContainer(
-			ctx,
-			testcontainers.GenericContainerRequest{
-				ContainerRequest: req,
-				Started:          true,
-			},
-		)
-		if err != nil {
-			t.Fatalf("failed to start postgres container: %v", err)
-		}
-
-		host, err = container.Host(ctx)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		mappedPort, err := container.MappedPort(ctx, "5432")
-		if err != nil {
-			t.Fatal(err)
-		}
-		port = mappedPort.Port()
-		waitForPostgresReady(t, host, port)
-	}
-
-	dsn := fmt.Sprintf(
-		"postgres://%s:%s@%s:%s/%s?sslmode=disable",
-		testDbUser,
-		testDbPass,
-		host,
-		port,
-		testDbName,
-	)
-
-	db, err := sql.Open("pgx", dsn)
-	if err != nil {
-		t.Fatalf("failed to open postgres connection: %v", err)
-	}
-
-	// Create Etherpad store table
-	_, err = db.Exec("DROP TABLE IF EXISTS store")
-	if err != nil {
-		db.Close()
-		if container != nil {
-			_ = container.Terminate(ctx)
-		}
-		t.Fatalf("failed to drop store table: %v", err)
-	}
-
-	_, err = db.Exec(`
+	db := openTestDatabase(t, testdb.Postgres)
+	_, err := db.Exec(`
 		CREATE TABLE store (
 			key   TEXT PRIMARY KEY,
 			value TEXT NOT NULL
 		);
 	`)
 	if err != nil {
-		db.Close()
-		if container != nil {
-			_ = container.Terminate(ctx)
-		}
 		t.Fatalf("failed to create store table: %v", err)
 	}
-
-	cleanup := func() {
-		_ = db.Close()
-		if container != nil {
-			_ = container.Terminate(ctx)
-		}
-	}
-
-	return db, cleanup
+	return db, func() {}
 }
