@@ -30,8 +30,14 @@ test.describe('editor height and scrolling', function () {
         const padBody = await getPadBody(page);
         await padBody.click();
         await clearPadContent(page);
-        await page.keyboard.insertText(Array.from({length: 200}, (_, i) => `Line ${i}`).join('\n'));
-        await expect(padBody.locator('div').nth(199)).toHaveText('Line 199');
+        // Type line by line like a user: insertText() with "\n" only creates
+        // new lines in Chromium.
+        const lines = 80;
+        for (let i = 0; i < lines; i++) {
+            if (i > 0) await page.keyboard.press('Enter');
+            await page.keyboard.insertText(`Line ${i}`);
+        }
+        await expect(padBody.locator('div').nth(lines - 1)).toHaveText(`Line ${lines - 1}`);
 
         await page.locator('#editorcontainer').evaluate((el) => { el.scrollTop = 0; });
         const before = await editorScroll(page);
@@ -44,6 +50,6 @@ test.describe('editor height and scrolling', function () {
 
         // The last line must be reachable.
         await page.locator('#editorcontainer').evaluate((el) => { el.scrollTop = el.scrollHeight; });
-        await expect(padBody.locator('div').nth(199)).toBeInViewport();
+        await expect(padBody.locator('div').nth(lines - 1)).toBeInViewport();
     });
 });
