@@ -13,7 +13,7 @@ import {splitTextLines} from "./Changeset";
  */
 class TextLinesMutator {
   private _lines: string[];
-  private _curSplice: [number, number?];
+  private _curSplice: [number, number, ...string[]]; // arguments for this._lines.splice()
   private _inSplice: boolean;
   private _curLine: number;
   private _curCol: number;
@@ -280,7 +280,7 @@ class TextLinesMutator {
     if (!this._inSplice) this._enterSplice();
     if (L) {
       // @ts-ignore
-      const newLines = splitTextLines(text);
+      const newLines = splitTextLines(text) ?? []; // L > 0 means it always matches
       if (this._isCurLineInSplice()) {
         const sline = this._curSplice.length - 1;
         /** @type {string} */

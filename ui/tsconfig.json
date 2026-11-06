@@ -17,7 +17,13 @@
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+
+    /* Plugins import core modules as ep_etherpad-lite/static/js/...; build.js
+       maps that to src/js/ when bundling, tsc needs the same mapping. */
+    "paths": {
+      "ep_etherpad-lite/static/js/*": ["./src/js/*"]
+    }
   },
   "include": ["src"]
 }

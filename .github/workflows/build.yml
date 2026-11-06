@@ -135,6 +135,24 @@ jobs:
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
         timeout-minutes: 5
 
+  typecheck:
+    # TypeScript is bundled with esbuild (ui/build.js) and vite, neither of
+    # which type-checks, so run tsc for ui, admin, playwright and plugins here.
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - name: Install pnpm
+        run: npm install -g pnpm@latest
+      - name: Install pnpm dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Type-check
+        run: pnpm typecheck
+
   playwright:
     needs:
       - test
@@ -203,6 +221,7 @@ jobs:
   build:
     needs:
       - test
+      - typecheck
       - playwright
     strategy:
       fail-fast: false
@@ -342,13 +361,27 @@ jobs:
           AMD64_DIGEST=$(ls ${{ runner.temp }}/amd64-digest | head -n1)
           echo "IMAGE_DIGEST=sha256:${AMD64_DIGEST}" >> $GITHUB_ENV
 
+      # Prefer a short-lived installation token from a GitHub App (its
+      # credentials don't expire); fall back to the ETHER_CHART_TOKEN PAT until
+      # RELEASE_APP_ID is set. An expired PAT fails the checkout with
+      # "Bad credentials" (cf. etherpad-lite #8359).
+      - name: Get ether-charts token from GitHub App
+        id: charts-token
+        if: github.ref == 'refs/heads/main' && vars.RELEASE_APP_ID != ''
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ vars.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          owner: ether
+          repositories: ether-charts
+
       - name: Checkout ether-charts
         if: github.ref == 'refs/heads/main'
         uses: actions/checkout@v7
         with:
           path: ether-charts
           repository: ether/ether-charts
-          token: ${{ secrets.ETHER_CHART_TOKEN }}
+          token: ${{ steps.charts-token.outputs.token || secrets.ETHER_CHART_TOKEN }}
 
       - name: Change argocd tag
         if: github.ref == 'refs/heads/main'
@@ -374,13 +407,27 @@ jobs:
           AMD64_DIGEST=$(ls ${{ runner.temp }}/amd64-digest | head -n1)
           echo "IMAGE_DIGEST=sha256:${AMD64_DIGEST}" >> $GITHUB_ENV
 
+      # Prefer a short-lived installation token from a GitHub App (its
+      # credentials don't expire); fall back to the ETHER_CHART_TOKEN PAT until
+      # RELEASE_APP_ID is set. An expired PAT fails the checkout with
+      # "Bad credentials" (cf. etherpad-lite #8359).
+      - name: Get ether-charts token from GitHub App (release)
+        id: charts-token-release
+        if: startsWith(github.ref, 'refs/tags/') && vars.RELEASE_APP_ID != ''
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ vars.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          owner: ether
+          repositories: ether-charts
+
       - name: Checkout ether-charts (release)
         if: startsWith(github.ref, 'refs/tags/')
         uses: actions/checkout@v7
         with:
           path: ether-charts
           repository: ether/ether-charts
-          token: ${{ secrets.ETHER_CHART_TOKEN }}
+          token: ${{ steps.charts-token-release.outputs.token || secrets.ETHER_CHART_TOKEN }}
 
       - name: Change argocd prod tag
         if: startsWith(github.ref, 'refs/tags/')

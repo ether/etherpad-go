@@ -6,7 +6,7 @@
     "typecheck:ui": "pnpm --filter ./ui exec tsc --noEmit",
     "typecheck:admin": "pnpm --filter ./admin exec tsc --noEmit",
     "typecheck:playwright": "pnpm --filter ./playwright exec tsc --noEmit",
-    "typecheck:plugins": "pnpm -r --filter ./plugins/* exec tsc --noEmit"
+    "typecheck:plugins": "pnpm -r --filter \"./plugins/*\" exec tsc --noEmit"
   },
   "devDependencies": {
     "typescript": "^7.0.2"

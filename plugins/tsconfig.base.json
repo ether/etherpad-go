@@ -9,7 +9,12 @@
     "noEmit": true,
     "isolatedModules": true,
     "allowJs": false,
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+    // Core modules are imported as ep_etherpad-lite/static/js/...; ui/build.js
+    // maps that to ui/src/js/ when bundling, tsc needs the same mapping.
+    "paths": {
+      "ep_etherpad-lite/static/js/*": ["../ui/src/js/*"]
+    }
   },
   "include": [
     "../typings/**/*.d.ts",

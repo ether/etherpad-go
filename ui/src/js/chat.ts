@@ -182,9 +182,6 @@ const getRenderedElement = (rendered: unknown): HTMLElement | null => {
   return null;
 };
 
-const authorClass = (authorId: string): string =>
-  `author-${authorId.replace(/[^a-y0-9]/g, (c) => c === '.' ? '-' : `z${c.charCodeAt(0)}z`)}`;
-
 // ---------------------------------------------------------------------------
 // ChatController
 // ---------------------------------------------------------------------------
@@ -461,7 +458,10 @@ class ChatController {
 
     // --- Keyboard shortcuts ------------------------------------------------
 
-    input.addEventListener('keydown', (evt: KeyboardEvent) => {
+    // addEventListener on the textarea|input union loses the per-event
+    // typing, so attach the key handlers through the common HTMLElement type.
+    const keyTarget: HTMLElement = input;
+    keyTarget.addEventListener('keydown', (evt: KeyboardEvent) => {
       if ((evt.altKey && evt.key.toLowerCase() === 'c') || evt.key === 'Escape') {
         asHtmlElement(document.activeElement)?.blur();
         (padeditor as any).ace?.focus();
@@ -482,7 +482,7 @@ class ChatController {
       evt.preventDefault();
     });
 
-    input.addEventListener('keypress', (evt: KeyboardEvent) => {
+    keyTarget.addEventListener('keypress', (evt: KeyboardEvent) => {
       if (evt.key === 'Enter' && !evt.shiftKey) {
         evt.preventDefault();
         void this.send();
@@ -508,7 +508,7 @@ class ChatController {
     // --- EventBus listener for incoming messages ---------------------------
     // External code can also push messages through the bus instead of calling
     // addMessage directly.
-    editorBus.on('chat:message:received', (data) => {
+    editorBus.on('chat:message:received', () => {
       // If the message was already rendered by addMessage (the normal
       // collab path) we skip to avoid duplicates. The bus emission in
       // addMessage happens *synchronously* before the DOM render, so
