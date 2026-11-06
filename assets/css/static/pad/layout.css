@@ -40,6 +40,25 @@ body {
   display: flex; /* transfer flex properties to nested elements, here the iframe */
   height: auto;
   flex: 1 auto;
+  /* The editor used to live in an outer iframe whose document scrolled. Now
+     #outerdocbody/#innerdocbody are plain divs (see ui/src/js/ace.ts), so this
+     container has to scroll the pad, like #editorcontainerbox does in the
+     timeslider. */
+  overflow-y: auto;
+  min-width: 0;
+}
+#editorcontainerbox #editorcontainer > #outerdocbody {
+  /* Grow with the text instead of being stretched to the container height
+     (stretching clipped everything below the first screen), but fill the
+     visible area for short pads. min-height: 100vh from iframe_editor.css
+     meant the iframe's height there; here it would add a scrollbar to every
+     pad. */
+  align-self: flex-start;
+  box-sizing: border-box;
+  min-height: 100%;
+}
+#editorcontainerbox #editorcontainer > #outerdocbody > #innerdocbody {
+  min-height: 0; /* the stretched #outerdocbody already fills the viewport */
 }
 #editorcontainerbox #editorcontainer:not(.initialized) {
   visibility: hidden;
