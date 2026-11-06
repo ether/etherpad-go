@@ -14,10 +14,10 @@ func RunSequentialMemorySQLite(t *testing.T, conf TestRunConfig) {
 	handler := NewTestDBHandler(t)
 	datastores := []struct {
 		name  string
-		newDS func() db.DataStore
+		newDS func(t *testing.T) db.DataStore
 	}{
-		{"Memory", func() db.DataStore { return db.NewMemoryDataStore() }},
-		{"SQLite", func() db.DataStore {
+		{"Memory", func(*testing.T) db.DataStore { return db.NewMemoryDataStore() }},
+		{"SQLite", func(t *testing.T) db.DataStore {
 			sqliteDB, err := db.NewSQLiteDB(":memory:")
 			if err != nil {
 				t.Fatalf("Failed to create SQLite DataStore: %v", err)

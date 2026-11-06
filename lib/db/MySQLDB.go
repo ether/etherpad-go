@@ -1354,6 +1354,11 @@ func NewMySQLDB(options MySQLOptions) (*MysqlDB, error) {
 	mySQLConf.DBName = options.Database
 	mySQLConf.ParseTime = true
 	mySQLConf.Loc = nil
+	// Report matched rather than changed rows: the update methods treat 0
+	// affected rows as "not found", and without this an UPDATE that writes
+	// the value already stored (same author name or color, same chat head)
+	// failed with "author/pad not found".
+	mySQLConf.ClientFoundRows = true
 
 	sqlDb, err := sql.Open("mysql", mySQLConf.FormatDSN())
 	if err != nil {

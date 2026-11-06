@@ -114,6 +114,10 @@ func runAllDataStoreTests(testHandler *testutils.TestDBHandler) {
 			Test: testSaveAuthorColorOnNonExistingAuthor,
 		},
 		testutils.TestRunConfig{
+			Name: "UpdatesWritingTheStoredValueSucceed",
+			Test: testUpdatesWritingTheStoredValueSucceed,
+		},
+		testutils.TestRunConfig{
 			Name: "QueryPadSortingAndPattern",
 			Test: testQueryPadSortingAndPattern,
 		},
@@ -475,6 +479,24 @@ func testSaveAuthorColorOnNonExistingAuthor(t *testing.T, ds testutils.TestDataS
 	err := ds.DS.SaveAuthorColor("nonexistentAuthor", "NewName")
 	if err == nil || err.Error() != "author not found" {
 		t.Fatalf("should return error for nonexistent author")
+	}
+}
+
+// Writing a value that is already stored must not be reported as "not
+// found". MySQL counts only changed rows by default, which made these
+// updates fail there (e.g. a client reconnecting with the same name).
+func testUpdatesWritingTheStoredValueSucceed(t *testing.T, ds testutils.TestDataStore) {
+	author := author2.NewRandomAuthor()
+	assert.NoError(t, ds.DS.SaveAuthor(*author2.ToDBAuthor(author)))
+	for i := 0; i < 2; i++ {
+		assert.NoError(t, ds.DS.SaveAuthorName(author.Id, "same name"), "SaveAuthorName #%d", i+1)
+		assert.NoError(t, ds.DS.SaveAuthorColor(author.Id, "#123456"), "SaveAuthorColor #%d", i+1)
+	}
+
+	assert.NoError(t, ds.DS.CreatePad("unchangedPad", db.CreateRandomPad()))
+	for i := 0; i < 2; i++ {
+		assert.NoError(t, ds.DS.SaveChatHeadOfPad("unchangedPad", 3), "SaveChatHeadOfPad #%d", i+1)
+		assert.NoError(t, ds.DS.SetReadOnlyId("unchangedPad", "r.unchanged"), "SetReadOnlyId #%d", i+1)
 	}
 }
 

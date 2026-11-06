@@ -1,291 +1,27 @@
 package migration
 
 import (
-	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"os"
-	"strings"
-	"sync"
 	"testing"
-	"time"
 
-	mysql2 "github.com/go-sql-driver/mysql"
-	"github.com/moby/moby/api/types/network"
+	"github.com/ether/etherpad-go/lib/test/testdb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/wait"
 )
 
-const (
-	testDbName = "test_db"
-	testDbUser = "test_user"
-	testDbPass = "test_password"
-
-	epCiEnv = "EP_CI"
-
-	epPostgresHostEnv = "EP_TEST_POSTGRES_HOST"
-	epPostgresPortEnv = "EP_TEST_POSTGRES_PORT"
-	epMySQLHostEnv    = "EP_TEST_MYSQL_HOST"
-	epMySQLPortEnv    = "EP_TEST_MYSQL_PORT"
-)
-
-func normalizeContainerPort(port string) string {
-	normalized, _, _ := strings.Cut(port, "/")
-	return normalized
-}
-
-func isEPCIMode() bool {
-	value := strings.ToLower(strings.TrimSpace(os.Getenv(epCiEnv)))
-	return value == "1" || value == "true" || value == "yes"
-}
-
-func envOrDefault(key, fallback string) string {
-	value := strings.TrimSpace(os.Getenv(key))
-	if value == "" {
-		return fallback
-	}
-	return value
-}
-
-func waitForPostgresReady(t *testing.T, host, port string) {
+// openTestDatabase opens a fresh, empty database on the shared test server of
+// the given kind (see lib/test/testdb); it is dropped when the test ends.
+func openTestDatabase(t *testing.T, kind testdb.Kind) *sql.DB {
 	t.Helper()
-
-	dsn := fmt.Sprintf(
-		"postgres://%s:%s@%s:%s/%s?sslmode=disable",
-		testDbUser, testDbPass, host, port, testDbName,
-	)
-
-	var lastErr error
-	deadline := time.Now().Add(2 * time.Minute)
-	for time.Now().Before(deadline) {
-		conn, err := sql.Open("pgx", dsn)
-		if err == nil {
-			lastErr = conn.Ping()
-			_ = conn.Close()
-			if lastErr == nil {
-				return
-			}
-		} else {
-			lastErr = err
-		}
-		time.Sleep(500 * time.Millisecond)
-	}
-	t.Fatalf("postgres did not become ready at %s:%s: %v", host, port, lastErr)
-}
-
-func waitForMySQLReady(t *testing.T, host, port string) {
-	t.Helper()
-
-	mysqlCfg := mysql2.NewConfig()
-	mysqlCfg.User = testDbUser
-	mysqlCfg.Passwd = testDbPass
-	mysqlCfg.Net = "tcp"
-	mysqlCfg.Addr = fmt.Sprintf("%s:%s", host, port)
-	mysqlCfg.DBName = testDbName
-	mysqlCfg.ParseTime = true
-
-	var lastErr error
-	deadline := time.Now().Add(2 * time.Minute)
-	for time.Now().Before(deadline) {
-		conn, err := sql.Open("mysql", mysqlCfg.FormatDSN())
-		if err == nil {
-			lastErr = conn.Ping()
-			_ = conn.Close()
-			if lastErr == nil {
-				return
-			}
-		} else {
-			lastErr = err
-		}
-		time.Sleep(time.Second)
-	}
-	t.Fatalf("mysql did not become ready at %s:%s: %v", host, port, lastErr)
-}
-
-func setupExternalPostgresConfig(t *testing.T) *TestContainerConfig {
-	t.Helper()
-	host := envOrDefault(epPostgresHostEnv, "127.0.0.1")
-	port := envOrDefault(epPostgresPortEnv, "5432")
-	waitForPostgresReady(t, host, port)
-	return &TestContainerConfig{
-		Host: host,
-		Port: port,
-	}
-}
-
-func setupExternalMySQLConfig(t *testing.T) *TestContainerConfig {
-	t.Helper()
-	host := envOrDefault(epMySQLHostEnv, "127.0.0.1")
-	port := envOrDefault(epMySQLPortEnv, "3306")
-	waitForMySQLReady(t, host, port)
-	return &TestContainerConfig{
-		Host: host,
-		Port: port,
-	}
-}
-
-// TestContainerConfig holds container connection details
-type TestContainerConfig struct {
-	Container testcontainers.Container
-	Host      string
-	Port      string
-}
-
-// testEnv holds shared test containers
-type testEnv struct {
-	postgres     *TestContainerConfig
-	postgresOnce sync.Once
-	postgresErr  error
-
-	mysql     *TestContainerConfig
-	mysqlOnce sync.Once
-	mysqlErr  error
-}
-
-var sharedEnv = &testEnv{}
-
-func TestMain(m *testing.M) {
-	code := m.Run()
-
-	// Cleanup containers after all tests
-	ctx := context.Background()
-	if sharedEnv.postgres != nil && sharedEnv.postgres.Container != nil {
-		_ = sharedEnv.postgres.Container.Terminate(ctx)
-	}
-	if sharedEnv.mysql != nil && sharedEnv.mysql.Container != nil {
-		_ = sharedEnv.mysql.Container.Terminate(ctx)
-	}
-
-	os.Exit(code)
-}
-
-func setupPostgresContainer(t *testing.T) *TestContainerConfig {
-	t.Helper()
-
-	sharedEnv.postgresOnce.Do(func() {
-		if isEPCIMode() {
-			sharedEnv.postgres = setupExternalPostgresConfig(t)
-			return
-		}
-
-		ctx := context.Background()
-		container, err := testcontainers.Run(
-			ctx, "postgres:alpine",
-			testcontainers.WithExposedPorts("5432/tcp"),
-			testcontainers.WithWaitStrategy(
-				wait.ForSQL("5432/tcp", "pgx", func(host string, port network.Port) string {
-					return fmt.Sprintf(
-						"postgres://%s:%s@%s:%s/%s?sslmode=disable",
-						testDbUser, testDbPass, host, normalizeContainerPort(port.Port()), testDbName,
-					)
-				}).WithStartupTimeout(30*time.Second).WithQuery("SELECT 1"),
-			),
-			testcontainers.WithEnv(map[string]string{
-				"POSTGRES_PASSWORD": testDbPass,
-				"POSTGRES_USER":     testDbUser,
-				"POSTGRES_DB":       testDbName,
-			}),
-		)
-		if err != nil {
-			sharedEnv.postgresErr = err
-			return
-		}
-
-		port, err := container.MappedPort(ctx, "5432")
-		if err != nil {
-			sharedEnv.postgresErr = err
-			return
-		}
-
-		host, err := container.Host(ctx)
-		if err != nil {
-			sharedEnv.postgresErr = err
-			return
-		}
-
-		sharedEnv.postgres = &TestContainerConfig{
-			Container: container,
-			Host:      host,
-			Port:      port.Port(),
-		}
-	})
-
-	require.NoError(t, sharedEnv.postgresErr)
-	return sharedEnv.postgres
-}
-
-func setupMySQLContainer(t *testing.T) *TestContainerConfig {
-	t.Helper()
-
-	sharedEnv.mysqlOnce.Do(func() {
-		if isEPCIMode() {
-			sharedEnv.mysql = setupExternalMySQLConfig(t)
-			return
-		}
-
-		ctx := context.Background()
-		container, err := testcontainers.Run(
-			ctx, "mariadb:lts",
-			testcontainers.WithExposedPorts("3306/tcp"),
-			testcontainers.WithEnv(map[string]string{
-				"MARIADB_PASSWORD":      testDbPass,
-				"MARIADB_ROOT_PASSWORD": testDbPass,
-				"MARIADB_USER":          testDbUser,
-				"MARIADB_DATABASE":      testDbName,
-			}),
-		)
-		if err != nil {
-			sharedEnv.mysqlErr = err
-			return
-		}
-
-		port, err := container.MappedPort(ctx, "3306")
-		if err != nil {
-			sharedEnv.mysqlErr = err
-			return
-		}
-
-		host, err := container.Host(ctx)
-		if err != nil {
-			sharedEnv.mysqlErr = err
-			return
-		}
-
-		// Wait for MySQL to be ready
-		cfg := mysql2.NewConfig()
-		cfg.User = testDbUser
-		cfg.Passwd = testDbPass
-		cfg.Net = "tcp"
-		cfg.Addr = fmt.Sprintf("%s:%s", host, port.Port())
-		cfg.DBName = testDbName
-		cfg.ParseTime = true
-		dsn := cfg.FormatDSN()
-
-		deadline := time.Now().Add(2 * time.Minute)
-		for time.Now().Before(deadline) {
-			db, err := sql.Open("mysql", dsn)
-			if err == nil {
-				if err = db.Ping(); err == nil {
-					db.Close()
-					break
-				}
-				db.Close()
-			}
-			time.Sleep(time.Second)
-		}
-
-		sharedEnv.mysql = &TestContainerConfig{
-			Container: container,
-			Host:      host,
-			Port:      port.Port(),
-		}
-	})
-
-	require.NoError(t, sharedEnv.mysqlErr)
-	return sharedEnv.mysql
+	srv := testdb.Get(t, kind)
+	name := srv.NewDatabase(t)
+	db, err := sql.Open(srv.DriverName(), srv.DSN(name))
+	require.NoError(t, err)
+	// Registered after NewDatabase, so it runs first: close before dropping.
+	t.Cleanup(func() { db.Close() })
+	return db
 }
 
 // DBTestCase represents a test case for a specific database driver
@@ -313,33 +49,14 @@ func getTestCases(t *testing.T) []DBTestCase {
 			Name:   "Postgres",
 			Driver: DriverPostgres,
 			Setup: func(t *testing.T) *sql.DB {
-				cfg := setupPostgresContainer(t)
-				dsn := fmt.Sprintf(
-					"postgres://%s:%s@%s:%s/%s?sslmode=disable",
-					testDbUser, testDbPass, cfg.Host, cfg.Port, testDbName,
-				)
-				db, err := sql.Open("pgx", dsn)
-				require.NoError(t, err)
-				t.Cleanup(func() { db.Close() })
-				return db
+				return openTestDatabase(t, testdb.Postgres)
 			},
 		},
 		{
 			Name:   "MySQL",
 			Driver: DriverMySQL,
 			Setup: func(t *testing.T) *sql.DB {
-				cfg := setupMySQLContainer(t)
-				mysqlCfg := mysql2.NewConfig()
-				mysqlCfg.User = testDbUser
-				mysqlCfg.Passwd = testDbPass
-				mysqlCfg.Net = "tcp"
-				mysqlCfg.Addr = fmt.Sprintf("%s:%s", cfg.Host, cfg.Port)
-				mysqlCfg.DBName = testDbName
-				mysqlCfg.ParseTime = true
-				db, err := sql.Open("mysql", mysqlCfg.FormatDSN())
-				require.NoError(t, err)
-				t.Cleanup(func() { db.Close() })
-				return db
+				return openTestDatabase(t, testdb.MySQL)
 			},
 		},
 	}
