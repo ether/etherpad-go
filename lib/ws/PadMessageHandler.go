@@ -10,7 +10,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -57,35 +56,26 @@ type Task struct {
 	message ws.UserChange
 }
 
+// ChannelOperator processes USER_CHANGES.
+//
+// It used to start one goroutine per pad that was never stopped, so every pad
+// ever edited leaked a goroutine and its channel. Now each task runs on the
+// sending client's read loop while handleUserChanges holds the pad's write
+// lock. That keeps commits of one client in order, serialises commits per pad
+// (also against HTTP API writes, which take the same lock) and leaves nothing
+// running once the pad is idle.
 type ChannelOperator struct {
-	channels map[string]chan Task
-	handler  *PadMessageHandler
-	mu       sync.Mutex
+	handler *PadMessageHandler
 }
 
 func NewChannelOperator(p *PadMessageHandler) ChannelOperator {
-	return ChannelOperator{
-		channels: make(map[string]chan Task),
-		handler:  p,
-	}
+	return ChannelOperator{handler: p}
 }
 
-func (c *ChannelOperator) AddToQueue(ch string, t Task) {
-	c.mu.Lock()
-	chChan, ok := c.channels[ch]
-	if !ok {
-		// small buffer to decouple producer from goroutine scheduling
-		chChan = make(chan Task, 1)
-		c.channels[ch] = chChan
-		go func(localCh chan Task) {
-			for incomingTask := range localCh {
-				c.handler.handleUserChanges(incomingTask)
-			}
-		}(chChan)
-	}
-	c.mu.Unlock()
-
-	chChan <- t
+// AddToQueue handles the task synchronously. The room argument is kept for
+// compatibility; serialisation is keyed by the session's pad ID.
+func (c *ChannelOperator) AddToQueue(_ string, t Task) {
+	c.handler.handleUserChanges(t)
 }
 
 type PadMessageHandler struct {
@@ -149,6 +139,9 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 		p.Logger.Infof("Session %s not found", task.socket.SessionId)
 		return
 	}
+	// Rebase + append + broadcast must not interleave with other writers.
+	unlock := p.padManager.LockPad(session.PadId)
+	defer unlock()
 
 	var retrievedPad, err = p.padManager.GetPad(session.PadId, nil, &session.Author)
 	if err != nil {
@@ -604,6 +597,8 @@ func (p *PadMessageHandler) HandleMessage(message any, client *Client, retrieved
 				p.Logger.Errorf("Session not found for saved revision")
 				return
 			}
+			unlock := p.padManager.LockPad(sess.PadId)
+			defer unlock()
 			foundPad, err := p.padManager.GetPad(sess.PadId, nil, nil)
 			if err != nil {
 				p.Logger.Errorf("Error retrieving pad for saved revision: %v", err)
@@ -705,6 +700,8 @@ func (p *PadMessageHandler) HandleChangesetRequest(socket *Client, message ws.Ch
 		p.Logger.Warn("Session not found for changeset request")
 		return
 	}
+	unlock := p.padManager.RLockPad(session.PadId)
+	defer unlock()
 
 	retrievedPad, err := p.padManager.GetPad(session.PadId, nil, &session.Author)
 	if err != nil {
@@ -962,6 +959,8 @@ func (p *PadMessageHandler) SendChatMessageToPadClients(session *ws.Session, cha
 		p.Logger.Warn("chatNewMessage hook set Text to nil; keeping original chat text")
 	}
 
+	unlock := p.padManager.LockPad(session.PadId)
+	defer unlock()
 	var retrievedPad, err = p.padManager.GetPad(session.PadId, nil, chatMessage.AuthorId)
 	if err != nil {
 		p.Logger.Warn("Error retrieving pad for chat message", err)
@@ -1030,6 +1029,8 @@ func (p *PadMessageHandler) HandlePadDelete(client *Client, padDeleteMessage Pad
 		return
 	}
 
+	unlock := p.padManager.LockPad(padDeleteMessage.Data.PadID)
+	defer unlock()
 	retrievedPad, err := p.padManager.DoesPadExist(padDeleteMessage.Data.PadID)
 	if err != nil {
 		return
@@ -1281,6 +1282,12 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 		p.HandleSheetClientReady(ready, client, thisSession)
 		return
 	}
+
+	// Loading (or creating) the pad, the retention check and the catch-up
+	// snapshot sent in CLIENT_VARS must see one consistent head revision, so
+	// no commit may land in between (cf. etherpad-lite #8409).
+	unlock := p.padManager.LockPad(thisSession.PadId)
+	defer unlock()
 
 	var retentionNotice *pad.RetentionNotice
 	if p.retention != nil {

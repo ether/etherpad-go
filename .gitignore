@@ -1,23 +1,45 @@
-.idea
+# Dependencies
 node_modules/
 pnpm-debug.log*
 
+# IDE / editor
+.idea
+.vscode/
+.DS_Store
+
+# Local configuration
 settings.json
+
+# Local databases and runtime state
 *.db
-assets/js
-
-
 *.db-shm
 *.db-wal
+*.db-journal
+var/*
+!var/.gitkeep
 
+# Test leftovers
 test.json
 test1.json
+*.test
+*.out
+*.prof
+
+# Frontend build output
+assets/js
 assets/css/build
+admin/dist
 
 # Go build artifacts
-etherpad-go.exe
-etherpad-go.exe~
+/etherpad-go
+/etherpad-go.exe
+/etherpad-go.exe~
+/etherpad
+/etherpad.exe
 
-# Local Claude Code settings
+# AI tooling (local state, worktrees, machine-specific MCP config)
 .claude/settings.local.json
-admin/dist
+.claude/worktrees/
+.codex/
+.superpowers/
+.mcp.json

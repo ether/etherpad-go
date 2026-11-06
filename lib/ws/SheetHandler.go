@@ -2,7 +2,6 @@ package ws
 
 import (
 	"encoding/json"
-	"sync"
 	"time"
 
 	"github.com/ether/etherpad-go/lib/models/ws"
@@ -16,35 +15,22 @@ type SheetTask struct {
 	message ws.SheetOpIncoming
 }
 
-// SheetChannelOperator serializes SHEET_OPs per sheet document via one goroutine
-// per pad id, mirroring ChannelOperator for the text pad.
+// SheetChannelOperator serializes SHEET_OPs per sheet document. Like
+// ChannelOperator it runs each op on the sender's read loop under the
+// document's write lock instead of keeping a goroutine per document alive
+// forever; apply and broadcast stay in one total order per document.
 type SheetChannelOperator struct {
-	channels map[string]chan SheetTask
-	handler  *PadMessageHandler
-	mu       sync.Mutex
+	handler *PadMessageHandler
 }
 
 func NewSheetChannelOperator(p *PadMessageHandler) SheetChannelOperator {
-	return SheetChannelOperator{
-		channels: make(map[string]chan SheetTask),
-		handler:  p,
-	}
+	return SheetChannelOperator{handler: p}
 }
 
 func (c *SheetChannelOperator) AddToQueue(ch string, t SheetTask) {
-	c.mu.Lock()
-	chChan, ok := c.channels[ch]
-	if !ok {
-		chChan = make(chan SheetTask, 1)
-		c.channels[ch] = chChan
-		go func(localCh chan SheetTask) {
-			for incomingTask := range localCh {
-				c.handler.handleSheetOp(incomingTask)
-			}
-		}(chChan)
-	}
-	c.mu.Unlock()
-	chChan <- t
+	unlock := c.handler.padManager.LockPad(ch)
+	defer unlock()
+	c.handler.handleSheetOp(t)
 }
 
 // SheetManager exposes the shared sheet document manager so HTTP handlers

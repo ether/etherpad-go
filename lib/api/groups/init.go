@@ -142,6 +142,10 @@ func CreateGroupPad(store *lib.InitStore) fiber.Handler {
 		// Create pad ID: groupId$padName
 		padId := groupId + "$" + request.PadName
 
+		// Check-then-create must not race another writer of this pad.
+		unlock := store.PadManager.LockPad(padId)
+		defer unlock()
+
 		// Check if pad already exists
 		exists, err := store.PadManager.DoesPadExist(padId)
 		if err != nil {

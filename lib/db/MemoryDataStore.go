@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ether/etherpad-go/lib/models/db"
@@ -14,6 +15,11 @@ import (
 )
 
 type MemoryDataStore struct {
+	// mu guards every map below. The store is shared by all request and
+	// websocket goroutines (and is the default datastore), so unguarded map
+	// access could abort the whole process with "concurrent map writes".
+	mu sync.Mutex
+
 	padStore      map[string]db.PadDB
 	padRevisions  map[string]map[int]db.PadSingleRevision
 	authorStore   map[string]db.AuthorDB
@@ -41,10 +47,16 @@ type MemoryDataStore struct {
 }
 
 func (m *MemoryDataStore) Ping() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	return nil
 }
 
 func (m *MemoryDataStore) GetAuthors(ids []string) (*[]db.AuthorDB, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	var authors []db.AuthorDB
 	for _, id := range ids {
 		author, ok := m.authorStore[id]
@@ -61,6 +73,9 @@ func (m *MemoryDataStore) GetAuthors(ids []string) (*[]db.AuthorDB, error) {
 // ============== PAD METHODS ==============
 
 func (m *MemoryDataStore) CreatePad(padID string, padDB db.PadDB) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	now := time.Now()
 
 	existing, exists := m.padStore[padID]
@@ -81,6 +96,9 @@ func (m *MemoryDataStore) CreatePad(padID string, padDB db.PadDB) error {
 }
 
 func (m *MemoryDataStore) GetPad(padID string) (*db.PadDB, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	pad, ok := m.padStore[padID]
 	if !ok {
 		return nil, errors.New(PadDoesNotExistError)
@@ -89,17 +107,26 @@ func (m *MemoryDataStore) GetPad(padID string) (*db.PadDB, error) {
 }
 
 func (m *MemoryDataStore) DoesPadExist(padID string) (*bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	_, ok := m.padStore[padID]
 	return &ok, nil
 }
 
 func (m *MemoryDataStore) RemovePad(padID string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	delete(m.padStore, padID)
 	delete(m.padRevisions, padID)
 	return nil
 }
 
 func (m *MemoryDataStore) GetPadIds() (*[]string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	var padIds []string
 	for k := range m.padStore {
 		padIds = append(padIds, k)
@@ -108,6 +135,9 @@ func (m *MemoryDataStore) GetPadIds() (*[]string, error) {
 }
 
 func (m *MemoryDataStore) SaveChatHeadOfPad(padId string, head int) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	pad, ok := m.padStore[padId]
 	if !ok {
 		return errors.New(PadDoesNotExistError)
@@ -122,6 +152,9 @@ func (m *MemoryDataStore) SaveChatHeadOfPad(padId string, head int) error {
 // ============== READONLY METHODS (simplified) ==============
 
 func (m *MemoryDataStore) GetReadonlyPad(padId string) (*string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	pad, ok := m.padStore[padId]
 	if !ok {
 		return nil, errors.New(PadDoesNotExistError)
@@ -135,6 +168,9 @@ func (m *MemoryDataStore) GetReadonlyPad(padId string) (*string, error) {
 }
 
 func (m *MemoryDataStore) SetReadOnlyId(padId string, readonlyId string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	pad, ok := m.padStore[padId]
 	if !ok {
 		return errors.New(PadDoesNotExistError)
@@ -148,6 +184,9 @@ func (m *MemoryDataStore) SetReadOnlyId(padId string, readonlyId string) error {
 }
 
 func (m *MemoryDataStore) GetPadByReadOnlyId(readonlyId string) (*string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	for padId, pad := range m.padStore {
 		if pad.ReadOnlyId != nil && *pad.ReadOnlyId == readonlyId {
 			return &padId, nil
@@ -163,16 +202,25 @@ func (m *MemoryDataStore) CreatePad2ReadOnly(padId string, readonlyId string) er
 
 // Deprecated: Use SetReadOnlyId instead - readonly2pad is derived from pad store
 func (m *MemoryDataStore) CreateReadOnly2Pad(padId string, readonlyId string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	return nil // No-op, data is in pad store
 }
 
 // Deprecated: Handled by RemovePad
 func (m *MemoryDataStore) RemovePad2ReadOnly(id string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	return nil // No-op, readonly_id is deleted with pad
 }
 
 // Deprecated: Handled by RemovePad
 func (m *MemoryDataStore) RemoveReadOnly2Pad(id string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	return nil // No-op
 }
 
@@ -184,6 +232,9 @@ func (m *MemoryDataStore) GetReadOnly2Pad(id string) (*string, error) {
 // ============== AUTHOR METHODS ==============
 
 func (m *MemoryDataStore) SaveAuthor(author db.AuthorDB) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	if author.ID == "" {
 		return errors.New("author ID is empty")
 	}
@@ -206,6 +257,9 @@ func (m *MemoryDataStore) SaveAuthor(author db.AuthorDB) error {
 }
 
 func (m *MemoryDataStore) GetPadIdsOfAuthor(authorId string) (*[]string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	padIDSet := make(map[string]struct{})
 	for padId, revisions := range m.padRevisions {
 		for _, rev := range revisions {
@@ -222,6 +276,9 @@ func (m *MemoryDataStore) GetPadIdsOfAuthor(authorId string) (*[]string, error) 
 }
 
 func (m *MemoryDataStore) GetAuthor(authorId string) (*db.AuthorDB, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	retrievedAuthor, ok := m.authorStore[authorId]
 	if !ok {
 		return nil, errors.New(AuthorNotFoundError)
@@ -241,6 +298,9 @@ func (m *MemoryDataStore) GetAuthor(authorId string) (*db.AuthorDB, error) {
 }
 
 func (m *MemoryDataStore) SetAuthorByToken(token string, authorId string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	// Check if author exists
 	author, exists := m.authorStore[authorId]
 	if exists {
@@ -261,6 +321,9 @@ func (m *MemoryDataStore) SetAuthorByToken(token string, authorId string) error 
 }
 
 func (m *MemoryDataStore) GetAuthorByToken(token string) (*string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	for id, author := range m.authorStore {
 		if author.Token != nil && *author.Token == token {
 			return &id, nil
@@ -270,6 +333,9 @@ func (m *MemoryDataStore) GetAuthorByToken(token string) (*string, error) {
 }
 
 func (m *MemoryDataStore) SaveAuthorName(authorId string, authorName string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	if authorId == "" {
 		return errors.New("authorId is empty")
 	}
@@ -285,6 +351,9 @@ func (m *MemoryDataStore) SaveAuthorName(authorId string, authorName string) err
 }
 
 func (m *MemoryDataStore) SaveAuthorColor(authorId string, authorColor string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	if authorId == "" {
 		return errors.New("authorId is empty")
 	}
@@ -300,6 +369,9 @@ func (m *MemoryDataStore) SaveAuthorColor(authorId string, authorColor string) e
 }
 
 func (m *MemoryDataStore) RemoveTokenOfAuthor(authorId string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	retrievedAuthor, ok := m.authorStore[authorId]
 	if !ok {
 		return nil
@@ -321,6 +393,8 @@ func (m *MemoryDataStore) SaveRevision(
 	authorId *string,
 	timestamp int64,
 ) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	_, ok := m.padStore[padId]
 	if !ok {
 		return errors.New(PadDoesNotExistError)
@@ -349,6 +423,9 @@ func (m *MemoryDataStore) SaveRevision(
 }
 
 func (m *MemoryDataStore) GetRevision(padId string, rev int) (*db.PadSingleRevision, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	_, ok := m.padStore[padId]
 	if !ok {
 		return nil, errors.New(PadDoesNotExistError)
@@ -375,6 +452,9 @@ func (m *MemoryDataStore) GetRevision(padId string, rev int) (*db.PadSingleRevis
 }
 
 func (m *MemoryDataStore) GetRevisions(padId string, startRev int, endRev int) (*[]db.PadSingleRevision, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	_, ok := m.padStore[padId]
 	if !ok {
 		return nil, errors.New(PadDoesNotExistError)
@@ -412,6 +492,9 @@ func (m *MemoryDataStore) GetRevisions(padId string, startRev int, endRev int) (
 }
 
 func (m *MemoryDataStore) RemoveRevisionsOfPad(padId string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	_, ok := m.padStore[padId]
 	if !ok {
 		return errors.New(PadDoesNotExistError)
@@ -434,6 +517,8 @@ func (m *MemoryDataStore) SaveChatMessage(
 	timestamp int64,
 	text string,
 ) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	key := calcChatMessageKey(padId, head)
 
 	// Write-once: don't overwrite existing message
@@ -456,6 +541,8 @@ func (m *MemoryDataStore) GetChatsOfPad(
 	start int,
 	end int,
 ) (*[]db.ChatMessageDBWithDisplayName, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	var chatMessages []db.ChatMessageDBWithDisplayName
 
 	for head := start; head <= end; head++ {
@@ -479,6 +566,9 @@ func (m *MemoryDataStore) GetChatsOfPad(
 }
 
 func (m *MemoryDataStore) GetAuthorIdsOfPadChats(id string) (*[]string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	authorIdSet := make(map[string]struct{})
 
 	for k, chatMessage := range m.chatPads {
@@ -498,6 +588,9 @@ func (m *MemoryDataStore) GetAuthorIdsOfPadChats(id string) (*[]string, error) {
 }
 
 func (m *MemoryDataStore) ClearChatAuthorship(authorId string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	for k, chatMessage := range m.chatPads {
 		if chatMessage.AuthorId != nil && *chatMessage.AuthorId == authorId {
 			chatMessage.AuthorId = nil
@@ -508,6 +601,9 @@ func (m *MemoryDataStore) ClearChatAuthorship(authorId string) error {
 }
 
 func (m *MemoryDataStore) RemoveChat(padId string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	for k := range m.chatPads {
 		if strings.HasPrefix(k, padId+":") {
 			delete(m.chatPads, k)
@@ -519,16 +615,25 @@ func (m *MemoryDataStore) RemoveChat(padId string) error {
 // ============== GROUP METHODS ==============
 
 func (m *MemoryDataStore) SaveGroup(groupId string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	m.groupStore[groupId] = groupId
 	return nil
 }
 
 func (m *MemoryDataStore) RemoveGroup(groupId string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	delete(m.groupStore, groupId)
 	return nil
 }
 
 func (m *MemoryDataStore) GetGroup(groupId string) (*string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	group, ok := m.groupStore[groupId]
 	if !ok {
 		return nil, errors.New("group not found")
@@ -537,6 +642,9 @@ func (m *MemoryDataStore) GetGroup(groupId string) (*string, error) {
 }
 
 func (m *MemoryDataStore) GetGroups() (*[]string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	groups := make([]string, 0, len(m.groupStore))
 	for id := range m.groupStore {
 		groups = append(groups, id)
@@ -547,6 +655,9 @@ func (m *MemoryDataStore) GetGroups() (*[]string, error) {
 // ============== SESSION METHODS ==============
 
 func (m *MemoryDataStore) GetSessionById(sessionID string) (*session2.Session, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	retrievedSession, ok := m.sessionStore[sessionID]
 	if !ok {
 		return nil, nil
@@ -555,11 +666,17 @@ func (m *MemoryDataStore) GetSessionById(sessionID string) (*session2.Session, e
 }
 
 func (m *MemoryDataStore) SetSessionById(sessionID string, session session2.Session) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	m.sessionStore[sessionID] = session
 	return nil
 }
 
 func (m *MemoryDataStore) RemoveSessionById(sessionID string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	_, ok := m.sessionStore[sessionID]
 	if !ok {
 		return errors.New(SessionNotFoundError)
@@ -577,6 +694,8 @@ func (m *MemoryDataStore) QueryPad(
 	ascending bool,
 	pattern string,
 ) (*db.PadDBSearchResult, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	var padKeys []string
 	for k := range m.padStore {
 		padKeys = append(padKeys, k)
@@ -645,10 +764,16 @@ func (m *MemoryDataStore) QueryPad(
 }
 
 func (m *MemoryDataStore) GetServerVersion() (*db.ServerVersion, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	return m.serverVersion, nil
 }
 
 func (m *MemoryDataStore) SaveServerVersion(version string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	m.serverVersion = &db.ServerVersion{
 		Version:   version,
 		UpdatedAt: time.Now(),
@@ -657,6 +782,9 @@ func (m *MemoryDataStore) SaveServerVersion(version string) error {
 }
 
 func (m *MemoryDataStore) GetOIDCStorageValue(key string) (*string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	value, ok := m.oidcStorage[key]
 	if !ok {
 		return nil, nil
@@ -665,11 +793,17 @@ func (m *MemoryDataStore) GetOIDCStorageValue(key string) (*string, error) {
 }
 
 func (m *MemoryDataStore) SetOIDCStorageValue(key string, payload string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	m.oidcStorage[key] = payload
 	return nil
 }
 
 func (m *MemoryDataStore) DeleteOIDCStorageValue(key string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	delete(m.oidcStorage, key)
 	return nil
 }
@@ -682,11 +816,17 @@ type memorySecretRow struct {
 }
 
 func (m *MemoryDataStore) SaveSecretParams(id string, prefix string, payload string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	m.secretParams[id] = memorySecretRow{prefix: prefix, payload: payload}
 	return nil
 }
 
 func (m *MemoryDataStore) ListSecretParams(prefix string) (map[string]string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	result := make(map[string]string)
 	for id, row := range m.secretParams {
 		if row.prefix == prefix {
@@ -697,6 +837,9 @@ func (m *MemoryDataStore) ListSecretParams(prefix string) (map[string]string, er
 }
 
 func (m *MemoryDataStore) DeleteSecretParams(id string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	delete(m.secretParams, id)
 	return nil
 }
@@ -706,6 +849,9 @@ func (m *MemoryDataStore) DeleteSecretParams(id string) error {
 // Access tokens
 
 func (m *MemoryDataStore) CreateAccessToken(signature, clientID, requestID, scopes, grantedScopes, formData, sessionData string, requestedAt, expiresAt time.Time) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	m.oauthAccessTokens[signature] = OAuthTokenRow{
 		Signature:     signature,
 		ClientID:      clientID,
@@ -721,6 +867,9 @@ func (m *MemoryDataStore) CreateAccessToken(signature, clientID, requestID, scop
 }
 
 func (m *MemoryDataStore) GetAccessToken(signature string) (*OAuthTokenRow, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	row, ok := m.oauthAccessTokens[signature]
 	if !ok {
 		return nil, errors.New("access token not found")
@@ -729,11 +878,17 @@ func (m *MemoryDataStore) GetAccessToken(signature string) (*OAuthTokenRow, erro
 }
 
 func (m *MemoryDataStore) DeleteAccessToken(signature string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	delete(m.oauthAccessTokens, signature)
 	return nil
 }
 
 func (m *MemoryDataStore) DeleteAccessTokensByRequestID(requestID string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	for sig, row := range m.oauthAccessTokens {
 		if row.RequestID == requestID {
 			delete(m.oauthAccessTokens, sig)
@@ -745,6 +900,9 @@ func (m *MemoryDataStore) DeleteAccessTokensByRequestID(requestID string) error 
 // Refresh tokens
 
 func (m *MemoryDataStore) CreateRefreshToken(signature, clientID, requestID, scopes, grantedScopes, formData, sessionData string, active bool, accessTokenSignature string, requestedAt, expiresAt time.Time) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	m.oauthRefreshTokens[signature] = OAuthRefreshTokenRow{
 		OAuthTokenRow: OAuthTokenRow{
 			Signature:     signature,
@@ -764,6 +922,9 @@ func (m *MemoryDataStore) CreateRefreshToken(signature, clientID, requestID, sco
 }
 
 func (m *MemoryDataStore) GetRefreshToken(signature string) (*OAuthRefreshTokenRow, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	row, ok := m.oauthRefreshTokens[signature]
 	if !ok {
 		return nil, errors.New("refresh token not found")
@@ -772,11 +933,17 @@ func (m *MemoryDataStore) GetRefreshToken(signature string) (*OAuthRefreshTokenR
 }
 
 func (m *MemoryDataStore) DeleteRefreshToken(signature string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	delete(m.oauthRefreshTokens, signature)
 	return nil
 }
 
 func (m *MemoryDataStore) RevokeRefreshToken(signature string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	row, ok := m.oauthRefreshTokens[signature]
 	if !ok {
 		return errors.New("refresh token not found")
@@ -787,6 +954,9 @@ func (m *MemoryDataStore) RevokeRefreshToken(signature string) error {
 }
 
 func (m *MemoryDataStore) RevokeRefreshTokensByRequestID(requestID string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	for sig, row := range m.oauthRefreshTokens {
 		if row.RequestID == requestID {
 			row.Active = false
@@ -799,6 +969,9 @@ func (m *MemoryDataStore) RevokeRefreshTokensByRequestID(requestID string) error
 // Auth codes
 
 func (m *MemoryDataStore) CreateAuthCode(signature, clientID, requestID, scopes, grantedScopes, formData, sessionData string, requestedAt, expiresAt time.Time) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	m.oauthAuthCodes[signature] = OAuthTokenRow{
 		Signature:     signature,
 		ClientID:      clientID,
@@ -815,6 +988,9 @@ func (m *MemoryDataStore) CreateAuthCode(signature, clientID, requestID, scopes,
 }
 
 func (m *MemoryDataStore) GetAuthCode(signature string) (*OAuthTokenRow, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	row, ok := m.oauthAuthCodes[signature]
 	if !ok {
 		return nil, errors.New("auth code not found")
@@ -823,6 +999,9 @@ func (m *MemoryDataStore) GetAuthCode(signature string) (*OAuthTokenRow, error) 
 }
 
 func (m *MemoryDataStore) InvalidateAuthCode(signature string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	row, ok := m.oauthAuthCodes[signature]
 	if !ok {
 		return errors.New("auth code not found")
@@ -835,6 +1014,9 @@ func (m *MemoryDataStore) InvalidateAuthCode(signature string) error {
 // PKCE
 
 func (m *MemoryDataStore) CreatePKCE(signature, clientID, requestID, scopes, grantedScopes, formData, sessionData string, requestedAt, expiresAt time.Time) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	m.oauthPKCE[signature] = OAuthTokenRow{
 		Signature:     signature,
 		ClientID:      clientID,
@@ -850,6 +1032,9 @@ func (m *MemoryDataStore) CreatePKCE(signature, clientID, requestID, scopes, gra
 }
 
 func (m *MemoryDataStore) GetPKCE(signature string) (*OAuthTokenRow, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	row, ok := m.oauthPKCE[signature]
 	if !ok {
 		return nil, errors.New("PKCE not found")
@@ -858,6 +1043,9 @@ func (m *MemoryDataStore) GetPKCE(signature string) (*OAuthTokenRow, error) {
 }
 
 func (m *MemoryDataStore) DeletePKCE(signature string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	delete(m.oauthPKCE, signature)
 	return nil
 }
@@ -865,6 +1053,9 @@ func (m *MemoryDataStore) DeletePKCE(signature string) error {
 // OIDC Sessions
 
 func (m *MemoryDataStore) CreateOIDCSession(signature, clientID, requestID, scopes, grantedScopes, formData, sessionData string, requestedAt, expiresAt time.Time) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	m.oauthOIDCSessions[signature] = OAuthTokenRow{
 		Signature:     signature,
 		ClientID:      clientID,
@@ -880,6 +1071,9 @@ func (m *MemoryDataStore) CreateOIDCSession(signature, clientID, requestID, scop
 }
 
 func (m *MemoryDataStore) GetOIDCSession(signature string) (*OAuthTokenRow, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	row, ok := m.oauthOIDCSessions[signature]
 	if !ok {
 		return nil, errors.New("OIDC session not found")
@@ -888,6 +1082,9 @@ func (m *MemoryDataStore) GetOIDCSession(signature string) (*OAuthTokenRow, erro
 }
 
 func (m *MemoryDataStore) DeleteOIDCSession(signature string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	delete(m.oauthOIDCSessions, signature)
 	return nil
 }
@@ -895,6 +1092,9 @@ func (m *MemoryDataStore) DeleteOIDCSession(signature string) error {
 // ============== OIDC METHODS ==============
 
 func (m *MemoryDataStore) GetAccessTokenRequestID(requestID string) (*string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	token, ok := m.accessTokenRequestIDs[requestID]
 	if !ok {
 		return nil, errors.New("access token request ID not found")
@@ -903,6 +1103,9 @@ func (m *MemoryDataStore) GetAccessTokenRequestID(requestID string) (*string, er
 }
 
 func (m *MemoryDataStore) SaveAccessTokenRequestID(requestID string, token string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	m.accessTokenRequestIDs[requestID] = token
 	return nil
 }
@@ -910,6 +1113,9 @@ func (m *MemoryDataStore) SaveAccessTokenRequestID(requestID string, token strin
 // ============== LIFECYCLE ==============
 
 func (m *MemoryDataStore) Close() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	return nil
 }
 

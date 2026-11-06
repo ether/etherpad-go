@@ -165,6 +165,8 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 			if err := json.Unmarshal(message.Data, &padCreateData); err != nil {
 				h.Logger.Warn("Error unmarshalling padCreate data:", err.Error())
 			}
+			unlock := h.padManager.LockPad(padCreateData.PadName)
+			defer unlock()
 			padExists, err := h.padManager.DoesPadExist(padCreateData.PadName)
 			if err != nil {
 				h.Logger.Errorf("Error checking if Pad exists: %s", err.Error())
@@ -328,7 +330,10 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 				return
 			}
 
-			if err := h.padMessageHandler.DeletePad(padDeleteData); err != nil {
+			unlock := h.padManager.LockPad(string(padDeleteData))
+			err := h.padMessageHandler.DeletePad(padDeleteData)
+			unlock()
+			if err != nil {
 				h.Logger.Warnf("Error deleting pad: %s", err.Error())
 				return
 			}
@@ -367,7 +372,10 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 				h.Logger.Warnf("Pad %s does not exist", padDeleteData)
 				return
 			}
-			if err := h.DeleteRevisions(padDeleteData, retrievedSettings.Cleanup.KeepRevisions); err != nil {
+			unlock := h.padManager.LockPad(string(padDeleteData))
+			err = h.DeleteRevisions(padDeleteData, retrievedSettings.Cleanup.KeepRevisions)
+			unlock()
+			if err != nil {
 				h.Logger.Warnf("Error cleaning up revisions for pad %s: %s", padDeleteData, err.Error())
 				return
 			}
@@ -651,7 +659,10 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 				}
 				h.hub.ClientsRWMutex.RUnlock()
 
-				if err := h.padMessageHandler.DeletePad(admin.PadDeleteData(padName)); err == nil {
+				unlock := h.padManager.LockPad(padName)
+				err := h.padMessageHandler.DeletePad(admin.PadDeleteData(padName))
+				unlock()
+				if err == nil {
 					deleted++
 				}
 			}

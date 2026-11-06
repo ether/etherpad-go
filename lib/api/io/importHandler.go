@@ -93,6 +93,11 @@ func (h *ImportHandler) ImportPad(ctx fiber.Ctx) error {
 	tokenCookie := ctx.Cookies("token")
 	padId := ctx.Params("pad")
 
+	// An import replaces the pad's content and unloads it from the cache; no
+	// websocket commit or API write may run against the old pad meanwhile.
+	unlock := h.padManager.LockPad(padId)
+	defer unlock()
+
 	// Check access
 	grantedAccess, err := h.securityManager.CheckAccess(&padId, nil, &tokenCookie, nil)
 	if err != nil {

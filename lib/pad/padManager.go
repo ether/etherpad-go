@@ -96,6 +96,11 @@ type Manager struct {
 	author         *author.Manager
 	hook           *hooks.Hook
 	padList        List
+	padLocks       *padLocks
+	// loadMu makes load-or-create of an uncached pad atomic, so concurrent
+	// callers can't each build their own *Pad and overwrite one another in
+	// the cache (a writer could then keep appending to an orphaned object).
+	loadMu sync.Mutex
 }
 
 func NewManager(db db.DataStore, hook *hooks.Hook) *Manager {
@@ -109,7 +114,8 @@ func NewManager(db db.DataStore, hook *hooks.Hook) *Manager {
 			padCache: make(map[string]*pad.Pad),
 			mutex:    sync.RWMutex{},
 		},
-		padList: NewList(db),
+		padList:  NewList(db),
+		padLocks: newPadLocks(),
 	}
 }
 
@@ -159,18 +165,24 @@ func (m *Manager) GetPad(padID string, text *string, authorId *string) (*pad.Pad
 		}
 	}
 
-	var cachedPad = m.globalPadCache.GetPad(padID)
+	if cachedPad := m.globalPadCache.GetPad(padID); cachedPad != nil {
+		return cachedPad, nil
+	}
 
-	if cachedPad != nil {
+	m.loadMu.Lock()
+	defer m.loadMu.Unlock()
+	// Another caller may have loaded it while we waited.
+	if cachedPad := m.globalPadCache.GetPad(padID); cachedPad != nil {
 		return cachedPad, nil
 	}
 
 	// try to load pad
 	var newPad = pad.NewPad(padID, m.store, m.hook)
 
-	// initialize the pad
-
-	newPad.Init(text, authorId, m.author)
+	// initialize the pad; never cache a pad that failed to load
+	if err := newPad.Init(text, authorId, m.author); err != nil {
+		return nil, err
+	}
 	m.globalPadCache.SetPad(padID, &newPad)
 
 	return &newPad, nil
@@ -185,6 +197,12 @@ func (m *Manager) GetTypedPad(padID string, documentType string, authorId *strin
 		return nil, errors.New("invalid pad id")
 	}
 
+	if cachedPad := m.globalPadCache.GetPad(padID); cachedPad != nil {
+		return cachedPad, nil
+	}
+
+	m.loadMu.Lock()
+	defer m.loadMu.Unlock()
 	if cachedPad := m.globalPadCache.GetPad(padID); cachedPad != nil {
 		return cachedPad, nil
 	}

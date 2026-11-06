@@ -63,6 +63,10 @@ func GetExport(ctx fiber.Ctx, exportHandler *io.ExportEtherpad, settings *settin
 			padId = *actualPadId
 		}
 
+		// Read a consistent pad while no commit is being appended.
+		unlock := padManager.RLockPad(padId)
+		defer unlock()
+
 		exists, err := padManager.DoesPadExist(padId)
 		if err != nil {
 			return ctx.Status(500).SendString("Internal server error")

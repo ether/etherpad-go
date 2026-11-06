@@ -8,6 +8,9 @@ import (
 )
 
 func (m *MemoryDataStore) SaveSheet(padId string, head int, snapshot string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	now := time.Now()
 	created := now
 	if existing, ok := m.sheetStore[padId]; ok {
@@ -18,6 +21,9 @@ func (m *MemoryDataStore) SaveSheet(padId string, head int, snapshot string) err
 }
 
 func (m *MemoryDataStore) GetSheet(padId string) (*db.SheetDB, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	s, ok := m.sheetStore[padId]
 	if !ok {
 		return nil, errors.New(SheetDoesNotExistError)
@@ -26,17 +32,26 @@ func (m *MemoryDataStore) GetSheet(padId string) (*db.SheetDB, error) {
 }
 
 func (m *MemoryDataStore) DoesSheetExist(padId string) (*bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	_, ok := m.sheetStore[padId]
 	return &ok, nil
 }
 
 func (m *MemoryDataStore) RemoveSheet(padId string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	delete(m.sheetStore, padId)
 	delete(m.sheetOps, padId)
 	return nil
 }
 
 func (m *MemoryDataStore) SaveSheetOp(padId string, rev int, op string, authorId *string, timestamp int64) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	if m.sheetOps[padId] == nil {
 		m.sheetOps[padId] = make(map[int]db.SheetOpDB)
 	}
@@ -48,11 +63,17 @@ func (m *MemoryDataStore) SaveSheetOp(padId string, rev int, op string, authorId
 }
 
 func (m *MemoryDataStore) RemoveSheetOps(padId string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	delete(m.sheetOps, padId)
 	return nil
 }
 
 func (m *MemoryDataStore) GetSheetOps(padId string, startRev int, endRev int) (*[]db.SheetOpDB, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	out := make([]db.SheetOpDB, 0)
 	for r := startRev; r <= endRev; r++ {
 		if op, ok := m.sheetOps[padId][r]; ok {

@@ -25,6 +25,9 @@ func checkGrant(c fiber.Ctx, store *lib.InitStore, padId string) (string, error)
 func ImportSheet(store *lib.InitStore) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		padId := c.Params("pad")
+		// Same lock as SHEET_OPs, so an import can't interleave with an op.
+		unlock := store.PadManager.LockPad(padId)
+		defer unlock()
 		if _, err := checkGrant(c, store, padId); err != nil {
 			return err
 		}

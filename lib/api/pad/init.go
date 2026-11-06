@@ -199,49 +199,49 @@ func Init(initStore *lib.InitStore) {
 	initStore.PrivateAPI.Get("/pads/readonly/:roId", GetPadID(initStore))
 
 	// Text operations
-	initStore.PrivateAPI.Get("/pads/:padId/text", GetPadText(initStore))
-	initStore.PrivateAPI.Post("/pads/:padId/text", SetPadText(initStore))
-	initStore.PrivateAPI.Post("/pads/:padId/appendText", AppendText(initStore))
+	initStore.PrivateAPI.Get("/pads/:padId/text", readLocked(initStore, GetPadText(initStore)))
+	initStore.PrivateAPI.Post("/pads/:padId/text", writeLocked(initStore, SetPadText(initStore)))
+	initStore.PrivateAPI.Post("/pads/:padId/appendText", writeLocked(initStore, AppendText(initStore)))
 
 	// Attribute pool and changesets
-	initStore.PrivateAPI.Get("/pads/:padId/attributePool", GetAttributePool(initStore))
-	initStore.PrivateAPI.Get("/pads/:padId/revisionChangeset", GetRevisionChangesetOptional(initStore))
-	initStore.PrivateAPI.Get("/pads/:padId/:rev/revisionChangeset", GetRevisionChangeset(initStore))
+	initStore.PrivateAPI.Get("/pads/:padId/attributePool", readLocked(initStore, GetAttributePool(initStore)))
+	initStore.PrivateAPI.Get("/pads/:padId/revisionChangeset", readLocked(initStore, GetRevisionChangesetOptional(initStore)))
+	initStore.PrivateAPI.Get("/pads/:padId/:rev/revisionChangeset", readLocked(initStore, GetRevisionChangeset(initStore)))
 
 	// Pad operations
-	initStore.PrivateAPI.Post("/pads/:padId/restoreRevision", RestoreRevision(initStore))
-	initStore.PrivateAPI.Post("/pads/:padId/compact", CompactPad(initStore))
-	initStore.PrivateAPI.Get("/pads/:padId/diffHTML", CreateDiffHTML(initStore))
-	initStore.PrivateAPI.Get("/pads/:padId/readOnlyID", GetReadOnlyID(initStore))
-	initStore.PrivateAPI.Get("/pads/:padId/authors", ListAuthorsOfPad(initStore))
-	initStore.PrivateAPI.Get("/pads/:padId/chatHead", GetChatHead(initStore))
-	initStore.PrivateAPI.Get("/pads/:padId/revisionsCount", GetRevisionsCount(initStore))
-	initStore.PrivateAPI.Get("/pads/:padId/lastEdited", GetLastEdited(initStore))
-	initStore.PrivateAPI.Get("/pads/:padId/html", GetHTML(initStore))
-	initStore.PrivateAPI.Post("/pads/:padId/html", SetHTML(initStore))
+	initStore.PrivateAPI.Post("/pads/:padId/restoreRevision", writeLocked(initStore, RestoreRevision(initStore)))
+	initStore.PrivateAPI.Post("/pads/:padId/compact", writeLocked(initStore, CompactPad(initStore)))
+	initStore.PrivateAPI.Get("/pads/:padId/diffHTML", readLocked(initStore, CreateDiffHTML(initStore)))
+	initStore.PrivateAPI.Get("/pads/:padId/readOnlyID", readLocked(initStore, GetReadOnlyID(initStore)))
+	initStore.PrivateAPI.Get("/pads/:padId/authors", readLocked(initStore, ListAuthorsOfPad(initStore)))
+	initStore.PrivateAPI.Get("/pads/:padId/chatHead", readLocked(initStore, GetChatHead(initStore)))
+	initStore.PrivateAPI.Get("/pads/:padId/revisionsCount", readLocked(initStore, GetRevisionsCount(initStore)))
+	initStore.PrivateAPI.Get("/pads/:padId/lastEdited", readLocked(initStore, GetLastEdited(initStore)))
+	initStore.PrivateAPI.Get("/pads/:padId/html", readLocked(initStore, GetHTML(initStore)))
+	initStore.PrivateAPI.Post("/pads/:padId/html", writeLocked(initStore, SetHTML(initStore)))
 
 	// Users in pad
-	initStore.PrivateAPI.Get("/pads/:padId/users", GetPadUsers(initStore))
-	initStore.PrivateAPI.Get("/pads/:padId/usersCount", GetPadUsersCount(initStore))
+	initStore.PrivateAPI.Get("/pads/:padId/users", readLocked(initStore, GetPadUsers(initStore)))
+	initStore.PrivateAPI.Get("/pads/:padId/usersCount", readLocked(initStore, GetPadUsersCount(initStore)))
 
 	// Saved revisions
-	initStore.PrivateAPI.Get("/pads/:padId/savedRevisionsCount", GetSavedRevisionsCount(initStore))
-	initStore.PrivateAPI.Get("/pads/:padId/savedRevisions", ListSavedRevisions(initStore))
-	initStore.PrivateAPI.Post("/pads/:padId/saveRevision", SaveRevision(initStore))
+	initStore.PrivateAPI.Get("/pads/:padId/savedRevisionsCount", readLocked(initStore, GetSavedRevisionsCount(initStore)))
+	initStore.PrivateAPI.Get("/pads/:padId/savedRevisions", readLocked(initStore, ListSavedRevisions(initStore)))
+	initStore.PrivateAPI.Post("/pads/:padId/saveRevision", writeLocked(initStore, SaveRevision(initStore)))
 
 	// Chat
-	initStore.PrivateAPI.Get("/pads/:padId/chatHistory", GetChatHistory(initStore))
-	initStore.PrivateAPI.Post("/pads/:padId/chat", AppendChatMessage(initStore))
+	initStore.PrivateAPI.Get("/pads/:padId/chatHistory", readLocked(initStore, GetChatHistory(initStore)))
+	initStore.PrivateAPI.Post("/pads/:padId/chat", writeLocked(initStore, AppendChatMessage(initStore)))
 
 	// Copy/move and public status
-	initStore.PrivateAPI.Post("/pads/:padId/copy", CopyPad(initStore))
-	initStore.PrivateAPI.Post("/pads/:padId/copyWithoutHistory", CopyPadWithoutHistory(initStore))
-	initStore.PrivateAPI.Post("/pads/:padId/move", MovePad(initStore))
-	initStore.PrivateAPI.Get("/pads/:padId/publicStatus", GetPublicStatus(initStore))
-	initStore.PrivateAPI.Post("/pads/:padId/sendClientsMessage", SendClientsMessage(initStore))
-	initStore.PrivateAPI.Post("/pads/:padId/publicStatus", SetPublicStatus(initStore))
+	initStore.PrivateAPI.Post("/pads/:padId/copy", writeLockedWithDestination(initStore, CopyPad(initStore)))
+	initStore.PrivateAPI.Post("/pads/:padId/copyWithoutHistory", writeLockedWithDestination(initStore, CopyPadWithoutHistory(initStore)))
+	initStore.PrivateAPI.Post("/pads/:padId/move", writeLockedWithDestination(initStore, MovePad(initStore)))
+	initStore.PrivateAPI.Get("/pads/:padId/publicStatus", readLocked(initStore, GetPublicStatus(initStore)))
+	initStore.PrivateAPI.Post("/pads/:padId/sendClientsMessage", writeLocked(initStore, SendClientsMessage(initStore)))
+	initStore.PrivateAPI.Post("/pads/:padId/publicStatus", writeLocked(initStore, SetPublicStatus(initStore)))
 
 	// CRUD operations on pad itself (last to avoid conflicts)
-	initStore.PrivateAPI.Post("/pads/:padId", CreatePad(initStore))
-	initStore.PrivateAPI.Delete("/pads/:padId", DeletePad(initStore))
+	initStore.PrivateAPI.Post("/pads/:padId", writeLocked(initStore, CreatePad(initStore)))
+	initStore.PrivateAPI.Delete("/pads/:padId", writeLocked(initStore, DeletePad(initStore)))
 }

@@ -209,7 +209,9 @@ func (r *Retention) sweepOnce(cfg *retentionConfig) {
 	}
 	deleted := 0
 	for _, padID := range *padIDs {
+		unlock := r.manager.LockPad(padID)
 		removed, err := r.expirePad(padID, cfg, time.Now())
+		unlock()
 		if err != nil {
 			r.logger.Warnw("Pad retention check failed", "padId", padID, "error", err)
 			continue
@@ -225,6 +227,8 @@ func (r *Retention) sweepOnce(cfg *retentionConfig) {
 
 // CheckOnOpen checks retention immediately before a pad is loaded. It returns
 // a notice for the browser and leaves the normal pad-loading path unchanged.
+// The caller must hold the pad's write lock (see Manager.LockPad), since an
+// expired pad is deleted right here.
 func (r *Retention) CheckOnOpen(padID string) *RetentionNotice {
 	cfg := r.config()
 	if cfg == nil {
