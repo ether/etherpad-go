@@ -154,6 +154,33 @@ type SSOClient struct {
 	Type          string   `json:"type" mapstructure:"type"`
 }
 
+// Cluster configures how several Etherpad instances on one database find
+// each other and pass on live updates (hashicorp/memberlist). The instances
+// register their gossip address in the database, so no further discovery
+// (headless service, DNS) is needed.
+type Cluster struct {
+	// Mode is "auto" (on for postgres and mysql), "on" or "off".
+	Mode string `json:"mode" mapstructure:"mode"`
+	// BindAddr and BindPort are where memberlist listens (TCP and UDP).
+	BindAddr string `json:"bindAddr" mapstructure:"bindAddr"`
+	BindPort int    `json:"bindPort" mapstructure:"bindPort"`
+	// AdvertiseAddr is the address other instances reach this one at; by
+	// default the POD_IP environment variable or a private IP of the host.
+	AdvertiseAddr string `json:"advertiseAddr" mapstructure:"advertiseAddr"`
+	AdvertisePort int    `json:"advertisePort" mapstructure:"advertisePort"`
+}
+
+// Enabled reports whether clustering is on for the given database type.
+func (c Cluster) Enabled(dbType string) bool {
+	switch c.Mode {
+	case "on", "true":
+		return true
+	case "off", "false":
+		return false
+	}
+	return dbType == "postgres" || dbType == "mysql"
+}
+
 type SSO struct {
 	Issuer  string      `json:"issuer" mapstructure:"issuer"`
 	Clients []SSOClient `json:"clients" mapstructure:"clients"`
@@ -271,6 +298,8 @@ type Settings struct {
 	Cookie Cookie `json:"cookie" mapstructure:"cookie"`
 
 	Updates Updates `json:"updates" mapstructure:"updates"`
+
+	Cluster Cluster `json:"cluster" mapstructure:"cluster"`
 
 	RequireAuthentication bool `json:"requireAuthentication" mapstructure:"requireAuthentication"`
 	RequireAuthorization  bool `json:"requireAuthorization" mapstructure:"requireAuthorization"`

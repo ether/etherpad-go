@@ -17,6 +17,8 @@ import (
 type MemoryDataStore struct {
 	// padLocks backs LockPadExclusive.
 	padLocks *processLocks
+	// clusterNodes backs ClusterMethods (guarded by mu).
+	clusterNodes map[string]ClusterNode
 
 	// mu guards every map below. The store is shared by all request and
 	// websocket goroutines (and is the default datastore), so unguarded map
@@ -1125,6 +1127,7 @@ func (m *MemoryDataStore) Close() error {
 func NewMemoryDataStore() *MemoryDataStore {
 	return &MemoryDataStore{
 		padLocks:               newProcessLocks(),
+		clusterNodes:           map[string]ClusterNode{},
 		padStore:               make(map[string]db.PadDB),
 		padRevisions:           make(map[string]map[int]db.PadSingleRevision),
 		authorStore:            make(map[string]db.AuthorDB),

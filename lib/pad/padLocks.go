@@ -179,3 +179,19 @@ func (m *Manager) lock(ids []string, read bool) func() {
 		})
 	}
 }
+
+// CatchUp brings the cached pad id up to the stored state under the pad's
+// local write lock and calls fn with it, to send its clients what other
+// instances stored. It reports false if the pad is not cached here (then
+// it has no clients here) or was deleted.
+func (m *Manager) CatchUp(id string, fn func(p *pad.Pad)) bool {
+	unlock := m.lock([]string{id}, false)
+	defer unlock()
+	m.refreshCached(id)
+	cached := m.globalPadCache.GetPad(id)
+	if cached == nil {
+		return false
+	}
+	fn(cached)
+	return true
+}

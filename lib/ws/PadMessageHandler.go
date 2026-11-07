@@ -16,6 +16,7 @@ import (
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/changeset"
+	"github.com/ether/etherpad-go/lib/cluster"
 	db2 "github.com/ether/etherpad-go/lib/db"
 	"github.com/ether/etherpad-go/lib/hooks"
 	"github.com/ether/etherpad-go/lib/hooks/events"
@@ -91,6 +92,7 @@ type PadMessageHandler struct {
 	sheetManager    *sheetdoc.Manager
 	sheetChannels   SheetChannelOperator
 	retention       *pad.Retention
+	cluster         *clusterState
 }
 
 func NewPadMessageHandler(db db2.DataStore, hooks *hooks.Hook, padManager *pad.Manager, sessionStore *SessionStore, hub *Hub, logger *zap.SugaredLogger, uiAssets embed.FS, cfg *settings.Settings) *PadMessageHandler {
@@ -1009,45 +1011,40 @@ func (p *PadMessageHandler) SendChatMessageToPadClients(session *ws.Session, cha
 	if authorName != nil && *authorName != "" {
 		chatMessage.DisplayName = authorName
 	}
-	for _, socket := range p.GetRoomSockets(session.PadId) {
-		var arr = make([]interface{}, 2)
-		arr[0] = "message"
-		arr[1] = ws.ChatBroadCastMessage{
-			Type: "COLLABROOM",
-			Data: struct {
-				Type    string                  `json:"type"`
-				Message ws.ChatMessageSendEvent `json:"message"`
-			}{Type: "CHAT_MESSAGE", Message: ws.ChatMessageSendEvent{
-				Time:     chatMessage.Time,
-				Text:     chatMessage.Text,
-				UserId:   chatMessage.AuthorId,
-				UserName: chatMessage.DisplayName,
-			},
-			},
-		}
-
-		var marshalledMessage, _ = json.Marshal(arr)
-
-		socket.SafeSend(marshalledMessage)
+	var arr = make([]interface{}, 2)
+	arr[0] = "message"
+	arr[1] = ws.ChatBroadCastMessage{
+		Type: "COLLABROOM",
+		Data: struct {
+			Type    string                  `json:"type"`
+			Message ws.ChatMessageSendEvent `json:"message"`
+		}{Type: "CHAT_MESSAGE", Message: ws.ChatMessageSendEvent{
+			Time:     chatMessage.Time,
+			Text:     chatMessage.Text,
+			UserId:   chatMessage.AuthorId,
+			UserName: chatMessage.DisplayName,
+		},
+		},
 	}
+
+	var marshalledMessage, _ = json.Marshal(arr)
+	p.broadcastToRoom(session.PadId, marshalledMessage, "")
 }
 
 // BroadcastSystemChatToRoom sends a chat message to all clients in a pad room without saving to the database.
 // The message map is sent as-is inside a CHAT_MESSAGE COLLABROOM event.
 func (p *PadMessageHandler) BroadcastSystemChatToRoom(padId string, message map[string]any) {
-	for _, socket := range p.GetRoomSockets(padId) {
-		var arr = make([]interface{}, 2)
-		arr[0] = "message"
-		arr[1] = map[string]any{
-			"type": "COLLABROOM",
-			"data": map[string]any{
-				"type":    "CHAT_MESSAGE",
-				"message": message,
-			},
-		}
-		var marshalled, _ = json.Marshal(arr)
-		socket.SafeSend(marshalled)
+	var arr = make([]interface{}, 2)
+	arr[0] = "message"
+	arr[1] = map[string]any{
+		"type": "COLLABROOM",
+		"data": map[string]any{
+			"type":    "CHAT_MESSAGE",
+			"message": message,
+		},
 	}
+	var marshalled, _ = json.Marshal(arr)
+	p.broadcastToRoom(padId, marshalled, "")
 }
 
 func (p *PadMessageHandler) HandlePadDelete(client *Client, padDeleteMessage PadDelete) {
@@ -1108,6 +1105,7 @@ func (p *PadMessageHandler) DeletePad(padId string) error {
 		return err
 	}
 	p.KickSessionsFromPad(retrievedPadObj.Id)
+	p.publish(cluster.Event{Kind: cluster.KindDeleted, Pad: retrievedPadObj.Id})
 	if err := retrievedPadObj.RemoveAllChats(); err != nil {
 		return err
 	}
@@ -1150,8 +1148,6 @@ func (p *PadMessageHandler) HandleUserInfoUpdate(userInfo UserInfoUpdate, client
 	}
 	var padId = session.PadId
 
-	var padSockets = p.GetRoomSockets(padId)
-
 	var userNewInfoDat = ws.UserNewInfoDat{
 		UserId:  session.Author,
 		Name:    userInfo.Data.UserInfo.Name,
@@ -1173,11 +1169,7 @@ func (p *PadMessageHandler) HandleUserInfoUpdate(userInfo UserInfoUpdate, client
 	arr[1] = userNewInfoActual
 
 	var marshalled, _ = json.Marshal(arr)
-
-	for _, p := range padSockets {
-		p.SafeSend(marshalled)
-	}
-
+	p.broadcastToRoom(padId, marshalled, "")
 }
 
 func (p *PadMessageHandler) correctMarkersInPad(atext apool.AText, apool apool.APool) *string {
@@ -1242,39 +1234,33 @@ func (p *PadMessageHandler) HandleDisconnectOfPadClient(client *Client, settings
 		logger.Infof("[LEAVE] pad:%s socket:%s IP:%s ", thisSession.PadId, client.SessionId, client.ClientIP)
 	}
 
-	var roomSockets = p.GetRoomSockets(thisSession.PadId)
 	var authorToRemove, err = p.authorManager.GetAuthor(thisSession.Author)
 	if err != nil {
 		p.Logger.Warn("Error retrieving author for disconnect")
 		return
 	}
 
-	for _, otherSocket := range roomSockets {
-		if otherSocket.SessionId == client.SessionId {
-			continue
-		}
-		userLeave := ws.UserLeaveData{
-			Type: "COLLABROOM",
-			Data: struct {
-				Type     string `json:"type"`
-				UserInfo struct {
-					ColorId string `json:"colorId"`
-					UserId  string `json:"userId"`
-				} `json:"userInfo"`
-			}{Type: "USER_LEAVE", UserInfo: struct {
+	userLeave := ws.UserLeaveData{
+		Type: "COLLABROOM",
+		Data: struct {
+			Type     string `json:"type"`
+			UserInfo struct {
 				ColorId string `json:"colorId"`
 				UserId  string `json:"userId"`
-			}{
-				ColorId: authorToRemove.ColorId,
-				UserId:  thisSession.Author,
-			}},
-		}
-		var arr = make([]interface{}, 2)
-		arr[0] = "message"
-		arr[1] = userLeave
-		var marshalled, _ = json.Marshal(arr)
-		otherSocket.SafeSend(marshalled)
+			} `json:"userInfo"`
+		}{Type: "USER_LEAVE", UserInfo: struct {
+			ColorId string `json:"colorId"`
+			UserId  string `json:"userId"`
+		}{
+			ColorId: authorToRemove.ColorId,
+			UserId:  thisSession.Author,
+		}},
 	}
+	var arr = make([]interface{}, 2)
+	arr[0] = "message"
+	arr[1] = userLeave
+	var marshalled, _ = json.Marshal(arr)
+	p.broadcastToRoom(thisSession.PadId, marshalled, client.SessionId)
 
 	// Fire userLeave hooks
 	padId := thisSession.PadId
@@ -1637,6 +1623,9 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 	for _, socket := range roomSockets {
 		socket.SafeSend(marshalled)
 	}
+	// Announce the user on the other instances too; they answer with their
+	// users of this pad.
+	p.publish(cluster.Event{Kind: cluster.KindJoin, Pad: thisSession.PadId, Session: client.SessionId, Payload: marshalled})
 
 	// send all other users' info to the new client
 	for _, socket := range roomSockets {
@@ -1700,6 +1689,8 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 // seen yet (NEW_CHANGES).
 func (p *PadMessageHandler) UpdatePadClients(pad *pad2.Pad) {
 	p.updatePadClients(pad, nil)
+	// Called after every change made here: tell the other instances.
+	p.publish(cluster.Event{Kind: cluster.KindRevision, Pad: pad.Id, Rev: pad.Head})
 }
 
 // updatePadClients is UpdatePadClients, restricted to the session of only
@@ -1801,9 +1792,7 @@ func (p *PadMessageHandler) SendCustomMessageToPad(padId string, msgType string)
 		p.Logger.Errorf("Error marshalling custom message %q: %v", msgType, err)
 		return
 	}
-	for _, socket := range p.GetRoomSockets(padId) {
-		socket.SafeSend(encoded)
-	}
+	p.broadcastToRoom(padId, encoded, "")
 }
 
 // HandleClientMessage handles the COLLABROOM CLIENT_MESSAGE family,
@@ -1834,6 +1823,7 @@ func (p *PadMessageHandler) HandleClientMessage(message ws.ClientMessage, client
 				socket.SafeSend(encoded)
 			}
 		}
+		p.publish(cluster.Event{Kind: cluster.KindAuthor, Pad: session.PadId, Author: payload.UnnamedId, Payload: encoded})
 	case "padoptions":
 		// The original gates pad-wide settings behind enablePadWideSettings
 		// (default off) and per-pad settings storage, neither of which this

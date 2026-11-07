@@ -156,6 +156,7 @@ type DataStore interface {
 	SecretMethods
 	SheetMethods
 	ConsistencyMethods
+	ClusterMethods
 	Close() error
 	Ping() error
 }
