@@ -5,12 +5,15 @@ import (
 	"encoding/json"
 	"io"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/ether/etherpad-go/lib/api/pad"
 	"github.com/ether/etherpad-go/lib/hooks/events"
 	padModel "github.com/ether/etherpad-go/lib/models/pad"
 	"github.com/ether/etherpad-go/lib/test/testutils"
+	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -208,6 +211,15 @@ func TestPadAPI(t *testing.T) {
 		testutils.TestRunConfig{
 			Name: "padRemove hook fires on remove",
 			Test: testPadRemoveHookFires,
+		},
+		// Port of etherpad-lite's largePaste spec.
+		testutils.TestRunConfig{
+			Name: "SetPadText stores and returns 50,000 characters",
+			Test: testLargePaste,
+		},
+		testutils.TestRunConfig{
+			Name: "SetPadText stores and returns a large multi-byte text",
+			Test: testLargePasteMultiByte,
 		},
 	)
 
@@ -798,7 +810,7 @@ func getPadTextViaAPI(t *testing.T, tsStore testutils.TestDataStore, padId strin
 	initStore := tsStore.ToInitStore()
 
 	req := httptest.NewRequest("GET", "/admin/api/pads/"+padId+"/text", nil)
-	resp, err := initStore.C.Test(req)
+	resp, err := initStore.C.Test(req, fiber.TestConfig{Timeout: 30 * time.Second})
 	assert.NoError(t, err)
 
 	var response pad.TextResponse
@@ -1147,4 +1159,51 @@ func testSendClientsMessage(t *testing.T, tsStore testutils.TestDataStore) {
 	req.Header.Set("Content-Type", "application/json")
 	resp, _ = initStore.C.Test(req)
 	assert.Equal(t, 404, resp.StatusCode)
+}
+
+// ========== Large paste ==========
+
+func setLargeTextViaAPI(t *testing.T, tsStore testutils.TestDataStore, padId, text string) {
+	t.Helper()
+	initStore := tsStore.ToInitStore()
+	testAuthor, err := tsStore.AuthorManager.CreateAuthor(nil)
+	assert.NoError(t, err)
+	body, _ := json.Marshal(pad.SetTextRequest{Text: text, AuthorId: testAuthor.Id})
+	req := httptest.NewRequest("POST", "/admin/api/pads/"+padId+"/text", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := initStore.C.Test(req, fiber.TestConfig{Timeout: 30 * time.Second})
+	assert.NoError(t, err)
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, 200, resp.StatusCode, "response body: %s", string(respBody))
+}
+
+func testLargePaste(t *testing.T, tsStore testutils.TestDataStore) {
+	pad.Init(tsStore.ToInitStore())
+	createTestPad(t, tsStore, "largepaste", "\n")
+
+	largeText := strings.Repeat("A", 50000)
+	setLargeTextViaAPI(t, tsStore, "largepaste", largeText)
+
+	status, text := getPadTextViaAPI(t, tsStore, "largepaste")
+	assert.Equal(t, 200, status)
+	assert.Equal(t, largeText+"\n", text)
+}
+
+func testLargePasteMultiByte(t *testing.T, tsStore testutils.TestDataStore) {
+	pad.Init(tsStore.ToInitStore())
+	createTestPad(t, tsStore, "largepastemb", "\n")
+
+	// Many lines with characters of every UTF-8 length, so byte and
+	// character offsets differ throughout the text.
+	largeText := strings.Repeat("Grüße 😀 字 €uro\n", 5000)
+	setLargeTextViaAPI(t, tsStore, "largepastemb", largeText)
+
+	status, text := getPadTextViaAPI(t, tsStore, "largepastemb")
+	assert.Equal(t, 200, status)
+	assert.Equal(t, largeText, text)
+
+	// A second, smaller replacement must not leave any of the old text.
+	setLargeTextViaAPI(t, tsStore, "largepastemb", "short")
+	_, text = getPadTextViaAPI(t, tsStore, "largepastemb")
+	assert.Equal(t, "short\n", text)
 }

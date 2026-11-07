@@ -162,8 +162,9 @@ func Identity(n int) string {
 	return Pack(n, n, "", "")
 }
 
+var headerRegex = regexp.MustCompile("Z:([0-9a-z]+)([><])([0-9a-z]+)|")
+
 func Unpack(cs string) (*Changeset, error) {
-	var headerRegex = regexp.MustCompile("Z:([0-9a-z]+)([><])([0-9a-z]+)|")
 	var foundHeaders = headerRegex.FindStringSubmatch(cs)
 
 	if len(foundHeaders) == 0 {
@@ -180,17 +181,23 @@ func Unpack(cs string) (*Changeset, error) {
 
 	var changeMag, _ = utils.ParseNum(foundHeaders[3])
 	var newLen = oldLen + changeSign*changeMag
-	var opsStart = utils.RuneCount(foundHeaders[0])
-	var opsEnd = utils.RuneIndex(cs, "$")
+	var opsStart = len(foundHeaders[0])
+	var charBank string
+	var opsEnd = strings.IndexByte(cs, '$')
 	if opsEnd < 0 {
-		opsEnd = utils.RuneCount(cs)
+		opsEnd = len(cs)
+	} else {
+		charBank = cs[opsEnd+1:]
+	}
+	if opsEnd < opsStart {
+		opsEnd = opsStart
 	}
 
 	return &Changeset{
 		oldLen,
 		newLen,
-		utils.RuneSlice(cs, opsStart, opsEnd),
-		utils.RuneSlice(cs, opsEnd+1, utils.RuneCount(cs)),
+		cs[opsStart:opsEnd],
+		charBank,
 	}, nil
 
 }
@@ -226,7 +233,7 @@ func AttributeTester(attribPair apool.Attribute, pool *apool.APool) func(arg *st
 }
 
 func replaceAttributes(att2 string, callback func(match string) (*string, error)) (string, map[string]string, error) {
-	re := regexp.MustCompile(`\*([0-9a-z]+)`)
+	re := attribRefRegex
 	atts := make(map[string]string)
 	var callbackErr error = nil
 	result := re.ReplaceAllStringFunc(att2, func(match string) string {
@@ -636,7 +643,7 @@ func MutateAttributionLines(cs string, lines *[]string, pool *apool.APool) error
 	}
 	csOpsIdx := 0
 	csBank := unpacked.CharBank
-	csBankIndex := 0
+	csBankByte := 0 // byte offset of the next unused character in csBank
 	// treat the attribution lines as text lines, mutating a line at a time
 	mut := NewTextLinesMutator(lines)
 
@@ -719,7 +726,8 @@ func MutateAttributionLines(cs string, lines *[]string, pool *apool.APool) error
 			copyOp(csOp, &opOut)
 			if csOp.Lines > 1 {
 				// Copy the first line from `csOp` to `opOut`.
-				firstLineLen := utils.RuneIndex(utils.RuneSlice(csBank, csBankIndex, utils.RuneCount(csBank)), "\n") + 1
+				rest := csBank[csBankByte:]
+				firstLineLen := utils.RuneCount(rest[:strings.IndexByte(rest, '\n')+1])
 				csOp.Chars -= firstLineLen
 				csOp.Lines--
 				opOut.Lines = 1
@@ -731,7 +739,7 @@ func MutateAttributionLines(cs string, lines *[]string, pool *apool.APool) error
 			if err := outputMutOp(opOut); err != nil {
 				return err
 			}
-			csBankIndex += opOut.Chars
+			csBankByte += utils.RuneByteOffset(csBank[csBankByte:], opOut.Chars)
 		} else {
 			if attOp.OpCode == "" && isNextMutOp() {
 				attOp = nextMutOp()
@@ -1165,8 +1173,10 @@ func Subattribution(astr string, start int, optEnd *int) (*string, error) {
 	return &res, nil
 }
 
+var opRegex = regexp.MustCompile(`((?:\*[0-9a-z]+)*)(?:\|([0-9a-z]+))?([-+=])([0-9a-z]+)|(.)`)
+
 func DeserializeOps(ops string) (*[]Op, error) {
-	var regex = regexp.MustCompile(`((?:\*[0-9a-z]+)*)(?:\|([0-9a-z]+))?([-+=])([0-9a-z]+)|(.)`)
+	var regex = opRegex
 	var opsToReturn = make([]Op, 0)
 	matches := regex.FindAllStringSubmatch(ops, -1)
 
@@ -1429,15 +1439,17 @@ func CloneAText(atext apool.AText) apool.AText {
 	}
 }
 
-func MoveOpsToNewPool(cs string, oldPool *apool.APool, newPool *apool.APool) string {
-	dollarPos := utils.RuneIndex(cs, "$")
-	if dollarPos < 0 {
-		dollarPos = utils.RuneCount(cs)
-	}
-	upToDollar := utils.RuneSlice(cs, 0, dollarPos)
-	fromDollar := utils.RuneSlice(cs, dollarPos, utils.RuneCount(cs))
+var attribRefRegex = regexp.MustCompile(`\*([0-9a-z]+)`)
 
-	re := regexp.MustCompile(`\*([0-9a-z]+)`)
+func MoveOpsToNewPool(cs string, oldPool *apool.APool, newPool *apool.APool) string {
+	dollarPos := strings.IndexByte(cs, '$')
+	if dollarPos < 0 {
+		dollarPos = len(cs)
+	}
+	upToDollar := cs[:dollarPos]
+	fromDollar := cs[dollarPos:]
+
+	re := attribRefRegex
 	result := re.ReplaceAllStringFunc(upToDollar, func(match string) string {
 		sub := re.FindStringSubmatch(match)
 		if len(sub) < 2 {
@@ -1492,14 +1504,17 @@ func SplitTextLines(text string) []string {
 func SplitAttributionLines(attrOps string, text string) ([]string, error) {
 	var assem = NewMergingOpAssembler()
 	var lines = make([]string, 0)
-	var pos = 0
+	// bytePos is the byte offset in text of the next op. Tracking it keeps
+	// this linear; slicing text from the start for every op was quadratic
+	// in the number of lines.
+	var bytePos = 0
 	appendOp := func(op Op) {
 		assem.Append(op)
 		if op.Lines > 0 {
 			lines = append(lines, assem.String())
 			assem.Clear()
 		}
-		pos += op.Chars
+		bytePos += utils.RuneByteOffset(text[bytePos:], op.Chars)
 	}
 
 	var deserializedOps, err = DeserializeOps(attrOps)
@@ -1511,13 +1526,12 @@ func SplitAttributionLines(attrOps string, text string) ([]string, error) {
 		var numChars = op.Chars
 		var numLines = op.Lines
 		for numLines > 1 {
-			rest := utils.RuneSlice(text, pos, utils.RuneCount(text))
-			relIdx := utils.RuneIndex(rest, "\n")
-			if !(relIdx >= 0) {
+			rest := text[bytePos:]
+			relByte := strings.IndexByte(rest, '\n')
+			if relByte < 0 {
 				return nil, errors.New("newLineEnd <= 0 in splitAttributionLines")
 			}
-			var newlineEnd = pos + relIdx + 1
-			op.Chars = newlineEnd - pos
+			op.Chars = utils.RuneCount(rest[:relByte]) + 1
 			op.Lines = 1
 			appendOp(op)
 			numChars -= op.Chars

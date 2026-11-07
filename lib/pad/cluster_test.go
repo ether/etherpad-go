@@ -50,6 +50,9 @@ func sharedStores(t *testing.T) []sharedStore {
 				srv = testdb.Get(t, kind)
 				name = srv.NewDatabase(t)
 			})
+			if srv == nil {
+				t.Skipf("%s unavailable", kind)
+			}
 			var store db.DataStore
 			var err error
 			if kind == testdb.Postgres {

@@ -630,7 +630,7 @@ func (p *Pad) AppendRevision(cs string, authorId *string) (*int, error) {
 			return nil, db.ErrConflict
 		}
 		if err := p.Save(); err != nil {
-			return nil, errors.New("Error creating pad " + err.Error())
+			return nil, fmt.Errorf("error creating pad: %w", err)
 		}
 	}
 
@@ -668,7 +668,7 @@ func (p *Pad) AppendRevision(cs string, authorId *string) (*int, error) {
 		if errors.Is(err, db.ErrConflict) {
 			return nil, err
 		}
-		return nil, errors.New("Error saving revision during append " + err.Error())
+		return nil, fmt.Errorf("error saving revision during append: %w", err)
 	}
 
 	apool.CopyAText(*newAText, &p.AText)
