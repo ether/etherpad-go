@@ -1,6 +1,9 @@
 package oidc
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"io"
@@ -9,562 +12,616 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ether/etherpad-go/lib/db"
 	"github.com/ether/etherpad-go/lib/settings"
-	"github.com/ory/fosite"
+	"github.com/ether/etherpad-go/lib/test/testdb"
+	jose "github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 	"golang.org/x/net/html"
 )
 
-type JSONWebKey struct {
-	Kty string `json:"kty"`
-	Kid string `json:"kid"`
-	Alg string `json:"alg"`
-	Use string `json:"use"`
-	N   string `json:"n"`
-	E   string `json:"e"`
+const (
+	adminClientID   = "admin_client"
+	adminRedirect   = "http://localhost:9001/admin/"
+	serviceClientID = "service-client"
+	serviceSecret   = "service-secret"
+	codeVerifier    = "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG"
+)
+
+func strPtr(s string) *string { return &s }
+func boolPtr(b bool) *bool    { return &b }
+
+func pkceS256(verifier string) string {
+	sum := sha256.Sum256([]byte(verifier))
+	return base64.RawURLEncoding.EncodeToString(sum[:])
 }
 
-type JSONWebKeySet struct {
-	Keys []JSONWebKey `json:"keys"`
+func testSettings(issuer string) *settings.Settings {
+	return &settings.Settings{
+		SSO: &settings.SSO{
+			Issuer: issuer,
+			Clients: []settings.SSOClient{
+				{
+					Type:         "admin",
+					ClientId:     adminClientID,
+					ClientSecret: strPtr("admin"),
+					RedirectUris: []string{adminRedirect},
+					GrantTypes:   []string{"authorization_code"},
+					DisplayName:  "Admin",
+				},
+				{
+					ClientId:     serviceClientID,
+					ClientSecret: strPtr(serviceSecret),
+					RedirectUris: []string{"https://service.example/callback"},
+					GrantTypes:   []string{"authorization_code", "client_credentials"},
+				},
+			},
+		},
+		Users: map[string]settings.User{
+			"admin":  {Password: strPtr("adminpass"), IsAdmin: boolPtr(true)},
+			"editor": {Password: strPtr("editorpass"), IsAdmin: boolPtr(false)},
+			"empty":  {Password: strPtr(""), IsAdmin: boolPtr(true)},
+		},
+	}
 }
 
-func TestNewAuthenticator(t *testing.T) {
-	settingsAuth := testSettings()
-	auth := NewAuthenticator(settingsAuth, db.NewMemoryDataStore())
-	require.NotNil(t, auth)
-	require.NotNil(t, auth.provider)
-	require.NotNil(t, auth.store)
-	require.NotNil(t, auth.privateKey)
-	assert.Equal(t, settingsAuth, auth.retrievedSettings)
+// testServer runs the provider like Init mounts it.
+type testServer struct {
+	*httptest.Server
+	auth   *Authenticator
+	client *http.Client
+	store  db.DataStore
 }
 
-func TestJwksEndpoint(t *testing.T) {
-	settings := testSettings()
-	auth := NewAuthenticator(settings, db.NewMemoryDataStore())
-
-	req := httptest.NewRequest("GET", "/.well-known/jwks.json", nil)
-	w := httptest.NewRecorder()
-
-	auth.JwksEndpoint(w, req)
-
-	assert.Equal(t, http.StatusOK, w.Code)
-	assert.Equal(t, "application/json", w.Header().Get("Content-Type"))
-
-	var jwks JSONWebKeySet
-	err := json.NewDecoder(w.Body).Decode(&jwks)
-	require.NoError(t, err)
-	require.Len(t, jwks.Keys, 1)
-	assert.Equal(t, "RSA", jwks.Keys[0].Kty)
-	assert.Equal(t, "RS256", jwks.Keys[0].Alg)
-}
-
-func TestOicWellKnown(t *testing.T) {
-	settingsAuth := testSettings()
-	auth := &Authenticator{retrievedSettings: settingsAuth}
-
-	req := httptest.NewRequest("GET", "/.well-known/openid_configuration", nil)
-	w := httptest.NewRecorder()
-
-	auth.OicWellKnown(w, req, settingsAuth)
-
-	assert.Equal(t, http.StatusOK, w.Code)
-	assert.Equal(t, "application/json", w.Header().Get("Content-Type"))
-
-	var wellKnown WellKnownResponse
-	err := json.NewDecoder(w.Body).Decode(&wellKnown)
-	require.NoError(t, err)
-	assert.Equal(t, settingsAuth.SSO.Issuer, wellKnown.Issuer)
-	assert.Contains(t, wellKnown.ScopesSupported, "openid")
-	assert.Contains(t, wellKnown.ScopesSupported, "email")
-}
-
-func TestAuthEndpoint_GET_MinimalOIDC(t *testing.T) {
-	settingsAuth := testSettings()
-	auth := NewAuthenticator(settingsAuth, db.NewMemoryDataStore())
-	setupLogger := zap.NewNop().Sugar()
-
-	// Minimale OpenID Connect Parameter
-	q := url.Values{}
-	q.Add("client_id", "test-client")
-	q.Add("redirect_uri", "http://localhost/callback")
-	q.Add("scope", "openid")
-	q.Add("response_type", "code")
-	q.Add("state", "xyz12323123123")
-
-	req := httptest.NewRequest("GET", "/oauth2/auth?"+q.Encode(), nil)
-	w := httptest.NewRecorder()
-
-	auth.AuthEndpoint(w, req, setupLogger, settingsAuth)
-
-	assert.Equal(t, http.StatusOK, w.Code)
-	assert.Equal(t, "text/html; charset=utf-8", w.Header().Get("Content-Type"))
-	assert.Contains(t, w.Body.String(), `<form`)
-}
-
-func TestAuthEndpoint_GET_FullOIDC(t *testing.T) {
-	settingsAuth := testSettings()
-	auth := NewAuthenticator(settingsAuth, db.NewMemoryDataStore())
-	setupLogger := zap.NewNop().Sugar()
-
-	q := url.Values{}
-	q.Add("client_id", "test-client")
-	q.Add("redirect_uri", "http://localhost/callback")
-	q.Add("scope", "openid email profile")
-	q.Add("response_type", "code")
-	q.Add("state", "xyz12323123123")
-	q.Add("nonce", "random-nonce-123")
-	q.Add("max_age", "3600")
-	q.Add("ui_locales", "de")
-
-	req := httptest.NewRequest("GET", "/oauth2/auth?"+q.Encode(), nil)
-	w := httptest.NewRecorder()
-
-	auth.AuthEndpoint(w, req, setupLogger, settingsAuth)
-
-	assert.Equal(t, http.StatusOK, w.Code)
-	assert.Equal(t, "text/html; charset=utf-8", w.Header().Get("Content-Type"))
-	assert.Contains(t, w.Body.String(), `<form`)
-}
-
-func TestAuthEndpoint_POST_Success(t *testing.T) {
-	settingsAuth := testSettings()
-	auth := NewAuthenticator(settingsAuth, db.NewMemoryDataStore())
-	setupLogger := zap.NewNop().Sugar()
-
-	form := url.Values{}
-	form.Add("username", "testuser")
-	form.Add("password", "testpass")
-	form.Add("scopes", "openid")
-	form.Add("scopes", "email")
-	form.Add("client_id", "test-client")
-	form.Add("redirect_uri", "http://localhost/callback")
-	form.Add("response_type", "code")
-	form.Add("state", "xyz12323123123")
-
-	req := httptest.NewRequest("POST", "/oauth2/auth", strings.NewReader(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.PostForm = form
-	w := httptest.NewRecorder()
-
-	auth.AuthEndpoint(w, req, setupLogger, settingsAuth)
-
-	assert.Equal(t, http.StatusSeeOther, w.Code)
-	assert.NotEmpty(t, w.Header().Get("Location"))
-}
-
-func TestAuthEndpoint_POST_InvalidClient(t *testing.T) {
-	settingsAuth := testSettings()
-	auth := NewAuthenticator(settingsAuth, db.NewMemoryDataStore())
-	setupLogger := zap.NewNop().Sugar()
-
-	form := url.Values{}
-	form.Add("username", "wronguser")
-	form.Add("password", "wrongpass")
-	form.Add("scopes", "openid")
-
-	req := httptest.NewRequest("POST", "/oauth2/auth", strings.NewReader(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.PostForm = form
-	w := httptest.NewRecorder()
-
-	auth.AuthEndpoint(w, req, setupLogger, settingsAuth)
-
-	assert.Equal(t, http.StatusUnauthorized, w.Code)
-	assert.Contains(t, w.Body.String(), "The requested OAuth 2.0 Client does not exist")
-}
-
-func TestAuthEndpoint_POST_InvalidCredentials(t *testing.T) {
-	settingsAuth := testSettings()
-	auth := NewAuthenticator(settingsAuth, db.NewMemoryDataStore())
-	setupLogger := zap.NewNop().Sugar()
-
-	form := url.Values{}
-	form.Add("username", "wronguser")
-	form.Add("password", "wrongpass")
-	form.Add("scopes", "openid")
-	form.Add("client_id", "test-client")
-	form.Add("redirect_uri", "http://localhost/callback")
-	form.Add("response_type", "code")
-	form.Add("state", "xyz12323123123")
-	form.Add("code_challenge", "pkce-challenge")
-	form.Add("code_challenge_method", "S256")
-
-	req := httptest.NewRequest("POST", "/oauth2/auth", strings.NewReader(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.PostForm = form
-	w := httptest.NewRecorder()
-
-	auth.AuthEndpoint(w, req, setupLogger, settingsAuth)
-
-	assert.Equal(t, http.StatusOK, w.Code)
-	assert.Contains(t, w.Body.String(), "Username or password invalid")
-	assert.Contains(t, w.Body.String(), `<body data-reset-pkce="true">`)
-	assert.Contains(t, w.Body.String(), `name="client_id" type="hidden" value="test-client"`)
-	assert.Contains(t, w.Body.String(), `name="redirect_uri" type="hidden" value="http://localhost/callback"`)
-	assert.Contains(t, w.Body.String(), `name="state" type="hidden" value="xyz12323123123"`)
-	assert.Contains(t, w.Body.String(), `name="code_challenge" type="hidden" value="pkce-challenge"`)
-	assert.Contains(t, w.Body.String(), `name="code_challenge_method" type="hidden" value="S256"`)
-}
-
-func TestAuthEndpoint_POST_EmptyPasswordRejected(t *testing.T) {
-	settingsAuth := testSettings()
-	emptyPass := ""
-	isAdmin := false
-	settingsAuth.Users["emptyuser"] = settings.User{Password: &emptyPass, IsAdmin: &isAdmin}
-	auth := NewAuthenticator(settingsAuth, db.NewMemoryDataStore())
-	setupLogger := zap.NewNop().Sugar()
-
-	form := url.Values{}
-	form.Add("username", "emptyuser")
-	form.Add("password", "")
-	form.Add("scopes", "openid")
-	form.Add("client_id", "test-client")
-	form.Add("redirect_uri", "http://localhost/callback")
-	form.Add("response_type", "code")
-	form.Add("state", "xyz12323123123")
-
-	req := httptest.NewRequest("POST", "/oauth2/auth", strings.NewReader(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.PostForm = form
-	w := httptest.NewRecorder()
-
-	auth.AuthEndpoint(w, req, setupLogger, settingsAuth)
-
-	assert.Equal(t, http.StatusOK, w.Code)
-	assert.Contains(t, w.Body.String(), "Username or password invalid")
-}
-
-func TestAuthEndpoint_PKCESurvivesFailedLoginRetry(t *testing.T) {
-	settingsAuth := testSettings()
-	auth := NewAuthenticator(settingsAuth, db.NewMemoryDataStore())
-	setupLogger := zap.NewNop().Sugar()
-	codeVerifier := "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG"
-	codeChallenge := pkceS256(codeVerifier)
-
-	initialQuery := url.Values{}
-	initialQuery.Add("client_id", "test-client")
-	initialQuery.Add("redirect_uri", "http://localhost/callback")
-	initialQuery.Add("response_type", "code")
-	initialQuery.Add("scope", "openid email")
-	initialQuery.Add("state", "xyz12323123123")
-	initialQuery.Add("code_challenge", codeChallenge)
-	initialQuery.Add("code_challenge_method", "S256")
-
-	getReq := httptest.NewRequest("GET", "/oauth2/auth?"+initialQuery.Encode(), nil)
-	getW := httptest.NewRecorder()
-	auth.AuthEndpoint(getW, getReq, setupLogger, settingsAuth)
-	require.Equal(t, http.StatusOK, getW.Code)
-
-	formAfterGet := extractFormInputs(t, getW.Body)
-	formAfterGet.Set("username", "wronguser")
-	formAfterGet.Set("password", "wrongpass")
-
-	invalidReq := httptest.NewRequest("POST", "/oauth2/auth", strings.NewReader(formAfterGet.Encode()))
-	invalidReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	invalidReq.PostForm = formAfterGet
-	invalidW := httptest.NewRecorder()
-	auth.AuthEndpoint(invalidW, invalidReq, setupLogger, settingsAuth)
-	require.Equal(t, http.StatusOK, invalidW.Code)
-
-	formAfterInvalid := extractFormInputs(t, invalidW.Body)
-	assert.Equal(t, "test-client", formAfterInvalid.Get("client_id"))
-	assert.Equal(t, "http://localhost/callback", formAfterInvalid.Get("redirect_uri"))
-	assert.Equal(t, "xyz12323123123", formAfterInvalid.Get("state"))
-	assert.Equal(t, codeChallenge, formAfterInvalid.Get("code_challenge"))
-	assert.Equal(t, "S256", formAfterInvalid.Get("code_challenge_method"))
-
-	formAfterInvalid.Set("username", "testuser")
-	formAfterInvalid.Set("password", "testpass")
-
-	validReq := httptest.NewRequest("POST", "/oauth2/auth", strings.NewReader(formAfterInvalid.Encode()))
-	validReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	validReq.PostForm = formAfterInvalid
-	validW := httptest.NewRecorder()
-	auth.AuthEndpoint(validW, validReq, setupLogger, settingsAuth)
-	require.Equal(t, http.StatusSeeOther, validW.Code)
-	require.Len(t, auth.store.PKCES, 1)
-
-	redirectLocation := validW.Header().Get("Location")
-	require.NotEmpty(t, redirectLocation)
-
-	redirectURL, err := url.Parse(redirectLocation)
-	require.NoError(t, err)
-	code := redirectURL.Query().Get("code")
-	require.NotEmpty(t, code)
-
-	tokenForm := url.Values{}
-	tokenForm.Add("grant_type", "authorization_code")
-	tokenForm.Add("code", code)
-	tokenForm.Add("redirect_uri", "http://localhost/callback")
-	tokenForm.Add("client_id", "test-client")
-	tokenForm.Add("client_secret", "test-secret")
-	tokenForm.Add("code_verifier", codeVerifier)
-
-	tokenReq := httptest.NewRequest("POST", "/oauth2/token", strings.NewReader(tokenForm.Encode()))
-	tokenReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	tokenReq.PostForm = tokenForm
-	tokenW := httptest.NewRecorder()
-	auth.TokenEndpoint(tokenW, tokenReq)
-
-	assert.Equal(t, http.StatusOK, tokenW.Code)
-}
-
-func extractFormInputs(t *testing.T, body io.Reader) url.Values {
+func newTestServer(t *testing.T, store db.DataStore) *testServer {
 	t.Helper()
+	return newTestServerWithIssuerPath(t, store, "")
+}
 
-	doc, err := html.Parse(body)
+func newTestServerWithIssuerPath(t *testing.T, store db.DataStore, issuerPath string) *testServer {
+	t.Helper()
+	ts := &testServer{store: store}
+	mux := http.NewServeMux()
+	ts.Server = httptest.NewServer(mux)
+	t.Cleanup(ts.Close)
+
+	auth, err := newAuthenticator(testSettings(ts.URL+issuerPath), store)
 	require.NoError(t, err)
+	ts.auth = auth
+	for _, p := range auth.Paths() {
+		mux.Handle(p, auth.Handler())
+	}
+	mux.HandleFunc(loginPath, auth.LoginHandler)
 
+	ts.client = &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	return ts
+}
+
+func (ts *testServer) get(t *testing.T, path string) *http.Response {
+	t.Helper()
+	resp, err := ts.client.Get(ts.URL + path)
+	require.NoError(t, err)
+	t.Cleanup(func() { resp.Body.Close() })
+	return resp
+}
+
+func (ts *testServer) post(t *testing.T, path string, form url.Values, basicUser, basicPass string) *http.Response {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodPost, ts.URL+path, strings.NewReader(form.Encode()))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	if basicUser != "" {
+		req.SetBasicAuth(basicUser, basicPass)
+	}
+	resp, err := ts.client.Do(req)
+	require.NoError(t, err)
+	t.Cleanup(func() { resp.Body.Close() })
+	return resp
+}
+
+func body(t *testing.T, resp *http.Response) string {
+	t.Helper()
+	b, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	return string(b)
+}
+
+type tokenResponse struct {
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+	IDToken      string `json:"id_token"`
+	Error        string `json:"error"`
+}
+
+func decodeTokens(t *testing.T, resp *http.Response) tokenResponse {
+	t.Helper()
+	var tr tokenResponse
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&tr))
+	return tr
+}
+
+// startAuth starts the admin UI's login like admin/src/hooks/useAuth.ts and
+// returns the login page URL the provider redirects to.
+func (ts *testServer) startAuth(t *testing.T, scope string) string {
+	t.Helper()
+	q := url.Values{
+		"response_type":         {"code"},
+		"client_id":             {adminClientID},
+		"redirect_uri":          {adminRedirect},
+		"scope":                 {scope},
+		"state":                 {"state-123"},
+		"nonce":                 {"nonce-123"},
+		"code_challenge":        {pkceS256(codeVerifier)},
+		"code_challenge_method": {"S256"},
+	}
+	resp := ts.get(t, authPath+"?"+q.Encode())
+	require.Equal(t, http.StatusFound, resp.StatusCode, body(t, resp))
+	loc := resp.Header.Get("Location")
+	require.True(t, strings.HasPrefix(loc, loginPath+"?authRequestID="), loc)
+	return loc
+}
+
+func formInputs(t *testing.T, r io.Reader) url.Values {
+	t.Helper()
+	doc, err := html.Parse(r)
+	require.NoError(t, err)
 	values := url.Values{}
 	var walk func(*html.Node)
 	walk = func(n *html.Node) {
 		if n.Type == html.ElementNode && n.Data == "input" {
-			var (
-				name  string
-				value string
-			)
-			for _, attr := range n.Attr {
-				if attr.Key == "name" {
-					name = attr.Val
-				}
-				if attr.Key == "value" {
-					value = attr.Val
+			var name, value string
+			for _, a := range n.Attr {
+				switch a.Key {
+				case "name":
+					name = a.Val
+				case "value":
+					value = a.Val
 				}
 			}
 			if name != "" {
 				values.Add(name, value)
 			}
 		}
-		for child := n.FirstChild; child != nil; child = child.NextSibling {
-			walk(child)
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			walk(c)
 		}
 	}
 	walk(doc)
-
 	return values
 }
 
-func TestTokenEndpoint_ClientCredentials(t *testing.T) {
-	settingsAuth := testSettings()
+// login submits the login form and follows the provider back to the
+// client; it returns the authorization code.
+func (ts *testServer) login(t *testing.T, loginURL, username, password string) string {
+	t.Helper()
+	page := ts.get(t, loginURL)
+	require.Equal(t, http.StatusOK, page.StatusCode)
+	form := formInputs(t, page.Body)
+	form.Set("username", username)
+	form.Set("password", password)
 
-	// Plaintext client secret - fosite expects plaintext, not bcrypt
-	form := url.Values{}
-	form.Add("grant_type", "client_credentials")
-	form.Add("client_id", "test-client")
-	form.Add("client_secret", "test-secret")
-	form.Add("scope", "openid email")
+	resp := ts.post(t, loginPath, form, "", "")
+	require.Equal(t, http.StatusFound, resp.StatusCode, body(t, resp))
+	callback := ts.get(t, resp.Header.Get("Location"))
+	require.Equal(t, http.StatusFound, callback.StatusCode, body(t, callback))
 
-	req := httptest.NewRequest("POST", "/oauth2/token", strings.NewReader(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.PostForm = form
-	w := httptest.NewRecorder()
-
-	auth := NewAuthenticator(settingsAuth, db.NewMemoryDataStore())
-	auth.TokenEndpoint(w, req)
-
-	assert.Equal(t, http.StatusOK, w.Code)
+	redirect, err := url.Parse(callback.Header.Get("Location"))
+	require.NoError(t, err)
+	assert.Equal(t, adminRedirect, redirect.Scheme+"://"+redirect.Host+redirect.Path)
+	assert.Equal(t, "state-123", redirect.Query().Get("state"))
+	code := redirect.Query().Get("code")
+	require.NotEmpty(t, code)
+	return code
 }
 
-func TestIntrospectionEndpoint(t *testing.T) {
-	retrievedSettings := testSettings()
-	auth := NewAuthenticator(retrievedSettings, db.NewMemoryDataStore())
-
-	tokenForm := url.Values{}
-	tokenForm.Add("grant_type", "client_credentials")
-	tokenForm.Add("client_id", "test-client")
-	tokenForm.Add("client_secret", "test-secret")
-	tokenForm.Add("scope", "openid email")
-
-	tokenReq := httptest.NewRequest("POST", "/oauth2/token", strings.NewReader(tokenForm.Encode()))
-	tokenReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	tokenReq.PostForm = tokenForm
-	tokenW := httptest.NewRecorder()
-
-	auth.TokenEndpoint(tokenW, tokenReq)
-
-	assert.Equal(t, http.StatusOK, tokenW.Code)
-
-	var tokenResp struct {
-		AccessToken string `json:"access_token"`
-	}
-	err := json.NewDecoder(tokenW.Body).Decode(&tokenResp)
-	require.NoError(t, err)
-	assert.NotEmpty(t, tokenResp.AccessToken)
-
-	introspectForm := url.Values{}
-	introspectForm.Add("token", tokenResp.AccessToken)
-
-	req := httptest.NewRequest("POST", "/oauth2/introspect", strings.NewReader(introspectForm.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.PostForm = introspectForm
-
-	authHeader := base64.StdEncoding.EncodeToString([]byte("test-client:test-secret"))
-	req.Header.Set("Authorization", "Basic "+authHeader)
-
-	w := httptest.NewRecorder()
-
-	auth.IntrospectionEndpoint(w, req)
-
-	assert.Equal(t, http.StatusOK, w.Code)
-
-	var introspectResp struct {
-		Active bool `json:"active"`
-	}
-	err = json.NewDecoder(w.Body).Decode(&introspectResp)
-	require.NoError(t, err)
-	assert.True(t, introspectResp.Active)
+func (ts *testServer) exchangeCode(t *testing.T, code, verifier string) *http.Response {
+	t.Helper()
+	return ts.post(t, tokenPath, url.Values{
+		"grant_type":    {"authorization_code"},
+		"code":          {code},
+		"redirect_uri":  {adminRedirect},
+		"client_id":     {adminClientID},
+		"code_verifier": {verifier},
+	}, "", "")
 }
 
-func TestRevokeEndpoint(t *testing.T) {
-	retrievedSettings := testSettings()
-	auth := NewAuthenticator(retrievedSettings, db.NewMemoryDataStore())
-
-	tokenForm := url.Values{}
-	tokenForm.Add("grant_type", "client_credentials")
-	tokenForm.Add("client_id", "test-client")
-	tokenForm.Add("client_secret", "test-secret")
-	tokenForm.Add("scope", "openid email")
-
-	tokenReq := httptest.NewRequest("POST", "/oauth2/token", strings.NewReader(tokenForm.Encode()))
-	tokenReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	tokenReq.PostForm = tokenForm
-	tokenW := httptest.NewRecorder()
-
-	auth.TokenEndpoint(tokenW, tokenReq)
-
-	assert.Equal(t, http.StatusOK, tokenW.Code)
-
-	var tokenResp struct {
-		AccessToken string `json:"access_token"`
-	}
-	err := json.NewDecoder(tokenW.Body).Decode(&tokenResp)
-	require.NoError(t, err)
-	assert.NotEmpty(t, tokenResp.AccessToken)
-
-	// Nun den Token revoken
-	revokeForm := url.Values{}
-	revokeForm.Add("token", tokenResp.AccessToken)
-
-	req := httptest.NewRequest("POST", "/oauth2/revoke", strings.NewReader(revokeForm.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.PostForm = revokeForm
-
-	authHeader := base64.StdEncoding.EncodeToString([]byte("test-client:test-secret"))
-	req.Header.Set("Authorization", "Basic "+authHeader)
-
-	w := httptest.NewRecorder()
-
-	auth.RevokeEndpoint(w, req)
-
-	assert.Equal(t, http.StatusOK, w.Code)
-
-	introspectForm := url.Values{}
-	introspectForm.Add("token", tokenResp.AccessToken)
-
-	introspectReq := httptest.NewRequest("POST", "/oauth2/introspect", strings.NewReader(introspectForm.Encode()))
-	introspectReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	introspectReq.PostForm = introspectForm
-	introspectReq.Header.Set("Authorization", "Basic "+authHeader)
-	introspectW := httptest.NewRecorder()
-
-	auth.IntrospectionEndpoint(introspectW, introspectReq)
-
-	assert.Equal(t, http.StatusOK, introspectW.Code)
-
-	var introspectResp struct {
-		Active bool `json:"active"`
-	}
-	err = json.NewDecoder(introspectW.Body).Decode(&introspectResp)
-	require.NoError(t, err)
-	assert.False(t, introspectResp.Active, "Token should be inactive after revocation")
+func (ts *testServer) refresh(t *testing.T, refreshToken string) *http.Response {
+	t.Helper()
+	return ts.post(t, tokenPath, url.Values{
+		"grant_type":    {"refresh_token"},
+		"refresh_token": {refreshToken},
+		"client_id":     {adminClientID},
+	}, "", "")
 }
 
-func TestNewSession(t *testing.T) {
-	settingsAuth := testSettings()
-	auth := NewAuthenticator(settingsAuth, db.NewMemoryDataStore())
+func TestDiscoveryAndJWKS(t *testing.T) {
+	ts := newTestServer(t, db.NewMemoryDataStore())
 
-	user := &MemoryUserRelation{
-		Username: "testuser",
-		Admin:    true,
-	}
+	resp := ts.get(t, discoveryPath)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	var disc map[string]any
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&disc))
+	assert.Equal(t, ts.URL, disc["issuer"])
+	assert.Equal(t, ts.URL+authPath, disc["authorization_endpoint"])
+	assert.Equal(t, ts.URL+tokenPath, disc["token_endpoint"])
+	assert.Equal(t, ts.URL+jwksPath, disc["jwks_uri"])
+	assert.NotContains(t, disc["token_endpoint_auth_methods_supported"], "private_key_jwt")
 
-	session := auth.newSession(user, "test-client")
-
-	assert.Equal(t, "testuser", session.Claims.Subject)
-	assert.Equal(t, []string{"test-client"}, session.Claims.Audience)
-	assert.True(t, session.Claims.Extra["admin"].(bool))
+	resp = ts.get(t, jwksPath)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	var jwks jose.JSONWebKeySet
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&jwks))
+	require.Len(t, jwks.Keys, 1)
+	assert.Equal(t, "RS256", jwks.Keys[0].Algorithm)
+	assert.True(t, jwks.Keys[0].IsPublic())
 }
 
-func testSettings() *settings.Settings {
-	testSecret := "test-secret"
-	return &settings.Settings{
-		SSO: &settings.SSO{
-			Issuer: "http://localhost:9000",
-			Clients: []settings.SSOClient{
-				{
-					ClientId:     "test-client",
-					ClientSecret: &testSecret,
-					RedirectUris: []string{"http://localhost/callback"},
-					GrantTypes:   []string{"authorization_code", "client_credentials"},
-				},
-			},
+// settings.json may configure the issuer with a path, like
+// "http://localhost:9001/oauth2/". The endpoints stay at the root.
+func TestIssuerWithPath(t *testing.T) {
+	ts := newTestServerWithIssuerPath(t, db.NewMemoryDataStore(), "/oauth2/")
+	for _, p := range []string{discoveryPath, "/oauth2" + discoveryPath} {
+		resp := ts.get(t, p)
+		require.Equal(t, http.StatusOK, resp.StatusCode, p)
+		var disc map[string]any
+		require.NoError(t, json.NewDecoder(resp.Body).Decode(&disc))
+		assert.Equal(t, ts.URL+"/oauth2", disc["issuer"])
+		assert.Equal(t, ts.URL+authPath, disc["authorization_endpoint"])
+		assert.Equal(t, ts.URL+tokenPath, disc["token_endpoint"])
+		assert.Equal(t, ts.URL+jwksPath, disc["jwks_uri"])
+	}
+
+	code := ts.login(t, ts.startAuth(t, "openid"), "admin", "adminpass")
+	resp := ts.exchangeCode(t, code, codeVerifier)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	ok, err := ts.auth.ValidateAdminToken(decodeTokens(t, resp).IDToken, &settings.SSOClient{ClientId: adminClientID})
+	require.NoError(t, err)
+	assert.True(t, ok)
+}
+
+func TestAdminLoginFlow(t *testing.T) {
+	ts := newTestServer(t, db.NewMemoryDataStore())
+	adminClient := &settings.SSOClient{ClientId: adminClientID}
+
+	// The admin UI used to request "offline"; it still gets a refresh token.
+	for _, scope := range []string{"openid profile email offline_access", "openid profile email offline"} {
+		t.Run(scope, func(t *testing.T) {
+			code := ts.login(t, ts.startAuth(t, scope), "admin", "adminpass")
+			resp := ts.exchangeCode(t, code, codeVerifier)
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			tokens := decodeTokens(t, resp)
+			require.NotEmpty(t, tokens.IDToken)
+			require.NotEmpty(t, tokens.AccessToken)
+			require.NotEmpty(t, tokens.RefreshToken)
+
+			ok, err := ts.auth.ValidateAdminToken(tokens.IDToken, adminClient)
+			require.NoError(t, err)
+			assert.True(t, ok)
+
+			// The code is single-use.
+			replay := ts.exchangeCode(t, code, codeVerifier)
+			assert.Equal(t, http.StatusBadRequest, replay.StatusCode)
+
+			// Refresh rotates the refresh token.
+			resp = ts.refresh(t, tokens.RefreshToken)
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			renewed := decodeTokens(t, resp)
+			require.NotEmpty(t, renewed.IDToken)
+			require.NotEmpty(t, renewed.RefreshToken)
+			assert.NotEqual(t, tokens.RefreshToken, renewed.RefreshToken)
+			ok, err = ts.auth.ValidateAdminToken(renewed.IDToken, adminClient)
+			require.NoError(t, err)
+			assert.True(t, ok)
+
+			reused := ts.refresh(t, tokens.RefreshToken)
+			assert.Equal(t, http.StatusBadRequest, reused.StatusCode)
+		})
+	}
+}
+
+func TestNonAdminTokenIsRejected(t *testing.T) {
+	ts := newTestServer(t, db.NewMemoryDataStore())
+	code := ts.login(t, ts.startAuth(t, "openid"), "editor", "editorpass")
+	resp := ts.exchangeCode(t, code, codeVerifier)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	tokens := decodeTokens(t, resp)
+	assert.Empty(t, tokens.RefreshToken, "no offline_access requested")
+
+	ok, err := ts.auth.ValidateAdminToken(tokens.IDToken, &settings.SSOClient{ClientId: adminClientID})
+	assert.False(t, ok)
+	assert.ErrorContains(t, err, "missing admin role")
+}
+
+func TestPKCE(t *testing.T) {
+	ts := newTestServer(t, db.NewMemoryDataStore())
+
+	code := ts.login(t, ts.startAuth(t, "openid"), "admin", "adminpass")
+	assert.Equal(t, http.StatusBadRequest, ts.exchangeCode(t, code, "wrong-verifier-wrong-verifier-wrong-verifier").StatusCode)
+
+	// The public admin client cannot get tokens without PKCE.
+	q := url.Values{
+		"response_type": {"code"},
+		"client_id":     {adminClientID},
+		"redirect_uri":  {adminRedirect},
+		"scope":         {"openid"},
+		"state":         {"state-123"},
+	}
+	resp := ts.get(t, authPath+"?"+q.Encode())
+	require.Equal(t, http.StatusFound, resp.StatusCode)
+	code = ts.login(t, resp.Header.Get("Location"), "admin", "adminpass")
+	noPKCE := ts.post(t, tokenPath, url.Values{
+		"grant_type":   {"authorization_code"},
+		"code":         {code},
+		"redirect_uri": {adminRedirect},
+		"client_id":    {adminClientID},
+	}, "", "")
+	assert.Equal(t, http.StatusBadRequest, noPKCE.StatusCode)
+	assert.Contains(t, body(t, noPKCE), "PKCE required")
+}
+
+func TestAuthorizeRejectsUnknownClientAndRedirect(t *testing.T) {
+	ts := newTestServer(t, db.NewMemoryDataStore())
+	for name, q := range map[string]url.Values{
+		"unknown client": {"response_type": {"code"}, "client_id": {"nope"}, "redirect_uri": {adminRedirect}, "scope": {"openid"}},
+		"foreign redirect": {"response_type": {"code"}, "client_id": {adminClientID}, "redirect_uri": {"https://evil.example/"}, "scope": {"openid"},
+			"code_challenge": {pkceS256(codeVerifier)}, "code_challenge_method": {"S256"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			resp := ts.get(t, authPath+"?"+q.Encode())
+			assert.NotEqual(t, http.StatusFound, resp.StatusCode, "must not redirect")
+		})
+	}
+}
+
+func TestLoginPage(t *testing.T) {
+	ts := newTestServer(t, db.NewMemoryDataStore())
+	loginURL := ts.startAuth(t, "openid")
+
+	page := ts.get(t, loginURL)
+	require.Equal(t, http.StatusOK, page.StatusCode)
+	assert.Equal(t, "text/html; charset=utf-8", page.Header.Get("Content-Type"))
+	form := formInputs(t, page.Body)
+	authRequestID := form.Get("authRequestID")
+	require.NotEmpty(t, authRequestID)
+
+	for name, creds := range map[string][2]string{
+		"wrong password": {"admin", "nope"},
+		"unknown user":   {"nobody", "adminpass"},
+		"empty password": {"empty", ""},
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := url.Values{"authRequestID": {authRequestID}, "username": {creds[0]}, "password": {creds[1]}}
+			resp := ts.post(t, loginPath, f, "", "")
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			b := body(t, resp)
+			assert.Contains(t, b, "Username or password invalid")
+			assert.Contains(t, b, `<body data-reset-pkce="true">`)
+			assert.Contains(t, b, `name="authRequestID" type="hidden" value="`+authRequestID+`"`)
+		})
+	}
+
+	// The login still works after failed attempts.
+	code := ts.login(t, loginURL, "admin", "adminpass")
+	assert.Equal(t, http.StatusOK, ts.exchangeCode(t, code, codeVerifier).StatusCode)
+
+	// An unknown or used auth request cannot log in.
+	resp := ts.get(t, loginPath+"?authRequestID=does-not-exist")
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	resp = ts.post(t, loginPath, url.Values{"authRequestID": {authRequestID}, "username": {"admin"}, "password": {"adminpass"}}, "", "")
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}
+
+func TestAuthRequestExpires(t *testing.T) {
+	ts := newTestServer(t, db.NewMemoryDataStore())
+	loginURL := ts.startAuth(t, "openid")
+	ts.auth.storage.now = func() time.Time { return time.Now().Add(authRequestLifetime + time.Minute) }
+	resp := ts.get(t, loginURL)
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}
+
+func TestClientCredentialsIntrospectionAndRevocation(t *testing.T) {
+	ts := newTestServer(t, db.NewMemoryDataStore())
+
+	bad := ts.post(t, tokenPath, url.Values{"grant_type": {"client_credentials"}, "scope": {"openid"}}, serviceClientID, "wrong")
+	assert.Equal(t, http.StatusUnauthorized, bad.StatusCode)
+	public := ts.post(t, tokenPath, url.Values{"grant_type": {"client_credentials"}, "client_id": {adminClientID}, "client_secret": {"admin"}, "scope": {"openid"}}, "", "")
+	assert.NotEqual(t, http.StatusOK, public.StatusCode, "the admin client may not use client_credentials")
+
+	// Secret in the form (client_secret_post) like the old tests did.
+	resp := ts.post(t, tokenPath, url.Values{
+		"grant_type":    {"client_credentials"},
+		"client_id":     {serviceClientID},
+		"client_secret": {serviceSecret},
+		"scope":         {"openid email"},
+	}, "", "")
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	accessToken := decodeTokens(t, resp).AccessToken
+	require.NotEmpty(t, accessToken)
+
+	introspect := func() bool {
+		r := ts.post(t, introspectPath, url.Values{"token": {accessToken}}, serviceClientID, serviceSecret)
+		require.Equal(t, http.StatusOK, r.StatusCode)
+		var ir struct {
+			Active   bool   `json:"active"`
+			ClientID string `json:"client_id"`
+		}
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&ir))
+		if ir.Active {
+			assert.Equal(t, serviceClientID, ir.ClientID)
+		}
+		return ir.Active
+	}
+	assert.True(t, introspect())
+
+	r := ts.post(t, introspectPath, url.Values{"token": {accessToken}}, serviceClientID, "wrong")
+	assert.Equal(t, http.StatusUnauthorized, r.StatusCode)
+
+	r = ts.post(t, revokePath, url.Values{"token": {accessToken}}, serviceClientID, serviceSecret)
+	require.Equal(t, http.StatusOK, r.StatusCode, body(t, r))
+	assert.False(t, introspect(), "revoked")
+}
+
+// The provider must not parse client assertions: go-jose CVE-2026-116587
+// (RSA JWK DoS) was reachable through fosite's private_key_jwt support.
+func TestClientAssertionIsRejected(t *testing.T) {
+	ts := newTestServer(t, db.NewMemoryDataStore())
+	hdr, _ := json.Marshal(map[string]any{"alg": "RS256", "jwk": map[string]string{"kty": "RSA", "n": "AQAB", "e": "AQAB", "d": "Aw", "p": "Aw", "q": "Aw"}})
+	assertion := base64.RawURLEncoding.EncodeToString(hdr) + ".e30.AAAA"
+	start := time.Now()
+	resp := ts.post(t, tokenPath, url.Values{
+		"grant_type":            {"client_credentials"},
+		"client_assertion_type": {"urn:ietf:params:oauth:client-assertion-type:jwt-bearer"},
+		"client_assertion":      {assertion},
+	}, "", "")
+	assert.NotEqual(t, http.StatusOK, resp.StatusCode)
+	assert.Less(t, time.Since(start), 2*time.Second)
+}
+
+// A second instance on the same database (or a restart) accepts the
+// tokens and keys of the first.
+func TestStateIsSharedThroughTheDatastore(t *testing.T) {
+	store := db.NewMemoryDataStore()
+	first := newTestServer(t, store)
+	code := first.login(t, first.startAuth(t, "openid offline_access"), "admin", "adminpass")
+	resp := first.exchangeCode(t, code, codeVerifier)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	tokens := decodeTokens(t, resp)
+
+	second := newTestServer(t, store)
+	assert.Equal(t, first.auth.privateKey.N, second.auth.privateKey.N)
+
+	resp = second.post(t, tokenPath, url.Values{
+		"grant_type":    {"refresh_token"},
+		"refresh_token": {tokens.RefreshToken},
+		"client_id":     {adminClientID},
+	}, "", "")
+	require.Equal(t, http.StatusOK, resp.StatusCode, body(t, resp))
+
+	// An auth request started on one instance can be finished on the other.
+	loginURL := first.startAuth(t, "openid")
+	code = second.login(t, loginURL, "admin", "adminpass")
+	assert.Equal(t, http.StatusOK, first.exchangeCode(t, code, codeVerifier).StatusCode)
+}
+
+// The storage keeps everything in the datastore's oauth_* tables, which
+// differ per database (e.g. Memory reports a missing row as an error,
+// Postgres as nil).
+func TestSQLDatastores(t *testing.T) {
+	datastores := map[string]func(t *testing.T) db.DataStore{
+		"SQLite": func(t *testing.T) db.DataStore {
+			store, err := db.NewSQLiteDB(":memory:")
+			require.NoError(t, err)
+			return store
 		},
-		Users: map[string]settings.User{
-			"testuser": {
-				Password: strPtr("testpass"),
-				IsAdmin:  boolPtr(true),
-			},
+		"Postgres": func(t *testing.T) db.DataStore {
+			srv := testdb.Get(t, testdb.Postgres)
+			store, err := db.NewPostgresDB(db.PostgresOptions{Username: srv.AdminUser(), Password: testdb.Password,
+				Database: srv.NewDatabase(t), Host: srv.Host, Port: srv.Port, MaxConns: 4})
+			require.NoError(t, err)
+			return store
+		},
+		"MySQL": func(t *testing.T) db.DataStore {
+			srv := testdb.Get(t, testdb.MySQL)
+			store, err := db.NewMySQLDB(db.MySQLOptions{Username: srv.AdminUser(), Password: testdb.Password,
+				Database: srv.NewDatabase(t), Host: srv.Host, Port: srv.Port, MaxConns: 4})
+			require.NoError(t, err)
+			return store
 		},
 	}
-}
+	for name, newStore := range datastores {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			store := newStore(t)
+			t.Cleanup(func() { store.Close() })
+			ts := newTestServer(t, store)
 
-func strPtr(s string) *string {
-	return &s
-}
+			code := ts.login(t, ts.startAuth(t, "openid offline_access"), "admin", "adminpass")
+			resp := ts.exchangeCode(t, code, codeVerifier)
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			tokens := decodeTokens(t, resp)
+			assert.Equal(t, http.StatusBadRequest, ts.exchangeCode(t, code, codeVerifier).StatusCode)
+			ok, err := ts.auth.ValidateAdminToken(tokens.IDToken, &settings.SSOClient{ClientId: adminClientID})
+			require.NoError(t, err)
+			assert.True(t, ok)
 
-func boolPtr(b bool) *bool {
-	return &b
-}
+			assert.Equal(t, http.StatusOK, ts.refresh(t, tokens.RefreshToken).StatusCode)
+			assert.Equal(t, http.StatusBadRequest, ts.refresh(t, tokens.RefreshToken).StatusCode)
 
-func TestAuthenticatorPersistsSigningKeyAndRefreshSessions(t *testing.T) {
-	persistence := db.NewMemoryDataStore()
-	settingsAuth := testSettings()
-
-	auth1 := NewAuthenticator(settingsAuth, persistence)
-	require.NotNil(t, auth1.privateKey)
-
-	req := fosite.NewRequest()
-	req.Client = auth1.store.Clients["test-client"]
-	req.ID = "request-1"
-	req.RequestedAt = req.RequestedAt.UTC()
-	req.Form = url.Values{
-		"grant_type": {"refresh_token"},
-		"client_id":  {"test-client"},
+			// Restart on the same database: same key.
+			again := newTestServer(t, store)
+			assert.Equal(t, ts.auth.privateKey.N, again.auth.privateKey.N)
+		})
 	}
-	req.SetRequestedScopes(fosite.Arguments{"openid", "offline"})
-	req.GrantScope("openid")
-	req.GrantScope("offline")
-	req.SetSession(auth1.newSession(&MemoryUserRelation{
-		Username: "testuser",
-		Admin:    true,
-	}, "test-client"))
-
-	err := auth1.store.CreateRefreshTokenSession(t.Context(), "refresh-signature", "access-signature", req)
-	require.NoError(t, err)
-
-	auth2 := NewAuthenticator(settingsAuth, persistence)
-
-	assert.Equal(t, auth1.privateKey.PublicKey.N.String(), auth2.privateKey.PublicKey.N.String())
-	assert.Equal(t, auth1.privateKey.PublicKey.E, auth2.privateKey.PublicKey.E)
-
-	restored, err := auth2.store.GetRefreshTokenSession(t.Context(), "refresh-signature", nil)
-	require.NoError(t, err)
-	require.NotNil(t, restored)
-	assert.Equal(t, "request-1", restored.GetID())
-	assert.Equal(t, "test-client", restored.GetClient().GetID())
-	assert.Equal(t, []string{"openid", "offline"}, []string(restored.GetGrantedScopes()))
 }
+
+func TestValidateAdminToken(t *testing.T) {
+	ts := newTestServer(t, db.NewMemoryDataStore())
+	auth := ts.auth
+	adminClient := &settings.SSOClient{ClientId: "admin-client"}
+	now := time.Now()
+
+	signer, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.RS256, Key: auth.privateKey}, nil)
+	require.NoError(t, err)
+	sign := func(claims map[string]any) string {
+		s, err := jwt.Signed(signer).Claims(claims).Serialize()
+		require.NoError(t, err)
+		return s
+	}
+	otherKey, err := rsaKey()
+	require.NoError(t, err)
+	otherSigner, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.RS256, Key: otherKey}, nil)
+	require.NoError(t, err)
+	hsSigner, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.HS256, Key: []byte("0123456789abcdef0123456789abcdef")}, nil)
+	require.NoError(t, err)
+
+	valid := map[string]any{"exp": now.Add(time.Hour).Unix(), "aud": []string{"admin-client"}, "iss": auth.issuer, "admin": true}
+	with := func(k string, v any) map[string]any {
+		c := map[string]any{}
+		for key, val := range valid {
+			c[key] = val
+		}
+		if v == nil {
+			delete(c, k)
+		} else {
+			c[k] = v
+		}
+		return c
+	}
+	foreign, _ := jwt.Signed(otherSigner).Claims(valid).Serialize()
+	hmac, _ := jwt.Signed(hsSigner).Claims(valid).Serialize()
+
+	tests := []struct {
+		name  string
+		token string
+		ok    bool
+	}{
+		{"invalid jwt", "not-a-jwt", false},
+		{"expired", sign(with("exp", now.Add(-time.Hour).Unix())), false},
+		{"missing exp", sign(with("exp", nil)), false},
+		{"missing aud", sign(with("aud", nil)), false},
+		{"other audience", sign(with("aud", []string{"other-client"})), false},
+		{"other issuer", sign(with("iss", "https://wrong-issuer")), false},
+		{"missing admin", sign(with("admin", nil)), false},
+		{"admin false", sign(with("admin", false)), false},
+		{"other key", foreign, false},
+		{"HS256", hmac, false},
+		{"valid", sign(valid), true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ok, err := auth.ValidateAdminToken(tt.token, adminClient)
+			assert.Equal(t, tt.ok, ok)
+			if tt.ok {
+				assert.NoError(t, err)
+			} else {
+				assert.Error(t, err)
+			}
+		})
+	}
+}
+
+func rsaKey() (*rsa.PrivateKey, error) { return rsa.GenerateKey(rand.Reader, 2048) }

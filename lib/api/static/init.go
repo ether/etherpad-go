@@ -234,7 +234,7 @@ func Init(store *lib.InitStore) {
 						"authority":   sso.Issuer,
 						"clientId":    client.ClientId,
 						"redirectUri": client.RedirectUris[0],
-						"scope":       "openid profile email offline",
+						"scope":       "openid profile email offline_access",
 					},
 				})
 			}

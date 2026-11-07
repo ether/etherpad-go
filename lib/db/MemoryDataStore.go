@@ -11,7 +11,6 @@ import (
 
 	"github.com/ether/etherpad-go/lib/models/db"
 	session2 "github.com/ether/etherpad-go/lib/models/session"
-	"github.com/ory/fosite"
 )
 
 type MemoryDataStore struct {
@@ -31,12 +30,6 @@ type MemoryDataStore struct {
 	secretParams  map[string]memorySecretRow
 	sheetStore    map[string]db.SheetDB
 	sheetOps      map[string]map[int]db.SheetOpDB
-
-	// oidc
-	accessTokens           map[string]fosite.Requester
-	accessTokenRequestIDs  map[string]string
-	refreshTokens          map[string]db.StoreRefreshToken
-	refreshTokenRequestIDs map[string]string
 
 	// oauth token tables
 	oauthAccessTokens  map[string]OAuthTokenRow
@@ -1089,27 +1082,6 @@ func (m *MemoryDataStore) DeleteOIDCSession(signature string) error {
 	return nil
 }
 
-// ============== OIDC METHODS ==============
-
-func (m *MemoryDataStore) GetAccessTokenRequestID(requestID string) (*string, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	token, ok := m.accessTokenRequestIDs[requestID]
-	if !ok {
-		return nil, errors.New("access token request ID not found")
-	}
-	return &token, nil
-}
-
-func (m *MemoryDataStore) SaveAccessTokenRequestID(requestID string, token string) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	m.accessTokenRequestIDs[requestID] = token
-	return nil
-}
-
 // ============== LIFECYCLE ==============
 
 func (m *MemoryDataStore) Close() error {
@@ -1121,25 +1093,21 @@ func (m *MemoryDataStore) Close() error {
 
 func NewMemoryDataStore() *MemoryDataStore {
 	return &MemoryDataStore{
-		padStore:               make(map[string]db.PadDB),
-		padRevisions:           make(map[string]map[int]db.PadSingleRevision),
-		authorStore:            make(map[string]db.AuthorDB),
-		chatPads:               make(map[string]db.ChatMessageDB),
-		sessionStore:           make(map[string]session2.Session),
-		groupStore:             make(map[string]string),
-		oidcStorage:            make(map[string]string),
-		secretParams:           make(map[string]memorySecretRow),
-		sheetStore:             make(map[string]db.SheetDB),
-		sheetOps:               make(map[string]map[int]db.SheetOpDB),
-		accessTokens:           make(map[string]fosite.Requester),
-		accessTokenRequestIDs:  make(map[string]string),
-		refreshTokens:          make(map[string]db.StoreRefreshToken),
-		refreshTokenRequestIDs: make(map[string]string),
-		oauthAccessTokens:      make(map[string]OAuthTokenRow),
-		oauthRefreshTokens:     make(map[string]OAuthRefreshTokenRow),
-		oauthAuthCodes:         make(map[string]OAuthTokenRow),
-		oauthPKCE:              make(map[string]OAuthTokenRow),
-		oauthOIDCSessions:      make(map[string]OAuthTokenRow),
+		padStore:           make(map[string]db.PadDB),
+		padRevisions:       make(map[string]map[int]db.PadSingleRevision),
+		authorStore:        make(map[string]db.AuthorDB),
+		chatPads:           make(map[string]db.ChatMessageDB),
+		sessionStore:       make(map[string]session2.Session),
+		groupStore:         make(map[string]string),
+		oidcStorage:        make(map[string]string),
+		secretParams:       make(map[string]memorySecretRow),
+		sheetStore:         make(map[string]db.SheetDB),
+		sheetOps:           make(map[string]map[int]db.SheetOpDB),
+		oauthAccessTokens:  make(map[string]OAuthTokenRow),
+		oauthRefreshTokens: make(map[string]OAuthRefreshTokenRow),
+		oauthAuthCodes:     make(map[string]OAuthTokenRow),
+		oauthPKCE:          make(map[string]OAuthTokenRow),
+		oauthOIDCSessions:  make(map[string]OAuthTokenRow),
 	}
 }
 
