@@ -1,75 +1,29 @@
 package oidc
 
 import (
-	"crypto/rand"
-	"crypto/sha256"
-	"encoding/base64"
 	"net/http"
 	"net/url"
-	"strings"
 
 	"github.com/ether/etherpad-go/lib"
 	"github.com/gofiber/fiber/v3/middleware/adaptor"
 	"github.com/gofiber/fiber/v3/middleware/cors"
 )
 
-func GenerateAuthCodeURL(issuer, clientID, redirectURI string, scopes []string) (string, string, string, error) {
-	state, err := randBase64URL(32)
-	if err != nil {
-		return "", "", "", err
-	}
-	nonce, err := randBase64URL(32)
-	if err != nil {
-		return "", "", "", err
-	}
-	codeVerifier, err := randBase64URL(64) // 43-128 bytes empfohlen
-	if err != nil {
-		return "", "", "", err
-	}
-	codeChallenge := pkceS256(codeVerifier)
-
-	u, err := url.Parse(strings.TrimRight(issuer, "/") + "/oauth2/auth")
-	if err != nil {
-		return "", "", "", err
-	}
-	q := u.Query()
-	q.Set("response_type", "code")
-	q.Set("client_id", clientID)
-	q.Set("redirect_uri", redirectURI)
-	q.Set("scope", strings.Join(scopes, " "))
-	q.Set("state", state)
-	q.Set("nonce", nonce)
-	q.Set("code_challenge", codeChallenge)
-	q.Set("code_challenge_method", "S256")
-	u.RawQuery = q.Encode()
-
-	return u.String(), codeVerifier, state, nil
-}
-
-func randBase64URL(n int) (string, error) {
-	b := make([]byte, n)
-	if _, err := rand.Read(b); err != nil {
-		return "", err
-	}
-	return base64.RawURLEncoding.EncodeToString(b), nil
-}
-
-func pkceS256(verifier string) string {
-	sum := sha256.Sum256([]byte(verifier))
-	return base64.RawURLEncoding.EncodeToString(sum[:])
-}
-
+// Init sets up the OpenID Connect provider and mounts its endpoints.
 func Init(store *lib.InitStore) *Authenticator {
 	authenticator := NewAuthenticator(store.RetrievedSettings, store.Store)
+
 	allowedUrls := make([]string, 0)
-	for _, sso := range store.RetrievedSettings.SSO.Clients {
-		for _, redirectUri := range sso.RedirectUris {
-			u, err := url.Parse(redirectUri)
-			if err != nil {
-				store.Logger.Errorf("Invalid redirect URI in SSO client %s: %s", sso.ClientId, redirectUri)
-				continue
+	if store.RetrievedSettings.SSO != nil {
+		for _, sso := range store.RetrievedSettings.SSO.Clients {
+			for _, redirectUri := range sso.RedirectUris {
+				u, err := url.Parse(redirectUri)
+				if err != nil {
+					store.Logger.Errorf("Invalid redirect URI in SSO client %s: %s", sso.ClientId, redirectUri)
+					continue
+				}
+				allowedUrls = append(allowedUrls, u.Scheme+"://"+u.Host)
 			}
-			allowedUrls = append(allowedUrls, u.Scheme+"://"+u.Host)
 		}
 	}
 	store.C.Use(cors.New(cors.Config{
@@ -83,40 +37,10 @@ func Init(store *lib.InitStore) *Authenticator {
 		},
 	}))
 
-	store.C.Post("/oauth2/introspect", adaptor.HTTPHandler(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		authenticator.IntrospectionEndpoint(writer, request)
-	})))
-	store.C.Post("/oauth2/revoke", adaptor.HTTPHandler(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		authenticator.RevokeEndpoint(writer, request)
-	})))
-	store.C.Post("/oauth2/token", adaptor.HTTPHandler(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		authenticator.TokenEndpoint(writer, request)
-	})))
-
-	store.C.Get("/oauth2/auth", adaptor.HTTPHandler(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		authenticator.AuthEndpoint(writer, request, store.Logger, store.RetrievedSettings)
-	})))
-	store.C.Post("/oauth2/auth", adaptor.HTTPHandler(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		authenticator.AuthEndpoint(writer, request, store.Logger, store.RetrievedSettings)
-	})))
-
-	store.C.Get("/.well-known/openid-configuration", adaptor.HTTPHandler(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		authenticator.OicWellKnown(writer, request, store.RetrievedSettings)
-	})))
-	store.C.Get("/.well-known/jwks.json", adaptor.HTTPHandler(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		authenticator.JwksEndpoint(writer, request)
-	})))
+	provider := adaptor.HTTPHandler(authenticator.Handler())
+	for _, path := range authenticator.Paths() {
+		store.C.All(path, provider)
+	}
+	store.C.All(loginPath, adaptor.HTTPHandler(http.HandlerFunc(authenticator.LoginHandler)))
 	return authenticator
-}
-
-type WellKnownResponse struct {
-	Issuer                            string   `json:"issuer"`
-	AuthorizationEndpoint             string   `json:"authorization_endpoint"`
-	TokenEndpoint                     string   `json:"token_endpoint"`
-	JwksURI                           string   `json:"jwks_uri"`
-	ResponseTypesSupported            []string `json:"response_types_supported"`
-	SubjectTypesSupported             []string `json:"subject_types_supported"`
-	IdTokenSigningAlgValuesSupported  []string `json:"id_token_signing_alg_values_supported"`
-	ScopesSupported                   []string `json:"scopes_supported"`
-	TokenEndpointAuthMethodsSupported []string `json:"token_endpoint_auth_methods_supported"`
 }
