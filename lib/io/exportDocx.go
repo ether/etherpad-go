@@ -55,14 +55,11 @@ func (e *ExportDocx) GetPadDocxDocument(padId string, optRevNum *int) ([]byte, e
 
 	atext := retrievedPad.AText
 	if optRevNum != nil {
-		revision, err := retrievedPad.GetRevision(*optRevNum)
-		if err != nil {
-			return nil, err
+		revAText := retrievedPad.GetInternalRevisionAText(*optRevNum)
+		if revAText == nil {
+			return nil, fmt.Errorf("revision %d of pad %s not found", *optRevNum, retrievedPad.Id)
 		}
-		atext = apool.AText{
-			Text:    revision.AText.Text,
-			Attribs: revision.AText.Attribs,
-		}
+		atext = *revAText
 	}
 
 	// Build author color cache

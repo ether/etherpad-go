@@ -1,7 +1,6 @@
 package changeset
 
 import (
-	"slices"
 	"testing"
 	"unicode/utf8"
 )
@@ -16,10 +15,8 @@ func TestNewStringIterator(t *testing.T) {
 		t.Errorf("Expected 0, got %d", si.newLines)
 	}
 
-	convertedStr := []rune(str)
-
-	if !slices.Equal(si.str, convertedStr) {
-		t.Errorf("Expected %s, got %s", str, string(si.str))
+	if si.str != str {
+		t.Errorf("Expected %s, got %s", str, si.str)
 	}
 }
 
@@ -141,5 +138,34 @@ func TestStringIterator_Skip_Error(t *testing.T) {
 	si := NewStringIterator(str)
 	if si.Skip(utf8.RuneCountInString(str)+1) == nil {
 		t.Errorf("Expected error, got nil")
+	}
+}
+
+func TestStringIterator_MultiByte(t *testing.T) {
+	str := "aä€😀b\nc"
+	si := NewStringIterator(str)
+	if si.Remaining() != 7 {
+		t.Fatalf("Remaining = %d, want 7", si.Remaining())
+	}
+	got, err := si.Take(2)
+	if err != nil || *got != "aä" {
+		t.Fatalf("Take(2) = %q, %v", *got, err)
+	}
+	peek, _ := si.Peek(2)
+	if *peek != "€😀" {
+		t.Fatalf("Peek(2) = %q", *peek)
+	}
+	if err := si.Skip(2); err != nil {
+		t.Fatal(err)
+	}
+	rest, _ := si.Take(si.Remaining())
+	if *rest != "b\nc" {
+		t.Fatalf("rest = %q", *rest)
+	}
+	if si.newLines != 0 {
+		t.Fatalf("newLines = %d", si.newLines)
+	}
+	if _, err := si.Take(1); err == nil {
+		t.Fatal("Take past the end should fail")
 	}
 }

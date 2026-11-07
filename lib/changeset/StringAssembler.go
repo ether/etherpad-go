@@ -1,23 +1,23 @@
 package changeset
 
+import "strings"
+
 type StringAssembler struct {
-	str string
+	b strings.Builder
 }
 
 func NewStringAssembler() StringAssembler {
-	return StringAssembler{
-		str: "",
-	}
+	return StringAssembler{}
 }
 
 func (sa *StringAssembler) Append(s string) {
-	sa.str += s
+	sa.b.WriteString(s)
 }
 
 func (sa *StringAssembler) String() string {
-	return sa.str
+	return sa.b.String()
 }
 
 func (sa *StringAssembler) Clear() {
-	sa.str = ""
+	sa.b.Reset()
 }

@@ -157,6 +157,7 @@ type DataStore interface {
 	SheetMethods
 	ConsistencyMethods
 	ClusterMethods
+	PadHeadMethods
 	Close() error
 	Ping() error
 }

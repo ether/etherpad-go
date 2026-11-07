@@ -245,30 +245,49 @@ func (st *benchState) observe(obs *observer, text string) {
 	now := time.Now()
 	st.mu.Lock()
 	defer st.mu.Unlock()
-	for _, line := range strings.Split(text, "\n") {
-		if !strings.HasPrefix(line, markerPrefix) || obs.seen[line] {
-			continue
+	forEachMarker(text, func(line string) {
+		if obs.seen[line] {
+			return
 		}
 		obs.seen[line] = true
 		sent, ok := st.sentAt[line]
 		if !ok {
-			continue
+			return
 		}
 		if st.sentHost[line] == obs.host {
 			st.result.SamePod = append(st.result.SamePod, now.Sub(sent))
 		} else {
 			st.result.CrossPod = append(st.result.CrossPod, now.Sub(sent))
 		}
+	})
+}
+
+// forEachMarker calls fn for every line of text that starts with
+// markerPrefix. It searches for the prefix instead of splitting the whole
+// text, which matters for prefilled megabyte pads.
+func forEachMarker(text string, fn func(line string)) {
+	for i := 0; i < len(text); {
+		j := strings.Index(text[i:], markerPrefix)
+		if j < 0 {
+			return
+		}
+		start := i + j
+		end := strings.IndexByte(text[start:], '\n')
+		if end < 0 {
+			end = len(text)
+		} else {
+			end += start
+		}
+		if start == 0 || text[start-1] == '\n' {
+			fn(text[start:end])
+		}
+		i = end
 	}
 }
 
 func (st *benchState) checkMarkers(text string) {
 	count := map[string]int{}
-	for _, line := range strings.Split(text, "\n") {
-		if strings.HasPrefix(line, markerPrefix) {
-			count[line]++
-		}
-	}
+	forEachMarker(text, func(line string) { count[line]++ })
 	for _, m := range st.accepted {
 		switch {
 		case count[m] == 0:

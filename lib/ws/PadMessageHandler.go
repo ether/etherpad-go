@@ -264,11 +264,25 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 		// The client's changeset might not be based on the latest revision,
 		// since other Clients are sending changes at the same time.
 		// Update the changeset so that it can be applied to the latest revision.
+		// Load the changesets to rebase over in one query, without texts.
+		var behind map[int]db2.RevisionDelta
+		if r < retrievedPad.Head {
+			deltas, err := retrievedPad.RevisionDeltas(r+1, retrievedPad.Head)
+			if err != nil || len(deltas) != retrievedPad.Head-r {
+				p.Logger.Warnf("Error retrieving revisions %d..%d: %v", r+1, retrievedPad.Head, err)
+				sendDisconnectMessage(task.socket, "badChangeset")
+				return
+			}
+			behind = make(map[int]db2.RevisionDelta, len(deltas))
+			for _, d := range deltas {
+				behind[d.Rev] = d
+			}
+		}
 		for r < retrievedPad.Head {
 			r++
-			var revisionPad, err = retrievedPad.GetRevision(r)
-			if err != nil {
-				p.Logger.Warnf("Error retrieving revision %d: %v", r, err)
+			revisionPad, ok := behind[r]
+			if !ok {
+				p.Logger.Warnf("Error retrieving revision %d", r)
 				sendDisconnectMessage(task.socket, "badChangeset")
 				return
 			}

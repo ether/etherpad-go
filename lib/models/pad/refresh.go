@@ -74,7 +74,7 @@ func (p *Pad) reloadFromStore() error {
 	if v.Rev < 0 {
 		return errors.New("pad has no revisions")
 	}
-	if p.useStoredText(v.Rev) {
+	if p.useStoredText(v.Rev) || p.loadFromKeyRevision(v.Rev) {
 		return nil
 	}
 	switch {
@@ -90,7 +90,7 @@ func (p *Pad) reloadFromStore() error {
 
 // resync replaces the cached state with the stored state of rev.
 func (p *Pad) resync(rev int) error {
-	if p.useStoredText(rev) {
+	if p.useStoredText(rev) || p.loadFromKeyRevision(rev) {
 		return nil
 	}
 	return p.rebuild(rev)
@@ -153,4 +153,30 @@ func (p *Pad) applyStoredRevisions(toRev int) error {
 func (p *Pad) RevisionDeltas(from, to int) ([]dbstore.RevisionDelta, error) {
 	deltas, _, err := p.db.GetRevisionDeltas(p.Id, from, to)
 	return deltas, err
+}
+
+// keyRevisionInterval is how often a revision stores the full text.
+const keyRevisionInterval = 100
+
+func isKeyRevision(rev int) bool { return rev%keyRevisionInterval == 0 }
+
+// loadFromKeyRevision loads the newest key revision at or before rev that
+// has its text stored and applies the changesets after it.
+func (p *Pad) loadFromKeyRevision(rev int) bool {
+	for key := rev - rev%keyRevisionInterval; key >= 0; key -= keyRevisionInterval {
+		stored, err := p.db.GetRevision(p.Id, key)
+		if err != nil || stored.AText.Text == "" {
+			continue
+		}
+		p.AText = apool.FromDBAText(stored.AText)
+		if storedPoolUsable(stored.Pool) {
+			p.Pool = poolFromRev(stored.Pool)
+		}
+		p.Head = key
+		if key == rev {
+			return true
+		}
+		return p.applyStoredRevisions(rev) == nil
+	}
+	return false
 }

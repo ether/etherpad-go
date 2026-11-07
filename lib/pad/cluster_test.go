@@ -76,6 +76,10 @@ func forEachSharedStore(t *testing.T, test func(t *testing.T, open func(t *testi
 
 func newInstance(t *testing.T, store db.DataStore) *Manager {
 	t.Helper()
+	return newInstanceB(store)
+}
+
+func newInstanceB(store db.DataStore) *Manager {
 	h := hooks.NewHook()
 	return NewManager(store, &h)
 }
