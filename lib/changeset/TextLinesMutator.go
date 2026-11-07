@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"unicode/utf8"
 
 	"github.com/ether/etherpad-go/lib/utils"
 )
@@ -203,7 +202,7 @@ func (m *TextLinesMutator) RemoveLines(L int) string {
 			m.curSplice[1] = deleteCount + L - 1
 			sline := len(m.curSplice) - 1
 			slineStr := m.curSplice[sline].(string)
-			slineRuneLen := utf8.RuneCountInString(slineStr)
+			slineRuneLen := utils.RuneCount(slineStr)
 			removed = utils.RuneSlice(slineStr, m.curCol, slineRuneLen) + removed
 			startIdx := m.curSplice[0].(int)
 			deleteCount = m.curSplice[1].(int)
@@ -235,7 +234,7 @@ func (m *TextLinesMutator) Remove(N, L int) string {
 
 	sline := m.putCurLineInSplice()
 	slineStr := m.curSplice[sline].(string)
-	slineRuneLen := utf8.RuneCountInString(slineStr)
+	slineRuneLen := utils.RuneCount(slineStr)
 
 	endCol := m.curCol + N
 	if endCol > slineRuneLen {
@@ -265,7 +264,7 @@ func (m *TextLinesMutator) Insert(text string, L int) error {
 			sline := len(m.curSplice) - 1
 			theLine := m.curSplice[sline].(string)
 			lineCol := m.curCol
-			theLineRuneLen := utf8.RuneCountInString(theLine)
+			theLineRuneLen := utils.RuneCount(theLine)
 
 			// Insert the chars up to curCol and the first new line
 			m.curSplice[sline] = utils.RuneSlice(theLine, 0, lineCol) + newLines[0]
@@ -299,9 +298,9 @@ func (m *TextLinesMutator) Insert(text string, L int) error {
 		}
 
 		slineStr := m.curSplice[sline].(string)
-		slineRuneLen := utf8.RuneCountInString(slineStr)
+		slineRuneLen := utils.RuneCount(slineStr)
 		m.curSplice[sline] = utils.RuneSlice(slineStr, 0, m.curCol) + text + utils.RuneSlice(slineStr, m.curCol, slineRuneLen)
-		m.curCol += utf8.RuneCountInString(text)
+		m.curCol += utils.RuneCount(text)
 	}
 
 	return nil

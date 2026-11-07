@@ -8,7 +8,6 @@ import (
 	"slices"
 	"strings"
 	"unicode"
-	"unicode/utf8"
 
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/utils"
@@ -47,7 +46,7 @@ func OpsFromAText(atext apool.AText) *[]Op {
 	} else {
 		lastNewlineIndex := utils.RuneLastIndex(atext.Text, "\n")
 		nextToLastNewlineEnd := utils.RuneLastIndex(utils.RuneSlice(atext.Text, 0, lastNewlineIndex), "\n") + 1
-		lastLineLength := utf8.RuneCountInString(atext.Text) - nextToLastNewlineEnd - 1
+		lastLineLength := utils.RuneCount(atext.Text) - nextToLastNewlineEnd - 1
 		lastOp.Lines--
 		lastOp.Chars -= lastLineLength + 1
 		opsToReturn = append(opsToReturn, *copyOp(*lastOp, nil))
@@ -79,17 +78,19 @@ func OpsFromText(opcode string, text string, attribs *KeepArgs, pool *apool.APoo
 		var attribMap = NewAttributeMap(pool)
 		op.Attribs = attribMap.Update(*attribs.apoolAttribs, &emptyValueIsDelete).String()
 	}
-	var lastNewLinePos = utils.RuneLastIndex(text, "\n")
-	if lastNewLinePos < 0 {
-		op.Chars = utf8.RuneCountInString(text)
+	var lastNewLineByte = strings.LastIndexByte(text, '\n')
+	if lastNewLineByte < 0 {
+		op.Chars = utils.RuneCount(text)
 		op.Lines = 0
 		opsToReturn = append(opsToReturn, op)
 	} else {
-		op.Chars = lastNewLinePos + 1
-		op.Lines = utils.CountLines(text, '\n')
+		total := utils.RuneCount(text)
+		tail := utils.RuneCount(text[lastNewLineByte+1:])
+		op.Chars = total - tail
+		op.Lines = strings.Count(text, "\n")
 		opsToReturn = append(opsToReturn, op)
 		var op2 = copyOp(op, nil)
-		op2.Chars = utf8.RuneCountInString(text) - (lastNewLinePos + 1)
+		op2.Chars = tail
 		op2.Lines = 0
 		opsToReturn = append(opsToReturn, *op2)
 	}
@@ -118,15 +119,17 @@ func MakeSplice(orig string, start int, ndel int, ins string, attribs *string, p
 		return "", errors.New("ndel is negative")
 	}
 
-	if start > utf8.RuneCountInString(orig) {
-		start = utf8.RuneCountInString(orig)
+	origLen := utils.RuneCount(orig)
+	if start > origLen {
+		start = origLen
 	}
 
-	if ndel > utf8.RuneCountInString(orig)-start {
-		ndel = utf8.RuneCountInString(orig) - start
+	if ndel > origLen-start {
+		ndel = origLen - start
 	}
 
-	deleted := utils.RuneSlice(orig, start, start+ndel)
+	startByte := utils.RuneByteOffset(orig, start)
+	deleted := utils.RuneSlice(orig[startByte:], 0, ndel)
 	var assem = NewSmartOpAssembler()
 	var opsGenerated = make([]Op, 0)
 
@@ -139,7 +142,7 @@ func MakeSplice(orig string, start int, ndel int, ins string, attribs *string, p
 		attribs = &emptyStringAttribs
 	}
 
-	var equalOps = OpsFromText("=", utils.RuneSlice(orig, 0, start), &keepArgsToUse, nil)
+	var equalOps = OpsFromText("=", orig[:startByte], &keepArgsToUse, nil)
 	var deletedOps = OpsFromText("-", deleted, &keepArgsToUse, nil)
 	var insertedOps = OpsFromText("+", ins, &KeepArgs{
 		stringAttribs: attribs,
@@ -152,15 +155,16 @@ func MakeSplice(orig string, start int, ndel int, ins string, attribs *string, p
 		assem.Append(op)
 	}
 	assem.EndDocument()
-	return Pack(utf8.RuneCountInString(orig), utf8.RuneCountInString(orig)+utf8.RuneCountInString(ins)-ndel, assem.String(), ins), nil
+	return Pack(origLen, origLen+utils.RuneCount(ins)-ndel, assem.String(), ins), nil
 }
 
 func Identity(n int) string {
 	return Pack(n, n, "", "")
 }
 
+var headerRegex = regexp.MustCompile("Z:([0-9a-z]+)([><])([0-9a-z]+)|")
+
 func Unpack(cs string) (*Changeset, error) {
-	var headerRegex = regexp.MustCompile("Z:([0-9a-z]+)([><])([0-9a-z]+)|")
 	var foundHeaders = headerRegex.FindStringSubmatch(cs)
 
 	if len(foundHeaders) == 0 {
@@ -177,17 +181,23 @@ func Unpack(cs string) (*Changeset, error) {
 
 	var changeMag, _ = utils.ParseNum(foundHeaders[3])
 	var newLen = oldLen + changeSign*changeMag
-	var opsStart = utf8.RuneCountInString(foundHeaders[0])
-	var opsEnd = utils.RuneIndex(cs, "$")
+	var opsStart = len(foundHeaders[0])
+	var charBank string
+	var opsEnd = strings.IndexByte(cs, '$')
 	if opsEnd < 0 {
-		opsEnd = utf8.RuneCountInString(cs)
+		opsEnd = len(cs)
+	} else {
+		charBank = cs[opsEnd+1:]
+	}
+	if opsEnd < opsStart {
+		opsEnd = opsStart
 	}
 
 	return &Changeset{
 		oldLen,
 		newLen,
-		utils.RuneSlice(cs, opsStart, opsEnd),
-		utils.RuneSlice(cs, opsEnd+1, utf8.RuneCountInString(cs)),
+		cs[opsStart:opsEnd],
+		charBank,
 	}, nil
 
 }
@@ -223,7 +233,7 @@ func AttributeTester(attribPair apool.Attribute, pool *apool.APool) func(arg *st
 }
 
 func replaceAttributes(att2 string, callback func(match string) (*string, error)) (string, map[string]string, error) {
-	re := regexp.MustCompile(`\*([0-9a-z]+)`)
+	re := attribRefRegex
 	atts := make(map[string]string)
 	var callbackErr error = nil
 	result := re.ReplaceAllStringFunc(att2, func(match string) string {
@@ -633,7 +643,7 @@ func MutateAttributionLines(cs string, lines *[]string, pool *apool.APool) error
 	}
 	csOpsIdx := 0
 	csBank := unpacked.CharBank
-	csBankIndex := 0
+	csBankByte := 0 // byte offset of the next unused character in csBank
 	// treat the attribution lines as text lines, mutating a line at a time
 	mut := NewTextLinesMutator(lines)
 
@@ -716,7 +726,8 @@ func MutateAttributionLines(cs string, lines *[]string, pool *apool.APool) error
 			copyOp(csOp, &opOut)
 			if csOp.Lines > 1 {
 				// Copy the first line from `csOp` to `opOut`.
-				firstLineLen := utils.RuneIndex(utils.RuneSlice(csBank, csBankIndex, utf8.RuneCountInString(csBank)), "\n") + 1
+				rest := csBank[csBankByte:]
+				firstLineLen := utils.RuneCount(rest[:strings.IndexByte(rest, '\n')+1])
 				csOp.Chars -= firstLineLen
 				csOp.Lines--
 				opOut.Lines = 1
@@ -728,7 +739,7 @@ func MutateAttributionLines(cs string, lines *[]string, pool *apool.APool) error
 			if err := outputMutOp(opOut); err != nil {
 				return err
 			}
-			csBankIndex += opOut.Chars
+			csBankByte += utils.RuneByteOffset(csBank[csBankByte:], opOut.Chars)
 		} else {
 			if attOp.OpCode == "" && isNextMutOp() {
 				attOp = nextMutOp()
@@ -856,14 +867,14 @@ func Inverse(cs string, lines []string, alines []string, pool *apool.APool) (*st
 		}
 		length := 0
 		assem := NewStringAssembler()
-		firstString := utils.RuneSlice(linesGet(curLine), curChar, utf8.RuneCountInString(linesGet(curLine)))
-		length += utf8.RuneCountInString(firstString)
+		firstString := utils.RuneSlice(linesGet(curLine), curChar, utils.RuneCount(linesGet(curLine)))
+		length += utils.RuneCount(firstString)
 		assem.Append(firstString)
 
 		lineNum := curLine + 1
 		for length < numChars {
 			nextString := linesGet(lineNum)
-			length += utf8.RuneCountInString(nextString)
+			length += utils.RuneCount(nextString)
 			assem.Append(nextString)
 			lineNum++
 		}
@@ -951,7 +962,7 @@ func ApplyToText(cs string, text string) (*string, error) {
 	if err != nil {
 		return nil, err
 	}
-	if utf8.RuneCountInString(text) != unpacked.OldLen {
+	if utils.RuneCount(text) != unpacked.OldLen {
 		return nil, errors.New("mismatched text length")
 	}
 
@@ -971,7 +982,7 @@ func ApplyToText(cs string, text string) (*string, error) {
 			if err != nil {
 				return nil, err
 			}
-			if op.Lines != len(strings.Split(*peekedChars, "\n"))-1 {
+			if op.Lines != strings.Count(*peekedChars, "\n") {
 				return nil, errors.New("newline count is wrong in op +; cs:${cs} and text:${str}")
 			}
 			takenAssem, err := bankIter.Take(op.Chars)
@@ -985,7 +996,7 @@ func ApplyToText(cs string, text string) (*string, error) {
 			if err != nil {
 				return nil, err
 			}
-			if op.Lines != len(strings.Split(*peekedStr, "\n"))-1 {
+			if op.Lines != strings.Count(*peekedStr, "\n") {
 				return nil, errors.New("newline count is wrong in op -; cs:${cs} and text:${str}")
 			}
 			err = strIter.Skip(op.Chars)
@@ -998,7 +1009,7 @@ func ApplyToText(cs string, text string) (*string, error) {
 			if err != nil {
 				return nil, err
 			}
-			if op.Lines != len(strings.Split(*peekedStr, "\n"))-1 {
+			if op.Lines != strings.Count(*peekedStr, "\n") {
 				return nil, errors.New("newline count is wrong in op -; cs:${cs} and text:${str}")
 			}
 			iter, err := strIter.Take(op.Chars)
@@ -1162,8 +1173,10 @@ func Subattribution(astr string, start int, optEnd *int) (*string, error) {
 	return &res, nil
 }
 
+var opRegex = regexp.MustCompile(`((?:\*[0-9a-z]+)*)(?:\|([0-9a-z]+))?([-+=])([0-9a-z]+)|(.)`)
+
 func DeserializeOps(ops string) (*[]Op, error) {
-	var regex = regexp.MustCompile(`((?:\*[0-9a-z]+)*)(?:\|([0-9a-z]+))?([-+=])([0-9a-z]+)|(.)`)
+	var regex = opRegex
 	var opsToReturn = make([]Op, 0)
 	matches := regex.FindAllStringSubmatch(ops, -1)
 
@@ -1426,15 +1439,17 @@ func CloneAText(atext apool.AText) apool.AText {
 	}
 }
 
-func MoveOpsToNewPool(cs string, oldPool *apool.APool, newPool *apool.APool) string {
-	dollarPos := utils.RuneIndex(cs, "$")
-	if dollarPos < 0 {
-		dollarPos = utf8.RuneCountInString(cs)
-	}
-	upToDollar := utils.RuneSlice(cs, 0, dollarPos)
-	fromDollar := utils.RuneSlice(cs, dollarPos, utf8.RuneCountInString(cs))
+var attribRefRegex = regexp.MustCompile(`\*([0-9a-z]+)`)
 
-	re := regexp.MustCompile(`\*([0-9a-z]+)`)
+func MoveOpsToNewPool(cs string, oldPool *apool.APool, newPool *apool.APool) string {
+	dollarPos := strings.IndexByte(cs, '$')
+	if dollarPos < 0 {
+		dollarPos = len(cs)
+	}
+	upToDollar := cs[:dollarPos]
+	fromDollar := cs[dollarPos:]
+
+	re := attribRefRegex
 	result := re.ReplaceAllStringFunc(upToDollar, func(match string) string {
 		sub := re.FindStringSubmatch(match)
 		if len(sub) < 2 {
@@ -1489,14 +1504,17 @@ func SplitTextLines(text string) []string {
 func SplitAttributionLines(attrOps string, text string) ([]string, error) {
 	var assem = NewMergingOpAssembler()
 	var lines = make([]string, 0)
-	var pos = 0
+	// bytePos is the byte offset in text of the next op. Tracking it keeps
+	// this linear; slicing text from the start for every op was quadratic
+	// in the number of lines.
+	var bytePos = 0
 	appendOp := func(op Op) {
 		assem.Append(op)
 		if op.Lines > 0 {
 			lines = append(lines, assem.String())
 			assem.Clear()
 		}
-		pos += op.Chars
+		bytePos += utils.RuneByteOffset(text[bytePos:], op.Chars)
 	}
 
 	var deserializedOps, err = DeserializeOps(attrOps)
@@ -1508,13 +1526,12 @@ func SplitAttributionLines(attrOps string, text string) ([]string, error) {
 		var numChars = op.Chars
 		var numLines = op.Lines
 		for numLines > 1 {
-			rest := utils.RuneSlice(text, pos, utf8.RuneCountInString(text))
-			relIdx := utils.RuneIndex(rest, "\n")
-			if !(relIdx >= 0) {
+			rest := text[bytePos:]
+			relByte := strings.IndexByte(rest, '\n')
+			if relByte < 0 {
 				return nil, errors.New("newLineEnd <= 0 in splitAttributionLines")
 			}
-			var newlineEnd = pos + relIdx + 1
-			op.Chars = newlineEnd - pos
+			op.Chars = utils.RuneCount(rest[:relByte]) + 1
 			op.Lines = 1
 			appendOp(op)
 			numChars -= op.Chars

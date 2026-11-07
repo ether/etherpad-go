@@ -1,11 +1,59 @@
 package migrations
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"sort"
 	"time"
 )
+
+// Lock keys for the migration lock: a fixed pg_advisory_lock key and a
+// GET_LOCK name. They only need to differ from the pad locks.
+const (
+	postgresMigrationLockKey = int64(0x6574687061643031) // "ethpad01"
+	mysqlMigrationLockName   = "etherpad:migrations"
+	migrationLockTimeout     = 5 * time.Minute
+)
+
+// lock takes a database-wide lock for running migrations, held on one
+// connection until release is called. SQLite needs none: it serialises
+// writers itself and is used by one process.
+func (m *MigrationManager) lock() (release func(), err error) {
+	if m.dialect == DialectSQLite {
+		return func() {}, nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), migrationLockTimeout)
+	defer cancel()
+	conn, err := m.db.Conn(ctx)
+	if err != nil {
+		return nil, err
+	}
+	switch m.dialect {
+	case DialectPostgres:
+		if _, err := conn.ExecContext(ctx, `SELECT pg_advisory_lock($1)`, postgresMigrationLockKey); err != nil {
+			conn.Close()
+			return nil, err
+		}
+		return func() {
+			_, _ = conn.ExecContext(context.Background(), `SELECT pg_advisory_unlock($1)`, postgresMigrationLockKey)
+			conn.Close()
+		}, nil
+	default:
+		var got sql.NullInt64
+		if err := conn.QueryRowContext(ctx, `SELECT GET_LOCK(?, ?)`, mysqlMigrationLockName, int(migrationLockTimeout.Seconds())).Scan(&got); err != nil || got.Int64 != 1 {
+			conn.Close()
+			if err == nil {
+				err = fmt.Errorf("GET_LOCK timed out")
+			}
+			return nil, err
+		}
+		return func() {
+			_, _ = conn.ExecContext(context.Background(), `SELECT RELEASE_LOCK(?)`, mysqlMigrationLockName)
+			conn.Close()
+		}, nil
+	}
+}
 
 // Migration represents a single database migration
 type Migration struct {
@@ -41,6 +89,14 @@ func NewMigrationManager(db *sql.DB, dialect Dialect) *MigrationManager {
 
 // Run executes all pending migrations
 func (m *MigrationManager) Run() error {
+	// Instances starting together on one database would otherwise run the
+	// same migrations concurrently and fail on each other's tables.
+	release, err := m.lock()
+	if err != nil {
+		return fmt.Errorf("failed to lock migrations: %w", err)
+	}
+	defer release()
+
 	// Create migrations table if not exists
 	if err := m.createMigrationsTable(); err != nil {
 		return fmt.Errorf("failed to create migrations table: %w", err)

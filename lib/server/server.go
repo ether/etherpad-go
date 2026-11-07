@@ -3,6 +3,7 @@ package server
 import (
 	"embed"
 	"fmt"
+	"github.com/ether/etherpad-go/lib/cluster"
 	"net/http"
 	"os"
 	"os/signal"
@@ -86,6 +87,20 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 	})
 	sessionStore := ws.NewSessionStore()
 	padMessageHandler := ws.NewPadMessageHandler(dataStore, &retrievedHooks, padManager, &sessionStore, globalHub, setupLogger, uiAssets, &settings)
+	// Instances on one database pass live updates to each other.
+	var clusterBus cluster.Bus = cluster.Local{}
+	if settings.Cluster.Enabled(string(settings.DBType)) {
+		bus, err := cluster.NewMemberlist(settings.Cluster, dataStore, setupLogger)
+		if err != nil {
+			if settings.Cluster.Mode == "on" || settings.Cluster.Mode == "true" {
+				setupLogger.Fatalf("Error starting the cluster: %v", err)
+			}
+			setupLogger.Warnf("Running without cluster: %v. Other instances on this database will not see live updates from this one.", err)
+		} else {
+			clusterBus = bus
+		}
+	}
+	padMessageHandler.SetCluster(clusterBus)
 	adminMessageHandler := ws.NewAdminMessageHandler(dataStore, &retrievedHooks, padManager, padMessageHandler, setupLogger, globalHub, app, upd)
 	securityManager := pad.NewSecurityManager(dataStore, &retrievedHooks, padManager, &settings)
 
@@ -267,6 +282,10 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 	retention.Stop()
 	upd.Stop()
 	authenticator.Stop()
+	padMessageHandler.StopCluster()
+	if err := clusterBus.Close(); err != nil {
+		setupLogger.Warn("Error leaving the cluster: " + err.Error())
+	}
 	if err := app.ShutdownWithTimeout(3 * time.Second); err != nil {
 		setupLogger.Warn("Error during shutdown: " + err.Error())
 	}

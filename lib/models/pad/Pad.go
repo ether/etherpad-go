@@ -2,13 +2,13 @@ package pad
 
 import (
 	"errors"
+	"fmt"
 	"math"
 	"regexp"
 	"slices"
 	"strconv"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	utils2 "github.com/ether/etherpad-go/lib/adminutils"
 	"github.com/ether/etherpad-go/lib/apool"
@@ -241,10 +241,24 @@ func (p *Pad) Check() error {
 }
 
 func (p *Pad) AppendChatMessage(authorId *string, timestamp int64, text string) (*int, error) {
-	p.ChatHead = p.ChatHead + 1
-	err := p.db.SaveChatMessage(p.Id, p.ChatHead, authorId, timestamp, text)
-	if err != nil {
-		return nil, err
+	// A taken message number means another instance appended to the chat
+	// meanwhile: catch up and take the next one, so no message is dropped.
+	for attempt := 0; ; attempt++ {
+		head := p.ChatHead + 1
+		err := p.db.SaveChatMessage(p.Id, head, authorId, timestamp, text)
+		if errors.Is(err, db.ErrConflict) && attempt < 10 {
+			v, verr := p.db.GetPadVersion(p.Id)
+			if verr != nil {
+				return nil, verr
+			}
+			p.ChatHead = max(p.ChatHead+1, v.ChatHead)
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		p.ChatHead = head
+		break
 	}
 	if err := p.db.SaveChatHeadOfPad(p.Id, p.ChatHead); err != nil {
 		return nil, err
@@ -313,22 +327,35 @@ func (p *Pad) GetRevisionChangeset(revNum int) (*string, error) {
 }
 
 func (p *Pad) GetInternalRevisionAText(targetRev int) *apool.AText {
-	var keyRev = p.getKeyRevisionNumber(targetRev)
 	var headRev = p.getHeadRevisionNumber()
 	if targetRev > headRev {
 		targetRev = headRev
 	}
+	if targetRev < 0 {
+		return nil
+	}
+	var keyRev = p.getKeyRevisionNumber(targetRev)
 	var keyAText, err = p.getKeyRevisionAText(keyRev)
 	if err != nil {
 		return nil
 	}
+	// Pads imported without full texts on key revisions: start from the
+	// empty pad.
+	if keyAText.Text == "" {
+		keyRev = -1
+		empty := changeset.MakeAText("\n", nil)
+		keyAText = &empty
+	}
 	var atext = *keyAText
-	for i := keyRev + 1; i <= targetRev; i++ {
-		var changesetPad, err = p.GetRevisionChangeset(i)
-		if err != nil {
-			return nil
-		}
-		optAtext, err := changeset.ApplyToAText(*changesetPad, atext, *p.apool())
+	if targetRev == keyRev {
+		return &atext
+	}
+	deltas, err := p.RevisionDeltas(keyRev+1, targetRev)
+	if err != nil || len(deltas) != targetRev-keyRev {
+		return nil
+	}
+	for _, d := range deltas {
+		optAtext, err := changeset.ApplyToAText(d.Changeset, atext, *p.apool())
 		if err != nil {
 			return nil
 		}
@@ -359,12 +386,12 @@ func (p *Pad) Init(text *string, author *string, authorManager *author.Manager) 
 	var pad, err = p.db.GetPad(p.Id)
 
 	if err == nil {
-		var _, err = p.db.GetRevision(p.Id, pad.Head)
-		if err != nil {
-			return errors.New("pad data is corrupted: missing revision")
-		}
-
 		mapDBPadToModel(pad, p)
+		// The pad row is a cache; the stored revisions are authoritative
+		// (another instance may have appended since the row was written).
+		if err := p.reloadFromStore(); err != nil {
+			return errors.New("pad data is corrupted: " + err.Error())
+		}
 	} else {
 		if text == nil {
 			var padDefaultText = "text"
@@ -386,6 +413,10 @@ func (p *Pad) Init(text *string, author *string, authorManager *author.Manager) 
 
 		var firstChangeset, _ = changeset.MakeSplice("\n", 0, 0, *text, nil, nil)
 		_, err := p.AppendRevision(firstChangeset, author)
+		if errors.Is(err, db.ErrConflict) {
+			// Another instance created the pad at the same time; use theirs.
+			return p.loadExisting()
+		}
 		if err != nil {
 			return err
 		}
@@ -410,6 +441,20 @@ func (p *Pad) Init(text *string, author *string, authorManager *author.Manager) 
 	return nil
 }
 
+// loadExisting loads the pad another instance just created.
+func (p *Pad) loadExisting() error {
+	stored, err := p.db.GetPad(p.Id)
+	if err != nil {
+		return err
+	}
+	mapDBPadToModel(stored, p)
+	if err := p.reloadFromStore(); err != nil {
+		return err
+	}
+	p.hook.ExecutePadLoadHooks(&events.PadLoadContext{Pad: p, PadId: p.Id})
+	return nil
+}
+
 func (p *Pad) SetText(newText string, authorId *string) error {
 	var authorIdToSend string
 	if authorId == nil {
@@ -418,7 +463,7 @@ func (p *Pad) SetText(newText string, authorId *string) error {
 		authorIdToSend = *authorId
 	}
 
-	return p.SpliceText(0, utf8.RuneCountInString(p.Text()), newText, &authorIdToSend)
+	return p.SpliceText(0, utils.RuneCount(p.Text()), newText, &authorIdToSend)
 }
 
 func (p *Pad) SpliceText(start int, ndel int, ins string, authorId *string) error {
@@ -432,16 +477,16 @@ func (p *Pad) SpliceText(start int, ndel int, ins string, authorId *string) erro
 	if !strings.HasSuffix(orig, "\n") {
 		return errors.New("text must end with a newline")
 	}
-	if start+ndel > utf8.RuneCountInString(orig) {
+	if start+ndel > utils.RuneCount(orig) {
 		return errors.New("splice out of bounds")
 	}
 
 	ins = *CleanText(ins)
-	var willEndWithNewLine = start+ndel < utf8.RuneCountInString(orig) || strings.HasSuffix(ins, "\n") || (ins == "" && start > 0 && orig[start-1] == '\n')
+	var willEndWithNewLine = start+ndel < utils.RuneCount(orig) || strings.HasSuffix(ins, "\n") || (ins == "" && start > 0 && orig[start-1] == '\n')
 	if !willEndWithNewLine {
 		ins += "\n"
 	}
-	if ndel == 0 && utf8.RuneCountInString(ins) == 0 {
+	if ndel == 0 && utils.RuneCount(ins) == 0 {
 		return nil
 	}
 
@@ -454,7 +499,7 @@ func (p *Pad) SpliceText(start int, ndel int, ins string, authorId *string) erro
 	// #7773: attribute the insert to a stable system author when the caller
 	// didn't provide an authorId.
 	effectiveAuthorId := authorId
-	if utf8.RuneCountInString(ins) > 0 && (authorId == nil || *authorId == "") {
+	if utils.RuneCount(ins) > 0 && (authorId == nil || *authorId == "") {
 		sys := SystemAuthorId
 		effectiveAuthorId = &sys
 	}
@@ -539,13 +584,14 @@ func (p *Pad) getSavedRevisionsList() []int {
 }
 
 func (p *Pad) GetRevisionDate(rev int) (*int64, error) {
-	revision, err := p.db.GetRevision(p.Id, rev)
-
+	deltas, err := p.RevisionDeltas(rev, rev)
 	if err != nil {
 		return nil, err
 	}
-
-	return &revision.Timestamp, nil
+	if len(deltas) != 1 {
+		return nil, fmt.Errorf("revision %d of pad %s not found", rev, p.Id)
+	}
+	return &deltas[0].Timestamp, nil
 }
 
 func (p *Pad) getPublicStatus() bool {
@@ -563,11 +609,7 @@ func (p *Pad) AppendRevision(cs string, authorId *string) (*int, error) {
 		return &p.Head, nil
 	}
 
-	apool.CopyAText(*newAText, &p.AText)
-
-	p.Head++
-
-	var newRev = p.Head
+	var newRev = p.Head + 1
 
 	if authorId != nil {
 		p.Pool.PutAttrib(apool.Attribute{
@@ -576,8 +618,21 @@ func (p *Pad) AppendRevision(cs string, authorId *string) (*int, error) {
 		}, nil)
 	}
 
-	// Save pad
-	p.Save()
+	// The revision row needs the pad row (foreign key). If the row exists
+	// already, another instance created the pad meanwhile: report the
+	// conflict instead of overwriting its row.
+	if p.Head == -1 {
+		exists, err := p.db.DoesPadExist(p.Id)
+		if err != nil {
+			return nil, err
+		}
+		if *exists {
+			return nil, db.ErrConflict
+		}
+		if err := p.Save(); err != nil {
+			return nil, fmt.Errorf("error creating pad: %w", err)
+		}
+	}
 
 	// padRev.authorId has a foreign key on globalAuthor. The reserved system
 	// author (used for unattributed API/plugin writes, upstream #7773) is
@@ -597,16 +652,36 @@ func (p *Pad) AppendRevision(cs string, authorId *string) (*int, error) {
 		}
 	}
 
-	var poolToUse apool.APool
-	var atextToUse apool.AText
-
-	poolToUse = p.Pool
-	atextToUse = p.AText
-
-	err = p.db.SaveRevision(p.Id, newRev, cs, atextToUse.ToDBAText(), poolToUse.ToRevDB(), authorId, time.Now().UnixNano()/int64(time.Millisecond))
-
+	// Storing the revision is the commit point. Only once it is stored does
+	// this instance's copy change: if the number is taken (another instance
+	// on the same database wrote it), nothing changed here and the caller
+	// gets db.ErrConflict, never a silently dropped change.
+	// Like etherpad-lite, only key revisions store the full text; the
+	// others are rebuilt from the key revision before them. Writing the
+	// whole text on every keystroke made large pads slow.
+	storedAText := db2.AText{}
+	if isKeyRevision(newRev) {
+		storedAText = newAText.ToDBAText()
+	}
+	err = p.db.SaveRevision(p.Id, newRev, cs, storedAText, p.Pool.ToRevDB(), authorId, time.Now().UnixNano()/int64(time.Millisecond))
 	if err != nil {
-		return nil, errors.New("Error saving revision during append " + err.Error())
+		if errors.Is(err, db.ErrConflict) {
+			return nil, err
+		}
+		return nil, fmt.Errorf("error saving revision during append: %w", err)
+	}
+
+	apool.CopyAText(*newAText, &p.AText)
+	p.Head = newRev
+
+	// The pad row is a cache of the stored revisions; a failure here loses
+	// nothing (Refresh rebuilds from padRev), so it does not fail the append.
+	// Its text is rewritten on key revisions only; head and pool always, as
+	// pad listings and the retention read them.
+	if isKeyRevision(newRev) || newRev == 0 {
+		_ = p.Save()
+	} else {
+		_ = p.db.UpdatePadHead(p.Id, newRev, p.Pool.ToRevDB())
 	}
 
 	/*

@@ -16,8 +16,9 @@ import (
 )
 
 type MysqlDB struct {
-	options MySQLOptions
-	sqlDB   *sql.DB
+	options   MySQLOptions
+	sqlDB     *sql.DB
+	lockSlots chan struct{}
 }
 
 func (d MysqlDB) Ping() error {
@@ -546,18 +547,20 @@ func (d MysqlDB) SaveRevision(
 		return fmt.Errorf("failed to marshal pool: %w", err)
 	}
 
-	// Use INSERT IGNORE for write-once semantics
 	toSql, args, err := mysql.Insert("padRev").
 		Columns("id", "rev", "changeset", "atextText", "atextAttribs", "authorId", "timestamp", "pool").
 		Values(padId, rev, changeset, text.Text, text.Attribs, authorId, timestamp, string(marshalled)).
-		Suffix("ON DUPLICATE KEY UPDATE id = id"). // No-op update for write-once
 		ToSql()
 
 	if err != nil {
 		return err
 	}
 
+	// A taken revision number is a conflict, never silently ignored.
 	_, err = d.sqlDB.Exec(toSql, args...)
+	if isDuplicateKey(err) {
+		return ErrConflict
+	}
 	return err
 }
 
@@ -686,12 +689,10 @@ func (d MysqlDB) SaveChatMessage(
 	timestamp int64,
 	text string,
 ) error {
-	// Write-once: use INSERT IGNORE or ON DUPLICATE KEY UPDATE with no-op
 	resultedSQL, args, err := mysql.
 		Insert("padChat").
 		Columns("padId", "padHead", "chatText", "authorId", "timestamp").
 		Values(padId, head, text, authorId, timestamp).
-		Suffix("ON DUPLICATE KEY UPDATE padId = padId"). // No-op for write-once
 		ToSql()
 
 	if err != nil {
@@ -699,6 +700,9 @@ func (d MysqlDB) SaveChatMessage(
 	}
 
 	_, err = d.sqlDB.Exec(resultedSQL, args...)
+	if isDuplicateKey(err) {
+		return ErrConflict
+	}
 	return err
 }
 
@@ -1381,8 +1385,9 @@ func NewMySQLDB(options MySQLOptions) (*MysqlDB, error) {
 	}
 
 	return &MysqlDB{
-		options: options,
-		sqlDB:   sqlDb,
+		options:   options,
+		sqlDB:     sqlDb,
+		lockSlots: newLockSlots(maxConns),
 	}, nil
 }
 

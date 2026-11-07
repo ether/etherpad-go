@@ -18,8 +18,9 @@ import (
 )
 
 type PostgresDB struct {
-	options PostgresOptions
-	pool    *pgxpool.Pool
+	options   PostgresOptions
+	pool      *pgxpool.Pool
+	lockSlots chan struct{}
 }
 
 func (d PostgresDB) Ping() error {
@@ -422,14 +423,20 @@ func (d PostgresDB) SaveRevision(
 	}
 
 	ctx := context.Background()
-	_, err = d.pool.Exec(ctx,
+	result, err := d.pool.Exec(ctx,
 		`INSERT INTO "padrev" 
              (id, rev, changeset, "atexttext", "atextattribs", "authorid", timestamp, pool, created_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
          ON CONFLICT (id, rev) DO NOTHING`,
 		padId, rev, changeset, text.Text, text.Attribs,
 		authorId, timestamp, string(serializedPool))
-	return err
+	if err != nil {
+		return err
+	}
+	if result.RowsAffected() == 0 {
+		return ErrConflict
+	}
+	return nil
 }
 
 func (d PostgresDB) GetRevision(padId string, rev int) (*db.PadSingleRevision, error) {
@@ -541,12 +548,18 @@ func (d PostgresDB) SaveChatMessage(
 	text string,
 ) error {
 	ctx := context.Background()
-	_, err := d.pool.Exec(ctx,
+	result, err := d.pool.Exec(ctx,
 		`INSERT INTO "padchat" ("padid", "padhead", "chattext", "authorid", timestamp, created_at)
          VALUES ($1, $2, $3, $4, $5, NOW())
          ON CONFLICT ("padid", "padhead") DO NOTHING`,
 		padId, head, text, authorId, timestamp)
-	return err
+	if err != nil {
+		return err
+	}
+	if result.RowsAffected() == 0 {
+		return ErrConflict
+	}
+	return nil
 }
 
 func (d PostgresDB) GetChatsOfPad(
@@ -1187,8 +1200,9 @@ func NewPostgresDB(options PostgresOptions) (*PostgresDB, error) {
 	sqlDB.Close()
 
 	return &PostgresDB{
-		options: options,
-		pool:    pool,
+		options:   options,
+		pool:      pool,
+		lockSlots: newLockSlots(int(config.MaxConns)),
 	}, nil
 }
 

@@ -196,16 +196,18 @@ func (e *ExportEtherpad) GetPadRaw(padId string, readOnlyId *string, revNum *int
 			}
 		}
 
+		// Like etherpad-lite, only key revisions carry the full text.
+		var revAText *AText
+		if rev.AText.Text != "" {
+			revAText = &AText{Text: rev.AText.Text, Attribs: rev.AText.Attribs}
+		}
 		export.Revisions[key] = Revision{
 			Changeset: rev.Changeset,
 			Meta: RevisionMeta{
 				Pool:      poolData,
 				Author:    rev.AuthorId,
 				Timestamp: &rev.Timestamp,
-				AText: &AText{
-					Text:    rev.AText.Text,
-					Attribs: rev.AText.Attribs,
-				},
+				AText:     revAText,
 			},
 		}
 	}

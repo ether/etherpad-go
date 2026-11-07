@@ -39,6 +39,9 @@ type Pad struct {
 	closeOnce sync.Once
 	inFlight  *PadChangeset
 	outgoing  *PadChangeset
+	// authorId is the author the server assigned in CLIENT_VARS. Inserts
+	// must carry it as author attribute, or the server rejects them.
+	authorId string
 }
 
 func NewPad(host, padId string, conn *websocket.Conn, logger *zap.SugaredLogger) *Pad {
@@ -99,8 +102,12 @@ func (p *Pad) Append(text string) {
 	}
 
 	start := utf8.RuneCountInString(p.atext.Text)
-	emptyAttribs := ""
-	newChangeset, err := changeset.MakeSplice(p.atext.Text, start, 0, text, &emptyAttribs, p.apool)
+	attribs := ""
+	if p.authorId != "" {
+		num := p.apool.PutAttrib(apool.Attribute{Key: "author", Value: p.authorId}, nil)
+		attribs = "*" + utils.NumToString(num)
+	}
+	newChangeset, err := changeset.MakeSplice(p.atext.Text, start, 0, text, &attribs, p.apool)
 	if err != nil {
 		p.poolLock.Unlock()
 		p.logger.Errorf("Error creating changeset: %v", err)
@@ -133,12 +140,10 @@ func (p *Pad) Append(text string) {
 	}
 
 	p.atext = newAText
-	baseRev := p.baseRev
+	// Queue the changeset for sending; inFlight/outgoing are guarded by
+	// poolLock like the text they belong to.
+	p.sendMessage(&PadChangeset{changeset: newChangeset, baseRev: p.baseRev})
 	p.poolLock.Unlock()
-
-	// Queue the changeset for sending
-	pc := &PadChangeset{changeset: newChangeset, baseRev: baseRev}
-	p.sendMessage(pc)
 }
 
 type PadState struct {
@@ -304,6 +309,9 @@ func connect(host string, logger *zap.SugaredLogger) *Pad {
 							pad.baseRev = int(rev)
 						}
 						pad.atext = &atext
+						if userId, ok := data["userId"].(string); ok {
+							pad.authorId = userId
+						}
 						pad.poolLock.Unlock()
 						pad.emit("connected", nil)
 					case "COLLABROOM":
@@ -371,37 +379,39 @@ func connect(host string, logger *zap.SugaredLogger) *Pad {
 								logger.Errorf("pad.apool or pad.atext became nil while processing NEW_CHANGES - skipping")
 								continue
 							}
+							// The local text is the server text plus the in-flight and the
+							// outgoing changeset. Rebase those over the server's change and
+							// apply the server's change, rebased over them, locally.
+							pad.poolLock.Lock()
+							localAText = pad.atext
 							serverChangeset := changeset.MoveOpsToNewPool(changesetStr, &wireApool, localPool)
 							server := &PadChangeset{changeset: serverChangeset}
-							// Validate server changeset header before attempting to apply it
-							if unpacked, err := changeset.Unpack(server.changeset); err != nil {
-								logger.Errorf("cannot unpack server changeset: %v - skipping", err)
-								continue
-							} else if utf8.RuneCountInString(localAText.Text) != unpacked.OldLen {
-								logger.Errorf("server changeset oldLen %d does not match local text length %d - skipping", unpacked.OldLen, utf8.RuneCountInString(localAText.Text))
-								continue
-							}
 							if pad.inFlight != nil {
 								transformX(pad.inFlight, server, localPool)
 							}
 							if pad.outgoing != nil {
 								transformX(pad.outgoing, server, localPool)
-								if newRev, ok := data["newRev"].(float64); ok {
-									pad.outgoing.baseRev = int(newRev)
-								}
+							}
+							if unpacked, err := changeset.Unpack(server.changeset); err != nil || utf8.RuneCountInString(localAText.Text) != unpacked.OldLen {
+								pad.poolLock.Unlock()
+								logger.Errorf("server changeset does not fit the local text - resync needed")
+								pad.emit("outOfSync", map[string]interface{}{"serverRev": data["newRev"], "localRev": pad.baseRev})
+								continue
 							}
 							atext, err := changeset.ApplyToAText(server.changeset, *localAText, *localPool)
 							if err != nil {
+								pad.poolLock.Unlock()
 								logger.Errorf("Fehler beim Anwenden des Changesets: %v", err)
 								continue
 							}
-							// write back updated atext under lock
-							pad.poolLock.Lock()
-							pad.atext = atext
-							pad.poolLock.Unlock()
 							if newRev, ok := data["newRev"].(float64); ok {
 								pad.baseRev = int(newRev)
+								if pad.outgoing != nil {
+									pad.outgoing.baseRev = int(newRev)
+								}
 							}
+							pad.atext = atext
+							pad.poolLock.Unlock()
 							pad.emit("newContents", atext)
 						}
 						if data["type"] == "ACCEPT_COMMIT" {
@@ -409,7 +419,9 @@ func connect(host string, logger *zap.SugaredLogger) *Pad {
 								continue
 							}
 							if newRev, ok := data["newRev"].(float64); ok {
+								pad.poolLock.Lock()
 								if int(newRev)-1 != pad.baseRev {
+									pad.poolLock.Unlock()
 									logger.Errorf("wrong incoming revision :%v/%v", int(newRev), pad.baseRev)
 									continue
 								}
@@ -419,6 +431,7 @@ func connect(host string, logger *zap.SugaredLogger) *Pad {
 									pad.outgoing.baseRev = int(newRev)
 								}
 								pad.sendMessage(nil)
+								pad.poolLock.Unlock()
 								pad.emit("acceptCommit", int(newRev))
 							}
 						}
@@ -457,11 +470,14 @@ func connect(host string, logger *zap.SugaredLogger) *Pad {
 	return pad
 }
 
+// transformX rebases client over server and server over client, both from
+// the original pair.
 func transformX(client, server *PadChangeset, pool *apool.APool) {
-	if cs, err := changeset.Follow(server.changeset, client.changeset, false, pool); err == nil && cs != nil {
+	origClient, origServer := client.changeset, server.changeset
+	if cs, err := changeset.Follow(origServer, origClient, false, pool); err == nil && cs != nil {
 		client.changeset = *cs
 	}
-	if cs, err := changeset.Follow(client.changeset, server.changeset, true, pool); err == nil && cs != nil {
+	if cs, err := changeset.Follow(origClient, origServer, true, pool); err == nil && cs != nil {
 		server.changeset = *cs
 	}
 }
@@ -492,7 +508,9 @@ func (p *Pad) sendMessage(optMsg *PadChangeset) {
 		p.inFlight = p.outgoing
 		p.outgoing = nil
 		apoolCreated := apool.NewAPool()
-		changeset.MoveOpsToNewPool(p.inFlight.changeset, p.apool, &apoolCreated)
+		// The wire pool numbers attributes from 0, so the changeset has to be
+		// renumbered to match it.
+		wireChangeset := changeset.MoveOpsToNewPool(p.inFlight.changeset, p.apool, &apoolCreated)
 		wirePool := apoolCreated.ToJsonable()
 		p.logger.Debugf("Sending changeset: %s", p.inFlight.changeset)
 		msg := ws.UserChange{
@@ -503,7 +521,7 @@ func (p *Pad) sendMessage(optMsg *PadChangeset) {
 				Data: ws.UserChangeDataData{
 					Type:      "USER_CHANGES",
 					BaseRev:   p.inFlight.baseRev,
-					Changeset: p.inFlight.changeset,
+					Changeset: wireChangeset,
 					Apool: ws.UserChangeDataDataApool{
 						NumToAttrib: wirePool.NumToAttribRaw,
 						NextNum:     wirePool.NextNum,

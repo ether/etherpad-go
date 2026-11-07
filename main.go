@@ -60,6 +60,9 @@ func main() {
 		case "multiload":
 			loadtest.RunMultiFromCLI(setupLogger, os.Args[2:])
 			return
+		case "clusterbench":
+			loadtest.RunClusterBenchFromCLI(setupLogger, os.Args[2:])
+			return
 		case "prepare":
 			server2.PrepareServer(setupLogger)
 			os.Exit(0)
@@ -73,6 +76,7 @@ func main() {
 			fmt.Println("  cli        Interactive CLI for pads")
 			fmt.Println("  loadtest   Run a load test on a single pad")
 			fmt.Println("  multiload  Run a multi-pad load test")
+			fmt.Println("  clusterbench  Edit one pad through several instances; measure latency and check for lost changes")
 			fmt.Println("  (none)     Start the Etherpad server")
 			fmt.Println("  prepare    Prepare the etherpad server including building frontend assets")
 			fmt.Println(" config     Manage configuration settings")

@@ -1,6 +1,7 @@
 package migration
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -147,7 +148,8 @@ func (m *Migrator) MigrateRevisions() error {
 					NextNum:     rev.Meta.Pool.NextNum,
 				}
 
-				if err := m.newDataStore.SaveRevision(pad.PadId, rev.RevNum, rev.Changeset, atext, revPool, &rev.Meta.Author, rev.Meta.Timestamp); err != nil {
+				// A revision already copied by an earlier run is kept.
+				if err := m.newDataStore.SaveRevision(pad.PadId, rev.RevNum, rev.Changeset, atext, revPool, &rev.Meta.Author, rev.Meta.Timestamp); err != nil && !errors.Is(err, db.ErrConflict) {
 					return fmt.Errorf("failed to save revision %d for pad %s: %v", rev.RevNum, pad.PadId, err)
 				}
 				lastMigrationNum = rev.RevNum

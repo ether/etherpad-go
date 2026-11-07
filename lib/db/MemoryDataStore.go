@@ -14,6 +14,11 @@ import (
 )
 
 type MemoryDataStore struct {
+	// padLocks backs LockPadExclusive.
+	padLocks *processLocks
+	// clusterNodes backs ClusterMethods (guarded by mu).
+	clusterNodes map[string]ClusterNode
+
 	// mu guards every map below. The store is shared by all request and
 	// websocket goroutines (and is the default datastore), so unguarded map
 	// access could abort the whole process with "concurrent map writes".
@@ -397,9 +402,9 @@ func (m *MemoryDataStore) SaveRevision(
 		m.padRevisions[padId] = make(map[int]db.PadSingleRevision)
 	}
 
-	// Write-once: don't overwrite existing revision
+	// Revisions are write-once; a taken number is a conflict.
 	if _, exists := m.padRevisions[padId][rev]; exists {
-		return nil
+		return ErrConflict
 	}
 
 	m.padRevisions[padId][rev] = db.PadSingleRevision{
@@ -514,9 +519,9 @@ func (m *MemoryDataStore) SaveChatMessage(
 	defer m.mu.Unlock()
 	key := calcChatMessageKey(padId, head)
 
-	// Write-once: don't overwrite existing message
+	// Chat messages are write-once; a taken number is a conflict.
 	if _, exists := m.chatPads[key]; exists {
-		return nil
+		return ErrConflict
 	}
 
 	m.chatPads[key] = db.ChatMessageDB{
@@ -1093,6 +1098,8 @@ func (m *MemoryDataStore) Close() error {
 
 func NewMemoryDataStore() *MemoryDataStore {
 	return &MemoryDataStore{
+		padLocks:           newProcessLocks(),
+		clusterNodes:       map[string]ClusterNode{},
 		padStore:           make(map[string]db.PadDB),
 		padRevisions:       make(map[string]map[int]db.PadSingleRevision),
 		authorStore:        make(map[string]db.AuthorDB),
