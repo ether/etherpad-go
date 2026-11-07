@@ -5,11 +5,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ether/etherpad-go/lib/db"
+	"github.com/ether/etherpad-go/lib/models/pad"
+
 	"github.com/stretchr/testify/assert"
 )
 
 func newLockTestManager() *Manager {
-	return &Manager{padLocks: newPadLocks()}
+	return &Manager{padLocks: newPadLocks(), store: db.NewMemoryDataStore(), globalPadCache: &GlobalPadCache{padCache: map[string]*pad.Pad{}}}
 }
 
 func TestLockPadSerialisesWriters(t *testing.T) {

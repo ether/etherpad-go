@@ -155,6 +155,7 @@ type DataStore interface {
 	OIDCMethods
 	SecretMethods
 	SheetMethods
+	ConsistencyMethods
 	Close() error
 	Ping() error
 }

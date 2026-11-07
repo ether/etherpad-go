@@ -20,7 +20,6 @@ import (
 	"github.com/ether/etherpad-go/lib/hooks"
 	"github.com/ether/etherpad-go/lib/hooks/events"
 	clientVarsModel "github.com/ether/etherpad-go/lib/models/clientVars"
-	"github.com/ether/etherpad-go/lib/models/db"
 	pad2 "github.com/ether/etherpad-go/lib/models/pad"
 	"github.com/ether/etherpad-go/lib/models/webaccess"
 	"github.com/ether/etherpad-go/lib/models/ws"
@@ -235,102 +234,124 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 		}
 	}
 
-	rebasedChangeset := changeset.MoveOpsToNewPool(task.message.Data.Data.Changeset, &wireApool, &retrievedPad.Pool)
-	// Upstream #7773: snapshot the post-pool-mapping form so the
-	// retransmission check below recognises our changeset against the
-	// stored revision form. Comparing the raw client wire against `c`
-	// would miss legitimate retransmissions whenever MoveOpsToNewPool
-	// renumbered a `*N` reference (e.g. `*0` -> `*1` because the pad
-	// pool already had something at slot 0).
-	canonicalCs := rebasedChangeset
+	// Rebase the client's changeset onto the head and store it. If another
+	// instance on the same database stored that revision first, catch up and
+	// rebase again: the change is acknowledged only once it is stored.
+	var rebasedChangeset string
+	var r int
+	var newRev *int
+	for attempt := 0; ; attempt++ {
+		// The client expects every revision before its ACCEPT_COMMIT. With
+		// several instances on one database, revisions stored by another
+		// instance have not reached it yet: send them first.
+		p.updatePadClients(retrievedPad, task.socket)
+		rebasedChangeset = changeset.MoveOpsToNewPool(task.message.Data.Data.Changeset, &wireApool, &retrievedPad.Pool)
+		// Upstream #7773: snapshot the post-pool-mapping form so the
+		// retransmission check below recognises our changeset against the
+		// stored revision form. Comparing the raw client wire against `c`
+		// would miss legitimate retransmissions whenever MoveOpsToNewPool
+		// renumbered a `*N` reference (e.g. `*0` -> `*1` because the pad
+		// pool already had something at slot 0).
+		canonicalCs := rebasedChangeset
 
-	var r = task.message.Data.Data.BaseRev
-	headRev := retrievedPad.Head
+		r = task.message.Data.Data.BaseRev
+		headRev := retrievedPad.Head
 
-	p.Logger.Debugf("Processing USER_CHANGES: baseRev=%d, headRev=%d, changeset=%s", r, headRev, task.message.Data.Data.Changeset)
+		p.Logger.Debugf("Processing USER_CHANGES: baseRev=%d, headRev=%d, changeset=%s", r, headRev, task.message.Data.Data.Changeset)
 
-	// The client's changeset might not be based on the latest revision,
-	// since other Clients are sending changes at the same time.
-	// Update the changeset so that it can be applied to the latest revision.
-	for r < retrievedPad.Head {
-		r++
-		var revisionPad, err = retrievedPad.GetRevision(r)
-		if err != nil {
-			p.Logger.Warnf("Error retrieving revision %d: %v", r, err)
-			sendDisconnectMessage(task.socket, "badChangeset")
-			return
-		}
-
-		if revisionPad.Changeset == canonicalCs && revisionPad.AuthorId != nil && *revisionPad.AuthorId == session.Author {
-			// Assume this is a retransmission of an already applied changeset.
-			unpackedChangeset, err = changeset.Unpack(canonicalCs)
+		// The client's changeset might not be based on the latest revision,
+		// since other Clients are sending changes at the same time.
+		// Update the changeset so that it can be applied to the latest revision.
+		for r < retrievedPad.Head {
+			r++
+			var revisionPad, err = retrievedPad.GetRevision(r)
 			if err != nil {
-				p.Logger.Warnf("Error unpacking changeset: %v", err)
+				p.Logger.Warnf("Error retrieving revision %d: %v", r, err)
 				sendDisconnectMessage(task.socket, "badChangeset")
 				return
 			}
-			rebasedChangeset = changeset.Identity(unpackedChangeset.OldLen)
+
+			if revisionPad.Changeset == canonicalCs && revisionPad.AuthorId != nil && *revisionPad.AuthorId == session.Author {
+				// Assume this is a retransmission of an already applied changeset.
+				unpackedChangeset, err = changeset.Unpack(canonicalCs)
+				if err != nil {
+					p.Logger.Warnf("Error unpacking changeset: %v", err)
+					sendDisconnectMessage(task.socket, "badChangeset")
+					return
+				}
+				rebasedChangeset = changeset.Identity(unpackedChangeset.OldLen)
+			}
+			// At this point, both "c" (from the pad) and "changeset" (from the
+			// client) are relative to revision r - 1. The follow function
+			// rebases "changeset" so that it is relative to revision r
+			// and can be applied after "c".
+			optRebasedChangeset, err := changeset.Follow(revisionPad.Changeset, rebasedChangeset, false, &retrievedPad.Pool)
+			if err != nil {
+				p.Logger.Warnf("Error rebasing changeset at rev %d: %v for %s", r, err, retrievedPad.Id)
+				sendDisconnectMessage(task.socket, "badChangeset")
+				return
+			}
+			rebasedChangeset = *optRebasedChangeset
 		}
-		// At this point, both "c" (from the pad) and "changeset" (from the
-		// client) are relative to revision r - 1. The follow function
-		// rebases "changeset" so that it is relative to revision r
-		// and can be applied after "c".
-		optRebasedChangeset, err := changeset.Follow(revisionPad.Changeset, rebasedChangeset, false, &retrievedPad.Pool)
+
+		p.Logger.Debugf("After rebasing: rebasedChangeset=%s", rebasedChangeset)
+
+		prevText := retrievedPad.Text()
+		oldLen, err := changeset.OldLen(rebasedChangeset)
+
 		if err != nil {
-			p.Logger.Warnf("Error rebasing changeset at rev %d: %v for %s", r, err, retrievedPad.Id)
+			p.Logger.Warnf("Error retrieving old len from changeset: %v", err)
 			sendDisconnectMessage(task.socket, "badChangeset")
 			return
 		}
-		rebasedChangeset = *optRebasedChangeset
-	}
 
-	p.Logger.Debugf("After rebasing: rebasedChangeset=%s", rebasedChangeset)
-
-	prevText := retrievedPad.Text()
-	oldLen, err := changeset.OldLen(rebasedChangeset)
-
-	if err != nil {
-		p.Logger.Warnf("Error retrieving old len from changeset: %v", err)
-		sendDisconnectMessage(task.socket, "badChangeset")
-		return
-	}
-
-	if *oldLen != utf8.RuneCountInString(prevText) {
-		p.Logger.Warnf("Can't apply changeset to pad text: oldLen=%d, prevTextLen=%d, baseRev=%d, headRev=%d",
-			*oldLen, utf8.RuneCountInString(prevText), r, retrievedPad.Head)
-		sendDisconnectMessage(task.socket, "badChangeset")
-		return
-	}
-
-	// Upstream #7773: defensive — reject any rebased changeset whose
-	// application would leave the pad text not ending with '\n'.
-	// Previously the server silently appended a separate correction
-	// revision; that worked for the stored pad but the FIRST broadcast
-	// (the malformed user revision) reached browsers BEFORE the
-	// correction did, and the browser's line assembler asserts on a doc
-	// that doesn't end with '\n', taking the session out. Refuse —
-	// clients must always preserve the trailing-newline invariant.
-	projectedText, projectErr := changeset.ApplyToText(rebasedChangeset, prevText)
-	if projectErr != nil {
-		p.Logger.Warnf("Error projecting changeset application: %v", projectErr)
-		sendDisconnectMessage(task.socket, "badChangeset")
-		return
-	}
-	if projectedText == nil || !strings.HasSuffix(*projectedText, "\n") {
-		var projLen int
-		if projectedText != nil {
-			projLen = utf8.RuneCountInString(*projectedText)
+		if *oldLen != utf8.RuneCountInString(prevText) {
+			p.Logger.Warnf("Can't apply changeset to pad text: oldLen=%d, prevTextLen=%d, baseRev=%d, headRev=%d",
+				*oldLen, utf8.RuneCountInString(prevText), r, retrievedPad.Head)
+			sendDisconnectMessage(task.socket, "badChangeset")
+			return
 		}
-		p.Logger.Warnf("Rejected USER_CHANGES whose application would leave the pad without a trailing '\\n' (length %d). Every USER_CHANGES must preserve the \"doc ends with \\n\" invariant.", projLen)
-		sendDisconnectMessage(task.socket, "badChangeset")
-		return
-	}
 
-	newRev, err := retrievedPad.AppendRevision(rebasedChangeset, &session.Author)
-	if err != nil {
-		p.Logger.Errorf("Error appending revision: %v", err)
-		sendDisconnectMessage(task.socket, "badChangeset")
-		return
+		// Upstream #7773: defensive — reject any rebased changeset whose
+		// application would leave the pad text not ending with '\n'.
+		// Previously the server silently appended a separate correction
+		// revision; that worked for the stored pad but the FIRST broadcast
+		// (the malformed user revision) reached browsers BEFORE the
+		// correction did, and the browser's line assembler asserts on a doc
+		// that doesn't end with '\n', taking the session out. Refuse —
+		// clients must always preserve the trailing-newline invariant.
+		projectedText, projectErr := changeset.ApplyToText(rebasedChangeset, prevText)
+		if projectErr != nil {
+			p.Logger.Warnf("Error projecting changeset application: %v", projectErr)
+			sendDisconnectMessage(task.socket, "badChangeset")
+			return
+		}
+		if projectedText == nil || !strings.HasSuffix(*projectedText, "\n") {
+			var projLen int
+			if projectedText != nil {
+				projLen = utf8.RuneCountInString(*projectedText)
+			}
+			p.Logger.Warnf("Rejected USER_CHANGES whose application would leave the pad without a trailing '\\n' (length %d). Every USER_CHANGES must preserve the \"doc ends with \\n\" invariant.", projLen)
+			sendDisconnectMessage(task.socket, "badChangeset")
+			return
+		}
+
+		newRev, err = retrievedPad.AppendRevision(rebasedChangeset, &session.Author)
+		if errors.Is(err, db2.ErrConflict) && attempt < 5 {
+			p.Logger.Warnf("Revision of pad %s was stored by another instance; catching up", retrievedPad.Id)
+			if rerr := retrievedPad.Refresh(); rerr != nil {
+				p.Logger.Errorf("Error catching up pad %s: %v", retrievedPad.Id, rerr)
+				sendDisconnectMessage(task.socket, "badChangeset")
+				return
+			}
+			continue
+		}
+		if err != nil {
+			p.Logger.Errorf("Error appending revision: %v", err)
+			sendDisconnectMessage(task.socket, "badChangeset")
+			return
+		}
+		break
 	}
 	// The head revision will either stay the same or increase by 1 depending on whether the
 	// changeset has a net effect.
@@ -1691,10 +1712,26 @@ func (p *PadMessageHandler) updatePadClients(pad *pad2.Pad, only *Client) {
 	if len(roomSockets) == 0 {
 		return
 	}
-	// since all Clients usually get the same set of changesets, store them in local cache
-	// to remove unnecessary roundtrip to the datalayer
-	// NB: note below possibly now accommodated via the change to promises/async
-	var revCache = make(map[int]*db.PadSingleRevision)
+	// All clients get the same revisions: load the ones the furthest
+	// behind client misses, changesets only, in one query.
+	from := pad.Head + 1
+	for _, socket := range roomSockets {
+		if sessionInfo := p.SessionStore.getSession(socket.SessionId); sessionInfo != nil {
+			from = min(from, sessionInfo.Revision+1)
+		}
+	}
+	if from > pad.Head {
+		return
+	}
+	revCache := make(map[int]db2.RevisionDelta)
+	deltas, err := pad.RevisionDeltas(max(from, 0), pad.Head)
+	if err != nil {
+		p.Logger.Warnf("Cannot load revisions %d..%d of pad %s for NEW_CHANGES: %v", from, pad.Head, pad.Id, err)
+		return
+	}
+	for _, d := range deltas {
+		revCache[d.Rev] = d
+	}
 	for _, socket := range roomSockets {
 		var sessionInfo = p.SessionStore.getSession(socket.SessionId)
 		if sessionInfo == nil {
@@ -1704,20 +1741,18 @@ func (p *PadMessageHandler) updatePadClients(pad *pad2.Pad, only *Client) {
 		for sessionInfo.Revision < pad.Head {
 			p.Logger.Debugf("Sending NEW_CHANGES to client for pad %s from rev %d to %d", pad.Id, sessionInfo.Revision, pad.Head)
 			var r = sessionInfo.Revision + 1
-			if _, ok := revCache[r]; !ok {
-				rev, err := pad.GetRevision(r)
-				if err != nil || rev == nil {
-					p.Logger.Warnf("Cannot load revision %d of pad %s for NEW_CHANGES: %v", r, pad.Id, err)
-					break
-				}
-				revCache[r] = rev
+			revision, ok := revCache[r]
+			if !ok {
+				p.Logger.Warnf("Cannot load revision %d of pad %s for NEW_CHANGES", r, pad.Id)
+				break
 			}
-			var revision = revCache[r]
-			var authorFromRev = revision.AuthorId
-			var revChangeset = revision.Changeset
+			var author string
+			if revision.AuthorId != nil {
+				author = *revision.AuthorId
+			}
 			var currentTime = revision.Timestamp
 
-			var forWire = changeset.PrepareForWire(revChangeset, pad.Pool)
+			var forWire = changeset.PrepareForWire(revision.Changeset, pad.Pool)
 			var jsonAblePoolWithWire = forWire.Pool.ToJsonable()
 
 			var arr = make([]interface{}, 2)
@@ -1729,7 +1764,7 @@ func (p *PadMessageHandler) updatePadClients(pad *pad2.Pad, only *Client) {
 					NewRev:      r,
 					Changeset:   forWire.Translated,
 					APool:       jsonAblePoolWithWire,
-					Author:      *authorFromRev,
+					Author:      author,
 					CurrentTime: currentTime,
 					TimeDelta:   currentTime - sessionInfo.Time,
 				},
