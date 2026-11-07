@@ -129,6 +129,14 @@ docker exec etherpad_go /app config show
 docker exec etherpad_go /app config get port
 ```
 
+### Several instances / Kubernetes
+
+With PostgreSQL or MySQL, several Etherpad-Go instances can share one database
+behind a stateless load balancer or Ingress — no sticky sessions needed. The
+instances find each other through the database and only need to reach each
+other on port `7946` (TCP and UDP). See [doc/cluster.md](doc/cluster.md) for
+how it works, the settings and a Kubernetes example.
+
 ---
 
 ## Building from Source
