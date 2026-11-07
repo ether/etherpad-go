@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/ether/etherpad-go/lib/models/ws"
-	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/ether/etherpad-go/lib/test/testutils"
 	libws "github.com/ether/etherpad-go/lib/ws"
 	"github.com/stretchr/testify/assert"
@@ -14,8 +13,6 @@ import (
 // Websocket half of etherpad-lite's nullAuthorToken.ts
 // (GHSA-746x-9w89-7xv6).
 func TestNullAuthorTokenWebsocket(t *testing.T) {
-	prev := settings.Displayed.LoadTest
-	defer func() { settings.Displayed.LoadTest = prev }()
 	for _, conf := range []testutils.TestRunConfig{
 		{Name: "each token-less connection gets its own author", Test: testTokenlessConnectionsGetOwnAuthor},
 		{Name: "unrelated token-less connection cannot delete the pad", Test: testTokenlessConnectionCannotDeleteOthersPad},
@@ -29,7 +26,7 @@ func TestNullAuthorTokenWebsocket(t *testing.T) {
 func tokenlessClientReady(t *testing.T, ds testutils.TestDataStore, padId, sessionId string) (*libws.Client, string) {
 	t.Helper()
 	initStore := ds.ToInitStore()
-	settings.Displayed.LoadTest = false
+	ds.Settings.LoadTest = false
 	client := createTestClient(ds.Hub, sessionId, padId, libws.NewActualMockWebSocketconn())
 	t.Cleanup(func() { delete(ds.Hub.Clients, client) })
 	ds.PadMessageHandler.SessionStore.InitSessionForTest(sessionId)

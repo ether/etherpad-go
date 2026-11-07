@@ -1343,6 +1343,8 @@ type MySQLOptions struct {
 	Port     int
 	Host     string
 	Database string
+	// MaxConns caps the connection pool; 0 means the default of 25.
+	MaxConns int
 }
 
 func NewMySQLDB(options MySQLOptions) (*MysqlDB, error) {
@@ -1365,8 +1367,12 @@ func NewMySQLDB(options MySQLOptions) (*MysqlDB, error) {
 		return nil, err
 	}
 
-	sqlDb.SetMaxOpenConns(25)
-	sqlDb.SetMaxIdleConns(5)
+	maxConns := 25
+	if options.MaxConns > 0 {
+		maxConns = options.MaxConns
+	}
+	sqlDb.SetMaxOpenConns(maxConns)
+	sqlDb.SetMaxIdleConns(min(5, maxConns))
 
 	migrationManager := migrations.NewMigrationManager(sqlDb, migrations.DialectMySQL)
 	if err := migrationManager.Run(); err != nil {

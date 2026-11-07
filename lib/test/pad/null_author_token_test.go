@@ -5,7 +5,6 @@ import (
 
 	"github.com/ether/etherpad-go/lib/hooks"
 	"github.com/ether/etherpad-go/lib/hooks/events"
-	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/ether/etherpad-go/lib/test/testutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,19 +20,17 @@ func TestNullAuthorToken(t *testing.T) {
 			name = "loadTest"
 		}
 		t.Run(name, func(t *testing.T) {
-			prev := settings.Displayed.LoadTest
-			defer func() { settings.Displayed.LoadTest = prev }()
 			for _, conf := range []testutils.TestRunConfig{
 				{Name: "checkAccess does not map a missing token to a shared author", Test: func(t *testing.T, ds testutils.TestDataStore) {
-					settings.Displayed.LoadTest = loadTest
+					ds.Settings.LoadTest = loadTest
 					testMissingTokenGetsOwnAuthor(t, ds)
 				}},
 				{Name: "missing token still reaches getAuthorId hooks as empty", Test: func(t *testing.T, ds testutils.TestDataStore) {
-					settings.Displayed.LoadTest = loadTest
+					ds.Settings.LoadTest = loadTest
 					testMissingTokenReachesHooksEmpty(t, ds)
 				}},
 				{Name: "malformed token is still rejected", Test: func(t *testing.T, ds testutils.TestDataStore) {
-					settings.Displayed.LoadTest = loadTest
+					ds.Settings.LoadTest = loadTest
 					testMalformedTokenRejected(t, ds, loadTest)
 				}},
 			} {

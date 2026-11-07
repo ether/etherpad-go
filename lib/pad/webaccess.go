@@ -38,12 +38,12 @@ func extractEncodedPadId(path string) string {
 	return m[1]
 }
 
-func UserCanModify(padId *string, req *webaccess.SocketClientRequest, readOnlyManager ReadOnlyManager) bool {
+func UserCanModify(padId *string, req *webaccess.SocketClientRequest, readOnlyManager ReadOnlyManager, cfg *settings.Settings) bool {
 	if readOnlyManager.IsReadOnlyID(padId) {
 		return false
 	}
 
-	if !settings.Displayed.RequireAuthentication {
+	if !cfg.RequireAuthentication {
 		return true
 	}
 
@@ -225,15 +225,12 @@ func CheckAccessWithHooks(ctx fiber.Ctx, logger *zap.SugaredLogger, retrievedSet
 		return ctx.Next()
 	}
 
-	if retrievedSettings.Users == nil {
-		var newUsers = make(map[string]settings.User)
-		retrievedSettings.Users = newUsers
-	}
-
+	// Lookups in a nil Users map are fine; don't write it back into the
+	// shared settings, which every request reads concurrently.
 	var user, ok = ctx.Locals(clientVars.WebAccessStore).(*webaccess.SocketClientRequest)
 
 	var webAccessCtx = webaccess.WebAccessType{
-		Users: settings.Displayed.Users,
+		Users: retrievedSettings.Users,
 		Next:  ctx.Next,
 	}
 

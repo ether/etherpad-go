@@ -94,12 +94,12 @@ type PadMessageHandler struct {
 	retention       *pad.Retention
 }
 
-func NewPadMessageHandler(db db2.DataStore, hooks *hooks.Hook, padManager *pad.Manager, sessionStore *SessionStore, hub *Hub, logger *zap.SugaredLogger, uiAssets embed.FS) *PadMessageHandler {
+func NewPadMessageHandler(db db2.DataStore, hooks *hooks.Hook, padManager *pad.Manager, sessionStore *SessionStore, hub *Hub, logger *zap.SugaredLogger, uiAssets embed.FS, cfg *settings.Settings) *PadMessageHandler {
 	var padMessageHandler = PadMessageHandler{
 		padManager:      padManager,
 		readOnlyManager: pad.NewReadOnlyManager(db),
 		authorManager:   author.NewManager(db),
-		securityManager: pad.NewSecurityManager(db, hooks, padManager),
+		securityManager: pad.NewSecurityManager(db, hooks, padManager, cfg),
 		factory: clientVars.Factory{
 			ReadOnlyManager: pad.NewReadOnlyManager(db),
 			AuthorManager:   author.NewManager(db),
@@ -484,7 +484,7 @@ func (p *PadMessageHandler) HandleMessage(message any, client *Client, retrieved
 		var ip string
 		if client.ClientIP == "" {
 			ip = "TEST"
-		} else if settings.Displayed.DisableIPLogging {
+		} else if retrievedSettings.DisableIPLogging {
 			ip = "ANONYMOUS"
 		} else {
 			ip = client.ClientIP

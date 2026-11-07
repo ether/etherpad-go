@@ -99,9 +99,7 @@ func testFindAuthorIDExpiredAndWrongGroup(t *testing.T, ds testutils.TestDataSto
 }
 
 func testCheckAccessPrivateGroupPad(t *testing.T, ds testutils.TestDataStore) {
-	prevLoadTest := settings.Displayed.LoadTest
-	settings.Displayed.LoadTest = false
-	defer func() { settings.Displayed.LoadTest = prevLoadTest }()
+	ds.Settings.LoadTest = false
 
 	groupId := "g.checkaccess12345"[:18]
 	sm, authorId := setupSessionFixture(t, ds, groupId)
@@ -152,9 +150,8 @@ func TestNormalizeAuthzLevel(t *testing.T) {
 func TestUserCanModifyNilAuthorizations(t *testing.T) {
 	// Used to panic("This should not happen") on a nil PadAuthorizations map;
 	// must deny instead of crashing the request.
-	prevRequireAuth := settings.Displayed.RequireAuthentication
-	settings.Displayed.RequireAuthentication = true
-	defer func() { settings.Displayed.RequireAuthentication = prevRequireAuth }()
+	cfg := settings.Displayed
+	cfg.RequireAuthentication = true
 
 	padId := "normalpad"
 	readOnly := false
@@ -164,6 +161,6 @@ func TestUserCanModifyNilAuthorizations(t *testing.T) {
 	rom := pad.NewReadOnlyManager(memDS)
 
 	assert.NotPanics(t, func() {
-		assert.False(t, pad.UserCanModify(&padId, req, *rom))
+		assert.False(t, pad.UserCanModify(&padId, req, *rom, &cfg))
 	})
 }

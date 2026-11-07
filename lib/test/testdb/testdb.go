@@ -161,7 +161,7 @@ func acquire(kind Kind) (*Server, error) {
 // containerVersion is part of the container names. Bump it when the
 // container configuration changes, so the next run starts a new container
 // instead of reusing one with the old settings.
-const containerVersion = "v2"
+const containerVersion = "v3"
 
 func containerName(kind Kind) string {
 	return "etherpad-test-" + string(kind) + "-" + containerVersion
@@ -184,7 +184,9 @@ func startContainer(ctx context.Context, kind Kind) (*Server, error) {
 			"POSTGRES_PASSWORD": Password,
 			"POSTGRES_DB":       adminDatabase,
 		},
-		Cmd:   []string{"postgres", "-c", "fsync=off", "-c", "synchronous_commit=off", "-c", "full_page_writes=off"},
+		// Every package runs up to -parallel tests at once, each with its
+		// own connection pool: allow more than the default 100 connections.
+		Cmd:   []string{"postgres", "-c", "fsync=off", "-c", "synchronous_commit=off", "-c", "full_page_writes=off", "-c", "max_connections=500"},
 		Tmpfs: map[string]string{"/var/lib/postgresql": "rw"},
 	}
 	containerPort := "5432"
@@ -204,6 +206,7 @@ func startContainer(ctx context.Context, kind Kind) (*Server, error) {
 				"--innodb-doublewrite=0",
 				"--character-set-server=utf8mb4",
 				"--collation-server=utf8mb4_unicode_ci",
+				"--max-connections=500",
 			},
 			Tmpfs: map[string]string{"/var/lib/mysql": "rw"},
 		}

@@ -3,7 +3,10 @@ package testutils
 import (
 	"context"
 	"database/sql"
+	"flag"
 	"fmt"
+	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -39,14 +42,18 @@ type TestDataStore struct {
 	App                 *fiber.App
 	PrivateAPI          fiber.Router
 	Importer            *io.Importer
+	// Settings is this test's own copy of the settings. The SecurityManager
+	// and the InitStore read it, so a test may change it without affecting
+	// tests running in parallel.
+	Settings *settings.Settings
 }
 
 func (t *TestDataStore) ToInitStore() *lib.InitStore {
-	settings.Displayed.LoadTest = true
-	settings.Displayed.EnableMetrics = true
+	t.Settings.LoadTest = true
+	t.Settings.EnableMetrics = true
 	return &lib.InitStore{
 		SecurityManager:   t.SecurityManager,
-		RetrievedSettings: &settings.Displayed,
+		RetrievedSettings: t.Settings,
 		Store:             t.DS,
 		AuthorManager:     t.AuthorManager,
 		PadManager:        t.PadManager,
@@ -68,7 +75,7 @@ func (t *TestDataStore) ToPluginStore() *interfaces.EpPluginStore {
 		HookSystem:        t.Hooks,
 		PadManager:        t.PadManager,
 		App:               t.App,
-		RetrievedSettings: &settings.Displayed,
+		RetrievedSettings: t.Settings,
 		UIAssets:          GetTestAssets(),
 	}
 }
@@ -84,21 +91,77 @@ type TestDBHandler struct {
 }
 
 // Postgres and MySQL run on the shared servers from lib/test/testdb. Each test
-// process (one per Go package) gets its own database there, migrated once
-// and emptied before every test: packages run in parallel without touching
-// each other's data, and tests within a package take turns on it.
-type processDatabase struct {
+// process (one per Go package) keeps a pool of databases there, as many as
+// tests may run at once (-parallel). A database is migrated once when it is
+// created and emptied before every test that borrows it, so tests run in
+// parallel without touching each other's data.
+type databasePool struct {
 	once   sync.Once
 	server *testdb.Server
-	name   string
 	err    error
-	// One test at a time on this process's database.
-	inUse sync.Mutex
+
+	mu      sync.Mutex
+	created int
+	free    chan string
 }
 
-var processDatabases = map[testdb.Kind]*processDatabase{
+var databasePools = map[testdb.Kind]*databasePool{
 	testdb.Postgres: {},
 	testdb.MySQL:    {},
+}
+
+// testDBMaxConns caps each test's connection pool. A test needs only a few
+// connections, and up to -parallel tests per package run at once.
+const testDBMaxConns = 4
+
+// poolSize is the number of databases a process creates per server at most:
+// the -parallel value, which defaults to GOMAXPROCS.
+func poolSize() int {
+	if f := flag.Lookup("test.parallel"); f != nil {
+		if n, err := strconv.Atoi(f.Value.String()); err == nil && n > 0 {
+			return n
+		}
+	}
+	return runtime.GOMAXPROCS(0)
+}
+
+// borrow returns a database for the test: a free one, a new one while the
+// pool is below its size, or else the next one another test gives back. The
+// database goes back to the pool when the test finishes.
+func (p *databasePool) borrow(t *testing.T, kind testdb.Kind) string {
+	t.Helper()
+	p.once.Do(func() {
+		p.server, p.err = testdb.Acquire(kind)
+		p.free = make(chan string, poolSize())
+	})
+	if p.err != nil {
+		t.Fatalf("%s test server unavailable: %v", kind, p.err)
+	}
+
+	var name string
+	select {
+	case name = <-p.free:
+	default:
+		p.mu.Lock()
+		create := p.created < cap(p.free)
+		if create {
+			p.created++
+		}
+		p.mu.Unlock()
+		if create {
+			var err error
+			if name, err = createMigratedDatabase(p.server); err != nil {
+				p.mu.Lock()
+				p.created--
+				p.mu.Unlock()
+				t.Fatalf("creating %s test database: %v", kind, err)
+			}
+		} else {
+			name = <-p.free
+		}
+	}
+	t.Cleanup(func() { p.free <- name })
+	return name
 }
 
 func NewTestDBHandler(t *testing.T) *TestDBHandler {
@@ -157,41 +220,31 @@ func newSQLDataStore(t *testing.T, kind testdb.Kind) db.DataStore {
 	if testdb.SkipSQLServers() {
 		t.Skipf("%s skipped: EP_TEST_SKIP_SQL_SERVERS is set", kind)
 	}
-	pdb := processDatabases[kind]
-	pdb.once.Do(func() { pdb.server, pdb.name, pdb.err = setUpProcessDatabase(kind) })
-	if pdb.err != nil {
-		t.Fatalf("%s test database unavailable: %v", kind, pdb.err)
-	}
+	pool := databasePools[kind]
+	name := pool.borrow(t, kind)
 
-	pdb.inUse.Lock()
-	t.Cleanup(pdb.inUse.Unlock)
-
-	if err := truncateTables(pdb.server, pdb.name); err != nil {
+	if err := truncateTables(pool.server, name); err != nil {
 		t.Fatalf("emptying %s test database: %v", kind, err)
 	}
-	ds, err := openDataStore(pdb.server, pdb.name)
+	ds, err := openDataStore(pool.server, name)
 	if err != nil {
 		t.Fatalf("opening %s datastore: %v", kind, err)
 	}
 	return ds
 }
 
-// setUpProcessDatabase creates this process's database and runs the
-// migrations on it once.
-func setUpProcessDatabase(kind testdb.Kind) (*testdb.Server, string, error) {
-	server, err := testdb.Acquire(kind)
-	if err != nil {
-		return nil, "", err
-	}
+// createMigratedDatabase creates a database for the pool and runs the
+// migrations on it.
+func createMigratedDatabase(server *testdb.Server) (string, error) {
 	name, err := server.CreateDatabase()
 	if err != nil {
-		return nil, "", err
+		return "", err
 	}
 	ds, err := openDataStore(server, name) // runs the migrations
 	if err != nil {
-		return nil, "", err
+		return "", err
 	}
-	return server, name, ds.Close()
+	return name, ds.Close()
 }
 
 func openDataStore(server *testdb.Server, name string) (db.DataStore, error) {
@@ -202,6 +255,7 @@ func openDataStore(server *testdb.Server, name string) (db.DataStore, error) {
 			Database: name,
 			Host:     server.Host,
 			Port:     server.Port,
+			MaxConns: testDBMaxConns,
 		})
 	}
 	return db.NewMySQLDB(db.MySQLOptions{
@@ -210,6 +264,7 @@ func openDataStore(server *testdb.Server, name string) (db.DataStore, error) {
 		Database: name,
 		Host:     server.Host,
 		Port:     server.Port,
+		MaxConns: testDBMaxConns,
 	})
 }
 
@@ -291,7 +346,11 @@ func (test *TestDBHandler) TestRun(
 	dsName string,
 ) {
 	t.Run(testRun.Name, func(t *testing.T) {
+		// Each test has its own datastore, hub, handlers and settings copy,
+		// so tests run in parallel, up to -parallel at a time.
+		t.Parallel()
 		ds := newDS(t)
+		cfg := settings.Displayed
 
 		authManager := author.NewManager(ds)
 		hooks := hooks2.NewHook()
@@ -302,7 +361,7 @@ func (test *TestDBHandler) TestRun(
 		loggerPart := zap.NewNop().Sugar()
 		importer := io.NewImporter(padManager, authManager, ds, loggerPart, &hooks)
 		padMessageHandler := ws.NewPadMessageHandler(
-			ds, &hooks, padManager, &sess, hub, loggerPart, TestAssets,
+			ds, &hooks, padManager, &sess, hub, loggerPart, TestAssets, &cfg,
 		)
 		app := fiber.New()
 		adminMessageHandler := ws.NewAdminMessageHandler(
@@ -327,8 +386,9 @@ func (test *TestDBHandler) TestRun(
 			App:                 app,
 			PrivateAPI:          privateAPI,
 			Logger:              loggerPart,
-			SecurityManager:     pad.NewSecurityManager(ds, &hooks, padManager),
+			SecurityManager:     pad.NewSecurityManager(ds, &hooks, padManager, &cfg),
 			Importer:            importer,
+			Settings:            &cfg,
 		})
 
 		// Close the DataStore connection after test

@@ -6,9 +6,8 @@ import (
 	"github.com/ether/etherpad-go/lib/db"
 )
 
-// RunSequentialMemorySQLite runs conf against the in-process datastores one
-// after another. Use it for tests that toggle global settings, which the
-// parallel StartTestDBHandler run would turn into data races.
+// RunSequentialMemorySQLite runs conf against the in-process datastores only
+// (Memory and SQLite), for tests that don't need the SQL servers.
 func RunSequentialMemorySQLite(t *testing.T, conf TestRunConfig) {
 	t.Helper()
 	handler := NewTestDBHandler(t)

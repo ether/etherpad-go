@@ -85,9 +85,9 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 		globalHub.BroadcastShout(fmt.Sprintf("This server is updating and will restart in %d seconds. Your changes are saved.", secsLeft), true)
 	})
 	sessionStore := ws.NewSessionStore()
-	padMessageHandler := ws.NewPadMessageHandler(dataStore, &retrievedHooks, padManager, &sessionStore, globalHub, setupLogger, uiAssets)
+	padMessageHandler := ws.NewPadMessageHandler(dataStore, &retrievedHooks, padManager, &sessionStore, globalHub, setupLogger, uiAssets, &settings)
 	adminMessageHandler := ws.NewAdminMessageHandler(dataStore, &retrievedHooks, padManager, padMessageHandler, setupLogger, globalHub, app, upd)
-	securityManager := pad.NewSecurityManager(dataStore, &retrievedHooks, padManager)
+	securityManager := pad.NewSecurityManager(dataStore, &retrievedHooks, padManager, &settings)
 
 	var epPluginStore = &interfaces.EpPluginStore{
 		Logger:            setupLogger,

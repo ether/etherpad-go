@@ -21,10 +21,15 @@ type SecurityManager struct {
 	AuthorManager   *author.Manager
 	SessionManager  *SessionManager
 	hooks           *hooks.Hook
+	settings        *settings.Settings
 }
 
-func NewSecurityManager(db db.DataStore, hooks *hooks.Hook, padManager *Manager) *SecurityManager {
+// NewSecurityManager creates a SecurityManager that reads its access rules
+// from cfg instead of the global settings, so tests can run in parallel with
+// different settings.
+func NewSecurityManager(db db.DataStore, hooks *hooks.Hook, padManager *Manager, cfg *settings.Settings) *SecurityManager {
 	return &SecurityManager{
+		settings:        cfg,
 		ReadOnlyManager: NewReadOnlyManager(db),
 		PadManager:      padManager,
 		AuthorManager:   author.NewManager(db),
@@ -42,7 +47,7 @@ func (s *SecurityManager) CheckAccess(padId *string, sessionCookie *string, toke
 	if padId == nil {
 		return nil, errors.New("padId is nil")
 	}
-	var canCreate = !settings.Displayed.EditOnly
+	var canCreate = !s.settings.EditOnly
 	if s.ReadOnlyManager.IsReadOnlyID(padId) {
 		canCreate = false
 		foundPadId, err := s.ReadOnlyManager.GetPadId(*padId)
@@ -69,13 +74,13 @@ func (s *SecurityManager) CheckAccess(padId *string, sessionCookie *string, toke
 		}
 	}
 
-	if settings.Displayed.LoadTest {
+	if s.settings.LoadTest {
 		authorId, err := s.resolveAuthorId(token, userSettings)
 		if err != nil {
 			return nil, errors.New("access denied: invalid author token" + err.Error())
 		}
 		return &GrantedAccess{AccessStatus: "grant", AuthorId: authorId}, nil
-	} else if settings.Displayed.RequireAuthentication {
+	} else if s.settings.RequireAuthentication {
 		if userSettings == nil {
 			return nil, errors.New("userSettings is nil")
 		}
@@ -122,7 +127,7 @@ func (s *SecurityManager) CheckAccess(padId *string, sessionCookie *string, toke
 
 	var sessionAuthorID = s.SessionManager.findAuthorID(splittedPadId, sessionCookie)
 
-	if settings.Displayed.RequireSession && sessionAuthorID == nil {
+	if s.settings.RequireSession && sessionAuthorID == nil {
 		return nil, errors.New("access denied: HTTP API session is required")
 	}
 

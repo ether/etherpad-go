@@ -5,7 +5,6 @@ import (
 
 	"github.com/ether/etherpad-go/lib/hooks"
 	"github.com/ether/etherpad-go/lib/hooks/events"
-	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/ether/etherpad-go/lib/test/testutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -34,9 +33,7 @@ func TestSecurityManagerHooks(t *testing.T) {
 // testOnAccessCheckDenyReturnsError registers an onAccessCheck hook that calls
 // ctx.Deny() and asserts that CheckAccess returns a non-nil error and nil access.
 func testOnAccessCheckDenyReturnsError(t *testing.T, ds testutils.TestDataStore) {
-	prevLoadTest := settings.Displayed.LoadTest
-	settings.Displayed.LoadTest = true
-	defer func() { settings.Displayed.LoadTest = prevLoadTest }()
+	ds.Settings.LoadTest = true
 
 	// Register a hook on the same hooks instance the SecurityManager uses.
 	hookId := ds.Hooks.EnqueueOnAccessCheckHook(func(ctx *events.OnAccessCheckContext) {
@@ -56,9 +53,7 @@ func testOnAccessCheckDenyReturnsError(t *testing.T, ds testutils.TestDataStore)
 // testGetAuthorIdOverride registers a getAuthorId hook that sets a custom author id
 // and asserts that GrantedAccess.AuthorId equals that custom id.
 func testGetAuthorIdOverride(t *testing.T, ds testutils.TestDataStore) {
-	prevLoadTest := settings.Displayed.LoadTest
-	settings.Displayed.LoadTest = true
-	defer func() { settings.Displayed.LoadTest = prevLoadTest }()
+	ds.Settings.LoadTest = true
 
 	const customAuthorId = "a.customFromPlugin"
 
@@ -81,9 +76,7 @@ func testGetAuthorIdOverride(t *testing.T, ds testutils.TestDataStore) {
 // CheckAccess falls back to the DB token->author mapping and grants access
 // with a non-empty AuthorId.
 func testDefaultNoHooksGrantsAccess(t *testing.T, ds testutils.TestDataStore) {
-	prevLoadTest := settings.Displayed.LoadTest
-	settings.Displayed.LoadTest = true
-	defer func() { settings.Displayed.LoadTest = prevLoadTest }()
+	ds.Settings.LoadTest = true
 
 	padId := "testpad-nohooks"
 	token := "t.nohookstoken12345678901"

@@ -1143,6 +1143,8 @@ type PostgresOptions struct {
 	Port     int
 	Host     string
 	Database string
+	// MaxConns caps the connection pool; 0 means the default of 25.
+	MaxConns int
 }
 
 func NewPostgresDB(options PostgresOptions) (*PostgresDB, error) {
@@ -1160,7 +1162,10 @@ func NewPostgresDB(options PostgresOptions) (*PostgresDB, error) {
 	}
 
 	config.MaxConns = 25
-	config.MinConns = 5
+	if options.MaxConns > 0 {
+		config.MaxConns = int32(options.MaxConns)
+	}
+	config.MinConns = min(5, config.MaxConns)
 
 	pool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {
