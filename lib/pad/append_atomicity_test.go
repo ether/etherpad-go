@@ -25,6 +25,21 @@ type failingStore struct {
 	db.DataStore
 	failRev      atomic.Int64 // revision number whose SaveRevision fails; -1 for none
 	failPadWrite atomic.Bool  // CreatePad and UpdatePadHead fail
+	failReads    atomic.Bool  // reading stored revisions fails
+}
+
+func (f *failingStore) GetRevisionDeltas(padID string, from, to int) ([]db.RevisionDelta, error) {
+	if f.failReads.Load() {
+		return nil, errSimulated
+	}
+	return f.DataStore.GetRevisionDeltas(padID, from, to)
+}
+
+func (f *failingStore) GetRevision(padID string, rev int) (*dbmodel.PadSingleRevision, error) {
+	if f.failReads.Load() {
+		return nil, errSimulated
+	}
+	return f.DataStore.GetRevision(padID, rev)
 }
 
 func newFailingStore(inner db.DataStore) *failingStore {
@@ -57,7 +72,7 @@ func (f *failingStore) UpdatePadHead(padID string, head int, pool dbmodel.RevPoo
 // tryAppendLine is appendLine that returns the error instead of failing.
 func tryAppendLine(t *testing.T, m *Manager, padID, line string) error {
 	t.Helper()
-	unlock := m.LockPad(padID)
+	unlock := mustLock(m.LockPad(padID))
 	defer unlock()
 	p, err := m.GetPad(padID, nil, nil)
 	require.NoError(t, err)
@@ -66,7 +81,7 @@ func tryAppendLine(t *testing.T, m *Manager, padID, line string) error {
 
 func padState(t *testing.T, m *Manager, padID string) (head int, text string) {
 	t.Helper()
-	unlock := m.RLockPad(padID)
+	unlock := mustLock(m.RLockPad(padID))
 	defer unlock()
 	p, err := m.GetPad(padID, nil, nil)
 	require.NoError(t, err)
@@ -85,7 +100,7 @@ func storedHead(t *testing.T, store db.DataStore, padID string) int {
 func checkReloaded(t *testing.T, m *Manager, padID string) (head int, text string) {
 	t.Helper()
 	m.UnloadPad(padID)
-	unlock := m.RLockPad(padID)
+	unlock := mustLock(m.RLockPad(padID))
 	defer unlock()
 	p, err := m.GetPad(padID, nil, nil)
 	require.NoError(t, err)

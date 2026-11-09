@@ -95,7 +95,7 @@ func testConcurrentUserChangesAndAPIWrites(t *testing.T, ds testutils.TestDataSt
 				return
 			}
 			// Only key revisions store the full text; rebuild it.
-			unlock := ds.PadManager.RLockPad(padId)
+			unlock := mustLock(ds.PadManager.RLockPad(padId))
 			p, err := ds.PadManager.GetPad(padId, nil, nil)
 			if err != nil {
 				unlock()

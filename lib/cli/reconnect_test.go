@@ -51,3 +51,33 @@ func TestReconnectTakesOwnStoredRevisionAsAccepted(t *testing.T) {
 		t.Fatalf("text changed: %q", p.atext.Text)
 	}
 }
+
+// A callback registered after the pad connected still runs.
+func TestOnConnectedAfterConnecting(t *testing.T) {
+	p := NewPad("http://x", "pad", nil, zap.NewNop().Sugar())
+	p.handleClientVars(map[string]interface{}{"data": map[string]interface{}{
+		"userId": "a.me",
+		"collab_client_vars": map[string]interface{}{
+			"initialAttributedText": map[string]interface{}{"text": "\n", "attribs": "|1+1"},
+			"apool":                 map[string]interface{}{"numToAttrib": map[string]interface{}{}, "nextNum": float64(0)},
+			"rev":                   float64(0),
+		},
+	}})
+	select {
+	case <-p.Ready():
+	default:
+		t.Fatal("Ready not closed after CLIENT_VARS")
+	}
+	called := make(chan struct{}, 2)
+	p.OnConnected(func(*Pad) { called <- struct{}{} })
+	select {
+	case <-called:
+	case <-time.After(time.Second):
+		t.Fatal("late OnConnected never called")
+	}
+	select {
+	case <-called:
+		t.Fatal("called twice")
+	case <-time.After(50 * time.Millisecond):
+	}
+}

@@ -58,6 +58,7 @@ func TestBuildUpdaterConfigWindowAndTier(t *testing.T) {
 func TestBuildUpdaterConfigOnlyNotifiesInACluster(t *testing.T) {
 	for _, tier := range []string{"manual", "auto", "autonomous"} {
 		s := &settings.Settings{DBType: "postgres"}
+		s.Cluster.Mode = "on"
 		s.Updates.Tier = tier
 		if got := buildUpdaterConfig(s, "1.0.0").Tier; got != updater.TierNotify {
 			t.Errorf("tier %s in a cluster: got %q, want notify", tier, got)
@@ -68,6 +69,7 @@ func TestBuildUpdaterConfigOnlyNotifiesInACluster(t *testing.T) {
 		}
 	}
 	s := &settings.Settings{DBType: "mysql"}
+	s.Cluster.Mode = "on"
 	s.Updates.Tier = "off"
 	if got := buildUpdaterConfig(s, "1.0.0").Tier; got != updater.TierOff {
 		t.Errorf("off stays off in a cluster, got %q", got)

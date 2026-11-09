@@ -141,10 +141,14 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 		return
 	}
 	// Rebase + append + broadcast must not interleave with other writers.
-	unlock := p.padManager.LockPad(session.PadId)
+	unlock, err := p.padManager.LockPad(session.PadId)
+	if err != nil {
+		p.dropUnavailable(task.socket, session.PadId, err)
+		return
+	}
 	defer unlock()
 
-	var retrievedPad, err = p.padManager.GetPad(session.PadId, nil, &session.Author)
+	retrievedPad, err := p.padManager.GetPad(session.PadId, nil, &session.Author)
 	if err != nil {
 		p.Logger.Warnf("Error retrieving pad %s: %v", session.PadId, err)
 		sendDisconnectMessage(task.socket, "badChangeset")
@@ -642,7 +646,11 @@ func (p *PadMessageHandler) HandleMessage(message any, client *Client, retrieved
 				p.Logger.Errorf("Session not found for saved revision")
 				return
 			}
-			unlock := p.padManager.LockPad(sess.PadId)
+			unlock, err := p.padManager.LockPad(sess.PadId)
+			if err != nil {
+				p.Logger.Errorf("Saved revision not stored: %v", err)
+				return
+			}
 			defer unlock()
 			foundPad, err := p.padManager.GetPad(sess.PadId, nil, nil)
 			if err != nil {
@@ -745,7 +753,11 @@ func (p *PadMessageHandler) HandleChangesetRequest(socket *Client, message ws.Ch
 		p.Logger.Warn("Session not found for changeset request")
 		return
 	}
-	unlock := p.padManager.RLockPad(session.PadId)
+	unlock, err := p.padManager.RLockPad(session.PadId)
+	if err != nil {
+		p.Logger.Warn("Changeset request not answered: ", err)
+		return
+	}
 	defer unlock()
 
 	retrievedPad, err := p.padManager.GetPad(session.PadId, nil, &session.Author)
@@ -1004,9 +1016,13 @@ func (p *PadMessageHandler) SendChatMessageToPadClients(session *ws.Session, cha
 		p.Logger.Warn("chatNewMessage hook set Text to nil; keeping original chat text")
 	}
 
-	unlock := p.padManager.LockPad(session.PadId)
+	unlock, err := p.padManager.LockPad(session.PadId)
+	if err != nil {
+		p.Logger.Warn("Chat message not stored: ", err)
+		return
+	}
 	defer unlock()
-	var retrievedPad, err = p.padManager.GetPad(session.PadId, nil, chatMessage.AuthorId)
+	retrievedPad, err := p.padManager.GetPad(session.PadId, nil, chatMessage.AuthorId)
 	if err != nil {
 		p.Logger.Warn("Error retrieving pad for chat message", err)
 		return
@@ -1069,7 +1085,11 @@ func (p *PadMessageHandler) HandlePadDelete(client *Client, padDeleteMessage Pad
 		return
 	}
 
-	unlock := p.padManager.LockPad(padDeleteMessage.Data.PadID)
+	unlock, err := p.padManager.LockPad(padDeleteMessage.Data.PadID)
+	if err != nil {
+		p.Logger.Warn("Pad not deleted: ", err)
+		return
+	}
 	defer unlock()
 	retrievedPad, err := p.padManager.DoesPadExist(padDeleteMessage.Data.PadID)
 	if err != nil {
@@ -1315,7 +1335,11 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 	// Loading (or creating) the pad, the retention check and the catch-up
 	// snapshot sent in CLIENT_VARS must see one consistent head revision, so
 	// no commit may land in between (cf. etherpad-lite #8409).
-	unlock := p.padManager.LockPad(thisSession.PadId)
+	unlock, err := p.padManager.LockPad(thisSession.PadId)
+	if err != nil {
+		p.dropUnavailable(client, thisSession.PadId, err)
+		return
+	}
 	defer unlock()
 
 	var retentionNotice *pad.RetentionNotice
@@ -1323,11 +1347,18 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 		retentionNotice = p.retention.CheckOnOpen(thisSession.PadId)
 	}
 
-	var retrievedPad, err = p.padManager.GetPad(thisSession.PadId, nil, &thisSession.Author)
+	retrievedPad, err := p.padManager.GetPad(thisSession.PadId, nil, &thisSession.Author)
 
 	if err != nil {
 		p.Logger.Warn("Error getting pad")
 		return
+	}
+	// A pad opened for the first time had no row yet when the session got
+	// its read-only id, so that id was never stored. Now the pad exists:
+	// take the stored id (claimed atomically, the same on every instance).
+	if !thisSession.ReadOnly {
+		p.SessionStore.addPadReadOnlyIds(client.SessionId, thisSession.PadId, p.readOnlyManager.GetReadOnlyId(thisSession.PadId), false)
+		thisSession = p.SessionStore.getSession(client.SessionId)
 	}
 
 	var loggerStr = "pad:%s socket:%s"
@@ -1391,29 +1422,8 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 		historicalAuthorData[a.Id] = a
 	}
 
+	p.disconnectDuplicates(thisSession.PadId, thisSession.Author, client.SessionId)
 	var roomSockets = p.GetRoomSockets(thisSession.PadId)
-
-	for _, otherSocket := range roomSockets {
-		if otherSocket.SessionId == client.SessionId {
-			continue
-		}
-		var sinfo = p.SessionStore.getSession(otherSocket.SessionId)
-		if sinfo == nil {
-			continue
-		}
-
-		if sinfo.Author == thisSession.Author {
-			p.SessionStore.resetSession(otherSocket.SessionId)
-			otherSocket.Leave()
-			var arr = make([]interface{}, 2)
-			arr[0] = "message"
-			arr[1] = UserDupMessage{
-				Disconnect: "userdup",
-			}
-			var encoded, _ = json.Marshal(arr)
-			otherSocket.SafeSend(encoded)
-		}
-	}
 
 	if ready.Data.Reconnect != nil && *ready.Data.Reconnect {
 		// This is a reconnect - the client already has the pad content
@@ -1639,7 +1649,7 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 	}
 	// Announce the user on the other instances too; they answer with their
 	// users of this pad.
-	p.publish(cluster.Event{Kind: cluster.KindJoin, Pad: thisSession.PadId, Session: client.SessionId, Payload: marshalled})
+	p.publish(cluster.Event{Kind: cluster.KindJoin, Pad: thisSession.PadId, Session: client.SessionId, Author: thisSession.Author, Payload: marshalled})
 
 	// send all other users' info to the new client
 	for _, socket := range roomSockets {
@@ -1914,4 +1924,38 @@ func (p *PadMessageHandler) GetPadUsers(padId string) []PadUserInfo {
 // GetPadUsersCount returns the number of users currently in a pad
 func (p *PadMessageHandler) GetPadUsersCount(padId string) int {
 	return p.SessionStore.GetPadSessionsCount(padId)
+}
+
+// dropUnavailable closes the connection of a client whose message could not
+// be handled because its pad is unavailable (database unreachable). The
+// client reconnects, behind a load balancer possibly to another instance,
+// and sends the unacknowledged change again.
+func (p *PadMessageHandler) dropUnavailable(client *Client, padID string, err error) {
+	p.Logger.Warnw("closing connection: pad unavailable", "pad", padID, "error", err)
+	_ = client.Conn.Close()
+}
+
+// disconnectDuplicates disconnects this instance's other sessions of author
+// in padID ("userdup"), as a newer session of the same author takes over.
+// It runs for joins here and, through the cluster, for joins on other
+// instances.
+func (p *PadMessageHandler) disconnectDuplicates(padID, author, exceptSession string) {
+	if author == "" {
+		return
+	}
+	for _, otherSocket := range p.GetRoomSockets(padID) {
+		if otherSocket.SessionId == exceptSession {
+			continue
+		}
+		sinfo := p.SessionStore.getSession(otherSocket.SessionId)
+		if sinfo == nil || sinfo.Author != author {
+			continue
+		}
+		p.SessionStore.resetSession(otherSocket.SessionId)
+		// Send before leaving: leaving closes the client's send channel,
+		// and the message would be dropped.
+		encoded, _ := json.Marshal([]interface{}{"message", UserDupMessage{Disconnect: "userdup"}})
+		otherSocket.SafeSend(encoded)
+		otherSocket.Leave()
+	}
 }

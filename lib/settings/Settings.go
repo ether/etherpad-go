@@ -175,6 +175,11 @@ type Cluster struct {
 }
 
 // Enabled reports whether clustering is on for the given database type.
+//
+// "auto" turns it on for PostgreSQL and MySQL when the instance runs under an
+// orchestrator that runs several replicas (Kubernetes, or POD_IP given), so
+// an existing single instance on PostgreSQL does not start listening on the
+// gossip port after an upgrade. Elsewhere set mode "on".
 func (c Cluster) Enabled(dbType string) bool {
 	switch c.Mode {
 	case "on", "true":
@@ -182,7 +187,13 @@ func (c Cluster) Enabled(dbType string) bool {
 	case "off", "false":
 		return false
 	}
-	return dbType == "postgres" || dbType == "mysql"
+	return (dbType == "postgres" || dbType == "mysql") && orchestrated()
+}
+
+// orchestrated reports whether the instance runs in Kubernetes or was given
+// its pod address.
+func orchestrated() bool {
+	return os.Getenv("KUBERNETES_SERVICE_HOST") != "" || os.Getenv("POD_IP") != ""
 }
 
 // Clustered reports whether several instances may share this database, so

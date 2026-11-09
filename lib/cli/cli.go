@@ -35,6 +35,7 @@ type Pad struct {
 	connWrite sync.Mutex
 	poolLock  sync.RWMutex
 	events    map[string][]func(interface{})
+	eventsMu  sync.Mutex
 	closeChan chan struct{}
 	closeOnce sync.Once
 	inFlight  *PadChangeset
@@ -50,6 +51,9 @@ type Pad struct {
 	// reconnecting is true from a broken connection until the missed
 	// revisions are applied; no change is sent meanwhile.
 	reconnecting bool
+	// ready is closed once the first CLIENT_VARS arrived.
+	ready     chan struct{}
+	readyOnce sync.Once
 }
 
 func NewPad(host, padId string, conn *websocket.Conn, logger *zap.SugaredLogger) *Pad {
@@ -61,15 +65,21 @@ func NewPad(host, padId string, conn *websocket.Conn, logger *zap.SugaredLogger)
 		connWrite: sync.Mutex{},
 		events:    make(map[string][]func(interface{})),
 		closeChan: make(chan struct{}),
+		ready:     make(chan struct{}),
 	}
 }
 
 func (p *Pad) On(event string, handler func(interface{})) {
+	p.eventsMu.Lock()
+	defer p.eventsMu.Unlock()
 	p.events[event] = append(p.events[event], handler)
 }
 
 func (p *Pad) emit(event string, data interface{}) {
-	for _, handler := range p.events[event] {
+	p.eventsMu.Lock()
+	handlers := append([]func(interface{}){}, p.events[event]...)
+	p.eventsMu.Unlock()
+	for _, handler := range handlers {
 		go handler(data)
 	}
 }
@@ -421,8 +431,13 @@ func (p *Pad) handleClientVars(msgMap map[string]interface{}) {
 		p.authorId = userId
 	}
 	p.poolLock.Unlock()
+	p.readyOnce.Do(func() { close(p.ready) })
 	p.emit("connected", nil)
 }
+
+// Ready is closed once the pad's initial state arrived. Unlike the
+// "connected" event it cannot be missed by subscribing late.
+func (p *Pad) Ready() <-chan struct{} { return p.ready }
 
 func parseWirePool(apoolMap map[string]interface{}) apool.APool {
 	pool := apool.NewAPool()
@@ -666,10 +681,17 @@ func (p *Pad) sendMessage(optMsg *PadChangeset) {
 	}
 }
 
+// OnConnected calls callback once the pad's initial state arrived, also if
+// that happened before OnConnected was called.
 func (p *Pad) OnConnected(callback func(padState *Pad)) {
-	p.On("connected", func(data interface{}) {
-		callback(p)
-	})
+	var once sync.Once
+	call := func() { once.Do(func() { callback(p) }) }
+	p.On("connected", func(interface{}) { call() })
+	select {
+	case <-p.ready:
+		go call()
+	default:
+	}
 }
 
 func (p *Pad) OnNumConnectedUsers(callback func(count int)) {

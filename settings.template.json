@@ -95,10 +95,11 @@
   },
   "cluster": {
     "mode": "auto",
-    "bindAddr": "0.0.0.0",
+    "bindAddr": "",
     "bindPort": 7946,
     "advertiseAddr": "",
-    "advertisePort": 0
+    "advertisePort": 0,
+    "shutdownDelaySeconds": 5
   },
   "updates": {
     "tier": "notify",

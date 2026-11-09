@@ -48,13 +48,13 @@ func (d MysqlDB) GetPadVersion(padID string) (*PadVersion, error) {
 	return v, nil
 }
 
-func (d MysqlDB) GetRevisionDeltas(padID string, fromRev, toRev int) ([]RevisionDelta, *db.RevPool, error) {
+func (d MysqlDB) GetRevisionDeltas(padID string, fromRev, toRev int) ([]RevisionDelta, error) {
 	rows, err := d.sqlDB.Query(
 		`SELECT rev, changeset, authorId, timestamp FROM padRev
 		 WHERE id = ? AND rev >= ? AND rev <= ? ORDER BY rev ASC`,
 		padID, fromRev, toRev)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	defer rows.Close()
 	var deltas []RevisionDelta
@@ -62,49 +62,43 @@ func (d MysqlDB) GetRevisionDeltas(padID string, fromRev, toRev int) ([]Revision
 		var r RevisionDelta
 		var ts sql.NullInt64
 		if err := rows.Scan(&r.Rev, &r.Changeset, &r.AuthorId, &ts); err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		r.Timestamp = ts.Int64
 		deltas = append(deltas, r)
 	}
-	if err := rows.Err(); err != nil {
-		return nil, nil, err
-	}
+	return deltas, rows.Err()
+}
+
+func (d MysqlDB) GetRevisionPool(padID string, rev int) (*db.RevPool, error) {
 	var rawPool string
-	if err := d.sqlDB.QueryRow(`SELECT pool FROM padRev WHERE id = ? AND rev = ?`, padID, toRev).Scan(&rawPool); err != nil {
-		return nil, nil, fmt.Errorf("pool of revision %d: %w", toRev, err)
+	if err := d.sqlDB.QueryRow(`SELECT pool FROM padRev WHERE id = ? AND rev = ?`, padID, rev).Scan(&rawPool); err != nil {
+		return nil, fmt.Errorf("pool of revision %d: %w", rev, err)
 	}
 	var pool db.RevPool
 	if err := json.Unmarshal([]byte(rawPool), &pool); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	return deltas, &pool, nil
+	return &pool, nil
 }
 
-func (d MysqlDB) LockPadExclusive(padID string) (func(), error) {
-	return d.lockExclusive(padLockName(padID))
+func (d MysqlDB) LockPadsExclusive(padIDs []string) (func(), error) {
+	return d.lockSlots.lockAll(padLockNames(padIDs), d.lockOne)
 }
 
-func (d MysqlDB) lockExclusive(name string) (func(), error) {
-	ctx, cancel := context.WithTimeout(context.Background(), lockTimeout)
-	defer cancel()
-	select {
-	case d.lockSlots <- struct{}{}:
-	case <-ctx.Done():
-		return nil, fmt.Errorf("waiting for a database lock slot: %w", ctx.Err())
-	}
-	conn, err := d.sqlDB.Conn(ctx)
+// lockOne takes GET_LOCK on a connection of the lock pool. The lock belongs
+// to that connection and is released when it closes, also when the process
+// dies.
+func (d MysqlDB) lockOne(ctx context.Context, name string) (func(), error) {
+	conn, err := d.lockDB.Conn(ctx)
 	if err != nil {
-		<-d.lockSlots
 		return nil, err
 	}
 	lockName := mysqlLockName(name)
-	// GET_LOCK belongs to this connection and is released when it closes,
-	// also when the process dies.
 	var got sql.NullInt64
 	if err := conn.QueryRowContext(ctx, `SELECT GET_LOCK(?, ?)`, lockName, int(lockTimeout.Seconds())).Scan(&got); err != nil || got.Int64 != 1 {
+		_ = conn.Raw(func(any) error { return driver.ErrBadConn })
 		conn.Close()
-		<-d.lockSlots
 		if err == nil {
 			err = errors.New("timeout")
 		}
@@ -112,11 +106,10 @@ func (d MysqlDB) lockExclusive(name string) (func(), error) {
 	}
 	return func() {
 		if _, err := conn.ExecContext(context.Background(), `SELECT RELEASE_LOCK(?)`, lockName); err != nil {
-			// Closing the connection releases the lock.
+			// Still held by this connection: discard it to release.
 			_ = conn.Raw(func(any) error { return driver.ErrBadConn })
 		}
 		conn.Close()
-		<-d.lockSlots
 	}, nil
 }
 

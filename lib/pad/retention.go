@@ -223,7 +223,11 @@ func (r *Retention) sweepOnce(cfg *retentionConfig) {
 	}
 	deleted := 0
 	for _, padID := range *padIDs {
-		unlock := r.manager.LockPad(padID)
+		unlock, err := r.manager.LockPad(padID)
+		if err != nil {
+			r.logger.Warnw("Pad retention check skipped", "padId", padID, "error", err)
+			continue
+		}
 		removed, err := r.expirePad(padID, cfg, time.Now())
 		unlock()
 		if err != nil {

@@ -13,10 +13,11 @@ import (
 )
 
 func TestShutdownDelayOnlyInACluster(t *testing.T) {
-	s := &settings.Settings{DBType: "sqlite"}
+	s := &settings.Settings{DBType: "postgres"}
+	s.Cluster.Mode = "off"
 	s.Cluster.ShutdownDelaySeconds = 5
 	assert.Zero(t, shutdownDelay(s), "a single instance has nowhere to send users")
-	s.DBType = "postgres"
+	s.Cluster.Mode = "on"
 	assert.Equal(t, 5*time.Second, shutdownDelay(s))
 	s.Cluster.ShutdownDelaySeconds = 0
 	assert.Zero(t, shutdownDelay(s))

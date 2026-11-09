@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"strings"
 	"sync"
@@ -75,14 +76,23 @@ func NewMemberlist(cfg settings.Cluster, store db.DataStore, logger *zap.Sugared
 
 	c := memberlist.DefaultLANConfig()
 	c.Name = b.name
-	c.BindAddr = cfg.BindAddr
 	c.BindPort = cfg.BindPort
 	c.AdvertisePort = cfg.BindPort
 	if cfg.AdvertisePort > 0 {
 		c.AdvertisePort = cfg.AdvertisePort
 	}
-	if addr := firstNonEmpty(cfg.AdvertiseAddr, os.Getenv("POD_IP")); addr != "" {
-		c.AdvertiseAddr = addr
+	advertise := firstNonEmpty(cfg.AdvertiseAddr, os.Getenv("POD_IP"))
+	if advertise != "" {
+		c.AdvertiseAddr = advertise
+	}
+	// Listen only where the other instances reach this one, not on every
+	// interface, unless configured otherwise.
+	c.BindAddr = cfg.BindAddr
+	if c.BindAddr == "" {
+		c.BindAddr = "0.0.0.0"
+		if ip := net.ParseIP(advertise); ip != nil {
+			c.BindAddr = advertise
+		}
 	}
 	c.SecretKey = key
 	c.Delegate = b
@@ -121,35 +131,24 @@ func firstNonEmpty(vals ...string) string {
 	return ""
 }
 
-// gossipKey is the AES key the instances encrypt their traffic with; the
-// first instance creates it in the database. Two instances starting
-// together may both write one, so it is read back after a pause and the
-// stored one wins.
+// gossipKey is the AES key the instances encrypt their traffic with. The
+// first instance creates it in the database; it is inserted only if absent,
+// so instances starting at once all end up with the first one's key.
 func gossipKey(store db.DataStore) ([]byte, error) {
-	read := func() ([]byte, error) {
-		raw, err := store.GetOIDCStorageValue(gossipKeyKey)
-		if err != nil || raw == nil || *raw == "" {
-			return nil, err
-		}
+	if raw, err := store.GetOIDCStorageValue(gossipKeyKey); err != nil {
+		return nil, err
+	} else if raw != nil && *raw != "" {
 		return base64.StdEncoding.DecodeString(*raw)
 	}
-	key, err := read()
-	if err != nil || key != nil {
-		return key, err
-	}
-	key = make([]byte, 32)
+	key := make([]byte, 32)
 	if _, err := rand.Read(key); err != nil {
 		return nil, err
 	}
-	if err := store.SetOIDCStorageValue(gossipKeyKey, base64.StdEncoding.EncodeToString(key)); err != nil {
+	stored, err := store.AddOIDCStorageValue(gossipKeyKey, base64.StdEncoding.EncodeToString(key))
+	if err != nil {
 		return nil, err
 	}
-	time.Sleep(300 * time.Millisecond)
-	stored, err := read()
-	if err != nil || stored == nil {
-		return key, err
-	}
-	return stored, nil
+	return base64.StdEncoding.DecodeString(stored)
 }
 
 // heartbeat records this instance and joins registered ones it is not
@@ -177,7 +176,10 @@ func (b *Memberlist) heartbeat() {
 	}
 	if len(join) > 0 {
 		if _, err := b.ml.Join(join); err != nil {
-			b.logger.Debugw("joining cluster nodes failed", "nodes", join, "error", err)
+			// Registered but unreachable: blocked port, wrong advertise
+			// address or a different gossip key. Live updates from those
+			// instances arrive only through the database then.
+			b.logger.Warnw("joining cluster nodes failed", "nodes", join, "error", err)
 		}
 	}
 }

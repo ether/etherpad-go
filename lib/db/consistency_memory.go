@@ -22,18 +22,16 @@ func (m *MemoryDataStore) GetPadVersion(padID string) (*PadVersion, error) {
 			v.Meta.ReadOnlyId = &id
 		}
 	}
-	for rev := range m.padRevisions[padID] {
-		v.Rev = max(v.Rev, rev)
+	if rev, ok := m.maxRev[padID]; ok {
+		v.Rev = rev
 	}
-	for _, msg := range m.chatPads {
-		if msg.PadId == padID {
-			v.ChatHead = max(v.ChatHead, msg.Head)
-		}
+	if head, ok := m.maxChat[padID]; ok {
+		v.ChatHead = head
 	}
 	return v, nil
 }
 
-func (m *MemoryDataStore) GetRevisionDeltas(padID string, fromRev, toRev int) ([]RevisionDelta, *db.RevPool, error) {
+func (m *MemoryDataStore) GetRevisionDeltas(padID string, fromRev, toRev int) ([]RevisionDelta, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	revs := m.padRevisions[padID]
@@ -45,21 +43,27 @@ func (m *MemoryDataStore) GetRevisionDeltas(padID string, fromRev, toRev int) ([
 		}
 		deltas = append(deltas, RevisionDelta{Rev: r, Changeset: rev.Changeset, AuthorId: rev.AuthorId, Timestamp: rev.Timestamp})
 	}
-	last, ok := revs[toRev]
-	if !ok {
-		return nil, nil, fmt.Errorf("revision %d not found", toRev)
-	}
-	var pool db.RevPool
-	if last.Pool != nil {
-		pool = *last.Pool
-	}
-	return deltas, &pool, nil
+	return deltas, nil
 }
 
-// LockPadExclusive locks within this process: an in-memory store belongs to
-// one process.
-func (m *MemoryDataStore) LockPadExclusive(padID string) (func(), error) {
-	return m.padLocks.lock(padID), nil
+func (m *MemoryDataStore) GetRevisionPool(padID string, rev int) (*db.RevPool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	stored, ok := m.padRevisions[padID][rev]
+	if !ok {
+		return nil, fmt.Errorf("revision %d not found", rev)
+	}
+	var pool db.RevPool
+	if stored.Pool != nil {
+		pool = *stored.Pool
+	}
+	return &pool, nil
+}
+
+// LockPadsExclusive locks within this process: an in-memory store belongs
+// to one process.
+func (m *MemoryDataStore) LockPadsExclusive(padIDs []string) (func(), error) {
+	return m.padLocks.lockAll(padIDs), nil
 }
 
 var _ ConsistencyMethods = (*MemoryDataStore)(nil)

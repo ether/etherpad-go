@@ -160,7 +160,7 @@ func testClusterLiveUpdates(t *testing.T, ds testutils.TestDataStore) {
 
 	// A revision written through A reaches the client on B.
 	func() {
-		unlock := a.manager.LockPad(padID)
+		unlock := mustLock(a.manager.LockPad(padID))
 		defer unlock()
 		p, err := a.manager.GetPad(padID, nil, nil)
 		require.NoError(t, err)
@@ -180,4 +180,59 @@ func testClusterLiveUpdates(t *testing.T, ds testutils.TestDataStore) {
 	leaves := ofType(received(clientA), "USER_LEAVE")
 	require.Len(t, leaves, 1)
 	assert.Equal(t, authorB, leaves[0]["userInfo"].(map[string]any)["userId"])
+}
+
+// The same author joining a pad through another instance takes over, as on
+// one instance: the older session is disconnected with "userdup".
+func TestClusterDisconnectsDuplicateSessionOnOtherInstance(t *testing.T) {
+	testutils.RunSequentialMemorySQLite(t, testutils.TestRunConfig{
+		Name: "duplicate author across instances",
+		Test: testClusterUserDup,
+	})
+}
+
+func testClusterUserDup(t *testing.T, ds testutils.TestDataStore) {
+	busA, busB := newBusPair()
+	hubB := libws.NewHub()
+	go hubB.Run()
+	sessB := libws.NewSessionStore()
+	managerB := pad.NewManager(ds.DS, ds.Hooks)
+	handlerB := libws.NewPadMessageHandler(ds.DS, ds.Hooks, managerB, &sessB, hubB, ds.Logger, testutils.GetTestAssets(), ds.Settings)
+	ds.PadMessageHandler.SetCluster(busA)
+	handlerB.SetCluster(busB)
+	t.Cleanup(func() { ds.PadMessageHandler.StopCluster(); handlerB.StopCluster() })
+
+	const padID = "clusterUserDup"
+	const token = "t.sameAuthorEverywhere"
+	join := func(h *libws.PadMessageHandler, hub *libws.Hub, sessionID string) *libws.Client {
+		client := createTestClient(hub, sessionID, padID, libws.NewActualMockWebSocketconn())
+		t.Cleanup(func() { delete(hub.Clients, client) })
+		h.SessionStore.InitSessionForTest(sessionID)
+		h.HandleMessage(ws.ClientReady{
+			Event: "message",
+			Data:  ws.ClientReadyData{Component: "pad", Type: "CLIENT_READY", PadID: padID, Token: token},
+		}, client, ds.Settings, ds.Logger)
+		return client
+	}
+
+	onA := join(ds.PadMessageHandler, ds.Hub, "dup-a")
+	drainClientMessages(onA)
+	sessA := ds.PadMessageHandler.SessionStore.GetSessionForTest("dup-a")
+	require.NotEmpty(t, sessA.Author)
+	roA := sessA.ReadOnlyPadId
+	onB := join(handlerB, hubB, "dup-b")
+	bSession := handlerB.SessionStore.GetSessionForTest("dup-b")
+	require.Equal(t, sessA.Author, bSession.Author)
+	assert.Equal(t, roA, bSession.ReadOnlyPadId, "both instances give out the same read-only link")
+
+	var gotDup bool
+	for _, m := range drainClientMessages(onA) {
+		if strings.Contains(m, `"userdup"`) {
+			gotDup = true
+		}
+	}
+	assert.True(t, gotDup, "the older session on A is told it was taken over")
+	for _, m := range drainClientMessages(onB) {
+		assert.NotContains(t, m, `"userdup"`, "the new session on B stays")
+	}
 }

@@ -28,7 +28,12 @@ func NewSheetChannelOperator(p *PadMessageHandler) SheetChannelOperator {
 }
 
 func (c *SheetChannelOperator) AddToQueue(ch string, t SheetTask) {
-	unlock := c.handler.padManager.LockPad(ch)
+	unlock, err := c.handler.padManager.LockPad(ch)
+	if err != nil {
+		// Not applied: the client gets no acknowledgement and resends.
+		c.handler.Logger.Warnw("sheet op not applied: pad unavailable", "pad", ch, "error", err)
+		return
+	}
 	defer unlock()
 	c.handler.handleSheetOp(t)
 }

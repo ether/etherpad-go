@@ -11,7 +11,7 @@ import (
 func benchmarkAppendToLargePad(b *testing.B, store db.DataStore) {
 	m := newInstanceB(store)
 	padID := "large"
-	unlock := m.LockPad(padID)
+	unlock := mustLock(m.LockPad(padID))
 	p, err := m.GetPad(padID, nil, nil)
 	if err != nil {
 		b.Fatal(err)
@@ -22,7 +22,7 @@ func benchmarkAppendToLargePad(b *testing.B, store db.DataStore) {
 	unlock()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		unlock := m.LockPad(padID)
+		unlock := mustLock(m.LockPad(padID))
 		p, _ := m.GetPad(padID, nil, nil)
 		if err := p.SpliceText(utf8.RuneCountInString(p.Text())-1, 0, "x\n", nil); err != nil {
 			b.Fatal(err)

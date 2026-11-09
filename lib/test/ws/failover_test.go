@@ -71,7 +71,7 @@ func newFailoverSetup(t *testing.T, ds testutils.TestDataStore, padID string) *f
 	s.author = sess.Author
 	received(s.client)
 
-	unlock := ds.PadManager.RLockPad(padID)
+	unlock := mustLock(ds.PadManager.RLockPad(padID))
 	p, err := ds.PadManager.GetPad(padID, nil, nil)
 	require.NoError(t, err)
 	s.baseRev, s.baseLen = p.Head, utf8.RuneCountInString(p.Text())
@@ -111,7 +111,7 @@ func (s *failoverSetup) reconnectToB(t *testing.T) (*libws.Client, []map[string]
 }
 
 func (s *failoverSetup) textOnB(t *testing.T) string {
-	unlock := s.b.manager.RLockPad(s.padID)
+	unlock := mustLock(s.b.manager.RLockPad(s.padID))
 	defer unlock()
 	p, err := s.b.manager.GetPad(s.padID, nil, nil)
 	require.NoError(t, err)
@@ -149,4 +149,13 @@ func testFailoverNotStored(t *testing.T, ds testutils.TestDataStore) {
 
 	text := s.textOnB(t)
 	assert.True(t, strings.HasPrefix(text, "Q") && !strings.HasPrefix(text, "QQ"), "the change is in the pad once: %q", text[:min(10, len(text))])
+}
+
+// mustLock returns the unlock function of a successful LockPad/RLockPad and
+// panics (failing the test) otherwise.
+func mustLock(unlock func(), err error) func() {
+	if err != nil {
+		panic(err)
+	}
+	return unlock
 }

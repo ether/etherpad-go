@@ -2,6 +2,7 @@ package pad
 
 import (
 	"errors"
+	"fmt"
 	"regexp"
 	"sync"
 	"unicode/utf8"
@@ -101,6 +102,46 @@ type Manager struct {
 	// callers can't each build their own *Pad and overwrite one another in
 	// the cache (a writer could then keep appending to an orphaned object).
 	loadMu sync.Mutex
+	// dbLocked counts, per pad, the LockPad calls holding the pad's
+	// database lock, so loading the pad under such a call does not try to
+	// take that lock a second time.
+	dbLockedMu sync.Mutex
+	dbLocked   map[string]int
+}
+
+func (m *Manager) markDBLocked(ids []string, delta int) {
+	m.dbLockedMu.Lock()
+	defer m.dbLockedMu.Unlock()
+	if m.dbLocked == nil {
+		m.dbLocked = map[string]int{}
+	}
+	for _, id := range ids {
+		if m.dbLocked[id] += delta; m.dbLocked[id] <= 0 {
+			delete(m.dbLocked, id)
+		}
+	}
+}
+
+func (m *Manager) isDBLocked(id string) bool {
+	m.dbLockedMu.Lock()
+	defer m.dbLockedMu.Unlock()
+	return m.dbLocked[id] > 0
+}
+
+// lockForLoad takes the database lock of an uncached pad for loading or
+// creating it, so instances creating the same pad at once cannot see each
+// other's half-created pad (a row whose first revision is not stored yet).
+// It is skipped when a LockPad call already holds the lock. It must be taken
+// before loadMu: LockPad holders take loadMu while holding the lock.
+func (m *Manager) lockForLoad(padID string) (func(), error) {
+	if m.isDBLocked(padID) {
+		return func() {}, nil
+	}
+	release, err := m.store.LockPadsExclusive([]string{padID})
+	if err != nil {
+		return nil, fmt.Errorf("%w: locking %s for loading: %v", ErrPadUnavailable, padID, err)
+	}
+	return release, nil
 }
 
 func NewManager(db db.DataStore, hook *hooks.Hook) *Manager {
@@ -169,6 +210,11 @@ func (m *Manager) GetPad(padID string, text *string, authorId *string) (*pad.Pad
 		return cachedPad, nil
 	}
 
+	release, err := m.lockForLoad(padID)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
 	m.loadMu.Lock()
 	defer m.loadMu.Unlock()
 	// Another caller may have loaded it while we waited.
@@ -201,6 +247,11 @@ func (m *Manager) GetTypedPad(padID string, documentType string, authorId *strin
 		return cachedPad, nil
 	}
 
+	release, err := m.lockForLoad(padID)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
 	m.loadMu.Lock()
 	defer m.loadMu.Unlock()
 	if cachedPad := m.globalPadCache.GetPad(padID); cachedPad != nil {

@@ -20,7 +20,7 @@ func TestEveryRevisionIsRecoverableWithKeyRevisions(t *testing.T) {
 
 		texts := map[int]string{}
 		for i := 0; i < 250; i++ {
-			unlock := m.LockPad(padID)
+			unlock := mustLock(m.LockPad(padID))
 			p, err := m.GetPad(padID, nil, nil)
 			require.NoError(t, err)
 			if i == 0 {

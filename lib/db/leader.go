@@ -89,7 +89,7 @@ func (l *pgLeadership) Release()     { l.once.Do(l.release) }
 func (d PostgresDB) TryLeadership(name string) (Leadership, bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), leaderQueryTimeout)
 	defer cancel()
-	conn, err := d.pool.Acquire(ctx)
+	conn, err := d.lockPool.Acquire(ctx)
 	if err != nil {
 		return nil, false, err
 	}
@@ -141,7 +141,7 @@ func (d PostgresDB) TryLeadership(name string) (Leadership, bool, error) {
 func (d MysqlDB) TryLeadership(name string) (Leadership, bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), leaderQueryTimeout)
 	defer cancel()
-	conn, err := d.sqlDB.Conn(ctx)
+	conn, err := d.lockDB.Conn(ctx)
 	if err != nil {
 		return nil, false, err
 	}

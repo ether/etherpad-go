@@ -95,6 +95,8 @@ func (p *PadMessageHandler) onClusterEvent(e cluster.Event) {
 	case cluster.KindRoom:
 		p.sendToLocalRoom(e.Pad, e.Payload, e.Session)
 	case cluster.KindJoin:
+		// The same author joining elsewhere takes over, as it would here.
+		p.disconnectDuplicates(e.Pad, e.Author, "")
 		p.sendToLocalRoom(e.Pad, e.Payload, "")
 		p.answerJoin(e)
 	case cluster.KindSession:

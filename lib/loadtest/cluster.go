@@ -302,11 +302,8 @@ func (st *benchState) checkMarkers(text string) {
 
 func connectAndWait(logger *zap.SugaredLogger, u string) (*cli.Pad, error) {
 	p := cli.Connect(u, logger)
-	connected := make(chan struct{})
-	var once sync.Once
-	p.OnConnected(func(*cli.Pad) { once.Do(func() { close(connected) }) })
 	select {
-	case <-connected:
+	case <-p.Ready():
 		return p, nil
 	case <-time.After(15 * time.Second):
 		p.Close()

@@ -64,7 +64,10 @@ func GetExport(ctx fiber.Ctx, exportHandler *io.ExportEtherpad, settings *settin
 		}
 
 		// Read a consistent pad while no commit is being appended.
-		unlock := padManager.RLockPad(padId)
+		unlock, err := padManager.RLockPad(padId)
+		if err != nil {
+			return ctx.Status(503).SendString("Pad temporarily unavailable")
+		}
 		defer unlock()
 
 		exists, err := padManager.DoesPadExist(padId)

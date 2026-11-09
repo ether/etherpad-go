@@ -96,7 +96,10 @@ func (h *ImportHandler) ImportPad(ctx fiber.Ctx) error {
 
 	// An import replaces the pad's content and unloads it from the cache; no
 	// websocket commit or API write may run against the old pad meanwhile.
-	unlock := h.padManager.LockPad(padId)
+	unlock, err := h.padManager.LockPad(padId)
+	if err != nil {
+		return ctx.Status(503).SendString("Pad temporarily unavailable")
+	}
 	defer unlock()
 
 	// Check access

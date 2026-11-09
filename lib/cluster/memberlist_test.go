@@ -2,6 +2,8 @@ package cluster
 
 import (
 	"net"
+	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -89,4 +91,45 @@ func TestClosedNodeLeavesTheRegistry(t *testing.T) {
 	nodes, err = store.ListClusterNodes(time.Now().Add(-time.Minute))
 	require.NoError(t, err)
 	assert.Empty(t, nodes)
+}
+
+// The registry holds the address the others can join, including a custom
+// advertise port (e.g. behind NAT), not the bind port.
+func TestRegisteredAddressUsesTheAdvertisePort(t *testing.T) {
+	store := db.NewMemoryDataStore()
+	bind := freePort(t)
+	advertise := freePort(t)
+	b, err := NewMemberlist(settings.Cluster{BindAddr: "127.0.0.1", BindPort: bind, AdvertiseAddr: "127.0.0.1", AdvertisePort: advertise}, store, zap.NewNop().Sugar())
+	require.NoError(t, err)
+	defer b.Close()
+	nodes, err := store.ListClusterNodes(time.Now().Add(-time.Minute))
+	require.NoError(t, err)
+	require.Len(t, nodes, 1)
+	assert.Equal(t, net.JoinHostPort("127.0.0.1", strconv.Itoa(advertise)), nodes[0].Address)
+}
+
+// Instances starting at the same moment must agree on one gossip key, or
+// they could not decrypt each other.
+func TestConcurrentStartersAgreeOnTheGossipKey(t *testing.T) {
+	for round := 0; round < 20; round++ {
+		store := db.NewMemoryDataStore()
+		keys := make(chan string, 8)
+		var wg sync.WaitGroup
+		for i := 0; i < 8; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				k, err := gossipKey(store)
+				assert.NoError(t, err)
+				keys <- string(k)
+			}()
+		}
+		wg.Wait()
+		close(keys)
+		first := <-keys
+		require.Len(t, first, 32)
+		for k := range keys {
+			require.Equal(t, first, k, "round %d", round)
+		}
+	}
 }

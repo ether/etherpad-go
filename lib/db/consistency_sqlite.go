@@ -55,44 +55,44 @@ func (d SQLiteDB) GetPadVersion(padID string) (*PadVersion, error) {
 	return v, nil
 }
 
-func (d SQLiteDB) GetRevisionDeltas(padID string, fromRev, toRev int) ([]RevisionDelta, *db.RevPool, error) {
+func (d SQLiteDB) GetRevisionDeltas(padID string, fromRev, toRev int) ([]RevisionDelta, error) {
 	rows, err := d.sqlDB.Query(
 		`SELECT rev, changeset, authorId, timestamp FROM padRev
 		 WHERE id = ? AND rev >= ? AND rev <= ? ORDER BY rev ASC`,
 		padID, fromRev, toRev)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
+	defer rows.Close()
 	var deltas []RevisionDelta
 	for rows.Next() {
 		var r RevisionDelta
 		var ts sql.NullInt64
 		if err := rows.Scan(&r.Rev, &r.Changeset, &r.AuthorId, &ts); err != nil {
-			rows.Close()
-			return nil, nil, err
+			return nil, err
 		}
 		r.Timestamp = ts.Int64
 		deltas = append(deltas, r)
 	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return nil, nil, err
-	}
+	return deltas, rows.Err()
+}
+
+func (d SQLiteDB) GetRevisionPool(padID string, rev int) (*db.RevPool, error) {
 	var rawPool string
-	if err := d.sqlDB.QueryRow(`SELECT pool FROM padRev WHERE id = ? AND rev = ?`, padID, toRev).Scan(&rawPool); err != nil {
-		return nil, nil, fmt.Errorf("pool of revision %d: %w", toRev, err)
+	if err := d.sqlDB.QueryRow(`SELECT pool FROM padRev WHERE id = ? AND rev = ?`, padID, rev).Scan(&rawPool); err != nil {
+		return nil, fmt.Errorf("pool of revision %d: %w", rev, err)
 	}
 	var pool db.RevPool
 	if err := json.Unmarshal([]byte(rawPool), &pool); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	return deltas, &pool, nil
+	return &pool, nil
 }
 
-// LockPadExclusive locks within this process: an SQLite database is used by
-// one process.
-func (d SQLiteDB) LockPadExclusive(padID string) (func(), error) {
-	return d.locks.lock(padID), nil
+// LockPadsExclusive locks within this process: an SQLite database is used
+// by one process.
+func (d SQLiteDB) LockPadsExclusive(padIDs []string) (func(), error) {
+	return d.locks.lockAll(padIDs), nil
 }
 
 var _ ConsistencyMethods = SQLiteDB{}

@@ -1,6 +1,7 @@
 package db
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
@@ -10,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/ether/etherpad-go/lib/models/db"
+	"golang.org/x/sync/semaphore"
 )
 
 // ErrConflict is returned by SaveRevision and SaveChatMessage when the
@@ -71,13 +73,16 @@ type ConsistencyMethods interface {
 	// GetPadVersion returns the highest stored revision and chat message.
 	GetPadVersion(padID string) (*PadVersion, error)
 	// GetRevisionDeltas returns the changesets of revisions fromRev..toRev
-	// (inclusive, ascending) and the attribute pool stored with toRev.
-	GetRevisionDeltas(padID string, fromRev, toRev int) ([]RevisionDelta, *db.RevPool, error)
-	// LockPadExclusive takes a lock on padID that excludes every other
-	// holder on the same database, also in other processes, and returns
-	// the function that releases it. Datastores that only one process can
-	// use return a no-op.
-	LockPadExclusive(padID string) (release func(), err error)
+	// (inclusive, ascending).
+	GetRevisionDeltas(padID string, fromRev, toRev int) ([]RevisionDelta, error)
+	// GetRevisionPool returns the attribute pool stored with rev.
+	GetRevisionPool(padID string, rev int) (*db.RevPool, error)
+	// LockPadsExclusive takes the locks of all padIDs, which must be
+	// sorted and unique, excluding every other holder on the same
+	// database, also in other processes. It takes all or none: on error
+	// nothing is held. Datastores that only one process uses lock within
+	// the process.
+	LockPadsExclusive(padIDs []string) (release func(), err error)
 }
 
 // advisoryLockKey maps a lock name to a 64-bit key for pg_advisory_lock.
@@ -95,12 +100,71 @@ func mysqlLockName(name string) string {
 
 func padLockName(padID string) string { return "etherpad:pad:" + padID }
 
-// lockSlots bounds how many database locks a process holds at once. Each
-// held lock pins a pooled connection, and the work done under the lock needs
-// further connections; without a bound, many pads locked at once could take
-// every connection and wait forever for one more.
-func newLockSlots(maxConns int) chan struct{} {
-	return make(chan struct{}, max(1, maxConns/2))
+// Database locks are session locks: each held lock pins one connection.
+// They come from their own small pool, so locks never take the connections
+// the work under them needs; with a single shared pool, a pool of one
+// connection would wait forever for itself.
+
+// lockPoolSize is the size of the lock pool for a work pool of maxConns:
+// the pad lock slots, plus one connection for the leader lock and one for
+// the migration lock.
+func lockPoolSize(maxConns int) int { return padLockSlots(maxConns) + 2 }
+
+// padLockSlots is how many pad locks a process holds at once. A multi-pad
+// operation (copy, move) needs up to two at once.
+func padLockSlots(maxConns int) int { return max(4, maxConns/2) }
+
+// lockSlots hands out pad lock slots. A caller locking several pads takes
+// all their slots as one unit, so it can never wait for slots it holds
+// itself, and two callers cannot each hold part of what the other needs.
+type lockSlots struct {
+	sem  *semaphore.Weighted
+	size int
+}
+
+func newLockSlots(size int) *lockSlots {
+	return &lockSlots{sem: semaphore.NewWeighted(int64(size)), size: size}
+}
+
+// lockAll takes slots for and the locks of names, in the given (sorted)
+// order, all or none.
+func (s *lockSlots) lockAll(names []string, lockOne func(ctx context.Context, name string) (func(), error)) (func(), error) {
+	if len(names) == 0 {
+		return func() {}, nil
+	}
+	if len(names) > s.size {
+		return nil, fmt.Errorf("cannot lock %d pads at once (at most %d)", len(names), s.size)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), lockTimeout)
+	defer cancel()
+	if err := s.sem.Acquire(ctx, int64(len(names))); err != nil {
+		return nil, fmt.Errorf("waiting for a database lock slot: %w", err)
+	}
+	releases := make([]func(), 0, len(names))
+	releaseAll := func() {
+		for i := len(releases) - 1; i >= 0; i-- {
+			releases[i]()
+		}
+		s.sem.Release(int64(len(names)))
+	}
+	for _, name := range names {
+		release, err := lockOne(ctx, name)
+		if err != nil {
+			releaseAll()
+			return nil, err
+		}
+		releases = append(releases, release)
+	}
+	var once sync.Once
+	return func() { once.Do(releaseAll) }, nil
+}
+
+func padLockNames(padIDs []string) []string {
+	names := make([]string, len(padIDs))
+	for i, id := range padIDs {
+		names[i] = padLockName(id)
+	}
+	return names
 }
 
 // processLocks is the pad lock of datastores that only one process uses
@@ -117,6 +181,22 @@ type processLock struct {
 
 func newProcessLocks() *processLocks {
 	return &processLocks{locks: map[string]*processLock{}}
+}
+
+// lockAll locks names in order and returns the function that unlocks them.
+func (l *processLocks) lockAll(names []string) func() {
+	unlocks := make([]func(), len(names))
+	for i, name := range names {
+		unlocks[i] = l.lock(name)
+	}
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			for i := len(unlocks) - 1; i >= 0; i-- {
+				unlocks[i]()
+			}
+		})
+	}
 }
 
 func (l *processLocks) lock(name string) func() {

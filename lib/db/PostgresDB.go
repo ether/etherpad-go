@@ -18,9 +18,12 @@ import (
 )
 
 type PostgresDB struct {
-	options   PostgresOptions
-	pool      *pgxpool.Pool
-	lockSlots chan struct{}
+	options PostgresOptions
+	pool    *pgxpool.Pool
+	// lockPool holds the connections of database locks, apart from the
+	// pool the work under the locks uses.
+	lockPool  *pgxpool.Pool
+	lockSlots *lockSlots
 }
 
 func (d PostgresDB) Ping() error {
@@ -1147,6 +1150,9 @@ func (d PostgresDB) DeleteOIDCSession(signature string) error {
 
 func (d PostgresDB) Close() error {
 	d.pool.Close()
+	if d.lockPool != nil {
+		d.lockPool.Close()
+	}
 	return nil
 }
 
@@ -1190,10 +1196,23 @@ func NewPostgresDB(options PostgresOptions) (*PostgresDB, error) {
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
-	sqlDB := stdlib.OpenDBFromPool(pool)
+	lockConfig := config.Copy()
+	lockConfig.MaxConns = int32(lockPoolSize(int(config.MaxConns)))
+	lockConfig.MinConns = 0
+	lockPool, err := pgxpool.NewWithConfig(ctx, lockConfig)
+	if err != nil {
+		pool.Close()
+		return nil, fmt.Errorf("failed to create lock pool: %w", err)
+	}
+
+	// Migrations run on the lock pool: the migration lock holds one
+	// connection while the migrations need another, which a work pool of
+	// one connection could not give.
+	sqlDB := stdlib.OpenDBFromPool(lockPool)
 	migrationManager := migrations.NewMigrationManager(sqlDB, migrations.DialectPostgres)
 	if err := migrationManager.Run(); err != nil {
 		sqlDB.Close()
+		lockPool.Close()
 		pool.Close()
 		return nil, fmt.Errorf("failed to run migrations: %w", err)
 	}
@@ -1202,7 +1221,8 @@ func NewPostgresDB(options PostgresOptions) (*PostgresDB, error) {
 	return &PostgresDB{
 		options:   options,
 		pool:      pool,
-		lockSlots: newLockSlots(int(config.MaxConns)),
+		lockPool:  lockPool,
+		lockSlots: newLockSlots(padLockSlots(int(config.MaxConns))),
 	}, nil
 }
 

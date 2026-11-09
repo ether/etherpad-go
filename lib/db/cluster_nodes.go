@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"time"
 )
 
@@ -175,3 +176,45 @@ var (
 	_ ClusterMethods = SQLiteDB{}
 	_ ClusterMethods = (*MemoryDataStore)(nil)
 )
+
+func (d PostgresDB) AddOIDCStorageValue(key string, payload string) (string, error) {
+	ctx := context.Background()
+	if _, err := d.pool.Exec(ctx, "INSERT INTO oidc_storage (id, payload, updated_at) VALUES ($1, $2, NOW()) ON CONFLICT (id) DO NOTHING", key, payload); err != nil {
+		return "", err
+	}
+	return storedOIDCValue(d.GetOIDCStorageValue(key))
+}
+
+func (d MysqlDB) AddOIDCStorageValue(key string, payload string) (string, error) {
+	if _, err := d.sqlDB.Exec("INSERT IGNORE INTO oidc_storage (id, payload, updated_at) VALUES (?, ?, NOW(6))", key, payload); err != nil {
+		return "", err
+	}
+	return storedOIDCValue(d.GetOIDCStorageValue(key))
+}
+
+func (d SQLiteDB) AddOIDCStorageValue(key string, payload string) (string, error) {
+	if _, err := d.sqlDB.Exec(`INSERT INTO oidc_storage (id, payload, updated_at) VALUES (?, ?, datetime('now', 'localtime')) ON CONFLICT(id) DO NOTHING`, key, payload); err != nil {
+		return "", err
+	}
+	return storedOIDCValue(d.GetOIDCStorageValue(key))
+}
+
+func (m *MemoryDataStore) AddOIDCStorageValue(key string, payload string) (string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if stored, ok := m.oidcStorage[key]; ok {
+		return stored, nil
+	}
+	m.oidcStorage[key] = payload
+	return payload, nil
+}
+
+func storedOIDCValue(v *string, err error) (string, error) {
+	if err != nil {
+		return "", err
+	}
+	if v == nil {
+		return "", errors.New("value vanished after insert")
+	}
+	return *v, nil
+}

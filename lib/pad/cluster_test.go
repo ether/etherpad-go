@@ -91,7 +91,7 @@ func newInstanceB(store db.DataStore) *Manager {
 // under LockPad.
 func appendLine(t *testing.T, m *Manager, padID, line string) {
 	t.Helper()
-	unlock := m.LockPad(padID)
+	unlock := mustLock(m.LockPad(padID))
 	defer unlock()
 	p, err := m.GetPad(padID, nil, nil)
 	require.NoError(t, err)
@@ -150,7 +150,7 @@ func TestInstancesSharingADatabaseNeverLoseChanges(t *testing.T) {
 		check(p.Text())
 		assert.Equal(t, 1+instances*writers*perWriter, p.Head+0, "one revision per line plus the pad's first")
 		for _, m := range managers {
-			unlock := m.RLockPad(padID)
+			unlock := mustLock(m.RLockPad(padID))
 			p, err := m.GetPad(padID, nil, nil)
 			require.NoError(t, err)
 			assert.Equal(t, fresh.globalPadCache.GetPad(padID).Text(), p.Text())

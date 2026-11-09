@@ -780,7 +780,8 @@ func testHandleCheckUpdates(t *testing.T, ds testutils.TestDataStore) {
 func testSettingsReadOnlyInCluster(t *testing.T, ds testutils.TestDataStore) {
 	hub := ws.NewHub()
 	settingsToLoad := settings.Displayed
-	settingsToLoad.DBType = "postgres" // cluster mode auto: on
+	settingsToLoad.DBType = "postgres"
+	settingsToLoad.Cluster.Mode = "on"
 	settingsToLoad.Root = t.TempDir()
 	client := &ws.Client{
 		Hub:       hub,

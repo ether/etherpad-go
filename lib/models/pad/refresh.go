@@ -15,6 +15,10 @@ import (
 // by another instance.
 var ErrPadGone = errors.New("pad no longer exists")
 
+// ErrNoRevisions is returned when a pad row exists but no revision is
+// stored for it.
+var ErrNoRevisions = errors.New("pad has no revisions")
+
 // The stored changesets (padRev.changeset) are the authoritative history of
 // a pad: other Etherpad instances on the same database append to them, and
 // this instance's cached pad as well as the pad row may lag behind. The text
@@ -34,8 +38,25 @@ func poolFromRev(rp *db.RevPool) apool.APool {
 	return pool
 }
 
+// padState is the part of a pad that replaying revisions produces. Loading
+// builds a padState and assigns it to the pad only once every revision has
+// loaded and applied, so a failed load leaves the cached pad as it was.
+type padState struct {
+	atext apool.AText
+	pool  apool.APool
+	head  int
+}
+
+func (p *Pad) state() padState { return padState{atext: p.AText, pool: p.Pool, head: p.Head} }
+
+func (p *Pad) setState(s padState) {
+	p.AText = s.atext
+	p.Pool = s.pool
+	p.Head = s.head
+}
+
 // Refresh brings the pad up to the state stored in the database. Callers
-// hold the pad's write lock.
+// hold the pad's write lock. On error the pad is unchanged.
 func (p *Pad) Refresh() error {
 	v, err := p.db.GetPadVersion(p.Id)
 	if err != nil {
@@ -54,16 +75,23 @@ func (p *Pad) Refresh() error {
 	// Usually a few small changesets are missing; apply them instead of
 	// loading the whole text.
 	if v.Rev > p.Head && p.Head >= 0 {
-		if err := p.applyStoredRevisions(v.Rev); err == nil {
+		if next, err := p.replay(p.state(), v.Rev); err == nil {
+			p.setState(next)
 			return nil
 		}
 	}
-	return p.resync(v.Rev)
+	next, err := p.loadState(v.Rev)
+	if err != nil {
+		return err
+	}
+	p.setState(next)
+	return nil
 }
 
-// reloadFromStore completes loading a pad whose row was just mapped onto p:
-// the row may be behind the stored revisions, or (written by an older
-// version before its revision was stored) ahead of them.
+// reloadFromStore completes loading a pad whose row was just mapped onto p.
+// Text, pool and head come from the stored revisions only: the row may be
+// behind them, ahead of them (written by an older version before its
+// revision was stored), and its text is only updated on key revisions.
 func (p *Pad) reloadFromStore() error {
 	v, err := p.db.GetPadVersion(p.Id)
 	if err != nil {
@@ -75,87 +103,89 @@ func (p *Pad) reloadFromStore() error {
 	p.applyMeta(v.Meta)
 	p.ChatHead = max(p.ChatHead, v.ChatHead)
 	if v.Rev < 0 {
-		return errors.New("pad has no revisions")
+		return ErrNoRevisions
 	}
-	if p.useStoredText(v.Rev) || p.loadFromKeyRevision(v.Rev) {
+	if next, ok := p.storedState(v.Rev); ok {
+		p.setState(next)
 		return nil
 	}
-	switch {
-	case p.Head == v.Rev:
-		return nil
-	case p.Head >= 0 && p.Head < v.Rev:
-		if err := p.applyStoredRevisions(v.Rev); err == nil {
-			return nil
-		}
-	}
-	return p.rebuild(v.Rev)
-}
-
-// resync replaces the cached state with the stored state of rev.
-func (p *Pad) resync(rev int) error {
-	if p.useStoredText(rev) || p.loadFromKeyRevision(rev) {
+	if next, ok := p.keyRevisionState(v.Rev); ok {
+		p.setState(next)
 		return nil
 	}
-	return p.rebuild(rev)
-}
-
-// useStoredText takes text and pool stored with rev, if it has them.
-func (p *Pad) useStoredText(rev int) bool {
-	stored, err := p.db.GetRevision(p.Id, rev)
-	if err != nil || stored.AText.Text == "" {
-		return false
-	}
-	p.AText = apool.FromDBAText(stored.AText)
-	if storedPoolUsable(stored.Pool) {
-		p.Pool = poolFromRev(stored.Pool)
-	}
-	p.Head = rev
-	return true
-}
-
-// rebuild replays every stored changeset from the empty pad.
-func (p *Pad) rebuild(rev int) error {
-	p.AText = changeset.MakeAText("\n", nil)
-	p.Head = -1
-	return p.applyStoredRevisions(rev)
-}
-
-// applyStoredRevisions applies the stored changesets after p.Head up to
-// toRev. The pool stored with toRev holds every attribute they use (pools
-// only grow); where none was stored, the pad's own pool is used.
-func (p *Pad) applyStoredRevisions(toRev int) error {
-	deltas, storedPool, err := p.db.GetRevisionDeltas(p.Id, p.Head+1, toRev)
+	// The row's text is no starting point: its head moves with every
+	// revision, its text only on key revisions.
+	next, err := p.rebuiltState(v.Rev)
 	if err != nil {
 		return err
 	}
-	if len(deltas) != toRev-p.Head {
-		return fmt.Errorf("pad %s: expected %d revisions after %d, got %d", p.Id, toRev-p.Head, p.Head, len(deltas))
+	p.setState(next)
+	return nil
+}
+
+// loadState returns the stored state of rev: from the text stored with it,
+// else from the nearest key revision, else replayed from the empty pad.
+func (p *Pad) loadState(rev int) (padState, error) {
+	if next, ok := p.storedState(rev); ok {
+		return next, nil
 	}
-	pool := p.Pool
-	if storedPoolUsable(storedPool) {
+	if next, ok := p.keyRevisionState(rev); ok {
+		return next, nil
+	}
+	return p.rebuiltState(rev)
+}
+
+// storedState uses the text and pool stored with rev, if it has them.
+func (p *Pad) storedState(rev int) (padState, bool) {
+	stored, err := p.db.GetRevision(p.Id, rev)
+	if err != nil || stored.AText.Text == "" {
+		return padState{}, false
+	}
+	next := padState{atext: apool.FromDBAText(stored.AText), pool: p.Pool, head: rev}
+	if storedPoolUsable(stored.Pool) {
+		next.pool = poolFromRev(stored.Pool)
+	}
+	return next, true
+}
+
+// rebuiltState replays every stored changeset from the empty pad.
+func (p *Pad) rebuiltState(rev int) (padState, error) {
+	return p.replay(padState{atext: changeset.MakeAText("\n", nil), pool: p.Pool, head: -1}, rev)
+}
+
+// replay applies the stored changesets after from.head up to toRev to from
+// and returns the result; the pad itself is not changed. The pool stored
+// with toRev holds every attribute they use (pools only grow); where none
+// was stored, from's pool is used.
+func (p *Pad) replay(from padState, toRev int) (padState, error) {
+	deltas, err := p.db.GetRevisionDeltas(p.Id, from.head+1, toRev)
+	if err != nil {
+		return padState{}, err
+	}
+	if len(deltas) != toRev-from.head {
+		return padState{}, fmt.Errorf("pad %s: expected %d revisions after %d, got %d", p.Id, toRev-from.head, from.head, len(deltas))
+	}
+	pool := from.pool
+	if storedPool, err := p.db.GetRevisionPool(p.Id, toRev); err == nil && storedPoolUsable(storedPool) {
 		pool = poolFromRev(storedPool)
 	}
-	atext := p.AText
+	atext := from.atext
 	for i, d := range deltas {
-		if d.Rev != p.Head+1+i {
-			return fmt.Errorf("pad %s: revision %d missing", p.Id, p.Head+1+i)
+		if d.Rev != from.head+1+i {
+			return padState{}, fmt.Errorf("pad %s: revision %d missing", p.Id, from.head+1+i)
 		}
 		next, err := changeset.ApplyToAText(d.Changeset, atext, pool)
 		if err != nil {
-			return fmt.Errorf("pad %s: applying revision %d: %w", p.Id, d.Rev, err)
+			return padState{}, fmt.Errorf("pad %s: applying revision %d: %w", p.Id, d.Rev, err)
 		}
 		atext = *next
 	}
-	p.AText = atext
-	p.Pool = pool
-	p.Head = toRev
-	return nil
+	return padState{atext: atext, pool: pool, head: toRev}, nil
 }
 
 // RevisionDeltas returns the stored changesets of revisions from..to.
 func (p *Pad) RevisionDeltas(from, to int) ([]dbstore.RevisionDelta, error) {
-	deltas, _, err := p.db.GetRevisionDeltas(p.Id, from, to)
-	return deltas, err
+	return p.db.GetRevisionDeltas(p.Id, from, to)
 }
 
 // keyRevisionInterval is how often a revision stores the full text.
@@ -163,25 +193,21 @@ const keyRevisionInterval = 100
 
 func isKeyRevision(rev int) bool { return rev%keyRevisionInterval == 0 }
 
-// loadFromKeyRevision loads the newest key revision at or before rev that
-// has its text stored and applies the changesets after it.
-func (p *Pad) loadFromKeyRevision(rev int) bool {
+// keyRevisionState loads the newest key revision at or before rev that has
+// its text stored and applies the changesets after it.
+func (p *Pad) keyRevisionState(rev int) (padState, bool) {
 	for key := rev - rev%keyRevisionInterval; key >= 0; key -= keyRevisionInterval {
-		stored, err := p.db.GetRevision(p.Id, key)
-		if err != nil || stored.AText.Text == "" {
+		base, ok := p.storedState(key)
+		if !ok {
 			continue
 		}
-		p.AText = apool.FromDBAText(stored.AText)
-		if storedPoolUsable(stored.Pool) {
-			p.Pool = poolFromRev(stored.Pool)
-		}
-		p.Head = key
 		if key == rev {
-			return true
+			return base, true
 		}
-		return p.applyStoredRevisions(rev) == nil
+		next, err := p.replay(base, rev)
+		return next, err == nil
 	}
-	return false
+	return padState{}, false
 }
 
 // applyMeta takes over the metadata stored in the pad row. Another instance
@@ -197,4 +223,25 @@ func (p *Pad) applyMeta(meta *dbstore.PadMeta) {
 		saved[i] = revision.SavedRevision{RevNum: r.RevNum, SavedBy: r.SavedBy, Timestamp: r.Timestamp, Label: r.Label, Id: r.Id}
 	}
 	p.SavedRevisions = saved
+}
+
+// MatchesVersion reports whether the pad reflects the stored version v:
+// same head, no newer chat message and the same metadata.
+func (p *Pad) MatchesVersion(v *dbstore.PadVersion) bool {
+	if v == nil || !v.Exists || v.Rev != p.Head || v.ChatHead > p.ChatHead {
+		return false
+	}
+	meta := v.Meta
+	if meta == nil || meta.PublicStatus != p.PublicStatus || len(meta.SavedRevisions) != len(p.SavedRevisions) {
+		return false
+	}
+	if (meta.ReadOnlyId == nil) != (p.ReadonlyId == nil) || (meta.ReadOnlyId != nil && *meta.ReadOnlyId != *p.ReadonlyId) {
+		return false
+	}
+	for i, r := range meta.SavedRevisions {
+		if r.Id != p.SavedRevisions[i].Id {
+			return false
+		}
+	}
+	return true
 }

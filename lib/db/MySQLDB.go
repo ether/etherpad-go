@@ -16,9 +16,12 @@ import (
 )
 
 type MysqlDB struct {
-	options   MySQLOptions
-	sqlDB     *sql.DB
-	lockSlots chan struct{}
+	options MySQLOptions
+	sqlDB   *sql.DB
+	// lockDB holds the connections of database locks, apart from the
+	// pool the work under the locks uses.
+	lockDB    *sql.DB
+	lockSlots *lockSlots
 }
 
 func (d MysqlDB) Ping() error {
@@ -1338,6 +1341,9 @@ func (d MysqlDB) DeleteOIDCSession(signature string) error {
 // ============== LIFECYCLE ==============
 
 func (d MysqlDB) Close() error {
+	if d.lockDB != nil {
+		_ = d.lockDB.Close()
+	}
 	return d.sqlDB.Close()
 }
 
@@ -1378,8 +1384,20 @@ func NewMySQLDB(options MySQLOptions) (*MysqlDB, error) {
 	sqlDb.SetMaxOpenConns(maxConns)
 	sqlDb.SetMaxIdleConns(min(5, maxConns))
 
-	migrationManager := migrations.NewMigrationManager(sqlDb, migrations.DialectMySQL)
+	lockDB, err := sql.Open("mysql", mySQLConf.FormatDSN())
+	if err != nil {
+		sqlDb.Close()
+		return nil, err
+	}
+	lockDB.SetMaxOpenConns(lockPoolSize(maxConns))
+	lockDB.SetMaxIdleConns(2)
+
+	// Migrations run on the lock pool: the migration lock holds one
+	// connection while the migrations need another, which a work pool of
+	// one connection could not give.
+	migrationManager := migrations.NewMigrationManager(lockDB, migrations.DialectMySQL)
 	if err := migrationManager.Run(); err != nil {
+		lockDB.Close()
 		sqlDb.Close()
 		return nil, fmt.Errorf("failed to run migrations: %w", err)
 	}
@@ -1387,7 +1405,8 @@ func NewMySQLDB(options MySQLOptions) (*MysqlDB, error) {
 	return &MysqlDB{
 		options:   options,
 		sqlDB:     sqlDb,
-		lockSlots: newLockSlots(maxConns),
+		lockDB:    lockDB,
+		lockSlots: newLockSlots(padLockSlots(maxConns)),
 	}, nil
 }
 

@@ -389,10 +389,23 @@ func (p *Pad) Init(text *string, author *string, authorManager *author.Manager) 
 		mapDBPadToModel(pad, p)
 		// The pad row is a cache; the stored revisions are authoritative
 		// (another instance may have appended since the row was written).
-		if err := p.reloadFromStore(); err != nil {
+		err = p.reloadFromStore()
+		if errors.Is(err, ErrNoRevisions) {
+			// Left behind by a creation whose first revision failed
+			// (before such rows were rolled back). It holds no content;
+			// remove it and create the pad afresh.
+			if rmErr := p.db.RemovePad(p.Id); rmErr != nil {
+				return fmt.Errorf("removing pad row without revisions: %w", rmErr)
+			}
+			docType := p.DocumentType
+			*p = NewPad(p.Id, p.db, p.hook)
+			p.authorManager = authorManager
+			p.DocumentType = docType
+		} else if err != nil {
 			return errors.New("pad data is corrupted: " + err.Error())
 		}
-	} else {
+	}
+	if err != nil {
 		if text == nil {
 			var padDefaultText = "text"
 			text = &settings.Displayed.DefaultPadText
@@ -621,6 +634,7 @@ func (p *Pad) AppendRevision(cs string, authorId *string) (*int, error) {
 	// The revision row needs the pad row (foreign key). If the row exists
 	// already, another instance created the pad meanwhile: report the
 	// conflict instead of overwriting its row.
+	createdRow := false
 	if p.Head == -1 {
 		exists, err := p.db.DoesPadExist(p.Id)
 		if err != nil {
@@ -632,6 +646,7 @@ func (p *Pad) AppendRevision(cs string, authorId *string) (*int, error) {
 		if err := p.Save(); err != nil {
 			return nil, fmt.Errorf("error creating pad: %w", err)
 		}
+		createdRow = true
 	}
 
 	// padRev.authorId has a foreign key on globalAuthor. The reserved system
@@ -667,6 +682,13 @@ func (p *Pad) AppendRevision(cs string, authorId *string) (*int, error) {
 	if err != nil {
 		if errors.Is(err, db.ErrConflict) {
 			return nil, err
+		}
+		if createdRow {
+			// A row without revision 0 could neither be loaded nor
+			// created again. The creator holds the pad's database lock,
+			// so the row is nobody else's: remove it.
+			_ = p.db.RemovePad(p.Id)
+			p.Head = -1
 		}
 		return nil, fmt.Errorf("error saving revision during append: %w", err)
 	}

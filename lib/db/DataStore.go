@@ -89,6 +89,10 @@ type OIDCMethods interface {
 	// Existing key-value methods (keep for signing key storage)
 	GetOIDCStorageValue(key string) (*string, error)
 	SetOIDCStorageValue(key string, payload string) error
+	// AddOIDCStorageValue stores payload under key only if the key is
+	// unused, and returns the stored payload: the first writer's, when
+	// several write at once.
+	AddOIDCStorageValue(key string, payload string) (string, error)
 	DeleteOIDCStorageValue(key string) error
 
 	// Access tokens

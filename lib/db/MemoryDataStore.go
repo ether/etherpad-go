@@ -14,7 +14,7 @@ import (
 )
 
 type MemoryDataStore struct {
-	// padLocks backs LockPadExclusive.
+	// padLocks backs LockPadsExclusive.
 	padLocks *processLocks
 	// leaders backs TryLeadership.
 	leaders *leaderSet
@@ -26,8 +26,13 @@ type MemoryDataStore struct {
 	// access could abort the whole process with "concurrent map writes".
 	mu sync.Mutex
 
-	padStore      map[string]db.PadDB
-	padRevisions  map[string]map[int]db.PadSingleRevision
+	padStore     map[string]db.PadDB
+	padRevisions map[string]map[int]db.PadSingleRevision
+	// maxRev and maxChat hold each pad's highest revision and chat
+	// message number, so GetPadVersion, called on every pad lock, does not
+	// scan revisions or the chat messages of all pads.
+	maxRev        map[string]int
+	maxChat       map[string]int
 	authorStore   map[string]db.AuthorDB
 	chatPads      map[string]db.ChatMessageDB
 	sessionStore  map[string]session2.Session
@@ -89,6 +94,7 @@ func (m *MemoryDataStore) CreatePad(padID string, padDB db.PadDB) error {
 		padDB.UpdatedAt = &nowTime
 		padDB.ID = padID
 		m.padRevisions[padID] = make(map[int]db.PadSingleRevision)
+		delete(m.maxRev, padID)
 	}
 
 	m.padStore[padID] = padDB
@@ -120,6 +126,7 @@ func (m *MemoryDataStore) RemovePad(padID string) error {
 
 	delete(m.padStore, padID)
 	delete(m.padRevisions, padID)
+	delete(m.maxRev, padID)
 	return nil
 }
 
@@ -418,6 +425,9 @@ func (m *MemoryDataStore) SaveRevision(
 		Timestamp: timestamp,
 		Pool:      &pool,
 	}
+	if cur, ok := m.maxRev[padId]; !ok || rev > cur {
+		m.maxRev[padId] = rev
+	}
 
 	return nil
 }
@@ -501,6 +511,7 @@ func (m *MemoryDataStore) RemoveRevisionsOfPad(padId string) error {
 	}
 
 	m.padRevisions[padId] = make(map[int]db.PadSingleRevision)
+	delete(m.maxRev, padId)
 	return nil
 }
 
@@ -526,6 +537,9 @@ func (m *MemoryDataStore) SaveChatMessage(
 		return ErrConflict
 	}
 
+	if cur, ok := m.maxChat[padId]; !ok || head > cur {
+		m.maxChat[padId] = head
+	}
 	m.chatPads[key] = db.ChatMessageDB{
 		PadId:    padId,
 		Head:     head,
@@ -609,6 +623,7 @@ func (m *MemoryDataStore) RemoveChat(padId string) error {
 			delete(m.chatPads, k)
 		}
 	}
+	delete(m.maxChat, padId)
 	return nil
 }
 
@@ -1107,6 +1122,8 @@ func NewMemoryDataStore() *MemoryDataStore {
 		padRevisions:       make(map[string]map[int]db.PadSingleRevision),
 		authorStore:        make(map[string]db.AuthorDB),
 		chatPads:           make(map[string]db.ChatMessageDB),
+		maxRev:             make(map[string]int),
+		maxChat:            make(map[string]int),
 		sessionStore:       make(map[string]session2.Session),
 		groupStore:         make(map[string]string),
 		oidcStorage:        make(map[string]string),

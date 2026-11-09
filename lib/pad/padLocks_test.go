@@ -24,7 +24,7 @@ func TestLockPadSerialisesWriters(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			unlock := m.LockPad("pad")
+			unlock := mustLock(m.LockPad("pad"))
 			defer unlock()
 			mu.Lock()
 			inside++
@@ -44,10 +44,10 @@ func TestLockPadSerialisesWriters(t *testing.T) {
 
 func TestRLockPadAllowsConcurrentReaders(t *testing.T) {
 	m := newLockTestManager()
-	unlock1 := m.RLockPad("pad")
+	unlock1 := mustLock(m.RLockPad("pad"))
 	done := make(chan struct{})
 	go func() {
-		unlock2 := m.RLockPad("pad")
+		unlock2 := mustLock(m.RLockPad("pad"))
 		unlock2()
 		close(done)
 	}()
@@ -62,11 +62,11 @@ func TestRLockPadAllowsConcurrentReaders(t *testing.T) {
 func TestLockPadEntriesAreReleased(t *testing.T) {
 	m := newLockTestManager()
 	for i := 0; i < 100; i++ {
-		unlock := m.LockPad("pad-" + string(rune('a'+i%26)))
+		unlock := mustLock(m.LockPad("pad-" + string(rune('a'+i%26))))
 		unlock()
 		unlock() // idempotent
 	}
-	unlock := m.LockPad("a", "b")
+	unlock := mustLock(m.LockPad("a", "b"))
 	assert.Equal(t, 2, m.padLocks.size())
 	unlock()
 	assert.Equal(t, 0, m.padLocks.size(), "lock entries must not accumulate per pad")
@@ -77,8 +77,8 @@ func TestLockPadMultipleIdsNoDeadlock(t *testing.T) {
 	var wg sync.WaitGroup
 	for i := 0; i < 200; i++ {
 		wg.Add(2)
-		go func() { defer wg.Done(); u := m.LockPad("a", "b"); u() }()
-		go func() { defer wg.Done(); u := m.LockPad("b", "a", "b", ""); u() }()
+		go func() { defer wg.Done(); u := mustLock(m.LockPad("a", "b")); u() }()
+		go func() { defer wg.Done(); u := mustLock(m.LockPad("b", "a", "b", "")); u() }()
 	}
 	done := make(chan struct{})
 	go func() { wg.Wait(); close(done) }()
@@ -87,4 +87,13 @@ func TestLockPadMultipleIdsNoDeadlock(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("deadlock locking pads in opposite order")
 	}
+}
+
+// mustLock returns the unlock function of a successful LockPad/RLockPad and
+// panics (failing the test) otherwise.
+func mustLock(unlock func(), err error) func() {
+	if err != nil {
+		panic(err)
+	}
+	return unlock
 }

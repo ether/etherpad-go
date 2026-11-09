@@ -39,7 +39,7 @@ func TestPadMetadataAcrossInstances(t *testing.T) {
 		appendLine(t, b, padID, "b has it cached")
 
 		withPad := func(m *Manager, fn func(p *modelpad.Pad)) {
-			unlock := m.LockPad(padID)
+			unlock := mustLock(m.LockPad(padID))
 			defer unlock()
 			p, err := m.GetPad(padID, nil, nil)
 			require.NoError(t, err)
