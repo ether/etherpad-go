@@ -16,6 +16,8 @@ import (
 type MemoryDataStore struct {
 	// padLocks backs LockPadExclusive.
 	padLocks *processLocks
+	// leaders backs TryLeadership.
+	leaders *leaderSet
 	// clusterNodes backs ClusterMethods (guarded by mu).
 	clusterNodes map[string]ClusterNode
 
@@ -1099,6 +1101,7 @@ func (m *MemoryDataStore) Close() error {
 func NewMemoryDataStore() *MemoryDataStore {
 	return &MemoryDataStore{
 		padLocks:           newProcessLocks(),
+		leaders:            newLeaderSet(),
 		clusterNodes:       map[string]ClusterNode{},
 		padStore:           make(map[string]db.PadDB),
 		padRevisions:       make(map[string]map[int]db.PadSingleRevision),

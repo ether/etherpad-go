@@ -344,8 +344,7 @@ func SetPublicStatus(initStore *lib.InitStore) fiber.Handler {
 			return c.Status(404).JSON(errors2.PadNotFoundError)
 		}
 
-		pad.PublicStatus = request.PublicStatus
-		if err := pad.Save(); err != nil {
+		if err := pad.SetPublicStatus(request.PublicStatus); err != nil {
 			return c.Status(500).JSON(errors2.InternalServerError)
 		}
 

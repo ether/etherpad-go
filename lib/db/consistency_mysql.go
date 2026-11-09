@@ -20,12 +20,29 @@ func isDuplicateKey(err error) bool {
 
 func (d MysqlDB) GetPadVersion(padID string) (*PadVersion, error) {
 	v := &PadVersion{}
+	var saved []byte
+	var public sql.NullBool
+	var readOnly sql.NullString
 	err := d.sqlDB.QueryRow(
 		`SELECT EXISTS(SELECT 1 FROM pad WHERE id = ?),
 		        COALESCE((SELECT MAX(rev) FROM padRev WHERE id = ?), -1),
-		        COALESCE((SELECT MAX(padHead) FROM padChat WHERE padId = ?), -1)`,
-		padID, padID, padID).Scan(&v.Exists, &v.Rev, &v.ChatHead)
+		        COALESCE((SELECT MAX(padHead) FROM padChat WHERE padId = ?), -1),
+		        (SELECT saved_revisions FROM pad WHERE id = ?),
+		        (SELECT public_status FROM pad WHERE id = ?),
+		        (SELECT readonly_id FROM pad WHERE id = ?)`,
+		padID, padID, padID, padID, padID, padID).Scan(&v.Exists, &v.Rev, &v.ChatHead, &saved, &public, &readOnly)
 	if err != nil {
+		return nil, err
+	}
+	var pub *bool
+	if public.Valid {
+		pub = &public.Bool
+	}
+	var ro *string
+	if readOnly.Valid {
+		ro = &readOnly.String
+	}
+	if v.Meta, err = scanPadMeta(v.Exists, saved, pub, ro); err != nil {
 		return nil, err
 	}
 	return v, nil

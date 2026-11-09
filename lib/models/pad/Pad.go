@@ -677,9 +677,10 @@ func (p *Pad) AppendRevision(cs string, authorId *string) (*int, error) {
 	// The pad row is a cache of the stored revisions; a failure here loses
 	// nothing (Refresh rebuilds from padRev), so it does not fail the append.
 	// Its text is rewritten on key revisions only; head and pool always, as
-	// pad listings and the retention read them.
+	// pad listings and the retention read them. Only these columns are
+	// written: the metadata in the row belongs to whoever changed it last.
 	if isKeyRevision(newRev) || newRev == 0 {
-		_ = p.Save()
+		_ = p.db.UpdatePadHeadText(p.Id, newRev, p.Pool.ToRevDB(), p.AText.ToDBAText())
 	} else {
 		_ = p.db.UpdatePadHead(p.Id, newRev, p.Pool.ToRevDB())
 	}
@@ -739,12 +740,35 @@ func (p *Pad) AddSavedRevision(author string) error {
 	}
 
 	label := "Revision " + strconv.Itoa(p.Head)
-	p.SavedRevisions = append(p.SavedRevisions, revision.SavedRevision{
+	saved := append(append([]revision.SavedRevision{}, p.SavedRevisions...), revision.SavedRevision{
 		RevNum:    p.Head,
 		SavedBy:   author,
 		Timestamp: time.Now().UnixNano() / int64(time.Millisecond),
 		Label:     &label,
 		Id:        utils.RandomString(10),
 	})
-	return p.Save()
+	// Callers hold the pad lock, which reloaded the saved revisions, so
+	// this list includes those added through other instances.
+	if err := p.db.SetPadSavedRevisions(p.Id, savedRevisionsToDB(saved)); err != nil {
+		return err
+	}
+	p.SavedRevisions = saved
+	return nil
+}
+
+// SetPublicStatus changes the public status of a group pad.
+func (p *Pad) SetPublicStatus(public bool) error {
+	if err := p.db.SetPadPublicStatus(p.Id, public); err != nil {
+		return err
+	}
+	p.PublicStatus = public
+	return nil
+}
+
+func savedRevisionsToDB(saved []revision.SavedRevision) []db2.SavedRevision {
+	out := make([]db2.SavedRevision, 0, len(saved))
+	for _, r := range saved {
+		out = append(out, db2.SavedRevision{RevNum: r.RevNum, SavedBy: r.SavedBy, Timestamp: r.Timestamp, Label: r.Label, Id: r.Id})
+	}
+	return out
 }

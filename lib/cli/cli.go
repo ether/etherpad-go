@@ -42,6 +42,14 @@ type Pad struct {
 	// authorId is the author the server assigned in CLIENT_VARS. Inserts
 	// must carry it as author attribute, or the server rejects them.
 	authorId string
+	// token identifies the author; a reconnect sends the same one.
+	token string
+	path  string
+	// reconnectHosts, if set, are tried when the connection breaks.
+	reconnectHosts []string
+	// reconnecting is true from a broken connection until the missed
+	// revisions are applied; no change is sent meanwhile.
+	reconnecting bool
 }
 
 func NewPad(host, padId string, conn *websocket.Conn, logger *zap.SugaredLogger) *Pad {
@@ -157,30 +165,7 @@ func Connect(host string, logger *zap.SugaredLogger) *Pad {
 }
 
 func connect(host string, logger *zap.SugaredLogger) *Pad {
-
-	padState := PadState{}
-
-	if host == "" {
-		padState.Host = "http://127.0.0.1:9001"
-		padState.Path = "/p/test"
-		padState.PadId = utils.RandomString(10)
-	} else {
-		parsedUrl, err := url.Parse(host)
-		if err != nil {
-			logger.Warnf("Invalid host URL: %v", err)
-			os.Exit(1)
-		}
-		padState.Host = fmt.Sprintf("%s://%s", parsedUrl.Scheme, parsedUrl.Host)
-		const padIdParam = "/p/"
-		indexOfPadId := strings.Index(parsedUrl.Path, padIdParam)
-		if indexOfPadId == -1 {
-			padState.Path = ""
-			padState.PadId = utils.RandomString(10)
-		} else {
-			padState.Path = parsedUrl.Path[0:indexOfPadId]
-			padState.PadId = parsedUrl.Path[indexOfPadId+len(padIdParam):]
-		}
-	}
+	padState := parsePadURL(host, logger)
 
 	httpClient := &http.Client{}
 	fullUrl := fmt.Sprintf("%s%s/p/%s", padState.Host, padState.Path, padState.PadId)
@@ -199,6 +184,46 @@ func connect(host string, logger *zap.SugaredLogger) *Pad {
 		_ = resp.Body.Close()
 	}()
 
+	connection, err := dialPad(padState, logger)
+	if err != nil {
+		os.Exit(1)
+	}
+
+	pad := NewPad(padState.Host, padState.PadId, connection, logger)
+	pad.token = "t." + utils.RandomString(20)
+	pad.path = padState.Path
+	go pad.readLoop(connection)
+	pad.sendClientReady(connection, false)
+	return pad
+}
+
+func parsePadURL(host string, logger *zap.SugaredLogger) PadState {
+	padState := PadState{}
+	if host == "" {
+		padState.Host = "http://127.0.0.1:9001"
+		padState.Path = "/p/test"
+		padState.PadId = utils.RandomString(10)
+		return padState
+	}
+	parsedUrl, err := url.Parse(host)
+	if err != nil {
+		logger.Warnf("Invalid host URL: %v", err)
+		os.Exit(1)
+	}
+	padState.Host = fmt.Sprintf("%s://%s", parsedUrl.Scheme, parsedUrl.Host)
+	const padIdParam = "/p/"
+	indexOfPadId := strings.Index(parsedUrl.Path, padIdParam)
+	if indexOfPadId == -1 {
+		padState.Path = ""
+		padState.PadId = utils.RandomString(10)
+	} else {
+		padState.Path = parsedUrl.Path[0:indexOfPadId]
+		padState.PadId = parsedUrl.Path[indexOfPadId+len(padIdParam):]
+	}
+	return padState
+}
+
+func dialPad(padState PadState, logger *zap.SugaredLogger) (*websocket.Conn, error) {
 	wsUrl := fmt.Sprintf("%s/%ssocket.io", strings.Replace(padState.Host, "http", "ws", 1), padState.Path)
 	logger.Infof("Connecting to WebSocket at %s", wsUrl)
 	connection, resp, err := websocket.DefaultDialer.Dial(wsUrl, nil)
@@ -207,267 +232,370 @@ func connect(host string, logger *zap.SugaredLogger) *Pad {
 		if resp != nil {
 			logger.Warnf("Response Status: %s", resp.Status)
 		}
-		os.Exit(1)
+		return nil, err
 	}
+	return connection, nil
+}
 
-	var authorToken = "t." + utils.RandomString(20)
+// sendClientReady joins the pad. On a reconnect it tells the server the
+// last revision this client has, like the browser does; the server answers
+// with the missed revisions as CLIENT_RECONNECT.
+func (p *Pad) sendClientReady(conn *websocket.Conn, reconnect bool) {
+	data := ws.ClientReadyData{
+		Component: "pad",
+		Type:      "CLIENT_READY",
+		PadID:     p.padId,
+		Token:     p.token,
+		UserInfo:  ws.ClientReadyUserInfo{},
+	}
+	if reconnect {
+		p.poolLock.RLock()
+		rev := p.baseRev
+		p.poolLock.RUnlock()
+		yes := true
+		data.Reconnect = &yes
+		data.ClientRev = &rev
+	}
+	p.connWrite.Lock()
+	defer p.connWrite.Unlock()
+	if err := conn.WriteJSON(ws.ClientReady{Event: "message", Data: data}); err != nil {
+		p.logger.Errorf("Fehler beim Senden von CLIENT_READY: %v", err)
+	}
+}
 
-	pad := NewPad(padState.Host, padState.PadId, connection, logger)
+// EnableReconnect makes the pad reconnect when its connection breaks,
+// trying hosts in turn (as a load balancer would pick another instance).
+// Unacknowledged changes are kept and sent again after the reconnect,
+// unless the server reports them as stored.
+func (p *Pad) EnableReconnect(hosts []string) {
+	p.poolLock.Lock()
+	p.reconnectHosts = hosts
+	p.poolLock.Unlock()
+}
 
-	go func() {
-		// Recover to avoid crashing the whole process on unexpected panics in the reader loop
-		defer func() {
-			if r := recover(); r != nil {
-				logger.Errorf("panic in recv goroutine: %v", r)
-				pad.emit("disconnect", r)
-				_ = connection.Close()
+func (p *Pad) reconnect() bool {
+	p.poolLock.Lock()
+	hosts := p.reconnectHosts
+	p.reconnecting = true
+	p.poolLock.Unlock()
+	p.emit("reconnecting", nil)
+	deadline := time.Now().Add(60 * time.Second)
+	for attempt := 0; time.Now().Before(deadline); attempt++ {
+		select {
+		case <-p.closeChan:
+			return false
+		default:
+		}
+		host := hosts[attempt%len(hosts)]
+		state := parsePadURL(host, p.logger)
+		state.PadId = p.padId
+		conn, err := dialPad(state, p.logger)
+		if err != nil {
+			time.Sleep(time.Duration(min(attempt+1, 5)) * 200 * time.Millisecond)
+			continue
+		}
+		p.connWrite.Lock()
+		p.conn = conn
+		p.host = state.Host
+		p.connWrite.Unlock()
+		go p.readLoop(conn)
+		p.sendClientReady(conn, true)
+		return true
+	}
+	return false
+}
+
+func (p *Pad) readLoop(connection *websocket.Conn) {
+	logger := p.logger
+	pad := p
+	// Recover to avoid crashing the whole process on unexpected panics in the reader loop
+	defer func() {
+		if r := recover(); r != nil {
+			logger.Errorf("panic in recv goroutine: %v", r)
+			_ = connection.Close()
+		}
+	}()
+
+	var (
+		newline = []byte{'\n'}
+		space   = []byte{' '}
+	)
+	for {
+		select {
+		case <-pad.closeChan:
+			return
+		default:
+		}
+		_, message, err := connection.ReadMessage()
+		if err != nil {
+			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+				logger.Errorf("error: %v", err)
 			}
-			pad.Close()
-		}()
-
-		var (
-			newline = []byte{'\n'}
-			space   = []byte{' '}
-		)
-		for {
+			pad.poolLock.RLock()
+			canReconnect := len(pad.reconnectHosts) > 0
+			pad.poolLock.RUnlock()
 			select {
 			case <-pad.closeChan:
 				return
 			default:
-				_, message, err := connection.ReadMessage()
-				if err != nil {
-					if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-						logger.Errorf("error: %v", err)
-					}
-					pad.emit("disconnect", err)
-					return
-				}
-				message = bytes.TrimSpace(bytes.Replace(message, newline, space, -1))
-				logger.Debugf("Received: %s", message)
+			}
+			if canReconnect && pad.reconnect() {
+				return
+			}
+			pad.emit("disconnect", err)
+			pad.Close()
+			return
+		}
+		message = bytes.TrimSpace(bytes.Replace(message, newline, space, -1))
+		logger.Debugf("Received: %s", message)
 
-				var arr []interface{}
-				isArrayFormat := false
-				if err := json.Unmarshal(message, &arr); err == nil && len(arr) == 2 {
-					isArrayFormat = true
-				}
-
-				if isArrayFormat {
-					msgType, _ := arr[0].(string)
-					if msgType != "message" {
-						continue
-
-					}
-					msgObj := arr[1]
-					msgMap, ok := msgObj.(map[string]interface{})
-					if !ok {
-						logger.Errorf("Fehler beim Casten der Nachricht zu map[string]interface{} (Array-Format)")
-						continue
-					}
-					typeStr, _ := msgMap["type"].(string)
-					switch typeStr {
-					case "CLIENT_VARS":
-						data, ok := msgMap["data"].(map[string]interface{})
-						if !ok {
-							logger.Errorf("CLIENT_VARS: Data fehlt oder hat falschen Typ (Array-Format)")
-							continue
-						}
-						collabVars, ok := data["collab_client_vars"].(map[string]interface{})
-						if !ok {
-							logger.Errorf("CLIENT_VARS: collab_client_vars fehlt oder hat falschen Typ (Array-Format)")
-							continue
-						}
-						initText, _ := collabVars["initialAttributedText"].(map[string]interface{})
-						atext := apool.AText{
-							Text:    initText["text"].(string),
-							Attribs: initText["attribs"].(string),
-						}
-						pad.emit("numConnectedUsers", collabVars["numConnectedUsers"])
-						apoolMap, _ := collabVars["apool"].(map[string]interface{})
-						pool := apool.NewAPool()
-						if numToAttrib, ok := apoolMap["numToAttrib"].(map[string]interface{}); ok {
-							for k, v := range numToAttrib {
-								idx, err := strconv.Atoi(k)
-								if err != nil {
-									continue
-								}
-								if arr, ok := v.([]interface{}); ok && len(arr) == 2 {
-									attr := apool.Attribute{
-										Key:   arr[0].(string),
-										Value: arr[1].(string),
-									}
-									pool.NumToAttrib[idx] = attr
-								}
-							}
-						}
-						if nextNum, ok := apoolMap["nextNum"].(float64); ok {
-							pool.NextNum = int(nextNum)
-						}
-						// protect setting shared fields
-						pad.poolLock.Lock()
-						pad.apool = &pool
-						if rev, ok := collabVars["rev"].(float64); ok {
-							pad.baseRev = int(rev)
-						}
-						pad.atext = &atext
-						if userId, ok := data["userId"].(string); ok {
-							pad.authorId = userId
-						}
-						pad.poolLock.Unlock()
-						pad.emit("connected", nil)
-					case "COLLABROOM":
-						data, ok := msgMap["data"].(map[string]interface{})
-						if !ok {
-							continue
-						}
-						if data["type"] == "NEW_CHANGES" {
-							// Ensure we have initial state
-							pad.poolLock.RLock()
-							havePool := pad.apool != nil
-							haveAText := pad.atext != nil
-							pad.poolLock.RUnlock()
-							if !havePool || !haveAText {
-								logger.Errorf("received NEW_CHANGES but pad.apool or pad.atext is nil - skipping")
-								continue
-							}
-							if newRev, ok := data["newRev"].(float64); ok && int(newRev) <= pad.baseRev {
-								continue
-							}
-							if newRev, ok := data["newRev"].(float64); ok {
-								if int(newRev)-1 != pad.baseRev {
-									gap := int(newRev) - 1 - pad.baseRev
-									if gap > 0 {
-										logger.Warnf("missed %d revisions (server: %d, local: %d) - requesting resync",
-											gap, int(newRev), pad.baseRev)
-										// Emit event für Resync oder Reconnect
-										pad.emit("outOfSync", map[string]interface{}{
-											"serverRev": int(newRev),
-											"localRev":  pad.baseRev,
-											"gap":       gap,
-										})
-									}
-									continue
-								}
-							}
-							wireApool := apool.NewAPool()
-							if apoolMap, ok := data["apool"].(map[string]interface{}); ok {
-								if numToAttrib, ok := apoolMap["numToAttrib"].(map[string]interface{}); ok {
-									for k, v := range numToAttrib {
-										idx, err := strconv.Atoi(k)
-										if err != nil {
-											continue
-										}
-										if arr, ok := v.([]interface{}); ok && len(arr) == 2 {
-											attr := apool.Attribute{
-												Key:   arr[0].(string),
-												Value: arr[1].(string),
-											}
-											wireApool.NumToAttrib[idx] = attr
-										}
-									}
-								}
-								if nextNum, ok := apoolMap["nextNum"].(float64); ok {
-									wireApool.NextNum = int(nextNum)
-								}
-							}
-							changesetStr, _ := data["changeset"].(string)
-							// Re-read pad.apool and pad.atext under read lock to ensure stability
-							pad.poolLock.RLock()
-							localPool := pad.apool
-							localAText := pad.atext
-							pad.poolLock.RUnlock()
-							if localPool == nil || localAText == nil {
-								logger.Errorf("pad.apool or pad.atext became nil while processing NEW_CHANGES - skipping")
-								continue
-							}
-							// The local text is the server text plus the in-flight and the
-							// outgoing changeset. Rebase those over the server's change and
-							// apply the server's change, rebased over them, locally.
-							pad.poolLock.Lock()
-							localAText = pad.atext
-							serverChangeset := changeset.MoveOpsToNewPool(changesetStr, &wireApool, localPool)
-							server := &PadChangeset{changeset: serverChangeset}
-							if pad.inFlight != nil {
-								transformX(pad.inFlight, server, localPool)
-							}
-							if pad.outgoing != nil {
-								transformX(pad.outgoing, server, localPool)
-							}
-							if unpacked, err := changeset.Unpack(server.changeset); err != nil || utf8.RuneCountInString(localAText.Text) != unpacked.OldLen {
-								pad.poolLock.Unlock()
-								logger.Errorf("server changeset does not fit the local text - resync needed")
-								pad.emit("outOfSync", map[string]interface{}{"serverRev": data["newRev"], "localRev": pad.baseRev})
-								continue
-							}
-							atext, err := changeset.ApplyToAText(server.changeset, *localAText, *localPool)
-							if err != nil {
-								pad.poolLock.Unlock()
-								logger.Errorf("Fehler beim Anwenden des Changesets: %v", err)
-								continue
-							}
-							if newRev, ok := data["newRev"].(float64); ok {
-								pad.baseRev = int(newRev)
-								if pad.outgoing != nil {
-									pad.outgoing.baseRev = int(newRev)
-								}
-							}
-							pad.atext = atext
-							pad.poolLock.Unlock()
-							pad.emit("newContents", atext)
-						}
-						if data["type"] == "ACCEPT_COMMIT" {
-							if newRev, ok := data["newRev"].(float64); ok && int(newRev) <= pad.baseRev {
-								continue
-							}
-							if newRev, ok := data["newRev"].(float64); ok {
-								pad.poolLock.Lock()
-								if int(newRev)-1 != pad.baseRev {
-									pad.poolLock.Unlock()
-									logger.Errorf("wrong incoming revision :%v/%v", int(newRev), pad.baseRev)
-									continue
-								}
-								pad.baseRev = int(newRev)
-								pad.inFlight = nil
-								if pad.outgoing != nil {
-									pad.outgoing.baseRev = int(newRev)
-								}
-								pad.sendMessage(nil)
-								pad.poolLock.Unlock()
-								pad.emit("acceptCommit", int(newRev))
-							}
-						}
-					}
-				}
-				var obj map[string]interface{}
-				if err := json.Unmarshal(message, &obj); err == nil {
-					event, _ := obj["event"].(string)
-					if event == "message" {
-						data, ok := obj["data"].(map[string]interface{})
-						if ok {
-							pad.emit("message", data)
-						}
-					}
+		var obj map[string]interface{}
+		if err := json.Unmarshal(message, &obj); err == nil {
+			if event, _ := obj["event"].(string); event == "message" {
+				if data, ok := obj["data"].(map[string]interface{}); ok {
+					pad.emit("message", data)
 				}
 			}
+			continue
 		}
-	}()
-
-	if err := connection.WriteJSON(ws.ClientReady{
-		Event: "message",
-		Data: ws.ClientReadyData{
-			Component: "pad",
-			Type:      "CLIENT_READY",
-			PadID:     padState.PadId,
-			Token:     authorToken,
-			UserInfo: ws.ClientReadyUserInfo{
-				ColorId: nil,
-				Name:    nil,
-			},
-		},
-	}); err != nil {
-		logger.Errorf("Fehler beim Senden von CLIENT_READY: %v", err)
+		var arr []interface{}
+		if err := json.Unmarshal(message, &arr); err != nil || len(arr) != 2 {
+			continue
+		}
+		if msgType, _ := arr[0].(string); msgType != "message" {
+			continue
+		}
+		msgMap, ok := arr[1].(map[string]interface{})
+		if !ok {
+			logger.Errorf("Fehler beim Casten der Nachricht zu map[string]interface{} (Array-Format)")
+			continue
+		}
+		typeStr, _ := msgMap["type"].(string)
+		switch typeStr {
+		case "CLIENT_VARS":
+			pad.handleClientVars(msgMap)
+		case "COLLABROOM":
+			data, ok := msgMap["data"].(map[string]interface{})
+			if !ok {
+				continue
+			}
+			switch data["type"] {
+			case "NEW_CHANGES":
+				pad.handleNewChanges(data)
+			case "ACCEPT_COMMIT":
+				pad.handleAcceptCommit(data)
+			case "CLIENT_RECONNECT":
+				pad.handleClientReconnect(data)
+			}
+		}
 	}
+}
 
-	return pad
+func (p *Pad) handleClientVars(msgMap map[string]interface{}) {
+	data, ok := msgMap["data"].(map[string]interface{})
+	if !ok {
+		p.logger.Errorf("CLIENT_VARS: Data fehlt oder hat falschen Typ (Array-Format)")
+		return
+	}
+	collabVars, ok := data["collab_client_vars"].(map[string]interface{})
+	if !ok {
+		p.logger.Errorf("CLIENT_VARS: collab_client_vars fehlt oder hat falschen Typ (Array-Format)")
+		return
+	}
+	initText, _ := collabVars["initialAttributedText"].(map[string]interface{})
+	atext := apool.AText{
+		Text:    initText["text"].(string),
+		Attribs: initText["attribs"].(string),
+	}
+	p.emit("numConnectedUsers", collabVars["numConnectedUsers"])
+	apoolMap, _ := collabVars["apool"].(map[string]interface{})
+	pool := parseWirePool(apoolMap)
+	// protect setting shared fields
+	p.poolLock.Lock()
+	p.apool = &pool
+	if rev, ok := collabVars["rev"].(float64); ok {
+		p.baseRev = int(rev)
+	}
+	p.atext = &atext
+	if userId, ok := data["userId"].(string); ok {
+		p.authorId = userId
+	}
+	p.poolLock.Unlock()
+	p.emit("connected", nil)
+}
+
+func parseWirePool(apoolMap map[string]interface{}) apool.APool {
+	pool := apool.NewAPool()
+	if numToAttrib, ok := apoolMap["numToAttrib"].(map[string]interface{}); ok {
+		for k, v := range numToAttrib {
+			idx, err := strconv.Atoi(k)
+			if err != nil {
+				continue
+			}
+			if arr, ok := v.([]interface{}); ok && len(arr) == 2 {
+				key, _ := arr[0].(string)
+				value, _ := arr[1].(string)
+				pool.NumToAttrib[idx] = apool.Attribute{Key: key, Value: value}
+			}
+		}
+	}
+	if nextNum, ok := apoolMap["nextNum"].(float64); ok {
+		pool.NextNum = int(nextNum)
+	}
+	return pool
+}
+
+func (p *Pad) handleNewChanges(data map[string]interface{}) {
+	p.poolLock.RLock()
+	ready := p.apool != nil && p.atext != nil
+	baseRev := p.baseRev
+	p.poolLock.RUnlock()
+	if !ready {
+		p.logger.Errorf("received NEW_CHANGES but pad.apool or pad.atext is nil - skipping")
+		return
+	}
+	newRev, ok := data["newRev"].(float64)
+	if !ok || int(newRev) <= baseRev {
+		return
+	}
+	if int(newRev)-1 != baseRev {
+		gap := int(newRev) - 1 - baseRev
+		p.logger.Warnf("missed %d revisions (server: %d, local: %d) - requesting resync", gap, int(newRev), baseRev)
+		p.emit("outOfSync", map[string]interface{}{"serverRev": int(newRev), "localRev": baseRev, "gap": gap})
+		return
+	}
+	p.applyServerChange(data, int(newRev))
+}
+
+// applyServerChange applies a revision of another author. The local text
+// is the server text plus the in-flight and the outgoing changeset: those
+// are rebased over the server's change, and the server's change, rebased
+// over them, is applied locally.
+func (p *Pad) applyServerChange(data map[string]interface{}, newRev int) {
+	apoolMap, _ := data["apool"].(map[string]interface{})
+	wireApool := parseWirePool(apoolMap)
+	changesetStr, _ := data["changeset"].(string)
+
+	p.poolLock.Lock()
+	localPool, localAText := p.apool, p.atext
+	if localPool == nil || localAText == nil {
+		p.poolLock.Unlock()
+		return
+	}
+	serverChangeset := changeset.MoveOpsToNewPool(changesetStr, &wireApool, localPool)
+	server := &PadChangeset{changeset: serverChangeset}
+	if p.inFlight != nil {
+		transformX(p.inFlight, server, localPool)
+	}
+	if p.outgoing != nil {
+		transformX(p.outgoing, server, localPool)
+	}
+	if unpacked, err := changeset.Unpack(server.changeset); err != nil || utf8.RuneCountInString(localAText.Text) != unpacked.OldLen {
+		p.poolLock.Unlock()
+		p.logger.Errorf("server changeset does not fit the local text - resync needed")
+		p.emit("outOfSync", map[string]interface{}{"serverRev": newRev, "localRev": p.baseRev})
+		return
+	}
+	atext, err := changeset.ApplyToAText(server.changeset, *localAText, *localPool)
+	if err != nil {
+		p.poolLock.Unlock()
+		p.logger.Errorf("Fehler beim Anwenden des Changesets: %v", err)
+		return
+	}
+	p.baseRev = newRev
+	if p.inFlight != nil {
+		p.inFlight.baseRev = newRev
+	}
+	if p.outgoing != nil {
+		p.outgoing.baseRev = newRev
+	}
+	p.atext = atext
+	p.poolLock.Unlock()
+	p.emit("newContents", atext)
+}
+
+func (p *Pad) handleAcceptCommit(data map[string]interface{}) {
+	newRev, ok := data["newRev"].(float64)
+	if !ok {
+		return
+	}
+	p.poolLock.Lock()
+	if int(newRev) <= p.baseRev {
+		p.poolLock.Unlock()
+		return
+	}
+	if int(newRev)-1 != p.baseRev {
+		p.poolLock.Unlock()
+		p.logger.Errorf("wrong incoming revision :%v/%v", int(newRev), p.baseRev)
+		return
+	}
+	p.acceptInFlight(int(newRev))
+	p.poolLock.Unlock()
+	p.emit("acceptCommit", int(newRev))
+}
+
+// acceptInFlight records the in-flight change as stored as newRev and sends
+// the next one. Callers hold poolLock.
+func (p *Pad) acceptInFlight(newRev int) {
+	p.baseRev = newRev
+	p.inFlight = nil
+	if p.outgoing != nil {
+		p.outgoing.baseRev = newRev
+	}
+	p.sendMessage(nil)
+}
+
+// handleClientReconnect follows the browser (collab_client.js): a missed
+// revision of this author is the in-flight change, stored before the old
+// connection broke, so it counts as accepted. Once caught up, a change the
+// server never stored is sent again.
+func (p *Pad) handleClientReconnect(data map[string]interface{}) {
+	noChanges, _ := data["noChanges"].(bool)
+	newRev, _ := data["newRev"].(float64)
+	headRev, _ := data["headRev"].(float64)
+	if !noChanges {
+		p.poolLock.RLock()
+		baseRev := p.baseRev
+		mine := data["author"] == p.authorId && p.inFlight != nil
+		p.poolLock.RUnlock()
+		if int(newRev) != baseRev+1 {
+			p.logger.Warnf("bad message revision on CLIENT_RECONNECT: %d not %d", int(newRev), baseRev+1)
+			return
+		}
+		if mine {
+			p.poolLock.Lock()
+			p.baseRev = int(newRev)
+			p.inFlight = nil
+			if p.outgoing != nil {
+				p.outgoing.baseRev = int(newRev)
+			}
+			p.poolLock.Unlock()
+			p.emit("acceptCommit", int(newRev))
+		} else {
+			p.applyServerChange(data, int(newRev))
+		}
+		if int(newRev) != int(headRev) {
+			return
+		}
+	}
+	// Caught up: send whatever was not stored, as one change on the
+	// current revision.
+	p.poolLock.Lock()
+	p.reconnecting = false
+	if p.inFlight != nil {
+		pending := p.inFlight
+		p.inFlight = nil
+		if p.outgoing != nil {
+			if composed, err := changeset.Compose(pending.changeset, p.outgoing.changeset, p.apool); err == nil {
+				pending.changeset = *composed
+			}
+		}
+		pending.baseRev = p.baseRev
+		p.outgoing = pending
+	}
+	p.sendMessage(nil)
+	p.poolLock.Unlock()
+	p.emit("reconnected", nil)
 }
 
 // transformX rebases client over server and server over client, both from
@@ -503,6 +631,9 @@ func (p *Pad) sendMessage(optMsg *PadChangeset) {
 		} else {
 			p.outgoing = optMsg
 		}
+	}
+	if p.reconnecting {
+		return
 	}
 	if p.inFlight == nil && p.outgoing != nil {
 		p.inFlight = p.outgoing

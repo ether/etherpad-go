@@ -8,6 +8,7 @@ import (
 	"github.com/ether/etherpad-go/lib/changeset"
 	dbstore "github.com/ether/etherpad-go/lib/db"
 	db "github.com/ether/etherpad-go/lib/models/db"
+	"github.com/ether/etherpad-go/lib/models/revision"
 )
 
 // ErrPadGone is returned by Refresh when the pad was deleted, for instance
@@ -43,6 +44,7 @@ func (p *Pad) Refresh() error {
 	if !v.Exists {
 		return ErrPadGone
 	}
+	p.applyMeta(v.Meta)
 	if v.ChatHead > p.ChatHead {
 		p.ChatHead = v.ChatHead
 	}
@@ -70,6 +72,7 @@ func (p *Pad) reloadFromStore() error {
 	if !v.Exists {
 		return ErrPadGone
 	}
+	p.applyMeta(v.Meta)
 	p.ChatHead = max(p.ChatHead, v.ChatHead)
 	if v.Rev < 0 {
 		return errors.New("pad has no revisions")
@@ -179,4 +182,19 @@ func (p *Pad) loadFromKeyRevision(rev int) bool {
 		return p.applyStoredRevisions(rev) == nil
 	}
 	return false
+}
+
+// applyMeta takes over the metadata stored in the pad row. Another instance
+// (or the read-only manager) may have changed it since this copy was loaded.
+func (p *Pad) applyMeta(meta *dbstore.PadMeta) {
+	if meta == nil {
+		return
+	}
+	p.PublicStatus = meta.PublicStatus
+	p.ReadonlyId = meta.ReadOnlyId
+	saved := make([]revision.SavedRevision, len(meta.SavedRevisions))
+	for i, r := range meta.SavedRevisions {
+		saved[i] = revision.SavedRevision{RevNum: r.RevNum, SavedBy: r.SavedBy, Timestamp: r.Timestamp, Label: r.Label, Id: r.Id}
+	}
+	p.SavedRevisions = saved
 }

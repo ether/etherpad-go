@@ -54,3 +54,22 @@ func TestBuildUpdaterConfigWindowAndTier(t *testing.T) {
 		t.Errorf("window minutes wrong: %+v", cfg.Window)
 	}
 }
+
+func TestBuildUpdaterConfigOnlyNotifiesInACluster(t *testing.T) {
+	for _, tier := range []string{"manual", "auto", "autonomous"} {
+		s := &settings.Settings{DBType: "postgres"}
+		s.Updates.Tier = tier
+		if got := buildUpdaterConfig(s, "1.0.0").Tier; got != updater.TierNotify {
+			t.Errorf("tier %s in a cluster: got %q, want notify", tier, got)
+		}
+		s.Cluster.Mode = "off"
+		if got := buildUpdaterConfig(s, "1.0.0").Tier; got != updater.Tier(tier) {
+			t.Errorf("tier %s without cluster: got %q", tier, got)
+		}
+	}
+	s := &settings.Settings{DBType: "mysql"}
+	s.Updates.Tier = "off"
+	if got := buildUpdaterConfig(s, "1.0.0").Tier; got != updater.TierOff {
+		t.Errorf("off stays off in a cluster, got %q", got)
+	}
+}

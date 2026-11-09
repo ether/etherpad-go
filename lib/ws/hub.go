@@ -2,6 +2,7 @@ package ws
 
 import (
 	"encoding/json"
+	"github.com/gofiber/contrib/v3/websocket"
 	"sync"
 	"time"
 
@@ -124,4 +125,26 @@ func (h *Hub) NumClients() int {
 	h.ClientsRWMutex.RLock()
 	defer h.ClientsRWMutex.RUnlock()
 	return len(h.Clients)
+}
+
+// CloseAll closes every client connection with "going away", which makes
+// the pad clients reconnect at once. Behind a load balancer they reconnect
+// to another instance; changes this instance had not acknowledged are sent
+// again from there, acknowledged ones are already stored.
+func (h *Hub) CloseAll() int {
+	h.ClientsRWMutex.RLock()
+	clients := make([]*Client, 0, len(h.Clients))
+	for c := range h.Clients {
+		if c != nil {
+			clients = append(clients, c)
+		}
+	}
+	h.ClientsRWMutex.RUnlock()
+	deadline := time.Now().Add(time.Second)
+	for _, c := range clients {
+		_ = c.Conn.WriteControl(websocket.CloseMessage,
+			websocket.FormatCloseMessage(websocket.CloseGoingAway, "server shutting down"), deadline)
+		_ = c.Conn.Close()
+	}
+	return len(clients)
 }

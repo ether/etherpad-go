@@ -16,9 +16,10 @@ import (
 )
 
 type SQLiteDB struct {
-	path  string
-	sqlDB *sql.DB
-	locks *processLocks
+	path    string
+	sqlDB   *sql.DB
+	locks   *processLocks
+	leaders *leaderSet
 }
 
 func (d SQLiteDB) Ping() error {
@@ -1393,9 +1394,10 @@ func NewSQLiteDB(path string) (*SQLiteDB, error) {
 	}
 
 	return &SQLiteDB{
-		path:  path,
-		sqlDB: sqlDb,
-		locks: newProcessLocks(),
+		path:    path,
+		sqlDB:   sqlDb,
+		locks:   newProcessLocks(),
+		leaders: newLeaderSet(),
 	}, nil
 }
 

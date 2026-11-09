@@ -168,6 +168,10 @@ type Cluster struct {
 	// default the POD_IP environment variable or a private IP of the host.
 	AdvertiseAddr string `json:"advertiseAddr" mapstructure:"advertiseAddr"`
 	AdvertisePort int    `json:"advertisePort" mapstructure:"advertisePort"`
+	// ShutdownDelaySeconds is how long a clustered instance keeps serving
+	// after SIGTERM while reporting not ready, so the load balancer stops
+	// sending it new connections before they are closed.
+	ShutdownDelaySeconds int `json:"shutdownDelaySeconds" mapstructure:"shutdownDelaySeconds"`
 }
 
 // Enabled reports whether clustering is on for the given database type.
@@ -179,6 +183,13 @@ func (c Cluster) Enabled(dbType string) bool {
 		return false
 	}
 	return dbType == "postgres" || dbType == "mysql"
+}
+
+// Clustered reports whether several instances may share this database, so
+// state that only lives in one process (settings.json edits, self-updates)
+// must not be changed through a single instance.
+func (s *Settings) Clustered() bool {
+	return s.Cluster.Enabled(string(s.DBType))
 }
 
 type SSO struct {

@@ -10,7 +10,18 @@ func (m *MemoryDataStore) GetPadVersion(padID string) (*PadVersion, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	v := &PadVersion{Rev: -1, ChatHead: -1}
-	_, v.Exists = m.padStore[padID]
+	row, exists := m.padStore[padID]
+	v.Exists = exists
+	if exists {
+		v.Meta = &PadMeta{
+			SavedRevisions: append([]db.SavedRevision{}, row.SavedRevisions...),
+			PublicStatus:   row.PublicStatus,
+		}
+		if row.ReadOnlyId != nil {
+			id := *row.ReadOnlyId
+			v.Meta.ReadOnlyId = &id
+		}
+	}
 	for rev := range m.padRevisions[padID] {
 		v.Rev = max(v.Rev, rev)
 	}

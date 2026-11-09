@@ -88,6 +88,7 @@ const (
 	ClusterBindPort                     = "cluster.bindPort"
 	ClusterAdvertiseAddr                = "cluster.advertiseAddr"
 	ClusterAdvertisePort                = "cluster.advertisePort"
+	ClusterShutdownDelaySeconds         = "cluster.shutdownDelaySeconds"
 	CookieKeyRotationInterval           = "cookie.keyRotationInterval"
 	CookieSameSite                      = "cookie.sameSite"
 	CookieSessionLifetime               = "cookie.sessionLifetime"

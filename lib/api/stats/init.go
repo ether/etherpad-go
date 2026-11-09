@@ -1,6 +1,7 @@
 package stats
 
 import (
+	"github.com/ether/etherpad-go/lib/lifecycle"
 	"time"
 
 	"github.com/ether/etherpad-go/lib"
@@ -30,9 +31,15 @@ var (
 )
 
 func Init(store *lib.InitStore) {
+	dbCheck := DBChecker{store.Store}
 	checks := []Checker{
-		DBChecker{store.Store},
+		dbCheck,
 		EtherpadChecker{store.Handler.SessionStore},
+		ClusterChecker{
+			Clustered:       store.RetrievedSettings.Clustered(),
+			Bus:             store.Cluster,
+			RetentionLeader: store.RetentionLeader,
+		},
 	}
 
 	version, releaseID := settings.BuildInfo()
@@ -49,6 +56,15 @@ func Init(store *lib.InitStore) {
 		"etherpad-api",
 		checks,
 	))
+	// Kubernetes probes. Without a lifecycle (tests, embedding) the
+	// instance counts as ready.
+	state := store.Lifecycle
+	if state == nil {
+		state = &lifecycle.State{}
+		state.MarkStarted()
+	}
+	store.C.Get("/health/live", LiveHandler())
+	store.C.Get("/health/ready", ReadyHandler(state, dbCheck))
 
 	store.PrivateAPI.Get("/stats", GetStats(store))
 

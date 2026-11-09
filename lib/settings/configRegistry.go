@@ -187,6 +187,7 @@ var Registry = []ConfigKey{
 	{Key: ClusterBindPort, Default: 7946, Description: "Port (TCP and UDP) the cluster gossip listens on"},
 	{Key: ClusterAdvertiseAddr, Default: "", Description: "Address other instances reach this one at (default: POD_IP or a private IP)"},
 	{Key: ClusterAdvertisePort, Default: 0, Description: "Port other instances reach this one at (default: the bind port)"},
+	{Key: ClusterShutdownDelaySeconds, Default: 5, Description: "Seconds a clustered instance reports not ready before closing connections on shutdown"},
 	{
 		Key:         CookieSessionLifetime,
 		Default:     10 * 24 * 60 * 60 * 1000,

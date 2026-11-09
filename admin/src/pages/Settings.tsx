@@ -127,9 +127,9 @@ export function SettingsPage() {
     store.dispatch({ type: 'SET_SETTINGS', payload: JSON.stringify(updated, null, 2) })
   }, [parsed, store])
 
+  // The server answers with results:saveSettings; the store shows the toast.
   const handleSave = () => {
     actions.saveSettings(store.settings)
-    store.setToast({ kind: 'success', message: 'Settings saved.' })
   }
 
   const renderField = (f: FieldDef) => {
@@ -290,7 +290,13 @@ export function SettingsPage() {
           <button type="button" onClick={() => actions.loadSettings()} className="flex items-center gap-1.5 rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-1.5 text-sm font-medium text-gray-600 dark:text-gray-300 transition-colors hover:border-black dark:hover:border-white hover:text-black dark:hover:text-white">
             <RefreshCw className="h-3.5 w-3.5" strokeWidth={1.5} /> Reload
           </button>
-          <button type="button" onClick={handleSave} className="flex items-center gap-1.5 rounded-lg bg-black px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-gray-800">
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={store.settingsReadOnly}
+            title={store.settingsReadOnly ? 'Read-only in a cluster' : undefined}
+            className="flex items-center gap-1.5 rounded-lg bg-black px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-40"
+          >
             <Save className="h-3.5 w-3.5" strokeWidth={1.5} /> Save
           </button>
           <button type="button" onClick={() => { actions.restartServer(); store.setToast({ kind: 'success', message: 'Restart signal sent.' }) }} className="flex items-center gap-1.5 rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-1.5 text-sm font-medium text-gray-600 dark:text-gray-300 transition-colors hover:border-black dark:hover:border-white hover:text-black dark:hover:text-white">
@@ -298,6 +304,12 @@ export function SettingsPage() {
           </button>
         </div>
       </div>
+      {store.settingsReadOnly && (
+        <div className="mb-6 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">
+          This instance runs in a cluster. Settings are read-only here, because a change would only reach this one
+          instance. Change <code>settings.json</code> or the environment of all instances (e.g. the ConfigMap) and roll them out.
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="mb-6 flex gap-1 overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 p-1">

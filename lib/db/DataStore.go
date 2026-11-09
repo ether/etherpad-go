@@ -158,6 +158,7 @@ type DataStore interface {
 	ConsistencyMethods
 	ClusterMethods
 	PadHeadMethods
+	LeaderMethods
 	Close() error
 	Ping() error
 }

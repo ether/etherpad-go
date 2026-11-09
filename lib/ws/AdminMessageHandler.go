@@ -56,7 +56,8 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 			resp := make([]interface{}, 2)
 			resp[0] = "settings"
 			resp[1] = map[string]interface{}{
-				"results": retrievedSettings,
+				"results":  retrievedSettings,
+				"readOnly": retrievedSettings.Clustered(),
 			}
 			responseBytes, err := json.Marshal(resp)
 			if err != nil {
@@ -429,6 +430,16 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 		}
 	case "saveSettings":
 		{
+			if retrievedSettings.Clustered() {
+				// A settings.json written here would only change this
+				// instance and be lost when its pod is replaced.
+				resp := []interface{}{"results:saveSettings", map[string]interface{}{
+					"error": "Settings are read-only in a cluster. Change settings.json or the environment of all instances and roll them out.",
+				}}
+				responseBytes, _ := json.Marshal(resp)
+				c.SafeSend(responseBytes)
+				return
+			}
 			var settingsJSON string
 			if err := json.Unmarshal(message.Data, &settingsJSON); err != nil {
 				settingsJSON = string(message.Data)

@@ -2,6 +2,8 @@ package lib
 
 import (
 	"embed"
+	"github.com/ether/etherpad-go/lib/cluster"
+	"github.com/ether/etherpad-go/lib/lifecycle"
 
 	"github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/db"
@@ -32,4 +34,11 @@ type InitStore struct {
 	SecurityManager   *pad2.SecurityManager
 	AuthorManager     *author.Manager
 	Importer          *io.Importer
+	// Cluster is the bus to the other instances on the database; nil
+	// means a single instance.
+	Cluster cluster.Bus
+	// RetentionLeader elects the instance running the retention sweep.
+	RetentionLeader *cluster.Elector
+	// Lifecycle tells whether this instance should receive traffic.
+	Lifecycle *lifecycle.State
 }

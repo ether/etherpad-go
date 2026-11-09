@@ -63,6 +63,9 @@ func main() {
 		case "clusterbench":
 			loadtest.RunClusterBenchFromCLI(setupLogger, os.Args[2:])
 			return
+		case "killbench":
+			loadtest.RunKillBenchFromCLI(setupLogger, os.Args[2:])
+			return
 		case "prepare":
 			server2.PrepareServer(setupLogger)
 			os.Exit(0)
@@ -77,6 +80,7 @@ func main() {
 			fmt.Println("  loadtest   Run a load test on a single pad")
 			fmt.Println("  multiload  Run a multi-pad load test")
 			fmt.Println("  clusterbench  Edit one pad through several instances; measure latency and check for lost changes")
+			fmt.Println("  killbench  Kill an instance while users type through it; check that they carry on without losing changes")
 			fmt.Println("  (none)     Start the Etherpad server")
 			fmt.Println("  prepare    Prepare the etherpad server including building frontend assets")
 			fmt.Println(" config     Manage configuration settings")

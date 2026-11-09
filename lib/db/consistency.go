@@ -4,7 +4,9 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/ether/etherpad-go/lib/models/db"
@@ -24,6 +26,34 @@ type PadVersion struct {
 	Rev int
 	// ChatHead is the highest stored chat message number, -1 if none.
 	ChatHead int
+	// Meta is the metadata in the pad row; nil if the pad does not exist.
+	// It is read with the version so a writer holding the pad lock always
+	// works on the current metadata, even if another instance changed it.
+	Meta *PadMeta
+}
+
+// PadMeta is the part of the pad row that is not derived from revisions.
+type PadMeta struct {
+	SavedRevisions []db.SavedRevision
+	PublicStatus   bool
+	ReadOnlyId     *string
+}
+
+// scanPadMeta builds PadMeta from nullable columns of a GetPadVersion query.
+func scanPadMeta(exists bool, saved []byte, public *bool, readOnly *string) (*PadMeta, error) {
+	if !exists {
+		return nil, nil
+	}
+	meta := &PadMeta{ReadOnlyId: readOnly, SavedRevisions: []db.SavedRevision{}}
+	if public != nil {
+		meta.PublicStatus = *public
+	}
+	if len(saved) > 0 && string(saved) != "null" {
+		if err := json.Unmarshal(saved, &meta.SavedRevisions); err != nil {
+			return nil, fmt.Errorf("saved revisions: %w", err)
+		}
+	}
+	return meta, nil
 }
 
 // RevisionDelta is a stored revision without its full text.

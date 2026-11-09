@@ -73,6 +73,11 @@ func CheckAccess(ctx fiber.Ctx, logger *zap.SugaredLogger, retrievedSettings *se
 }
 
 func CheckAccessWithHooks(ctx fiber.Ctx, logger *zap.SugaredLogger, retrievedSettings *settings.Settings, readOnlyManager *ReadOnlyManager, hookSystem *hooks.Hook) error {
+	// Liveness and readiness probes carry no data and must work for the
+	// orchestrator even when the pads require a login.
+	if p := ctx.Path(); p == "/health/live" || p == "/health/ready" {
+		return ctx.Next()
+	}
 	var requireAdmin = strings.HasPrefix(strings.ToLower(ctx.Path()), "/admin-auth")
 	// ///////////////////////////////////////////////////////////////////////////////////////////////
 	// Step 1: Check the preAuthorize hook for early permit/deny (permit is only allowed for

@@ -2,6 +2,8 @@ package ws
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -88,6 +90,10 @@ func TestAdminMessageHandler_AllMethods(t *testing.T) {
 		testutils.TestRunConfig{
 			Name: "Handle saveSettings",
 			Test: testSaveSettings,
+		},
+		testutils.TestRunConfig{
+			Name: "Settings are read-only in a cluster",
+			Test: testSettingsReadOnlyInCluster,
 		},
 	)
 	testDb.StartTestDBHandler()
@@ -769,4 +775,43 @@ func testHandleCheckUpdates(t *testing.T, ds testutils.TestDataStore) {
 	result = resp[1].(map[string]interface{})
 	assert.Equal(t, "v1.1.0", result["latestVersion"])
 	assert.Equal(t, true, result["updateAvailable"])
+}
+
+func testSettingsReadOnlyInCluster(t *testing.T, ds testutils.TestDataStore) {
+	hub := ws.NewHub()
+	settingsToLoad := settings.Displayed
+	settingsToLoad.DBType = "postgres" // cluster mode auto: on
+	settingsToLoad.Root = t.TempDir()
+	client := &ws.Client{
+		Hub:       hub,
+		Conn:      ds.MockWebSocket,
+		Send:      make(chan []byte, 256),
+		Room:      "test-pad",
+		SessionId: "session123",
+	}
+	wg := startMockWritePump(client, ds.MockWebSocket)
+
+	ds.AdminMessageHandler.HandleMessage(admin.EventMessage{Event: "load"}, &settingsToLoad, client)
+	data, err := json.Marshal(`{"title":"Changed"}`)
+	assert.NoError(t, err)
+	ds.AdminMessageHandler.HandleMessage(admin.EventMessage{Event: "saveSettings", Data: data}, &settingsToLoad, client)
+	wg.Wait()
+
+	if !assert.Len(t, ds.MockWebSocket.Data, 2) {
+		return
+	}
+	var load []interface{}
+	assert.NoError(t, json.Unmarshal(ds.MockWebSocket.Data[0].Data, &load))
+	assert.Equal(t, "settings", load[0])
+	assert.Equal(t, true, load[1].(map[string]interface{})["readOnly"])
+
+	var save []interface{}
+	assert.NoError(t, json.Unmarshal(ds.MockWebSocket.Data[1].Data, &save))
+	assert.Equal(t, "results:saveSettings", save[0])
+	result := save[1].(map[string]interface{})
+	assert.Nil(t, result["success"])
+	assert.Contains(t, result["error"], "read-only in a cluster")
+
+	_, statErr := os.Stat(filepath.Join(settingsToLoad.Root, "settings.json"))
+	assert.True(t, os.IsNotExist(statErr), "no settings.json may be written")
 }

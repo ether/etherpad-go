@@ -47,6 +47,16 @@ type Retention struct {
 	cancel contextCancel
 	wg     sync.WaitGroup
 	delete sync.Mutex
+	// isLeader, if set, reports whether this instance runs the periodic
+	// sweep. In a cluster only the leader sweeps; the others would only
+	// repeat its work.
+	isLeader func() bool
+}
+
+// SetLeader makes the periodic sweep run only while isLeader returns true.
+// Call it before Start.
+func (r *Retention) SetLeader(isLeader func() bool) {
+	r.isLeader = isLeader
 }
 
 // contextCancel is kept as a small interface so Retention remains easy to
@@ -202,6 +212,10 @@ func (r *Retention) expirePad(padID string, cfg *retentionConfig, now time.Time)
 }
 
 func (r *Retention) sweepOnce(cfg *retentionConfig) {
+	if r.isLeader != nil && !r.isLeader() {
+		r.logger.Debugw("Pad retention sweep skipped: another instance is the leader")
+		return
+	}
 	padIDs, err := r.store.GetPadIds()
 	if err != nil {
 		r.logger.Warnw("Pad retention sweep failed", "error", err)
