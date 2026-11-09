@@ -19,6 +19,12 @@ func buildUpdaterConfig(s *settings.Settings, currentVersion string) updater.Con
 	if tier == "" {
 		tier = updater.TierNotify
 	}
+	// In a cluster every instance runs the same image, rolled out by the
+	// orchestrator. An instance replacing its own binary would leave the
+	// cluster on mixed versions, so it may only notify.
+	if s.Clustered() && tier != updater.TierOff && tier != updater.TierNotify {
+		tier = updater.TierNotify
+	}
 	interval := time.Duration(u.CheckIntervalHours) * time.Hour
 	if interval <= 0 {
 		interval = 6 * time.Hour
@@ -70,6 +76,10 @@ func buildUpdaterConfig(s *settings.Settings, currentVersion string) updater.Con
 // broadcast callback (may be nil) is invoked with the seconds remaining at each
 // drain announcement so connected clients can be warned of the restart.
 func StartUpdater(logger *zap.SugaredLogger, s *settings.Settings, currentVersion string, broadcast func(secsLeft int)) *updater.Updater {
+	if configured := strings.ToLower(strings.TrimSpace(s.Updates.Tier)); s.Clustered() && configured != "" &&
+		configured != string(updater.TierOff) && configured != string(updater.TierNotify) {
+		logger.Warnf("updater: tier %q is not used in a cluster, only notifying. Update by rolling out a new image.", configured)
+	}
 	upd := updater.New(buildUpdaterConfig(s, currentVersion), logger, func(secsLeft int) {
 		logger.Warnf("updater: %d seconds until restart for update", secsLeft)
 		if broadcast != nil {

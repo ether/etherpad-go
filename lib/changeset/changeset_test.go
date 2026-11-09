@@ -720,7 +720,6 @@ func TestRegexMatcher3(t *testing.T) {
 }
 
 func TestInverseRandom(t *testing.T) {
-	t.Skip()
 	testInverseRandom := func(randomSeed int) {
 		t.Run(fmt.Sprintf("testInverseRandom#%d", randomSeed), func(t *testing.T) {
 			p := createPool([]string{"apple,", "apple,true", "banana,", "banana,true"})
@@ -771,13 +770,38 @@ func TestInverseRandom(t *testing.T) {
 			require.NoError(t, err)
 
 			assert.Equal(t, origLines, lines)
-			assert.Equal(t, origALines, alines)
+			// Go writes attributes in pool order, the generator may not, so
+			// compare which attributes each character has.
+			assert.Equal(t, perCharAttribs(t, origALines), perCharAttribs(t, alines))
 		})
 	}
 
-	for i := 0; i < 30; i++ {
+	for i := 0; i < 200; i++ {
 		testInverseRandom(i)
 	}
+}
+
+// perCharAttribs expands attribution lines to the sorted attribute
+// numbers of every character, so equal attributions compare equal however
+// their ops are split or ordered.
+func perCharAttribs(t *testing.T, alines []string) [][]string {
+	t.Helper()
+	var out [][]string
+	for _, aline := range alines {
+		ops, err := DeserializeOps(aline)
+		require.NoError(t, err)
+		var chars []string
+		for _, op := range *ops {
+			nums := strings.Split(strings.TrimPrefix(op.Attribs, "*"), "*")
+			slices.Sort(nums)
+			key := strings.Join(nums, "*")
+			for i := 0; i < op.Chars; i++ {
+				chars = append(chars, key)
+			}
+		}
+		out = append(out, chars)
+	}
+	return out
 }
 
 func TestInverse(t *testing.T) {

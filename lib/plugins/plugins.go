@@ -3,6 +3,7 @@ package plugins
 import (
 	"embed"
 	"encoding/json"
+	"sync"
 
 	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/gofiber/fiber/v3"
@@ -203,10 +204,15 @@ func GetToolbarButtonGroups() []ToolbarButtonGroup {
 	return groups
 }
 
-// Cached plugin data
-var cachedPlugins = map[string]Plugin{}
-var cachedParts = map[string]Part{}
-var cachedPackages = map[string]Plugin{}
+// Cached plugin data. Loaded once; every pad connect reads it, so the load
+// is guarded: concurrent first readers would otherwise race on the maps.
+var (
+	cacheMu        sync.Mutex
+	cacheLoaded    bool
+	cachedPlugins  map[string]Plugin
+	cachedParts    map[string]Part
+	cachedPackages map[string]Plugin
+)
 
 func Init(uiAssets embed.FS, pluginAssets embed.FS) {
 	storedUIAssets = uiAssets
@@ -214,27 +220,32 @@ func Init(uiAssets embed.FS, pluginAssets embed.FS) {
 	GetCachedPlugins()
 }
 
+// loadCache loads the plugin data on first use. With no plugins installed
+// the maps are empty, which used to trigger a reload on every call.
+func loadCache() {
+	cacheMu.Lock()
+	defer cacheMu.Unlock()
+	if !cacheLoaded {
+		cachedPackages, cachedParts, cachedPlugins = Update()
+		cacheLoaded = true
+	}
+}
+
 // GetCachedPlugins returns cached plugins, loading them if necessary
 func GetCachedPlugins() map[string]Plugin {
-	if len(cachedPlugins) == 0 {
-		cachedPackages, cachedParts, cachedPlugins = Update()
-	}
+	loadCache()
 	return cachedPlugins
 }
 
 // GetCachedParts returns cached parts, loading them if necessary
 func GetCachedParts() map[string]Part {
-	if cachedParts == nil {
-		cachedPackages, cachedParts, cachedPlugins = Update()
-	}
+	loadCache()
 	return cachedParts
 }
 
 // GetCachedPackages returns cached packages, loading them if necessary
 func GetCachedPackages() map[string]Plugin {
-	if cachedPackages == nil {
-		cachedPackages, cachedParts, cachedPlugins = Update()
-	}
+	loadCache()
 	return cachedPackages
 }
 

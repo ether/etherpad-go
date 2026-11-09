@@ -2,6 +2,7 @@ package ws
 
 import (
 	"encoding/json"
+	"github.com/gofiber/contrib/v3/websocket"
 	"sync"
 	"time"
 
@@ -57,14 +58,25 @@ func (h *Hub) BroadcastShout(message string, sticky bool) {
 	}
 }
 
+// Run registers and unregisters clients and delivers Broadcast messages
+// until one of the hub's channels is closed.
 func (h *Hub) Run() {
 	for {
 		select {
-		case client := <-h.Register:
+		case client, ok := <-h.Register:
+			if !ok {
+				return
+			}
+			if client == nil {
+				continue
+			}
 			h.ClientsRWMutex.Lock()
 			h.Clients[client] = true
 			h.ClientsRWMutex.Unlock()
-		case client := <-h.Unregister:
+		case client, ok := <-h.Unregister:
+			if !ok {
+				return
+			}
 			if client == nil {
 				continue
 			}
@@ -74,20 +86,65 @@ func (h *Hub) Run() {
 				close(client.Send)
 			}
 			h.ClientsRWMutex.Unlock()
-		case message := <-h.Broadcast:
-			h.ClientsRWMutex.RLock()
-			for client := range h.Clients {
-				if client == nil {
-					continue
-				}
-				select {
-				case client.Send <- message:
-				default:
-					close(client.Send)
-					delete(h.Clients, client)
-				}
+		case message, ok := <-h.Broadcast:
+			if !ok {
+				return
 			}
-			h.ClientsRWMutex.RUnlock()
+			h.broadcast(message)
 		}
 	}
+}
+
+// broadcast sends message to every client and drops the clients whose send
+// buffer is full. It changes the client set, so it needs the write lock.
+func (h *Hub) broadcast(message []byte) {
+	h.ClientsRWMutex.Lock()
+	defer h.ClientsRWMutex.Unlock()
+	for client := range h.Clients {
+		if client == nil {
+			continue
+		}
+		select {
+		case client.Send <- message:
+		default:
+			close(client.Send)
+			delete(h.Clients, client)
+		}
+	}
+}
+
+// HasClient reports whether client is registered.
+func (h *Hub) HasClient(client *Client) bool {
+	h.ClientsRWMutex.RLock()
+	defer h.ClientsRWMutex.RUnlock()
+	return h.Clients[client]
+}
+
+// NumClients is the number of registered clients.
+func (h *Hub) NumClients() int {
+	h.ClientsRWMutex.RLock()
+	defer h.ClientsRWMutex.RUnlock()
+	return len(h.Clients)
+}
+
+// CloseAll closes every client connection with "going away", which makes
+// the pad clients reconnect at once. Behind a load balancer they reconnect
+// to another instance; changes this instance had not acknowledged are sent
+// again from there, acknowledged ones are already stored.
+func (h *Hub) CloseAll() int {
+	h.ClientsRWMutex.RLock()
+	clients := make([]*Client, 0, len(h.Clients))
+	for c := range h.Clients {
+		if c != nil {
+			clients = append(clients, c)
+		}
+	}
+	h.ClientsRWMutex.RUnlock()
+	deadline := time.Now().Add(time.Second)
+	for _, c := range clients {
+		_ = c.Conn.WriteControl(websocket.CloseMessage,
+			websocket.FormatCloseMessage(websocket.CloseGoingAway, "server shutting down"), deadline)
+		_ = c.Conn.Close()
+	}
+	return len(clients)
 }

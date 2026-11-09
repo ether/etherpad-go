@@ -2,7 +2,6 @@ package changeset
 
 import (
 	"fmt"
-	"unicode/utf8"
 
 	"github.com/ether/etherpad-go/lib/utils"
 )
@@ -93,7 +92,7 @@ func safeMutateTextLines(cs string, textLines *[]string) (err error) {
 }
 
 func truncate(s string, max int) string {
-	if utf8.RuneCountInString(s) <= max {
+	if utils.RuneCount(s) <= max {
 		return s
 	}
 	return utils.RuneSlice(s, 0, max) + "…"

@@ -3,6 +3,8 @@ package server
 import (
 	"embed"
 	"fmt"
+	"github.com/ether/etherpad-go/lib/cluster"
+	"github.com/ether/etherpad-go/lib/lifecycle"
 	"net/http"
 	"os"
 	"os/signal"
@@ -86,6 +88,22 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 	})
 	sessionStore := ws.NewSessionStore()
 	padMessageHandler := ws.NewPadMessageHandler(dataStore, &retrievedHooks, padManager, &sessionStore, globalHub, setupLogger, uiAssets, &settings)
+	// Instances on one database pass live updates to each other.
+	var clusterBus cluster.Bus = cluster.Local{}
+	if settings.Cluster.Enabled(string(settings.DBType)) {
+		bus, err := cluster.NewMemberlist(settings.Cluster, dataStore, setupLogger)
+		if err != nil {
+			if settings.Cluster.Mode == "on" || settings.Cluster.Mode == "true" {
+				setupLogger.Fatalf("Error starting the cluster: %v", err)
+			}
+			setupLogger.Warnf("Running without cluster: %v. Other instances on this database will not see live updates from this one.", err)
+		} else {
+			clusterBus = bus
+		}
+	}
+	padMessageHandler.SetCluster(clusterBus)
+	// Whether this instance should get traffic (readiness probe).
+	lifecycleState := &lifecycle.State{}
 	adminMessageHandler := ws.NewAdminMessageHandler(dataStore, &retrievedHooks, padManager, padMessageHandler, setupLogger, globalHub, app, upd)
 	securityManager := pad.NewSecurityManager(dataStore, &retrievedHooks, padManager, &settings)
 
@@ -102,7 +120,11 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 	plugins.InitPlugins(epPluginStore)
 	retrievedHooks.ExecuteLoadSettingsHooks(&events.LoadSettingsContext{Settings: &settings})
 
+	// Background jobs that must run on one instance only.
+	retentionLeader := cluster.NewElector(dataStore, "pad-retention", setupLogger)
+	retentionLeader.Start()
 	retention := pad.NewRetention(padManager, dataStore, &settings, setupLogger)
+	retention.SetLeader(retentionLeader.IsLeader)
 	padMessageHandler.SetRetention(retention)
 	retention.Start()
 
@@ -133,6 +155,9 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 		Store:             dataStore,
 		ReadOnlyManager:   readOnlyManager,
 		Importer:          importer,
+		Cluster:           clusterBus,
+		RetentionLeader:   retentionLeader,
+		Lifecycle:         lifecycleState,
 	})
 
 	// Pre-upgrade data is stored in a sync.Map keyed by a unique connection token,
@@ -145,6 +170,11 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 			// binary swap, so clients reconnect to the restarted instance.
 			if !upd.IsAcceptingConnections() {
 				return c.Status(fiber.StatusServiceUnavailable).SendString("server is draining for an update")
+			}
+			// Shutting down: the client retries and, behind a load
+			// balancer, lands on another instance.
+			if lifecycleState.Draining() {
+				return c.Status(fiber.StatusServiceUnavailable).SendString("server is shutting down")
 			}
 			sess, err := cookieStore.Get(c)
 			if err != nil {
@@ -258,16 +288,35 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 		time.Sleep(3 * time.Second)
 		upd.MarkBootHealthy()
 	}()
+	lifecycleState.MarkStarted()
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	<-sigCh
 	setupLogger.Info("Shutting down Etherpad Go...")
-	retrievedHooks.ExecuteShutdownHooks(&events.ShutdownContext{})
-	retention.Stop()
-	upd.Stop()
-	authenticator.Stop()
-	if err := app.ShutdownWithTimeout(3 * time.Second); err != nil {
-		setupLogger.Warn("Error during shutdown: " + err.Error())
-	}
+	gracefulShutdown(shutdownSteps{
+		logger:    setupLogger,
+		lifecycle: lifecycleState,
+		delay:     shutdownDelay(&settings),
+		hub:       globalHub,
+		stopJobs: func() {
+			retrievedHooks.ExecuteShutdownHooks(&events.ShutdownContext{})
+			retention.Stop()
+			// Give up leadership so another instance takes over at once.
+			retentionLeader.Stop()
+			upd.Stop()
+			authenticator.Stop()
+		},
+		leaveCluster: func() {
+			padMessageHandler.StopCluster()
+			if err := clusterBus.Close(); err != nil {
+				setupLogger.Warn("Error leaving the cluster: " + err.Error())
+			}
+		},
+		stopHTTP: func() {
+			if err := app.ShutdownWithTimeout(3 * time.Second); err != nil {
+				setupLogger.Warn("Error during shutdown: " + err.Error())
+			}
+		},
+	})
 }

@@ -97,3 +97,26 @@ func TestParseRetentionConfigRejectsInvalidValues(t *testing.T) {
 		})
 	}
 }
+
+func TestRetentionSweepRunsOnlyOnTheLeader(t *testing.T) {
+	store := db.NewMemoryDataStore()
+	addRetentionTestPad(t, store, "old", time.Now().Add(-48*time.Hour))
+	retention := newTestRetention(t, store, settings.PadRetention{
+		Enabled:            true,
+		DeleteAfterDays:    1,
+		SweepIntervalHours: 1,
+	})
+	leader := false
+	retention.SetLeader(func() bool { return leader })
+
+	retention.sweepOnce(retention.config())
+	if exists, _ := store.DoesPadExist("old"); !*exists {
+		t.Fatal("a follower must not sweep")
+	}
+
+	leader = true
+	retention.sweepOnce(retention.config())
+	if exists, _ := store.DoesPadExist("old"); *exists {
+		t.Fatal("the leader sweeps expired pads")
+	}
+}

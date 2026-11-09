@@ -154,6 +154,55 @@ type SSOClient struct {
 	Type          string   `json:"type" mapstructure:"type"`
 }
 
+// Cluster configures how several Etherpad instances on one database find
+// each other and pass on live updates (hashicorp/memberlist). The instances
+// register their gossip address in the database, so no further discovery
+// (headless service, DNS) is needed.
+type Cluster struct {
+	// Mode is "auto" (on for postgres and mysql), "on" or "off".
+	Mode string `json:"mode" mapstructure:"mode"`
+	// BindAddr and BindPort are where memberlist listens (TCP and UDP).
+	BindAddr string `json:"bindAddr" mapstructure:"bindAddr"`
+	BindPort int    `json:"bindPort" mapstructure:"bindPort"`
+	// AdvertiseAddr is the address other instances reach this one at; by
+	// default the POD_IP environment variable or a private IP of the host.
+	AdvertiseAddr string `json:"advertiseAddr" mapstructure:"advertiseAddr"`
+	AdvertisePort int    `json:"advertisePort" mapstructure:"advertisePort"`
+	// ShutdownDelaySeconds is how long a clustered instance keeps serving
+	// after SIGTERM while reporting not ready, so the load balancer stops
+	// sending it new connections before they are closed.
+	ShutdownDelaySeconds int `json:"shutdownDelaySeconds" mapstructure:"shutdownDelaySeconds"`
+}
+
+// Enabled reports whether clustering is on for the given database type.
+//
+// "auto" turns it on for PostgreSQL and MySQL when the instance runs under an
+// orchestrator that runs several replicas (Kubernetes, or POD_IP given), so
+// an existing single instance on PostgreSQL does not start listening on the
+// gossip port after an upgrade. Elsewhere set mode "on".
+func (c Cluster) Enabled(dbType string) bool {
+	switch c.Mode {
+	case "on", "true":
+		return true
+	case "off", "false":
+		return false
+	}
+	return (dbType == "postgres" || dbType == "mysql") && orchestrated()
+}
+
+// orchestrated reports whether the instance runs in Kubernetes or was given
+// its pod address.
+func orchestrated() bool {
+	return os.Getenv("KUBERNETES_SERVICE_HOST") != "" || os.Getenv("POD_IP") != ""
+}
+
+// Clustered reports whether several instances may share this database, so
+// state that only lives in one process (settings.json edits, self-updates)
+// must not be changed through a single instance.
+func (s *Settings) Clustered() bool {
+	return s.Cluster.Enabled(string(s.DBType))
+}
+
 type SSO struct {
 	Issuer  string      `json:"issuer" mapstructure:"issuer"`
 	Clients []SSOClient `json:"clients" mapstructure:"clients"`
@@ -271,6 +320,8 @@ type Settings struct {
 	Cookie Cookie `json:"cookie" mapstructure:"cookie"`
 
 	Updates Updates `json:"updates" mapstructure:"updates"`
+
+	Cluster Cluster `json:"cluster" mapstructure:"cluster"`
 
 	RequireAuthentication bool `json:"requireAuthentication" mapstructure:"requireAuthentication"`
 	RequireAuthorization  bool `json:"requireAuthorization" mapstructure:"requireAuthorization"`

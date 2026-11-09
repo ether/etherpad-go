@@ -1,8 +1,13 @@
 package pad
 
 import (
+	"errors"
+	"fmt"
 	"sort"
 	"sync"
+
+	"github.com/ether/etherpad-go/lib/models/pad"
+	"go.uber.org/zap"
 )
 
 // padLocks serialises access to pads by pad ID.
@@ -81,16 +86,119 @@ func sortedUnique(ids []string) []string {
 	return out
 }
 
+// ErrPadUnavailable is returned by LockPad and RLockPad when the pad cannot
+// be locked or brought up to the stored state, typically because the
+// database is unreachable. The caller must not touch the pad then: its cached
+// copy may be behind what other instances stored.
+var ErrPadUnavailable = errors.New("pad temporarily unavailable")
+
 // LockPad takes the write lock of every given pad and returns a function that
 // releases them. Use it around any change to a pad.
-func (m *Manager) LockPad(ids ...string) (unlock func()) {
-	return m.lock(ids, false)
+//
+// Besides the lock within this process it takes the pads' locks in the
+// database, all or none, which excludes writers in other Etherpad instances
+// on the same database, and then brings the cached pads up to the stored
+// state. If any of that fails nothing is held and the error wraps
+// ErrPadUnavailable.
+func (m *Manager) LockPad(ids ...string) (unlock func(), err error) {
+	ids = sortedUnique(ids)
+	unlockLocal := m.lock(ids, false)
+	release, err := m.store.LockPadsExclusive(ids)
+	if err != nil {
+		unlockLocal()
+		return nil, fmt.Errorf("%w: locking %v: %v", ErrPadUnavailable, ids, err)
+	}
+	m.markDBLocked(ids, 1)
+	for _, id := range ids {
+		if err := m.refreshCached(id); err != nil {
+			m.markDBLocked(ids, -1)
+			release()
+			unlockLocal()
+			return nil, err
+		}
+	}
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			m.markDBLocked(ids, -1)
+			release()
+			unlockLocal()
+		})
+	}, nil
 }
+
+// maxReadRefreshes bounds how often RLockPad refreshes a pad that keeps
+// changing; after that the reader gets the state of its last refresh.
+const maxReadRefreshes = 2
 
 // RLockPad takes the read lock of every given pad and returns a function that
 // releases them. Use it around reads of a live pad's text, pool or revisions.
-func (m *Manager) RLockPad(ids ...string) (unlock func()) {
-	return m.lock(ids, true)
+// Readers share the lock: a cached pad is compared with the stored version
+// under the read lock, and only a pad that is behind (another instance wrote
+// to it) is refreshed under the write lock first.
+func (m *Manager) RLockPad(ids ...string) (unlock func(), err error) {
+	ids = sortedUnique(ids)
+	for round := 0; ; round++ {
+		unlockRead := m.lock(ids, true)
+		stale, err := m.staleCached(ids)
+		if err != nil {
+			unlockRead()
+			return nil, err
+		}
+		if len(stale) == 0 || round == maxReadRefreshes {
+			return unlockRead, nil
+		}
+		unlockRead()
+		for _, id := range stale {
+			unlockOne := m.lock([]string{id}, false)
+			err := m.refreshCached(id)
+			unlockOne()
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+}
+
+// staleCached returns the ids whose cached pad differs from the stored
+// state. The caller holds the pads' read locks.
+func (m *Manager) staleCached(ids []string) ([]string, error) {
+	var stale []string
+	for _, id := range ids {
+		cached := m.globalPadCache.GetPad(id)
+		if cached == nil {
+			continue
+		}
+		v, err := m.store.GetPadVersion(id)
+		if err != nil {
+			return nil, fmt.Errorf("%w: reading the version of %s: %v", ErrPadUnavailable, id, err)
+		}
+		if !cached.MatchesVersion(v) {
+			stale = append(stale, id)
+		}
+	}
+	return stale, nil
+}
+
+// refreshCached brings the cached pad id, if any, up to the stored state,
+// and drops it from the cache if it was deleted. If the refresh fails the
+// pad is dropped from the cache as well, so the next access loads it from
+// the store instead of using a copy that may be behind, and the error is
+// returned. The caller holds the pad's write lock.
+func (m *Manager) refreshCached(id string) error {
+	cached := m.globalPadCache.GetPad(id)
+	if cached == nil {
+		return nil
+	}
+	if err := cached.Refresh(); err != nil {
+		m.globalPadCache.DeletePad(id)
+		if errors.Is(err, pad.ErrPadGone) {
+			return nil
+		}
+		zap.S().Warnw("could not refresh a cached pad", "pad", id, "error", err)
+		return fmt.Errorf("%w: refreshing %s: %v", ErrPadUnavailable, id, err)
+	}
+	return nil
 }
 
 func (m *Manager) lock(ids []string, read bool) func() {
@@ -119,3 +227,25 @@ func (m *Manager) lock(ids []string, read bool) func() {
 		})
 	}
 }
+
+// CatchUp brings the cached pad id up to the stored state under the pad's
+// local write lock and calls fn with it, to send its clients what other
+// instances stored. It reports false if the pad is not cached here (then
+// it has no clients here) or was deleted.
+func (m *Manager) CatchUp(id string, fn func(p *pad.Pad)) bool {
+	unlock := m.lock([]string{id}, false)
+	defer unlock()
+	if err := m.refreshCached(id); err != nil {
+		return false
+	}
+	cached := m.globalPadCache.GetPad(id)
+	if cached == nil {
+		return false
+	}
+	fn(cached)
+	return true
+}
+
+// UnavailableStatus is the HTTP status for ErrPadUnavailable: the client may
+// retry, and a load balancer may send the retry to another instance.
+const UnavailableStatus = 503

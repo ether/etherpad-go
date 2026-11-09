@@ -31,9 +31,14 @@ func (r *ReadOnlyManager) IsReadOnlyID(id *string) bool {
 func (r *ReadOnlyManager) GetReadOnlyId(pad string) string {
 	var readonlyId, err = r.Store.GetReadonlyPad(pad)
 	if err != nil {
-		var randomId = "r." + utils.RandomString(16)
-		r.Store.SetReadOnlyId(pad, randomId)
-		return randomId
+		// Several instances may get here at once for a new pad; the
+		// database keeps the first id and everyone returns that one.
+		candidate := "r." + utils.RandomString(16)
+		stored, claimErr := r.Store.ClaimReadOnlyId(pad, candidate)
+		if claimErr != nil {
+			return candidate
+		}
+		return stored
 	}
 
 	return *readonlyId

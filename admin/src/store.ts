@@ -60,6 +60,9 @@ export interface AdminState {
   shoutSticky: boolean
   shouts: ShoutMessage[]
   settings: string
+  // settingsReadOnly is true in a cluster: settings come from settings.json
+  // or the environment of every instance and cannot be saved from here.
+  settingsReadOnly: boolean
   plugins: PluginRecord[]
   lastUpdated: Date | null
   connections: { sessionId: string; padId: string; ip: string }[]
@@ -76,6 +79,7 @@ type Action =
   | { type: 'SET_TOAST'; payload: Toast | null }
   | { type: 'SET_CURRENT_PAGE'; payload: string }
   | { type: 'SET_SETTINGS'; payload: string }
+  | { type: 'SET_SETTINGS_READONLY'; payload: boolean }
   | { type: 'SET_UPDATE'; payload: UpdateCheckResult }
   | { type: 'SET_UPDATE_STATUS'; payload: UpdateStatus }
   | { type: 'SET_PADS'; payload: { pads: PadRecord[]; total: number } }
@@ -116,6 +120,7 @@ const initialState: AdminState = {
   shoutSticky: false,
   shouts: [],
   settings: '',
+  settingsReadOnly: false,
   plugins: [],
   lastUpdated: null,
   connections: [],
@@ -138,6 +143,8 @@ function adminReducer(state: AdminState, action: Action): AdminState {
       return { ...state, currentPage: action.payload }
     case 'SET_SETTINGS':
       return { ...state, settings: action.payload }
+    case 'SET_SETTINGS_READONLY':
+      return { ...state, settingsReadOnly: action.payload }
     case 'SET_UPDATE':
       return { ...state, update: action.payload }
     case 'SET_UPDATE_STATUS':
@@ -267,9 +274,18 @@ export function AdminProvider({ children }: { children: ReactNode }) {
           formatted = String(settings)
         }
         dispatch({ type: 'SET_SETTINGS', payload: formatted })
+        dispatch({ type: 'SET_SETTINGS_READONLY', payload: payload?.readOnly === true })
         dispatch({ type: 'SET_LAST_UPDATED', payload: new Date() })
         break
       }
+      case 'results:saveSettings':
+        dispatch({
+          type: 'SET_TOAST',
+          payload: payload?.success
+            ? { kind: 'success', message: 'Settings saved.' }
+            : { kind: 'error', message: payload?.error ?? 'Failed to save settings' },
+        })
+        break
       case 'results:checkUpdates':
         dispatch({ type: 'SET_UPDATE', payload: payload as UpdateCheckResult })
         dispatch({ type: 'SET_LAST_UPDATED', payload: new Date() })

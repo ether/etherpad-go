@@ -47,11 +47,50 @@ func (d PostgresDB) RemoveSheet(padId string) error {
 }
 
 func (d PostgresDB) SaveSheetOp(padId string, rev int, op string, authorId *string, timestamp int64) error {
-	_, err := d.pool.Exec(context.Background(),
+	tag, err := d.pool.Exec(context.Background(),
 		`INSERT INTO sheet_op (id, rev, op, author_id, timestamp, created_at)
          VALUES ($1, $2, $3, $4, $5, NOW()) ON CONFLICT (id, rev) DO NOTHING`,
 		padId, rev, op, authorId, timestamp)
-	return err
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrConflict
+	}
+	return nil
+}
+
+func (d PostgresDB) GetSheetVersion(padId string) (*SheetVersion, error) {
+	v := &SheetVersion{Exists: true}
+	err := d.pool.QueryRow(context.Background(),
+		`SELECT head, epoch, COALESCE((SELECT MAX(rev) FROM sheet_op WHERE id = $1), 0) FROM sheet WHERE id = $1`,
+		padId).Scan(&v.Head, &v.Epoch, &v.OpHead)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return &SheetVersion{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return v, nil
+}
+
+func (d PostgresDB) ResetSheet(padId string, snapshot string) error {
+	ctx := context.Background()
+	tx, err := d.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	if _, err := tx.Exec(ctx, `DELETE FROM sheet_op WHERE id = $1`, padId); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx,
+		`INSERT INTO sheet (id, head, snapshot, epoch, created_at, updated_at) VALUES ($1, 0, $2, 1, NOW(), NOW())
+		 ON CONFLICT (id) DO UPDATE SET head = 0, snapshot = EXCLUDED.snapshot, epoch = sheet.epoch + 1, updated_at = NOW()`,
+		padId, snapshot); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 
 func (d PostgresDB) RemoveSheetOps(padId string) error {

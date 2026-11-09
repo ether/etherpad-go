@@ -93,6 +93,14 @@
     "sessionRefreshInterval": 86400000,
     "sessionCleanup": true
   },
+  "cluster": {
+    "mode": "auto",
+    "bindAddr": "",
+    "bindPort": 7946,
+    "advertiseAddr": "",
+    "advertisePort": 0,
+    "shutdownDelaySeconds": 5
+  },
   "updates": {
     "tier": "notify",
     "githubRepo": "ether/etherpad-go",

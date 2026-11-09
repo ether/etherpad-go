@@ -94,12 +94,21 @@ func testConcurrentUserChangesAndAPIWrites(t *testing.T, ds testutils.TestDataSt
 				errs <- fmt.Errorf("commit %d was not accepted", i)
 				return
 			}
-			rev, err := ds.DS.GetRevision(padId, newRev)
+			// Only key revisions store the full text; rebuild it.
+			unlock := mustLock(ds.PadManager.RLockPad(padId))
+			p, err := ds.PadManager.GetPad(padId, nil, nil)
 			if err != nil {
+				unlock()
 				errs <- err
 				return
 			}
-			base, baseLen = newRev, len(rev.AText.Text)
+			revText := p.GetInternalRevisionAText(newRev)
+			unlock()
+			if revText == nil {
+				errs <- fmt.Errorf("revision %d not found", newRev)
+				return
+			}
+			base, baseLen = newRev, len(revText.Text)
 		}
 	}()
 	go func() {

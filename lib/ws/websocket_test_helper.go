@@ -91,3 +91,10 @@ func NewActualMockWebSocketconn() *MockWebSocketConn {
 		Data:   make([]WebSocketConnData, 0),
 	}
 }
+
+// IsClosed reports whether Close was called.
+func (m *MockWebSocketConn) IsClosed() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.closed
+}

@@ -89,6 +89,10 @@ type OIDCMethods interface {
 	// Existing key-value methods (keep for signing key storage)
 	GetOIDCStorageValue(key string) (*string, error)
 	SetOIDCStorageValue(key string, payload string) error
+	// AddOIDCStorageValue stores payload under key only if the key is
+	// unused, and returns the stored payload: the first writer's, when
+	// several write at once.
+	AddOIDCStorageValue(key string, payload string) (string, error)
 	DeleteOIDCStorageValue(key string) error
 
 	// Access tokens
@@ -140,7 +144,15 @@ type SheetMethods interface {
 	GetSheet(padId string) (*db.SheetDB, error)
 	DoesSheetExist(padId string) (*bool, error)
 	RemoveSheet(padId string) error
+	// SaveSheetOp stores op as revision rev. Ops are write-once: if rev is
+	// taken (another instance stored it first) it returns ErrConflict.
 	SaveSheetOp(padId string, rev int, op string, authorId *string, timestamp int64) error
+	// GetSheetVersion returns what the stored sheet is at, without its
+	// snapshot.
+	GetSheetVersion(padId string) (*SheetVersion, error)
+	// ResetSheet replaces the workbook: it removes the ops, stores snapshot
+	// at head 0 and starts a new epoch, all or nothing.
+	ResetSheet(padId string, snapshot string) error
 	GetSheetOps(padId string, startRev int, endRev int) (*[]db.SheetOpDB, error)
 	RemoveSheetOps(padId string) error
 }
@@ -155,6 +167,10 @@ type DataStore interface {
 	OIDCMethods
 	SecretMethods
 	SheetMethods
+	ConsistencyMethods
+	ClusterMethods
+	PadHeadMethods
+	LeaderMethods
 	Close() error
 	Ping() error
 }

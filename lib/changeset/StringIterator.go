@@ -2,23 +2,32 @@ package changeset
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/ether/etherpad-go/lib/utils"
 )
 
+// StringIterator walks a string rune by rune. It keeps byte and rune
+// positions, so Take and Peek return substrings of the original string
+// without converting it to []rune.
 type StringIterator struct {
-	curIndex int
+	curIndex int // rune position
+	bytePos  int
+	runeLen  int
 	newLines int
-	str      []rune
+	str      string
 }
 
 func NewStringIterator(str string) StringIterator {
-	rs := []rune(str)
-	return StringIterator{curIndex: 0, newLines: utils.CountLines(str, '\n'), str: rs}
+	return StringIterator{
+		runeLen:  utils.RuneCount(str),
+		newLines: strings.Count(str, "\n"),
+		str:      str,
+	}
 }
 
 func (si *StringIterator) Remaining() int {
-	return len(si.str) - si.curIndex
+	return si.runeLen - si.curIndex
 }
 
 func (si *StringIterator) AssertRemaining(n int) error {
@@ -28,13 +37,22 @@ func (si *StringIterator) AssertRemaining(n int) error {
 	return nil
 }
 
+// end returns the byte offset n runes after the current position.
+func (si *StringIterator) end(n int) int {
+	if si.runeLen == len(si.str) { // ASCII only
+		return si.bytePos + n
+	}
+	return si.bytePos + utils.RuneByteOffset(si.str[si.bytePos:], n)
+}
+
 func (si *StringIterator) Take(n int) (*string, error) {
 	if err := si.AssertRemaining(n); err != nil {
 		return nil, err
 	}
-	segment := si.str[si.curIndex : si.curIndex+n]
-	s := string(segment)
-	si.newLines -= countNewlines(segment)
+	e := si.end(n)
+	s := si.str[si.bytePos:e]
+	si.newLines -= strings.Count(s, "\n")
+	si.bytePos = e
 	si.curIndex += n
 	return &s, nil
 }
@@ -43,24 +61,15 @@ func (si *StringIterator) Peek(n int) (*string, error) {
 	if err := si.AssertRemaining(n); err != nil {
 		return nil, err
 	}
-	peekStr := string(si.str[si.curIndex : si.curIndex+n])
-	return &peekStr, nil
+	s := si.str[si.bytePos:si.end(n)]
+	return &s, nil
 }
 
 func (si *StringIterator) Skip(n int) error {
 	if err := si.AssertRemaining(n); err != nil {
 		return err
 	}
+	si.bytePos = si.end(n)
 	si.curIndex += n
 	return nil
-}
-
-func countNewlines(rs []rune) int {
-	c := 0
-	for _, r := range rs {
-		if r == '\n' {
-			c++
-		}
-	}
-	return c
 }

@@ -16,11 +16,11 @@ import (
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/changeset"
+	"github.com/ether/etherpad-go/lib/cluster"
 	db2 "github.com/ether/etherpad-go/lib/db"
 	"github.com/ether/etherpad-go/lib/hooks"
 	"github.com/ether/etherpad-go/lib/hooks/events"
 	clientVarsModel "github.com/ether/etherpad-go/lib/models/clientVars"
-	"github.com/ether/etherpad-go/lib/models/db"
 	pad2 "github.com/ether/etherpad-go/lib/models/pad"
 	"github.com/ether/etherpad-go/lib/models/webaccess"
 	"github.com/ether/etherpad-go/lib/models/ws"
@@ -91,7 +91,10 @@ type PadMessageHandler struct {
 	hooks           *hooks.Hook
 	sheetManager    *sheetdoc.Manager
 	sheetChannels   SheetChannelOperator
-	retention       *pad.Retention
+	// sheets tracks what this instance's clients of each sheet were sent.
+	sheets    sheetState
+	retention *pad.Retention
+	cluster   *clusterState
 }
 
 func NewPadMessageHandler(db db2.DataStore, hooks *hooks.Hook, padManager *pad.Manager, sessionStore *SessionStore, hub *Hub, logger *zap.SugaredLogger, uiAssets embed.FS, cfg *settings.Settings) *PadMessageHandler {
@@ -140,10 +143,14 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 		return
 	}
 	// Rebase + append + broadcast must not interleave with other writers.
-	unlock := p.padManager.LockPad(session.PadId)
+	unlock, err := p.padManager.LockPad(session.PadId)
+	if err != nil {
+		p.dropUnavailable(task.socket, session.PadId, err)
+		return
+	}
 	defer unlock()
 
-	var retrievedPad, err = p.padManager.GetPad(session.PadId, nil, &session.Author)
+	retrievedPad, err := p.padManager.GetPad(session.PadId, nil, &session.Author)
 	if err != nil {
 		p.Logger.Warnf("Error retrieving pad %s: %v", session.PadId, err)
 		sendDisconnectMessage(task.socket, "badChangeset")
@@ -235,102 +242,138 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 		}
 	}
 
-	rebasedChangeset := changeset.MoveOpsToNewPool(task.message.Data.Data.Changeset, &wireApool, &retrievedPad.Pool)
-	// Upstream #7773: snapshot the post-pool-mapping form so the
-	// retransmission check below recognises our changeset against the
-	// stored revision form. Comparing the raw client wire against `c`
-	// would miss legitimate retransmissions whenever MoveOpsToNewPool
-	// renumbered a `*N` reference (e.g. `*0` -> `*1` because the pad
-	// pool already had something at slot 0).
-	canonicalCs := rebasedChangeset
+	// Rebase the client's changeset onto the head and store it. If another
+	// instance on the same database stored that revision first, catch up and
+	// rebase again: the change is acknowledged only once it is stored.
+	var rebasedChangeset string
+	var r int
+	var newRev *int
+	for attempt := 0; ; attempt++ {
+		// The client expects every revision before its ACCEPT_COMMIT. With
+		// several instances on one database, revisions stored by another
+		// instance have not reached it yet: send them first.
+		p.updatePadClients(retrievedPad, task.socket)
+		rebasedChangeset = changeset.MoveOpsToNewPool(task.message.Data.Data.Changeset, &wireApool, &retrievedPad.Pool)
+		// Upstream #7773: snapshot the post-pool-mapping form so the
+		// retransmission check below recognises our changeset against the
+		// stored revision form. Comparing the raw client wire against `c`
+		// would miss legitimate retransmissions whenever MoveOpsToNewPool
+		// renumbered a `*N` reference (e.g. `*0` -> `*1` because the pad
+		// pool already had something at slot 0).
+		canonicalCs := rebasedChangeset
 
-	var r = task.message.Data.Data.BaseRev
-	headRev := retrievedPad.Head
+		r = task.message.Data.Data.BaseRev
+		headRev := retrievedPad.Head
 
-	p.Logger.Debugf("Processing USER_CHANGES: baseRev=%d, headRev=%d, changeset=%s", r, headRev, task.message.Data.Data.Changeset)
+		p.Logger.Debugf("Processing USER_CHANGES: baseRev=%d, headRev=%d, changeset=%s", r, headRev, task.message.Data.Data.Changeset)
 
-	// The client's changeset might not be based on the latest revision,
-	// since other Clients are sending changes at the same time.
-	// Update the changeset so that it can be applied to the latest revision.
-	for r < retrievedPad.Head {
-		r++
-		var revisionPad, err = retrievedPad.GetRevision(r)
-		if err != nil {
-			p.Logger.Warnf("Error retrieving revision %d: %v", r, err)
-			sendDisconnectMessage(task.socket, "badChangeset")
-			return
-		}
-
-		if revisionPad.Changeset == canonicalCs && revisionPad.AuthorId != nil && *revisionPad.AuthorId == session.Author {
-			// Assume this is a retransmission of an already applied changeset.
-			unpackedChangeset, err = changeset.Unpack(canonicalCs)
-			if err != nil {
-				p.Logger.Warnf("Error unpacking changeset: %v", err)
+		// The client's changeset might not be based on the latest revision,
+		// since other Clients are sending changes at the same time.
+		// Update the changeset so that it can be applied to the latest revision.
+		// Load the changesets to rebase over in one query, without texts.
+		var behind map[int]db2.RevisionDelta
+		if r < retrievedPad.Head {
+			deltas, err := retrievedPad.RevisionDeltas(r+1, retrievedPad.Head)
+			if err != nil || len(deltas) != retrievedPad.Head-r {
+				p.Logger.Warnf("Error retrieving revisions %d..%d: %v", r+1, retrievedPad.Head, err)
 				sendDisconnectMessage(task.socket, "badChangeset")
 				return
 			}
-			rebasedChangeset = changeset.Identity(unpackedChangeset.OldLen)
+			behind = make(map[int]db2.RevisionDelta, len(deltas))
+			for _, d := range deltas {
+				behind[d.Rev] = d
+			}
 		}
-		// At this point, both "c" (from the pad) and "changeset" (from the
-		// client) are relative to revision r - 1. The follow function
-		// rebases "changeset" so that it is relative to revision r
-		// and can be applied after "c".
-		optRebasedChangeset, err := changeset.Follow(revisionPad.Changeset, rebasedChangeset, false, &retrievedPad.Pool)
+		for r < retrievedPad.Head {
+			r++
+			revisionPad, ok := behind[r]
+			if !ok {
+				p.Logger.Warnf("Error retrieving revision %d", r)
+				sendDisconnectMessage(task.socket, "badChangeset")
+				return
+			}
+
+			if revisionPad.Changeset == canonicalCs && revisionPad.AuthorId != nil && *revisionPad.AuthorId == session.Author {
+				// Assume this is a retransmission of an already applied changeset.
+				unpackedChangeset, err = changeset.Unpack(canonicalCs)
+				if err != nil {
+					p.Logger.Warnf("Error unpacking changeset: %v", err)
+					sendDisconnectMessage(task.socket, "badChangeset")
+					return
+				}
+				rebasedChangeset = changeset.Identity(unpackedChangeset.OldLen)
+			}
+			// At this point, both "c" (from the pad) and "changeset" (from the
+			// client) are relative to revision r - 1. The follow function
+			// rebases "changeset" so that it is relative to revision r
+			// and can be applied after "c".
+			optRebasedChangeset, err := changeset.Follow(revisionPad.Changeset, rebasedChangeset, false, &retrievedPad.Pool)
+			if err != nil {
+				p.Logger.Warnf("Error rebasing changeset at rev %d: %v for %s", r, err, retrievedPad.Id)
+				sendDisconnectMessage(task.socket, "badChangeset")
+				return
+			}
+			rebasedChangeset = *optRebasedChangeset
+		}
+
+		p.Logger.Debugf("After rebasing: rebasedChangeset=%s", rebasedChangeset)
+
+		prevText := retrievedPad.Text()
+		oldLen, err := changeset.OldLen(rebasedChangeset)
+
 		if err != nil {
-			p.Logger.Warnf("Error rebasing changeset at rev %d: %v for %s", r, err, retrievedPad.Id)
+			p.Logger.Warnf("Error retrieving old len from changeset: %v", err)
 			sendDisconnectMessage(task.socket, "badChangeset")
 			return
 		}
-		rebasedChangeset = *optRebasedChangeset
-	}
 
-	p.Logger.Debugf("After rebasing: rebasedChangeset=%s", rebasedChangeset)
-
-	prevText := retrievedPad.Text()
-	oldLen, err := changeset.OldLen(rebasedChangeset)
-
-	if err != nil {
-		p.Logger.Warnf("Error retrieving old len from changeset: %v", err)
-		sendDisconnectMessage(task.socket, "badChangeset")
-		return
-	}
-
-	if *oldLen != utf8.RuneCountInString(prevText) {
-		p.Logger.Warnf("Can't apply changeset to pad text: oldLen=%d, prevTextLen=%d, baseRev=%d, headRev=%d",
-			*oldLen, utf8.RuneCountInString(prevText), r, retrievedPad.Head)
-		sendDisconnectMessage(task.socket, "badChangeset")
-		return
-	}
-
-	// Upstream #7773: defensive — reject any rebased changeset whose
-	// application would leave the pad text not ending with '\n'.
-	// Previously the server silently appended a separate correction
-	// revision; that worked for the stored pad but the FIRST broadcast
-	// (the malformed user revision) reached browsers BEFORE the
-	// correction did, and the browser's line assembler asserts on a doc
-	// that doesn't end with '\n', taking the session out. Refuse —
-	// clients must always preserve the trailing-newline invariant.
-	projectedText, projectErr := changeset.ApplyToText(rebasedChangeset, prevText)
-	if projectErr != nil {
-		p.Logger.Warnf("Error projecting changeset application: %v", projectErr)
-		sendDisconnectMessage(task.socket, "badChangeset")
-		return
-	}
-	if projectedText == nil || !strings.HasSuffix(*projectedText, "\n") {
-		var projLen int
-		if projectedText != nil {
-			projLen = utf8.RuneCountInString(*projectedText)
+		if *oldLen != utf8.RuneCountInString(prevText) {
+			p.Logger.Warnf("Can't apply changeset to pad text: oldLen=%d, prevTextLen=%d, baseRev=%d, headRev=%d",
+				*oldLen, utf8.RuneCountInString(prevText), r, retrievedPad.Head)
+			sendDisconnectMessage(task.socket, "badChangeset")
+			return
 		}
-		p.Logger.Warnf("Rejected USER_CHANGES whose application would leave the pad without a trailing '\\n' (length %d). Every USER_CHANGES must preserve the \"doc ends with \\n\" invariant.", projLen)
-		sendDisconnectMessage(task.socket, "badChangeset")
-		return
-	}
 
-	newRev, err := retrievedPad.AppendRevision(rebasedChangeset, &session.Author)
-	if err != nil {
-		p.Logger.Errorf("Error appending revision: %v", err)
-		sendDisconnectMessage(task.socket, "badChangeset")
-		return
+		// Upstream #7773: defensive — reject any rebased changeset whose
+		// application would leave the pad text not ending with '\n'.
+		// Previously the server silently appended a separate correction
+		// revision; that worked for the stored pad but the FIRST broadcast
+		// (the malformed user revision) reached browsers BEFORE the
+		// correction did, and the browser's line assembler asserts on a doc
+		// that doesn't end with '\n', taking the session out. Refuse —
+		// clients must always preserve the trailing-newline invariant.
+		projectedText, projectErr := changeset.ApplyToText(rebasedChangeset, prevText)
+		if projectErr != nil {
+			p.Logger.Warnf("Error projecting changeset application: %v", projectErr)
+			sendDisconnectMessage(task.socket, "badChangeset")
+			return
+		}
+		if projectedText == nil || !strings.HasSuffix(*projectedText, "\n") {
+			var projLen int
+			if projectedText != nil {
+				projLen = utf8.RuneCountInString(*projectedText)
+			}
+			p.Logger.Warnf("Rejected USER_CHANGES whose application would leave the pad without a trailing '\\n' (length %d). Every USER_CHANGES must preserve the \"doc ends with \\n\" invariant.", projLen)
+			sendDisconnectMessage(task.socket, "badChangeset")
+			return
+		}
+
+		newRev, err = retrievedPad.AppendRevision(rebasedChangeset, &session.Author)
+		if errors.Is(err, db2.ErrConflict) && attempt < 5 {
+			p.Logger.Warnf("Revision of pad %s was stored by another instance; catching up", retrievedPad.Id)
+			if rerr := retrievedPad.Refresh(); rerr != nil {
+				p.Logger.Errorf("Error catching up pad %s: %v", retrievedPad.Id, rerr)
+				sendDisconnectMessage(task.socket, "badChangeset")
+				return
+			}
+			continue
+		}
+		if err != nil {
+			p.Logger.Errorf("Error appending revision: %v", err)
+			sendDisconnectMessage(task.socket, "badChangeset")
+			return
+		}
+		break
 	}
 	// The head revision will either stay the same or increase by 1 depending on whether the
 	// changeset has a net effect.
@@ -605,7 +648,11 @@ func (p *PadMessageHandler) HandleMessage(message any, client *Client, retrieved
 				p.Logger.Errorf("Session not found for saved revision")
 				return
 			}
-			unlock := p.padManager.LockPad(sess.PadId)
+			unlock, err := p.padManager.LockPad(sess.PadId)
+			if err != nil {
+				p.Logger.Errorf("Saved revision not stored: %v", err)
+				return
+			}
 			defer unlock()
 			foundPad, err := p.padManager.GetPad(sess.PadId, nil, nil)
 			if err != nil {
@@ -708,7 +755,11 @@ func (p *PadMessageHandler) HandleChangesetRequest(socket *Client, message ws.Ch
 		p.Logger.Warn("Session not found for changeset request")
 		return
 	}
-	unlock := p.padManager.RLockPad(session.PadId)
+	unlock, err := p.padManager.RLockPad(session.PadId)
+	if err != nil {
+		p.Logger.Warn("Changeset request not answered: ", err)
+		return
+	}
 	defer unlock()
 
 	retrievedPad, err := p.padManager.GetPad(session.PadId, nil, &session.Author)
@@ -967,9 +1018,13 @@ func (p *PadMessageHandler) SendChatMessageToPadClients(session *ws.Session, cha
 		p.Logger.Warn("chatNewMessage hook set Text to nil; keeping original chat text")
 	}
 
-	unlock := p.padManager.LockPad(session.PadId)
+	unlock, err := p.padManager.LockPad(session.PadId)
+	if err != nil {
+		p.Logger.Warn("Chat message not stored: ", err)
+		return
+	}
 	defer unlock()
-	var retrievedPad, err = p.padManager.GetPad(session.PadId, nil, chatMessage.AuthorId)
+	retrievedPad, err := p.padManager.GetPad(session.PadId, nil, chatMessage.AuthorId)
 	if err != nil {
 		p.Logger.Warn("Error retrieving pad for chat message", err)
 		return
@@ -988,45 +1043,40 @@ func (p *PadMessageHandler) SendChatMessageToPadClients(session *ws.Session, cha
 	if authorName != nil && *authorName != "" {
 		chatMessage.DisplayName = authorName
 	}
-	for _, socket := range p.GetRoomSockets(session.PadId) {
-		var arr = make([]interface{}, 2)
-		arr[0] = "message"
-		arr[1] = ws.ChatBroadCastMessage{
-			Type: "COLLABROOM",
-			Data: struct {
-				Type    string                  `json:"type"`
-				Message ws.ChatMessageSendEvent `json:"message"`
-			}{Type: "CHAT_MESSAGE", Message: ws.ChatMessageSendEvent{
-				Time:     chatMessage.Time,
-				Text:     chatMessage.Text,
-				UserId:   chatMessage.AuthorId,
-				UserName: chatMessage.DisplayName,
-			},
-			},
-		}
-
-		var marshalledMessage, _ = json.Marshal(arr)
-
-		socket.SafeSend(marshalledMessage)
+	var arr = make([]interface{}, 2)
+	arr[0] = "message"
+	arr[1] = ws.ChatBroadCastMessage{
+		Type: "COLLABROOM",
+		Data: struct {
+			Type    string                  `json:"type"`
+			Message ws.ChatMessageSendEvent `json:"message"`
+		}{Type: "CHAT_MESSAGE", Message: ws.ChatMessageSendEvent{
+			Time:     chatMessage.Time,
+			Text:     chatMessage.Text,
+			UserId:   chatMessage.AuthorId,
+			UserName: chatMessage.DisplayName,
+		},
+		},
 	}
+
+	var marshalledMessage, _ = json.Marshal(arr)
+	p.broadcastToRoom(session.PadId, marshalledMessage, "")
 }
 
 // BroadcastSystemChatToRoom sends a chat message to all clients in a pad room without saving to the database.
 // The message map is sent as-is inside a CHAT_MESSAGE COLLABROOM event.
 func (p *PadMessageHandler) BroadcastSystemChatToRoom(padId string, message map[string]any) {
-	for _, socket := range p.GetRoomSockets(padId) {
-		var arr = make([]interface{}, 2)
-		arr[0] = "message"
-		arr[1] = map[string]any{
-			"type": "COLLABROOM",
-			"data": map[string]any{
-				"type":    "CHAT_MESSAGE",
-				"message": message,
-			},
-		}
-		var marshalled, _ = json.Marshal(arr)
-		socket.SafeSend(marshalled)
+	var arr = make([]interface{}, 2)
+	arr[0] = "message"
+	arr[1] = map[string]any{
+		"type": "COLLABROOM",
+		"data": map[string]any{
+			"type":    "CHAT_MESSAGE",
+			"message": message,
+		},
 	}
+	var marshalled, _ = json.Marshal(arr)
+	p.broadcastToRoom(padId, marshalled, "")
 }
 
 func (p *PadMessageHandler) HandlePadDelete(client *Client, padDeleteMessage PadDelete) {
@@ -1037,7 +1087,11 @@ func (p *PadMessageHandler) HandlePadDelete(client *Client, padDeleteMessage Pad
 		return
 	}
 
-	unlock := p.padManager.LockPad(padDeleteMessage.Data.PadID)
+	unlock, err := p.padManager.LockPad(padDeleteMessage.Data.PadID)
+	if err != nil {
+		p.Logger.Warn("Pad not deleted: ", err)
+		return
+	}
 	defer unlock()
 	retrievedPad, err := p.padManager.DoesPadExist(padDeleteMessage.Data.PadID)
 	if err != nil {
@@ -1087,6 +1141,7 @@ func (p *PadMessageHandler) DeletePad(padId string) error {
 		return err
 	}
 	p.KickSessionsFromPad(retrievedPadObj.Id)
+	p.publish(cluster.Event{Kind: cluster.KindDeleted, Pad: retrievedPadObj.Id})
 	if err := retrievedPadObj.RemoveAllChats(); err != nil {
 		return err
 	}
@@ -1129,8 +1184,6 @@ func (p *PadMessageHandler) HandleUserInfoUpdate(userInfo UserInfoUpdate, client
 	}
 	var padId = session.PadId
 
-	var padSockets = p.GetRoomSockets(padId)
-
 	var userNewInfoDat = ws.UserNewInfoDat{
 		UserId:  session.Author,
 		Name:    userInfo.Data.UserInfo.Name,
@@ -1152,11 +1205,7 @@ func (p *PadMessageHandler) HandleUserInfoUpdate(userInfo UserInfoUpdate, client
 	arr[1] = userNewInfoActual
 
 	var marshalled, _ = json.Marshal(arr)
-
-	for _, p := range padSockets {
-		p.SafeSend(marshalled)
-	}
-
+	p.broadcastToRoom(padId, marshalled, "")
 }
 
 func (p *PadMessageHandler) correctMarkersInPad(atext apool.AText, apool apool.APool) *string {
@@ -1221,39 +1270,33 @@ func (p *PadMessageHandler) HandleDisconnectOfPadClient(client *Client, settings
 		logger.Infof("[LEAVE] pad:%s socket:%s IP:%s ", thisSession.PadId, client.SessionId, client.ClientIP)
 	}
 
-	var roomSockets = p.GetRoomSockets(thisSession.PadId)
 	var authorToRemove, err = p.authorManager.GetAuthor(thisSession.Author)
 	if err != nil {
 		p.Logger.Warn("Error retrieving author for disconnect")
 		return
 	}
 
-	for _, otherSocket := range roomSockets {
-		if otherSocket.SessionId == client.SessionId {
-			continue
-		}
-		userLeave := ws.UserLeaveData{
-			Type: "COLLABROOM",
-			Data: struct {
-				Type     string `json:"type"`
-				UserInfo struct {
-					ColorId string `json:"colorId"`
-					UserId  string `json:"userId"`
-				} `json:"userInfo"`
-			}{Type: "USER_LEAVE", UserInfo: struct {
+	userLeave := ws.UserLeaveData{
+		Type: "COLLABROOM",
+		Data: struct {
+			Type     string `json:"type"`
+			UserInfo struct {
 				ColorId string `json:"colorId"`
 				UserId  string `json:"userId"`
-			}{
-				ColorId: authorToRemove.ColorId,
-				UserId:  thisSession.Author,
-			}},
-		}
-		var arr = make([]interface{}, 2)
-		arr[0] = "message"
-		arr[1] = userLeave
-		var marshalled, _ = json.Marshal(arr)
-		otherSocket.SafeSend(marshalled)
+			} `json:"userInfo"`
+		}{Type: "USER_LEAVE", UserInfo: struct {
+			ColorId string `json:"colorId"`
+			UserId  string `json:"userId"`
+		}{
+			ColorId: authorToRemove.ColorId,
+			UserId:  thisSession.Author,
+		}},
 	}
+	var arr = make([]interface{}, 2)
+	arr[0] = "message"
+	arr[1] = userLeave
+	var marshalled, _ = json.Marshal(arr)
+	p.broadcastToRoom(thisSession.PadId, marshalled, client.SessionId)
 
 	// Fire userLeave hooks
 	padId := thisSession.PadId
@@ -1294,7 +1337,11 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 	// Loading (or creating) the pad, the retention check and the catch-up
 	// snapshot sent in CLIENT_VARS must see one consistent head revision, so
 	// no commit may land in between (cf. etherpad-lite #8409).
-	unlock := p.padManager.LockPad(thisSession.PadId)
+	unlock, err := p.padManager.LockPad(thisSession.PadId)
+	if err != nil {
+		p.dropUnavailable(client, thisSession.PadId, err)
+		return
+	}
 	defer unlock()
 
 	var retentionNotice *pad.RetentionNotice
@@ -1302,11 +1349,18 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 		retentionNotice = p.retention.CheckOnOpen(thisSession.PadId)
 	}
 
-	var retrievedPad, err = p.padManager.GetPad(thisSession.PadId, nil, &thisSession.Author)
+	retrievedPad, err := p.padManager.GetPad(thisSession.PadId, nil, &thisSession.Author)
 
 	if err != nil {
 		p.Logger.Warn("Error getting pad")
 		return
+	}
+	// A pad opened for the first time had no row yet when the session got
+	// its read-only id, so that id was never stored. Now the pad exists:
+	// take the stored id (claimed atomically, the same on every instance).
+	if !thisSession.ReadOnly {
+		p.SessionStore.addPadReadOnlyIds(client.SessionId, thisSession.PadId, p.readOnlyManager.GetReadOnlyId(thisSession.PadId), false)
+		thisSession = p.SessionStore.getSession(client.SessionId)
 	}
 
 	var loggerStr = "pad:%s socket:%s"
@@ -1370,29 +1424,8 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 		historicalAuthorData[a.Id] = a
 	}
 
+	p.disconnectDuplicates(thisSession.PadId, thisSession.Author, client.SessionId)
 	var roomSockets = p.GetRoomSockets(thisSession.PadId)
-
-	for _, otherSocket := range roomSockets {
-		if otherSocket.SessionId == client.SessionId {
-			continue
-		}
-		var sinfo = p.SessionStore.getSession(otherSocket.SessionId)
-		if sinfo == nil {
-			continue
-		}
-
-		if sinfo.Author == thisSession.Author {
-			p.SessionStore.resetSession(otherSocket.SessionId)
-			otherSocket.Leave()
-			var arr = make([]interface{}, 2)
-			arr[0] = "message"
-			arr[1] = UserDupMessage{
-				Disconnect: "userdup",
-			}
-			var encoded, _ = json.Marshal(arr)
-			otherSocket.SafeSend(encoded)
-		}
-	}
 
 	if ready.Data.Reconnect != nil && *ready.Data.Reconnect {
 		// This is a reconnect - the client already has the pad content
@@ -1616,6 +1649,9 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 	for _, socket := range roomSockets {
 		socket.SafeSend(marshalled)
 	}
+	// Announce the user on the other instances too; they answer with their
+	// users of this pad.
+	p.publish(cluster.Event{Kind: cluster.KindJoin, Pad: thisSession.PadId, Session: client.SessionId, Author: thisSession.Author, Payload: marshalled})
 
 	// send all other users' info to the new client
 	for _, socket := range roomSockets {
@@ -1679,6 +1715,8 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 // seen yet (NEW_CHANGES).
 func (p *PadMessageHandler) UpdatePadClients(pad *pad2.Pad) {
 	p.updatePadClients(pad, nil)
+	// Called after every change made here: tell the other instances.
+	p.publish(cluster.Event{Kind: cluster.KindRevision, Pad: pad.Id, Rev: pad.Head})
 }
 
 // updatePadClients is UpdatePadClients, restricted to the session of only
@@ -1691,10 +1729,26 @@ func (p *PadMessageHandler) updatePadClients(pad *pad2.Pad, only *Client) {
 	if len(roomSockets) == 0 {
 		return
 	}
-	// since all Clients usually get the same set of changesets, store them in local cache
-	// to remove unnecessary roundtrip to the datalayer
-	// NB: note below possibly now accommodated via the change to promises/async
-	var revCache = make(map[int]*db.PadSingleRevision)
+	// All clients get the same revisions: load the ones the furthest
+	// behind client misses, changesets only, in one query.
+	from := pad.Head + 1
+	for _, socket := range roomSockets {
+		if sessionInfo := p.SessionStore.getSession(socket.SessionId); sessionInfo != nil {
+			from = min(from, sessionInfo.Revision+1)
+		}
+	}
+	if from > pad.Head {
+		return
+	}
+	revCache := make(map[int]db2.RevisionDelta)
+	deltas, err := pad.RevisionDeltas(max(from, 0), pad.Head)
+	if err != nil {
+		p.Logger.Warnf("Cannot load revisions %d..%d of pad %s for NEW_CHANGES: %v", from, pad.Head, pad.Id, err)
+		return
+	}
+	for _, d := range deltas {
+		revCache[d.Rev] = d
+	}
 	for _, socket := range roomSockets {
 		var sessionInfo = p.SessionStore.getSession(socket.SessionId)
 		if sessionInfo == nil {
@@ -1704,20 +1758,18 @@ func (p *PadMessageHandler) updatePadClients(pad *pad2.Pad, only *Client) {
 		for sessionInfo.Revision < pad.Head {
 			p.Logger.Debugf("Sending NEW_CHANGES to client for pad %s from rev %d to %d", pad.Id, sessionInfo.Revision, pad.Head)
 			var r = sessionInfo.Revision + 1
-			if _, ok := revCache[r]; !ok {
-				rev, err := pad.GetRevision(r)
-				if err != nil || rev == nil {
-					p.Logger.Warnf("Cannot load revision %d of pad %s for NEW_CHANGES: %v", r, pad.Id, err)
-					break
-				}
-				revCache[r] = rev
+			revision, ok := revCache[r]
+			if !ok {
+				p.Logger.Warnf("Cannot load revision %d of pad %s for NEW_CHANGES", r, pad.Id)
+				break
 			}
-			var revision = revCache[r]
-			var authorFromRev = revision.AuthorId
-			var revChangeset = revision.Changeset
+			var author string
+			if revision.AuthorId != nil {
+				author = *revision.AuthorId
+			}
 			var currentTime = revision.Timestamp
 
-			var forWire = changeset.PrepareForWire(revChangeset, pad.Pool)
+			var forWire = changeset.PrepareForWire(revision.Changeset, pad.Pool)
 			var jsonAblePoolWithWire = forWire.Pool.ToJsonable()
 
 			var arr = make([]interface{}, 2)
@@ -1729,7 +1781,7 @@ func (p *PadMessageHandler) updatePadClients(pad *pad2.Pad, only *Client) {
 					NewRev:      r,
 					Changeset:   forWire.Translated,
 					APool:       jsonAblePoolWithWire,
-					Author:      *authorFromRev,
+					Author:      author,
 					CurrentTime: currentTime,
 					TimeDelta:   currentTime - sessionInfo.Time,
 				},
@@ -1766,9 +1818,7 @@ func (p *PadMessageHandler) SendCustomMessageToPad(padId string, msgType string)
 		p.Logger.Errorf("Error marshalling custom message %q: %v", msgType, err)
 		return
 	}
-	for _, socket := range p.GetRoomSockets(padId) {
-		socket.SafeSend(encoded)
-	}
+	p.broadcastToRoom(padId, encoded, "")
 }
 
 // HandleClientMessage handles the COLLABROOM CLIENT_MESSAGE family,
@@ -1799,6 +1849,7 @@ func (p *PadMessageHandler) HandleClientMessage(message ws.ClientMessage, client
 				socket.SafeSend(encoded)
 			}
 		}
+		p.publish(cluster.Event{Kind: cluster.KindAuthor, Pad: session.PadId, Author: payload.UnnamedId, Payload: encoded})
 	case "padoptions":
 		// The original gates pad-wide settings behind enablePadWideSettings
 		// (default off) and per-pad settings storage, neither of which this
@@ -1875,4 +1926,38 @@ func (p *PadMessageHandler) GetPadUsers(padId string) []PadUserInfo {
 // GetPadUsersCount returns the number of users currently in a pad
 func (p *PadMessageHandler) GetPadUsersCount(padId string) int {
 	return p.SessionStore.GetPadSessionsCount(padId)
+}
+
+// dropUnavailable closes the connection of a client whose message could not
+// be handled because its pad is unavailable (database unreachable). The
+// client reconnects, behind a load balancer possibly to another instance,
+// and sends the unacknowledged change again.
+func (p *PadMessageHandler) dropUnavailable(client *Client, padID string, err error) {
+	p.Logger.Warnw("closing connection: pad unavailable", "pad", padID, "error", err)
+	_ = client.Conn.Close()
+}
+
+// disconnectDuplicates disconnects this instance's other sessions of author
+// in padID ("userdup"), as a newer session of the same author takes over.
+// It runs for joins here and, through the cluster, for joins on other
+// instances.
+func (p *PadMessageHandler) disconnectDuplicates(padID, author, exceptSession string) {
+	if author == "" {
+		return
+	}
+	for _, otherSocket := range p.GetRoomSockets(padID) {
+		if otherSocket.SessionId == exceptSession {
+			continue
+		}
+		sinfo := p.SessionStore.getSession(otherSocket.SessionId)
+		if sinfo == nil || sinfo.Author != author {
+			continue
+		}
+		p.SessionStore.resetSession(otherSocket.SessionId)
+		// Send before leaving: leaving closes the client's send channel,
+		// and the message would be dropped.
+		encoded, _ := json.Marshal([]interface{}{"message", UserDupMessage{Disconnect: "userdup"}})
+		otherSocket.SafeSend(encoded)
+		otherSocket.Leave()
+	}
 }

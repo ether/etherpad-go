@@ -18,6 +18,10 @@ import (
 type MysqlDB struct {
 	options MySQLOptions
 	sqlDB   *sql.DB
+	// lockDB holds the connections of database locks, apart from the
+	// pool the work under the locks uses.
+	lockDB    *sql.DB
+	lockSlots *lockSlots
 }
 
 func (d MysqlDB) Ping() error {
@@ -546,18 +550,20 @@ func (d MysqlDB) SaveRevision(
 		return fmt.Errorf("failed to marshal pool: %w", err)
 	}
 
-	// Use INSERT IGNORE for write-once semantics
 	toSql, args, err := mysql.Insert("padRev").
 		Columns("id", "rev", "changeset", "atextText", "atextAttribs", "authorId", "timestamp", "pool").
 		Values(padId, rev, changeset, text.Text, text.Attribs, authorId, timestamp, string(marshalled)).
-		Suffix("ON DUPLICATE KEY UPDATE id = id"). // No-op update for write-once
 		ToSql()
 
 	if err != nil {
 		return err
 	}
 
+	// A taken revision number is a conflict, never silently ignored.
 	_, err = d.sqlDB.Exec(toSql, args...)
+	if isDuplicateKey(err) {
+		return ErrConflict
+	}
 	return err
 }
 
@@ -686,12 +692,10 @@ func (d MysqlDB) SaveChatMessage(
 	timestamp int64,
 	text string,
 ) error {
-	// Write-once: use INSERT IGNORE or ON DUPLICATE KEY UPDATE with no-op
 	resultedSQL, args, err := mysql.
 		Insert("padChat").
 		Columns("padId", "padHead", "chatText", "authorId", "timestamp").
 		Values(padId, head, text, authorId, timestamp).
-		Suffix("ON DUPLICATE KEY UPDATE padId = padId"). // No-op for write-once
 		ToSql()
 
 	if err != nil {
@@ -699,6 +703,9 @@ func (d MysqlDB) SaveChatMessage(
 	}
 
 	_, err = d.sqlDB.Exec(resultedSQL, args...)
+	if isDuplicateKey(err) {
+		return ErrConflict
+	}
 	return err
 }
 
@@ -1334,6 +1341,9 @@ func (d MysqlDB) DeleteOIDCSession(signature string) error {
 // ============== LIFECYCLE ==============
 
 func (d MysqlDB) Close() error {
+	if d.lockDB != nil {
+		_ = d.lockDB.Close()
+	}
 	return d.sqlDB.Close()
 }
 
@@ -1374,15 +1384,29 @@ func NewMySQLDB(options MySQLOptions) (*MysqlDB, error) {
 	sqlDb.SetMaxOpenConns(maxConns)
 	sqlDb.SetMaxIdleConns(min(5, maxConns))
 
-	migrationManager := migrations.NewMigrationManager(sqlDb, migrations.DialectMySQL)
+	lockDB, err := sql.Open("mysql", mySQLConf.FormatDSN())
+	if err != nil {
+		sqlDb.Close()
+		return nil, err
+	}
+	lockDB.SetMaxOpenConns(lockPoolSize(maxConns))
+	lockDB.SetMaxIdleConns(2)
+
+	// Migrations run on the lock pool: the migration lock holds one
+	// connection while the migrations need another, which a work pool of
+	// one connection could not give.
+	migrationManager := migrations.NewMigrationManager(lockDB, migrations.DialectMySQL)
 	if err := migrationManager.Run(); err != nil {
+		lockDB.Close()
 		sqlDb.Close()
 		return nil, fmt.Errorf("failed to run migrations: %w", err)
 	}
 
 	return &MysqlDB{
-		options: options,
-		sqlDB:   sqlDb,
+		options:   options,
+		sqlDB:     sqlDb,
+		lockDB:    lockDB,
+		lockSlots: newLockSlots(padLockSlots(maxConns)),
 	}, nil
 }
 

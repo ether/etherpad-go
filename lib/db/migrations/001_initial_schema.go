@@ -16,6 +16,8 @@ func GetMigrations() []Migration {
 		migration007DocumentType(),
 		migration008Sheets(),
 		migration009AuthorTokenBackfill(),
+		migration010ClusterNodes(),
+		migration011SheetEpoch(),
 	}
 }
 

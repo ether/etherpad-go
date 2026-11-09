@@ -20,6 +20,10 @@ import (
 type PostgresDB struct {
 	options PostgresOptions
 	pool    *pgxpool.Pool
+	// lockPool holds the connections of database locks, apart from the
+	// pool the work under the locks uses.
+	lockPool  *pgxpool.Pool
+	lockSlots *lockSlots
 }
 
 func (d PostgresDB) Ping() error {
@@ -422,14 +426,20 @@ func (d PostgresDB) SaveRevision(
 	}
 
 	ctx := context.Background()
-	_, err = d.pool.Exec(ctx,
+	result, err := d.pool.Exec(ctx,
 		`INSERT INTO "padrev" 
              (id, rev, changeset, "atexttext", "atextattribs", "authorid", timestamp, pool, created_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
          ON CONFLICT (id, rev) DO NOTHING`,
 		padId, rev, changeset, text.Text, text.Attribs,
 		authorId, timestamp, string(serializedPool))
-	return err
+	if err != nil {
+		return err
+	}
+	if result.RowsAffected() == 0 {
+		return ErrConflict
+	}
+	return nil
 }
 
 func (d PostgresDB) GetRevision(padId string, rev int) (*db.PadSingleRevision, error) {
@@ -541,12 +551,18 @@ func (d PostgresDB) SaveChatMessage(
 	text string,
 ) error {
 	ctx := context.Background()
-	_, err := d.pool.Exec(ctx,
+	result, err := d.pool.Exec(ctx,
 		`INSERT INTO "padchat" ("padid", "padhead", "chattext", "authorid", timestamp, created_at)
          VALUES ($1, $2, $3, $4, $5, NOW())
          ON CONFLICT ("padid", "padhead") DO NOTHING`,
 		padId, head, text, authorId, timestamp)
-	return err
+	if err != nil {
+		return err
+	}
+	if result.RowsAffected() == 0 {
+		return ErrConflict
+	}
+	return nil
 }
 
 func (d PostgresDB) GetChatsOfPad(
@@ -1134,6 +1150,9 @@ func (d PostgresDB) DeleteOIDCSession(signature string) error {
 
 func (d PostgresDB) Close() error {
 	d.pool.Close()
+	if d.lockPool != nil {
+		d.lockPool.Close()
+	}
 	return nil
 }
 
@@ -1177,18 +1196,33 @@ func NewPostgresDB(options PostgresOptions) (*PostgresDB, error) {
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
-	sqlDB := stdlib.OpenDBFromPool(pool)
+	lockConfig := config.Copy()
+	lockConfig.MaxConns = int32(lockPoolSize(int(config.MaxConns)))
+	lockConfig.MinConns = 0
+	lockPool, err := pgxpool.NewWithConfig(ctx, lockConfig)
+	if err != nil {
+		pool.Close()
+		return nil, fmt.Errorf("failed to create lock pool: %w", err)
+	}
+
+	// Migrations run on the lock pool: the migration lock holds one
+	// connection while the migrations need another, which a work pool of
+	// one connection could not give.
+	sqlDB := stdlib.OpenDBFromPool(lockPool)
 	migrationManager := migrations.NewMigrationManager(sqlDB, migrations.DialectPostgres)
 	if err := migrationManager.Run(); err != nil {
 		sqlDB.Close()
+		lockPool.Close()
 		pool.Close()
 		return nil, fmt.Errorf("failed to run migrations: %w", err)
 	}
 	sqlDB.Close()
 
 	return &PostgresDB{
-		options: options,
-		pool:    pool,
+		options:   options,
+		pool:      pool,
+		lockPool:  lockPool,
+		lockSlots: newLockSlots(padLockSlots(int(config.MaxConns))),
 	}, nil
 }
 

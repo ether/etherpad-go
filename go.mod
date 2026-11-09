@@ -21,6 +21,7 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
+	github.com/hashicorp/memberlist v0.7.0
 	github.com/jackc/pgx/v5 v5.12.0
 	github.com/ledongthuc/pdf v0.0.0-20250511090121-5959a4027728
 	github.com/pdfcpu/pdfcpu v0.16.4
@@ -36,6 +37,7 @@ require (
 	go.uber.org/zap v1.28.0
 	golang.org/x/crypto v0.58.0
 	golang.org/x/net v0.62.0
+	golang.org/x/sync v0.24.0
 	golang.org/x/sys v0.49.0
 	modernc.org/sqlite v1.61.1
 	mvdan.cc/xurls/v2 v2.6.0
@@ -84,7 +86,15 @@ require (
 	github.com/go-playground/universal-translator v0.18.2 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
 	github.com/gofiber/schema v1.9.3 // indirect
+	github.com/google/btree v1.1.3 // indirect
 	github.com/gorilla/securecookie v1.1.2 // indirect
+	github.com/hashicorp/errwrap v1.1.0 // indirect
+	github.com/hashicorp/go-immutable-radix v1.3.1 // indirect
+	github.com/hashicorp/go-metrics v0.7.0 // indirect
+	github.com/hashicorp/go-msgpack/v2 v2.1.5 // indirect
+	github.com/hashicorp/go-multierror v1.1.1 // indirect
+	github.com/hashicorp/go-sockaddr v1.0.7 // indirect
+	github.com/hashicorp/golang-lru v1.0.2 // indirect
 	github.com/hhrutter/tiff v1.0.7 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
@@ -98,6 +108,7 @@ require (
 	github.com/mattn/go-colorable v0.1.16 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/mattn/go-runewidth v0.0.31 // indirect
+	github.com/miekg/dns v1.1.73 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
 	github.com/moby/go-archive v0.3.0 // indirect
 	github.com/moby/moby/api v1.56.1 // indirect
@@ -128,6 +139,7 @@ require (
 	github.com/rs/cors v1.11.1 // indirect
 	github.com/sagikazarmark/locafero v0.11.0 // indirect
 	github.com/savsgio/gotils v0.0.0-20250924091648-bce9a52d7761 // indirect
+	github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529 // indirect
 	github.com/shirou/gopsutil/v4 v4.26.6 // indirect
 	github.com/sirupsen/logrus v1.9.4 // indirect
 	github.com/sourcegraph/conc v0.3.1-0.20240121214520-5f936abd7ae8 // indirect
@@ -159,7 +171,6 @@ require (
 	golang.org/x/image v0.47.0 // indirect
 	golang.org/x/mod v0.42.0 // indirect
 	golang.org/x/oauth2 v0.37.0 // indirect
-	golang.org/x/sync v0.24.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
 	golang.org/x/tools v0.52.0 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect

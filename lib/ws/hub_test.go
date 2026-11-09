@@ -39,9 +39,7 @@ func TestHub_RegisterClient(t *testing.T) {
 
 	hub.Register <- client
 
-	time.Sleep(10 * time.Millisecond)
-
-	assert.Contains(t, hub.Clients, client)
+	require.Eventually(t, func() bool { return hub.HasClient(client) }, time.Second, time.Millisecond)
 }
 
 func TestHub_UnregisterClient(t *testing.T) {
@@ -62,12 +60,10 @@ func TestHub_UnregisterClient(t *testing.T) {
 	}()
 
 	hub.Register <- client
-	time.Sleep(10 * time.Millisecond)
+	require.Eventually(t, func() bool { return hub.HasClient(client) }, time.Second, time.Millisecond)
 
 	hub.Unregister <- client
-	time.Sleep(10 * time.Millisecond)
-
-	assert.NotContains(t, hub.Clients, client)
+	require.Eventually(t, func() bool { return !hub.HasClient(client) }, time.Second, time.Millisecond)
 
 	select {
 	case _, ok := <-client.Send:
@@ -104,7 +100,7 @@ func TestHub_BroadcastMessage(t *testing.T) {
 
 	hub.Register <- client1
 	hub.Register <- client2
-	time.Sleep(10 * time.Millisecond)
+	require.Eventually(t, func() bool { return hub.HasClient(client2) }, time.Second, time.Millisecond)
 
 	testMessage := []byte(`{"type":"test","data":"hello"}`)
 	hub.Broadcast <- testMessage
@@ -144,14 +140,12 @@ func TestHub_BroadcastToFullChannel(t *testing.T) {
 	}()
 
 	hub.Register <- client
-	time.Sleep(10 * time.Millisecond)
+	require.Eventually(t, func() bool { return hub.HasClient(client) }, time.Second, time.Millisecond)
 
 	client.Send <- []byte("first message")
 
 	hub.Broadcast <- []byte("second message that causes overflow")
-	time.Sleep(50 * time.Millisecond)
-
-	assert.NotContains(t, hub.Clients, client)
+	require.Eventually(t, func() bool { return !hub.HasClient(client) }, time.Second, time.Millisecond)
 }
 
 func TestHub_ConcurrentOperations(t *testing.T) {
@@ -185,7 +179,7 @@ func TestHub_ConcurrentOperations(t *testing.T) {
 		}(i)
 	}
 	wg.Wait()
-	time.Sleep(50 * time.Millisecond)
+	require.Eventually(t, func() bool { return hub.NumClients() == numClients }, time.Second, time.Millisecond)
 
 	wg.Add(numMessages)
 	for i := 0; i < numMessages; i++ {
@@ -251,7 +245,7 @@ func TestHub_MultipleRooms(t *testing.T) {
 
 	hub.Register <- client1
 	hub.Register <- client2
-	time.Sleep(10 * time.Millisecond)
+	require.Eventually(t, func() bool { return hub.HasClient(client2) }, time.Second, time.Millisecond)
 
 	testMessage := []byte(`{"type":"test","data":"cross-room"}`)
 	hub.Broadcast <- testMessage
@@ -296,9 +290,7 @@ func TestHub_ClientWithHandlers(t *testing.T) {
 	}()
 
 	hub.Register <- client
-	time.Sleep(10 * time.Millisecond)
-
-	assert.Contains(t, hub.Clients, client)
+	require.Eventually(t, func() bool { return hub.HasClient(client) }, time.Second, time.Millisecond)
 	assert.Equal(t, mockPadHandler, client.Handler)
 	assert.Equal(t, mockAdminHandler, client.adminHandler)
 }
@@ -323,8 +315,6 @@ func TestHub_ClientWithFiberContext(t *testing.T) {
 	}()
 
 	hub.Register <- client
-	time.Sleep(10 * time.Millisecond)
-
-	assert.Contains(t, hub.Clients, client)
+	require.Eventually(t, func() bool { return hub.HasClient(client) }, time.Second, time.Millisecond)
 	assert.Equal(t, "127.0.0.1", client.ClientIP)
 }

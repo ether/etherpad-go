@@ -28,9 +28,10 @@ func SplitRemoveLastRune(s string) []string {
 // LineModel is an alias for models.LineModel for backwards compatibility
 type LineModel = models.LineModel
 
+var listTypeRegex = regexp.MustCompile(`^([a-z]+)([0-9]+)`)
+
 func parseListType(listType string) (tag string, num int, ok bool) {
-	re := regexp.MustCompile(`^([a-z]+)([0-9]+)`)
-	m := re.FindStringSubmatch(listType)
+	m := listTypeRegex.FindStringSubmatch(listType)
 	if m == nil {
 		return "", 0, false
 	}

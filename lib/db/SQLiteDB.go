@@ -16,8 +16,10 @@ import (
 )
 
 type SQLiteDB struct {
-	path  string
-	sqlDB *sql.DB
+	path    string
+	sqlDB   *sql.DB
+	locks   *processLocks
+	leaders *leaderSet
 }
 
 func (d SQLiteDB) Ping() error {
@@ -562,19 +564,17 @@ func (d SQLiteDB) SaveRevision(
 		return fmt.Errorf("failed to marshal pool: %w", err)
 	}
 
-	// Use INSERT OR IGNORE for write-once semantics
 	toSql, args, err := sq.Insert("padRev").
 		Columns("id", "rev", "changeset", "atextText", "atextAttribs", "authorId", "timestamp", "pool").
 		Values(padId, rev, changeset, text.Text, text.Attribs, authorId, timestamp, string(marshalled)).
-		Suffix("ON CONFLICT(id, rev) DO NOTHING"). // Write-once: ignore duplicates
+		Suffix("ON CONFLICT(id, rev) DO NOTHING").
 		ToSql()
 
 	if err != nil {
 		return err
 	}
 
-	_, err = d.sqlDB.Exec(toSql, args...)
-	return err
+	return execExpectingInsert(d.sqlDB, toSql, args...)
 }
 
 func (d SQLiteDB) GetRevision(padId string, rev int) (*db.PadSingleRevision, error) {
@@ -702,20 +702,18 @@ func (d SQLiteDB) SaveChatMessage(
 	timestamp int64,
 	text string,
 ) error {
-	// Write-once: use ON CONFLICT DO NOTHING
 	resultedSQL, args, err := sq.
 		Insert("padChat").
 		Columns("padId", "padHead", "chatText", "authorId", "created_at").
 		Values(padId, head, text, authorId, timestamp).
-		Suffix("ON CONFLICT(padId, padHead) DO NOTHING"). // Write-once
+		Suffix("ON CONFLICT(padId, padHead) DO NOTHING").
 		ToSql()
 
 	if err != nil {
 		return err
 	}
 
-	_, err = d.sqlDB.Exec(resultedSQL, args...)
-	return err
+	return execExpectingInsert(d.sqlDB, resultedSQL, args...)
 }
 
 func (d SQLiteDB) GetChatsOfPad(
@@ -1396,8 +1394,10 @@ func NewSQLiteDB(path string) (*SQLiteDB, error) {
 	}
 
 	return &SQLiteDB{
-		path:  path,
-		sqlDB: sqlDb,
+		path:    path,
+		sqlDB:   sqlDb,
+		locks:   newProcessLocks(),
+		leaders: newLeaderSet(),
 	}, nil
 }
 

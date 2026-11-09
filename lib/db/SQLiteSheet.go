@@ -78,8 +78,27 @@ func (d SQLiteDB) SaveSheetOp(padId string, rev int, op string, authorId *string
 	if err != nil {
 		return err
 	}
-	_, err = d.sqlDB.Exec(q, args...)
-	return err
+	return execExpectingInsert(d.sqlDB, q, args...)
+}
+
+func (d SQLiteDB) GetSheetVersion(padId string) (*SheetVersion, error) {
+	v := &SheetVersion{Exists: true}
+	err := d.sqlDB.QueryRow(
+		`SELECT head, epoch, COALESCE((SELECT MAX(rev) FROM sheet_op WHERE id = ?), 0) FROM sheet WHERE id = ?`,
+		padId, padId).Scan(&v.Head, &v.Epoch, &v.OpHead)
+	if errors.Is(err, sql.ErrNoRows) {
+		return &SheetVersion{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return v, nil
+}
+
+func (d SQLiteDB) ResetSheet(padId string, snapshot string) error {
+	return resetSheetTx(d.sqlDB, padId, snapshot,
+		`INSERT INTO sheet (id, head, snapshot, epoch) VALUES (?, 0, ?, 1)
+		 ON CONFLICT(id) DO UPDATE SET head = 0, snapshot = excluded.snapshot, epoch = epoch + 1`)
 }
 
 func (d SQLiteDB) RemoveSheetOps(padId string) error {

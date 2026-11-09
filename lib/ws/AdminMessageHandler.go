@@ -56,7 +56,8 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 			resp := make([]interface{}, 2)
 			resp[0] = "settings"
 			resp[1] = map[string]interface{}{
-				"results": retrievedSettings,
+				"results":  retrievedSettings,
+				"readOnly": retrievedSettings.Clustered(),
 			}
 			responseBytes, err := json.Marshal(resp)
 			if err != nil {
@@ -165,7 +166,11 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 			if err := json.Unmarshal(message.Data, &padCreateData); err != nil {
 				h.Logger.Warn("Error unmarshalling padCreate data:", err.Error())
 			}
-			unlock := h.padManager.LockPad(padCreateData.PadName)
+			unlock, err := h.padManager.LockPad(padCreateData.PadName)
+			if err != nil {
+				h.Logger.Errorf("Error creating pad %s: %s", padCreateData.PadName, err.Error())
+				return
+			}
 			defer unlock()
 			padExists, err := h.padManager.DoesPadExist(padCreateData.PadName)
 			if err != nil {
@@ -315,11 +320,7 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 				return
 			}
 
-			h.hub.ClientsRWMutex.RLock()
-			for key := range h.hub.Clients {
-				key.SafeSend(responseBytes)
-			}
-			h.hub.ClientsRWMutex.RUnlock()
+			h.padMessageHandler.BroadcastToAllClients(responseBytes)
 
 		}
 	case "deletePad":
@@ -330,9 +331,11 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 				return
 			}
 
-			unlock := h.padManager.LockPad(string(padDeleteData))
-			err := h.padMessageHandler.DeletePad(padDeleteData)
-			unlock()
+			unlock, err := h.padManager.LockPad(string(padDeleteData))
+			if err == nil {
+				err = h.padMessageHandler.DeletePad(padDeleteData)
+				unlock()
+			}
 			if err != nil {
 				h.Logger.Warnf("Error deleting pad: %s", err.Error())
 				return
@@ -372,9 +375,11 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 				h.Logger.Warnf("Pad %s does not exist", padDeleteData)
 				return
 			}
-			unlock := h.padManager.LockPad(string(padDeleteData))
-			err = h.DeleteRevisions(padDeleteData, retrievedSettings.Cleanup.KeepRevisions)
-			unlock()
+			unlock, err := h.padManager.LockPad(string(padDeleteData))
+			if err == nil {
+				err = h.DeleteRevisions(padDeleteData, retrievedSettings.Cleanup.KeepRevisions)
+				unlock()
+			}
 			if err != nil {
 				h.Logger.Warnf("Error cleaning up revisions for pad %s: %s", padDeleteData, err.Error())
 				return
@@ -433,6 +438,16 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 		}
 	case "saveSettings":
 		{
+			if retrievedSettings.Clustered() {
+				// A settings.json written here would only change this
+				// instance and be lost when its pod is replaced.
+				resp := []interface{}{"results:saveSettings", map[string]interface{}{
+					"error": "Settings are read-only in a cluster. Change settings.json or the environment of all instances and roll them out.",
+				}}
+				responseBytes, _ := json.Marshal(resp)
+				c.SafeSend(responseBytes)
+				return
+			}
 			var settingsJSON string
 			if err := json.Unmarshal(message.Data, &settingsJSON); err != nil {
 				settingsJSON = string(message.Data)
@@ -659,9 +674,11 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 				}
 				h.hub.ClientsRWMutex.RUnlock()
 
-				unlock := h.padManager.LockPad(padName)
-				err := h.padMessageHandler.DeletePad(admin.PadDeleteData(padName))
-				unlock()
+				unlock, err := h.padManager.LockPad(padName)
+				if err == nil {
+					err = h.padMessageHandler.DeletePad(admin.PadDeleteData(padName))
+					unlock()
+				}
 				if err == nil {
 					deleted++
 				}

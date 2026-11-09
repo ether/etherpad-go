@@ -86,7 +86,10 @@ func handleFeed(c fiber.Ctx, padManager *pad.Manager, zap *zap.SugaredLogger) er
 	var isPublished bool
 	var text string
 
-	unlock := padManager.RLockPad(padID)
+	unlock, err := padManager.RLockPad(padID)
+	if err != nil {
+		return fiber.NewError(fiber.StatusServiceUnavailable, err.Error())
+	}
 	defer unlock()
 	retrievedPad, err := padManager.GetPad(padID, nil, nil)
 	if err != nil {

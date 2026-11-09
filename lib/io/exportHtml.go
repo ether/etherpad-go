@@ -3,6 +3,7 @@ package io
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"html"
 	"regexp"
 	"strconv"
@@ -93,14 +94,11 @@ func (e *ExportHtml) GetPadHTML(pad *padModel.Pad, revNum *int, authorColors map
 	atext := pad.AText
 
 	if revNum != nil {
-		revision, err := pad.GetRevision(*revNum)
-		if err != nil {
-			return "", err
+		revAText := pad.GetInternalRevisionAText(*revNum)
+		if revAText == nil {
+			return "", fmt.Errorf("revision %d of pad %s not found", *revNum, pad.Id)
 		}
-		atext = apool.AText{
-			Text:    revision.AText.Text,
-			Attribs: revision.AText.Attribs,
-		}
+		atext = *revAText
 	}
 
 	return e.getHTMLFromAtext(pad.Id, &pad.Pool, atext, authorColors)
