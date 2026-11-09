@@ -258,6 +258,23 @@ database; check the release notes of versions with schema changes.
   changes through different pods do not overwrite each other. Every pod hands
   out the same read-only link.
 
+## Sheets
+
+Sheets (the spreadsheet document type) follow the same rules as pads:
+
+* The stored ops are the truth. An op is acknowledged once it is stored; if
+  another pod stored that revision number first, the op is rebased onto the
+  newer ops and stored again. An op that could not be stored is not kept in
+  memory.
+* Every pod brings its copy of a sheet up to the stored state before using it,
+  and sends its users the ops in revision order, whichever pod stored them.
+  Other pods are told through the bus and, if that is lost, by the periodic
+  catch-up.
+* An xlsx import replaces the workbook and restarts the numbering. The sheet's
+  `epoch` counts these replacements, so every pod notices and tells its users
+  to reload.
+* Cursors and join announcements reach users on all pods.
+
 ## Health endpoints
 
 | Endpoint | Use | Answers |
@@ -286,11 +303,12 @@ about 0.3-0.4 s.
 
 ## Current limitations
 
+* **Sheets: edits in flight when the connection breaks.** Acknowledged sheet
+  edits are always stored. But after a reconnect the sheet client in the
+  browser starts again from the stored state and drops edits that were not
+  acknowledged yet (also on a single instance, at any network interruption).
+  Pads do not have this gap: their client sends such changes again.
 * **User counts** in the admin statistics are per pod.
-* **Sheets** (the spreadsheet document type) are not cluster-aware yet: their
-  live updates are only sent to users on the same pod, and their storage has
-  not been checked for concurrent writers on different pods. Use pads only,
-  or one replica, if you rely on sheets.
 * **Database connections.** The pool sizes are not configurable yet (25 work
   connections plus up to 14 for locks per pod).
 * **Mixed versions during a rollout.** Old and new pods briefly share the
