@@ -5,9 +5,9 @@ behind a plain, **stateless** load balancer or Kubernetes Ingress — no sticky
 sessions, no Redis, no extra service. Any instance can serve any pad; when a pod
 dies, its users reconnect to another pod and carry on.
 
-With `dbType` `postgres` or `mysql` this is **on by default**. All an
-installation needs is that the instances can reach each other on port `7946`
-(TCP and UDP).
+In Kubernetes with `dbType` `postgres` or `mysql` this is **on by default**
+(elsewhere set `cluster.mode` to `on`). All an installation needs is that the
+instances can reach each other on port `7946` (TCP and UDP).
 
 ## Guarantees
 
@@ -74,7 +74,10 @@ installation needs is that the instances can reach each other on port `7946`
 | A pod is killed while users type | Their WebSocket breaks and the client reconnects through the Ingress to another pod, telling it the last revision it has. That pod sends the missed revisions — including the client's own in-flight change if it had been stored, which the client then treats as acknowledged. Changes not yet stored stay in the editor and are sent again. Acknowledged changes are always in the database. |
 | A new pod starts | It runs migrations under a database lock (safe when pods start at once), registers itself in `cluster_nodes` and joins the others. |
 | Gossip port blocked | Everything stays correct; cross-pod updates arrive within ~2 s (catch-up loop) instead of milliseconds. A warning is logged. |
-| Database unreachable | Writes fail and clients are not acknowledged — nothing is silently dropped. |
+| Database unreachable | Writes fail and clients are not acknowledged — nothing is silently dropped. A pad that cannot be locked or brought up to date is not served from a stale copy: HTTP calls get `503`, pad sockets are closed so the client reconnects and resends. |
+| A pod is shut down (SIGTERM, rollout) | It reports not ready and refuses new pad connections, waits `shutdownDelaySeconds` for the load balancer, gives up its leader locks, then closes the pad connections so clients reconnect to another pod. Changes in progress are stored first. |
+| The same user opens a pad through two pods | As on one instance: the older session is disconnected ("userdup"). |
+| The pod running a background job dies | Its leader lock is tied to its database connection and released with it; another pod takes over within 5 seconds. |
 
 ## Settings
 
@@ -83,19 +86,21 @@ Under the `cluster` key in `settings.json`, or as environment variables
 
 | Key | Env variable | Default | Meaning |
 |-----|--------------|---------|---------|
-| `cluster.mode` | `ETHERPAD_CLUSTER_MODE` | `auto` | `auto`: on for `postgres`/`mysql`, off otherwise. `on`: must start, otherwise the instance exits. `off`: single instance. |
-| `cluster.bindAddr` | `ETHERPAD_CLUSTER_BINDADDR` | `0.0.0.0` | Address the gossip listens on. |
+| `cluster.mode` | `ETHERPAD_CLUSTER_MODE` | `auto` | `auto`: on for `postgres`/`mysql` when running in Kubernetes or with `POD_IP` set, off otherwise — an existing single instance does not open the gossip port after an upgrade. `on`: must start, otherwise the instance exits. `off`: single instance. |
+| `cluster.bindAddr` | `ETHERPAD_CLUSTER_BINDADDR` | the advertise address, else all interfaces | Address the gossip listens on. |
 | `cluster.bindPort` | `ETHERPAD_CLUSTER_BINDPORT` | `7946` | Port for gossip, **TCP and UDP**. |
 | `cluster.advertiseAddr` | `ETHERPAD_CLUSTER_ADVERTISEADDR` | `$POD_IP`, else a private IP of the host | Address the other instances use to reach this one. |
 | `cluster.advertisePort` | `ETHERPAD_CLUSTER_ADVERTISEPORT` | bind port | Port the others use, if it differs (NAT). |
+| `cluster.shutdownDelaySeconds` | `ETHERPAD_CLUSTER_SHUTDOWNDELAYSECONDS` | `5` | How long a pod keeps serving after SIGTERM while reporting not ready, before it closes its connections. |
 
 ```json
 "cluster": {
   "mode": "auto",
-  "bindAddr": "0.0.0.0",
+  "bindAddr": "",
   "bindPort": 7946,
   "advertiseAddr": "",
-  "advertisePort": 0
+  "advertisePort": 0,
+  "shutdownDelaySeconds": 5
 }
 ```
 
@@ -113,6 +118,11 @@ Requirements:
 * Pods can reach each other on `7946/TCP` and `7946/UDP` (default in most
   clusters; allow it explicitly if you use NetworkPolicies).
 * `POD_IP` set through the downward API, so each pod advertises its own IP.
+* Enough database connections: each pod uses up to 25 for its work plus up to
+  14 for locks (pad locks, leader lock, migrations), so plan for about 40 per
+  pod in `max_connections`.
+* `terminationGracePeriodSeconds` longer than `cluster.shutdownDelaySeconds`
+  plus a few seconds (the default 30 is fine).
 
 No headless Service, RBAC or sticky sessions are needed — the Ingress can
 balance freely.
@@ -157,11 +167,14 @@ spec:
             - { name: http,        containerPort: 9001, protocol: TCP }
             - { name: gossip-tcp,  containerPort: 7946, protocol: TCP }
             - { name: gossip-udp,  containerPort: 7946, protocol: UDP }
+          # Ready: started, not shutting down, database reachable.
           readinessProbe:
-            httpGet: { path: /health, port: http }
+            httpGet: { path: /health/ready, port: http }
             periodSeconds: 5
+          # Live: the process answers. It does not check the database, so a
+          # database outage does not get every pod restarted.
           livenessProbe:
-            httpGet: { path: /health, port: http }
+            httpGet: { path: /health/live, port: http }
             periodSeconds: 10
             failureThreshold: 6
 ---
@@ -230,24 +243,55 @@ database; check the release notes of versions with schema changes.
   diverged (`lost: 0, duplicated: 0, divergent instances: []`). Add
   `-prefill 1000000` to test a 1 MB pad.
 
+## What changes in a cluster
+
+* **Background jobs run on one pod.** The pad retention sweep runs on the
+  elected leader only (a database lock; `/health` shows `retentionLeader`).
+  Opening an expired pad still expires it on any pod.
+* **The self-updater only notifies.** Tiers above `notify` are treated as
+  `notify`; update by rolling out a new image.
+* **Settings are read-only in the admin UI.** A change there would only reach
+  one pod and be lost with it. Configure through `settings.json` or the
+  environment of all pods (ConfigMap) and roll them out.
+* **Pad metadata** (saved revisions, public status, read-only id) is reloaded
+  under the pad lock before it is changed and written column by column, so
+  changes through different pods do not overwrite each other. Every pod hands
+  out the same read-only link.
+
+## Health endpoints
+
+| Endpoint | Use | Answers |
+|----------|-----|---------|
+| `/health/live` | liveness probe | `200` while the process serves requests |
+| `/health/ready` | readiness probe | `200` when started, not shutting down and the database is reachable; `503` otherwise |
+| `/health` | monitoring | database, sessions and a `cluster` check: `enabled`, `members` (instances this pod sees) and `retentionLeader`. A clustered database without a running bus is a warning, not a failure. |
+
+The probes need no login, also when the pads require authentication.
+
+## Testing failover
+
+`etherpad-go killbench` writes through one instance, kills it with SIGKILL
+mid-typing and checks that the authors carry on through the others without
+losing or duplicating a change:
+
+```
+etherpad-go killbench -victim http://127.0.0.1:9101 -survivors http://127.0.0.1:9102 \
+  -victim-pid <pid of the first instance> -authors 8 -duration 15s -kill-after 5s
+```
+
+It runs against local processes (it kills by process id). On a test machine
+with PostgreSQL, 8 authors and about 1,150 changes per run, nothing was lost
+or duplicated and the longest wait for an acknowledgement across the kill was
+about 0.3-0.4 s.
+
 ## Current limitations
 
-These are known and planned, not bugs in the guarantees above:
-
-* **Background jobs run on every pod.** Pad retention/cleanup runs on each
-  instance. The jobs are idempotent, but they do redundant work; leader election
-  is planned.
-* **Self-updater.** Keep `updates.tier` at `notify` or `off` in a cluster —
-  pods must be updated by rolling out a new image, not by replacing their own
-  binary.
-* **Settings changed in the admin UI** apply to the pod that handled the
-  request only. In a cluster, configure through `settings.json`/env (ConfigMap).
-* **Pad metadata** (saved revisions, public status, read-only id) is stored as
-  part of the pad row and last-writer-wins between pods. Text and chat are not
-  affected.
-* **`/health`** checks the database and the session store; it does not yet
-  report cluster membership, and there is no separate readiness endpoint or
-  connection draining on shutdown yet.
 * **User counts** in the admin statistics are per pod.
-* **Kill test.** Killing a pod mid-typing is covered by the design above, but
-  not yet by an automated test.
+* **Sheets** (the spreadsheet document type) are not cluster-aware yet: their
+  live updates are only sent to users on the same pod, and their storage has
+  not been checked for concurrent writers on different pods. Use pads only,
+  or one replica, if you rely on sheets.
+* **Database connections.** The pool sizes are not configurable yet (25 work
+  connections plus up to 14 for locks per pod).
+* **Mixed versions during a rollout.** Old and new pods briefly share the
+  database; check the release notes of versions with schema changes.
