@@ -91,8 +91,10 @@ type PadMessageHandler struct {
 	hooks           *hooks.Hook
 	sheetManager    *sheetdoc.Manager
 	sheetChannels   SheetChannelOperator
-	retention       *pad.Retention
-	cluster         *clusterState
+	// sheets tracks what this instance's clients of each sheet were sent.
+	sheets    sheetState
+	retention *pad.Retention
+	cluster   *clusterState
 }
 
 func NewPadMessageHandler(db db2.DataStore, hooks *hooks.Hook, padManager *pad.Manager, sessionStore *SessionStore, hub *Hub, logger *zap.SugaredLogger, uiAssets embed.FS, cfg *settings.Settings) *PadMessageHandler {

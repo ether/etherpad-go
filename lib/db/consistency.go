@@ -58,6 +58,22 @@ func scanPadMeta(exists bool, saved []byte, public *bool, readOnly *string) (*Pa
 	return meta, nil
 }
 
+// SheetVersion is what a stored sheet document is at.
+type SheetVersion struct {
+	Exists bool
+	// Head is the revision the stored snapshot is at.
+	Head int
+	// OpHead is the highest stored op, 0 if none. The ops are the
+	// authoritative history: an op is stored before the snapshot, so OpHead
+	// can be ahead of Head.
+	OpHead int
+	// Epoch changes when the workbook is replaced and numbering restarts.
+	Epoch int
+}
+
+// Latest is the revision the sheet is at.
+func (v *SheetVersion) Latest() int { return max(v.Head, v.OpHead) }
+
 // RevisionDelta is a stored revision without its full text.
 type RevisionDelta struct {
 	Rev       int

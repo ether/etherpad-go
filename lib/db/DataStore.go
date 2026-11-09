@@ -144,7 +144,15 @@ type SheetMethods interface {
 	GetSheet(padId string) (*db.SheetDB, error)
 	DoesSheetExist(padId string) (*bool, error)
 	RemoveSheet(padId string) error
+	// SaveSheetOp stores op as revision rev. Ops are write-once: if rev is
+	// taken (another instance stored it first) it returns ErrConflict.
 	SaveSheetOp(padId string, rev int, op string, authorId *string, timestamp int64) error
+	// GetSheetVersion returns what the stored sheet is at, without its
+	// snapshot.
+	GetSheetVersion(padId string) (*SheetVersion, error)
+	// ResetSheet replaces the workbook: it removes the ops, stores snapshot
+	// at head 0 and starts a new epoch, all or nothing.
+	ResetSheet(padId string, snapshot string) error
 	GetSheetOps(padId string, startRev int, endRev int) (*[]db.SheetOpDB, error)
 	RemoveSheetOps(padId string) error
 }

@@ -171,6 +171,10 @@ func (p *PadMessageHandler) scheduleCatchUp(padID string) {
 	go func() {
 		for {
 			cached := p.padManager.CatchUp(padID, func(pd *pad2.Pad) {
+				if pd.DocumentType == "sheet" {
+					p.flushSheet(pd.Id, "", nil, 0)
+					return
+				}
 				p.updatePadClients(pd, nil)
 			})
 			if !cached {

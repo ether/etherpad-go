@@ -70,13 +70,51 @@ func (d MysqlDB) SaveSheetOp(padId string, rev int, op string, authorId *string,
 	q, args, err := mysql.Insert("sheet_op").
 		Columns("id", "rev", "op", "author_id", "timestamp").
 		Values(padId, rev, op, authorId, timestamp).
-		Suffix("ON DUPLICATE KEY UPDATE id = id").
 		ToSql()
 	if err != nil {
 		return err
 	}
-	_, err = d.sqlDB.Exec(q, args...)
+	if _, err = d.sqlDB.Exec(q, args...); isDuplicateKey(err) {
+		return ErrConflict
+	}
 	return err
+}
+
+func (d MysqlDB) GetSheetVersion(padId string) (*SheetVersion, error) {
+	v := &SheetVersion{Exists: true}
+	err := d.sqlDB.QueryRow(
+		`SELECT head, epoch, COALESCE((SELECT MAX(rev) FROM sheet_op WHERE id = ?), 0) FROM sheet WHERE id = ?`,
+		padId, padId).Scan(&v.Head, &v.Epoch, &v.OpHead)
+	if errors.Is(err, sql.ErrNoRows) {
+		return &SheetVersion{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return v, nil
+}
+
+func (d MysqlDB) ResetSheet(padId string, snapshot string) error {
+	return resetSheetTx(d.sqlDB, padId, snapshot,
+		`INSERT INTO sheet (id, head, snapshot, epoch) VALUES (?, 0, ?, 1)
+		 ON DUPLICATE KEY UPDATE head = 0, snapshot = VALUES(snapshot), epoch = epoch + 1`)
+}
+
+// resetSheetTx removes a sheet's ops and runs upsert (id, snapshot) in one
+// transaction.
+func resetSheetTx(conn *sql.DB, padId, snapshot, upsert string) error {
+	tx, err := conn.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(`DELETE FROM sheet_op WHERE id = ?`, padId); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(upsert, padId, snapshot); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (d MysqlDB) RemoveSheetOps(padId string) error {

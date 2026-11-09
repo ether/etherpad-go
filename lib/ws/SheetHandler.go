@@ -2,7 +2,10 @@ package ws
 
 import (
 	"encoding/json"
+	"sync"
 	"time"
+
+	"github.com/ether/etherpad-go/lib/cluster"
 
 	"github.com/ether/etherpad-go/lib/models/ws"
 	"github.com/ether/etherpad-go/lib/sheet"
@@ -45,8 +48,27 @@ func (p *PadMessageHandler) SheetManager() *sheetdoc.Manager {
 }
 
 // BroadcastSheetReload tells every client of a sheet to re-fetch its state
-// (used after an xlsx import replaces the workbook).
+// (used after an xlsx import replaces the workbook). The caller holds the
+// pad's write lock. Clients on other instances are told by their instance,
+// which notices the new epoch.
 func (p *PadMessageHandler) BroadcastSheetReload(padId string) {
+	p.flushSheet(padId, "", nil, 0)
+	p.publish(cluster.Event{Kind: cluster.KindRevision, Pad: padId})
+}
+
+// sheetProgress is what this instance's clients of a sheet have been sent.
+type sheetProgress struct {
+	epoch int
+	rev   int
+}
+
+// sheetState tracks sheetProgress per sheet.
+type sheetState struct {
+	mu   sync.Mutex
+	sent map[string]sheetProgress
+}
+
+func (p *PadMessageHandler) sendSheetReload(sockets []Client, except string) {
 	encoded, err := json.Marshal([]any{"message", map[string]any{
 		"type": "COLLABROOM",
 		"data": map[string]any{"type": "SHEET_RELOAD"},
@@ -54,9 +76,68 @@ func (p *PadMessageHandler) BroadcastSheetReload(padId string) {
 	if err != nil {
 		return
 	}
-	for _, socket := range p.GetRoomSockets(padId) {
-		socket.SafeSend(encoded)
+	for _, socket := range sockets {
+		if socket.SessionId != except {
+			socket.SafeSend(encoded)
+		}
 	}
+}
+
+// flushSheet sends this instance's clients of a sheet what they have not
+// been sent yet: the ops stored since the last flush, in revision order,
+// whichever instance stored them, or a reload if the workbook was replaced.
+// Clients apply ops in the order they arrive, so every op reaches them
+// through this one path. sender, if set, gets ACCEPT_SHEET_OP for acceptRev
+// in place of that op; the session except gets nothing (it is joining and
+// gets its state separately). The caller holds the pad's local write lock.
+func (p *PadMessageHandler) flushSheet(padId string, except string, sender *Client, acceptRev int) {
+	epoch, head, err := p.sheetManager.State(padId)
+	if err != nil {
+		p.Logger.Warn("sheet state unavailable: ", err)
+		return
+	}
+	p.sheets.mu.Lock()
+	defer p.sheets.mu.Unlock()
+	if p.sheets.sent == nil {
+		p.sheets.sent = map[string]sheetProgress{}
+	}
+	st, known := p.sheets.sent[padId]
+	if !known {
+		// Nothing was sent for this sheet here yet: the clients are at the
+		// head, or at the state before the op being acknowledged.
+		st = sheetProgress{epoch: epoch, rev: head}
+		if sender != nil {
+			st.rev = acceptRev - 1
+		}
+	}
+	sockets := p.GetRoomSockets(padId)
+	switch {
+	case st.epoch != epoch || head < st.rev:
+		p.sendSheetReload(sockets, except)
+	case head > st.rev:
+		ops, err := p.sheetManager.StoredOps(padId, st.rev+1, head)
+		if err != nil {
+			// Left for the next flush (the periodic catch-up at the latest).
+			p.Logger.Warn("sheet ops unavailable: ", err)
+			return
+		}
+		for _, op := range ops {
+			encoded, ok := p.newSheetOpMessage(op.Op, op.Rev, op.Author)
+			if !ok {
+				continue
+			}
+			for _, socket := range sockets {
+				switch {
+				case socket.SessionId == except:
+				case sender != nil && socket.SessionId == sender.SessionId && op.Rev == acceptRev:
+					p.sendAcceptSheetOp(sender, acceptRev)
+				default:
+					socket.SafeSend(encoded)
+				}
+			}
+		}
+	}
+	p.sheets.sent[padId] = sheetProgress{epoch: epoch, rev: head}
 }
 
 // EnqueueSheetOp routes a SHEET_OP to the per-document serialization goroutine.
@@ -90,14 +171,18 @@ func (p *PadMessageHandler) handleSheetOp(task SheetTask) {
 	op.BaseRev = task.message.Data.Data.BaseRev
 
 	author := session.Author
-	rebased, newRev, err := p.sheetManager.Submit(session.PadId, op, &author, time.Now().UnixMilli())
+	_, newRev, err := p.sheetManager.Submit(session.PadId, op, &author, time.Now().UnixMilli())
 	if err != nil {
 		p.Logger.Warn("sheet submit failed: ", err)
 		return
 	}
 
-	p.sendAcceptSheetOp(task.socket, newRev)
-	p.broadcastNewSheetOp(session.PadId, task.socket.SessionId, rebased, newRev, author)
+	// Sends the clients here everything up to this op in order (also ops
+	// other instances stored in between) and the sender its acknowledgement.
+	p.flushSheet(session.PadId, "", task.socket, newRev)
+	// Tell the other instances; they send their clients the op from the
+	// database.
+	p.publish(cluster.Event{Kind: cluster.KindRevision, Pad: session.PadId, Rev: newRev})
 }
 
 func (p *PadMessageHandler) sendAcceptSheetOp(client *Client, newRev int) {
@@ -112,28 +197,24 @@ func (p *PadMessageHandler) sendAcceptSheetOp(client *Client, newRev int) {
 	client.SafeSend(encoded)
 }
 
-func (p *PadMessageHandler) broadcastNewSheetOp(padId string, senderSessionId string, rebased sheet.Op, newRev int, author string) {
-	opBytes, err := json.Marshal(rebased)
+// newSheetOpMessage encodes a NEW_SHEET_OP message.
+func (p *PadMessageHandler) newSheetOpMessage(op sheet.Op, rev int, author string) ([]byte, bool) {
+	opBytes, err := json.Marshal(op)
 	if err != nil {
-		p.Logger.Warn("marshal rebased sheet op: ", err)
-		return
+		p.Logger.Warn("marshal sheet op: ", err)
+		return nil, false
 	}
 	msg := ws.NewSheetOp{Type: "COLLABROOM"}
 	msg.Data.Type = "NEW_SHEET_OP"
 	msg.Data.Op = opBytes
-	msg.Data.NewRev = newRev
+	msg.Data.NewRev = rev
 	msg.Data.Author = author
 	encoded, err := json.Marshal([]any{"message", msg})
 	if err != nil {
 		p.Logger.Warn("marshal NEW_SHEET_OP: ", err)
-		return
+		return nil, false
 	}
-	for _, socket := range p.GetRoomSockets(padId) {
-		if socket.SessionId == senderSessionId {
-			continue
-		}
-		socket.SafeSend(encoded)
-	}
+	return encoded, true
 }
 
 // HandlePresence relays an ephemeral cursor / live-edit frame to the other
@@ -184,22 +265,28 @@ func (p *PadMessageHandler) HandlePresence(client *Client, msg ws.SheetPresenceI
 		p.Logger.Warn("marshal SHEET_PRESENCE: ", err)
 		return
 	}
-	for _, socket := range p.GetRoomSockets(session.PadId) {
-		if socket.SessionId == client.SessionId {
-			continue
-		}
-		socket.SafeSend(encoded)
-	}
+	p.broadcastToRoom(session.PadId, encoded, client.SessionId)
 }
 
 // HandleSheetClientReady materializes the pad as a sheet, then either sends the
 // full SHEET_VARS snapshot (fresh connect) or the missed ops (reconnect), and
 // announces presence to the other clients of the document.
 func (p *PadMessageHandler) HandleSheetClientReady(ready ws.ClientReady, client *Client, session *ws.Session) {
+	// The state sent to the joining client and the ops sent to the others
+	// must not interleave with an op being applied.
+	unlock, err := p.padManager.LockPad(session.PadId)
+	if err != nil {
+		p.dropUnavailable(client, session.PadId, err)
+		return
+	}
+	defer unlock()
 	if _, err := p.padManager.GetTypedPad(session.PadId, "sheet", &session.Author); err != nil {
 		p.Logger.Warn("error materializing sheet pad: ", err)
 		return
 	}
+	// Bring the clients already here up to the head the joining client
+	// starts from.
+	p.flushSheet(session.PadId, client.SessionId, nil, 0)
 
 	if ready.Data.Reconnect != nil && *ready.Data.Reconnect {
 		clientRev := 0
@@ -288,10 +375,5 @@ func (p *PadMessageHandler) announceSheetPresence(client *Client, session *ws.Se
 	if err != nil {
 		return
 	}
-	for _, socket := range p.GetRoomSockets(session.PadId) {
-		if socket.SessionId == client.SessionId {
-			continue
-		}
-		socket.SafeSend(encoded)
-	}
+	p.broadcastToRoom(session.PadId, encoded, client.SessionId)
 }

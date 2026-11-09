@@ -42,6 +42,7 @@ type MemoryDataStore struct {
 	secretParams  map[string]memorySecretRow
 	sheetStore    map[string]db.SheetDB
 	sheetOps      map[string]map[int]db.SheetOpDB
+	sheetEpoch    map[string]int
 
 	// oauth token tables
 	oauthAccessTokens  map[string]OAuthTokenRow

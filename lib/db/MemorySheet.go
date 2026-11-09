@@ -45,6 +45,38 @@ func (m *MemoryDataStore) RemoveSheet(padId string) error {
 
 	delete(m.sheetStore, padId)
 	delete(m.sheetOps, padId)
+	delete(m.sheetEpoch, padId)
+	return nil
+}
+
+func (m *MemoryDataStore) GetSheetVersion(padId string) (*SheetVersion, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	s, ok := m.sheetStore[padId]
+	if !ok {
+		return &SheetVersion{}, nil
+	}
+	v := &SheetVersion{Exists: true, Head: s.Head, Epoch: m.sheetEpoch[padId]}
+	for rev := range m.sheetOps[padId] {
+		v.OpHead = max(v.OpHead, rev)
+	}
+	return v, nil
+}
+
+func (m *MemoryDataStore) ResetSheet(padId string, snapshot string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	now := time.Now()
+	created := now
+	if existing, ok := m.sheetStore[padId]; ok {
+		created = existing.CreatedAt
+	}
+	delete(m.sheetOps, padId)
+	m.sheetStore[padId] = db.SheetDB{ID: padId, Head: 0, Snapshot: snapshot, CreatedAt: created, UpdatedAt: &now}
+	if m.sheetEpoch == nil {
+		m.sheetEpoch = map[string]int{}
+	}
+	m.sheetEpoch[padId]++
 	return nil
 }
 
@@ -56,7 +88,7 @@ func (m *MemoryDataStore) SaveSheetOp(padId string, rev int, op string, authorId
 		m.sheetOps[padId] = make(map[int]db.SheetOpDB)
 	}
 	if _, exists := m.sheetOps[padId][rev]; exists {
-		return nil // write-once
+		return ErrConflict // write-once
 	}
 	m.sheetOps[padId][rev] = db.SheetOpDB{PadId: padId, Rev: rev, Op: op, AuthorId: authorId, Timestamp: timestamp}
 	return nil
