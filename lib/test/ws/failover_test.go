@@ -99,7 +99,7 @@ func (s *failoverSetup) change(baseRev, baseLen int) ws.UserChange {
 // connection: same token, reconnect flag, the last revision it has.
 func (s *failoverSetup) reconnectToB(t *testing.T) (*libws.Client, []map[string]any) {
 	client := createTestClient(s.b.hub, "failover-b-"+s.padID, s.padID, libws.NewActualMockWebSocketconn())
-	t.Cleanup(func() { delete(s.b.hub.Clients, client) })
+	t.Cleanup(func() { removeClient(s.b.hub, client) })
 	s.b.handler.SessionStore.InitSessionForTest(client.SessionId)
 	yes, rev := true, s.baseRev
 	s.b.handler.HandleMessage(ws.ClientReady{
@@ -158,4 +158,12 @@ func mustLock(unlock func(), err error) func() {
 		panic(err)
 	}
 	return unlock
+}
+
+// removeClient takes a test client out of the hub under the hub's lock; the
+// hub's run loop may be handling the client concurrently.
+func removeClient(hub *libws.Hub, client *libws.Client) {
+	hub.ClientsRWMutex.Lock()
+	delete(hub.Clients, client)
+	hub.ClientsRWMutex.Unlock()
 }

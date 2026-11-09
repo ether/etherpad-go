@@ -28,7 +28,7 @@ func tokenlessClientReady(t *testing.T, ds testutils.TestDataStore, padId, sessi
 	initStore := ds.ToInitStore()
 	ds.Settings.LoadTest = false
 	client := createTestClient(ds.Hub, sessionId, padId, libws.NewActualMockWebSocketconn())
-	t.Cleanup(func() { delete(ds.Hub.Clients, client) })
+	t.Cleanup(func() { removeClient(ds.Hub, client) })
 	ds.PadMessageHandler.SessionStore.InitSessionForTest(sessionId)
 	ds.PadMessageHandler.HandleMessage(ws.ClientReady{
 		Event: "message",

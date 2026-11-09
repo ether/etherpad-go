@@ -124,7 +124,7 @@ func testClusterLiveUpdates(t *testing.T, ds testutils.TestDataStore) {
 	padID := "clusterLivePad"
 	join := func(in instance, sessionID string) (*libws.Client, string) {
 		client := createTestClient(in.hub, sessionID, padID, libws.NewActualMockWebSocketconn())
-		t.Cleanup(func() { delete(in.hub.Clients, client) })
+		t.Cleanup(func() { removeClient(in.hub, client) })
 		in.handler.SessionStore.InitSessionForTest(sessionID)
 		in.handler.HandleMessage(ws.ClientReady{
 			Event: "message",
@@ -206,7 +206,7 @@ func testClusterUserDup(t *testing.T, ds testutils.TestDataStore) {
 	const token = "t.sameAuthorEverywhere"
 	join := func(h *libws.PadMessageHandler, hub *libws.Hub, sessionID string) *libws.Client {
 		client := createTestClient(hub, sessionID, padID, libws.NewActualMockWebSocketconn())
-		t.Cleanup(func() { delete(hub.Clients, client) })
+		t.Cleanup(func() { removeClient(hub, client) })
 		h.SessionStore.InitSessionForTest(sessionID)
 		h.HandleMessage(ws.ClientReady{
 			Event: "message",
