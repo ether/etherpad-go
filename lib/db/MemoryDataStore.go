@@ -422,7 +422,7 @@ func (m *MemoryDataStore) SaveRevision(
 		RevNum:    rev,
 		Changeset: changeset,
 		AText:     text,
-		AuthorId:  authorId,
+		AuthorId:  copyStringPtr(authorId),
 		Timestamp: timestamp,
 		Pool:      &pool,
 	}
@@ -544,7 +544,7 @@ func (m *MemoryDataStore) SaveChatMessage(
 	m.chatPads[key] = db.ChatMessageDB{
 		PadId:    padId,
 		Head:     head,
-		AuthorId: authorId,
+		AuthorId: copyStringPtr(authorId),
 		Time:     &timestamp,
 		Message:  text,
 	}
@@ -1140,3 +1140,14 @@ func NewMemoryDataStore() *MemoryDataStore {
 }
 
 var _ DataStore = (*MemoryDataStore)(nil)
+
+// copyStringPtr returns a pointer to a copy of *s. The store must not keep
+// pointers it was given: callers pass pointers into live objects (a
+// session's author), and what was stored would change when those do.
+func copyStringPtr(s *string) *string {
+	if s == nil {
+		return nil
+	}
+	v := *s
+	return &v
+}

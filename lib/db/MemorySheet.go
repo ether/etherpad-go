@@ -90,7 +90,7 @@ func (m *MemoryDataStore) SaveSheetOp(padId string, rev int, op string, authorId
 	if _, exists := m.sheetOps[padId][rev]; exists {
 		return ErrConflict // write-once
 	}
-	m.sheetOps[padId][rev] = db.SheetOpDB{PadId: padId, Rev: rev, Op: op, AuthorId: authorId, Timestamp: timestamp}
+	m.sheetOps[padId][rev] = db.SheetOpDB{PadId: padId, Rev: rev, Op: op, AuthorId: copyStringPtr(authorId), Timestamp: timestamp}
 	return nil
 }
 

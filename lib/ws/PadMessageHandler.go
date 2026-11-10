@@ -579,7 +579,10 @@ func (p *PadMessageHandler) HandleMessage(message any, client *Client, retrieved
 		return
 	}
 
-	thisSession.Author = grantedAccess.AuthorId
+	// Other goroutines read the session; only write when it changes.
+	if thisSession.Author != grantedAccess.AuthorId {
+		thisSession.Author = grantedAccess.AuthorId
+	}
 
 	var readonly = thisSession.ReadOnly
 	var thisSessionNewRetrieved = p.SessionStore.getSession(client.SessionId)
@@ -1440,6 +1443,7 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 
 		// Save the revision in sessioninfos
 		thisSession.Revision = clientRev
+		thisSession.Joined = true
 
 		headRev := retrievedPad.Head
 
@@ -1607,6 +1611,7 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 		client.SafeSend(encoded)
 		// Save the current revision in sessioninfos, should be the same as in clientVars
 		thisSession.Revision = headRevSnapshot
+		thisSession.Joined = true
 
 		// Flush any revisions that landed between the atomic snapshot and
 		// this socket officially joining the pad room. Upstream #7480.
@@ -1731,9 +1736,12 @@ func (p *PadMessageHandler) updatePadClients(pad *pad2.Pad, only *Client) {
 	}
 	// All clients get the same revisions: load the ones the furthest
 	// behind client misses, changesets only, in one query.
+	// Sessions still joining are left out: their Revision does not say yet
+	// what the client has, and they get the current state with CLIENT_VARS.
+	// Catching them up from revision 0 would load and send the whole history.
 	from := pad.Head + 1
 	for _, socket := range roomSockets {
-		if sessionInfo := p.SessionStore.getSession(socket.SessionId); sessionInfo != nil {
+		if sessionInfo := p.SessionStore.getSession(socket.SessionId); sessionInfo != nil && sessionInfo.Joined {
 			from = min(from, sessionInfo.Revision+1)
 		}
 	}
@@ -1751,7 +1759,7 @@ func (p *PadMessageHandler) updatePadClients(pad *pad2.Pad, only *Client) {
 	}
 	for _, socket := range roomSockets {
 		var sessionInfo = p.SessionStore.getSession(socket.SessionId)
-		if sessionInfo == nil {
+		if sessionInfo == nil || !sessionInfo.Joined {
 			continue
 		}
 
@@ -1864,8 +1872,7 @@ func (p *PadMessageHandler) GetRoomSockets(padID string) []Client {
 	var sockets = make([]Client, 0)
 	p.hub.ClientsRWMutex.RLock()
 	for k := range p.hub.Clients {
-		sessId := p.SessionStore.getSession(k.SessionId)
-		if sessId != nil && sessId.PadId == padID {
+		if k != nil && padID != "" && p.SessionStore.padOf(k.SessionId) == padID {
 			sockets = append(sockets, *k)
 		}
 	}
@@ -1884,7 +1891,7 @@ func (p *PadMessageHandler) KickSessionsFromPad(padID string) {
 			continue
 		}
 
-		if retrievedSession.PadId == padID {
+		if padID != "" && p.SessionStore.padOf(k.SessionId) == padID {
 			k.SendPadDelete()
 		}
 	}
