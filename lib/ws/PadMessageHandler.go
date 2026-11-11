@@ -142,17 +142,26 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 		p.Logger.Infof("Session %s not found", task.socket.SessionId)
 		return
 	}
+	// The pad this change is for is read once. Locking one pad and then
+	// loading the session's pad again could write to another pad if the
+	// session moved in between (upstream's crossPadWriteToctou spec).
+	// A socket's messages are handled one after the other here, so that
+	// cannot happen today; reading once keeps it impossible.
+	padID := session.PadId
+	if padID == "" {
+		return
+	}
 	// Rebase + append + broadcast must not interleave with other writers.
-	unlock, err := p.padManager.LockPad(session.PadId)
+	unlock, err := p.padManager.LockPad(padID)
 	if err != nil {
-		p.dropUnavailable(task.socket, session.PadId, err)
+		p.dropUnavailable(task.socket, padID, err)
 		return
 	}
 	defer unlock()
 
-	retrievedPad, err := p.padManager.GetPad(session.PadId, nil, &session.Author)
+	retrievedPad, err := p.padManager.GetPad(padID, nil, &session.Author)
 	if err != nil {
-		p.Logger.Warnf("Error retrieving pad %s: %v", session.PadId, err)
+		p.Logger.Warnf("Error retrieving pad %s: %v", padID, err)
 		sendDisconnectMessage(task.socket, "badChangeset")
 		return
 	}

@@ -406,6 +406,7 @@ func (p *Pad) Init(text *string, author *string, authorManager *author.Manager) 
 		}
 	}
 	if err != nil {
+		usedDefaultContent := text == nil
 		if text == nil {
 			var padDefaultText = "text"
 			text = &settings.Displayed.DefaultPadText
@@ -424,8 +425,29 @@ func (p *Pad) Init(text *string, author *string, authorManager *author.Manager) 
 			}
 		}
 
-		var firstChangeset, _ = changeset.MakeSplice("\n", 0, 0, *text, nil, nil)
-		_, err := p.AppendRevision(firstChangeset, author)
+		// Every insert carries an author (see checkInsertsHaveAuthor). The
+		// initial text is attributed to the creating author, or to the
+		// system author when it is the generated default text or no author
+		// was given. The revision's author stays the real creator, which
+		// pad ownership is derived from. Upstream #7773, #7885.
+		hasAuthor := author != nil && *author != ""
+		var firstAttribs *string
+		var firstPool *apool.APool
+		if utils.RuneCount(*text) > 0 {
+			attribAuthor := SystemAuthorId
+			if hasAuthor && !usedDefaultContent {
+				attribAuthor = *author
+			}
+			as := "*" + utils.NumToString(p.Pool.PutAttrib(apool.Attribute{Key: "author", Value: attribAuthor}, nil))
+			firstAttribs, firstPool = &as, &p.Pool
+		}
+		revisionAuthor := author
+		if !hasAuthor && utils.RuneCount(*text) > 0 {
+			sys := SystemAuthorId
+			revisionAuthor = &sys
+		}
+		var firstChangeset, _ = changeset.MakeSplice("\n", 0, 0, *text, firstAttribs, firstPool)
+		_, err := p.AppendRevision(firstChangeset, revisionAuthor)
 		if errors.Is(err, db.ErrConflict) {
 			// Another instance created the pad at the same time; use theirs.
 			return p.loadExisting()
@@ -611,7 +633,39 @@ func (p *Pad) getPublicStatus() bool {
 	return p.PublicStatus
 }
 
+// ErrInsertWithoutAuthor is returned by AppendRevision for a changeset with
+// an insert that carries no author attribute.
+var ErrInsertWithoutAuthor = errors.New("insert op without an author attribute")
+
+// checkInsertsHaveAuthor rejects changesets whose inserts carry no author.
+// Such an insert grows the text without matching attribute markers, and
+// clients then fail to reconcile the pad on load. The websocket handler
+// checks this for clients; this covers every other caller (HTTP API,
+// imports, plugins). Upstream #7773.
+func (p *Pad) checkInsertsHaveAuthor(cs string) error {
+	unpacked, err := changeset.Unpack(cs)
+	if err != nil {
+		return err
+	}
+	ops, err := changeset.DeserializeOps(unpacked.Ops)
+	if err != nil {
+		return err
+	}
+	for _, op := range *ops {
+		if op.OpCode != "+" {
+			continue
+		}
+		if author := changeset.FromString(op.Attribs, &p.Pool).Get("author"); author == nil || *author == "" {
+			return fmt.Errorf("%w: %s", ErrInsertWithoutAuthor, cs)
+		}
+	}
+	return nil
+}
+
 func (p *Pad) AppendRevision(cs string, authorId *string) (*int, error) {
+	if err := p.checkInsertsHaveAuthor(cs); err != nil {
+		return &p.Head, err
+	}
 	var newAText, err = changeset.ApplyToAText(cs, p.AText, p.Pool)
 
 	if err != nil {
