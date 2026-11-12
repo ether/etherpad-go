@@ -98,13 +98,21 @@ templ EditorLoadingBox(translations map[string]string) {
           </div>
 }
 
-templ SettingsPopup(translations map[string]string, availablefonts []string, settingsGroups []pluginTypes.SettingsMenuItemGroup) {
+templ SettingsPopup(translations map[string]string, availablefonts []string, settingsGroups []pluginTypes.SettingsMenuItemGroup, padWideSettings bool) {
           <div id="settings" class="popup"><div class="popup-content">
               // Always "Settings" — the previous "Pad Settings" label
               // suggested pad-wide controls even when the feature was off.
               // Upstream #7679.
               <h1 id="padSettingsTitle">{translations["pad.settings.title"]}</h1>
               <h2>{translations["pad.settings.myView"]}</h2>
+              if padWideSettings {
+                // Shown by pad_settings.ts when the pad's creator enforces
+                // the pad-wide settings.
+                <p id="enforce-settings-notice" class="settings-notice" hidden>{translations["pad.settings.enforcedNotice"]}</p>
+              }
+              <p>
+                  <ep-checkbox id="options-disablechat" label={translations["pad.settings.disablechat"]}></ep-checkbox>
+              </p>
               <p class="hide-for-mobile">
                   <ep-checkbox id="options-stickychat" label={translations["pad.settings.stickychat"]}></ep-checkbox>
               </p>
@@ -147,6 +155,58 @@ templ SettingsPopup(translations map[string]string, availablefonts []string, set
                   </ep-dropdown>
                 </div>
               </div>
+              if padWideSettings {
+                // Only for the pad's creator; pad_settings.ts unhides it.
+                <div id="pad-settings-section" class="settings-section" hidden>
+                  <h2>{translations["pad.settings.padSettings"]}</h2>
+                  <p>
+                      <ep-checkbox id="padsettings-options-disablechat" label={translations["pad.settings.disablechat"]}></ep-checkbox>
+                  </p>
+                  <p class="hide-for-mobile">
+                      <ep-checkbox id="padsettings-options-stickychat" label={translations["pad.settings.stickychat"]}></ep-checkbox>
+                  </p>
+                  <p class="hide-for-mobile">
+                      <ep-checkbox id="padsettings-options-chatandusers" label={translations["pad.settings.chatandusers"]}></ep-checkbox>
+                  </p>
+                  <p>
+                      <ep-checkbox id="padsettings-options-colorscheck" checked label={translations["pad.settings.colorcheck"]}></ep-checkbox>
+                  </p>
+                  <p>
+                      <ep-checkbox id="padsettings-options-linenoscheck" checked label={translations["pad.settings.linenocheck"]}></ep-checkbox>
+                  </p>
+                  <p>
+                      <ep-checkbox id="padsettings-options-rtlcheck" label={translations["pad.settings.rtlcheck"]}></ep-checkbox>
+                  </p>
+                  <p>
+                      <ep-checkbox id="padsettings-enforcecheck" label={translations["pad.settings.enforceSettings"]}></ep-checkbox>
+                  </p>
+                  <div class="dropdowns-container">
+                    <div class="dropdown-line">
+                      <label>{translations["pad.settings.fontType"]}</label>
+                      <ep-dropdown id="padsettings-viewfontmenu" align="left" trigger="click">
+                        <button slot="trigger" type="button" class="dropdown-select-trigger">{translations["pad.settings.fontType.normal"]}</button>
+                        <div slot="content">
+                          <ep-dropdown-item value="">{translations["pad.settings.fontType.normal"]}</ep-dropdown-item>
+                          for _, valueInLoop := range availablefonts {
+                            <ep-dropdown-item value={valueInLoop}>{valueInLoop}</ep-dropdown-item>
+                          }
+                        </div>
+                      </ep-dropdown>
+                    </div>
+                    <div class="dropdown-line">
+                      <label>{translations["pad.settings.language"]}</label>
+                      <ep-dropdown id="padsettings-languagemenu" align="left" trigger="click">
+                        <button slot="trigger" type="button" class="dropdown-select-trigger">{translations["pad.settings.language"]}</button>
+                        <div slot="content">
+                          for _, entry := range hooks.SortedAvailableLangs {
+                            <ep-dropdown-item value={entry.Code}>{entry.Info.DisplayName}</ep-dropdown-item>
+                          }
+                        </div>
+                      </ep-dropdown>
+                    </div>
+                  </div>
+                </div>
+              }
               <button id="delete-pad">{translations["pad.settings.deletePad"]}</button>
               <div id="theme-switcher" style="display: none;">
                     <svg width="2rem" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
@@ -436,7 +496,7 @@ availableFonts []string, buttonGroups []pluginTypes.ToolbarButtonGroup, settings
               <div id="editorcontainer" class="editorcontainer"></div>
 
             @EditorLoadingBox(translations)
-            @SettingsPopup(translations, availableFonts, settingsGroups)
+            @SettingsPopup(translations, availableFonts, settingsGroups, settings.EnablePadWideSettings)
             @ImportExportPopup(translations)
             @ConnectivityPopup(translations)
             @EmbedPopup(translations)

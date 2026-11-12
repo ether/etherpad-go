@@ -94,6 +94,7 @@
 	"pad.delete.confirm": "Haluatko todella poistaa tämän muistion?",
 	"pad.settings.about": "Tietoja",
 	"pad.settings.poweredBy": "Palvelun mahdollistaa",
+	"pad.settings.disablechat": "Poista keskustelu käytöstä",
 	"pad.importExport.import_export": "Tuonti/vienti",
 	"pad.importExport.import": "Lähetä mikä tahansa tekstitiedosto tai asiakirja",
 	"pad.importExport.importSuccessful": "Onnistui!",

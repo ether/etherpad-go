@@ -13,19 +13,20 @@ func (d PostgresDB) GetPadVersion(padID string) (*PadVersion, error) {
 	v := &PadVersion{}
 	var saved []byte
 	var public *bool
-	var readOnly *string
+	var readOnly, settings *string
 	err := d.pool.QueryRow(context.Background(),
 		`SELECT EXISTS(SELECT 1 FROM pad WHERE id = $1),
 		        COALESCE((SELECT MAX(rev) FROM "padrev" WHERE id = $1), -1),
 		        COALESCE((SELECT MAX("padhead") FROM "padchat" WHERE "padid" = $1), -1),
 		        (SELECT saved_revisions FROM pad WHERE id = $1),
 		        (SELECT public_status FROM pad WHERE id = $1),
-		        (SELECT readonly_id FROM pad WHERE id = $1)`,
-		padID).Scan(&v.Exists, &v.Rev, &v.ChatHead, &saved, &public, &readOnly)
+		        (SELECT readonly_id FROM pad WHERE id = $1),
+		        (SELECT settings FROM pad WHERE id = $1)`,
+		padID).Scan(&v.Exists, &v.Rev, &v.ChatHead, &saved, &public, &readOnly, &settings)
 	if err != nil {
 		return nil, err
 	}
-	if v.Meta, err = scanPadMeta(v.Exists, saved, public, readOnly); err != nil {
+	if v.Meta, err = scanPadMeta(v.Exists, saved, public, readOnly, settings); err != nil {
 		return nil, err
 	}
 	return v, nil

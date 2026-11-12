@@ -7,8 +7,8 @@ behaviour, they are not line-by-line translations.
 
 | Status | Files | Test cases |
 |---|---|---|
-| Ported | 19 | 117 |
-| Partly ported | 3 | 42 |
+| Ported | 20 | 142 |
+| Partly ported | 2 | 17 |
 | Not applicable to Go | 33 | 288 |
 | To compare case by case | 117 | 1287 |
 
@@ -39,6 +39,7 @@ upstream cases the Go tests cover and which are missing.
 | `padIdColonLegacyPad` | 3 | `lib/test/api/static/pad_url_colon_test.go` |
 | `padUrlColonRedirect` | 3 | `lib/test/api/static/pad_url_colon_test.go` |
 | `copyPadColonInjection` | 3 | `lib/test/api/pad/pad_api_test.go` (`TestCopyPadColonDestination`) |
+| `Pad` | 25 | `lib/pad/pad_test.go`, `pad_parity_test.go`, `insert_author_test.go`; normalizePadSettings in `lib/models/pad/settings_test.go`; pad-wide settings end to end in `lib/test/ws/pad_settings_test.go`, client logic in `ui/src/js/pad_settings.test.ts` |
 
 ## Partly ported
 
@@ -46,7 +47,6 @@ upstream cases the Go tests cover and which are missing.
 |---|---|---|
 | `new/easysync-other` | 9 | moveOpsToNewPool, makeSplice, applyToAttribution and split/join are covered in `lib/changeset`; filterAttribNumbers, makeAttribsString, toSplices and opAttributeValue do not exist in the Go package (deprecated or client-only upstream) |
 | `padInsertAuthorInvariant` | 8 | pad-level cases in `lib/pad/insert_author_test.go`; the `.etherpad` import and copyPadWithoutHistory cases are open |
-| `Pad` | 25 | cleanText, non-breaking space, system author and padDefaultContent cases in `lib/pad/pad_test.go`, `pad_parity_test.go`, `insert_author_test.go`; the 10 normalizePadSettings cases need a feature port first: Go has no pad-wide settings (etherpad-lite #7586, #7698) |
 
 ## `:` in pad ids
 

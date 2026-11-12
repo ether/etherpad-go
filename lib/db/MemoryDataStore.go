@@ -89,6 +89,8 @@ func (m *MemoryDataStore) CreatePad(padID string, padDB db.PadDB) error {
 	if exists {
 		padDB.CreatedAt = existing.CreatedAt
 		padDB.UpdatedAt = &nowTime
+		// Like the SQL stores: settings change only through SetPadSettings.
+		padDB.Settings = existing.Settings
 	} else {
 		// New pad
 		padDB.CreatedAt = now

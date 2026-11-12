@@ -6,10 +6,10 @@ type ClientReady struct {
 }
 
 type ClientReadyData struct {
-	Component string              `json:"component"`
-	Type      string              `json:"type"`
-	PadID     string              `json:"padId"`
-	Token     string              `json:"token"`
+	Component string `json:"component"`
+	Type      string `json:"type"`
+	PadID     string `json:"padId"`
+	Token     string `json:"token"`
 	// SessionID is the deprecated legacy field for the integrator-set
 	// sessionID cookie value, kept for backward compatibility with old
 	// clients. Current clients no longer forward it; the server now reads
@@ -19,6 +19,9 @@ type ClientReadyData struct {
 	UserInfo  ClientReadyUserInfo `json:"userInfo"`
 	Reconnect *bool               `json:"reconnect"`
 	ClientRev *int                `json:"client_rev"`
+	// PadSettingsDefaults are the creating user's own view settings; they
+	// become the pad-wide settings of a pad this message creates.
+	PadSettingsDefaults map[string]any `json:"padSettingsDefaults,omitempty"`
 }
 
 type ClientReadyUserInfo struct {

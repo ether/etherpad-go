@@ -289,6 +289,11 @@ var Registry = []ConfigKey{
 		Description: "Enable dark mode",
 	},
 	{
+		Key:         EnablePadWideSettings,
+		Default:     true,
+		Description: "Let the pad creator set and enforce pad-wide settings (upstream #7586)",
+	},
+	{
 		Key:         EnablePluginPadOptions,
 		Default:     false,
 		Description: "Pass plugin-namespaced ep_* keys through pad-wide padOptions (upstream #7698, opt-in)",

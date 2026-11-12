@@ -22,15 +22,16 @@ func (d MysqlDB) GetPadVersion(padID string) (*PadVersion, error) {
 	v := &PadVersion{}
 	var saved []byte
 	var public sql.NullBool
-	var readOnly sql.NullString
+	var readOnly, settings sql.NullString
 	err := d.sqlDB.QueryRow(
 		`SELECT EXISTS(SELECT 1 FROM pad WHERE id = ?),
 		        COALESCE((SELECT MAX(rev) FROM padRev WHERE id = ?), -1),
 		        COALESCE((SELECT MAX(padHead) FROM padChat WHERE padId = ?), -1),
 		        (SELECT saved_revisions FROM pad WHERE id = ?),
 		        (SELECT public_status FROM pad WHERE id = ?),
-		        (SELECT readonly_id FROM pad WHERE id = ?)`,
-		padID, padID, padID, padID, padID, padID).Scan(&v.Exists, &v.Rev, &v.ChatHead, &saved, &public, &readOnly)
+		        (SELECT readonly_id FROM pad WHERE id = ?),
+		        (SELECT settings FROM pad WHERE id = ?)`,
+		padID, padID, padID, padID, padID, padID, padID).Scan(&v.Exists, &v.Rev, &v.ChatHead, &saved, &public, &readOnly, &settings)
 	if err != nil {
 		return nil, err
 	}
@@ -42,7 +43,11 @@ func (d MysqlDB) GetPadVersion(padID string) (*PadVersion, error) {
 	if readOnly.Valid {
 		ro = &readOnly.String
 	}
-	if v.Meta, err = scanPadMeta(v.Exists, saved, pub, ro); err != nil {
+	var st *string
+	if settings.Valid {
+		st = &settings.String
+	}
+	if v.Meta, err = scanPadMeta(v.Exists, saved, pub, ro, st); err != nil {
 		return nil, err
 	}
 	return v, nil

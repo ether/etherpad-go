@@ -79,6 +79,9 @@ type Pad struct {
 	ReadonlyId     *string
 	UpdatedAt      *time.Time
 	CreatedAt      time.Time
+	// settingsJSON is the stored pad-wide settings ("" = defaults), see
+	// settings.go.
+	settingsJSON string
 }
 
 func NewPad(id string, db db.DataStore, hook *hooks.Hook) Pad {

@@ -28,7 +28,7 @@ func ReadToPadDB(reader Reader) (*db.PadDB, error) {
 
 	if err := reader.Scan(&padDB.ID, &padDB.Head, &savedRevisions, &padDB.ReadOnlyId, &pool,
 		&padDB.ChatHead, &padDB.PublicStatus, &padDB.DocumentType, &padDB.ATextText, &padDB.ATextAttribs,
-		&padDB.CreatedAt, &padDB.UpdatedAt); err != nil {
+		&padDB.CreatedAt, &padDB.UpdatedAt, &padDB.Settings); err != nil {
 		return nil, err
 	}
 	if err := json.Unmarshal(savedRevisions, &padDB.SavedRevisions); err != nil {

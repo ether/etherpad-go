@@ -50,8 +50,8 @@ func (d PostgresDB) CreatePad(padID string, padDB db.PadDB) error {
 
 	_, err = d.pool.Exec(ctx,
 		`INSERT INTO pad (id, head, saved_revisions, readonly_id, pool, chat_head,
-                          public_status, document_type, atext_text, atext_attribs, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())
+                          public_status, document_type, atext_text, atext_attribs, created_at, updated_at, settings)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW(), $11)
          ON CONFLICT (id) DO UPDATE SET
              head = EXCLUDED.head,
              saved_revisions = EXCLUDED.saved_revisions,
@@ -64,7 +64,7 @@ func (d PostgresDB) CreatePad(padID string, padDB db.PadDB) error {
              atext_attribs = EXCLUDED.atext_attribs,
              updated_at = NOW()`,
 		padID, padDB.Head, savedRevisions, padDB.ReadOnlyId, pool,
-		padDB.ChatHead, padDB.PublicStatus, padDB.DocumentType, padDB.ATextText, padDB.ATextAttribs)
+		padDB.ChatHead, padDB.PublicStatus, padDB.DocumentType, padDB.ATextText, padDB.ATextAttribs, padDB.Settings)
 	return err
 }
 
@@ -73,7 +73,7 @@ func (d PostgresDB) GetPad(padID string) (*db.PadDB, error) {
 
 	padDB, err := ReadToPadDB(d.pool.QueryRow(ctx,
 		`SELECT id, head, saved_revisions, readonly_id, pool, chat_head,
-                public_status, document_type, atext_text, atext_attribs, created_at, updated_at
+                public_status, document_type, atext_text, atext_attribs, created_at, updated_at, settings
          FROM pad WHERE id = $1`,
 		padID))
 	if err != nil {

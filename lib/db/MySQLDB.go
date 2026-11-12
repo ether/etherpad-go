@@ -71,9 +71,9 @@ func (d MysqlDB) CreatePad(padID string, padDB db.PadDB) error {
 	resultedSQL, args, err := mysql.
 		Insert("pad").
 		Columns("id", "head", "saved_revisions", "readonly_id", "pool", "chat_head",
-			"public_status", "document_type", "atext_text", "atext_attribs").
+			"public_status", "document_type", "atext_text", "atext_attribs", "settings").
 		Values(padID, padDB.Head, string(savedRevisions), padDB.ReadOnlyId, string(pool),
-			padDB.ChatHead, padDB.PublicStatus, padDB.DocumentType, padDB.ATextText, padDB.ATextAttribs).
+			padDB.ChatHead, padDB.PublicStatus, padDB.DocumentType, padDB.ATextText, padDB.ATextAttribs, padDB.Settings).
 		Suffix(`ON DUPLICATE KEY UPDATE
 			head = VALUES(head),
 			saved_revisions = VALUES(saved_revisions),
@@ -97,7 +97,7 @@ func (d MysqlDB) CreatePad(padID string, padDB db.PadDB) error {
 func (d MysqlDB) GetPad(padID string) (*db.PadDB, error) {
 	resultedSQL, args, err := mysql.
 		Select("id", "head", "saved_revisions", "readonly_id", "pool", "chat_head",
-			"public_status", "document_type", "atext_text", "atext_attribs", "created_at", "updated_at").
+			"public_status", "document_type", "atext_text", "atext_attribs", "created_at", "updated_at", "settings").
 		From("pad").
 		Where(sq.Eq{"id": padID}).
 		ToSql()

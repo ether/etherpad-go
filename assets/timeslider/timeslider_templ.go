@@ -592,9 +592,9 @@ func SettingsPopup(translations map[string]string) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var43 string
-		templ_7745c5c3_Var43, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.settings.padSettings"])
+		templ_7745c5c3_Var43, templ_7745c5c3_Err = templ.JoinStringErrs(translations["pad.settings.title"])
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `assets/timeslider/timeslider.templ`, Line: 102, Col: 62}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `assets/timeslider/timeslider.templ`, Line: 102, Col: 56}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var43))
 		if templ_7745c5c3_Err != nil {

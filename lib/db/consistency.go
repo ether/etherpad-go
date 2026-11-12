@@ -39,14 +39,19 @@ type PadMeta struct {
 	SavedRevisions []db.SavedRevision
 	PublicStatus   bool
 	ReadOnlyId     *string
+	// Settings is the stored pad-wide settings JSON, "" for none.
+	Settings string
 }
 
 // scanPadMeta builds PadMeta from nullable columns of a GetPadVersion query.
-func scanPadMeta(exists bool, saved []byte, public *bool, readOnly *string) (*PadMeta, error) {
+func scanPadMeta(exists bool, saved []byte, public *bool, readOnly *string, settings *string) (*PadMeta, error) {
 	if !exists {
 		return nil, nil
 	}
 	meta := &PadMeta{ReadOnlyId: readOnly, SavedRevisions: []db.SavedRevision{}}
+	if settings != nil {
+		meta.Settings = *settings
+	}
 	if public != nil {
 		meta.PublicStatus = *public
 	}

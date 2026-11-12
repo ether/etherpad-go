@@ -23,6 +23,7 @@ const (
 	AuthenticationMethod                  = "authenticationMethod"
 	EnableDarkMode                        = "enableDarkMode"
 	EnablePluginPadOptions                = "enablePluginPadOptions"
+	EnablePadWideSettings                 = "enablePadWideSettings"
 	AvailableExports                      = "availableExports"
 	IndentationOnNewLine                  = "indentationOnNewLine"
 	UpdateServer                          = "updateServer"

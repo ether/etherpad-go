@@ -9,6 +9,7 @@ import (
 	author2 "github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/models/clientVars"
 	"github.com/ether/etherpad-go/lib/models/pad"
+	padmodel "github.com/ether/etherpad-go/lib/models/pad"
 	"github.com/ether/etherpad-go/lib/models/ws"
 	pad2 "github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/plugins"
@@ -151,7 +152,7 @@ func (f *Factory) NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apoo
 		},
 		AutomaticReconnectionTimeout: retrievedSettings.AutomaticReconnectionTimeout,
 		InitialRevisionList:          make([]string, 0),
-		InitialOptions:               make(map[string]interface{}),
+		InitialOptions:               pad.GetPadSettings(padmodel.DefaultsFromSettings(retrievedSettings)),
 		SavedRevisions:               savedRevisions,
 		CollabClientVars: clientVars.CollabClientVars{
 			InitialAttributedText: clientVars.InitialAttributedText{
@@ -181,6 +182,8 @@ func (f *Factory) NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apoo
 		NumConnectedUsers:                  numConnectedUsers,
 		CookiePrefix:                       retrievedSettings.Cookie.Prefix,
 		EnablePluginPadOptions:             retrievedSettings.EnablePluginPadOptions,
+		EnablePadWideSettings:              retrievedSettings.EnablePadWideSettings,
+		CanEditPadSettings:                 retrievedSettings.EnablePadWideSettings && !sessionInfo.ReadOnly && initialAuthor,
 		ReadOnlyId:                         sessionInfo.ReadOnlyPadId,
 		ReadOnly:                           sessionInfo.ReadOnly,
 		ServerTimeStamp:                    time.Now().UTC().UnixMilli(),

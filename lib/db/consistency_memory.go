@@ -17,6 +17,9 @@ func (m *MemoryDataStore) GetPadVersion(padID string) (*PadVersion, error) {
 			SavedRevisions: append([]db.SavedRevision{}, row.SavedRevisions...),
 			PublicStatus:   row.PublicStatus,
 		}
+		if row.Settings != nil {
+			v.Meta.Settings = *row.Settings
+		}
 		if row.ReadOnlyId != nil {
 			id := *row.ReadOnlyId
 			v.Meta.ReadOnlyId = &id
