@@ -1207,3 +1207,28 @@ func testLargePasteMultiByte(t *testing.T, tsStore testutils.TestDataStore) {
 	_, text = getPadTextViaAPI(t, tsStore, "largepastemb")
 	assert.Equal(t, "short\n", text)
 }
+
+// etherpad-lite: copyPadColonInjection (GHSA-wg58-mhwv-35pq).
+func TestCopyPadColonDestination(t *testing.T) {
+	testDb := testutils.NewTestDBHandler(t)
+	testDb.AddTests(testutils.TestRunConfig{
+		Name: "copy destinations with ':' are refused, clean ones work",
+		Test: func(t *testing.T, tsStore testutils.TestDataStore) {
+			initStore := tsStore.ToInitStore()
+			pad.Init(initStore)
+			createTestPad(t, tsStore, "colonsrc", "Source\n")
+			createTestPad(t, tsStore, "colonvictim", "Victim\n")
+
+			for _, route := range []string{"copy", "copyWithoutHistory"} {
+				status, body := postPadOperation(t, tsStore, "/admin/api/pads/colonsrc/"+route, "colonvictim:revs:0", true)
+				assert.Equal(t, 400, status, "%s: %s", route, string(body))
+			}
+			_, victimText := getPadTextViaAPI(t, tsStore, "colonvictim")
+			assert.Contains(t, victimText, "Victim")
+
+			status, body := postPadOperation(t, tsStore, "/admin/api/pads/colonsrc/copy", "colonclean", false)
+			assert.Equal(t, 200, status, string(body))
+		},
+	})
+	defer testDb.StartTestDBHandler()
+}

@@ -7,10 +7,10 @@ behaviour, they are not line-by-line translations.
 
 | Status | Files | Test cases |
 |---|---|---|
-| Ported | 15 | 104 |
-| Partly ported | 4 | 46 |
+| Ported | 19 | 117 |
+| Partly ported | 3 | 42 |
 | Not applicable to Go | 33 | 288 |
-| To compare case by case | 120 | 1296 |
+| To compare case by case | 117 | 1287 |
 
 "To compare" does not mean untested: most of these areas have Go tests (the Go code refers
 to more than 20 upstream issues). It means nobody has checked yet, case by case, which
@@ -35,6 +35,10 @@ upstream cases the Go tests cover and which are missing.
 | `new/easysync-mutations` | 5 | `lib/changeset/TextLinesMutator_test.go`, `mutations_parity_test.go` |
 | `new/pad_utils` | 1 | `ui/src/js/pad_utils.test.ts` (client code, run with vitest) |
 | `colorutils` | 20 | `ui/src/js/colorutils.test.ts` (client code, run with vitest) |
+| `PadManager` | 4 | `lib/pad/pad_parity_test.go` (`TestIsValidPadId`) |
+| `padIdColonLegacyPad` | 3 | `lib/test/api/static/pad_url_colon_test.go` |
+| `padUrlColonRedirect` | 3 | `lib/test/api/static/pad_url_colon_test.go` |
+| `copyPadColonInjection` | 3 | `lib/test/api/pad/pad_api_test.go` (`TestCopyPadColonDestination`) |
 
 ## Partly ported
 
@@ -43,17 +47,15 @@ upstream cases the Go tests cover and which are missing.
 | `new/easysync-other` | 9 | moveOpsToNewPool, makeSplice, applyToAttribution and split/join are covered in `lib/changeset`; filterAttribNumbers, makeAttribsString, toSplices and opAttributeValue do not exist in the Go package (deprecated or client-only upstream) |
 | `padInsertAuthorInvariant` | 8 | pad-level cases in `lib/pad/insert_author_test.go`; the `.etherpad` import and copyPadWithoutHistory cases are open |
 | `Pad` | 25 | cleanText, non-breaking space, system author and padDefaultContent cases in `lib/pad/pad_test.go`, `pad_parity_test.go`, `insert_author_test.go`; the 10 normalizePadSettings cases need a feature port first: Go has no pad-wide settings (etherpad-lite #7586, #7698) |
-| `PadManager` | 4 | `lib/pad/pad_parity_test.go` (`TestIsValidPadId`); rejecting `:` in pad ids is open, see below |
 
-## Open decision: `:` in pad ids
+## `:` in pad ids
 
-etherpad-lite no longer accepts `:` in a new pad id (GHSA-wg58-mhwv-35pq): in its key-value
-store `pad:<id>:revs:<n>` is a key, so such an id could address another pad's records.
-etherpad-go stores pads in SQL tables keyed by pad id and revision, so that attack does not
-apply, and `:` is still accepted. Adopting the rule would keep the two servers' pad ids
-compatible; it also needs the legacy handling upstream added (existing pads stay reachable,
-`/p/a:b` redirects to `/p/a_b`). Affected specs: `PadManager` (1 case), `padIdColonLegacyPad`,
-`padUrlColonRedirect`, `copyPadColonInjection`.
+Like etherpad-lite (GHSA-wg58-mhwv-35pq), a new pad id may not contain `:`. etherpad-go keys
+pads by column, so the injection itself does not apply; the rule keeps pad ids portable. Pads
+that already have a `:` in their id stay usable: the pad manager, the HTTP API and the pad URL
+serve them as long as a pad with exactly that id exists. `/p/a:b` and `/p/a b` redirect to
+`/p/a_b` when no such pad exists. Unlike upstream, the HTTP API also serves existing `:` pads
+(upstream's `getPadSafe` refuses them), so no stored pad becomes unreachable through the API.
 
 ## To compare case by case
 
@@ -75,12 +77,9 @@ Existing Go tests in this area: `lib/pad`, `lib/test/pad`, `lib/test/ws`
 | `undo_clear_authorship` | 6 |
 | `lowerCasePadIds` | 4 |
 | `pads-with-spaces` | 2 |
-| `padIdColonLegacyPad` | 3 |
-| `padUrlColonRedirect` | 3 |
 | `padCheckErrorContext` | 7 |
 | `padOptionsLegacyDefaults` | 11 |
 | `nullAuthorToken` | 4 |
-| `copyPadColonInjection` | 3 |
 | `copyPadWithoutHistoryIntegrity` | 7 |
 
 ### Cleanup, compaction, retention, deletion

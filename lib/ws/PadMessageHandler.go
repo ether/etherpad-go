@@ -517,7 +517,7 @@ func (p *PadMessageHandler) HandleMessage(message any, client *Client, retrieved
 				p.Logger.Warnf("Error sanitizing pad ID: %v", err)
 				return
 			}
-			thisSession.PadId = *padId
+			thisSession.PadId = padId
 		}
 
 		padIds, err := p.readOnlyManager.GetIds(&thisSession.Auth.PadId)

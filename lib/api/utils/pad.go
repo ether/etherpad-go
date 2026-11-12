@@ -9,7 +9,11 @@ import (
 
 func GetPadSafe(padID string, shouldExist bool, text *string, authorId *string, padManagerToUse *pad.Manager) (*pad2.Pad, error) {
 
-	if !padManagerToUse.IsValidPadId(padID) {
+	// A pad whose id is no longer valid for new pads (":" was allowed
+	// before) stays reachable through the API as long as it exists.
+	if ok, err := padManagerToUse.CanOpenPadId(padID); err != nil {
+		return nil, err
+	} else if !ok {
 		return nil, errors.New("padID is not valid")
 	}
 

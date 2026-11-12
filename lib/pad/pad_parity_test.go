@@ -103,8 +103,9 @@ func TestIsValidPadId(t *testing.T) {
 		require.True(t, m.IsValidPadId(id), "%q is a valid pad id", id)
 	}
 	// "." and ".." are URL dot segments: the pad could never be opened.
-	// Empty ids and a "$" outside the group prefix stay invalid.
-	for _, id := range []string{".", "..", "", "a$b"} {
+	// Empty ids, a "$" outside the group prefix and ":" (GHSA-wg58-mhwv-35pq)
+	// are invalid for new pads.
+	for _, id := range []string{".", "..", "", "a$b", "a:b", "pad:x:revs:0"} {
 		require.False(t, m.IsValidPadId(id), "%q is not a valid pad id", id)
 		require.False(t, modelpad.IsValidPadId(id), "%q is not a valid pad id", id)
 	}

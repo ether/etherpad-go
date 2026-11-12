@@ -23,20 +23,36 @@ import (
 	"github.com/ether/etherpad-go/lib/utils"
 )
 
-var padRegex *regexp.Regexp
+var (
+	padRegex       = regexp.MustCompile(`^(g\.[A-Za-z0-9]{16}\$)?[^ \t\r\n\f\v$:]{1,50}$`)
+	legacyPadRegex = regexp.MustCompile(`^(g\.[A-Za-z0-9]{16}\$)?[^ \t\r\n\f\v$]{1,50}$`)
+)
 
-func init() {
-	padRegex, _ = regexp.Compile(`^(g\.[A-Za-z0-9]{16}\$)?[^ \t\r\n\f\v$]{1,50}$`)
-}
-
-// IsValidPadId reports whether padID may name a pad. "." and ".." match the
-// pattern but are refused: a browser normalises "/p/." to "/p/" and "/p/.."
-// to "/", so such a pad could never be opened or exported.
+// IsValidPadId reports whether padID may name a new pad.
+//
+//   - "." and ".." match the pattern but are refused: a browser normalises
+//     "/p/." to "/p/" and "/p/.." to "/", so such a pad could never be opened
+//     or exported.
+//   - ":" is refused like in etherpad-lite (GHSA-wg58-mhwv-35pq), where it is
+//     the key delimiter of the database. etherpad-go keys pads by column, so
+//     the attack does not apply here, but the rule keeps pad ids portable
+//     between the two servers. Pads that already carry a ":" stay usable,
+//     see IsLegacyPadId.
 func IsValidPadId(padID string) bool {
 	if padID == "." || padID == ".." {
 		return false
 	}
 	return padRegex.MatchString(padID)
+}
+
+// IsLegacyPadId reports whether padID was a valid pad id before ":" was
+// refused. A pad with such an id can still be opened, edited and checked; it
+// just cannot be created any more.
+func IsLegacyPadId(padID string) bool {
+	if padID == "." || padID == ".." {
+		return false
+	}
+	return legacyPadRegex.MatchString(padID)
 }
 
 // SystemAuthorId is the stable author id used to attribute inserts coming
@@ -82,7 +98,7 @@ func NewPad(id string, db db.DataStore, hook *hooks.Hook) Pad {
 }
 
 func (p *Pad) Check() error {
-	if !IsValidPadId(p.Id) {
+	if !IsLegacyPadId(p.Id) {
 		return errors.New("pad id contains leading or trailing whitespace")
 	}
 
