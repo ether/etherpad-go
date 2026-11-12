@@ -295,6 +295,9 @@ func Init(store *lib.InitStore) {
 	registerEmbeddedStatic(store.C, "/admin/ep_admin_pads/", "assets/locales/ep_admin_pads", store.UiAssets)
 
 	store.C.Get("/p/:pad", func(ctx fiber.Ctx) error {
+		if handled, err := pad2.GuardPadURL(ctx, store.PadManager); handled {
+			return err
+		}
 		return pad2.HandlePadOpen(ctx, store.UiAssets, store.RetrievedSettings, store.Hooks)
 	})
 
@@ -307,6 +310,9 @@ func Init(store *lib.InitStore) {
 	})
 
 	store.C.Get("/p/:pad/timeslider", func(c fiber.Ctx) error {
+		if handled, err := pad2.GuardPadURL(c, store.PadManager); handled {
+			return err
+		}
 		return timeslider.HandleTimesliderOpen(c, store.UiAssets, store.RetrievedSettings, store.Hooks)
 	})
 

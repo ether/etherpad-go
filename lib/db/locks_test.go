@@ -124,3 +124,36 @@ func newTestPadDB(id string) db.PadDB {
 
 func testAText() db.AText  { return db.AText{Text: "\n", Attribs: "|1+1"} }
 func testPool() db.RevPool { return db.RevPool{NumToAttrib: map[string][]string{}, NextNum: 0} }
+
+// The memory store must copy what it stores: callers pass pointers into
+// live objects, and a stored revision's author must not change with them.
+func TestMemoryStoreDoesNotAliasAuthorPointers(t *testing.T) {
+	m := NewMemoryDataStore()
+	if err := m.CreatePad("p", newTestPadDB("p")); err != nil {
+		t.Fatal(err)
+	}
+	author := "a.original"
+	if err := m.SaveRevision("p", 0, "Z:1>0$", testAText(), testPool(), &author, 0); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.SaveChatMessage("p", 0, &author, 0, "hi"); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.SaveSheetOp("p", 1, "{}", &author, 0); err != nil {
+		t.Fatal(err)
+	}
+	author = "a.changed-later"
+
+	rev, err := m.GetRevision("p", 0)
+	if err != nil || rev.AuthorId == nil || *rev.AuthorId != "a.original" {
+		t.Fatalf("stored revision author changed: %v %v", rev, err)
+	}
+	chats, err := m.GetChatsOfPad("p", 0, 0)
+	if err != nil || len(*chats) != 1 || *(*chats)[0].AuthorId != "a.original" {
+		t.Fatalf("stored chat author changed: %v %v", chats, err)
+	}
+	ops, err := m.GetSheetOps("p", 1, 1)
+	if err != nil || len(*ops) != 1 || *(*ops)[0].AuthorId != "a.original" {
+		t.Fatalf("stored sheet op author changed: %v %v", ops, err)
+	}
+}

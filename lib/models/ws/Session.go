@@ -20,4 +20,9 @@ type Session struct {
 	ReadOnlyPadId string
 	ReadOnly      bool
 	Time          int64
+	// Joined is set once the client was sent its initial state
+	// (CLIENT_VARS, or the missed revisions on a reconnect). Only then does
+	// Revision say what the client has; before, the session must not be
+	// sent revision updates.
+	Joined bool
 }

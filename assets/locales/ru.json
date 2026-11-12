@@ -99,6 +99,7 @@
 	"pad.delete.confirm": "Вы действительно хотите удалить этот документ?",
 	"pad.settings.about": "О проекте",
 	"pad.settings.poweredBy": "Проект основан на",
+	"pad.settings.disablechat": "Отключить чат",
 	"pad.importExport.import_export": "Импорт/экспорт",
 	"pad.importExport.import": "Загрузить любой текстовый файл или документ",
 	"pad.importExport.importSuccessful": "Успешно!",

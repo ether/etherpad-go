@@ -54,7 +54,7 @@
 	"pad.loading": "読み込み中...",
 	"pad.noCookie": "Cookie could not be found. Please allow cookies in your browser!  Your session and settings will not be saved between visits.  \n\nクッキーが見つかりません。ブラウザの設定でクッキーの使用を許可するまで、アクセスの記録や設定は引き継がれません。原因はブラウザによって Etherpad が iFrame に組み込まれたからと考えられます。親ドメインの iFrame と同じドメイン/サブドメインに置かれているかどうか、Etherpad の設定を確認してください。",
 	"pad.permissionDenied": "あなたにはこのパッドへのアクセス許可がありません",
-	"pad.settings.padSettings": "パッドの設定",
+	"pad.settings.padSettings": "全パッドの設定",
 	"pad.settings.myView": "個人設定",
 	"pad.settings.stickychat": "画面にチャットを常に表示",
 	"pad.settings.chatandusers": "チャットとユーザーを表示",

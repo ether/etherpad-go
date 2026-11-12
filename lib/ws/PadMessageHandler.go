@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/ether/etherpad-go/lib/models/ws/admin"
 	"math"
 	"regexp"
 	"slices"
@@ -142,17 +143,26 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 		p.Logger.Infof("Session %s not found", task.socket.SessionId)
 		return
 	}
+	// The pad this change is for is read once. Locking one pad and then
+	// loading the session's pad again could write to another pad if the
+	// session moved in between (upstream's crossPadWriteToctou spec).
+	// A socket's messages are handled one after the other here, so that
+	// cannot happen today; reading once keeps it impossible.
+	padID := session.PadId
+	if padID == "" {
+		return
+	}
 	// Rebase + append + broadcast must not interleave with other writers.
-	unlock, err := p.padManager.LockPad(session.PadId)
+	unlock, err := p.padManager.LockPad(padID)
 	if err != nil {
-		p.dropUnavailable(task.socket, session.PadId, err)
+		p.dropUnavailable(task.socket, padID, err)
 		return
 	}
 	defer unlock()
 
-	retrievedPad, err := p.padManager.GetPad(session.PadId, nil, &session.Author)
+	retrievedPad, err := p.padManager.GetPad(padID, nil, &session.Author)
 	if err != nil {
-		p.Logger.Warnf("Error retrieving pad %s: %v", session.PadId, err)
+		p.Logger.Warnf("Error retrieving pad %s: %v", padID, err)
 		sendDisconnectMessage(task.socket, "badChangeset")
 		return
 	}
@@ -508,7 +518,7 @@ func (p *PadMessageHandler) HandleMessage(message any, client *Client, retrieved
 				p.Logger.Warnf("Error sanitizing pad ID: %v", err)
 				return
 			}
-			thisSession.PadId = *padId
+			thisSession.PadId = padId
 		}
 
 		padIds, err := p.readOnlyManager.GetIds(&thisSession.Auth.PadId)
@@ -579,7 +589,10 @@ func (p *PadMessageHandler) HandleMessage(message any, client *Client, retrieved
 		return
 	}
 
-	thisSession.Author = grantedAccess.AuthorId
+	// Other goroutines read the session; only write when it changes.
+	if thisSession.Author != grantedAccess.AuthorId {
+		thisSession.Author = grantedAccess.AuthorId
+	}
 
 	var readonly = thisSession.ReadOnly
 	var thisSessionNewRetrieved = p.SessionStore.getSession(client.SessionId)
@@ -663,7 +676,7 @@ func (p *PadMessageHandler) HandleMessage(message any, client *Client, retrieved
 		}
 	case ws.ClientMessage:
 		{
-			p.HandleClientMessage(expectedType, client, thisSession)
+			p.HandleClientMessage(expectedType, client, thisSession, retrievedSettings)
 		}
 	case ws.GetChatMessages:
 		{
@@ -1349,11 +1362,25 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 		retentionNotice = p.retention.CheckOnOpen(thisSession.PadId)
 	}
 
+	padExisted := true
+	if retrievedSettings.EnablePadWideSettings && ready.Data.PadSettingsDefaults != nil {
+		if exists, err := p.padManager.DoesPadExist(thisSession.PadId); err == nil && exists != nil {
+			padExisted = *exists
+		}
+	}
+
 	retrievedPad, err := p.padManager.GetPad(thisSession.PadId, nil, &thisSession.Author)
 
 	if err != nil {
 		p.Logger.Warn("Error getting pad")
 		return
+	}
+	if !padExisted && !thisSession.ReadOnly {
+		defaults := pad2.DefaultsFromSettings(retrievedSettings)
+		defaults.Warn = func(msg string) { p.Logger.Warn(msg) }
+		if _, err := retrievedPad.SetPadSettings(ready.Data.PadSettingsDefaults, defaults); err != nil {
+			p.Logger.Warnf("Storing the creator's settings of new pad %s: %v", thisSession.PadId, err)
+		}
 	}
 	// A pad opened for the first time had no row yet when the session got
 	// its read-only id, so that id was never stored. Now the pad exists:
@@ -1440,6 +1467,7 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 
 		// Save the revision in sessioninfos
 		thisSession.Revision = clientRev
+		thisSession.Joined = true
 
 		headRev := retrievedPad.Head
 
@@ -1607,6 +1635,7 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 		client.SafeSend(encoded)
 		// Save the current revision in sessioninfos, should be the same as in clientVars
 		thisSession.Revision = headRevSnapshot
+		thisSession.Joined = true
 
 		// Flush any revisions that landed between the atomic snapshot and
 		// this socket officially joining the pad room. Upstream #7480.
@@ -1731,9 +1760,12 @@ func (p *PadMessageHandler) updatePadClients(pad *pad2.Pad, only *Client) {
 	}
 	// All clients get the same revisions: load the ones the furthest
 	// behind client misses, changesets only, in one query.
+	// Sessions still joining are left out: their Revision does not say yet
+	// what the client has, and they get the current state with CLIENT_VARS.
+	// Catching them up from revision 0 would load and send the whole history.
 	from := pad.Head + 1
 	for _, socket := range roomSockets {
-		if sessionInfo := p.SessionStore.getSession(socket.SessionId); sessionInfo != nil {
+		if sessionInfo := p.SessionStore.getSession(socket.SessionId); sessionInfo != nil && sessionInfo.Joined {
 			from = min(from, sessionInfo.Revision+1)
 		}
 	}
@@ -1751,7 +1783,7 @@ func (p *PadMessageHandler) updatePadClients(pad *pad2.Pad, only *Client) {
 	}
 	for _, socket := range roomSockets {
 		var sessionInfo = p.SessionStore.getSession(socket.SessionId)
-		if sessionInfo == nil {
+		if sessionInfo == nil || !sessionInfo.Joined {
 			continue
 		}
 
@@ -1823,7 +1855,7 @@ func (p *PadMessageHandler) SendCustomMessageToPad(padId string, msgType string)
 
 // HandleClientMessage handles the COLLABROOM CLIENT_MESSAGE family,
 // mirroring the original's handleSuggestUserName / handlePadOptionsMessage.
-func (p *PadMessageHandler) HandleClientMessage(message ws.ClientMessage, client *Client, session *ws.Session) {
+func (p *PadMessageHandler) HandleClientMessage(message ws.ClientMessage, client *Client, session *ws.Session, retrievedSettings *settings.Settings) {
 	if session == nil || session.PadId == "" || session.Author == "" {
 		p.Logger.Warn("CLIENT_MESSAGE received before session was ready")
 		return
@@ -1851,10 +1883,7 @@ func (p *PadMessageHandler) HandleClientMessage(message ws.ClientMessage, client
 		}
 		p.publish(cluster.Event{Kind: cluster.KindAuthor, Pad: session.PadId, Author: payload.UnnamedId, Payload: encoded})
 	case "padoptions":
-		// The original gates pad-wide settings behind enablePadWideSettings
-		// (default off) and per-pad settings storage, neither of which this
-		// implementation supports yet — ignore, like the original default.
-		p.Logger.Debugf("Ignoring padoptions CLIENT_MESSAGE from %s: pad-wide settings are not supported", session.Author)
+		p.handlePadOptions(payload, client, session, retrievedSettings)
 	default:
 		p.Logger.Warnf("Unknown CLIENT_MESSAGE payload type %q from %s", payload.Type, session.Author)
 	}
@@ -1864,8 +1893,7 @@ func (p *PadMessageHandler) GetRoomSockets(padID string) []Client {
 	var sockets = make([]Client, 0)
 	p.hub.ClientsRWMutex.RLock()
 	for k := range p.hub.Clients {
-		sessId := p.SessionStore.getSession(k.SessionId)
-		if sessId != nil && sessId.PadId == padID {
+		if k != nil && padID != "" && p.SessionStore.padOf(k.SessionId) == padID {
 			sockets = append(sockets, *k)
 		}
 	}
@@ -1884,7 +1912,7 @@ func (p *PadMessageHandler) KickSessionsFromPad(padID string) {
 			continue
 		}
 
-		if retrievedSession.PadId == padID {
+		if padID != "" && p.SessionStore.padOf(k.SessionId) == padID {
 			k.SendPadDelete()
 		}
 	}
@@ -1960,4 +1988,83 @@ func (p *PadMessageHandler) disconnectDuplicates(padID, author, exceptSession st
 		otherSocket.SafeSend(encoded)
 		otherSocket.Leave()
 	}
+}
+
+// handlePadOptions stores pad-wide settings sent by the pad's creator and
+// sends them to every client of the pad on every instance (etherpad-lite's
+// handlePadOptionsMessage). Other users get a notice instead.
+func (p *PadMessageHandler) handlePadOptions(payload ws.ClientMessagePayload, client *Client, session *ws.Session, retrievedSettings *settings.Settings) {
+	if retrievedSettings == nil || !retrievedSettings.EnablePadWideSettings {
+		return
+	}
+	if session.ReadOnly {
+		p.Logger.Warnf("Ignoring padoptions from read-only session of %s", session.Author)
+		return
+	}
+	exists, err := p.padManager.DoesPadExist(session.PadId)
+	if err != nil || exists == nil || !*exists {
+		p.Logger.Warnf("Ignoring padoptions for missing pad %s", session.PadId)
+		return
+	}
+
+	unlock, err := p.padManager.LockPad(session.PadId)
+	if err != nil {
+		p.dropUnavailable(client, session.PadId, err)
+		return
+	}
+	defer unlock()
+	retrievedPad, err := p.padManager.GetPad(session.PadId, nil, nil)
+	if err != nil {
+		p.Logger.Warnf("padoptions: loading pad %s: %v", session.PadId, err)
+		return
+	}
+	creator, err := retrievedPad.GetRevisionAuthor(0)
+	if err != nil || creator == nil || *creator != session.Author {
+		sendShout(client, "Only the pad creator can change pad settings", false)
+		return
+	}
+
+	defaults := pad2.DefaultsFromSettings(retrievedSettings)
+	defaults.Warn = func(msg string) { p.Logger.Warn(msg) }
+	stored, err := retrievedPad.SetPadSettings(payload.Options, defaults)
+	if err != nil {
+		p.Logger.Errorf("padoptions: storing settings of pad %s: %v", session.PadId, err)
+		return
+	}
+
+	// Clients merge what they get, so the complete, normalised settings are
+	// sent: a key the server dropped is thereby dropped on every client too.
+	changedBy, _ := payload.Extra["changedBy"].(string)
+	msg := map[string]any{
+		"type": "COLLABROOM",
+		"data": map[string]any{
+			"type": "CLIENT_MESSAGE",
+			"payload": map[string]any{
+				"type":      "padoptions",
+				"options":   stored,
+				"changedBy": changedBy,
+			},
+		},
+	}
+	encoded, err := json.Marshal([]any{"message", msg})
+	if err != nil {
+		p.Logger.Errorf("padoptions: encoding broadcast: %v", err)
+		return
+	}
+	p.broadcastToRoom(session.PadId, encoded, "")
+}
+
+// sendShout shows a notice to one client, in the envelope of the admin shout.
+func sendShout(client *Client, message string, sticky bool) {
+	resp := admin.ShoutMessageResponse{Type: "COLLABROOM"}
+	resp.Data.Type = "shoutMessage"
+	resp.Data.Payload = admin.ShoutMessage{
+		Timestamp: time.Now().UnixMilli(),
+		Message:   admin.ShoutMessageRequest{Message: message, Sticky: sticky},
+	}
+	encoded, err := json.Marshal([]any{"shout", resp})
+	if err != nil {
+		return
+	}
+	client.SafeSend(encoded)
 }

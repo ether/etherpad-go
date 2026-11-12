@@ -59,6 +59,18 @@ func (s *SessionStore) GetStats() (SessionStat, error) {
 	return stats, nil
 }
 
+// padOf returns the pad the session is in. It reads under the store's lock:
+// the pad id is set while the session joins, and broadcasts on other
+// goroutines look it up at the same time.
+func (s *SessionStore) padOf(sessionId string) string {
+	s.sync.RLock()
+	defer s.sync.RUnlock()
+	if session := s.sessions[sessionId]; session != nil {
+		return session.PadId
+	}
+	return ""
+}
+
 func (s *SessionStore) addPadReadOnlyIds(sessionId, padId string, readOnlyPadId string, readOnly bool) {
 	s.sync.Lock()
 	s.sessions[sessionId].ReadOnlyPadId = readOnlyPadId
@@ -176,6 +188,8 @@ func (s *SessionStore) SetPadIdForTest(sessionId string, padId string) {
 	s.sync.Lock()
 	if s.sessions[sessionId] != nil {
 		s.sessions[sessionId].PadId = padId
+		// Tests using this simulate a client that completed its handshake.
+		s.sessions[sessionId].Joined = true
 	}
 	s.sync.Unlock()
 }

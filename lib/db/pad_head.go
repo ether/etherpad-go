@@ -25,6 +25,8 @@ type PadHeadMethods interface {
 	UpdatePadHeadText(padID string, head int, pool db.RevPool, text db.AText) error
 	// SetPadPublicStatus changes only the public status.
 	SetPadPublicStatus(padID string, public bool) error
+	// SetPadSettings replaces only the pad-wide settings (JSON).
+	SetPadSettings(padID string, settings string) error
 	// SetPadSavedRevisions replaces only the saved revisions. Callers hold
 	// the pad lock and have just reloaded them, so no change is lost.
 	SetPadSavedRevisions(padID string, saved []db.SavedRevision) error
@@ -91,6 +93,11 @@ func (d PostgresDB) SetPadPublicStatus(padID string, public bool) error {
 		`UPDATE pad SET public_status = $2, updated_at = NOW() WHERE id = $1`, padID, public))
 }
 
+func (d PostgresDB) SetPadSettings(padID string, settings string) error {
+	return expectPadRow(d.pool.Exec(context.Background(),
+		`UPDATE pad SET settings = $2, updated_at = NOW() WHERE id = $1`, padID, settings))
+}
+
 func (d PostgresDB) SetPadSavedRevisions(padID string, saved []db.SavedRevision) error {
 	raw, err := marshalSavedRevisions(saved)
 	if err != nil {
@@ -113,6 +120,13 @@ func (d MysqlDB) UpdatePadHeadText(padID string, head int, pool db.RevPool, text
 func (d MysqlDB) SetPadPublicStatus(padID string, public bool) error {
 	// MySQL reports rows changed, not matched; check existence separately.
 	if _, err := d.sqlDB.Exec(`UPDATE pad SET public_status = ? WHERE id = ?`, public, padID); err != nil {
+		return err
+	}
+	return d.padRowExists(padID)
+}
+
+func (d MysqlDB) SetPadSettings(padID string, settings string) error {
+	if _, err := d.sqlDB.Exec(`UPDATE pad SET settings = ? WHERE id = ?`, settings, padID); err != nil {
 		return err
 	}
 	return d.padRowExists(padID)
@@ -154,6 +168,10 @@ func (d SQLiteDB) SetPadPublicStatus(padID string, public bool) error {
 	return expectSQLRow(d.sqlDB.Exec(`UPDATE pad SET public_status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, public, padID))
 }
 
+func (d SQLiteDB) SetPadSettings(padID string, settings string) error {
+	return expectSQLRow(d.sqlDB.Exec(`UPDATE pad SET settings = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, settings, padID))
+}
+
 func (d SQLiteDB) SetPadSavedRevisions(padID string, saved []db.SavedRevision) error {
 	raw, err := marshalSavedRevisions(saved)
 	if err != nil {
@@ -181,6 +199,10 @@ func (m *MemoryDataStore) UpdatePadHeadText(padID string, head int, pool db.RevP
 
 func (m *MemoryDataStore) SetPadPublicStatus(padID string, public bool) error {
 	return m.updatePadRow(padID, func(p *db.PadDB) { p.PublicStatus = public })
+}
+
+func (m *MemoryDataStore) SetPadSettings(padID string, settings string) error {
+	return m.updatePadRow(padID, func(p *db.PadDB) { s := settings; p.Settings = &s })
 }
 
 func (m *MemoryDataStore) SetPadSavedRevisions(padID string, saved []db.SavedRevision) error {

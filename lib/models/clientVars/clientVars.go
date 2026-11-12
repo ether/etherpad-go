@@ -118,6 +118,10 @@ type ClientVars struct {
 	// EnablePluginPadOptions mirrors settings.enablePluginPadOptions so the
 	// client can decide whether to forward plugin-namespaced ep_* keys
 	// through padOptions. Upstream #7698.
-	EnablePluginPadOptions bool          `json:"enablePluginPadOptions"`
-	PadRetention           *PadRetention `json:"padRetention"`
+	EnablePluginPadOptions bool `json:"enablePluginPadOptions"`
+	// EnablePadWideSettings and CanEditPadSettings drive the pad-wide
+	// settings section; only the pad's creator may edit it.
+	EnablePadWideSettings bool          `json:"enablePadWideSettings"`
+	CanEditPadSettings    bool          `json:"canEditPadSettings"`
+	PadRetention          *PadRetention `json:"padRetention"`
 }

@@ -47,6 +47,7 @@ import {paduserlist} from './pad_userlist';
 import * as socketio from './socketio';
 import {colorutils} from './colorutils';
 import {editorBus} from './core/EventBus';
+import {createPadSettings, creatorDefaults, myViewOverrides} from './pad_settings';
 
 const showPadRetentionNotice = (info: any) => {
     if (!info) return;
@@ -286,6 +287,12 @@ const sendClientReady = (isReconnect) => {
         userInfo,
     };
 
+    // The user's own view settings become the pad-wide settings of a pad
+    // this message creates (upstream #7586); the server ignores them for an
+    // existing pad.
+    const defaults = creatorDefaults(myViewOverrides((k) => padcookie.getPref(k), Cookies.get('language') ?? null));
+    if (defaults) msg.padSettingsDefaults = defaults;
+
     if (isReconnect) {
         msg.client_rev = pad.collabClient.getCurrentRevisionNumber();
         msg.reconnect = true;
@@ -505,6 +512,7 @@ const pad = {
     initTime: 0,
     clientTimeOffset: null,
     padOptions: {},
+    padSettings: null as ReturnType<typeof createPadSettings> | null,
     _messageQ: new MessageQueue(),
 
     // Accessors
@@ -551,7 +559,24 @@ const pad = {
 
         padcookie.init();
         pad.initTime = +(new Date());
-        pad.padOptions = clientVars.initialOptions;
+        pad.padOptions = clientVars.initialOptions || {};
+        pad.padSettings = createPadSettings({
+            getPadOptions: () => pad.padOptions,
+            setPadOptions: (options) => { pad.padOptions = options; },
+            canEdit: () => !!clientVars.canEditPadSettings,
+            pluginOptions: () => !!clientVars.enablePluginPadOptions,
+            getPref: (key) => padcookie.getPref(key),
+            setPref: (key, value) => padcookie.setPref(key, value),
+            language: () => Cookies.get('language') ?? null,
+            setViewOptions: (view) => padeditor.setViewOptions(view),
+            chat,
+            applyLanguage: (lang) => html10n.localize([lang, 'en']),
+            send: (options) => pad.collabClient.sendClientMessage({
+                type: 'padoptions',
+                options,
+                changedBy: pad.myUserInfo.name || 'unnamed',
+            }),
+        });
 
         pad.myUserInfo = {
             userId: clientVars.userId,
@@ -637,6 +662,11 @@ const pad = {
             }
 
             // EventBus: emit editor:ready after ace is fully initialized
+            // Pad-wide settings last: they decide over the preferences
+            // applied above, and enforced ones override them.
+            pad.padSettings?.bindControls();
+            pad.padSettings?.apply();
+
             editorBus.emit('editor:ready', {ace: padeditor.ace});
         };
 
@@ -772,6 +802,10 @@ const pad = {
     },
 
     changePadOption: (key, value) => {
+        if (pad.padSettings) {
+            pad.padSettings.changePadOption(key, value);
+            return;
+        }
         const options = {};
         options[key] = value;
         pad.handleOptionsChange(options);
@@ -835,8 +869,10 @@ const pad = {
         } else if (msg.type === 'revisionLabel') {
             padsavedrevs.newRevisionList(msg.revisionList);
         } else if (msg.type === 'padoptions') {
-            const opts = msg.options;
-            pad.handleOptionsChange(opts);
+            // Pad-wide settings from the pad's creator. They must not become
+            // this user's own preferences, so they bypass handleOptionsChange.
+            if (pad.padSettings) pad.padSettings.handleChange(msg.options);
+            else pad.handleOptionsChange(msg.options);
         }
     },
 
@@ -898,6 +934,7 @@ const pad = {
         pad.determineChatVisibility(isConnected && !isInitialConnect);
         pad.determineChatAndUsersVisibility(isConnected && !isInitialConnect);
         pad.determineAuthorshipColorsVisibility();
+        pad.padSettings?.apply();
         setTimeout(() => {
             padeditbar.toggleDropDown('none');
         }, 1000);

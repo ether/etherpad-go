@@ -80,6 +80,7 @@
 	"pad.delete.confirm": "Vill du verkligen radera detta block?",
 	"pad.settings.about": "Om",
 	"pad.settings.poweredBy": "Drivs av",
+	"pad.settings.disablechat": "Inaktivera chatt",
 	"pad.importExport.import_export": "Importera/Exportera",
 	"pad.importExport.import": "Ladda upp textfiler eller dokument",
 	"pad.importExport.importSuccessful": "Åtgärden slutfördes!",

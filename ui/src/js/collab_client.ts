@@ -25,6 +25,7 @@
 import {chat} from './chat';
 import {editorBus} from './core/EventBus';
 import {browserFlags as browser} from './browser_flags';
+import {stampAuthorOnInserts} from './stampAuthorOnInserts';
 
 // Dependency fill on init. This exists for `pad.socket` only.
 // TODO: bind directly to the socket.
@@ -48,6 +49,20 @@ export const getCollabClient = (ace2editor, serverVars, initialUserInfo, options
 
   const userId = initialUserInfo.userId;
   // var socket;
+  // The editor can build a changeset before CLIENT_VARS has told it who the
+  // author is; such an insert carries no author and the server rejects it
+  // (badChangeset). The collab client only exists after CLIENT_VARS, so userId
+  // is known here and is stamped onto every insert that lacks one.
+  const prepareUserChangeset = () => {
+    const data = editor.prepareUserChangeset();
+    if (data.changeset) {
+      const stamped = stampAuthorOnInserts(data.changeset, data.apool, userId);
+      data.changeset = stamped.changeset;
+      data.apool = stamped.apool;
+    }
+    return data;
+  };
+
   const userSet = {}; // userId -> userInfo
   userSet[userId] = initialUserInfo;
 
@@ -113,7 +128,7 @@ export const getCollabClient = (ace2editor, serverVars, initialUserInfo, options
     // Check if there are any pending revisions to be received from server.
     // Allow only if there are no pending revisions to be received from server
     if (!isPendingRevision) {
-      const userChangesData = editor.prepareUserChangeset();
+      const userChangesData = prepareUserChangeset();
       if (userChangesData.changeset) {
         lastCommitTime = now;
         committing = true;
@@ -432,7 +447,7 @@ export const getCollabClient = (ace2editor, serverVars, initialUserInfo, options
       obj.committedChangesetAPool = stateMessage.apool;
       editor.applyPreparedChangesetToBase();
     }
-    const userChangesData = editor.prepareUserChangeset();
+    const userChangesData = prepareUserChangeset();
     if (userChangesData.changeset) {
       obj.furtherChangeset = userChangesData.changeset;
       obj.furtherChangesetAPool = userChangesData.apool;

@@ -481,9 +481,16 @@ export const loadBroadcastJS = (socket, sendSocketMsg, fireWhenAllScriptsAreLoad
         ? clientVars.colorPalette[data.colorId] : data.colorId;
       if (bgcolor) {
         const selector = dynamicCSS.selectorStyle(`.${linestylefilter.getAuthorClassName(author)}`);
-        selector.backgroundColor = bgcolor;
-        selector.color = (colorutils.luminosity(colorutils.css2triple(bgcolor)) < 0.5)
-          ? '#ffffff' : '#000000'; // see ace2_inner.js for the other part
+        // Same rule as the editor (etherpad-lite #7377): clamp the rendered
+        // background to a readable shade unless the operator opted out, then
+        // take the text colour with the higher contrast.
+        const enforceReadable = clientVars.padOptions == null ||
+            clientVars.padOptions.enforceReadableAuthorColors !== false;
+        const rendered = enforceReadable
+          ? colorutils.ensureReadableBackground(bgcolor, clientVars.skinName) : bgcolor;
+        selector.backgroundColor = rendered;
+        selector.color = colorutils.isCssHex(rendered)
+          ? colorutils.textColorFromBackgroundColor(rendered, clientVars.skinName) : '';
       }
       authorData[author] = data;
     }

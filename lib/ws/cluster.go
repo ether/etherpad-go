@@ -229,8 +229,8 @@ func (p *PadMessageHandler) localPads() map[string]struct{} {
 		if client == nil {
 			continue
 		}
-		if s := p.SessionStore.getSession(client.SessionId); s != nil && s.PadId != "" {
-			pads[s.PadId] = struct{}{}
+		if padID := p.SessionStore.padOf(client.SessionId); padID != "" {
+			pads[padID] = struct{}{}
 		}
 	}
 	return pads

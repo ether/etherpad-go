@@ -499,9 +499,8 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 				padId := ""
 				ip := client.ClientIP
 				connType := "admin"
-				sess := h.padMessageHandler.SessionStore.getSession(client.SessionId)
-				if sess != nil && sess.PadId != "" {
-					padId = sess.PadId
+				if sessionPad := h.padMessageHandler.SessionStore.padOf(client.SessionId); sessionPad != "" {
+					padId = sessionPad
 					connType = "pad"
 				}
 				connections = append(connections, connectionInfo{
@@ -667,8 +666,7 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 				// Kick users first
 				h.hub.ClientsRWMutex.RLock()
 				for client := range h.hub.Clients {
-					sess := h.padMessageHandler.SessionStore.getSession(client.SessionId)
-					if sess != nil && sess.PadId == padName {
+					if padName != "" && h.padMessageHandler.SessionStore.padOf(client.SessionId) == padName {
 						client.SendPadDelete()
 					}
 				}

@@ -223,6 +223,7 @@ func (p *Pad) applyMeta(meta *dbstore.PadMeta) {
 		saved[i] = revision.SavedRevision{RevNum: r.RevNum, SavedBy: r.SavedBy, Timestamp: r.Timestamp, Label: r.Label, Id: r.Id}
 	}
 	p.SavedRevisions = saved
+	p.settingsJSON = meta.Settings
 }
 
 // MatchesVersion reports whether the pad reflects the stored version v:
@@ -233,6 +234,9 @@ func (p *Pad) MatchesVersion(v *dbstore.PadVersion) bool {
 	}
 	meta := v.Meta
 	if meta == nil || meta.PublicStatus != p.PublicStatus || len(meta.SavedRevisions) != len(p.SavedRevisions) {
+		return false
+	}
+	if meta.Settings != p.settingsJSON {
 		return false
 	}
 	if (meta.ReadOnlyId == nil) != (p.ReadonlyId == nil) || (meta.ReadOnlyId != nil && *meta.ReadOnlyId != *p.ReadonlyId) {

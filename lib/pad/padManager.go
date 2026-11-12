@@ -62,12 +62,6 @@ func (l *List) GetPads() []string {
 	return l._cachedList
 }
 
-var padRegex *regexp.Regexp
-
-func init() {
-	padRegex, _ = regexp.Compile(`^(g\.[A-Za-z0-9]{16}\$)?[^ \t\r\n\f\v$]{1,50}$`)
-}
-
 type GlobalPadCache struct {
 	padCache map[string]*pad.Pad
 	mutex    sync.RWMutex
@@ -165,14 +159,53 @@ func (m *Manager) DoesPadExist(padID string) (*bool, error) {
 }
 
 func (m *Manager) IsValidPadId(padID string) bool {
-	return padRegex.MatchString(padID)
+	return pad.IsValidPadId(padID)
 }
 
-func (m *Manager) SanitizePadId(padID string) (*string, error) {
-	if m.IsValidPadId(padID) {
-		return &padID, nil
+// padIdTransforms are applied one after another by SanitizePadId until a pad
+// with the resulting id exists, so ids of older formats are still found.
+var padIdTransforms = []struct {
+	from *regexp.Regexp
+	to   string
+}{
+	{regexp.MustCompile(`\s+`), "_"},
+	{regexp.MustCompile(`:+`), "_"},
+}
+
+// SanitizePadId maps a requested pad id to the one to use, like
+// etherpad-lite's sanitizePadId: an existing pad keeps its id; otherwise
+// whitespace and then ":" are replaced by "_", stopping as soon as a pad with
+// the id exists. The result may still be invalid ("a$b"); callers check it
+// with CanOpenPadId.
+func (m *Manager) SanitizePadId(padID string) (string, error) {
+	for _, t := range padIdTransforms {
+		exists, err := m.DoesPadExist(padID)
+		if err != nil {
+			return "", err
+		}
+		if *exists {
+			return padID, nil
+		}
+		padID = t.from.ReplaceAllString(padID, t.to)
 	}
-	return nil, errors.New("invalid pad id")
+	return padID, nil
+}
+
+// CanOpenPadId reports whether a pad with this id may be opened: either the id
+// is valid for a new pad, or a pad with exactly this id already exists (ids
+// with ":" were allowed before, see pad.IsLegacyPadId).
+func (m *Manager) CanOpenPadId(padID string) (bool, error) {
+	if m.IsValidPadId(padID) {
+		return true, nil
+	}
+	if !pad.IsLegacyPadId(padID) {
+		return false, nil
+	}
+	exists, err := m.DoesPadExist(padID)
+	if err != nil {
+		return false, err
+	}
+	return *exists, nil
 }
 
 func (m *Manager) RemovePad(padID string) error {
@@ -196,7 +229,9 @@ func (m *Manager) RemovePad(padID string) error {
 }
 
 func (m *Manager) GetPad(padID string, text *string, authorId *string) (*pad.Pad, error) {
-	if !m.IsValidPadId(padID) {
+	if ok, err := m.CanOpenPadId(padID); err != nil {
+		return nil, err
+	} else if !ok {
 		return nil, errors.New("invalid pad id")
 	}
 
@@ -239,7 +274,9 @@ func (m *Manager) GetPad(padID string, text *string, authorId *string) (*pad.Pad
 // creation (it is set before Init so Init -> AppendRevision -> Save persists
 // it via CreatePad).
 func (m *Manager) GetTypedPad(padID string, documentType string, authorId *string) (*pad.Pad, error) {
-	if !m.IsValidPadId(padID) {
+	if ok, err := m.CanOpenPadId(padID); err != nil {
+		return nil, err
+	} else if !ok {
 		return nil, errors.New("invalid pad id")
 	}
 

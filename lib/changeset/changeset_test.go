@@ -770,8 +770,8 @@ func TestInverseRandom(t *testing.T) {
 			require.NoError(t, err)
 
 			assert.Equal(t, origLines, lines)
-			// Go writes attributes in pool order, the generator may not, so
-			// compare which attributes each character has.
+			// The generator writes some attribute pairs unsorted (*3*1), the
+			// result is canonical, so compare which attributes each character has.
 			assert.Equal(t, perCharAttribs(t, origALines), perCharAttribs(t, alines))
 		})
 	}

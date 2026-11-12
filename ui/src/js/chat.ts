@@ -271,6 +271,61 @@ class ChatController {
     this.chatBox?.classList.toggle('chatAndUsersChat', this.userAndChat);
   }
 
+  // --- Pad-wide settings ----------------------------------------------------
+  // Unlike stickToScreen/chatAndUsers these set a state instead of toggling
+  // it. persist=false leaves the user's own preference alone, for settings
+  // the pad's creator imposes.
+
+  private chatDisabledByPad = false;
+
+  setSticky(want: boolean, persist = true): void {
+    const stickyOption = byId('options-stickychat') as any;
+    if (want && (this.pad.settings?.hideChat || this.chatDisabledByPad)) want = false;
+    if (want) this.show();
+    this.isStuck = want;
+    for (const el of document.querySelectorAll('#chatbox, .sticky-container')) {
+      el.classList.toggle('stickyChat', want);
+    }
+    if (persist) writePref('chatAlwaysVisible', want);
+    if (stickyOption != null) stickyOption.checked = want;
+  }
+
+  setChatAndUsers(want: boolean, persist = true): void {
+    const chatAndUsersOption = byId('options-chatandusers') as any;
+    const stickyOption = byId('options-stickychat') as any;
+    if (want && (this.pad.settings?.hideChat || this.chatDisabledByPad)) want = false;
+    if (want) this.setSticky(true, persist);
+    if (stickyOption != null) stickyOption.disabled = want;
+    if (chatAndUsersOption != null) chatAndUsersOption.checked = want;
+    this.userAndChat = want;
+    if (persist) writePref('chatAndUsers', want);
+    for (const el of document.querySelectorAll('#users, .sticky-container')) {
+      el.classList.toggle('chatAndUsers', want);
+      el.classList.toggle('popup-show', want);
+      el.classList.toggle('stickyUsers', want);
+    }
+    this.chatBox?.classList.toggle('chatAndUsersChat', want);
+  }
+
+  /** Turns the chat off (pad-wide "Disable Chat") or back on. */
+  setEnabled(enabled: boolean): void {
+    this.chatDisabledByPad = !enabled;
+    if (!enabled) {
+      this.setChatAndUsers(false, false);
+      this.setSticky(false, false);
+      this.chatBox?.classList.remove('visible');
+      if (this.chatBox != null) this.chatBox.style.display = 'none';
+      if (this.chatIcon != null) this.chatIcon.style.display = 'none';
+      return;
+    }
+    if (this.chatBox != null) this.chatBox.style.display = '';
+    if (this.chatIcon != null && !(window as any).clientVars?.readonly && !this.pad.settings?.hideChat) {
+      this.chatIcon.style.display = 'block';
+    }
+  }
+
+  isEnabled(): boolean { return !this.chatDisabledByPad; }
+
   hide(): void {
     const stickyOption = byId('options-stickychat') as any;
     if (stickyOption?.checked) {

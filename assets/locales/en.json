@@ -96,7 +96,7 @@
   "pad.noCookie": "Cookie could not be found. Please allow cookies in your browser!  Your session and settings will not be saved between visits.  This may be due to Etherpad being included in an iFrame in some Browsers.  Please ensure Etherpad is on the same subdomain/domain as the parent iFrame",
   "pad.permissionDenied": "You do not have permission to access this pad",
 
-  "pad.settings.padSettings": "Pad Settings",
+  "pad.settings.padSettings": "Pad-wide Settings",
   "pad.settings.title": "Settings",
   "pad.settings.myView": "My View",
   "pad.settings.stickychat": "Chat always on screen",
@@ -111,6 +111,9 @@
   "pad.delete.confirm": "Do you really want to delete this pad?",
   "pad.settings.about": "About",
   "pad.settings.poweredBy": "Powered by",
+  "pad.settings.disablechat": "Disable Chat",
+  "pad.settings.enforceSettings": "Enforce settings for other users",
+  "pad.settings.enforcedNotice": "These settings are locked for you by this pad's creator. Ask the pad creator if you need them changed.",
 
   "pad.importExport.import_export": "Import/Export",
   "pad.importExport.import": "Upload any text file or document",

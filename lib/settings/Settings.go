@@ -60,6 +60,11 @@ type PadOptions struct {
 	AlwaysShowChat   bool    `mapstructure:"alwaysShowChat"`
 	ChatAndUsers     bool    `mapstructure:"chatAndUsers"`
 	Lang             *string `mapstructure:"lang"`
+	// FadeInactiveAuthorColors fades the background of authors who are no
+	// longer active. EnforceReadableAuthorColors clamps author backgrounds
+	// to a shade that keeps the text readable (WCAG AA). Both default to true.
+	FadeInactiveAuthorColors    bool `mapstructure:"fadeInactiveAuthorColors"`
+	EnforceReadableAuthorColors bool `mapstructure:"enforceReadableAuthorColors"`
 }
 
 type PadShortcutEnabled struct {
@@ -282,6 +287,10 @@ type Settings struct {
 	// pad-wide settings broadcast/persist rail. Default false (opt-in).
 	// Upstream #7698.
 	EnablePluginPadOptions bool `json:"enablePluginPadOptions" mapstructure:"enablePluginPadOptions"`
+	// EnablePadWideSettings lets a pad's creator set chat, view and language
+	// options for everyone on the pad and enforce them (upstream #7586).
+	// Default true.
+	EnablePadWideSettings bool `json:"enablePadWideSettings" mapstructure:"enablePadWideSettings"`
 
 	SkinName     string `json:"skinName" mapstructure:"skinName"`
 	SkinVariants string `json:"skinVariants" mapstructure:"skinVariants"`

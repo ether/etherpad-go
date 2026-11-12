@@ -23,14 +23,36 @@ import (
 	"github.com/ether/etherpad-go/lib/utils"
 )
 
-var padRegex *regexp.Regexp
+var (
+	padRegex       = regexp.MustCompile(`^(g\.[A-Za-z0-9]{16}\$)?[^ \t\r\n\f\v$:]{1,50}$`)
+	legacyPadRegex = regexp.MustCompile(`^(g\.[A-Za-z0-9]{16}\$)?[^ \t\r\n\f\v$]{1,50}$`)
+)
 
-func init() {
-	padRegex, _ = regexp.Compile(`^(g\.[A-Za-z0-9]{16}\$)?[^ \t\r\n\f\v$]{1,50}$`)
+// IsValidPadId reports whether padID may name a new pad.
+//
+//   - "." and ".." match the pattern but are refused: a browser normalises
+//     "/p/." to "/p/" and "/p/.." to "/", so such a pad could never be opened
+//     or exported.
+//   - ":" is refused like in etherpad-lite (GHSA-wg58-mhwv-35pq), where it is
+//     the key delimiter of the database. etherpad-go keys pads by column, so
+//     the attack does not apply here, but the rule keeps pad ids portable
+//     between the two servers. Pads that already carry a ":" stay usable,
+//     see IsLegacyPadId.
+func IsValidPadId(padID string) bool {
+	if padID == "." || padID == ".." {
+		return false
+	}
+	return padRegex.MatchString(padID)
 }
 
-func IsValidPadId(padID string) bool {
-	return padRegex.MatchString(padID)
+// IsLegacyPadId reports whether padID was a valid pad id before ":" was
+// refused. A pad with such an id can still be opened, edited and checked; it
+// just cannot be created any more.
+func IsLegacyPadId(padID string) bool {
+	if padID == "." || padID == ".." {
+		return false
+	}
+	return legacyPadRegex.MatchString(padID)
 }
 
 // SystemAuthorId is the stable author id used to attribute inserts coming
@@ -57,6 +79,9 @@ type Pad struct {
 	ReadonlyId     *string
 	UpdatedAt      *time.Time
 	CreatedAt      time.Time
+	// settingsJSON is the stored pad-wide settings ("" = defaults), see
+	// settings.go.
+	settingsJSON string
 }
 
 func NewPad(id string, db db.DataStore, hook *hooks.Hook) Pad {
@@ -76,7 +101,7 @@ func NewPad(id string, db db.DataStore, hook *hooks.Hook) Pad {
 }
 
 func (p *Pad) Check() error {
-	if !IsValidPadId(p.Id) {
+	if !IsLegacyPadId(p.Id) {
 		return errors.New("pad id contains leading or trailing whitespace")
 	}
 
@@ -372,11 +397,12 @@ func (p *Pad) Text() string {
 	return p.AText.Text
 }
 
+// CleanText normalises line endings and expands tabs. Everything else is
+// kept as it is, non-breaking spaces (U+00A0) included.
 func CleanText(context string) *string {
 	context = strings.ReplaceAll(context, "\r\n", "\n")
 	context = strings.ReplaceAll(context, "\r", "\n")
 	context = strings.ReplaceAll(context, "\t", "        ")
-	context = strings.ReplaceAll(context, "\xa0", " ")
 	return &context
 }
 
@@ -406,6 +432,7 @@ func (p *Pad) Init(text *string, author *string, authorManager *author.Manager) 
 		}
 	}
 	if err != nil {
+		usedDefaultContent := text == nil
 		if text == nil {
 			var padDefaultText = "text"
 			text = &settings.Displayed.DefaultPadText
@@ -424,8 +451,33 @@ func (p *Pad) Init(text *string, author *string, authorManager *author.Manager) 
 			}
 		}
 
-		var firstChangeset, _ = changeset.MakeSplice("\n", 0, 0, *text, nil, nil)
-		_, err := p.AppendRevision(firstChangeset, author)
+		// Line endings and tabs are normalised like in every later edit,
+		// whether the text was passed in or came from the default-content hook.
+		text = CleanText(*text)
+
+		// Every insert carries an author (see checkInsertsHaveAuthor). The
+		// initial text is attributed to the creating author, or to the
+		// system author when it is the generated default text or no author
+		// was given. The revision's author stays the real creator, which
+		// pad ownership is derived from. Upstream #7773, #7885.
+		hasAuthor := author != nil && *author != ""
+		var firstAttribs *string
+		var firstPool *apool.APool
+		if utils.RuneCount(*text) > 0 {
+			attribAuthor := SystemAuthorId
+			if hasAuthor && !usedDefaultContent {
+				attribAuthor = *author
+			}
+			as := "*" + utils.NumToString(p.Pool.PutAttrib(apool.Attribute{Key: "author", Value: attribAuthor}, nil))
+			firstAttribs, firstPool = &as, &p.Pool
+		}
+		revisionAuthor := author
+		if !hasAuthor && utils.RuneCount(*text) > 0 {
+			sys := SystemAuthorId
+			revisionAuthor = &sys
+		}
+		var firstChangeset, _ = changeset.MakeSplice("\n", 0, 0, *text, firstAttribs, firstPool)
+		_, err := p.AppendRevision(firstChangeset, revisionAuthor)
 		if errors.Is(err, db.ErrConflict) {
 			// Another instance created the pad at the same time; use theirs.
 			return p.loadExisting()
@@ -611,7 +663,39 @@ func (p *Pad) getPublicStatus() bool {
 	return p.PublicStatus
 }
 
+// ErrInsertWithoutAuthor is returned by AppendRevision for a changeset with
+// an insert that carries no author attribute.
+var ErrInsertWithoutAuthor = errors.New("insert op without an author attribute")
+
+// checkInsertsHaveAuthor rejects changesets whose inserts carry no author.
+// Such an insert grows the text without matching attribute markers, and
+// clients then fail to reconcile the pad on load. The websocket handler
+// checks this for clients; this covers every other caller (HTTP API,
+// imports, plugins). Upstream #7773.
+func (p *Pad) checkInsertsHaveAuthor(cs string) error {
+	unpacked, err := changeset.Unpack(cs)
+	if err != nil {
+		return err
+	}
+	ops, err := changeset.DeserializeOps(unpacked.Ops)
+	if err != nil {
+		return err
+	}
+	for _, op := range *ops {
+		if op.OpCode != "+" {
+			continue
+		}
+		if author := changeset.FromString(op.Attribs, &p.Pool).Get("author"); author == nil || *author == "" {
+			return fmt.Errorf("%w: %s", ErrInsertWithoutAuthor, cs)
+		}
+	}
+	return nil
+}
+
 func (p *Pad) AppendRevision(cs string, authorId *string) (*int, error) {
+	if err := p.checkInsertsHaveAuthor(cs); err != nil {
+		return &p.Head, err
+	}
 	var newAText, err = changeset.ApplyToAText(cs, p.AText, p.Pool)
 
 	if err != nil {

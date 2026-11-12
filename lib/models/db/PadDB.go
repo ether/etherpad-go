@@ -38,8 +38,12 @@ type PadDB struct {
 	DocumentType   string          `json:"documentType"`
 	ATextText      string          `json:"atextText"`
 	ATextAttribs   string          `json:"atextAttribs"`
-	CreatedAt      time.Time       `json:"createdAt"`
-	UpdatedAt      *time.Time      `json:"updatedAt"`
+	// Settings holds the pad-wide settings as JSON; nil means defaults.
+	// CreatePad writes it only when it inserts the row: later changes go
+	// through SetPadSettings so no instance overwrites another's change.
+	Settings  *string    `json:"settings,omitempty"`
+	CreatedAt time.Time  `json:"createdAt"`
+	UpdatedAt *time.Time `json:"updatedAt"`
 }
 
 type SavedRevision struct {
