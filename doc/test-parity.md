@@ -7,10 +7,10 @@ behaviour, they are not line-by-line translations.
 
 | Status | Files | Test cases |
 |---|---|---|
-| Ported | 5 | 14 |
+| Ported | 11 | 76 |
 | Partly ported | 4 | 24 |
 | Not applicable to Go | 33 | 288 |
-| To compare case by case | 130 | 1408 |
+| To compare case by case | 124 | 1346 |
 
 "To compare" does not mean untested: most of these areas have Go tests (the Go code refers
 to more than 20 upstream issues). It means nobody has checked yet, case by case, which
@@ -25,6 +25,12 @@ upstream cases the Go tests cover and which are missing.
 | `joinCatchUpRace` | 1 | `lib/test/ws/join_consistency_test.go` |
 | `largePaste` | 1 | `lib/test/api/pad/pad_api_test.go` (plus a multi-byte variant) |
 | `new/easysync-inverseRandom` | 2 | `lib/changeset/changeset_test.go` (`TestInverseRandom`, `TestInverse`) |
+| `new/AttributeMap` | 14 | `lib/changeset/attributemap_test.go`, `attributemap_parity_test.go` |
+| `new/StringIteratorTest` | 4 | `lib/changeset/StringIterator_test.go` |
+| `new/attributes` | 23 | `lib/changeset/attributes_test.go`, `attributes_parity_test.go` |
+| `new/easysync-assembler` | 15 | `lib/changeset/OPAssembler_test.go`, `SmartOpAssembler_test.go`, `smartopassembler_parity_test.go` |
+| `new/easysync-subAttribution` | 1 | `lib/changeset/changeset_test.go` |
+| `new/stampAuthorOnInserts` | 5 | `ui/src/js/stampAuthorOnInserts.test.ts` (client code, run with vitest) |
 
 ## Partly ported
 
@@ -43,12 +49,6 @@ Existing Go tests in this area: `lib/changeset`, `lib/apool`
 
 | Spec | Cases |
 |---|---|
-| `new/AttributeMap` | 14 |
-| `new/StringIteratorTest` | 4 |
-| `new/attributes` | 23 |
-| `new/easysync-assembler` | 15 |
-| `new/easysync-subAttribution` | 1 |
-| `new/stampAuthorOnInserts` | 5 |
 | `new/pad_utils` | 1 |
 | `colorutils` | 20 |
 
