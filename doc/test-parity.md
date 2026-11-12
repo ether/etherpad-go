@@ -7,10 +7,10 @@ behaviour, they are not line-by-line translations.
 
 | Status | Files | Test cases |
 |---|---|---|
-| Ported | 14 | 84 |
+| Ported | 15 | 104 |
 | Partly ported | 4 | 46 |
 | Not applicable to Go | 33 | 288 |
-| To compare case by case | 121 | 1316 |
+| To compare case by case | 120 | 1296 |
 
 "To compare" does not mean untested: most of these areas have Go tests (the Go code refers
 to more than 20 upstream issues). It means nobody has checked yet, case by case, which
@@ -34,6 +34,7 @@ upstream cases the Go tests cover and which are missing.
 | `new/easysync-compose` | 2 | `lib/changeset/property_test.go` (`TestPropertyCompose`), `changeset_test.go` (`TestComposeAttributes`) |
 | `new/easysync-mutations` | 5 | `lib/changeset/TextLinesMutator_test.go`, `mutations_parity_test.go` |
 | `new/pad_utils` | 1 | `ui/src/js/pad_utils.test.ts` (client code, run with vitest) |
+| `colorutils` | 20 | `ui/src/js/colorutils.test.ts` (client code, run with vitest) |
 
 ## Partly ported
 
@@ -62,7 +63,6 @@ Existing Go tests in this area: `lib/changeset`, `lib/apool`
 
 | Spec | Cases | Note |
 |---|---|---|
-| `colorutils` | 20 | needs a feature port first: the WCAG contrast helpers of etherpad-lite #7377 (`relativeLuminance`, `contrastRatio`, `ensureReadableBackground`) are not in `ui/src/js/colorutils.ts` |
 
 ### Pad and pad manager
 

@@ -48,7 +48,9 @@
     "rtl": false,
     "alwaysShowChat": false,
     "chatAndUsers": false,
-    "lang": null
+    "lang": null,
+    "fadeInactiveAuthorColors": true,
+    "enforceReadableAuthorColors": true
   },
   "padShortcutEnabled": {
     "altF9": true,

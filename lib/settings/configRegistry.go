@@ -91,6 +91,8 @@ var Registry = []ConfigKey{
 	{Key: PadOptionsAlwaysShowChat, Default: false, Description: "Always show chat"},
 	{Key: PadOptionsChatAndUsers, Default: false, Description: "Chat and users list"},
 	{Key: PadOptionsLang, Default: "en-gb", Description: "Pad language"},
+	{Key: PadOptionsFadeInactiveAuthorColors, Default: true, Description: "Fade the colours of inactive authors"},
+	{Key: PadOptionsEnforceReadableAuthorColors, Default: true, Description: "Clamp author colours to a readable contrast (WCAG AA)"},
 
 	// ---------------------------------------------------------------------
 	// Shortcuts

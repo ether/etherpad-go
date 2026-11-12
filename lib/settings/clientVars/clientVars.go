@@ -53,6 +53,10 @@ func (f *Factory) NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apoo
 	padOptions["alwaysShowChat"] = &boolFalse
 	padOptions["chatAndUsers"] = &boolFalse
 	padOptions["lang"] = nil
+	fadeInactive := retrievedSettings.PadOptions.FadeInactiveAuthorColors
+	enforceReadable := retrievedSettings.PadOptions.EnforceReadableAuthorColors
+	padOptions["fadeInactiveAuthorColors"] = &fadeInactive
+	padOptions["enforceReadableAuthorColors"] = &enforceReadable
 
 	var padShortCutEnabled = make(map[string]bool)
 	padShortCutEnabled["altF9"] = true

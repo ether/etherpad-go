@@ -60,6 +60,11 @@ type PadOptions struct {
 	AlwaysShowChat   bool    `mapstructure:"alwaysShowChat"`
 	ChatAndUsers     bool    `mapstructure:"chatAndUsers"`
 	Lang             *string `mapstructure:"lang"`
+	// FadeInactiveAuthorColors fades the background of authors who are no
+	// longer active. EnforceReadableAuthorColors clamps author backgrounds
+	// to a shade that keeps the text readable (WCAG AA). Both default to true.
+	FadeInactiveAuthorColors    bool `mapstructure:"fadeInactiveAuthorColors"`
+	EnforceReadableAuthorColors bool `mapstructure:"enforceReadableAuthorColors"`
 }
 
 type PadShortcutEnabled struct {
