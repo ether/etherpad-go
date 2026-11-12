@@ -7,10 +7,10 @@ behaviour, they are not line-by-line translations.
 
 | Status | Files | Test cases |
 |---|---|---|
-| Ported | 11 | 76 |
-| Partly ported | 4 | 24 |
+| Ported | 14 | 84 |
+| Partly ported | 2 | 17 |
 | Not applicable to Go | 33 | 288 |
-| To compare case by case | 124 | 1346 |
+| To compare case by case | 123 | 1345 |
 
 "To compare" does not mean untested: most of these areas have Go tests (the Go code refers
 to more than 20 upstream issues). It means nobody has checked yet, case by case, which
@@ -31,14 +31,15 @@ upstream cases the Go tests cover and which are missing.
 | `new/easysync-assembler` | 15 | `lib/changeset/OPAssembler_test.go`, `SmartOpAssembler_test.go`, `smartopassembler_parity_test.go` |
 | `new/easysync-subAttribution` | 1 | `lib/changeset/changeset_test.go` |
 | `new/stampAuthorOnInserts` | 5 | `ui/src/js/stampAuthorOnInserts.test.ts` (client code, run with vitest) |
+| `new/easysync-compose` | 2 | `lib/changeset/property_test.go` (`TestPropertyCompose`), `changeset_test.go` (`TestComposeAttributes`) |
+| `new/easysync-mutations` | 5 | `lib/changeset/TextLinesMutator_test.go`, `mutations_parity_test.go` |
+| `new/pad_utils` | 1 | `ui/src/js/pad_utils.test.ts` (client code, run with vitest) |
 
 ## Partly ported
 
 | Spec | Cases | State |
 |---|---|---|
-| `new/easysync-compose` | 2 | random compose in `lib/changeset/property_test.go`; the fixed attribute-compose vectors are open |
-| `new/easysync-mutations` | 5 | random apply/mutate in `lib/changeset/property_test.go`; the fixed mutation vectors are open |
-| `new/easysync-other` | 9 | MakeSplice and split/join in `lib/changeset/property_test.go`; the remaining cases are open |
+| `new/easysync-other` | 9 | moveOpsToNewPool, makeSplice, applyToAttribution and split/join are covered in `lib/changeset`; filterAttribNumbers, makeAttribsString, toSplices and opAttributeValue do not exist in the Go package (deprecated or client-only upstream) |
 | `padInsertAuthorInvariant` | 8 | pad-level cases in `lib/pad/insert_author_test.go`; the `.etherpad` import and copyPadWithoutHistory cases are open |
 
 ## To compare case by case
@@ -47,10 +48,9 @@ upstream cases the Go tests cover and which are missing.
 
 Existing Go tests in this area: `lib/changeset`, `lib/apool`
 
-| Spec | Cases |
-|---|---|
-| `new/pad_utils` | 1 |
-| `colorutils` | 20 |
+| Spec | Cases | Note |
+|---|---|---|
+| `colorutils` | 20 | needs a feature port first: the WCAG contrast helpers of etherpad-lite #7377 (`relativeLuminance`, `contrastRatio`, `ensureReadableBackground`) are not in `ui/src/js/colorutils.ts` |
 
 ### Pad and pad manager
 
