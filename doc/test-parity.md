@@ -8,9 +8,9 @@ behaviour, they are not line-by-line translations.
 | Status | Files | Test cases |
 |---|---|---|
 | Ported | 14 | 84 |
-| Partly ported | 2 | 17 |
+| Partly ported | 4 | 46 |
 | Not applicable to Go | 33 | 288 |
-| To compare case by case | 123 | 1345 |
+| To compare case by case | 121 | 1316 |
 
 "To compare" does not mean untested: most of these areas have Go tests (the Go code refers
 to more than 20 upstream issues). It means nobody has checked yet, case by case, which
@@ -41,6 +41,18 @@ upstream cases the Go tests cover and which are missing.
 |---|---|---|
 | `new/easysync-other` | 9 | moveOpsToNewPool, makeSplice, applyToAttribution and split/join are covered in `lib/changeset`; filterAttribNumbers, makeAttribsString, toSplices and opAttributeValue do not exist in the Go package (deprecated or client-only upstream) |
 | `padInsertAuthorInvariant` | 8 | pad-level cases in `lib/pad/insert_author_test.go`; the `.etherpad` import and copyPadWithoutHistory cases are open |
+| `Pad` | 25 | cleanText, non-breaking space, system author and padDefaultContent cases in `lib/pad/pad_test.go`, `pad_parity_test.go`, `insert_author_test.go`; the 10 normalizePadSettings cases need a feature port first: Go has no pad-wide settings (etherpad-lite #7586, #7698) |
+| `PadManager` | 4 | `lib/pad/pad_parity_test.go` (`TestIsValidPadId`); rejecting `:` in pad ids is open, see below |
+
+## Open decision: `:` in pad ids
+
+etherpad-lite no longer accepts `:` in a new pad id (GHSA-wg58-mhwv-35pq): in its key-value
+store `pad:<id>:revs:<n>` is a key, so such an id could address another pad's records.
+etherpad-go stores pads in SQL tables keyed by pad id and revision, so that attack does not
+apply, and `:` is still accepted. Adopting the rule would keep the two servers' pad ids
+compatible; it also needs the legacy handling upstream added (existing pads stay reachable,
+`/p/a:b` redirects to `/p/a_b`). Affected specs: `PadManager` (1 case), `padIdColonLegacyPad`,
+`padUrlColonRedirect`, `copyPadColonInjection`.
 
 ## To compare case by case
 
@@ -58,8 +70,6 @@ Existing Go tests in this area: `lib/pad`, `lib/test/pad`, `lib/test/ws`
 
 | Spec | Cases |
 |---|---|
-| `Pad` | 25 |
-| `PadManager` | 4 |
 | `chat` | 4 |
 | `messages` | 14 |
 | `undo_clear_authorship` | 6 |

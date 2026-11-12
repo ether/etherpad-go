@@ -3,7 +3,6 @@ package pad
 import (
 	"errors"
 	"fmt"
-	"regexp"
 	"sync"
 	"unicode/utf8"
 
@@ -60,12 +59,6 @@ func (l *List) GetPads() []string {
 		}
 	}
 	return l._cachedList
-}
-
-var padRegex *regexp.Regexp
-
-func init() {
-	padRegex, _ = regexp.Compile(`^(g\.[A-Za-z0-9]{16}\$)?[^ \t\r\n\f\v$]{1,50}$`)
 }
 
 type GlobalPadCache struct {
@@ -165,7 +158,7 @@ func (m *Manager) DoesPadExist(padID string) (*bool, error) {
 }
 
 func (m *Manager) IsValidPadId(padID string) bool {
-	return padRegex.MatchString(padID)
+	return pad.IsValidPadId(padID)
 }
 
 func (m *Manager) SanitizePadId(padID string) (*string, error) {

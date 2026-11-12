@@ -29,7 +29,13 @@ func init() {
 	padRegex, _ = regexp.Compile(`^(g\.[A-Za-z0-9]{16}\$)?[^ \t\r\n\f\v$]{1,50}$`)
 }
 
+// IsValidPadId reports whether padID may name a pad. "." and ".." match the
+// pattern but are refused: a browser normalises "/p/." to "/p/" and "/p/.."
+// to "/", so such a pad could never be opened or exported.
 func IsValidPadId(padID string) bool {
+	if padID == "." || padID == ".." {
+		return false
+	}
 	return padRegex.MatchString(padID)
 }
 
@@ -372,11 +378,12 @@ func (p *Pad) Text() string {
 	return p.AText.Text
 }
 
+// CleanText normalises line endings and expands tabs. Everything else is
+// kept as it is, non-breaking spaces (U+00A0) included.
 func CleanText(context string) *string {
 	context = strings.ReplaceAll(context, "\r\n", "\n")
 	context = strings.ReplaceAll(context, "\r", "\n")
 	context = strings.ReplaceAll(context, "\t", "        ")
-	context = strings.ReplaceAll(context, "\xa0", " ")
 	return &context
 }
 
@@ -424,6 +431,10 @@ func (p *Pad) Init(text *string, author *string, authorManager *author.Manager) 
 				return errors.New("unsupported content type" + *context.Type)
 			}
 		}
+
+		// Line endings and tabs are normalised like in every later edit,
+		// whether the text was passed in or came from the default-content hook.
+		text = CleanText(*text)
 
 		// Every insert carries an author (see checkInsertsHaveAuthor). The
 		// initial text is attributed to the creating author, or to the
