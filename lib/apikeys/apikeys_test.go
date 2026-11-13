@@ -47,18 +47,29 @@ func TestManager(t *testing.T) {
 	_, ok = m.Check("")
 	assert.False(t, ok)
 
-	// the last use is written, at most once a minute
-	keys, _ = m.List()
-	require.NotNil(t, keys[0].LastUsed)
-	assert.Equal(t, now, *keys[0].LastUsed)
+	// the last use is written, at most once a minute. Both keys were
+	// created at the same instant, so the list order does not tell them
+	// apart: look the key up by its id.
+	lastUsed := func() *time.Time {
+		t.Helper()
+		keys, err := m.List()
+		require.NoError(t, err)
+		for _, k := range keys {
+			if k.ID == mk.ID {
+				return k.LastUsed
+			}
+		}
+		t.Fatalf("key %s not listed", mk.ID)
+		return nil
+	}
+	require.NotNil(t, lastUsed())
+	assert.Equal(t, now, *lastUsed())
 	now = now.Add(30 * time.Second)
 	m.Check(moodle)
-	keys, _ = m.List()
-	assert.Equal(t, now.Add(-30*time.Second), *keys[0].LastUsed)
+	assert.Equal(t, now.Add(-30*time.Second), *lastUsed())
 	now = now.Add(time.Minute)
 	m.Check(moodle)
-	keys, _ = m.List()
-	assert.Equal(t, now, *keys[0].LastUsed)
+	assert.Equal(t, now, *lastUsed())
 
 	// disabling one key leaves the other working
 	require.NoError(t, m.SetDisabled(mk.ID, true))

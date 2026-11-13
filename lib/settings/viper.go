@@ -53,6 +53,8 @@ func ReadConfig() (*Settings, error) {
 		}
 	}
 
+	applyNestedEnv(os.Environ())
+
 	// --- Unmarshal ---
 	var s Settings
 	if err := viper.Unmarshal(&s); err != nil {
@@ -71,4 +73,33 @@ func ReadConfig() (*Settings, error) {
 		s.IPLogging = IPLoggingAnonymous
 	}
 	return &s, nil
+}
+
+// applyNestedEnv sets settings from variables of the form EP__a__b=value,
+// etherpad-lite's way to set nested (and plugin) settings without editing
+// settings.json: EP__padOptions__showChat=false sets padOptions.showChat.
+// Values are typed like ${VAR} values (true, false, null, numbers). Unlike
+// etherpad-lite, only the named setting changes, not its whole section.
+func applyNestedEnv(environ []string) {
+	for _, kv := range environ {
+		name, value, ok := strings.Cut(kv, "=")
+		if !ok || !strings.HasPrefix(name, "EP__") {
+			continue
+		}
+		parts := strings.Split(strings.TrimPrefix(name, "EP__"), "__")
+		empty := false
+		for _, p := range parts {
+			if p == "" {
+				empty = true
+			}
+		}
+		if empty {
+			continue
+		}
+		v, keep := coerceEnvValue(value)
+		if !keep {
+			continue
+		}
+		viper.Set(strings.Join(parts, "."), v)
+	}
 }
