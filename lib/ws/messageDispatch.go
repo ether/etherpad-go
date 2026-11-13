@@ -90,10 +90,10 @@ func (c *Client) dispatchMessage(message []byte, retrievedSettings *settings.Set
 	// down. The connection is closed so the client reconnects and resyncs:
 	// whatever the panic interrupted was not stored, and the client resends
 	// unacknowledged changes after reconnecting.
-	defer recoverClientPanic(c, logger, "pad")
+	defer recoverClientPanic(c, retrievedSettings, logger, "pad")
 	msgType, inner, err := parseMessageType(message)
 	if err != nil {
-		logger.Warnf("Ignoring malformed message from %s: %v", c.ClientIP, err)
+		logger.Warnf("Ignoring malformed message from %s: %v", retrievedSettings.LogIP(c.ClientIP), err)
 		return
 	}
 

@@ -2,6 +2,7 @@ package static
 
 import (
 	"embed"
+	padManager "github.com/ether/etherpad-go/lib/pad"
 	"io/fs"
 	"net/http"
 	"os"
@@ -28,7 +29,7 @@ import (
 // the homepage. Upstream #7635.
 func buildHomeSocialMeta(c fiber.Ctx, s *settings.Settings) string {
 	scheme := "http"
-	if c.Protocol() == "https" {
+	if c.Scheme() == "https" {
 		scheme = "https"
 	}
 	favicon := ""
@@ -42,7 +43,7 @@ func buildHomeSocialMeta(c fiber.Ctx, s *settings.Settings) string {
 	return socialmeta.Render(socialmeta.Opts{
 		Req: socialmeta.RequestInfo{
 			Scheme:         scheme,
-			Host:           string(c.Request().Host()),
+			Host:           c.Host(),
 			Path:           c.Path(),
 			AcceptLanguage: c.Get("Accept-Language"),
 		},
@@ -334,10 +335,12 @@ func Init(store *lib.InitStore) {
 		if handled, err := pad2.GuardPadURL(ctx, store.PadManager); handled {
 			return err
 		}
+		padManager.EnsureAuthorTokenCookie(ctx, store.RetrievedSettings)
 		return pad2.HandlePadOpen(ctx, store.UiAssets, store.RetrievedSettings, store.Hooks)
 	})
 
 	store.C.Get("/s/:pad", func(ctx fiber.Ctx) error {
+		padManager.EnsureAuthorTokenCookie(ctx, store.RetrievedSettings)
 		return pad2.HandleSheetOpen(ctx)
 	})
 
@@ -349,6 +352,7 @@ func Init(store *lib.InitStore) {
 		if handled, err := pad2.GuardPadURL(c, store.PadManager); handled {
 			return err
 		}
+		padManager.EnsureAuthorTokenCookie(c, store.RetrievedSettings)
 		return timeslider.HandleTimesliderOpen(c, store.UiAssets, store.RetrievedSettings, store.Hooks)
 	})
 

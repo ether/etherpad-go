@@ -1,6 +1,7 @@
 package ws
 
 import (
+	"github.com/ether/etherpad-go/lib/settings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -19,15 +20,15 @@ func TestRecoverClientPanic(t *testing.T) {
 
 	require.NotPanics(t, func() {
 		func() {
-			defer recoverClientPanic(client, logger, "pad")
+			defer recoverClientPanic(client, &settings.Settings{IPLogging: settings.IPLoggingFull}, logger, "pad")
 			panic("handler bug")
 		}()
 	})
 	require.Equal(t, 1, logs.Len())
 	assert.Contains(t, logs.All()[0].Message, "handler bug")
-	assert.Contains(t, logs.All()[0].Message, "203.0.113.9")
+	assert.Contains(t, logs.All()[0].Message, "203.0.113.9", "ipLogging full")
 
 	// Without a panic nothing is logged.
-	func() { defer recoverClientPanic(client, logger, "pad") }()
+	func() { defer recoverClientPanic(client, nil, logger, "pad") }()
 	assert.Equal(t, 1, logs.Len())
 }

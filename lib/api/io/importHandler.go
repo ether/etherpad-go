@@ -440,31 +440,3 @@ func isValidText(content string) bool {
 	return true
 }
 
-// Legacy function for backward compatibility
-func ImportPad(ctx fiber.Ctx, securityManager *pad.SecurityManager) error {
-	tokenCookie := ctx.Cookies("token")
-	padId := ctx.Params("pad")
-	grantedAccess, err := securityManager.CheckAccess(&padId, nil, &tokenCookie, nil)
-	if err != nil {
-		return ctx.Status(500).JSON(ImportResponse{
-			Code:    2,
-			Message: "internalError",
-			Data:    ImportData{DirectDatabaseAccess: false},
-		})
-	}
-	if grantedAccess.AccessStatus != "grant" {
-		return ctx.Status(403).JSON(ImportResponse{
-			Code:    1,
-			Message: "accessDenied",
-			Data:    ImportData{DirectDatabaseAccess: false},
-		})
-	}
-
-	// This legacy function doesn't have access to all required dependencies
-	// It should be replaced with the ImportHandler
-	return ctx.Status(501).JSON(ImportResponse{
-		Code:    2,
-		Message: "notImplemented",
-		Data:    ImportData{DirectDatabaseAccess: false},
-	})
-}

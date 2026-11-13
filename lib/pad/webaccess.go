@@ -4,7 +4,6 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"errors"
-	"fmt"
 	"net/url"
 	"regexp"
 	"strings"
@@ -252,7 +251,7 @@ func CheckAccessWithHooks(ctx fiber.Ctx, logger *zap.SugaredLogger, retrievedSet
 	// sendAuthnFailure fires the authnFailure hook then falls back to the
 	// default 401 response. It REPLACES all inline 401 logic below.
 	sendAuthnFailure := func() error {
-		logger.Infof("failed authentication from IP %s", ctx.IP())
+		logger.Infof("failed authentication from IP %s", retrievedSettings.LogIP(ctx.IP()))
 		if hookSystem != nil {
 			failCtx := &events.AuthnFailureContext{Path: ctx.Path(), RequireAdmin: requireAdmin}
 			hookSystem.ExecuteAuthnFailureHooks(failCtx)
@@ -337,7 +336,7 @@ func CheckAccessWithHooks(ctx fiber.Ctx, logger *zap.SugaredLogger, retrievedSet
 			webAccessCtx.Username = &newUsername
 		}
 
-		logger.Infof(fmt.Sprintf(`Successful authentication from IP %s for user %s`, ctx.IP(), *webAccessCtx.Username))
+		logger.Infof("Successful authentication from IP %s for user %s", retrievedSettings.LogIP(ctx.IP()), *webAccessCtx.Username)
 	}
 	// ///////////////////////////////////////////////////////////////////////////////////////////////
 	// Step 4: Try to access the thing again. If this fails, give the user a 403 error. Plugins can

@@ -265,11 +265,12 @@ const sendClientReady = (isReconnect) => {
         document.title = `${padId.replace(/_+/g, ' ')} | ${title}`;
     }
 
-    let token = Cookies.get('token');
-    if (token == null || !padutils.isValidAuthorToken(token)) {
-        token = padutils.generateAuthorToken();
-        Cookies.set('token', token, {expires: 60});
-    }
+    // The author token is an HttpOnly cookie the server sets with the page
+    // and reads from the socket handshake; scripts cannot read it, so it
+    // cannot be stolen by one. A token still readable here is the cookie of
+    // an older version; sending it keeps older servers working.
+    const legacyToken = Cookies.get('token');
+    const token = legacyToken != null && padutils.isValidAuthorToken(legacyToken) ? legacyToken : '';
 
     const params = getUrlVars();
     const userInfo = {

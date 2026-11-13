@@ -235,6 +235,7 @@ var Registry = []ConfigKey{
 		Default:     100,
 		Description: "Revisions to keep",
 	},
+	{Key: "ipLogging", Default: IPLoggingAnonymous, Description: "How client IP addresses appear in logs: anonymous, truncated or full"},
 	{Key: PadRetentionEnabled, Default: false, Description: "Enable automatic pad retention"},
 	{Key: PadRetentionDryRun, Default: true, Description: "Log pad retention deletions without deleting"},
 	{Key: PadRetentionDeleteAfterDays, Default: 365, Description: "Delete pads after this many inactive days"},

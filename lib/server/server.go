@@ -42,6 +42,8 @@ type wsUpgradeData struct {
 	IntegratorSessionID string
 	ClientIP            string
 	WebAccessUser       any
+	// AuthorToken is the HttpOnly author token cookie of the handshake.
+	AuthorToken string
 }
 
 func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets embed.FS) {
@@ -68,7 +70,7 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 
 	readOnlyManager := pad.NewReadOnlyManager(dataStore)
 
-	app := fiber.New(FiberConfig())
+	app := fiber.New(FiberConfig(settings.TrustProxy))
 	// A panicking handler answers 500 instead of ending the process.
 	app.Use(recoverMiddleware(setupLogger))
 	app.Use(compress.New(compress.Config{
@@ -195,6 +197,7 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 				IntegratorSessionID: integratorSessionID,
 				ClientIP:            c.IP(),
 				WebAccessUser:       c.Locals("sessionUser"),
+				AuthorToken:         pad.AuthorTokenFromCookies(c.Cookies, &settings),
 			})
 			c.Locals("wsConnID", connID)
 			return c.Next()
@@ -216,8 +219,8 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 		}
 		// Enforce a hard per-message ceiling matching the configured buffer size.
 		conn.SetReadLimit(int64(wsBufSize))
-		setupLogger.Debugf("[WS] New connection sessionID=%s clientIP=%s", data.SessionID, data.ClientIP)
-		ws.ServeWs(conn, data.SessionID, data.IntegratorSessionID, data.ClientIP, data.WebAccessUser, &settings, setupLogger, padMessageHandler)
+		setupLogger.Debugf("[WS] New connection sessionID=%s clientIP=%s", data.SessionID, settings.LogIP(data.ClientIP))
+		ws.ServeWs(conn, data.SessionID, data.IntegratorSessionID, data.ClientIP, data.WebAccessUser, &settings, setupLogger, padMessageHandler, data.AuthorToken)
 	}, fiberws.Config{
 		ReadBufferSize:  wsBufSize,
 		WriteBufferSize: wsBufSize,

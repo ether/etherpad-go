@@ -331,7 +331,12 @@ type Settings struct {
 	AllowUnknownFileEnds bool `json:"allowUnknownFileEnds" mapstructure:"allowUnknownFileEnds"`
 
 	LogLevel                     string `json:"loglevel" mapstructure:"loglevel"`
-	DisableIPLogging             bool   `json:"disableIPLogging" mapstructure:"disableIPLogging"`
+	// DisableIPLogging is the old switch; IPLogging replaces it (see
+	// ReadConfig) and is what LogIP uses.
+	DisableIPLogging bool `json:"disableIPLogging" mapstructure:"disableIPLogging"`
+	// IPLogging is how client IP addresses appear in logs: "anonymous"
+	// (default), "truncated" or "full".
+	IPLogging string `json:"ipLogging" mapstructure:"ipLogging"`
 	AutomaticReconnectionTimeout int    `json:"automaticReconnectionTimeout" mapstructure:"automaticReconnectionTimeout"`
 
 	LoadTest        bool `json:"loadTest" mapstructure:"loadTest"`
@@ -490,4 +495,12 @@ func InitSettings(logger *zap.SugaredLogger) {
 
 	Displayed = *setting
 
+}
+
+// LogIP is the client IP address as it may appear in a log line.
+func (s *Settings) LogIP(ip string) string {
+	if s == nil {
+		return AnonymizeIP(ip, IPLoggingAnonymous)
+	}
+	return AnonymizeIP(ip, s.IPLogging)
 }

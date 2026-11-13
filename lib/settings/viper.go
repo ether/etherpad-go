@@ -1,6 +1,7 @@
 package settings
 
 import (
+	"os"
 	"errors"
 	"strings"
 
@@ -36,6 +37,16 @@ func ReadConfig() (*Settings, error) {
 		}
 	}
 
+	// disableIPLogging (etherpad-lite: disableIPlogging) is the old form of
+	// ipLogging; it only counts when ipLogging itself is not configured.
+	if viper.InConfig("disableiplogging") && !viper.InConfig("iplogging") && os.Getenv("ETHERPAD_IPLOGGING") == "" {
+		if viper.GetBool("disableIPLogging") {
+			viper.Set("ipLogging", IPLoggingAnonymous)
+		} else {
+			viper.Set("ipLogging", IPLoggingFull)
+		}
+	}
+
 	// --- Unmarshal ---
 	var s Settings
 	if err := viper.Unmarshal(&s); err != nil {
@@ -47,5 +58,11 @@ func ReadConfig() (*Settings, error) {
 		}
 	}
 
+	switch s.IPLogging {
+	case IPLoggingFull, IPLoggingTruncated, IPLoggingAnonymous:
+	default:
+		// An unknown mode must not log addresses.
+		s.IPLogging = IPLoggingAnonymous
+	}
 	return &s, nil
 }

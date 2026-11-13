@@ -66,12 +66,12 @@ func HandlePadOpen(c fiber.Ctx, uiAssets embed.FS, retrievedSettings *settings.S
 // needs. Kept local so the socialmeta package stays router-agnostic.
 func buildRequestInfo(c fiber.Ctx) socialmeta.RequestInfo {
 	scheme := "http"
-	if c.Protocol() == "https" {
+	if c.Scheme() == "https" {
 		scheme = "https"
 	}
 	return socialmeta.RequestInfo{
 		Scheme:         scheme,
-		Host:           string(c.Request().Host()),
+		Host:           c.Host(),
 		Path:           c.Path(),
 		AcceptLanguage: c.Get("Accept-Language"),
 	}

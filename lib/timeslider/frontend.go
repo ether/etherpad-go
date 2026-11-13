@@ -26,7 +26,7 @@ func HandleTimesliderOpen(c fiber.Ctx, uiAssets embed.FS, retrievedSettings *set
 
 	padName := c.Params("pad")
 	scheme := "http"
-	if c.Protocol() == "https" {
+	if c.Scheme() == "https" {
 		scheme = "https"
 	}
 	favicon := ""
@@ -40,7 +40,7 @@ func HandleTimesliderOpen(c fiber.Ctx, uiAssets embed.FS, retrievedSettings *set
 	socialMetaHTML := socialmeta.Render(socialmeta.Opts{
 		Req: socialmeta.RequestInfo{
 			Scheme:         scheme,
-			Host:           string(c.Request().Host()),
+			Host:           c.Host(),
 			Path:           c.Path(),
 			AcceptLanguage: c.Get("Accept-Language"),
 		},

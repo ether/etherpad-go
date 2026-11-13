@@ -1,4 +1,4 @@
-import {Cookies, randomString} from './pad_utils';
+import {Cookies} from './pad_utils';
 import padutils from './pad_utils';
 import {padimpexp} from './pad_impexp';
 import html10n from './i18n';
@@ -136,11 +136,9 @@ export const init = async (): Promise<void> => {
   padId = decodeURIComponent(urlParts[urlParts.length - 2]);
   document.title = `${padId.replace(/_+/g, ' ')} | ${document.title.replace('{{appTitle}}', '')}`;
 
+  // The author token is an HttpOnly cookie (see pad.ts); only an older
+  // version's readable cookie is passed on.
   token = Cookies.get('token') ?? '';
-  if (!token) {
-    token = `t.${randomString()}`;
-    Cookies.set('token', token, {expires: 60});
-  }
 
   const currentSocket = socketio.connect(baseURL, '/', {query: {padId}}) as SocketLike;
   socket = currentSocket;

@@ -501,7 +501,12 @@ func (p *PadMessageHandler) HandleMessage(message any, client *Client, retrieved
 		// passing "" on would map every such connection to one shared author
 		// (GHSA-746x-9w89-7xv6). It is stored in the session so later
 		// messages of this connection resolve to the same author.
+		// The HttpOnly cookie of the handshake is the author's token; the
+		// token in the message is only used by older clients.
 		resolvedToken := castedMessage.Data.Token
+		if client.CookieToken != "" {
+			resolvedToken = client.CookieToken
+		}
 		if resolvedToken == "" {
 			resolvedToken = utils.GenerateAuthorToken()
 		}
@@ -541,15 +546,7 @@ func (p *PadMessageHandler) HandleMessage(message any, client *Client, retrieved
 	var auth = thisSession.Auth
 
 	if auth == nil {
-		var ip string
-		if client.ClientIP == "" {
-			ip = "TEST"
-		} else if retrievedSettings.DisableIPLogging {
-			ip = "ANONYMOUS"
-		} else {
-			ip = client.ClientIP
-		}
-		p.Logger.Warn("pre-CLIENT_READY message from IP " + ip)
+		p.Logger.Warn("pre-CLIENT_READY message from IP " + retrievedSettings.LogIP(client.ClientIP))
 		return
 	}
 
@@ -1352,11 +1349,7 @@ func (p *PadMessageHandler) HandleDisconnectOfPadClient(client *Client, settings
 		return
 	}
 
-	if settings.DisableIPLogging {
-		logger.Infof("[LEAVE] pad:%s socket:%s IP:ANONYMOUS ", thisSession.PadId, client.SessionId)
-	} else {
-		logger.Infof("[LEAVE] pad:%s socket:%s IP:%s ", thisSession.PadId, client.SessionId, client.ClientIP)
-	}
+	logger.Infof("[LEAVE] pad:%s socket:%s IP:%s ", thisSession.PadId, client.SessionId, settings.LogIP(client.ClientIP))
 
 	// Presence is keyed by author. With several sessions of one author
 	// (etherpad-lite #7656) only the last one to leave announces USER_LEAVE
@@ -1487,12 +1480,8 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 		loggerStr = "[ENTER] " + loggerStr
 	}
 
-	if retrievedSettings.DisableIPLogging {
-		loggerStr += " IP:ANONYMOUS "
-	} else {
-		loggerStr += " IP:%s "
-		argsForLogger = append(argsForLogger, client.ClientIP)
-	}
+	loggerStr += " IP:%s "
+	argsForLogger = append(argsForLogger, retrievedSettings.LogIP(client.ClientIP))
 
 	logger.Infof(loggerStr, argsForLogger...)
 

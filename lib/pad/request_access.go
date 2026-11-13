@@ -37,7 +37,7 @@ func RequestUser(ctx fiber.Ctx) *webaccess.SocketClientRequest {
 // user webaccess authenticated, the token cookie and the integrator's
 // sessionID cookie, as etherpad-lite's import and export routes do.
 func (s *SecurityManager) CheckRequestAccess(ctx fiber.Ctx, padId string) (*GrantedAccess, error) {
-	token := ctx.Cookies("token")
+	token := AuthorTokenFromCookies(ctx.Cookies, s.settings)
 	var session *string
 	prefix := ""
 	if s.settings != nil {
