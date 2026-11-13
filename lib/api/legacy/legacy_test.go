@@ -2,28 +2,26 @@ package legacy
 
 import (
 	"os"
+
+	"github.com/ether/etherpad-go/lib/apikeys"
+	"github.com/ether/etherpad-go/lib/db"
 	"path/filepath"
 	"testing"
 )
 
-func TestLoadAPIKey(t *testing.T) {
+func TestReadAPIKeyFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "APIKEY.txt")
-	key, err := LoadAPIKey(path)
-	if err != nil || len(key) != 32 {
-		t.Fatalf("a missing file gets a random 32 character key: %q, %v", key, err)
+	key, err := ReadAPIKeyFile(path)
+	if err != nil || key != "" {
+		t.Fatalf("no file, no key: %q, %v", key, err)
 	}
-	info, err := os.Stat(path)
-	if err != nil || info.Mode().Perm() != 0o600 {
-		t.Fatalf("the key file is private: %v, %v", info, err)
-	}
-	again, err := LoadAPIKey(path)
-	if err != nil || again != key {
-		t.Fatalf("the key is kept: %q != %q (%v)", again, key, err)
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("the file is not created")
 	}
 	if err := os.WriteFile(path, []byte("  my-key\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if got, _ := LoadAPIKey(path); got != "my-key" {
+	if got, _ := ReadAPIKeyFile(path); got != "my-key" {
 		t.Fatalf("white space around the key is ignored: %q", got)
 	}
 	t.Setenv("EP_APIKEY_FILE", "/etc/etherpad/key")
@@ -82,5 +80,32 @@ func TestServerOrigin(t *testing.T) {
 		if got := serverOrigin(c.publicURL, c.scheme, c.host); got != c.want {
 			t.Errorf("serverOrigin(%q, %q, %q) = %q, want %q", c.publicURL, c.scheme, c.host, got, c.want)
 		}
+	}
+}
+
+func TestImportAPIKeyFile(t *testing.T) {
+	keys := apikeys.NewManager(db.NewMemoryDataStore())
+	path := filepath.Join(t.TempDir(), "APIKEY.txt")
+	if stored, err := ImportAPIKeyFile(keys, path); err != nil || stored {
+		t.Fatalf("no file: %v, %v", stored, err)
+	}
+	if err := os.WriteFile(path, []byte("old-key\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if stored, err := ImportAPIKeyFile(keys, path); err != nil || !stored {
+		t.Fatalf("first start: %v, %v", stored, err)
+	}
+	if stored, err := ImportAPIKeyFile(keys, path); err != nil || stored {
+		t.Fatalf("second start takes it over again: %v, %v", stored, err)
+	}
+	list, _ := keys.List()
+	if len(list) != 1 || list[0].Description != "APIKEY.txt" {
+		t.Fatalf("listed as APIKEY.txt: %+v", list)
+	}
+	if _, ok := keys.Check("old-key"); !ok {
+		t.Fatal("the old key still works")
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatal("the file is left alone")
 	}
 }

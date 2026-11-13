@@ -30,3 +30,13 @@ export const restartEtherpad = async (page: Page) => {
     await page.waitForTimeout(500)
     await page.waitForSelector('.settings')
 }
+
+// createApiKey creates an HTTP API key on the admin page and returns it.
+export const createApiKey = async (page: Page, description: string): Promise<string> => {
+    await page.getByRole('link', {name: 'API keys'}).click()
+    await page.getByLabel('Description of the new key').fill(description)
+    await page.getByRole('button', {name: 'Create key'}).click()
+    const value = page.getByTestId('apikey-value')
+    await expect(value).toBeVisible()
+    return (await value.textContent())!.trim()
+}

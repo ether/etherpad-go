@@ -16,6 +16,7 @@ import (
 	"github.com/ether/etherpad-go/lib/api/static"
 	"github.com/ether/etherpad-go/lib/api/stats"
 	swagger2 "github.com/ether/etherpad-go/lib/api/swagger"
+	"github.com/ether/etherpad-go/lib/apikeys"
 	"github.com/ether/etherpad-go/lib/locales"
 	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/gofiber/fiber/v3"
@@ -70,23 +71,16 @@ func InitAPI(store *lib.InitStore) *oidc.Authenticator {
 }
 
 // initLegacyAPI serves etherpad-lite's HTTP API under /api for existing
-// clients (Moodle and others). With authenticationMethod "apikey" it takes
-// the key from APIKEY.txt; otherwise the admin bearer token.
+// clients (Moodle and others). Calls need an API key created in the admin
+// UI, or the admin bearer token. A key in APIKEY.txt (etherpad-lite and
+// earlier releases) is taken over into the admin UI's keys once.
 func initLegacyAPI(store *lib.InitStore, authenticator *oidc.Authenticator, adminClient *settings.SSOClient) {
-	var apiKey string
-	if store.RetrievedSettings.AuthenticationMethod == "apikey" {
-		path := legacy.APIKeyFile(store.RetrievedSettings.Root)
-		key, err := legacy.LoadAPIKey(path)
-		if err != nil {
-			store.Logger.Errorf("legacy API disabled: cannot read or create the API key file %s: %v", path, err)
-			return
-		}
-		if key == "" {
-			store.Logger.Errorf("legacy API disabled: the API key file %s is empty", path)
-			return
-		}
-		apiKey = key
-		store.Logger.Infof("HTTP API (/api) uses the API key from %s", path)
+	keys := apikeys.NewManager(store.Store)
+	path := legacy.APIKeyFile(store.RetrievedSettings.Root)
+	if stored, err := legacy.ImportAPIKeyFile(keys, path); err != nil {
+		store.Logger.Errorf("cannot take over the API key of %s: %v", path, err)
+	} else if stored {
+		store.Logger.Infof("The API key of %s is now listed in the admin UI (API keys) as \"APIKEY.txt\"; the file is no longer needed", path)
 	}
 	// An admin's token, as for /admin/api, or a client_credentials token
 	// of a configured client (etherpad-lite accepts both).
@@ -98,5 +92,5 @@ func initLegacyAPI(store *lib.InitStore, authenticator *oidc.Authenticator, admi
 		}
 		return authenticator.ValidateServiceToken(token)
 	}
-	legacy.New(store, apiKey, bearer).Register(store.C)
+	legacy.New(store, keys, bearer).Register(store.C)
 }

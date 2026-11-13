@@ -174,6 +174,7 @@ type DataStore interface {
 	SheetMethods
 	ConsistencyMethods
 	ClusterMethods
+	APIKeyMethods
 	PadHeadMethods
 	LeaderMethods
 	Close() error

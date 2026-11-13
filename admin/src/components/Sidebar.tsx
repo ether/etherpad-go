@@ -5,6 +5,7 @@ import {
   FileText,
   Megaphone,
   Settings,
+  KeyRound,
 } from 'lucide-react'
 import { useAdminStore } from '@/store'
 
@@ -13,6 +14,7 @@ const navItems = [
   { to: '/monitoring', label: 'Monitoring', icon: Activity },
   { to: '/pads', label: 'Pads', icon: FileText },
   { to: '/broadcast', label: 'Broadcast', icon: Megaphone },
+  { to: '/keys', label: 'API keys', icon: KeyRound },
   { to: '/settings', label: 'Settings', icon: Settings },
 ] as const
 

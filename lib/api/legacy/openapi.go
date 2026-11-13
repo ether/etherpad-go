@@ -76,17 +76,13 @@ func (a *API) definition(version, serverURL string) fiber.Map {
 	for _, t := range tagDescriptions {
 		tags = append(tags, fiber.Map{"name": t.name, "description": t.description})
 	}
-	schemes := fiber.Map{}
-	var security []fiber.Map
-	if a.apiKey != "" {
-		schemes["ApiKey"] = fiber.Map{"type": "apiKey", "in": "query", "name": "apikey"}
-		schemes["ApiKeyAlias"] = fiber.Map{"type": "apiKey", "in": "query", "name": "api_key"}
-		schemes["ApiKeyHeader"] = fiber.Map{"type": "apiKey", "in": "header", "name": "apikey"}
-		security = []fiber.Map{{"ApiKey": []string{}}, {"ApiKeyAlias": []string{}}, {"ApiKeyHeader": []string{}}}
-	} else {
-		schemes["Bearer"] = fiber.Map{"type": "http", "scheme": "bearer"}
-		security = []fiber.Map{{"Bearer": []string{}}}
+	schemes := fiber.Map{
+		"ApiKey":       fiber.Map{"type": "apiKey", "in": "query", "name": "apikey"},
+		"ApiKeyAlias":  fiber.Map{"type": "apiKey", "in": "query", "name": "api_key"},
+		"ApiKeyHeader": fiber.Map{"type": "apiKey", "in": "header", "name": "apikey"},
+		"Bearer":       fiber.Map{"type": "http", "scheme": "bearer"},
 	}
+	security := []fiber.Map{{"ApiKey": []string{}}, {"ApiKeyAlias": []string{}}, {"ApiKeyHeader": []string{}}, {"Bearer": []string{}}}
 	response := func(description string) fiber.Map {
 		return fiber.Map{"description": description, "content": fiber.Map{"application/json": fiber.Map{
 			"schema": fiber.Map{"$ref": "#/components/schemas/Response"},

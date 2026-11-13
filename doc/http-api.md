@@ -33,16 +33,24 @@ Every answer is `{"code": …, "message": …, "data": …}`:
 
 ## Authentication
 
-Set `authenticationMethod` in `settings.json`:
+Calls need one of these:
 
-- `"apikey"`: calls need the API key in the `apikey` or `api_key` parameter or in the
-  `Authorization` header. The key is read from `APIKEY.txt` in the Etherpad directory, or from
-  the file named by the environment variable `EP_APIKEY_FILE`. If the file does not exist it is
-  created with a random key, readable by the owner only. This is what Moodle and most plugins
-  expect.
-- `"sso"` (default): calls need `Authorization: Bearer <token>`. Accepted are an
-  administrator's token, as for `/admin/api`, and an access token that an SSO client with the
-  `client_credentials` grant got from Etherpad's OpenID provider.
+- **An API key.** Keys are created on the admin page under *API keys*: one per service
+  (Moodle, a backup script, …), each with a description. The key is shown once, when it is
+  created; Etherpad stores only its SHA-256 hash and, to tell keys apart, its first ten
+  characters. A key can be disabled, enabled again and deleted without touching the others;
+  the list shows when each key was last used. The key goes in the `apikey` or `api_key`
+  parameter, or in the `Authorization` or `apikey` header.
+- **A bearer token** (`Authorization: Bearer <token>`): an administrator's token, as for
+  `/admin/api`, or an access token that an SSO client with the `client_credentials` grant got
+  from Etherpad's OpenID provider.
+
+Both work whatever `authenticationMethod` says.
+
+Keys live in the database, so all instances of a cluster know them. A key from an
+`APIKEY.txt` (etherpad-lite, or an earlier etherpad-go release) is taken over once at start-up
+and listed as "APIKEY.txt"; the file is then no longer needed. `EP_APIKEY_FILE` names another
+path for it. etherpad-go no longer creates the file.
 
 ## Differences to etherpad-lite
 

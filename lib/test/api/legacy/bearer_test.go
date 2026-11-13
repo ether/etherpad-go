@@ -5,8 +5,10 @@ import (
 	"testing"
 
 	"github.com/ether/etherpad-go/lib/api/legacy"
+	"github.com/ether/etherpad-go/lib/apikeys"
 	"github.com/ether/etherpad-go/lib/test/testutils"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // Port of etherpad-lite's api/jwtAdminClaim for the API's side: without an
@@ -19,7 +21,7 @@ func TestLegacyBearerAuth(t *testing.T) {
 
 func testLegacyBearer(t *testing.T, ds testutils.TestDataStore) {
 	store := ds.ToInitStore()
-	legacy.New(store, "", func(token string) bool { return token == "good" }).Register(store.C)
+	legacy.New(store, apikeys.NewManager(ds.DS), func(token string) bool { return token == "good" }).Register(store.C)
 	c := &client{t: t, app: store.C, version: legacy.LatestVersion}
 
 	call := func(header string) (int, legacy.Response) {
@@ -43,7 +45,13 @@ func testLegacyBearer(t *testing.T, ds testutils.TestDataStore) {
 	status, _ = call("good")
 	assert.Equal(t, 200, status, "the Bearer prefix may be left out, as in etherpad-lite")
 
-	// an apikey parameter is no way in when the API key is not used
+	// a bearer token is no API key
 	status, _, _ = c.getStatus("listAllPads", map[string]string{"apikey": "good"})
 	assert.Equal(t, 401, status)
+
+	// keys and bearer tokens work side by side
+	key, _, err := apikeys.NewManager(ds.DS).Create("script")
+	require.NoError(t, err)
+	status, _, _ = c.getStatus("listAllPads", map[string]string{"apikey": key})
+	assert.Equal(t, 200, status)
 }

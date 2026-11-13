@@ -41,6 +41,22 @@ export interface Toast {
   message: string
 }
 
+export interface ApiKey {
+  id: string
+  description: string
+  prefix: string
+  createdAt: number
+  lastUsed: number | null
+  disabled: boolean
+}
+
+export interface ApiKeysResult {
+  keys: ApiKey[]
+  // created is the new key; it is shown once.
+  created?: { id: string; key: string }
+  error?: string
+}
+
 export interface AdminState {
   currentPage: string
   connected: boolean
@@ -48,6 +64,8 @@ export interface AdminState {
   toast: Toast | null
   // authError is set when the server refused the admin connection.
   authError: string | null
+  // apiKeys is the last answer about the HTTP API keys; null before one.
+  apiKeys: ApiKeysResult | null
   update: UpdateCheckResult | null
   updateStatus: UpdateStatus | null
   pads: PadRecord[]
@@ -80,6 +98,7 @@ type Action =
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'SET_TOAST'; payload: Toast | null }
   | { type: 'SET_AUTH_ERROR'; payload: string | null }
+  | { type: 'SET_API_KEYS'; payload: ApiKeysResult | null }
   | { type: 'SET_CURRENT_PAGE'; payload: string }
   | { type: 'SET_SETTINGS'; payload: string }
   | { type: 'SET_SETTINGS_READONLY'; payload: boolean }
@@ -110,6 +129,7 @@ const initialState: AdminState = {
   loading: false,
   toast: null,
   authError: null,
+  apiKeys: null,
   update: null,
   updateStatus: null,
   pads: [],
@@ -145,6 +165,8 @@ function adminReducer(state: AdminState, action: Action): AdminState {
       return { ...state, toast: action.payload }
     case 'SET_AUTH_ERROR':
       return { ...state, authError: action.payload }
+    case 'SET_API_KEYS':
+      return { ...state, apiKeys: action.payload }
     case 'SET_CURRENT_PAGE':
       return { ...state, currentPage: action.payload }
     case 'SET_SETTINGS':
@@ -322,6 +344,9 @@ export function AdminProvider({ children }: { children: ReactNode }) {
             ? { kind: 'success', message: 'Update state acknowledged.' }
             : { kind: 'error', message: payload?.error ?? 'Failed to acknowledge' },
         })
+        break
+      case 'results:apiKeys':
+        dispatch({ type: 'SET_API_KEYS', payload: payload as ApiKeysResult })
         break
       case 'results:padLoad':
         dispatch({

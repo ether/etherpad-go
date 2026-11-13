@@ -12,12 +12,11 @@ import (
 	"testing"
 
 	"github.com/ether/etherpad-go/lib/api/legacy"
+	"github.com/ether/etherpad-go/lib/apikeys"
 	"github.com/ether/etherpad-go/lib/test/testutils"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/require"
 )
-
-const testAPIKey = "test-api-key-0123456789abcdef0123"
 
 // client calls the legacy API of one test server.
 type client struct {
@@ -25,13 +24,18 @@ type client struct {
 	app     *fiber.App
 	version string
 	key     string
+	keys    *apikeys.Manager
 }
 
+// newClient serves the API with one key, created as in the admin UI.
 func newClient(t *testing.T, ds testutils.TestDataStore) *client {
 	t.Helper()
 	store := ds.ToInitStore()
-	legacy.New(store, testAPIKey, nil).Register(store.C)
-	return &client{t: t, app: store.C, version: legacy.LatestVersion, key: testAPIKey}
+	keys := apikeys.NewManager(ds.DS)
+	key, _, err := keys.Create("tests")
+	require.NoError(t, err)
+	legacy.New(store, keys, nil).Register(store.C)
+	return &client{t: t, app: store.C, version: legacy.LatestVersion, key: key, keys: keys}
 }
 
 func (c *client) do(req *http.Request) (int, legacy.Response, string) {

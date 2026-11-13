@@ -20,6 +20,7 @@ func GetMigrations() []Migration {
 		migration011SheetEpoch(),
 		migration012PadSettings(),
 		migration013MySQLBinaryIDs(),
+		migration014APIKeys(),
 	}
 }
 
