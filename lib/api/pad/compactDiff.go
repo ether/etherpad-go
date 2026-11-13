@@ -15,18 +15,22 @@ import (
 
 // CompactPadRequest represents the request to compact a pad's revision history
 type CompactPadRequest struct {
-	KeepRevisions int `json:"keepRevisions"`
+	// KeepRevisions is how many of the latest revisions stay; omitted, the
+	// whole history is collapsed into one revision.
+	KeepRevisions *int `json:"keepRevisions"`
 }
 
 // CompactPadResponse represents the response after compacting a pad
 type CompactPadResponse struct {
-	Ok            bool `json:"ok"`
-	KeepRevisions int  `json:"keepRevisions"`
+	Ok bool `json:"ok"`
+	// Mode is "all" (history collapsed) or "keepLast".
+	Mode          string `json:"mode"`
+	KeepRevisions int    `json:"keepRevisions"`
 }
 
 // CompactPad godoc
 // @Summary Compact a pad's revision history
-// @Description Collapses the pad's revision history so that only the last keepRevisions revisions are kept (original API: compactPad). The revisions below the cut are composed into a single base revision; pad text is preserved. Destructive — consider exporting the pad first.
+// @Description Collapses the pad's revision history so that only the last keepRevisions revisions are kept, or all of it into one revision when keepRevisions is omitted (original API: compactPad). The history is swapped in one transaction; pad text is preserved. Needs cleanup.enabled. Destructive — consider exporting the pad first.
 // @Tags Pads
 // @Accept json
 // @Produce json
@@ -51,28 +55,33 @@ func CompactPad(initStore *lib.InitStore) fiber.Handler {
 			return c.Status(404).JSON(errors2.PadNotFoundError)
 		}
 
-		if request.KeepRevisions < 1 {
-			return c.Status(400).JSON(errors2.NewInvalidParamError("keepRevisions must be at least 1"))
+		// Destructive, so it is opt-in like the admin UI's cleanup.
+		if !initStore.RetrievedSettings.Cleanup.Enabled {
+			return c.Status(403).JSON(errors2.NewInvalidParamError("compacting needs cleanup.enabled = true in the settings"))
 		}
-		if request.KeepRevisions >= foundPad.Head {
-			return c.Status(400).JSON(errors2.NewInvalidParamError("keepRevisions must be lower than the pad's head revision"))
+		keep, mode := 0, "all"
+		if request.KeepRevisions != nil {
+			if *request.KeepRevisions < 0 {
+				return c.Status(400).JSON(errors2.NewInvalidParamError("keepRevisions must be a non-negative integer"))
+			}
+			keep, mode = *request.KeepRevisions, "keepLast"
 		}
-
+		if keep >= foundPad.Head {
+			// Nothing to drop.
+			return c.JSON(CompactPadResponse{Ok: true, Mode: mode, KeepRevisions: keep})
+		}
 		// Reuse the revision compaction the admin UI uses
 		// (AdminMessageHandler.DeleteRevisions). DeleteRevisions only needs the
 		// store, pad manager, pad message handler and logger, all of which are
 		// available from the InitStore, so a handler is wired up on the fly
 		// (hub is not used by DeleteRevisions).
 		adminHandler := ws.NewAdminMessageHandler(initStore.Store, initStore.Hooks, initStore.PadManager, initStore.Handler, initStore.Logger, nil, initStore.C, nil)
-		if err := adminHandler.DeleteRevisions(padId, request.KeepRevisions); err != nil {
+		if err := adminHandler.DeleteRevisions(padId, keep); err != nil {
 			initStore.Logger.Errorf("Error compacting pad %s: %v", padId, err)
 			return c.Status(500).JSON(errors2.InternalServerError)
 		}
 
-		return c.JSON(CompactPadResponse{
-			Ok:            true,
-			KeepRevisions: request.KeepRevisions,
-		})
+		return c.JSON(CompactPadResponse{Ok: true, Mode: mode, KeepRevisions: keep})
 	}
 }
 

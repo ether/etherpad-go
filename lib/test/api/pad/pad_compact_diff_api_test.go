@@ -108,6 +108,7 @@ func getCurrentPadText(t *testing.T, initStore *lib.InitStore, padId string) str
 // compactPadViaAPI issues the compact request and returns the response status.
 func compactPadViaAPI(t *testing.T, initStore *lib.InitStore, padId string, body []byte) int {
 	t.Helper()
+	initStore.RetrievedSettings.Cleanup.Enabled = true
 
 	req := httptest.NewRequest("POST", "/admin/api/pads/"+padId+"/compact", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -136,7 +137,7 @@ func testCompactPadSuccess(t *testing.T, tsStore testutils.TestDataStore) {
 	}
 	assert.Equal(t, 4, getRevisionsCountViaAPI(t, initStore, "compactpad"))
 
-	body, _ := json.Marshal(pad.CompactPadRequest{KeepRevisions: 2})
+	body, _ := json.Marshal(map[string]int{"keepRevisions": 2})
 	status := compactPadViaAPI(t, initStore, "compactpad", body)
 	assert.Equal(t, 200, status)
 
@@ -151,7 +152,7 @@ func testCompactPadNotFound(t *testing.T, tsStore testutils.TestDataStore) {
 	initStore := tsStore.ToInitStore()
 	pad.Init(initStore)
 
-	body, _ := json.Marshal(pad.CompactPadRequest{KeepRevisions: 1})
+	body, _ := json.Marshal(map[string]int{"keepRevisions": 1})
 	status := compactPadViaAPI(t, initStore, "compactnonexistentpad", body)
 	assert.Equal(t, 404, status)
 }
@@ -168,19 +169,14 @@ func testCompactPadInvalidKeepRevisions(t *testing.T, tsStore testutils.TestData
 	setPadTextViaAPI(t, initStore, "compactvalpad", "Version 2", testAuthor.Id)
 	// head is now 2
 
-	// keepRevisions must be >= 1
-	body, _ := json.Marshal(pad.CompactPadRequest{KeepRevisions: 0})
-	assert.Equal(t, 400, compactPadViaAPI(t, initStore, "compactvalpad", body))
+	// negative keepRevisions, non-numbers and fractions are refused
+	assert.Equal(t, 400, compactPadViaAPI(t, initStore, "compactvalpad", []byte(`{"keepRevisions":-1}`)))
+	assert.Equal(t, 400, compactPadViaAPI(t, initStore, "compactvalpad", []byte(`{"keepRevisions":"nope"}`)))
+	assert.Equal(t, 400, compactPadViaAPI(t, initStore, "compactvalpad", []byte(`{"keepRevisions":2.5}`)))
 
-	// keepRevisions missing defaults to 0 and is rejected
-	assert.Equal(t, 400, compactPadViaAPI(t, initStore, "compactvalpad", []byte("{}")))
-
-	// keepRevisions must be lower than the head revision
-	body, _ = json.Marshal(pad.CompactPadRequest{KeepRevisions: 2})
-	assert.Equal(t, 400, compactPadViaAPI(t, initStore, "compactvalpad", body))
-
-	body, _ = json.Marshal(pad.CompactPadRequest{KeepRevisions: 5})
-	assert.Equal(t, 400, compactPadViaAPI(t, initStore, "compactvalpad", body))
+	// keeping at least head revisions has nothing to drop
+	body, _ := json.Marshal(map[string]int{"keepRevisions": 5})
+	assert.Equal(t, 200, compactPadViaAPI(t, initStore, "compactvalpad", body))
 
 	// nothing was deleted
 	assert.Equal(t, 2, getRevisionsCountViaAPI(t, initStore, "compactvalpad"))

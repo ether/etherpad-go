@@ -33,6 +33,11 @@ type PadMethods interface {
 	SaveRevision(padId string, rev int, changeset string, text db.AText, pool db.RevPool, authorId *string, timestamp int64) error
 	GetRevision(padId string, rev int) (*db.PadSingleRevision, error)
 	RemoveRevisionsOfPad(padId string) error
+	// ReplaceRevisions swaps the pad's whole revision history and its row
+	// in one transaction: afterwards the pad has exactly revisions (numbered
+	// from 0) and the row pad; on any error nothing changed. Used by
+	// revision compaction, which must never leave a pad half rewritten.
+	ReplaceRevisions(padId string, pad db.PadDB, revisions []db.PadSingleRevision) error
 	GetRevisions(padId string, startRev int, endRev int) (*[]db.PadSingleRevision, error)
 	GetPad(padID string) (*db.PadDB, error)
 	GetReadonlyPad(padId string) (*string, error)
