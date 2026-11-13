@@ -66,8 +66,8 @@ func TestRetentionDryRunAndGroupExclusion(t *testing.T) {
 		ExcludeGroupPads:   true,
 	})
 
-	if notice := retention.CheckOnOpen("old"); notice == nil || notice.State != "expired" {
-		t.Fatalf("expected dry-run expired notice, got %#v", notice)
+	if notice := retention.CheckOnOpen("old"); notice != nil {
+		t.Fatalf("a dry run must not tell the user anything, got %#v", notice)
 	}
 	if notice := retention.CheckOnOpen("g.1234567890123456$group"); notice != nil {
 		t.Fatalf("expected excluded group pad to have no notice, got %#v", notice)

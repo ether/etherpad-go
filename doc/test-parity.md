@@ -7,10 +7,10 @@ behaviour, they are not line-by-line translations.
 
 | Status | Files | Test cases |
 |---|---|---|
-| Ported | 38 | 448 |
-| Partly ported | 2 | 95 |
+| Ported | 44 | 499 |
+| Partly ported | 3 | 127 |
 | Not applicable to Go | 36 | 306 |
-| To compare case by case | 96 | 885 |
+| To compare case by case | 89 | 802 |
 
 "To compare" does not mean untested: most of these areas have Go tests (the Go code refers
 to more than 20 upstream issues). It means nobody has checked yet, case by case, which
@@ -59,12 +59,19 @@ upstream cases the Go tests cover and which are missing.
 | `api/importexportGetPost` | 49 | `lib/test/api/io/importexport_parity_test.go`; invalid revisions (`1test`, `test1`) answer 400, malformed `.etherpad` files 400, where etherpad-lite answers 200/500; the LibreOffice cases run against the native DOCX/ODT/PDF import and export |
 | `import` | 14 | `lib/test/api/io/import_roundtrip_parity_test.go`, `importexport_parity_test.go`; the mammoth/html-to-docx converter cases do not apply (DOCX is read and written natively). DOCX and ODT import keep the text only (alignment, headings and formatting are lost) |
 | `cssFontInlining` | 6 | `ui/src/css_font_inlining.test.ts` (vitest) |
+| `cleanupHoleSafety` | 2 | `lib/test/api/pad/compact_parity_test.go` (the history is swapped in one transaction, the cached pad is dropped on failure) |
+| `cleanupMissingRevisions` | 11 | `lib/test/api/pad/compact_parity_test.go` (findMissingRevisions is internal: the refusal names the holes); a full compaction repairs a pad only when its latest text can be rebuilt (from its last key revision on), since etherpad-go does not keep the full text in the pad row |
+| `cleanupNoDestructiveWindow` | 6 | `lib/test/api/pad/compact_parity_test.go` |
+| `padRetention` | 20 | `lib/pad/retention_test.go`, `retention_parity_test.go`, `lib/settings/pad_retention_defaults_test.go` |
+| `api/deletePad` | 7 | `lib/test/api/pad/pad_api_test.go` (`TestPadDeletionTokensAPI`), on the admin REST API |
+| `api/movePadDeletionToken` | 5 | `lib/test/api/pad/pad_api_test.go` (`TestPadDeletionTokensAPI`) |
 ## Partly ported
 
 | Spec | Cases | State |
 |---|---|---|
 | `new/easysync-other` | 9 | moveOpsToNewPool, makeSplice, applyToAttribution and split/join are covered in `lib/changeset`; filterAttribNumbers, makeAttribsString, toSplices and opAttributeValue do not exist in the Go package (deprecated or client-only upstream) |
 | `export` | 86 | the HTTP cases (500 on error, DOCX/PDF/ODT signatures and content types) in `lib/test/api/io/importexport_parity_test.go`. sanitizeExportHtml, extractBody, wrapLooseLines, dropEmptyBlocks, collapseRedundantBrAfterBlocks, separateAdjacentHeadingBlocks, applyMonospaceToCode and htmlToPdfBuffer test etherpad-lite's HTML-to-DOCX/PDF converter, which etherpad-go does not have: it builds the documents from the pad and fetches no URLs. Open: the PDF has no link annotations and ignores font-family (ep_font_family) and an exportPdfFonts setting, which etherpad-go does not have |
+| `compactPad` | 32 | API.compactPad on `/admin/api/pads/{id}/compact` in `lib/test/api/pad/compact_parity_test.go`, `pad_compact_diff_api_test.go`; the 23 runCompactAll/runCompactStale cases test etherpad-lite's bin/compactAllPads and bin/compactStalePads scripts, which etherpad-go does not have |
 
 ## `:` in pad ids
 
@@ -99,20 +106,6 @@ Existing Go tests in this area: `lib/pad`, `lib/test/pad`, `lib/test/ws`
 | `padOptionsLegacyDefaults` | 11 |
 | `nullAuthorToken` | 4 |
 | `copyPadWithoutHistoryIntegrity` | 7 |
-
-### Cleanup, compaction, retention, deletion
-
-Existing Go tests in this area: `lib/pad/retention_test.go`, `lib/test/api/pad`
-
-| Spec | Cases |
-|---|---|
-| `cleanupHoleSafety` | 2 |
-| `cleanupMissingRevisions` | 11 |
-| `cleanupNoDestructiveWindow` | 6 |
-| `compactPad` | 32 |
-| `padRetention` | 20 |
-| `api/deletePad` | 7 |
-| `api/movePadDeletionToken` | 5 |
 
 ### HTTP API
 

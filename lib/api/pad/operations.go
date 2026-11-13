@@ -349,8 +349,10 @@ func DeletePad(initStore *lib.InitStore) fiber.Handler {
 		}
 
 		// API callers are trusted; a token they pass must still be right,
-		// as in etherpad-lite's deletePad(padID, deletionToken).
-		if token := c.Query("deletionToken"); token != "" && !padManager.NewDeletionTokens(initStore.Store).IsValid(padId, token) {
+		// as in etherpad-lite's deletePad(padID, deletionToken) — unless
+		// every user may delete pads, where tokens mean nothing.
+		if token := c.Query("deletionToken"); token != "" && !initStore.RetrievedSettings.AllowPadDeletionByAllUsers &&
+			!padManager.NewDeletionTokens(initStore.Store).IsValid(padId, token) {
 			return c.Status(401).JSON(errors2.NewInvalidParamError("invalid deletionToken"))
 		}
 

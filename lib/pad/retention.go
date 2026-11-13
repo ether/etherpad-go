@@ -122,9 +122,17 @@ func (r *Retention) Start() {
 		defer r.wg.Done()
 		timer := time.NewTimer(time.Minute)
 		defer timer.Stop()
+		cancelled := func() bool {
+			select {
+			case <-stop:
+				return true
+			default:
+				return false
+			}
+		}
 		select {
 		case <-timer.C:
-			r.sweepOnce(cfg)
+			r.sweep(cfg, cancelled)
 		case <-stop:
 			return
 		}
@@ -134,7 +142,7 @@ func (r *Retention) Start() {
 		for {
 			select {
 			case <-ticker.C:
-				r.sweepOnce(cfg)
+				r.sweep(cfg, cancelled)
 			case <-stop:
 				return
 			}
@@ -211,36 +219,55 @@ func (r *Retention) expirePad(padID string, cfg *retentionConfig, now time.Time)
 	return true, nil
 }
 
-func (r *Retention) sweepOnce(cfg *retentionConfig) {
+// sweepReport counts what one sweep did.
+type sweepReport struct {
+	checked, deleted, errors int
+}
+
+func (r *Retention) sweepOnce(cfg *retentionConfig) sweepReport {
+	return r.sweep(cfg, nil)
+}
+
+// sweep checks every pad; cancelled, if set, is asked between pads so
+// stopping the server does not wait for a sweep over a large instance.
+func (r *Retention) sweep(cfg *retentionConfig, cancelled func() bool) sweepReport {
+	var report sweepReport
 	if r.isLeader != nil && !r.isLeader() {
 		r.logger.Debugw("Pad retention sweep skipped: another instance is the leader")
-		return
+		return report
 	}
 	padIDs, err := r.store.GetPadIds()
 	if err != nil {
 		r.logger.Warnw("Pad retention sweep failed", "error", err)
-		return
+		report.errors++
+		return report
 	}
-	deleted := 0
 	for _, padID := range *padIDs {
+		if cancelled != nil && cancelled() {
+			break
+		}
+		report.checked++
 		unlock, err := r.manager.LockPad(padID)
 		if err != nil {
 			r.logger.Warnw("Pad retention check skipped", "padId", padID, "error", err)
+			report.errors++
 			continue
 		}
 		removed, err := r.expirePad(padID, cfg, time.Now())
 		unlock()
 		if err != nil {
 			r.logger.Warnw("Pad retention check failed", "padId", padID, "error", err)
+			report.errors++
 			continue
 		}
 		if removed {
-			deleted++
+			report.deleted++
 		}
 	}
-	if deleted > 0 {
-		r.logger.Infow("Pad retention sweep completed", "deleted", deleted)
+	if report.deleted > 0 {
+		r.logger.Infow("Pad retention sweep completed", "deleted", report.deleted, "dryRun", cfg.dryRun)
 	}
+	return report
 }
 
 // CheckOnOpen checks retention immediately before a pad is loaded. It returns
@@ -261,6 +288,15 @@ func (r *Retention) CheckOnOpen(padID string) *RetentionNotice {
 		return nil
 	}
 	if status == nil {
+		return nil
+	}
+	// A dry run only logs: telling the user the pad was deleted (or will
+	// be) would be wrong, it stays (etherpad-lite: "neither deletes nor
+	// warns in dry run").
+	if cfg.dryRun {
+		if status.remaining <= 0 {
+			r.logger.Infow("Pad retention would delete pad", "padId", padID)
+		}
 		return nil
 	}
 	if status.remaining <= 0 {
