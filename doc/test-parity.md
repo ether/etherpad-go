@@ -7,10 +7,10 @@ behaviour, they are not line-by-line translations.
 
 | Status | Files | Test cases |
 |---|---|---|
-| Ported | 53 | 558 |
+| Ported | 57 | 587 |
 | Partly ported | 3 | 127 |
-| Not applicable to Go | 36 | 306 |
-| To compare case by case | 80 | 743 |
+| Not applicable to Go | 38 | 314 |
+| To compare case by case | 74 | 706 |
 
 "To compare" does not mean untested: most of these areas have Go tests (the Go code refers
 to more than 20 upstream issues). It means nobody has checked yet, case by case, which
@@ -74,6 +74,10 @@ upstream cases the Go tests cover and which are missing.
 | `padOptionsLegacyDefaults` | 11 | `lib/settings/pad_options_legacy_test.go`, `lib/test/ws/pad_options_clientvars_test.go` |
 | `nullAuthorToken` | 4 | `lib/test/pad/null_author_token_test.go`, `lib/test/ws/null_author_token_test.go` |
 | `copyPadWithoutHistoryIntegrity` | 7 | `lib/test/api/pad/copy_without_history_parity_test.go`, `compact_parity_test.go` |
+| `anonymizeIp` | 11 | `lib/settings/anonymize_ip_test.go` |
+| `ipLoggingSetting` | 11 | `lib/settings/ip_logging_test.go` (incl. a guard that every log line with a client IP goes through LogIP) |
+| `authorTokenCookie` | 2 | `lib/pad/author_token_cookie_test.go`, `lib/test/ws/author_token_cookie_test.go` |
+| `ensureAuthorTokenCookie` | 5 | `lib/pad/author_token_cookie_test.go`; the cookie is written on every page load (also when present) to take over older JavaScript cookies |
 ## Partly ported
 
 | Spec | Cases | State |
@@ -127,20 +131,13 @@ Existing Go tests in this area: `lib/test/api/*`, `lib/api/pad`
 
 Existing Go tests in this area: `lib/test/author`, `lib/test/api/author`
 
-| Spec | Cases |
-|---|---|
-| `anonymizeAuthor` | 8 |
-| `api/anonymizeAuthor` | 3 |
-| `admin/anonymizeAuthorSocket` | 7 |
-| `admin/authorSearch` | 6 |
-| `anonymizeIp` | 11 |
-| `ipLoggingSetting` | 11 |
-| `authorTokenCookie` | 2 |
-| `ensureAuthorTokenCookie` | 5 |
-| `tokenTransfer` | 10 |
-| `new/hooks/express/firstAuthorOf` | 6 |
-| `new/privacy/settings-defaults` | 2 |
-
+| Spec | Cases | Note |
+|---|---|---|
+| `anonymizeAuthor` | 8 | anonymization exists (`lib/test/author`), but returns no counters, has no dry run, no erased flag and no lastSeen |
+| `api/anonymizeAuthor` | 3 | see anonymizeAuthor; the API has no gdprAuthorErasure switch (admin API only) |
+| `admin/anonymizeAuthorSocket` | 7 | the admin UI has no author management (authorLoad, preview, anonymize) |
+| `admin/authorSearch` | 6 | see admin/anonymizeAuthorSocket |
+| `tokenTransfer` | 10 | etherpad-go has no token transfer (moving an author's identity to another browser) |
 ### Access, sessions, security
 
 Existing Go tests in this area: `lib/test/pad/webaccess_test.go`, `lib/security`, `lib/api/oidc`
@@ -262,3 +259,5 @@ Existing Go tests in this area: `lib/updater`, `lib/server/update_test.go` (Go h
 | `sanitizePluginsForWire` | 4 | npm plugin metadata |
 | `setup-trusted-publishers` | 5 | npm publishing setup |
 | `sofficeExportRemoteImage` | 3 | there is no LibreOffice converter and no HTML-to-document step; exports are built from the pad and fetch nothing |
+| `new/hooks/express/firstAuthorOf` | 6 | helper of etherpad-lite's update banner for pad creators; etherpad-go's updater notifies admins only |
+| `new/privacy/settings-defaults` | 2 | privacy.updateCheck/pluginCatalog: etherpad-go has no plugin catalog; update checks are switched off with updates.tier = "off" |
