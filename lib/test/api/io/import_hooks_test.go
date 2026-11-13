@@ -197,7 +197,7 @@ func buildMinimalEtherpadJSON(t *testing.T, srcPadName string) []byte {
 			"nextNum": 3,
 		},
 		"head":           0,
-		"chatHead":       0,
+		"chatHead":       -1,
 		"publicStatus":   false,
 		"savedRevisions": []any{},
 	}

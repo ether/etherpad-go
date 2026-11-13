@@ -174,6 +174,7 @@ func (e *ExportEtherpad) GetPadRaw(padId string, readOnlyId *string, revNum *int
 		export.Chats[fmt.Sprintf("%schat:%d", dstPfx, chatMessage.Head)] = ChatMessage{
 			Text:     chatMessage.ChatMessageDB.Message,
 			Time:     chatMessage.Time,
+			AuthorId: chatMessage.ChatMessageDB.AuthorId,
 			UserId:   chatMessage.ChatMessageDB.AuthorId,
 			UserName: authorOfChat.Name,
 		}
@@ -220,6 +221,18 @@ func (e *ExportEtherpad) GetPadRaw(padId string, readOnlyId *string, revNum *int
 	return export, nil
 }
 
+// exportFailed answers a failed export: a plain 500 without the download
+// headers, so the browser does not save the error text as the document,
+// and without internal details (they are logged).
+func (e *ExportEtherpad) exportFailed(ctx fiber.Ctx, padId, exportType string, err error) error {
+	if e.logger != nil {
+		e.logger.Warnf("Export of %s to %s failed: %v", padId, exportType, err)
+	}
+	ctx.Response().Header.Del(fiber.HeaderContentDisposition)
+	ctx.Set(fiber.HeaderContentType, fiber.MIMETextPlainCharsetUTF8)
+	return ctx.Status(500).SendString("Export failed")
+}
+
 func (e *ExportEtherpad) DoExport(ctx fiber.Ctx, id string, readOnlyId *string, fileExportType string) error {
 	fileName := id
 	if readOnlyId != nil {
@@ -247,7 +260,8 @@ func (e *ExportEtherpad) DoExport(ctx fiber.Ctx, id string, readOnlyId *string, 
 	if optRev != "" {
 		actualRev, err := utils.CheckValidRev(optRev)
 		if err != nil {
-			return ctx.Status(400).SendString(err.Error())
+			ctx.Response().Header.Del(fiber.HeaderContentDisposition)
+			return ctx.Status(400).SendString("Invalid revision")
 		}
 		optRevNum = actualRev
 
@@ -257,50 +271,45 @@ func (e *ExportEtherpad) DoExport(ctx fiber.Ctx, id string, readOnlyId *string, 
 	case "etherpad":
 		exportedPad, err := e.GetPadRaw(id, readOnlyId, optRevNum)
 		if err != nil {
-			return ctx.Status(500).SendString(err.Error())
+			return e.exportFailed(ctx, id, fileExportType, err)
 		}
 		marshalledPad, err := exportedPad.MarshalJSON()
 		if err != nil {
-			return ctx.Status(500).SendString(err.Error())
+			return e.exportFailed(ctx, id, fileExportType, err)
 		}
 		return ctx.Send(marshalledPad)
 	case "txt":
 		textString, err := e.exportTxt.GetPadTxtDocument(id, optRevNum)
 		if err != nil {
-			e.logger.Warnf("Failed to get txt document for id: %s with cause %s", id, err.Error())
-			return ctx.Status(500).SendString(err.Error())
+			return e.exportFailed(ctx, id, fileExportType, err)
 		}
 		return ctx.SendString(*textString)
 	case "pdf":
 		ctx.Set("Content-Type", "application/pdf")
 		pdfBytes, err := e.exportPDF.GetPadPdfDocument(id, optRevNum)
 		if err != nil {
-			e.logger.Warnf("Failed to get pdf document for id: %s with cause %s", id, err.Error())
-			return ctx.Status(500).SendString(err.Error())
+			return e.exportFailed(ctx, id, fileExportType, err)
 		}
 		return ctx.Send(pdfBytes)
 	case "doc", "docx", "word":
 		ctx.Set("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
 		docxBytes, err := e.exportDocx.GetPadDocxDocument(id, optRevNum)
 		if err != nil {
-			e.logger.Warnf("Failed to get docx document for id: %s with cause %s", id, err.Error())
-			return ctx.Status(500).SendString(err.Error())
+			return e.exportFailed(ctx, id, fileExportType, err)
 		}
 		return ctx.Send(docxBytes)
 	case "odt", "open":
 		ctx.Set("Content-Type", "application/vnd.oasis.opendocument.text")
 		odtBytes, err := e.exportOdt.GetPadOdtDocument(id, optRevNum)
 		if err != nil {
-			e.logger.Warnf("Failed to get odt document for id: %s with cause %s", id, err.Error())
-			return ctx.Status(500).SendString(err.Error())
+			return e.exportFailed(ctx, id, fileExportType, err)
 		}
 		return ctx.Send(odtBytes)
 	case "html":
 		ctx.Set("Content-Type", "text/html; charset=utf-8")
 		htmlContent, err := e.exportHtml.GetPadHTMLDocument(id, optRevNum, readOnlyId)
 		if err != nil {
-			e.logger.Warnf("Failed to get html document for id: %s with cause %s", id, err.Error())
-			return ctx.Status(500).SendString(err.Error())
+			return e.exportFailed(ctx, id, fileExportType, err)
 		}
 		// exportHTMLSend hook: plugins may replace the full HTML document.
 		sendCtx := &events.ExportHTMLSendContext{PadId: id, HTML: &htmlContent}
@@ -310,8 +319,7 @@ func (e *ExportEtherpad) DoExport(ctx fiber.Ctx, id string, readOnlyId *string, 
 		ctx.Set("Content-Type", "text/markdown; charset=utf-8")
 		markdownContent, err := e.exportMarkdown.GetPadMarkdownDocument(id, optRevNum)
 		if err != nil {
-			e.logger.Warnf("Failed to get markdown document for id: %s with cause %s", id, err.Error())
-			return ctx.Status(500).SendString(err.Error())
+			return e.exportFailed(ctx, id, fileExportType, err)
 		}
 		return ctx.SendString(*markdownContent)
 	default:

@@ -73,10 +73,10 @@ func (a *APool) Check() error {
 	for i := 0; i < a.NextNum; i++ {
 		attr, ok := a.NumToAttrib[i]
 		if !ok {
-			return errors.New("numToAttrib missing entry for index " + string(rune(i)))
+			return errors.New("numToAttrib missing entry for index " + strconv.Itoa(i))
 		}
 		if attr.Key == "" {
-			return errors.New("attribute key is empty for index " + string(rune(i)))
+			return errors.New("attribute key is empty for index " + strconv.Itoa(i))
 		}
 		if a.AttribToNum[attr] != i {
 			return errors.New("attribToNum mapping incorrect for attribute " + attr.Key + ":" + attr.Value)

@@ -263,8 +263,8 @@ func (i *Importer) SetPadRaw(padId string, content []byte, authorId string) erro
 			var chat ChatMessage
 			if err := json.Unmarshal(value, &chat); err == nil {
 				chats = append(chats, indexedChat{idx: idx, msg: chat})
-				if chat.UserId != nil && *chat.UserId != "" {
-					imp.referencedAuthors = append(imp.referencedAuthors, *chat.UserId)
+				if a := chat.Author(); a != nil {
+					imp.referencedAuthors = append(imp.referencedAuthors, *a)
 				}
 			}
 		}
@@ -272,10 +272,31 @@ func (i *Importer) SetPadRaw(padId string, content []byte, authorId string) erro
 	// Keep the file's chat order and store it contiguously from 0; map
 	// iteration order is random.
 	sort.Slice(chats, func(a, b int) bool { return chats[a].idx < chats[b].idx })
+	// A file that names a chat head must carry every message up to it, as
+	// etherpad-lite's pad check demands: a missing message means a damaged
+	// or trimmed file, which is refused rather than imported with a gap.
+	if fileChatHead, ok := padChatHead(rawData); ok {
+		if fileChatHead+1 != len(chats) {
+			return fmt.Errorf("%w: chat head is %d but the file has %d chat messages", ErrInvalidEtherpadFile, fileChatHead, len(chats))
+		}
+		for n, c := range chats {
+			if c.idx != n {
+				return fmt.Errorf("%w: chat message %d is missing", ErrInvalidEtherpadFile, n)
+			}
+		}
+	}
 	for _, c := range chats {
 		imp.chats = append(imp.chats, c.msg)
 	}
 	imp.pad.ChatHead = len(imp.chats) - 1
+
+	// The pad is rebuilt from its revisions when it is loaded, so a file
+	// whose revisions are incomplete or do not produce its text would be
+	// imported "successfully" and then load as something else (or, without
+	// revisions, as a fresh default pad). Refuse such files up front.
+	if err := checkEtherpadRevisions(imp, &pool); err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidEtherpadFile, err)
+	}
 
 	// Files from before every insert had to carry an author: attribute
 	// those inserts to the system author, as etherpad-lite does, so the
@@ -284,6 +305,10 @@ func (i *Importer) SetPadRaw(padId string, content []byte, authorId string) erro
 		return fmt.Errorf("%w: %v", ErrInvalidEtherpadFile, err)
 	} else if changed && i.logger != nil {
 		i.logger.Infof("Import into %s: attributed unattributed inserts to %s", padId, padModel.SystemAuthorId)
+	}
+
+	if err := checkEtherpadText(imp, &pool); err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidEtherpadFile, err)
 	}
 
 	// Like etherpad-lite, validate the whole import in a scratch store before
@@ -315,6 +340,104 @@ func (i *Importer) SetPadRaw(padId string, content []byte, authorId string) erro
 		return fmt.Errorf("import into %s failed, the previous pad is unchanged: %w", padId, err)
 	}
 	return nil
+}
+
+// checkEtherpadRevisions checks what the pad check cannot see once the pad
+// is rebuilt from its revisions: revisions 0..head all present and none
+// beyond, a consistent pool, and changesets that only use its attributes.
+func checkEtherpadRevisions(imp *parsedEtherpad, pool *apool.APool) error {
+	head := imp.pad.Head
+	if head < 0 {
+		return errors.New("head revision is negative")
+	}
+	for r := 0; r <= head; r++ {
+		if _, ok := imp.revisions[r]; !ok {
+			return fmt.Errorf("revision %d is missing", r)
+		}
+	}
+	if len(imp.revisions) != head+1 {
+		return fmt.Errorf("the file has revisions beyond head %d", head)
+	}
+	if err := pool.Check(); err != nil {
+		return fmt.Errorf("attribute pool: %w", err)
+	}
+	for r := 0; r <= head; r++ {
+		cs, err := changeset.Unpack(imp.revisions[r].Changeset)
+		if err != nil {
+			return fmt.Errorf("revision %d: %w", r, err)
+		}
+		ops, err := changeset.DeserializeOps(cs.Ops)
+		if err != nil {
+			return fmt.Errorf("revision %d: %w", r, err)
+		}
+		for _, op := range *ops {
+			nums, err := changeset.DecodeAttribString(op.Attribs)
+			if err != nil {
+				return fmt.Errorf("revision %d: %w", r, err)
+			}
+			for _, n := range nums {
+				if _, ok := pool.NumToAttrib[n]; !ok {
+					return fmt.Errorf("revision %d uses attribute %d, which is not in the pool", r, n)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// checkEtherpadText checks that the revisions produce the pad's text.
+func checkEtherpadText(imp *parsedEtherpad, pool *apool.APool) error {
+	atext := changeset.MakeAText("\n", nil)
+	for r := 0; r <= imp.pad.Head; r++ {
+		next, err := changeset.ApplyToAText(imp.revisions[r].Changeset, atext, *pool)
+		if err != nil {
+			return fmt.Errorf("revision %d: %w", r, err)
+		}
+		atext = *next
+	}
+	if !sameAText(imp.pad.ATextText, imp.pad.ATextAttribs, atext) {
+		return errors.New("the pad's text does not match its revisions")
+	}
+	return nil
+}
+
+// sameAText compares a stored text with a computed one; old files may hold
+// equivalent attribute strings that are not in canonical form ("+b|1+1"
+// for "|1+c").
+func sameAText(text, attribs string, computed apool.AText) bool {
+	if text != computed.Text {
+		return false
+	}
+	if attribs == computed.Attribs {
+		return true
+	}
+	ops, err := changeset.DeserializeOps(attribs)
+	if err != nil {
+		return false
+	}
+	assem := changeset.NewMergingOpAssembler()
+	for _, op := range *ops {
+		assem.Append(op)
+	}
+	assem.EndDocument()
+	return assem.String() == computed.Attribs
+}
+
+// padChatHead is the chatHead of the file's pad record, when it has one.
+func padChatHead(rawData map[string]json.RawMessage) (int, bool) {
+	padKey := regexp.MustCompile(`^pad:[^:]+:?$`)
+	for key, value := range rawData {
+		if !padKey.MatchString(key) {
+			continue
+		}
+		var rec struct {
+			ChatHead *int `json:"chatHead"`
+		}
+		if json.Unmarshal(value, &rec) == nil && rec.ChatHead != nil {
+			return *rec.ChatHead, true
+		}
+	}
+	return 0, false
 }
 
 // attributeLegacyInserts gives every insert op without an author the
@@ -361,9 +484,18 @@ func attributeLegacyInserts(imp *parsedEtherpad, pool *apool.APool) (bool, error
 		return false, nil
 	}
 
+	// Stored texts are only replaced where they matched the file's own
+	// changesets: a file that is inconsistent anyway stays as it is and is
+	// refused by the validation.
+	orig := changeset.MakeAText("\n", nil)
 	atext := changeset.MakeAText("\n", nil)
 	for _, n := range revNums {
 		rev := imp.revisions[n]
+		prev, err := changeset.ApplyToAText(rev.Changeset, orig, *pool)
+		if err != nil {
+			return false, fmt.Errorf("revision %d: %w", n, err)
+		}
+		orig = *prev
 		if cs, ok := rewritten[n]; ok {
 			rev.Changeset = cs
 		}
@@ -372,14 +504,16 @@ func attributeLegacyInserts(imp *parsedEtherpad, pool *apool.APool) (bool, error
 			return false, fmt.Errorf("revision %d: %w", n, err)
 		}
 		atext = *next
-		if rev.Meta.AText != nil {
+		if rev.Meta.AText != nil && sameAText(rev.Meta.AText.Text, rev.Meta.AText.Attribs, orig) {
 			rev.Meta.AText = &AText{Text: atext.Text, Attribs: atext.Attribs}
 			rev.Meta.Pool = poolForRevision(pool)
 		}
 		imp.revisions[n] = rev
 	}
-	imp.pad.ATextText = atext.Text
-	imp.pad.ATextAttribs = atext.Attribs
+	if sameAText(imp.pad.ATextText, imp.pad.ATextAttribs, orig) {
+		imp.pad.ATextText = atext.Text
+		imp.pad.ATextAttribs = atext.Attribs
+	}
 	imp.pad.Pool = pool.ToRevDB()
 	imp.referencedAuthors = append(imp.referencedAuthors, padModel.SystemAuthorId)
 	return true, nil
@@ -617,10 +751,7 @@ func (i *Importer) writeImport(store db.DataStore, imp *parsedEtherpad, live boo
 		if chat.Time != nil {
 			ts = *chat.Time
 		}
-		var userId *string
-		if chat.UserId != nil && *chat.UserId != "" {
-			userId = chat.UserId
-		}
+		userId := chat.Author()
 		if err := store.SaveChatMessage(padId, idx, userId, ts, chat.Text); err != nil {
 			return fmt.Errorf("saving chat message %d: %w", idx, err)
 		}
@@ -633,24 +764,17 @@ func (i *Importer) writeImport(store db.DataStore, imp *parsedEtherpad, live boo
 	return nil
 }
 
-// SetPadHTML imports HTML content into a pad
-// Note: This currently imports only the text content. Full formatting support
-// would require complex changeset generation which is error-prone.
-// For full formatting preservation, export/import via .etherpad format is recommended.
+// SetPadHTML replaces the pad's content with the HTML, keeping its
+// formatting (see import_html.go), in one revision.
 func (i *Importer) SetPadHTML(pad *padModel.Pad, htmlContent string, authorId string) error {
-	// Parse HTML and extract text
-	text, err := i.htmlToText(htmlContent)
+	lines, err := parseHTMLLines(htmlContent)
 	if err != nil {
 		return err
 	}
-
-	// If no content, just set empty
-	if text == "" || text == "\n" {
-		return pad.SetText("\n", &authorId)
+	if len(lines) == 0 && pad.Text() == "\n" {
+		return nil
 	}
-
-	// Set the plain text
-	return pad.SetText(text, &authorId)
+	return setPadLines(pad, lines, authorId)
 }
 
 // applyAttributeToRange applies an attribute to a range of text in the pad

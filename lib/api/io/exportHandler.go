@@ -38,6 +38,12 @@ func GetExport(ctx fiber.Ctx, exportHandler *io.ExportEtherpad, settings *settin
 		"open":     "odt",
 		"etherpad": "etherpad",
 		"markdown": "md",
+		// The names etherpad-lite's links and integrations use. .doc is
+		// answered with a .docx document, which Word opens.
+		"doc":  "docx",
+		"docx": "docx",
+		"odt":  "odt",
+		"md":   "md",
 	}
 	// All formats are now supported internally, no external tools needed
 	var externalTypes []string
@@ -55,7 +61,10 @@ func GetExport(ctx fiber.Ctx, exportHandler *io.ExportEtherpad, settings *settin
 	if securityManager.HasPadAccess(ctx) {
 		var readOnlyId *string = nil
 		if readOnlyManager.IsReadOnlyID(&padId) {
-			readOnlyId = &padId
+			// A copy: padId is reassigned to the real id below, and the
+			// export must keep showing only the read-only id.
+			roId := padId
+			readOnlyId = &roId
 			actualPadId, err := readOnlyManager.GetPadId(padId)
 			if err != nil {
 				return ctx.Status(404).SendString("Pad not found")

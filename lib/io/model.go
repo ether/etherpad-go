@@ -49,8 +49,11 @@ type Revision struct {
 }
 
 type ChatMessage struct {
-	Text     string  `json:"text"`
-	Time     *int64  `json:"time"`
+	Text string `json:"text"`
+	Time *int64 `json:"time"`
+	// AuthorId is etherpad-lite's field; UserId the older name, which
+	// etherpad-go exports wrote. Both are written and either is read.
+	AuthorId *string `json:"authorId,omitempty"`
 	UserId   *string `json:"userId"`
 	UserName *string `json:"userName"`
 }
@@ -77,4 +80,15 @@ func (e EtherpadExport) MarshalJSON() ([]byte, error) {
 		combined[k] = v
 	}
 	return json.Marshal(combined)
+}
+
+// Author is the chat message's author from either field.
+func (c ChatMessage) Author() *string {
+	if c.AuthorId != nil && *c.AuthorId != "" {
+		return c.AuthorId
+	}
+	if c.UserId != nil && *c.UserId != "" {
+		return c.UserId
+	}
+	return nil
 }

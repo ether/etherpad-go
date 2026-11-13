@@ -91,7 +91,6 @@ func NewImportHandler(
 // @Failure 500 {object} ImportResponse
 // @Router /p/{pad}/import [post]
 func (h *ImportHandler) ImportPad(ctx fiber.Ctx) error {
-	tokenCookie := ctx.Cookies("token")
 	padId := ctx.Params("pad")
 
 	// An import replaces the pad's content and unloads it from the cache; no
@@ -103,15 +102,14 @@ func (h *ImportHandler) ImportPad(ctx fiber.Ctx) error {
 	defer unlock()
 
 	// Check access
-	grantedAccess, err := h.securityManager.CheckAccess(&padId, nil, &tokenCookie, nil)
+	// An import changes the pad, so it needs write access: not through the
+	// read-only id and not with a read-only authorization (etherpad-lite
+	// checks webaccess.userCanModify as well).
+	grantedAccess, err := h.securityManager.CheckRequestAccess(ctx, padId)
 	if err != nil {
-		return ctx.Status(500).JSON(ImportResponse{
-			Code:    2,
-			Message: "internalError",
-			Data:    ImportData{DirectDatabaseAccess: false},
-		})
+		h.logger.Infof("Import into %s denied: %v", padId, err)
 	}
-	if grantedAccess.AccessStatus != "grant" {
+	if err != nil || grantedAccess == nil || grantedAccess.AccessStatus != "grant" || !h.securityManager.RequestCanModify(ctx, padId) {
 		return ctx.Status(403).JSON(ImportResponse{
 			Code:    1,
 			Message: "accessDenied",

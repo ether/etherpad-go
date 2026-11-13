@@ -214,9 +214,8 @@ func (s *SecurityManager) resolveAuthorId(token *string, userSettings *webaccess
 }
 
 func (s *SecurityManager) HasPadAccess(ctx fiber.Ctx) bool {
-	tokenCookie := ctx.Cookies("token")
 	padId := ctx.Params("pad")
-	accessStatus, err := s.CheckAccess(&padId, nil, &tokenCookie, nil)
+	accessStatus, err := s.CheckRequestAccess(ctx, padId)
 	if err != nil {
 		return false
 	}
