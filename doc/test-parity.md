@@ -7,10 +7,10 @@ behaviour, they are not line-by-line translations.
 
 | Status | Files | Test cases |
 |---|---|---|
-| Ported | 75 | 745 |
+| Ported | 77 | 768 |
 | Partly ported | 4 | 140 |
-| Not applicable to Go | 39 | 334 |
-| To compare case by case | 54 | 515 |
+| Not applicable to Go | 40 | 341 |
+| To compare case by case | 51 | 485 |
 
 "To compare" does not mean untested: most of these areas have Go tests (the Go code refers
 to more than 20 upstream issues). It means nobody has checked yet, case by case, which
@@ -96,6 +96,8 @@ upstream cases the Go tests cover and which are missing.
 | `admin/adminSettingsSave` | 3 | `lib/test/ws/admin_settings_file_test.go` |
 | `admin/padLoadFilter` | 5 | `lib/test/ws/pad_load_filter_test.go`, `lib/ws/pad_filter_test.go`, `playwright/admin-spec/admin_pad_filter.spec.ts` |
 | `admin/padLoadResilience` | 4 | `lib/test/ws/delete_unloadable_pad_test.go` |
+| `settings` | 21 | `lib/settings/jsonc_test.go` (comments, trailing commas, `${VAR:default}`), `settings_test.go` (EP__ nested variables, air-gapped via `ETHERPAD_UPDATES_*`, fadeInactiveAuthorColors), `lib/utils/version_string_test.go`; the 5 CommonJS-compatibility cases are about Node's require() and do not apply. Go plugins are compiled in and have no ep_* settings blocks; EP__ variables set any nested setting |
+| `settingsModalHeading` | 2 | `assets/pad/settings_heading_test.go` |
 ## Partly ported
 
 | Spec | Cases | State |
@@ -149,16 +151,6 @@ Existing Go tests in this area: `lib/test/pad/webaccess_test.go`, `lib/security`
 
 | Spec | Cases |
 |---|---|
-
-### Settings and admin
-
-Existing Go tests in this area: `lib/settings`, `lib/test/ws/admin_message_handler_test.go`
-
-| Spec | Cases |
-|---|---|
-| `settings` | 21 |
-| `new/admin_utils` | 7 |
-| `settingsModalHeading` | 2 |
 
 ### Pages, paths, metadata
 
@@ -230,6 +222,7 @@ Existing Go tests in this area: `lib/updater`, `lib/server/update_test.go` (Go h
 | `Stream` | 31 | JavaScript stream helper |
 | `api/fuzzImportTest` | 0 | no test cases |
 | `openapi-admin` | 20 | etherpad-lite's admin OpenAPI document (verifyAdminAccess, update status); etherpad-go documents its admin REST API in `docs/swagger.yaml` |
+| `new/admin_utils` | 7 | etherpad-lite's admin helpers cleanComments and minify; the Go admin page sends settings.json as it is and the server parses it (`lib/settings/jsonc_test.go`) |
 | `contentcollector` | 3 | client-side DOM collector (JavaScript) |
 | `crossPadWriteToctou` | 1 | Node pauses in an async hook between two reads of the session's pad; Go handles a socket's messages one after the other. The handler now reads the pad id once. |
 | `crypto` | 0 | no test cases |
