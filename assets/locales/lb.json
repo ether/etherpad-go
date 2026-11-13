@@ -49,6 +49,8 @@
 	"pad.settings.about": "Iwwer",
 	"pad.settings.poweredBy": "Zur Verfügung gestallt vu(n)",
 	"pad.settings.disablechat": "Chat desaktivéieren",
+	"pad.deletionToken.copy": "Kopéieren",
+	"pad.deletionToken.copied": "Kopéiert",
 	"pad.importExport.import_export": "Import/Export",
 	"pad.importExport.import": "Text-Fichier oder Dokument eroplueden",
 	"pad.importExport.importSuccessful": "Erfollegräich",

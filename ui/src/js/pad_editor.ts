@@ -96,14 +96,8 @@ export const padeditor = (() => {
         pad.changeViewOption('padFontFamily', font);
       }) as EventListener);
 
-      // delete pad
-      q('#delete-pad')?.addEventListener('click', () => {
-        if (window.confirm(html10n.get('pad.delete.confirm'))) {
-          pad.collabClient.sendMessage({type: 'PAD_DELETE', data:{padId: pad.getPadId()}});
-          // redirect to home page after deletion
-          window.location.href = '/';
-        }
-      });
+      // Deleting the pad is wired up by pad_deletion.ts once CLIENT_VARS
+      // says what this session may do.
 
       // theme switch
       q('#theme-switcher')?.addEventListener('click', () => {

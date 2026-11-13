@@ -48,13 +48,19 @@ type settingsClient struct {
 func joinWithSettings(t *testing.T, handler *libws.PadMessageHandler, hub *libws.Hub, cfg *settings.Settings, ds testutils.TestDataStore,
 	padID, sessionID string, defaults map[string]any) settingsClient {
 	t.Helper()
+	return joinWithSettingsToken(t, handler, hub, cfg, ds, padID, sessionID, "t.settings"+sessionID, defaults)
+}
+
+func joinWithSettingsToken(t *testing.T, handler *libws.PadMessageHandler, hub *libws.Hub, cfg *settings.Settings, ds testutils.TestDataStore,
+	padID, sessionID, token string, defaults map[string]any) settingsClient {
+	t.Helper()
 	client := createTestClient(hub, sessionID, padID, libws.NewActualMockWebSocketconn())
 	t.Cleanup(func() { removeClient(hub, client) })
 	handler.SessionStore.InitSessionForTest(sessionID)
 	handler.HandleMessage(ws.ClientReady{
 		Event: "message",
 		Data: ws.ClientReadyData{Component: "pad", Type: "CLIENT_READY", PadID: padID,
-			Token: "t.settings" + sessionID, PadSettingsDefaults: defaults},
+			Token: token, PadSettingsDefaults: defaults},
 	}, client, cfg, ds.Logger)
 	sc := settingsClient{client: client}
 	for _, f := range frames(client) {
@@ -151,6 +157,11 @@ func testPadSettingsByCreator(t *testing.T, ds testutils.TestDataStore) {
 	assert.Equal(t, false, opts["showChat"])
 	assert.Equal(t, true, opts["enforceSettings"])
 	assert.Equal(t, true, view(opts)["rtlIsTrue"])
+
+	// A second tab of the creator's browser (same token, same author) may
+	// edit the pad-wide settings too.
+	secondTab := joinWithSettingsToken(t, h, hub, cfg, ds, padID, "pscreatortab2", "t.settingspscreator", nil)
+	assert.Equal(t, true, secondTab.vars["canEditPadSettings"])
 }
 
 func testPadSettingsByOtherUser(t *testing.T, ds testutils.TestDataStore) {
