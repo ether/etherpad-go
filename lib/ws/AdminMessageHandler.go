@@ -53,6 +53,10 @@ func NewAdminMessageHandler(store db.DataStore, h *hooks.Hook, m *pad.Manager, p
 }
 
 func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrievedSettings *settings.Settings, c *Client) {
+	if isAPIKeyEvent(message.Event) {
+		h.handleAPIKeyEvent(message.Event, message.Data, c)
+		return
+	}
 	switch message.Event {
 	case "load":
 		{

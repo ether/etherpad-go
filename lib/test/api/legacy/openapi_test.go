@@ -5,7 +5,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ether/etherpad-go/lib/api/legacy"
 	"github.com/ether/etherpad-go/lib/test/testutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,7 +15,7 @@ func TestLegacyOpenAPI(t *testing.T) {
 	testDb := testutils.NewTestDBHandler(t)
 	testDb.AddTests(
 		testutils.TestRunConfig{Name: "the document is complete", Test: testLegacyOpenAPIDocument},
-		testutils.TestRunConfig{Name: "bearer mode documents bearer auth", Test: testLegacyOpenAPIBearer},
+		testutils.TestRunConfig{Name: "both API keys and bearer tokens are documented", Test: testLegacyOpenAPIBearer},
 	)
 	testDb.StartTestDBHandler()
 }
@@ -77,7 +76,9 @@ func testLegacyOpenAPIDocument(t *testing.T, ds testutils.TestDataStore) {
 	found := map[string]bool{}
 	for _, s := range schemes {
 		m := s.(map[string]any)
-		found[m["in"].(string)+":"+m["name"].(string)] = true
+		if m["type"] == "apiKey" {
+			found[m["in"].(string)+":"+m["name"].(string)] = true
+		}
 	}
 	assert.True(t, found["query:apikey"])
 	assert.True(t, found["query:api_key"])
@@ -96,10 +97,8 @@ func testLegacyOpenAPIDocument(t *testing.T, ds testutils.TestDataStore) {
 }
 
 func testLegacyOpenAPIBearer(t *testing.T, ds testutils.TestDataStore) {
-	store := ds.ToInitStore()
-	legacy.New(store, "", func(string) bool { return false }).Register(store.C)
-	c := &client{t: t, app: store.C, version: legacy.LatestVersion}
+	c := newClient(t, ds)
 	schemes := mapAt(t, getDefinition(t, c, "/api/openapi.json"), "components", "securitySchemes")
-	assert.Contains(t, schemes, "Bearer")
-	assert.NotContains(t, schemes, "ApiKey")
+	assert.Contains(t, schemes, "Bearer", "bearer tokens are documented")
+	assert.Contains(t, schemes, "ApiKey", "next to API keys")
 }

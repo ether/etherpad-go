@@ -10,7 +10,6 @@
 package legacy
 
 import (
-	"crypto/subtle"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -26,7 +25,7 @@ import (
 	"github.com/ether/etherpad-go/lib/api/pad"
 	"github.com/ether/etherpad-go/lib/api/session"
 	"github.com/ether/etherpad-go/lib/api/stats"
-	"github.com/ether/etherpad-go/lib/utils"
+	"github.com/ether/etherpad-go/lib/apikeys"
 	"github.com/gofiber/fiber/v3"
 	"github.com/valyala/fasthttp"
 )
@@ -58,12 +57,13 @@ type Authenticator func(token string) bool
 type API struct {
 	store *lib.InitStore
 	inner fasthttp.RequestHandler
-	// apiKey is the key of authenticationMethod "apikey"; empty otherwise.
-	apiKey string
+	// keys are the API keys created in the admin UI.
+	keys   *apikeys.Manager
 	bearer Authenticator
 }
 
-// APIKeyFile is where the API key is kept, like etherpad-lite's APIKEY.txt.
+// APIKeyFile is where etherpad-lite and earlier etherpad-go releases kept
+// the API key. A key found there is taken over into the admin UI's keys.
 func APIKeyFile(root string) string {
 	if p := os.Getenv("EP_APIKEY_FILE"); p != "" {
 		return p
@@ -71,27 +71,32 @@ func APIKeyFile(root string) string {
 	return filepath.Join(root, "APIKEY.txt")
 }
 
-// LoadAPIKey reads the API key, creating the file with a random key when it
-// does not exist (etherpad-lite does the same).
-func LoadAPIKey(path string) (string, error) {
+// ReadAPIKeyFile returns the key in path, or "" when there is no such file.
+func ReadAPIKeyFile(path string) (string, error) {
 	b, err := os.ReadFile(path)
-	if err == nil {
-		return strings.TrimSpace(string(b)), nil
+	if os.IsNotExist(err) {
+		return "", nil
 	}
-	if !os.IsNotExist(err) {
+	if err != nil {
 		return "", err
 	}
-	key := utils.RandomString(32)
-	if err := os.WriteFile(path, []byte(key), 0o600); err != nil {
-		return "", err
-	}
-	return key, nil
+	return strings.TrimSpace(string(b)), nil
 }
 
-// New builds the API. With authenticationMethod "apikey" calls need the key
-// (apikey, api_key or authorization parameter); otherwise a bearer token
-// accepted by bearer, as for /admin/api.
-func New(store *lib.InitStore, apiKey string, bearer Authenticator) *API {
+// ImportAPIKeyFile takes over the key of an APIKEY.txt into keys, as
+// "APIKEY.txt", once. It reports whether it stored the key.
+func ImportAPIKeyFile(keys *apikeys.Manager, path string) (bool, error) {
+	key, err := ReadAPIKeyFile(path)
+	if err != nil || key == "" {
+		return false, err
+	}
+	return keys.Import(key, "APIKEY.txt")
+}
+
+// New builds the API. Calls need one of the API keys created in the admin
+// UI (apikey, api_key or authorization parameter, or the Authorization
+// header), or a bearer token accepted by bearer, as for /admin/api.
+func New(store *lib.InitStore, keys *apikeys.Manager, bearer Authenticator) *API {
 	inner := fiber.New(fiber.Config{Immutable: true})
 	routes := *store
 	routes.PrivateAPI = inner
@@ -100,7 +105,7 @@ func New(store *lib.InitStore, apiKey string, bearer Authenticator) *API {
 	session.Init(&routes)
 	author.Init(&routes)
 	inner.Get("/stats", stats.GetStats(&routes))
-	return &API{store: store, inner: inner.Handler(), apiKey: apiKey, bearer: bearer}
+	return &API{store: store, inner: inner.Handler(), keys: keys, bearer: bearer}
 }
 
 // Register adds the routes: /api (current version), /api/{version}/{function}.
@@ -170,31 +175,28 @@ func reply(e *apiError) (Response, int) {
 }
 
 func (a *API) authorise(c fiber.Ctx, fields map[string]string) *apiError {
-	if a.apiKey != "" {
-		given := fields["apikey"]
-		if given == "" {
-			given = fields["api_key"]
+	header := strings.TrimSpace(c.Get(fiber.HeaderAuthorization))
+	candidates := []string{fields["apikey"], fields["api_key"], fields["authorization"], c.Get("apikey"), header}
+	given := false
+	for _, k := range candidates {
+		k = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(k), "Bearer "))
+		if k == "" {
+			continue
 		}
-		if given == "" {
-			given = fields["authorization"]
+		given = true
+		if a.keys != nil {
+			if _, ok := a.keys.Check(k); ok {
+				return nil
+			}
 		}
-		if given == "" {
-			given = c.Get(fiber.HeaderAuthorization)
-		}
-		if subtle.ConstantTimeCompare([]byte(strings.TrimSpace(given)), []byte(a.apiKey)) != 1 {
-			return &apiError{code: 4, message: "no or wrong API Key"}
-		}
+	}
+	if header != "" && a.bearer != nil && a.bearer(strings.TrimSpace(strings.TrimPrefix(header, "Bearer "))) {
 		return nil
 	}
-	header := c.Get(fiber.HeaderAuthorization)
-	if header == "" {
-		return &apiError{code: 4, message: "no or wrong API Key"}
-	}
-	token := strings.TrimSpace(strings.TrimPrefix(header, "Bearer "))
-	if a.bearer == nil || !a.bearer(token) {
+	if given && strings.HasPrefix(header, "Bearer ") {
 		return &apiError{code: 4, message: "no or wrong OAuth token"}
 	}
-	return nil
+	return &apiError{code: 4, message: "no or wrong API Key"}
 }
 
 // requestFields merges the parameters: body before query.
