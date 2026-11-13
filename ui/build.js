@@ -1,4 +1,5 @@
 import * as esbuild from 'esbuild';
+import {cssBundles, cssExternal} from './css-build.js';
 import * as fs from "node:fs";
 import * as path from "node:path";
 import {execSync, spawn} from "node:child_process";
@@ -338,8 +339,7 @@ const results = await Promise.allSettled([
   // served by lib/api/pad/sheetFrontend.go), not sheet.entry.js.
   esbuild.build({ ...esbuildOpts, entryPoints: { sheet: "./src/sheet.entry.ts" }, outdir: '../assets/js/sheet/assets', alias, loader: loaders, logLevel: 'info' }),
   // CSS bundles
-  esbuild.build({ ...esbuildOpts, entryPoints: ['../assets/css/skin/colibris/pad.css'], outdir: '../assets/css/build/skin/colibris', external: ['*.woff', '*.woff2', '*.ttf', '*.eot', '*.svg', '*.png', '*.jpg', '*.gif'], loader: loaders, logLevel: 'info' }),
-  esbuild.build({ ...esbuildOpts, entryPoints: ['../assets/css/static/pad.css'], outdir: '../assets/css/build/static', external: ['*.woff', '*.woff2', '*.ttf', '*.eot', '*.svg', '*.png', '*.jpg', '*.gif', '/font/*', 'font/*'], loader: loaders, logLevel: 'info' }),
+  ...cssBundles.map((bundle) => esbuild.build({ ...esbuildOpts, ...bundle, external: cssExternal, loader: loaders, logLevel: 'info' })),
   // Admin React app (Vite)
   buildAdmin(),
 ]);

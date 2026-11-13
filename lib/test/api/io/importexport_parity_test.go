@@ -57,7 +57,7 @@ func ieApp(t *testing.T, ds testutils.TestDataStore, authn bool) *fiber.App {
 	ds.Settings.LoadTest = false
 	ds.Settings.RequireAuthentication = authn
 	ds.Settings.Users = map[string]settings.User{"user": {Password: &password}}
-	app := fiber.New()
+	app := fiber.New(server.FiberConfig())
 	app.Use(server.RecoverMiddleware(ds.Logger))
 	app.Use(func(c fiber.Ctx) error {
 		return pad.CheckAccessWithHooks(c, ds.Logger, ds.Settings, ds.ReadOnlyManager, ds.Hooks)

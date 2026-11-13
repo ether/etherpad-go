@@ -363,7 +363,8 @@ func (test *TestDBHandler) TestRun(
 		padMessageHandler := ws.NewPadMessageHandler(
 			ds, &hooks, padManager, &sess, hub, loggerPart, TestAssets, &cfg,
 		)
-		app := fiber.New()
+		// As the server: see server.FiberConfig.
+		app := fiber.New(fiber.Config{Immutable: true})
 		adminMessageHandler := ws.NewAdminMessageHandler(
 			ds, &hooks, padManager, padMessageHandler, loggerPart, hub,
 			app, nil,

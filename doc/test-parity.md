@@ -7,10 +7,10 @@ behaviour, they are not line-by-line translations.
 
 | Status | Files | Test cases |
 |---|---|---|
-| Ported | 32 | 363 |
-| Partly ported | 1 | 9 |
-| Not applicable to Go | 35 | 303 |
-| To compare case by case | 104 | 1059 |
+| Ported | 38 | 448 |
+| Partly ported | 2 | 95 |
+| Not applicable to Go | 36 | 306 |
+| To compare case by case | 96 | 885 |
 
 "To compare" does not mean untested: most of these areas have Go tests (the Go code refers
 to more than 20 upstream issues). It means nobody has checked yet, case by case, which
@@ -53,11 +53,18 @@ upstream cases the Go tests cover and which are missing.
 | `ExportEtherpad` | 9 | `lib/test/api/io/export_etherpad_parity_test.go`, `export_etherpad_revbound_test.go`; the three exportEtherpadAdditionalContent cases do not apply (see ImportEtherpad) |
 | `padInsertAuthorInvariant` | 8 | `lib/pad/insert_author_test.go`; legacy `.etherpad` import and restore in `lib/test/api/io/import_etherpad_parity_test.go`, restoreRevision in `lib/test/api/pad/restore_revision_test.go`; copyPadWithoutHistory creates the copy from the text, so the source's attributes cannot break it |
 
+| `export_list` | 5 | `lib/test/api/io/export_list_test.go` |
+| `exportHtmlAuthorColorXss` | 7 | `lib/io/importer_test.go` (`TestSanitizeImportedColorId`), `exportHtml_test.go` (`TestGetHTMLFromAtext_AuthorColorXSS`), `lib/test/api/io/export_author_color_test.go` |
+| `api/importexport` | 4 | `lib/test/api/io/import_html_cases_test.go` (the setHTML/getText table, 27 inputs); etherpad-go adds no empty line at the end of an import and stores a non-breaking space as a space; the HTML output is compared by round trip instead (`import_html_test.go`) |
+| `api/importexportGetPost` | 49 | `lib/test/api/io/importexport_parity_test.go`; invalid revisions (`1test`, `test1`) answer 400, malformed `.etherpad` files 400, where etherpad-lite answers 200/500; the LibreOffice cases run against the native DOCX/ODT/PDF import and export |
+| `import` | 14 | `lib/test/api/io/import_roundtrip_parity_test.go`, `importexport_parity_test.go`; the mammoth/html-to-docx converter cases do not apply (DOCX is read and written natively). DOCX and ODT import keep the text only (alignment, headings and formatting are lost) |
+| `cssFontInlining` | 6 | `ui/src/css_font_inlining.test.ts` (vitest) |
 ## Partly ported
 
 | Spec | Cases | State |
 |---|---|---|
 | `new/easysync-other` | 9 | moveOpsToNewPool, makeSplice, applyToAttribution and split/join are covered in `lib/changeset`; filterAttribNumbers, makeAttribsString, toSplices and opAttributeValue do not exist in the Go package (deprecated or client-only upstream) |
+| `export` | 86 | the HTTP cases (500 on error, DOCX/PDF/ODT signatures and content types) in `lib/test/api/io/importexport_parity_test.go`. sanitizeExportHtml, extractBody, wrapLooseLines, dropEmptyBlocks, collapseRedundantBrAfterBlocks, separateAdjacentHeadingBlocks, applyMonospaceToCode and htmlToPdfBuffer test etherpad-lite's HTML-to-DOCX/PDF converter, which etherpad-go does not have: it builds the documents from the pad and fetches no URLs. Open: the PDF has no link annotations and ignores font-family (ep_font_family) and an exportPdfFonts setting, which etherpad-go does not have |
 
 ## `:` in pad ids
 
@@ -129,21 +136,6 @@ Existing Go tests in this area: `lib/test/api/*`, `lib/api/pad`
 | `downstream/wire-http-api` | 3 |
 | `downstream/wire-socket-sequence` | 2 |
 | `downstream/wire-vectors` | 2 |
-
-### Import and export
-
-Existing Go tests in this area: `lib/io`, `lib/test/api/io`
-
-| Spec | Cases |
-|---|---|
-| `export` | 86 |
-| `export_list` | 5 |
-| `exportHtmlAuthorColorXss` | 7 |
-| `import` | 14 |
-| `api/importexport` | 4 |
-| `api/importexportGetPost` | 49 |
-| `sofficeExportRemoteImage` | 3 |
-| `cssFontInlining` | 6 |
 
 ### Authors and privacy
 
@@ -283,3 +275,4 @@ Existing Go tests in this area: `lib/updater`, `lib/server/update_test.go` (Go h
 | `run_cmd` | 3 | Node child-process helper |
 | `sanitizePluginsForWire` | 4 | npm plugin metadata |
 | `setup-trusted-publishers` | 5 | npm publishing setup |
+| `sofficeExportRemoteImage` | 3 | there is no LibreOffice converter and no HTML-to-document step; exports are built from the pad and fetch nothing |

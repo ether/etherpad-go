@@ -31,6 +31,10 @@ type htmlLine struct {
 type htmlCollector struct {
 	lines []*htmlLine
 	open  bool
+	// afterBlock: a block with content just ended. A <br> right after it is
+	// part of that block's line, as in etherpad's own export
+	// ("<h1>A</h1><br>"), and does not add an empty line.
+	afterBlock bool
 }
 
 func (c *htmlCollector) line(block []apool.Attribute) *htmlLine {
@@ -60,6 +64,8 @@ type htmlBlock struct {
 	attrs     []apool.Attribute
 	listDepth int
 	inPre     bool
+	// listStart is the start="" of the enclosing <ol>, for its first item.
+	listStart *string
 }
 
 func withAttr(attrs []apool.Attribute, key, value string) []apool.Attribute {
@@ -84,6 +90,15 @@ func elementAlign(n *html.Node) string {
 		}
 	}
 	return ""
+}
+
+func isFirstItem(n *html.Node) bool {
+	for s := n.PrevSibling; s != nil; s = s.PrevSibling {
+		if s.Type == html.ElementNode && s.Data == "li" {
+			return false
+		}
+	}
+	return true
 }
 
 func listKind(n *html.Node) string {
@@ -114,7 +129,12 @@ func (c *htmlCollector) walk(n *html.Node, inline []apool.Attribute, block htmlB
 		case "script", "style", "head", "title", "template":
 			return
 		case "br":
+			if !c.open && c.afterBlock {
+				c.afterBlock = false
+				return
+			}
 			c.breakLine(block.attrs)
+			c.afterBlock = false
 			return
 		case "b", "strong":
 			inline = withAttr(inline, "bold", "true")
@@ -131,6 +151,17 @@ func (c *htmlCollector) walk(n *html.Node, inline []apool.Attribute, block htmlB
 			isBlock = true
 			block.listDepth++
 			kind = listKind(n)
+			block.listStart = nil
+			if n.Data == "ol" {
+				for _, a := range n.Attr {
+					if a.Key == "start" {
+						if v, err := strconv.Atoi(strings.TrimSpace(a.Val)); err == nil && v > 0 {
+							start := strconv.Itoa(v)
+							block.listStart = &start
+						}
+					}
+				}
+			}
 		case "li":
 			isBlock = true
 			depth := block.listDepth
@@ -141,6 +172,10 @@ func (c *htmlCollector) walk(n *html.Node, inline []apool.Attribute, block htmlB
 				kind = "bullet"
 			}
 			block.attrs = withAttr(block.attrs, "list", kind+strconv.Itoa(depth))
+			if block.listStart != nil && isFirstItem(n) {
+				block.attrs = withAttr(block.attrs, "start", *block.listStart)
+			}
+			block.listStart = nil
 		case "pre":
 			isBlock = true
 			block.inPre = true
@@ -154,13 +189,25 @@ func (c *htmlCollector) walk(n *html.Node, inline []apool.Attribute, block htmlB
 			c.endLine()
 		}
 	}
+	linesBefore := len(c.lines)
 	for child := n.FirstChild; child != nil; child = child.NextSibling {
 		c.walk(child, inline, block, kind)
 	}
 	if isBlock {
+		// An empty paragraph is an empty line, as in etherpad-lite (and
+		// how word processors write blank lines).
+		if len(c.lines) == linesBefore && !c.open && n.Type == html.ElementNode && lineBlocks[n.Data] {
+			c.line(block.attrs)
+		}
 		c.endLine()
+		// Etherpad's export writes "<br>" after a heading or paragraph line
+		// but not after a list, so a <br> after </ul> is an empty line.
+		c.afterBlock = len(c.lines) > linesBefore && n.Data != "ul" && n.Data != "ol"
 	}
 }
+
+var lineBlocks = map[string]bool{"p": true, "div": true, "li": true, "pre": true,
+	"h1": true, "h2": true, "h3": true, "h4": true, "h5": true, "h6": true}
 
 func (c *htmlCollector) text(s string, inline []apool.Attribute, block htmlBlock) {
 	if block.inPre {
@@ -177,7 +224,8 @@ func (c *htmlCollector) text(s string, inline []apool.Attribute, block htmlBlock
 		return
 	}
 	s = htmlWhitespace.ReplaceAllString(s, " ")
-	if !c.open {
+	// Spaces collapse across elements too ("Need <span> more </span>").
+	if !c.open || c.endsWithSpace() {
 		s = strings.TrimLeft(s, " ")
 	}
 	if s == "" {
@@ -185,6 +233,15 @@ func (c *htmlCollector) text(s string, inline []apool.Attribute, block htmlBlock
 	}
 	l := c.line(block.attrs)
 	l.runs = append(l.runs, htmlRun{text: s, attrs: inline})
+	c.afterBlock = false
+}
+
+func (c *htmlCollector) endsWithSpace() bool {
+	if !c.open || len(c.lines) == 0 {
+		return false
+	}
+	runs := c.lines[len(c.lines)-1].runs
+	return len(runs) > 0 && strings.HasSuffix(runs[len(runs)-1].text, " ")
 }
 
 // parseHTMLLines turns HTML into pad lines.
@@ -203,7 +260,7 @@ func parseHTMLLines(src string) ([]*htmlLine, error) {
 	}
 	for len(c.lines) > 0 {
 		last := c.lines[len(c.lines)-1]
-		if len(last.lineAttrs) > 0 || strings.TrimSpace(lineText(last)) != "" {
+		if len(last.lineAttrs) > 0 || strings.Trim(lineText(last), " ") != "" {
 			break
 		}
 		c.lines = c.lines[:len(c.lines)-1]
@@ -243,7 +300,9 @@ func setPadLines(p *padModel.Pad, lines []*htmlLine, authorId string) error {
 			builder.Insert("*", attribs(marker, l.lineAttrs), nil)
 		}
 		for _, r := range l.runs {
-			text := *padModel.CleanText(r.text)
+			// A non-breaking space is a space the author wanted: kept
+			// (never collapsed or trimmed above), stored as a space.
+			text := strings.ReplaceAll(*padModel.CleanText(r.text), "\u00a0", " ")
 			if text != "" {
 				builder.Insert(text, attribs(r.attrs), nil)
 			}
