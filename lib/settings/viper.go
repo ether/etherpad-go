@@ -27,10 +27,24 @@ func ReadConfig() (*Settings, error) {
 		}
 	}
 
+	// Older settings files (and etherpad-lite's template) wrote
+	// padOptions.userName/userColor = false for "no preset"; the options are
+	// strings now (etherpad-lite's reloadSettings shim does the same).
+	for _, key := range []string{PadOptionsUserName, PadOptionsUserColor} {
+		if _, isBool := viper.Get(key).(bool); isBool {
+			viper.Set(key, "")
+		}
+	}
+
 	// --- Unmarshal ---
 	var s Settings
 	if err := viper.Unmarshal(&s); err != nil {
 		return nil, err
+	}
+	for _, opt := range []**string{&s.PadOptions.UserName, &s.PadOptions.UserColor} {
+		if *opt != nil && **opt == "" {
+			*opt = nil
+		}
 	}
 
 	return &s, nil

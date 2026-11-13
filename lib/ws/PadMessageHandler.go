@@ -521,7 +521,11 @@ func (p *PadMessageHandler) HandleMessage(message any, client *Client, retrieved
 				p.Logger.Warnf("Error sanitizing pad ID: %v", err)
 				return
 			}
+			// The pad that opens (and whose access is checked) is the
+			// sanitized one: "foo bar" opens "foo_bar", and with
+			// lowerCasePadIds "Foo" opens "foo".
 			thisSession.PadId = padId
+			thisSession.Auth.PadId = padId
 		}
 
 		padIds, err := p.readOnlyManager.GetIds(&thisSession.Auth.PadId)
@@ -766,12 +770,12 @@ func (p *PadMessageHandler) HandleChangesetRequest(socket *Client, message ws.Ch
 		p.Logger.Warn("Invalid changeset request parameters")
 		return
 	}
-	start, err := utils.CheckValidRev(strconv.Itoa(message.Data.Data.Start))
+	start, err := utils.CheckValidRev(strconv.Itoa(int(message.Data.Data.Start)))
 	if err != nil {
 		p.Logger.Warn("Error checking valid rev for changeset request", err)
 		return
 	}
-	if message.Data.Data.RequestID == -1 {
+	if message.Data.Data.RequestID == nil {
 		p.Logger.Warn("Invalid request ID for changeset request")
 		return
 	}
@@ -1034,6 +1038,9 @@ func (p *PadMessageHandler) SendChatMessageToPadClients(session *ws.Session, cha
 		Text:     &text,
 		PadId:    session.PadId,
 		AuthorId: chatAuthorId,
+	}
+	if hookPad, err := p.padManager.GetPad(session.PadId, nil, nil); err == nil {
+		cmCtx.Pad = hookPad
 	}
 	p.hooks.ExecuteChatNewMessageHooks(cmCtx)
 	if cmCtx.Dropped() {

@@ -358,6 +358,7 @@ func (test *TestDBHandler) TestRun(
 		go hub.Run()
 		sess := ws.NewSessionStore()
 		padManager := pad.NewManager(ds, &hooks)
+		padManager.SetLowerCasePadIds(func() bool { return cfg.LowerCasePadIDs })
 		loggerPart := zap.NewNop().Sugar()
 		importer := io.NewImporter(padManager, authManager, ds, loggerPart, &hooks)
 		padMessageHandler := ws.NewPadMessageHandler(

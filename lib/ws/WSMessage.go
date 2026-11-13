@@ -117,5 +117,5 @@ type ChangesetInfo struct {
 	Start               int         `json:"start"`
 	Granularity         int         `json:"granularity"`
 	APool               apool.APool `json:"apool"`
-	RequestId           int         `json:"requestID"`
+	RequestId           any         `json:"requestID"`
 }

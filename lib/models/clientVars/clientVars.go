@@ -94,7 +94,7 @@ type ClientVars struct {
 	ClientIP                           string                             `json:"clientIp"`
 	UserColor                          string                             `json:"userColor"`
 	PadId                              string                             `json:"padId"`
-	PadOptions                         map[string]*bool                   `json:"padOptions"`
+	PadOptions                         map[string]any                     `json:"padOptions"`
 	PadShortcutEnabled                 map[string]bool                    `json:"padShortcutEnabled"`
 	InitialTitle                       string                             `json:"initialTitle"`
 	Opts                               map[string]interface{}             `json:"opts"`

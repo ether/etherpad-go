@@ -80,6 +80,7 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 	})
 
 	padManager := pad.NewManager(dataStore, &retrievedHooks)
+	padManager.SetLowerCasePadIds(func() bool { return settings.LowerCasePadIDs })
 	authorManager := author.NewManager(dataStore)
 	importer := io.NewImporter(padManager, authorManager, dataStore, setupLogger, &retrievedHooks)
 	globalHub := ws.NewHub()

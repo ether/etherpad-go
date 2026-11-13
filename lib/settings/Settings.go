@@ -49,17 +49,19 @@ type SocialMetaSettings struct {
 }
 
 type PadOptions struct {
-	NoColors         bool    `mapstructure:"noColors"`
-	ShowControls     bool    `mapstructure:"showControls"`
-	ShowChat         bool    `mapstructure:"showChat"`
-	ShowLineNumbers  bool    `mapstructure:"showLineNumbers"`
-	UseMonospaceFont bool    `mapstructure:"useMonospaceFont"`
-	UserName         *bool   `mapstructure:"userName"`
-	UserColor        *bool   `mapstructure:"userColor"`
-	RTL              bool    `mapstructure:"rtl"`
-	AlwaysShowChat   bool    `mapstructure:"alwaysShowChat"`
-	ChatAndUsers     bool    `mapstructure:"chatAndUsers"`
-	Lang             *string `mapstructure:"lang"`
+	NoColors         bool `mapstructure:"noColors"`
+	ShowControls     bool `mapstructure:"showControls"`
+	ShowChat         bool `mapstructure:"showChat"`
+	ShowLineNumbers  bool `mapstructure:"showLineNumbers"`
+	UseMonospaceFont bool `mapstructure:"useMonospaceFont"`
+	// UserName and UserColor preset every user's name and colour; nil means
+	// no preset. Old settings files wrote false for that (see ReadConfig).
+	UserName       *string `mapstructure:"userName"`
+	UserColor      *string `mapstructure:"userColor"`
+	RTL            bool    `mapstructure:"rtl"`
+	AlwaysShowChat bool    `mapstructure:"alwaysShowChat"`
+	ChatAndUsers   bool    `mapstructure:"chatAndUsers"`
+	Lang           *string `mapstructure:"lang"`
 	// FadeInactiveAuthorColors fades the background of authors who are no
 	// longer active. EnforceReadableAuthorColors clamps author backgrounds
 	// to a shade that keeps the text readable (WCAG AA). Both default to true.
