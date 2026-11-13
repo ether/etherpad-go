@@ -316,6 +316,12 @@ func Init(store *lib.InitStore) {
 		return timeslider.HandleTimesliderOpen(c, store.UiAssets, store.RetrievedSettings, store.Hooks)
 	})
 
+	// Like etherpad-lite's default robots.txt: crawlers stay out of pads.
+	store.C.Get("/robots.txt", func(c fiber.Ctx) error {
+		c.Set(fiber.HeaderContentType, fiber.MIMETextPlainCharsetUTF8)
+		return c.SendString("User-agent: *\nDisallow: /p/\n")
+	})
+
 	store.C.Get("/favicon.ico", func(c fiber.Ctx) error {
 		return c.Redirect().Status(fiber.StatusMovedPermanently).To("/images/favicon.ico")
 	})

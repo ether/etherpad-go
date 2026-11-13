@@ -69,6 +69,8 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 	readOnlyManager := pad.NewReadOnlyManager(dataStore)
 
 	app := fiber.New(fiber.Config{})
+	// A panicking handler answers 500 instead of ending the process.
+	app.Use(recoverMiddleware(setupLogger))
 	app.Use(compress.New(compress.Config{
 		Level: compress.LevelBestSpeed,
 	}))

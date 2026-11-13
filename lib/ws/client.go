@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"log"
+	"runtime/debug"
 	"time"
 
 	"github.com/ether/etherpad-go/lib/models/ws/admin"
@@ -66,7 +67,26 @@ func (c *Client) readPumpAdmin(retrievedSettings *settings.Settings, logger *zap
 			logger.Error("error unmarshalling", err)
 			return
 		}
-		c.adminHandler.HandleMessage(eventMessage, retrievedSettings, c)
+		c.dispatchAdminMessage(eventMessage, retrievedSettings, logger)
+	}
+}
+
+func (c *Client) dispatchAdminMessage(eventMessage admin.EventMessage, retrievedSettings *settings.Settings, logger *zap.SugaredLogger) {
+	defer recoverClientPanic(c, logger, "admin")
+	c.adminHandler.HandleMessage(eventMessage, retrievedSettings, c)
+}
+
+// recoverClientPanic is deferred around the handling of one websocket
+// message: it logs a panic and closes that client's connection instead of
+// letting the panic end the process.
+func recoverClientPanic(c *Client, logger *zap.SugaredLogger, kind string) {
+	r := recover()
+	if r == nil {
+		return
+	}
+	logger.Errorf("panic while handling a %s message from %s: %v\n%s", kind, c.ClientIP, r, debug.Stack())
+	if c.Conn != nil {
+		_ = c.Conn.Close()
 	}
 }
 

@@ -342,6 +342,20 @@ func (h *Hook) ExecuteAuthzFailureHooks(ctx *events.AuthzFailureContext) {
 	h.ExecuteHooks(AuthzFailureString, ctx)
 }
 
+// EnqueueAuthFailureHook registers a callback for the deprecated authFailure
+// hook (see events.AuthFailureContext).
+func (h *Hook) EnqueueAuthFailureHook(cb func(ctx *events.AuthFailureContext)) string {
+	return h.EnqueueHook(AuthFailureString, func(ctx any) {
+		if c, ok := ctx.(*events.AuthFailureContext); ok {
+			cb(c)
+		}
+	})
+}
+
+func (h *Hook) ExecuteAuthFailureHooks(ctx *events.AuthFailureContext) {
+	h.ExecuteHooks(AuthFailureString, ctx)
+}
+
 // EnqueueExportFileNameHook registers a callback for the exportFileName hook,
 // which can override the export download filename (first non-empty SetFileName
 // wins; see events.ExportFileNameContext).
