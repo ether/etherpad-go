@@ -91,6 +91,13 @@ func (i *Importer) SetPadRaw(padId string, content []byte, authorId string) erro
 		return errors.New("invalid etherpad JSON: " + err.Error())
 	}
 
+	// Every record must belong to one source pad: a file that mixes pads
+	// ("pad:a" with "pad:b:revs:0", or an author of another pad) is
+	// rejected as a whole, as in etherpad-lite.
+	if _, err := sourcePadID(rawData); err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidEtherpadFile, err)
+	}
+
 	var padData PadData
 	var foundPadData bool
 
@@ -166,6 +173,19 @@ func (i *Importer) SetPadRaw(padId string, content []byte, authorId string) erro
 			}
 		}
 	}
+	// The file's pad-wide settings only count when the creator imports it;
+	// otherwise the target pad keeps its own.
+	var settingsJSON *string
+	if importerIsCreator {
+		if len(padData.PadSettings) > 0 && string(padData.PadSettings) != "null" {
+			s := string(padData.PadSettings)
+			settingsJSON = &s
+		}
+	} else if targetExists && targetPad.Settings != nil {
+		s := *targetPad.Settings
+		settingsJSON = &s
+	}
+
 	if rev0, ok := revisions[0]; ok && !importerIsCreator {
 		fileCreator := ""
 		if rev0.Meta.Author != nil {
@@ -209,6 +229,7 @@ func (i *Importer) SetPadRaw(padId string, content []byte, authorId string) erro
 			ReadOnlyId:     readOnlyId,
 			ID:             padId,
 			PublicStatus:   publicStatus,
+			Settings:       settingsJSON,
 		},
 		revisions: revisions,
 		authors:   make(map[string]GlobalAuthor),
@@ -263,9 +284,140 @@ func (i *Importer) SetPadRaw(padId string, content []byte, authorId string) erro
 		return fmt.Errorf("%w: %v", ErrInvalidEtherpadFile, err)
 	}
 
-	_ = i.db.RemovePad(padId)
+	// The target is replaced. Keep a copy, so a write that fails halfway
+	// (database error) puts the old pad back instead of losing it.
+	backup, err := snapshotPad(i.db, padId)
+	if err != nil {
+		return fmt.Errorf("import into %s: saving the current pad first: %w", padId, err)
+	}
+	if err := i.db.RemovePad(padId); err != nil {
+		return fmt.Errorf("import into %s: %w", padId, err)
+	}
 	if err := i.writeImport(i.db, imp, true); err != nil {
-		return fmt.Errorf("import into %s failed: %w", padId, err)
+		if backup != nil {
+			_ = i.db.RemovePad(padId)
+			if rerr := backup.restore(i.db); rerr != nil {
+				if i.logger != nil {
+					i.logger.Errorf("import into %s failed (%v) and restoring the previous pad failed too: %v", padId, err, rerr)
+				}
+				return fmt.Errorf("import into %s failed: %w; restoring the previous pad failed: %v", padId, err, rerr)
+			}
+		}
+		return fmt.Errorf("import into %s failed, the previous pad is unchanged: %w", padId, err)
+	}
+	return nil
+}
+
+// sourcePadID returns the id of the pad the records were exported from and
+// checks that every pad record and every author belongs to it.
+func sourcePadID(rawData map[string]json.RawMessage) (string, error) {
+	src := ""
+	check := func(id string) error {
+		if src == "" {
+			src = id
+		}
+		if id != src {
+			return fmt.Errorf("unexpected pad ID in record: %q, expected %q", id, src)
+		}
+		return nil
+	}
+	// Pad records first, so the error names the pad's id, not an author's.
+	keys := make([]string, 0, len(rawData))
+	for key := range rawData {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		parts := strings.Split(key, ":")
+		if parts[0] == "pad" && len(parts) >= 2 {
+			if err := check(parts[1]); err != nil {
+				return "", err
+			}
+		}
+	}
+	for _, key := range keys {
+		if !strings.HasPrefix(key, "globalAuthor:") {
+			continue
+		}
+		var a struct {
+			PadIDs json.RawMessage `json:"padIDs"`
+		}
+		if json.Unmarshal(rawData[key], &a) != nil || len(a.PadIDs) == 0 || string(a.PadIDs) == "null" {
+			continue
+		}
+		var padIDs string
+		if json.Unmarshal(a.PadIDs, &padIDs) != nil {
+			return "", fmt.Errorf("%s: padIDs is not a string", key)
+		}
+		if padIDs != "" {
+			if err := check(padIDs); err != nil {
+				return "", err
+			}
+		}
+	}
+	return src, nil
+}
+
+// padSnapshot is a pad's stored rows, for putting it back.
+type padSnapshot struct {
+	pad       db2.PadDB
+	revisions []db2.PadSingleRevision
+	chats     []db2.ChatMessageDBWithDisplayName
+	chatHead  int
+}
+
+// snapshotPad reads the pad's rows; nil when there is no such pad.
+func snapshotPad(store db.DataStore, padId string) (*padSnapshot, error) {
+	row, err := store.GetPad(padId)
+	if err != nil || row == nil {
+		return nil, nil
+	}
+	snap := &padSnapshot{pad: *row, chatHead: row.ChatHead}
+	if row.Head >= 0 {
+		revs, err := store.GetRevisions(padId, 0, row.Head)
+		if err != nil {
+			return nil, err
+		}
+		if revs != nil {
+			snap.revisions = *revs
+		}
+	}
+	if row.ChatHead >= 0 {
+		chats, err := store.GetChatsOfPad(padId, 0, row.ChatHead)
+		if err != nil {
+			return nil, err
+		}
+		if chats != nil {
+			snap.chats = *chats
+		}
+	}
+	return snap, nil
+}
+
+func (s *padSnapshot) restore(store db.DataStore) error {
+	if err := store.CreatePad(s.pad.ID, s.pad); err != nil {
+		return err
+	}
+	for _, rev := range s.revisions {
+		pool := db2.RevPool{}
+		if rev.Pool != nil {
+			pool = *rev.Pool
+		}
+		if err := store.SaveRevision(s.pad.ID, rev.RevNum, rev.Changeset, rev.AText, pool, rev.AuthorId, rev.Timestamp); err != nil {
+			return err
+		}
+	}
+	for _, c := range s.chats {
+		var ts int64
+		if c.Time != nil {
+			ts = *c.Time
+		}
+		if err := store.SaveChatMessage(s.pad.ID, c.Head, c.AuthorId, ts, c.Message); err != nil {
+			return err
+		}
+	}
+	if s.chatHead >= 0 {
+		return store.SaveChatHeadOfPad(s.pad.ID, s.chatHead)
 	}
 	return nil
 }
@@ -321,19 +473,9 @@ func (i *Importer) writeImport(store db.DataStore, imp *parsedEtherpad, live boo
 			}
 			continue
 		}
-		if !live {
-			continue
-		}
-		if colorId != "" {
-			if err := i.authorManager.SetAuthorColor(authorIdFromFile, colorId); err != nil {
-				return fmt.Errorf("updating author %s: %w", authorIdFromFile, err)
-			}
-		}
-		if authorData.Name != nil {
-			if err := i.authorManager.SetAuthorName(authorIdFromFile, *authorData.Name); err != nil {
-				return fmt.Errorf("updating author %s: %w", authorIdFromFile, err)
-			}
-		}
+		// An existing author keeps their name and colour: whoever can
+		// import into one pad must not rename authors of the whole
+		// instance (etherpad-lite does not touch existing authors either).
 	}
 	// Revisions and chat reference their authors; files that lack an author
 	// record (hand-made or trimmed exports) get a nameless placeholder so the
@@ -378,7 +520,12 @@ func (i *Importer) writeImport(store db.DataStore, imp *parsedEtherpad, live boo
 				NextNum:     rev.Meta.Pool.NextNum,
 			}
 		}
-		if err := store.SaveRevision(padId, revNum, rev.Changeset, revAText, revPool, rev.Meta.Author, timestamp); err != nil {
+		// Old files store "" for an unattributed revision.
+		revAuthor := rev.Meta.Author
+		if revAuthor != nil && *revAuthor == "" {
+			revAuthor = nil
+		}
+		if err := store.SaveRevision(padId, revNum, rev.Changeset, revAText, revPool, revAuthor, timestamp); err != nil {
 			return fmt.Errorf("saving revision %d: %w", revNum, err)
 		}
 	}

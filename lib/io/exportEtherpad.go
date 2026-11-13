@@ -2,6 +2,7 @@ package io
 
 import (
 	"embed"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -145,6 +146,11 @@ func (e *ExportEtherpad) GetPadRaw(padId string, readOnlyId *string, revNum *int
 		ChatHead:       exportChatHead,
 		PublicStatus:   retrievedPad.PublicStatus,
 		SavedRevisions: make([]any, 0),
+	}
+	if settingsJSON := retrievedPad.PadSettingsJSON(); settingsJSON != "" {
+		record := export.Pad[strings.TrimSuffix(dstPfx, ":")]
+		record.PadSettings = json.RawMessage(settingsJSON)
+		export.Pad[strings.TrimSuffix(dstPfx, ":")] = record
 	}
 
 	authors := make(map[string]*author.Author)

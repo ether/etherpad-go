@@ -25,6 +25,8 @@ type PadData struct {
 	ChatHead       int   `json:"chatHead"`
 	PublicStatus   bool  `json:"publicStatus"`
 	SavedRevisions []any `json:"savedRevisions"`
+	// PadSettings are the pad-wide settings (etherpad-lite padSettings).
+	PadSettings json.RawMessage `json:"padSettings,omitempty"`
 }
 
 type GlobalAuthor struct {

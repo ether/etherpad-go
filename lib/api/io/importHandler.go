@@ -251,11 +251,14 @@ func (h *ImportHandler) importEtherpad(padId string, authorId string, content []
 		return false, &ImportError{Status: "padHasData"}
 	}
 
-	// Unload pad before raw import (SetPadRaw will delete and recreate)
+	// Unload pad before raw import (SetPadRaw will delete and recreate).
+	// ImportPad holds the pad lock for the whole import.
 	h.padManager.UnloadPad(padId)
 
 	// Parse the etherpad JSON and import directly to database
-	if err := h.importer.SetPadRaw(padId, content, authorId); err != nil {
+	err = h.importer.SetPadRaw(padId, content, authorId)
+	h.padManager.UnloadPad(padId)
+	if err != nil {
 		if errors.Is(err, io.ErrImportChangesCreator) {
 			h.logger.Warnf("Rejected .etherpad import into %s: %v", padId, err)
 			return false, &ImportError{Status: "permission", Message: err.Error()}

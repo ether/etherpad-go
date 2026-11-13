@@ -151,6 +151,10 @@ func (p *Pad) storedPadSettings() map[string]any {
 	return raw
 }
 
+// PadSettingsJSON is the stored pad-wide settings JSON ("" for defaults),
+// as exported in .etherpad files.
+func (p *Pad) PadSettingsJSON() string { return p.settingsJSON }
+
 // GetPadSettings returns the pad's normalised pad-wide settings.
 func (p *Pad) GetPadSettings(d PadSettingsDefaults) map[string]any {
 	return NormalizePadSettings(p.storedPadSettings(), d)
