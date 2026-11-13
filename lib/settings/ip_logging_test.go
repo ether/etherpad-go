@@ -67,4 +67,3 @@ func TestNoRawIPInLogs(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, offending, "log lines with a raw client IP")
 }
-

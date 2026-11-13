@@ -330,13 +330,13 @@ type Settings struct {
 
 	AllowUnknownFileEnds bool `json:"allowUnknownFileEnds" mapstructure:"allowUnknownFileEnds"`
 
-	LogLevel                     string `json:"loglevel" mapstructure:"loglevel"`
+	LogLevel string `json:"loglevel" mapstructure:"loglevel"`
 	// DisableIPLogging is the old switch; IPLogging replaces it (see
 	// ReadConfig) and is what LogIP uses.
 	DisableIPLogging bool `json:"disableIPLogging" mapstructure:"disableIPLogging"`
 	// IPLogging is how client IP addresses appear in logs: "anonymous"
 	// (default), "truncated" or "full".
-	IPLogging string `json:"ipLogging" mapstructure:"ipLogging"`
+	IPLogging                    string `json:"ipLogging" mapstructure:"ipLogging"`
 	AutomaticReconnectionTimeout int    `json:"automaticReconnectionTimeout" mapstructure:"automaticReconnectionTimeout"`
 
 	LoadTest        bool `json:"loadTest" mapstructure:"loadTest"`

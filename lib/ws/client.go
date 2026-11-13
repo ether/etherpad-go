@@ -43,9 +43,9 @@ type Client struct {
 	WebAccessUser         any
 	// CookieToken is the author token from the HttpOnly cookie of the
 	// websocket handshake; it wins over the token in CLIENT_READY.
-	CookieToken string
-	Handler               *PadMessageHandler
-	adminHandler          *AdminMessageHandler
+	CookieToken  string
+	Handler      *PadMessageHandler
+	adminHandler *AdminMessageHandler
 }
 
 func (c *Client) readPumpAdmin(retrievedSettings *settings.Settings, logger *zap.SugaredLogger) {

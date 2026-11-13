@@ -439,4 +439,3 @@ func isValidText(content string) bool {
 	}
 	return true
 }
-

@@ -1,8 +1,8 @@
 package settings
 
 import (
-	"os"
 	"errors"
+	"os"
 	"strings"
 
 	"github.com/spf13/viper"
