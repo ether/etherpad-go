@@ -235,3 +235,14 @@ func (s *SessionStore) RemoveSessionForTest(sessionId string) {
 func (p *PadMessageHandler) CorrectMarkersInPadForTest(atext apool.AText, pool apool.APool) *string {
 	return p.correctMarkersInPad(atext, pool)
 }
+
+// IntegratorSessionIDForTest returns the integrator session id CLIENT_READY
+// stored for a session.
+func (s *SessionStore) IntegratorSessionIDForTest(sessionId string) string {
+	s.sync.RLock()
+	defer s.sync.RUnlock()
+	if session, ok := s.sessions[sessionId]; ok && session.Auth != nil {
+		return session.Auth.IntegratorSessionID
+	}
+	return ""
+}

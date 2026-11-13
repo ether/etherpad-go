@@ -101,9 +101,9 @@ func (h hkdfAlgorithm) derive(algParams json.RawMessage, info string) ([]byte, e
 	if p.KeyLen <= 0 || p.KeyLen > 1024 {
 		return nil, fmt.Errorf("invalid hkdf keyLen %d", p.KeyLen)
 	}
-	// secret/salt are hex strings; their literal bytes are used as IKM and salt.
-	// Internal consistency is all that matters (Go-only deployment), so the
-	// exact byte interpretation need not match Node's crypto.hkdf.
+	// secret/salt are hex strings whose literal bytes are the IKM and salt,
+	// as with Node's crypto.hkdf given strings: the derived secrets equal
+	// etherpad-lite's (see secretrotator_parity_test.go).
 	r := hkdf.New(sha256.New, []byte(p.Secret), []byte(p.Salt), []byte(info))
 	out := make([]byte, p.KeyLen)
 	if _, err := io.ReadFull(r, out); err != nil {
@@ -148,9 +148,12 @@ type SecretRotator struct {
 	logger   *zap.SugaredLogger
 	nowFn    func() int64 // unix ms; injectable for tests
 	onRotate func()       // optional, invoked after every successful update
+	// schedule runs fn after delayMs and returns a function that cancels it;
+	// injectable for tests.
+	schedule func(delayMs int64, fn func()) (cancel func())
 
-	timer   *time.Timer
-	stopped bool
+	cancelTimer func()
+	stopped     bool
 }
 
 // NewSecretRotator creates a rotator. interval is how often a new secret is
@@ -166,6 +169,10 @@ func NewSecretRotator(store SecretStore, prefix string, interval, lifetime time.
 		store:    store,
 		logger:   logger,
 		nowFn:    func() int64 { return time.Now().UnixMilli() },
+		schedule: func(delayMs int64, fn func()) func() {
+			t := time.AfterFunc(time.Duration(delayMs)*time.Millisecond, fn)
+			return func() { t.Stop() }
+		},
 	}
 }
 
@@ -205,9 +212,9 @@ func (r *SecretRotator) Stop() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.stopped = true
-	if r.timer != nil {
-		r.timer.Stop()
-		r.timer = nil
+	if r.cancelTimer != nil {
+		r.cancelTimer()
+		r.cancelTimer = nil
 	}
 }
 
@@ -424,8 +431,13 @@ func (r *SecretRotator) update() error {
 	r.secrets = secrets
 	stopped := r.stopped
 	if !stopped {
+		// One pending rotation at most: Start twice, or a rotation that runs
+		// while another is scheduled, must not leave two timers behind.
+		if r.cancelTimer != nil {
+			r.cancelTimer()
+		}
 		delay := max(next-r.nowFn(), 0)
-		r.timer = time.AfterFunc(time.Duration(delay)*time.Millisecond, func() {
+		r.cancelTimer = r.schedule(delay, func() {
 			if err := r.update(); err != nil && r.logger != nil {
 				r.logger.Warnf("secret-rotation %s: scheduled update failed: %v", r.prefix, err)
 			}

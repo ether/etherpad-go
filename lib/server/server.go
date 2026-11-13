@@ -188,11 +188,7 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 			// marked HttpOnly. Falls back to the legacy in-message
 			// `sessionID` field in HandleMessage for older clients.
 			// Upstream #7045 / #7755.
-			cookiePrefix := settings.Cookie.Prefix
-			integratorSessionID := c.Cookies(cookiePrefix + "sessionID")
-			if integratorSessionID == "" {
-				integratorSessionID = c.Cookies("sessionID")
-			}
+			integratorSessionID := integratorSessionIDCookie(c.Cookies, settings.Cookie.Prefix)
 			wsPreUpgrade.Store(connID, wsUpgradeData{
 				SessionID:           sess.ID(),
 				IntegratorSessionID: integratorSessionID,

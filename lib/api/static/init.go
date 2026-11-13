@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"regexp"
 	"strings"
 
 	"github.com/a-h/templ"
@@ -55,6 +56,41 @@ func buildHomeSocialMeta(c fiber.Ctx, s *settings.Settings) string {
 		Locales:        hooks.AllLocales,
 		Kind:           socialmeta.KindHome,
 	})
+}
+
+// servePluginStatic answers /static/plugins/<plugin>/static/<file>; anything
+// else, and a missing file, is a plain 404 that names no path.
+func servePluginStatic(c fiber.Ctx) error {
+	filePath, ok := pluginStaticFile(c.Params("*"))
+	if !ok {
+		return c.SendStatus(fiber.StatusNotFound)
+	}
+	if err := c.SendFile(filePath); err != nil {
+		return c.SendStatus(fiber.StatusNotFound)
+	}
+	return nil
+}
+
+var pluginNamePattern = regexp.MustCompile(`^ep_[A-Za-z0-9_-]+$`)
+
+// pluginStaticFile maps "<plugin>/static/<file>" to its path below
+// ./plugins, or reports false for anything else (other folders of the
+// plugin, "..", absolute or empty paths).
+func pluginStaticFile(rel string) (string, bool) {
+	plugin, rest, ok := strings.Cut(rel, "/")
+	if !ok || !pluginNamePattern.MatchString(plugin) {
+		return "", false
+	}
+	rest, ok = strings.CutPrefix(rest, "static/")
+	if !ok || rest == "" || strings.Contains(rest, "\\") {
+		return "", false
+	}
+	for _, segment := range strings.Split(rest, "/") {
+		if segment == "" || segment == "." || segment == ".." {
+			return "", false
+		}
+	}
+	return "./plugins/" + plugin + "/static/" + rest, true
 }
 
 func registerEmbeddedStatic(app *fiber.App, route string, subPath string, uiAssets embed.FS) {
@@ -199,10 +235,10 @@ func Init(store *lib.InitStore) {
 		return ctx.SendStatus(fiber.StatusNoContent)
 	})
 
-	store.C.Get("/static/plugins/*", func(c fiber.Ctx) error {
-		filePath := c.Params("*")
-		return c.SendFile("./plugins/" + filePath)
-	})
+	// Plugins' own static files, as in etherpad-lite: only what a plugin
+	// keeps in its static/ folder, never its sources or configuration. The
+	// route needs no login (public assets), so nothing outside is reachable.
+	store.C.Get("/static/plugins/*", servePluginStatic)
 
 	// Serve the React admin SPA index.html from the embedded build output
 	adminIndexHTML, err := store.UiAssets.ReadFile("assets/js/admin/index.html")

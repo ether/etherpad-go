@@ -7,10 +7,10 @@ behaviour, they are not line-by-line translations.
 
 | Status | Files | Test cases |
 |---|---|---|
-| Ported | 20 | 142 |
+| Ported | 29 | 325 |
 | Partly ported | 2 | 17 |
-| Not applicable to Go | 33 | 288 |
-| To compare case by case | 117 | 1287 |
+| Not applicable to Go | 35 | 303 |
+| To compare case by case | 106 | 1089 |
 
 "To compare" does not mean untested: most of these areas have Go tests (the Go code refers
 to more than 20 upstream issues). It means nobody has checked yet, case by case, which
@@ -39,6 +39,15 @@ upstream cases the Go tests cover and which are missing.
 | `padIdColonLegacyPad` | 3 | `lib/test/api/static/pad_url_colon_test.go` |
 | `padUrlColonRedirect` | 3 | `lib/test/api/static/pad_url_colon_test.go` |
 | `copyPadColonInjection` | 3 | `lib/test/api/pad/pad_api_test.go` (`TestCopyPadColonDestination`) |
+| `webaccess` | 49 | `lib/test/pad/webaccess_test.go`, `webaccess_parity_test.go` (plus malformed credentials) |
+| `socketio` | 45 | `lib/test/ws/authn_access_test.go`, `pad_deletion_test.go`, `pad_settings_test.go`; the SocketIORouter cases test Node's socket.io router, which Go does not have |
+| `sessionIdCookie` | 6 | `lib/server/session_cookie_test.go`, `lib/test/ws/session_id_cookie_test.go` |
+| `staticPathTraversal` | 3 | `lib/api/static/plugin_static_test.go` |
+| `SecretRotator` | 27 | `lib/security/secretrotator_parity_test.go`; the prefix-character cases do not apply (the prefix is a column, not part of a key pattern), "does not replace the array" is about JS array identity |
+| `oidcCookieRotator` | 1 | `lib/api/oidc/provider_security_test.go` (keys from the database) |
+| `OidcProviderSecurity` | 40 | `lib/api/oidc/provider_security_test.go`, `authenticator_test.go`; hash-only accounts and client_credentials admin tokens do not exist in the Go provider |
+| `padDeletionManager` | 10 | `lib/test/pad/deletion_token_test.go` |
+| `padDeletionUiPlacement` | 2 | `ui/src/js/pad_deletion.test.ts`, `lib/test/ws/pad_deletion_test.go` |
 | `Pad` | 25 | `lib/pad/pad_test.go`, `pad_parity_test.go`, `insert_author_test.go`; normalizePadSettings in `lib/models/pad/settings_test.go`; pad-wide settings end to end in `lib/test/ws/pad_settings_test.go`, client logic in `ui/src/js/pad_settings.test.ts` |
 
 ## Partly ported
@@ -93,7 +102,6 @@ Existing Go tests in this area: `lib/pad/retention_test.go`, `lib/test/api/pad`
 | `cleanupNoDestructiveWindow` | 6 |
 | `compactPad` | 32 |
 | `padRetention` | 20 |
-| `padDeletionManager` | 10 |
 | `api/deletePad` | 7 |
 | `api/movePadDeletionToken` | 5 |
 
@@ -161,15 +169,6 @@ Existing Go tests in this area: `lib/test/pad/webaccess_test.go`, `lib/security`
 
 | Spec | Cases |
 |---|---|
-| `webaccess` | 49 |
-| `socketio` | 45 |
-| `security` | 12 |
-| `sessionFixation` | 3 |
-| `sessionIdCookie` | 6 |
-| `staticPathTraversal` | 3 |
-| `SecretRotator` | 27 |
-| `oidcCookieRotator` | 1 |
-| `OidcProviderSecurity` | 40 |
 
 ### Settings and admin
 
@@ -186,7 +185,6 @@ Existing Go tests in this area: `lib/settings`, `lib/test/ws/admin_message_handl
 | `admin/padLoadResilience` | 4 |
 | `new/admin_utils` | 7 |
 | `settingsModalHeading` | 2 |
-| `padDeletionUiPlacement` | 2 |
 
 ### Pages, paths, metadata
 
@@ -250,6 +248,8 @@ Existing Go tests in this area: `lib/updater`, `lib/server/update_test.go` (Go h
 
 | Spec | Cases | Why |
 |---|---|---|
+| `security` | 12 | tests the Node `security` package for plugins; Go plugins use Go's html escaping |
+| `sessionFixation` | 3 | there is no server-side login session to fixate: Basic credentials are checked per request, the admin UI uses OIDC tokens |
 | `LinkInstaller` | 7 | npm plugin installer |
 | `OIDCAdapter` | 4 | adapter for the Node oidc-provider library; Go uses zitadel/oidc |
 | `SessionStore` | 29 | express-session store adapter; Go's session storage has its own tests |
