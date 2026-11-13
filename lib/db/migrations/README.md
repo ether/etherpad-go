@@ -75,3 +75,9 @@ The migration system automatically creates a `schema_migrations` table with the 
 | description | TEXT      | A description of the migration           |
 | applied_at  | TIMESTAMP | When the migration was applied           |
 
+
+## MySQL collation
+
+Since migration 13 every MySQL table uses `utf8mb4` with the binary collation `utf8mb4_bin`,
+so ids compare case-sensitively as on SQLite and Postgres. A new MySQL table must say so:
+`CREATE TABLE ... ) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin`.
