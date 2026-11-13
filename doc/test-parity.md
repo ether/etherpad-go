@@ -7,10 +7,10 @@ behaviour, they are not line-by-line translations.
 
 | Status | Files | Test cases |
 |---|---|---|
-| Ported | 57 | 587 |
-| Partly ported | 3 | 127 |
-| Not applicable to Go | 38 | 314 |
-| To compare case by case | 74 | 706 |
+| Ported | 75 | 745 |
+| Partly ported | 4 | 140 |
+| Not applicable to Go | 39 | 334 |
+| To compare case by case | 54 | 515 |
 
 "To compare" does not mean untested: most of these areas have Go tests (the Go code refers
 to more than 20 upstream issues). It means nobody has checked yet, case by case, which
@@ -63,8 +63,8 @@ upstream cases the Go tests cover and which are missing.
 | `cleanupMissingRevisions` | 11 | `lib/test/api/pad/compact_parity_test.go` (findMissingRevisions is internal: the refusal names the holes); a full compaction repairs a pad only when its latest text can be rebuilt (from its last key revision on), since etherpad-go does not keep the full text in the pad row |
 | `cleanupNoDestructiveWindow` | 6 | `lib/test/api/pad/compact_parity_test.go` |
 | `padRetention` | 20 | `lib/pad/retention_test.go`, `retention_parity_test.go`, `lib/settings/pad_retention_defaults_test.go` |
-| `api/deletePad` | 7 | `lib/test/api/pad/pad_api_test.go` (`TestPadDeletionTokensAPI`), on the admin REST API |
-| `api/movePadDeletionToken` | 5 | `lib/test/api/pad/pad_api_test.go` (`TestPadDeletionTokensAPI`) |
+| `api/deletePad` | 7 | `lib/test/api/pad/pad_api_test.go` (`TestPadDeletionTokensAPI`), on the admin REST API; `lib/test/api/legacy/deletion_token_test.go` on `/api/{version}` |
+| `api/movePadDeletionToken` | 5 | `lib/test/api/pad/pad_api_test.go` (`TestPadDeletionTokensAPI`), `lib/test/api/legacy/deletion_token_test.go` |
 | `chat` | 4 | `lib/test/ws/pad_message_handler_test.go` (chatNewMessage hook: text, pad, padId, drop), `lib/hooks/hook_test.go` |
 | `messages` | 14 | `lib/test/ws/messages_parity_test.go`, `pad_message_handler_test.go` (handleMessageSecurity) |
 | `undo_clear_authorship` | 6 | `lib/test/ws/undo_clear_authorship_test.go` |
@@ -78,6 +78,24 @@ upstream cases the Go tests cover and which are missing.
 | `ipLoggingSetting` | 11 | `lib/settings/ip_logging_test.go` (incl. a guard that every log line with a client IP goes through LogIP) |
 | `authorTokenCookie` | 2 | `lib/pad/author_token_cookie_test.go`, `lib/test/ws/author_token_cookie_test.go` |
 | `ensureAuthorTokenCookie` | 5 | `lib/pad/author_token_cookie_test.go`; the cookie is written on every page load (also when present) to take over older JavaScript cookies |
+| `api/pad` | 54 | `lib/test/api/legacy/pad_test.go`, on `/api/{version}`; etherpad-go writes no `start` attributes on imported ordered lists (see `doc/http-api.md`) |
+| `api/sessionsAndGroups` | 32 | `lib/test/api/legacy/sessions_groups_test.go`; a mapper gets the same group id again after deleteGroup (of a new, empty group) |
+| `api/chat` | 7 | `lib/test/api/legacy/misc_test.go` |
+| `api/characterEncoding` | 7 | `lib/test/api/legacy/misc_test.go` (non-ASCII as numeric entities, as etherpad-lite) |
+| `api/appendTextAuthor` | 2 | `lib/test/api/legacy/misc_test.go` |
+| `api/createDiffHTML` | 3 | `lib/test/api/legacy/misc_test.go` |
+| `api/restoreRevision` | 3 | `lib/test/api/legacy/misc_test.go` (authorId ignored before 1.3.0), `lib/test/api/pad/restore_revision_test.go` |
+| `api/instance` | 2 | `lib/test/api/legacy/misc_test.go` |
+| `api/jwtAdminClaim` | 9 | `lib/api/oidc/authenticator_test.go` (`TestValidateAdminToken`, `TestValidateServiceToken`, `TestNonAdminTokenIsRejected`), `lib/test/api/legacy/bearer_test.go`; etherpad-go's access tokens are opaque, so a client_credentials token is checked against the token store, not by a claim |
+| `apicalls` | 2 | `lib/test/api/static/diagnostic_info_test.go` |
+| `openapi` | 7 | `lib/api/legacy/legacy_test.go` (`TestServerOrigin`) |
+| `downstream/wire-http-api` | 3 | `lib/test/api/legacy/pad_test.go` |
+| `admin/adminSettingsAuthError` | 1 | `playwright/admin-spec/admin_auth_error.spec.ts`: the admin page tells a refused sign-in so instead of retrying |
+| `admin/adminSettingsRedact` | 10 | `lib/settings/redact_test.go` |
+| `admin/adminSettingsResolved` | 4 | `lib/test/ws/admin_settings_file_test.go` |
+| `admin/adminSettingsSave` | 3 | `lib/test/ws/admin_settings_file_test.go` |
+| `admin/padLoadFilter` | 5 | `lib/test/ws/pad_load_filter_test.go`, `lib/ws/pad_filter_test.go`, `playwright/admin-spec/admin_pad_filter.spec.ts` |
+| `admin/padLoadResilience` | 4 | `lib/test/ws/delete_unloadable_pad_test.go` |
 ## Partly ported
 
 | Spec | Cases | State |
@@ -85,6 +103,7 @@ upstream cases the Go tests cover and which are missing.
 | `new/easysync-other` | 9 | moveOpsToNewPool, makeSplice, applyToAttribution and split/join are covered in `lib/changeset`; filterAttribNumbers, makeAttribsString, toSplices and opAttributeValue do not exist in the Go package (deprecated or client-only upstream) |
 | `export` | 86 | the HTTP cases (500 on error, DOCX/PDF/ODT signatures and content types) in `lib/test/api/io/importexport_parity_test.go`. sanitizeExportHtml, extractBody, wrapLooseLines, dropEmptyBlocks, collapseRedundantBrAfterBlocks, separateAdjacentHeadingBlocks, applyMonospaceToCode and htmlToPdfBuffer test etherpad-lite's HTML-to-DOCX/PDF converter, which etherpad-go does not have: it builds the documents from the pad and fetches no URLs. Open: the PDF has no link annotations and ignores font-family (ep_font_family) and an exportPdfFonts setting, which etherpad-go does not have |
 | `compactPad` | 32 | API.compactPad on `/admin/api/pads/{id}/compact` in `lib/test/api/pad/compact_parity_test.go`, `pad_compact_diff_api_test.go`; the 23 runCompactAll/runCompactStale cases test etherpad-lite's bin/compactAllPads and bin/compactStalePads scripts, which etherpad-go does not have |
+| `api/api` | 13 | `lib/test/api/legacy/misc_test.go`, `openapi_test.go`: versions, GET and POST, the OpenAPI document (tags, summaries, POST only, apikey schemes). Not served: `/api-docs.json` and the REST-style paths `/rest/{version}/...` |
 
 ## `:` in pad ids
 
@@ -110,20 +129,6 @@ Existing Go tests in this area: `lib/test/api/*`, `lib/api/pad`
 
 | Spec | Cases |
 |---|---|
-| `api/api` | 13 |
-| `api/pad` | 54 |
-| `api/chat` | 7 |
-| `api/characterEncoding` | 7 |
-| `api/appendTextAuthor` | 2 |
-| `api/createDiffHTML` | 3 |
-| `api/restoreRevision` | 3 |
-| `api/sessionsAndGroups` | 32 |
-| `api/instance` | 2 |
-| `api/jwtAdminClaim` | 9 |
-| `apicalls` | 2 |
-| `openapi` | 7 |
-| `openapi-admin` | 20 |
-| `downstream/wire-http-api` | 3 |
 | `downstream/wire-socket-sequence` | 2 |
 | `downstream/wire-vectors` | 2 |
 
@@ -152,12 +157,6 @@ Existing Go tests in this area: `lib/settings`, `lib/test/ws/admin_message_handl
 | Spec | Cases |
 |---|---|
 | `settings` | 21 |
-| `admin/adminSettingsAuthError` | 1 |
-| `admin/adminSettingsRedact` | 10 |
-| `admin/adminSettingsResolved` | 4 |
-| `admin/adminSettingsSave` | 3 |
-| `admin/padLoadFilter` | 5 |
-| `admin/padLoadResilience` | 4 |
 | `new/admin_utils` | 7 |
 | `settingsModalHeading` | 2 |
 
@@ -230,6 +229,7 @@ Existing Go tests in this area: `lib/updater`, `lib/server/update_test.go` (Go h
 | `SessionStore` | 29 | express-session store adapter; Go's session storage has its own tests |
 | `Stream` | 31 | JavaScript stream helper |
 | `api/fuzzImportTest` | 0 | no test cases |
+| `openapi-admin` | 20 | etherpad-lite's admin OpenAPI document (verifyAdminAccess, update status); etherpad-go documents its admin REST API in `docs/swagger.yaml` |
 | `contentcollector` | 3 | client-side DOM collector (JavaScript) |
 | `crossPadWriteToctou` | 1 | Node pauses in an async hook between two reads of the session's pad; Go handles a socket's messages one after the other. The handler now reads the pad id once. |
 | `crypto` | 0 | no test cases |

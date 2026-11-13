@@ -2,6 +2,7 @@ package static
 
 import (
 	"embed"
+	"encoding/json"
 	padManager "github.com/ether/etherpad-go/lib/pad"
 	"io/fs"
 	"net/http"
@@ -232,8 +233,21 @@ func Init(store *lib.InitStore) {
 		return plugins.ReturnPluginResponse(ctx)
 	})
 	store.C.Post("/jserror", func(ctx fiber.Ctx) error {
-		store.Logger.Warnf("Frontend error report: %s", string(ctx.Body()))
+		store.Logger.Warnf("Frontend error report: %s", clientReport(ctx.Body()))
 		return ctx.SendStatus(fiber.StatusNoContent)
+	})
+	// The pad posts what it knows about a lost connection (etherpad-lite's
+	// apicalls): logged, nothing else.
+	store.C.Post("/ep/pad/connection-diagnostic-info", func(ctx fiber.Ctx) error {
+		var body struct {
+			DiagnosticInfo json.RawMessage `json:"diagnosticInfo"`
+		}
+		if json.Unmarshal(ctx.Body(), &body) != nil || len(body.DiagnosticInfo) == 0 || body.DiagnosticInfo[0] != '{' {
+			store.Logger.Warn("DIAGNOSTIC-INFO: No diagnostic info provided")
+			return ctx.Status(fiber.StatusBadRequest).SendString("No diagnostic info provided")
+		}
+		store.Logger.Infof("DIAGNOSTIC-INFO: %s", clientReport(body.DiagnosticInfo))
+		return ctx.SendString("OK")
 	})
 
 	// Plugins' own static files, as in etherpad-lite: only what a plugin
@@ -405,4 +419,25 @@ func Init(store *lib.InitStore) {
 			return c.Type("html").SendString(adminHTML)
 		})
 	}
+}
+
+// clientReport makes text a browser sent fit for one log line: at most
+// 4 KiB, control characters (line breaks that would fake log lines)
+// replaced.
+func clientReport(b []byte) string {
+	const limit = 4096
+	truncated := len(b) > limit
+	if truncated {
+		b = b[:limit]
+	}
+	s := strings.Map(func(r rune) rune {
+		if r < 0x20 || r == 0x7f {
+			return ' '
+		}
+		return r
+	}, strings.ToValidUTF8(string(b), "?"))
+	if truncated {
+		s += " …(truncated)"
+	}
+	return s
 }

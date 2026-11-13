@@ -625,3 +625,29 @@ func TestValidateAdminToken(t *testing.T) {
 }
 
 func rsaKey() (*rsa.PrivateKey, error) { return rsa.GenerateKey(rand.Reader, 2048) }
+
+// Port of etherpad-lite's jwtAdminClaim "client_credentials classification":
+// the legacy HTTP API takes client_credentials tokens of configured clients,
+// never a user's token.
+func TestValidateServiceToken(t *testing.T) {
+	ts := newTestServer(t, db.NewMemoryDataStore())
+
+	resp := ts.post(t, tokenPath, url.Values{
+		"grant_type": {"client_credentials"}, "client_id": {serviceClientID},
+		"client_secret": {serviceSecret}, "scope": {"openid"},
+	}, "", "")
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	service := decodeTokens(t, resp).AccessToken
+	assert.True(t, ts.auth.ValidateServiceToken(service), "client_credentials token of a configured client")
+
+	code := ts.login(t, ts.startAuth(t, "openid profile email offline_access"), "admin", "adminpass")
+	userTokens := decodeTokens(t, ts.exchangeCode(t, code, codeVerifier))
+	assert.False(t, ts.auth.ValidateServiceToken(userTokens.AccessToken), "a user's access token")
+	assert.False(t, ts.auth.ValidateServiceToken(userTokens.IDToken), "a user's ID token")
+	assert.False(t, ts.auth.ValidateServiceToken("not-a-token"))
+	assert.False(t, ts.auth.ValidateServiceToken(""))
+
+	r := ts.post(t, revokePath, url.Values{"token": {service}}, serviceClientID, serviceSecret)
+	require.Equal(t, http.StatusOK, r.StatusCode)
+	assert.False(t, ts.auth.ValidateServiceToken(service), "revoked")
+}

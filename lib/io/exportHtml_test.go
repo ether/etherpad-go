@@ -773,11 +773,12 @@ func TestGetHTMLFromAtext_UnicodeText(t *testing.T) {
 	if !strings.Contains(result, "Hello") {
 		t.Errorf("result should contain 'Hello', got: %s", result)
 	}
-	if !strings.Contains(result, "世界") {
-		t.Errorf("result should contain '世界', got: %s", result)
+	// Non-ASCII characters are numeric entities, as in etherpad-lite.
+	if !strings.Contains(result, "&#19990;&#30028;") {
+		t.Errorf("result should contain '世界' as entities, got: %s", result)
 	}
-	if !strings.Contains(result, "🌍") {
-		t.Errorf("result should contain '🌍', got: %s", result)
+	if !strings.Contains(result, "&#127757;") {
+		t.Errorf("result should contain '🌍' as an entity, got: %s", result)
 	}
 }
 

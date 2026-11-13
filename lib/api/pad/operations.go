@@ -1,6 +1,7 @@
 package pad
 
 import (
+	"errors"
 	"strings"
 	"time"
 
@@ -313,8 +314,12 @@ func GetLastEdited(initStore *lib.InitStore) fiber.Handler {
 			return c.Status(404).JSON(errors2.PadNotFoundError)
 		}
 
+		// The time of the head revision, as etherpad-lite's getLastEdit.
+		// The pad row's updated_at is not set on a pad loaded from the store.
 		var lastEdited int64 = 0
-		if pad.UpdatedAt != nil {
+		if ts, err := pad.GetRevisionDate(pad.Head); err == nil {
+			lastEdited = *ts
+		} else if pad.UpdatedAt != nil {
 			lastEdited = pad.UpdatedAt.UnixMilli()
 		}
 
@@ -403,15 +408,16 @@ func GetHTML(initStore *lib.InitStore) fiber.Handler {
 			rev = revNum
 		}
 
-		// Render the full HTML document through the real exporter so that
-		// formatting (bold/italic/underline, links, lists, headings, line
-		// markers) is preserved. Mirrors the original Etherpad getHTML, which
-		// delegates to exportHtml.getPadHTMLDocument.
+		// The pad's HTML (formatting, links, lists, headings, line markers;
+		// no author colours) in a bare document, as etherpad-lite's getHTML:
+		// <!DOCTYPE HTML><html><body>...</body></html>. The full export
+		// document with styles is /p/:pad/export/html.
 		exporter := io2.NewExportHtml(initStore.PadManager, initStore.AuthorManager, initStore.Hooks)
-		html, err := exporter.GetPadHTMLDocument(padId, rev, nil)
+		body, err := exporter.GetPadHTML(pad, rev, nil)
 		if err != nil {
 			return c.Status(500).JSON(errors2.InternalApiError)
 		}
+		html := "<!DOCTYPE HTML><html><body>" + body + "</body></html>"
 
 		return c.JSON(fiber.Map{
 			"html": html,
@@ -719,7 +725,8 @@ func ListSavedRevisions(initStore *lib.InitStore) fiber.Handler {
 
 // SaveRevisionRequest represents the request to save a revision
 type SaveRevisionRequest struct {
-	Rev int `json:"rev"`
+	// Rev is the revision to save; omitted, the head revision.
+	Rev *int `json:"rev"`
 }
 
 // SaveRevision godoc
@@ -740,8 +747,12 @@ func SaveRevision(initStore *lib.InitStore) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		padId := c.Params("padId")
 		var request SaveRevisionRequest
-		// Body is optional
-		c.Bind().Body(&request)
+		// Body is optional; without rev the head revision is saved.
+		if len(c.Body()) > 0 {
+			if err := c.Bind().Body(&request); err != nil {
+				return c.Status(400).JSON(errors2.InvalidRequestError)
+			}
+		}
 
 		// Get the pad
 		pad, err := utils2.GetPadSafe(padId, true, nil, nil, initStore.PadManager)
@@ -749,19 +760,27 @@ func SaveRevision(initStore *lib.InitStore) fiber.Handler {
 			return c.Status(404).JSON(errors2.PadNotFoundError)
 		}
 
-		// Validate revision if provided
-		if request.Rev > pad.Head {
-			return c.Status(400).JSON(errors2.RevisionHigherThanHeadError)
+		rev := pad.Head
+		if request.Rev != nil {
+			if *request.Rev < 0 {
+				return c.Status(400).JSON(errors2.InvalidRevisionError)
+			}
+			if *request.Rev > pad.Head {
+				return c.Status(400).JSON(errors2.RevisionHigherThanHeadError)
+			}
+			rev = *request.Rev
 		}
 
-		// Create author for API call
-		apiAuthor, err := initStore.AuthorManager.CreateAuthor(nil)
+		// As etherpad-lite: saved by an author named "API".
+		name := "API"
+		apiAuthor, err := initStore.AuthorManager.CreateAuthor(&name)
 		if err != nil {
 			return c.Status(500).JSON(errors2.InternalServerError)
 		}
 
-		// Save the revision
-		if err := pad.AddSavedRevision(apiAuthor.Id); err != nil {
+		// Saving a revision that is saved already changes nothing.
+		label := "Saved through API call"
+		if err := pad.AddSavedRevisionAt(rev, apiAuthor.Id, &label); err != nil && !errors.Is(err, padModel.ErrRevisionAlreadySaved) {
 			return c.Status(500).JSON(errors2.InternalServerError)
 		}
 
@@ -771,8 +790,10 @@ func SaveRevision(initStore *lib.InitStore) fiber.Handler {
 
 // CreatePadRequest represents the request to create a pad
 type CreatePadRequest struct {
-	Text     string `json:"text"`
-	AuthorId string `json:"authorId"`
+	// Text is the initial text; omitted or null means the default pad
+	// text, "" an empty pad.
+	Text     *string `json:"text"`
+	AuthorId string  `json:"authorId"`
 }
 
 // CreatePadResponse carries the new pad's deletion token, which is handed
@@ -821,10 +842,7 @@ func CreatePad(initStore *lib.InitStore) fiber.Handler {
 		}
 
 		// Create the pad
-		var textPtr *string
-		if request.Text != "" {
-			textPtr = &request.Text
-		}
+		textPtr := request.Text
 		var authorPtr *string
 		if request.AuthorId != "" {
 			authorPtr = &request.AuthorId
@@ -994,7 +1012,7 @@ func ListAllPads(initStore *lib.InitStore) fiber.Handler {
 			pads = &[]string{}
 		}
 		return c.JSON(AllPadsResponse{
-			PadIDs: *pads,
+			PadIDs: nonNil(*pads),
 		})
 	}
 }
@@ -1093,4 +1111,12 @@ func GetPadUsersCount(initStore *lib.InitStore) fiber.Handler {
 			PadUsersCount: count,
 		})
 	}
+}
+
+// nonNil makes an empty list encode as [], not null.
+func nonNil[T any](s []T) []T {
+	if s == nil {
+		return []T{}
+	}
+	return s
 }

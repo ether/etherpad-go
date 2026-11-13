@@ -856,18 +856,33 @@ func (p *Pad) GetChatMessages(start int, end int) (*[]db2.ChatMessageDBWithDispl
 }
 
 func (p *Pad) AddSavedRevision(author string) error {
+	return p.AddSavedRevisionAt(p.Head, author, nil)
+}
+
+// ErrRevisionAlreadySaved is returned for a revision that is saved already.
+var ErrRevisionAlreadySaved = errors.New("saved revision already exists")
+
+// AddSavedRevisionAt saves revision rev (at most head) with a label;
+// without one it is "Revision <rev>".
+func (p *Pad) AddSavedRevisionAt(rev int, author string, label *string) error {
+	if rev < 0 || rev > p.Head {
+		return fmt.Errorf("revision %d of pad %s does not exist", rev, p.Id)
+	}
 	for _, savedRev := range p.SavedRevisions {
-		if savedRev.RevNum == p.Head {
-			return errors.New("saved revision already exists")
+		if savedRev.RevNum == rev {
+			return ErrRevisionAlreadySaved
 		}
 	}
 
-	label := "Revision " + strconv.Itoa(p.Head)
+	if label == nil {
+		l := "Revision " + strconv.Itoa(rev)
+		label = &l
+	}
 	saved := append(append([]revision.SavedRevision{}, p.SavedRevisions...), revision.SavedRevision{
-		RevNum:    p.Head,
+		RevNum:    rev,
 		SavedBy:   author,
 		Timestamp: time.Now().UnixNano() / int64(time.Millisecond),
-		Label:     &label,
+		Label:     label,
 		Id:        utils.RandomString(10),
 	})
 	// Callers hold the pad lock, which reloaded the saved revisions, so

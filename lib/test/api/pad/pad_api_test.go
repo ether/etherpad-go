@@ -279,8 +279,9 @@ func testCreatePadSuccess(t *testing.T, tsStore testutils.TestDataStore) {
 	initStore := tsStore.ToInitStore()
 	pad.Init(initStore)
 
+	initialText := "Initial text"
 	reqBody := pad.CreatePadRequest{
-		Text:     "Initial text",
+		Text:     &initialText,
 		AuthorId: "",
 	}
 	body, _ := json.Marshal(reqBody)
