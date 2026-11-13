@@ -80,7 +80,8 @@ type UserInfoUpdate struct {
 type PadDelete struct {
 	Type string `json:"type"`
 	Data struct {
-		PadID string `json:"padId"`
+		PadID         string `json:"padId"`
+		DeletionToken string `json:"deletionToken"`
 	}
 }
 

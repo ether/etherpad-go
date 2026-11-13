@@ -79,6 +79,15 @@ func (s *SessionStore) addPadReadOnlyIds(sessionId, padId string, readOnlyPadId 
 	s.sync.Unlock()
 }
 
+// setReadOnly makes a session read-only.
+func (s *SessionStore) setReadOnly(sessionId string) {
+	s.sync.Lock()
+	if session, ok := s.sessions[sessionId]; ok {
+		session.ReadOnly = true
+	}
+	s.sync.Unlock()
+}
+
 func (s *SessionStore) addFinalInformation(sessionId, padId, readOnlyPadId string, readonly bool) {
 	s.sync.Lock()
 	var session = s.sessions[sessionId]

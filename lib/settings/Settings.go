@@ -102,6 +102,11 @@ type User struct {
 	Password *string `json:"password" mapstructure:"password"`
 	IsAdmin  *bool   `json:"is_admin" mapstructure:"is_admin"`
 	Username *string `json:"username" mapstructure:"username"`
+	// ReadOnly makes every pad read-only for this user. CanCreate=false
+	// keeps the user from creating pads (unset means allowed). Both as in
+	// etherpad-lite's settings.users.
+	ReadOnly  *bool `json:"readOnly,omitempty" mapstructure:"readOnly"`
+	CanCreate *bool `json:"canCreate,omitempty" mapstructure:"canCreate"`
 }
 
 type Cookie struct {
@@ -291,6 +296,12 @@ type Settings struct {
 	// options for everyone on the pad and enforce them (upstream #7586).
 	// Default true.
 	EnablePadWideSettings bool `json:"enablePadWideSettings" mapstructure:"enablePadWideSettings"`
+	// AllowPadDeletionByAllUsers lets every user who can edit a pad delete
+	// it. Off: only the pad's creator, or whoever has its deletion token.
+	AllowPadDeletionByAllUsers bool `json:"allowPadDeletionByAllUsers" mapstructure:"allowPadDeletionByAllUsers"`
+	// SuppressPadDeletionTokenModal keeps issuing deletion tokens but does
+	// not interrupt the creator with the "save your token" dialog.
+	SuppressPadDeletionTokenModal bool `json:"suppressPadDeletionTokenModal" mapstructure:"suppressPadDeletionTokenModal"`
 
 	SkinName     string `json:"skinName" mapstructure:"skinName"`
 	SkinVariants string `json:"skinVariants" mapstructure:"skinVariants"`

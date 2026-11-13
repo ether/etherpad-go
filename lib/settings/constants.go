@@ -24,6 +24,8 @@ const (
 	EnableDarkMode                        = "enableDarkMode"
 	EnablePluginPadOptions                = "enablePluginPadOptions"
 	EnablePadWideSettings                 = "enablePadWideSettings"
+	AllowPadDeletionByAllUsers            = "allowPadDeletionByAllUsers"
+	SuppressPadDeletionTokenModal         = "suppressPadDeletionTokenModal"
 	AvailableExports                      = "availableExports"
 	IndentationOnNewLine                  = "indentationOnNewLine"
 	UpdateServer                          = "updateServer"

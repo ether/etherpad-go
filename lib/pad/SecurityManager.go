@@ -84,7 +84,7 @@ func (s *SecurityManager) CheckAccess(padId *string, sessionCookie *string, toke
 		if userSettings == nil {
 			return nil, errors.New("userSettings is nil")
 		}
-		if !userSettings.CanCreate {
+		if userSettings.CanCreate != nil && !*userSettings.CanCreate {
 			canCreate = false
 		}
 
@@ -100,7 +100,17 @@ func (s *SecurityManager) CheckAccess(padId *string, sessionCookie *string, toke
 			padAuthzs = userSettings.PadAuthorizations
 		}
 		var unwrappedMap = *padAuthzs
-		var entry = unwrappedMap[*padId]
+		var entry, known = unwrappedMap[*padId]
+		if !known {
+			// etherpad-lite remembers the level from loading /p/<pad> in the
+			// express session. etherpad-go has no server-side session: the
+			// websocket request authenticates on its own and never visited
+			// /p/<pad>, so the level for this pad is decided here, the same
+			// way webaccess decides it for the page.
+			entry = ResolvePadAuthorization(userSettings, *padId, s.settings, s.hooks)
+			unwrappedMap[*padId] = entry
+			userSettings.PadAuthorizations = padAuthzs
+		}
 		var level, err = NormalizeAuthzLevel(entry)
 
 		if err != nil {

@@ -476,6 +476,9 @@ func (h *Hook) ExecuteShutdownHooks(ctx *events.ShutdownContext) {
 	h.ExecuteHooks(ShutdownString, ctx)
 }
 
+// Has reports whether any callback is registered for the hook.
+func (h *Hook) Has(key string) bool { return len(h.hooks[key]) > 0 }
+
 func (h *Hook) EnqueueHook(key string, ctx func(ctx any)) string {
 	var uuid = utils.UUID()
 	h.hooks[key] = append(h.hooks[key], hookEntry{id: uuid, fn: ctx})

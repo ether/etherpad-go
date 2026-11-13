@@ -11,6 +11,7 @@ import (
 	"github.com/ether/etherpad-go/lib/changeset"
 	io2 "github.com/ether/etherpad-go/lib/io"
 	padModel "github.com/ether/etherpad-go/lib/models/pad"
+	padManager "github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/utils"
 	"github.com/gofiber/fiber/v3"
 )
@@ -375,7 +376,9 @@ func GetLastEdited(initStore *lib.InitStore) fiber.Handler {
 // @Accept json
 // @Produce json
 // @Param padId path string true "Pad ID"
+// @Param deletionToken query string false "The pad's deletion token; checked when given"
 // @Success 200 {string} string "OK"
+// @Failure 401 {object} errors.Error
 // @Failure 404 {object} errors.Error
 // @Failure 500 {object} errors.Error
 // @Security BearerAuth
@@ -388,6 +391,12 @@ func DeletePad(initStore *lib.InitStore) fiber.Handler {
 		_, err := utils2.GetPadSafe(padId, true, nil, nil, initStore.PadManager)
 		if err != nil {
 			return c.Status(404).JSON(errors2.PadNotFoundError)
+		}
+
+		// API callers are trusted; a token they pass must still be right,
+		// as in etherpad-lite's deletePad(padID, deletionToken).
+		if token := c.Query("deletionToken"); token != "" && !padManager.NewDeletionTokens(initStore.Store).IsValid(padId, token) {
+			return c.Status(401).JSON(errors2.NewInvalidParamError("invalid deletionToken"))
 		}
 
 		// Delete the pad using PadManager
@@ -809,6 +818,13 @@ type CreatePadRequest struct {
 	AuthorId string `json:"authorId"`
 }
 
+// CreatePadResponse carries the new pad's deletion token, which is handed
+// out only here: null when requireAuthentication or
+// allowPadDeletionByAllUsers make it unnecessary (as in etherpad-lite).
+type CreatePadResponse struct {
+	DeletionToken *string `json:"deletionToken"`
+}
+
 // CreatePad godoc
 // @Summary Create a new pad
 // @Description Creates a new pad with optional initial text
@@ -817,7 +833,7 @@ type CreatePadRequest struct {
 // @Produce json
 // @Param padId path string true "Pad ID"
 // @Param request body CreatePadRequest false "Initial text and author ID"
-// @Success 200 {string} string "OK"
+// @Success 200 {object} CreatePadResponse
 // @Failure 400 {object} errors.Error
 // @Failure 409 {object} errors.Error
 // @Failure 500 {object} errors.Error
@@ -862,7 +878,16 @@ func CreatePad(initStore *lib.InitStore) fiber.Handler {
 			return c.Status(500).JSON(errors2.InternalServerError)
 		}
 
-		return c.SendStatus(200)
+		var response CreatePadResponse
+		if cfg := initStore.RetrievedSettings; cfg == nil || (!cfg.RequireAuthentication && !cfg.AllowPadDeletionByAllUsers) {
+			token, err := padManager.NewDeletionTokens(initStore.Store).CreateIfAbsent(padId)
+			if err != nil {
+				initStore.Logger.Errorf("Creating the deletion token of pad %s: %v", padId, err)
+				return c.Status(500).JSON(errors2.InternalServerError)
+			}
+			response.DeletionToken = token
+		}
+		return c.JSON(response)
 	}
 }
 

@@ -9,6 +9,7 @@ import (
 	"github.com/ether/etherpad-go/lib/hooks/events"
 	db2 "github.com/ether/etherpad-go/lib/models/db"
 	padModel "github.com/ether/etherpad-go/lib/models/pad"
+	padManager "github.com/ether/etherpad-go/lib/pad"
 	"github.com/gofiber/fiber/v3"
 )
 
@@ -269,6 +270,14 @@ func MovePad(initStore *lib.InitStore) fiber.Handler {
 		}
 
 		firePadCopy(initStore, srcPad, request.DestinationID)
+
+		// A move is the same pad under a new id: the deletion token its
+		// creator saved keeps working there (etherpad-lite #7995). A copy
+		// is another pad and gets no token of the source's.
+		if err := padManager.NewDeletionTokens(initStore.Store).Transfer(padId, request.DestinationID); err != nil {
+			initStore.Logger.Errorf("Moving the deletion token of pad %s to %s: %v", padId, request.DestinationID, err)
+			return c.Status(500).JSON(errors2.InternalServerError)
+		}
 
 		// Remove the source pad after a successful copy (fires padRemove)
 		if err := initStore.PadManager.RemovePad(padId); err != nil {

@@ -217,6 +217,11 @@ func (m *Manager) RemovePad(padID string) error {
 	if err := m.store.RemovePad(padID); err != nil {
 		return err
 	}
+	// The token deleted nothing more once the pad is gone, and a new pad
+	// with the same id must not inherit it.
+	if err := NewDeletionTokens(m.store).Remove(padID); err != nil {
+		return fmt.Errorf("removing the deletion token of pad %s: %w", padID, err)
+	}
 	m.globalPadCache.DeletePad(padID)
 	m.padList.RemovePad(padID)
 

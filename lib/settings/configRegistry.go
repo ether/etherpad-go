@@ -289,6 +289,16 @@ var Registry = []ConfigKey{
 		Description: "Enable dark mode",
 	},
 	{
+		Key:         AllowPadDeletionByAllUsers,
+		Default:     false,
+		Description: "Let every user who can edit a pad delete it, not only its creator",
+	},
+	{
+		Key:         SuppressPadDeletionTokenModal,
+		Default:     false,
+		Description: "Do not show the creator the dialog with the pad deletion token",
+	},
+	{
 		Key:         EnablePadWideSettings,
 		Default:     true,
 		Description: "Let the pad creator set and enforce pad-wide settings (upstream #7586)",

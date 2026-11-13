@@ -96,6 +96,8 @@ type PadMessageHandler struct {
 	sheets    sheetState
 	retention *pad.Retention
 	cluster   *clusterState
+	// deletionTokens are the pads' deletion tokens.
+	deletionTokens *pad.DeletionTokens
 }
 
 func NewPadMessageHandler(db db2.DataStore, hooks *hooks.Hook, padManager *pad.Manager, sessionStore *SessionStore, hub *Hub, logger *zap.SugaredLogger, uiAssets embed.FS, cfg *settings.Settings) *PadMessageHandler {
@@ -109,11 +111,12 @@ func NewPadMessageHandler(db db2.DataStore, hooks *hooks.Hook, padManager *pad.M
 			AuthorManager:   author.NewManager(db),
 			UiAssets:        uiAssets,
 		},
-		SessionStore: sessionStore,
-		hub:          hub,
-		Logger:       logger,
-		hooks:        hooks,
-		sheetManager: sheetdoc.NewManager(db),
+		SessionStore:   sessionStore,
+		hub:            hub,
+		Logger:         logger,
+		hooks:          hooks,
+		sheetManager:   sheetdoc.NewManager(db),
+		deletionTokens: pad.NewDeletionTokens(db),
 	}
 	padMessageHandler.padChannels = NewChannelOperator(&padMessageHandler)
 	padMessageHandler.sheetChannels = NewSheetChannelOperator(&padMessageHandler)
@@ -566,10 +569,12 @@ func (p *PadMessageHandler) HandleMessage(message any, client *Client, retrieved
 	var grantedAccess, err = p.securityManager.CheckAccess(&auth.PadId, sessionCookie, &auth.Token, user)
 
 	if err != nil {
+		// The client shows its "permission denied" page for "deny", as with
+		// etherpad-lite; the reason only goes to the log.
 		var arr = make([]interface{}, 2)
 		arr[0] = "message"
 		arr[1] = AccessStatusMessage{
-			AccessStatus: err.Error(),
+			AccessStatus: "deny",
 		}
 		var messageToSend, _ = json.Marshal(arr)
 
@@ -592,6 +597,17 @@ func (p *PadMessageHandler) HandleMessage(message any, client *Client, retrieved
 	// Other goroutines read the session; only write when it changes.
 	if thisSession.Author != grantedAccess.AuthorId {
 		thisSession.Author = grantedAccess.AuthorId
+	}
+
+	// A user who may only read this pad (authorize level "readOnly" or
+	// settings.users[...].readOnly) gets a read-only session, as with a
+	// read-only link (etherpad-lite: padIds.readonly || !userCanModify).
+	if ok && !thisSession.ReadOnly && !pad.UserCanModify(&auth.PadId, user, *p.readOnlyManager, retrievedSettings) {
+		p.SessionStore.setReadOnly(client.SessionId)
+		thisSession = p.SessionStore.getSession(client.SessionId)
+		if thisSession == nil {
+			return
+		}
 	}
 
 	var readonly = thisSession.ReadOnly
@@ -738,7 +754,7 @@ func (p *PadMessageHandler) HandleMessage(message any, client *Client, retrieved
 		}
 	case PadDelete:
 		{
-			p.HandlePadDelete(client, expectedType)
+			p.HandlePadDelete(client, expectedType, retrievedSettings)
 		}
 	default:
 		p.Logger.Warn("Unknown message type received")
@@ -1092,11 +1108,53 @@ func (p *PadMessageHandler) BroadcastSystemChatToRoom(padId string, message map[
 	p.broadcastToRoom(padId, marshalled, "")
 }
 
-func (p *PadMessageHandler) HandlePadDelete(client *Client, padDeleteMessage PadDelete) {
+// setDeletionClientVars fills the pad-deletion fields of CLIENT_VARS like
+// etherpad-lite. The creator gets a deletion token (once) unless they do not
+// need one: when everyone may delete, or when their identity is durable (an
+// authenticated user mapped to a stable author by a getAuthorId hook), since
+// only then does being the creator survive a cleared cookie or another device.
+func (p *PadMessageHandler) setDeletionClientVars(cv *clientVarsModel.ClientVars, retrievedPad *pad2.Pad, session *ws.Session, client *Client, cfg *settings.Settings) {
+	isCreator := false
+	if !session.ReadOnly {
+		if creator, err := retrievedPad.GetRevisionAuthor(0); err == nil && creator != nil {
+			isCreator = *creator == session.Author
+		}
+	}
+	durable := false
+	if user, ok := client.WebAccessUser.(*webaccess.SocketClientRequest); ok && user != nil && user.Username != nil && *user.Username != "" {
+		durable = p.hooks.Has(hooks.GetAuthorIdString)
+	}
+	cv.CanDeleteWithoutToken = cfg.AllowPadDeletionByAllUsers || durable
+	cv.CanDeletePad = !session.ReadOnly && (isCreator || cfg.AllowPadDeletionByAllUsers)
+	cv.SuppressPadDeletionTokenModal = cfg.SuppressPadDeletionTokenModal
+	cv.PadDeletionToken = nil
+	if isCreator && !cv.CanDeleteWithoutToken {
+		token, err := p.deletionTokens.CreateIfAbsent(retrievedPad.Id)
+		if err != nil {
+			p.Logger.Warnf("Creating the deletion token of pad %s: %v", retrievedPad.Id, err)
+		}
+		cv.PadDeletionToken = token
+	}
+}
+
+// HandlePadDelete deletes the pad the session is on, like etherpad-lite's
+// handlePadDelete: allowed for the creator, for anyone with the pad's
+// deletion token, and, with allowPadDeletionByAllUsers, for anyone who can
+// edit it. A supplied token must be valid; read-only sessions can only
+// delete with a token.
+func (p *PadMessageHandler) HandlePadDelete(client *Client, padDeleteMessage PadDelete, cfg *settings.Settings) {
 	var session = p.SessionStore.getSession(client.SessionId)
 
 	if session == nil || session.Author == "" || session.PadId == "" {
 		p.Logger.Warn("Session not ready")
+		return
+	}
+	// A read-only client knows its pad only by the read-only id.
+	if session.ReadOnly && padDeleteMessage.Data.PadID == session.ReadOnlyPadId && session.ReadOnlyPadId != "" {
+		padDeleteMessage.Data.PadID = session.PadId
+	}
+	if padDeleteMessage.Data.PadID != session.PadId {
+		p.Logger.Warnf("Refusing to delete pad %s from a session on pad %s", padDeleteMessage.Data.PadID, session.PadId)
 		return
 	}
 
@@ -1119,15 +1177,25 @@ func (p *PadMessageHandler) HandlePadDelete(client *Client, padDeleteMessage Pad
 		p.Logger.Warn("Error retrieving pad")
 		return
 	}
-	// Only the one doing the first revision can delete the pad, otherwise people could troll a lot
 	firstContributor, err := retrievedPadObj.GetRevisionAuthor(0)
 	if err != nil {
 		p.Logger.Warn("Error retrieving first contributor")
 		return
 	}
+	isCreator := firstContributor != nil && *firstContributor == session.Author
+	token := padDeleteMessage.Data.DeletionToken
+	tokenSupplied := token != ""
+	tokenOk := tokenSupplied && p.deletionTokens.IsValid(retrievedPadObj.Id, token)
+	writable := !session.ReadOnly
+	creatorOk := !tokenSupplied && isCreator && writable
+	flagOk := !tokenSupplied && !isCreator && cfg != nil && cfg.AllowPadDeletionByAllUsers && writable
 
-	if *firstContributor != session.Author {
-		p.Logger.Warn("Only first contributor can delete the pad")
+	if !creatorOk && !tokenOk && !flagOk {
+		key := "pad.deletionToken.notCreator"
+		if tokenSupplied {
+			key = "pad.deletionToken.invalid"
+		}
+		sendShoutKey(client, key)
 		return
 	}
 
@@ -1283,9 +1351,23 @@ func (p *PadMessageHandler) HandleDisconnectOfPadClient(client *Client, settings
 		logger.Infof("[LEAVE] pad:%s socket:%s IP:%s ", thisSession.PadId, client.SessionId, client.ClientIP)
 	}
 
+	// Presence is keyed by author. With several sessions of one author
+	// (etherpad-lite #7656) only the last one to leave announces USER_LEAVE
+	// and runs the userLeave hooks.
+	for _, other := range p.GetRoomSockets(thisSession.PadId) {
+		if other.SessionId == client.SessionId {
+			continue
+		}
+		if s := p.SessionStore.getSession(other.SessionId); s != nil && s.Author == thisSession.Author && s.PadId == thisSession.PadId {
+			p.SessionStore.removeSession(client.SessionId)
+			return
+		}
+	}
+
 	var authorToRemove, err = p.authorManager.GetAuthor(thisSession.Author)
 	if err != nil {
 		p.Logger.Warn("Error retrieving author for disconnect")
+		p.SessionStore.removeSession(client.SessionId)
 		return
 	}
 
@@ -1451,7 +1533,13 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 		historicalAuthorData[a.Id] = a
 	}
 
-	p.disconnectDuplicates(thisSession.PadId, thisSession.Author, client.SessionId)
+	// The duplicate-author kick is for stale tabs of one browser, whose
+	// author comes from the browser's token. An authenticated user has one
+	// identity across windows and devices, so several sessions of that
+	// author are legitimate (etherpad-lite #7656).
+	if client.WebAccessUser == nil {
+		p.disconnectDuplicates(thisSession.PadId, thisSession.Author, client.SessionId)
+	}
 	var roomSockets = p.GetRoomSockets(thisSession.PadId)
 
 	if ready.Data.Reconnect != nil && *ready.Data.Reconnect {
@@ -1573,6 +1661,7 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 			p.Logger.Warn("Error creating client vars", err.Error())
 			return
 		}
+		p.setDeletionClientVars(retrivedClientVars, retrievedPad, thisSession, client, retrievedSettings)
 		if retentionNotice != nil {
 			retrivedClientVars.PadRetention = &clientVarsModel.PadRetention{
 				State:           retentionNotice.State,
@@ -2054,6 +2143,25 @@ func (p *PadMessageHandler) handlePadOptions(payload ws.ClientMessagePayload, cl
 	p.broadcastToRoom(session.PadId, encoded, "")
 }
 
+// sendShoutKey shows a localised notice (an l10n key) to one client.
+func sendShoutKey(client *Client, messageKey string) {
+	msg := map[string]any{
+		"type": "COLLABROOM",
+		"data": map[string]any{
+			"type": "shoutMessage",
+			"payload": map[string]any{
+				"message":   map[string]any{"messageKey": messageKey, "sticky": false},
+				"timestamp": time.Now().UnixMilli(),
+			},
+		},
+	}
+	encoded, err := json.Marshal([]any{"shout", msg})
+	if err != nil {
+		return
+	}
+	client.SafeSend(encoded)
+}
+
 // sendShout shows a notice to one client, in the envelope of the admin shout.
 func sendShout(client *Client, message string, sticky bool) {
 	resp := admin.ShoutMessageResponse{Type: "COLLABROOM"}
@@ -2067,4 +2175,9 @@ func sendShout(client *Client, message string, sticky bool) {
 		return
 	}
 	client.SafeSend(encoded)
+}
+
+// ReadOnlyManagerForTest exposes the handler's read-only manager to tests.
+func (p *PadMessageHandler) ReadOnlyManagerForTest() *pad.ReadOnlyManager {
+	return p.readOnlyManager
 }

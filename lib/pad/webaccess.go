@@ -47,7 +47,7 @@ func UserCanModify(padId *string, req *webaccess.SocketClientRequest, readOnlyMa
 		return true
 	}
 
-	if req == nil || *req.ReadOnly {
+	if req == nil || (req.ReadOnly != nil && *req.ReadOnly) {
 		return false
 	}
 
@@ -299,15 +299,11 @@ func CheckAccessWithHooks(ctx fiber.Ctx, logger *zap.SugaredLogger, retrievedSet
 			// Plugin authenticated the user. Populate the session user, looking up
 			// settings.Users for admin status when the username is known there.
 			username := authCtx.Username()
-			var isAdmin bool
+			var known *settings.User
 			if u, ok := retrievedSettings.Users[username]; ok {
-				isAdmin = u.IsAdmin != nil && *u.IsAdmin
+				known = &u
 			}
-			unameCopy := username
-			ctx.Locals(clientVars.WebAccessStore, &webaccess.SocketClientRequest{
-				Username: &unameCopy,
-				IsAdmin:  isAdmin,
-			})
+			ctx.Locals(clientVars.WebAccessStore, sessionUser(username, known))
 			pluginAuthenticated = true
 		}
 	}
@@ -329,14 +325,8 @@ func CheckAccessWithHooks(ctx fiber.Ctx, logger *zap.SugaredLogger, retrievedSet
 			return sendAuthnFailure()
 		}
 		var retrievedUserFromMap = retrievedSettings.Users[*webAccessCtx.Username]
-		// Make a shallow copy so that the password property can be deleted (to prevent it from
-		// appearing in logs or in the database) without breaking future authentication attempts.
-		ctx.Locals(clientVars.WebAccessStore, &webaccess.SocketClientRequest{
-			Username: retrievedUserFromMap.Username,
-			IsAdmin:  retrievedUserFromMap.IsAdmin != nil && *retrievedUserFromMap.IsAdmin,
-		})
-
-		retrievedUserFromMap.Username = webAccessCtx.Username
+		// The session user carries no password, so it cannot leak into logs.
+		ctx.Locals(clientVars.WebAccessStore, sessionUser(*webAccessCtx.Username, &retrievedUserFromMap))
 		// Remove password
 		if webAccessCtx.Username == nil {
 			logger.Warn("authenticate hook failed to add user settings to session")
@@ -382,6 +372,53 @@ func CheckAccessWithHooks(ctx fiber.Ctx, logger *zap.SugaredLogger, retrievedSet
 	}
 
 	return sendAuthzFailure()
+}
+
+// ResolvePadAuthorization decides an authenticated user's level for a pad
+// like webaccess does for "/p/<padId>": admins and, without
+// requireAuthorization, every user get "create"; otherwise the authorize
+// hooks decide, and no answer means no access (""). padId is the real pad id.
+func ResolvePadAuthorization(user *webaccess.SocketClientRequest, padId string, cfg *settings.Settings, hookSystem *hooks.Hook) string {
+	if user == nil {
+		return ""
+	}
+	if user.IsAdmin || !cfg.RequireAuthorization {
+		return "create"
+	}
+	if hookSystem == nil {
+		return ""
+	}
+	authorizeCtx := &events.AuthorizeContext{Path: "/p/" + url.PathEscape(padId), PadId: padId, User: user}
+	hookSystem.ExecuteAuthorizeHooks(authorizeCtx)
+	if authorizeCtx.Decision() != events.AuthorizeGrant {
+		return ""
+	}
+	level, err := NormalizeAuthzLevel(authorizeCtx.Level())
+	if err != nil {
+		return ""
+	}
+	return *level
+}
+
+// sessionUser is the authenticated user as the rest of the request sees it
+// (etherpad-lite's req.session.user): name, admin flag and the readOnly and
+// canCreate restrictions from settings.users, without the password.
+func sessionUser(username string, u *settings.User) *webaccess.SocketClientRequest {
+	name := username
+	user := &webaccess.SocketClientRequest{Username: &name}
+	if u == nil {
+		return user
+	}
+	user.IsAdmin = u.IsAdmin != nil && *u.IsAdmin
+	if u.ReadOnly != nil {
+		readOnly := *u.ReadOnly
+		user.ReadOnly = &readOnly
+	}
+	if u.CanCreate != nil {
+		canCreate := *u.CanCreate
+		user.CanCreate = &canCreate
+	}
+	return user
 }
 
 // sendAuthFailure runs the deprecated authFailure hook and sends its response

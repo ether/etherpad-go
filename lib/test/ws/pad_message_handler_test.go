@@ -489,17 +489,10 @@ func testHandlePadDelete(t *testing.T, ds testutils.TestDataStore) {
 	assert.True(t, *exists)
 
 	// Create pad delete message
-	padDelete := libws.PadDelete{
-		Type: "PAD_DELETE",
-		Data: struct {
-			PadID string `json:"padId"`
-		}{
-			PadID: padId,
-		},
-	}
+	padDelete := padDeleteMessage(padId, "")
 
 	// Handle pad delete
-	ds.PadMessageHandler.HandlePadDelete(client, padDelete)
+	ds.PadMessageHandler.HandlePadDelete(client, padDelete, ds.Settings)
 
 	// Verify pad was deleted
 	exists, err = ds.PadManager.DoesPadExist(padId)
@@ -536,17 +529,10 @@ func testHandlePadDeleteNotFirstContributor(t *testing.T, ds testutils.TestDataS
 	assert.True(t, *exists)
 
 	// Create pad delete message
-	padDelete := libws.PadDelete{
-		Type: "PAD_DELETE",
-		Data: struct {
-			PadID string `json:"padId"`
-		}{
-			PadID: padId,
-		},
-	}
+	padDelete := padDeleteMessage(padId, "")
 
 	// Handle pad delete (should be rejected)
-	ds.PadMessageHandler.HandlePadDelete(client, padDelete)
+	ds.PadMessageHandler.HandlePadDelete(client, padDelete, ds.Settings)
 
 	// Verify pad still exists (delete was rejected because not first contributor)
 	exists, err = ds.PadManager.DoesPadExist(padId)
@@ -1341,17 +1327,10 @@ func testHandlePadDeleteVerifyMessage(t *testing.T, ds testutils.TestDataStore) 
 	assert.True(t, *exists)
 
 	// Create pad delete message
-	padDelete := libws.PadDelete{
-		Type: "PAD_DELETE",
-		Data: struct {
-			PadID string `json:"padId"`
-		}{
-			PadID: padId,
-		},
-	}
+	padDelete := padDeleteMessage(padId, "")
 
 	// Handle pad delete
-	ds.PadMessageHandler.HandlePadDelete(client, padDelete)
+	ds.PadMessageHandler.HandlePadDelete(client, padDelete, ds.Settings)
 
 	// Wait for messages to be sent
 	time.Sleep(150 * time.Millisecond)
@@ -2226,4 +2205,12 @@ func testChatNewMessageNilTextKeepsOriginal(t *testing.T, ds testutils.TestDataS
 	require.NoError(t, err)
 	require.Len(t, *msgs, 1)
 	assert.Equal(t, "original text", (*msgs)[0].Message)
+}
+
+// padDeleteMessage is the PAD_DELETE message a client sends.
+func padDeleteMessage(padID, deletionToken string) libws.PadDelete {
+	msg := libws.PadDelete{Type: "PAD_DELETE"}
+	msg.Data.PadID = padID
+	msg.Data.DeletionToken = deletionToken
+	return msg
 }

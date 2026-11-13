@@ -124,4 +124,11 @@ type ClientVars struct {
 	EnablePadWideSettings bool          `json:"enablePadWideSettings"`
 	CanEditPadSettings    bool          `json:"canEditPadSettings"`
 	PadRetention          *PadRetention `json:"padRetention"`
+	// Pad deletion (etherpad-lite #7926, #7959, #7996): the token is sent
+	// once, to the creator; canDeletePad offers the plain delete button,
+	// canDeleteWithoutToken hides the token field.
+	PadDeletionToken              *string `json:"padDeletionToken"`
+	CanDeleteWithoutToken         bool    `json:"canDeleteWithoutToken"`
+	CanDeletePad                  bool    `json:"canDeletePad"`
+	SuppressPadDeletionTokenModal bool    `json:"suppressPadDeletionTokenModal"`
 }
