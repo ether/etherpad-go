@@ -925,7 +925,8 @@ func testCopyPadWithoutHistorySuccess(t *testing.T, tsStore testutils.TestDataSt
 
 	destPad, err := tsStore.PadManager.GetPad("nohistdst", nil, nil)
 	assert.NoError(t, err)
-	assert.Equal(t, 0, destPad.Head)
+	// An empty revision 0 and the content as revision 1, as etherpad-lite.
+	assert.Equal(t, 1, destPad.Head)
 }
 
 func testCopyPadWithoutHistoryDestinationExistsNoForce(t *testing.T, tsStore testutils.TestDataStore) {

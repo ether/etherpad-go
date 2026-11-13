@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/changeset"
 	"github.com/ether/etherpad-go/lib/utils"
 )
@@ -20,6 +21,14 @@ func (p *Pad) RestoreRevision(rev int, authorId *string) (*int, error) {
 	if target == nil {
 		return nil, errors.New("could not reconstruct the revision")
 	}
+	return p.ReplaceContent(*target, &p.Pool, authorId)
+}
+
+// ReplaceContent appends one revision that makes the pad's content target,
+// whose attribute numbers refer to srcPool (the pad's own or another pad's
+// pool): text, formatting and authorship. Runs without an author go to
+// authorId, or to the system author.
+func (p *Pad) ReplaceContent(target apool.AText, srcPool *apool.APool, authorId *string) (*int, error) {
 	fallbackAuthor := SystemAuthorId
 	if authorId != nil && *authorId != "" {
 		fallbackAuthor = *authorId
@@ -42,7 +51,10 @@ func (p *Pad) RestoreRevision(rev int, authorId *string) (*int, error) {
 		if start >= end {
 			continue
 		}
-		attribs := changeset.FromString(op.Attribs, &p.Pool)
+		attribs := changeset.NewAttributeMap(&p.Pool)
+		for _, a := range changeset.AttribsFromString(op.Attribs, *srcPool) {
+			attribs.Set(a.Key, a.Value)
+		}
 		if v := attribs.Get("author"); v == nil || *v == "" {
 			attribs.Set("author", fallbackAuthor)
 		}
@@ -58,10 +70,11 @@ func (p *Pad) RestoreRevision(rev int, authorId *string) (*int, error) {
 		builder.Remove(utils.RuneCount(oldBody), 0)
 	}
 
+	// The revision's author is whoever asked for it; without one the
+	// revision has none (the system author would join the pad's authors).
 	revisionAuthor := authorId
-	if revisionAuthor == nil || *revisionAuthor == "" {
-		sys := SystemAuthorId
-		revisionAuthor = &sys
+	if revisionAuthor != nil && *revisionAuthor == "" {
+		revisionAuthor = nil
 	}
 	return p.AppendRevision(builder.ToString(), revisionAuthor)
 }

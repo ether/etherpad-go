@@ -210,16 +210,21 @@ func CopyPadWithoutHistory(initStore *lib.InitStore) fiber.Handler {
 			return c.Status(hErr.status).JSON(hErr.body)
 		}
 
-		// Creating the destination pad re-adds the trailing newline, so strip it
-		// from the source text first (mirrors the original copyPadWithoutHistory).
-		text := strings.TrimSuffix(sourcePad.Text(), "\n")
-
 		var authorId *string
 		if request.AuthorId != "" {
 			authorId = &request.AuthorId
 		}
 
-		if _, err := initStore.PadManager.GetPad(request.DestinationID, &text, authorId); err != nil {
+		// An empty pad, then one revision with the source's content: text,
+		// formatting and authorship (etherpad-lite's copyPadWithoutHistory).
+		// Creating the copy from the plain text lost both.
+		empty := ""
+		dst, err := initStore.PadManager.GetPad(request.DestinationID, &empty, authorId)
+		if err != nil {
+			return c.Status(500).JSON(errors2.InternalServerError)
+		}
+		if _, err := dst.ReplaceContent(sourcePad.AText, &sourcePad.Pool, authorId); err != nil {
+			initStore.Logger.Errorf("Copying %s to %s: %v", padId, request.DestinationID, err)
 			return c.Status(500).JSON(errors2.InternalServerError)
 		}
 

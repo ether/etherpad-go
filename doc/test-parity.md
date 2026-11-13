@@ -7,10 +7,10 @@ behaviour, they are not line-by-line translations.
 
 | Status | Files | Test cases |
 |---|---|---|
-| Ported | 44 | 499 |
+| Ported | 53 | 558 |
 | Partly ported | 3 | 127 |
 | Not applicable to Go | 36 | 306 |
-| To compare case by case | 89 | 802 |
+| To compare case by case | 80 | 743 |
 
 "To compare" does not mean untested: most of these areas have Go tests (the Go code refers
 to more than 20 upstream issues). It means nobody has checked yet, case by case, which
@@ -65,6 +65,15 @@ upstream cases the Go tests cover and which are missing.
 | `padRetention` | 20 | `lib/pad/retention_test.go`, `retention_parity_test.go`, `lib/settings/pad_retention_defaults_test.go` |
 | `api/deletePad` | 7 | `lib/test/api/pad/pad_api_test.go` (`TestPadDeletionTokensAPI`), on the admin REST API |
 | `api/movePadDeletionToken` | 5 | `lib/test/api/pad/pad_api_test.go` (`TestPadDeletionTokensAPI`) |
+| `chat` | 4 | `lib/test/ws/pad_message_handler_test.go` (chatNewMessage hook: text, pad, padId, drop), `lib/hooks/hook_test.go` |
+| `messages` | 14 | `lib/test/ws/messages_parity_test.go`, `pad_message_handler_test.go` (handleMessageSecurity) |
+| `undo_clear_authorship` | 6 | `lib/test/ws/undo_clear_authorship_test.go` |
+| `lowerCasePadIds` | 4 | `lib/test/ws/lower_case_pad_ids_test.go`, `lib/test/api/static/lower_case_pad_ids_test.go` |
+| `pads-with-spaces` | 2 | `lib/test/api/static/lower_case_pad_ids_test.go` |
+| `padCheckErrorContext` | 7 | `lib/test/pad/pad_check_error_context_test.go`; Go errors have no stack, the message carries the context; a pad with a missing revision already fails to load, naming it |
+| `padOptionsLegacyDefaults` | 11 | `lib/settings/pad_options_legacy_test.go`, `lib/test/ws/pad_options_clientvars_test.go` |
+| `nullAuthorToken` | 4 | `lib/test/pad/null_author_token_test.go`, `lib/test/ws/null_author_token_test.go` |
+| `copyPadWithoutHistoryIntegrity` | 7 | `lib/test/api/pad/copy_without_history_parity_test.go`, `compact_parity_test.go` |
 ## Partly ported
 
 | Spec | Cases | State |
@@ -90,22 +99,6 @@ Existing Go tests in this area: `lib/changeset`, `lib/apool`
 
 | Spec | Cases | Note |
 |---|---|---|
-
-### Pad and pad manager
-
-Existing Go tests in this area: `lib/pad`, `lib/test/pad`, `lib/test/ws`
-
-| Spec | Cases |
-|---|---|
-| `chat` | 4 |
-| `messages` | 14 |
-| `undo_clear_authorship` | 6 |
-| `lowerCasePadIds` | 4 |
-| `pads-with-spaces` | 2 |
-| `padCheckErrorContext` | 7 |
-| `padOptionsLegacyDefaults` | 11 |
-| `nullAuthorToken` | 4 |
-| `copyPadWithoutHistoryIntegrity` | 7 |
 
 ### HTTP API
 

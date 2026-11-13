@@ -163,6 +163,16 @@ func (p *Pad) replay(from padState, toRev int) (padState, error) {
 		return padState{}, err
 	}
 	if len(deltas) != toRev-from.head {
+		// Name the first missing revision, as the pad check does.
+		have := make(map[int]bool, len(deltas))
+		for _, d := range deltas {
+			have[d.Rev] = true
+		}
+		for r := from.head + 1; r <= toRev; r++ {
+			if !have[r] {
+				return padState{}, fmt.Errorf("revision is missing (pad %s revision %d)", p.Id, r)
+			}
+		}
 		return padState{}, fmt.Errorf("pad %s: expected %d revisions after %d, got %d", p.Id, toRev-from.head, from.head, len(deltas))
 	}
 	pool := from.pool
@@ -172,7 +182,7 @@ func (p *Pad) replay(from padState, toRev int) (padState, error) {
 	atext := from.atext
 	for i, d := range deltas {
 		if d.Rev != from.head+1+i {
-			return padState{}, fmt.Errorf("pad %s: revision %d missing", p.Id, from.head+1+i)
+			return padState{}, fmt.Errorf("revision is missing (pad %s revision %d)", p.Id, from.head+1+i)
 		}
 		next, err := changeset.ApplyToAText(d.Changeset, atext, pool)
 		if err != nil {
