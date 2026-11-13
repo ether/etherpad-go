@@ -187,7 +187,32 @@ const waitForPadToLoad = async (page: Page, timeout: number = PAD_TIMEOUT) => {
     await page.locator('#innerdocbody').waitFor({ state: 'visible', timeout });
 };
 
+// The creator of a new pad is shown the one-time "save your pad deletion
+// token" dialog, which covers the pad and takes the focus. As in
+// etherpad-lite's helper, tests that open pads through these helpers never
+// see it: the token is removed from clientVars as the pad sets them. A test
+// of the dialog itself opens the pad with page.goto.
+const suppressedDeletionTokenDialog = new WeakSet<Page>();
+const suppressDeletionTokenDialog = async (page: Page) => {
+    if (suppressedDeletionTokenDialog.has(page)) return;
+    suppressedDeletionTokenDialog.add(page);
+    await page.addInitScript(() => {
+        let stored: unknown;
+        Object.defineProperty(window, 'clientVars', {
+            configurable: true,
+            get() { return stored; },
+            set(v) {
+                if (v != null && typeof v === 'object') {
+                    (v as {padDeletionToken?: string | null}).padDeletionToken = null;
+                }
+                stored = v;
+            },
+        });
+    });
+};
+
 const navigateToPad = async (page: Page, padId: string) => {
+    await suppressDeletionTokenDialog(page);
     const padUrl = `http://localhost:9001/p/${padId}`;
     for (let attempt = 0; attempt < 3; attempt++) {
         try {

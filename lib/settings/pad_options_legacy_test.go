@@ -34,6 +34,13 @@ func TestPadOptionsLegacyDefaults(t *testing.T) {
 		require.NotNil(t, cfg.PadOptions.UserColor)
 		assert.Equal(t, "#ff9900", *cfg.PadOptions.UserColor)
 	})
+	// Without a settings value the pad keeps the language the user picked
+	// (the language cookie). A default of "en-gb" was sent to every pad and
+	// reset the user's choice on each load.
+	t.Run("no lang by default", func(t *testing.T) {
+		cfg := read(t, `{}`)
+		assert.Nil(t, cfg.PadOptions.Lang)
+	})
 	t.Run("null stays null", func(t *testing.T) {
 		cfg := read(t, `{"padOptions": {"userName": null, "userColor": null}}`)
 		assert.Nil(t, cfg.PadOptions.UserName)

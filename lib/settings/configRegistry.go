@@ -90,7 +90,7 @@ var Registry = []ConfigKey{
 	{Key: PadOptionsRtl, Default: false, Description: "Right-to-left text"},
 	{Key: PadOptionsAlwaysShowChat, Default: false, Description: "Always show chat"},
 	{Key: PadOptionsChatAndUsers, Default: false, Description: "Chat and users list"},
-	{Key: PadOptionsLang, Default: "en-gb", Description: "Pad language"},
+	{Key: PadOptionsLang, Default: nil, Description: "Pad language; null keeps the language the user picked"},
 	{Key: PadOptionsFadeInactiveAuthorColors, Default: true, Description: "Fade the colours of inactive authors"},
 	{Key: PadOptionsEnforceReadableAuthorColors, Default: true, Description: "Clamp author colours to a readable contrast (WCAG AA)"},
 
