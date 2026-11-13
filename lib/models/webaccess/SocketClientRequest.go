@@ -6,5 +6,7 @@ type SocketClientRequest struct {
 	PadAuthorizations *map[string]string
 	ReadOnly          *bool
 	Username          *string
-	CanCreate         bool
+	// CanCreate is nil unless the user's settings say; only an explicit
+	// false keeps the user from creating pads.
+	CanCreate *bool
 }

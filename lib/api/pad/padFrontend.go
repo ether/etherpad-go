@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"embed"
 	"slices"
-	"strconv"
 
 	"github.com/a-h/templ"
 	"github.com/ether/etherpad-go/lib/hooks"
@@ -41,7 +40,7 @@ func HandlePadOpen(c fiber.Ctx, uiAssets embed.FS, retrievedSettings *settings.S
 		return err
 	}
 
-	jsFilePath := "/js/pad/assets/pad.js?v=" + strconv.Itoa(utils.RandomVersionString)
+	jsFilePath := "/js/pad/assets/pad.js?v=" + utils.RandomVersionString
 	buttonGroups := plugins.GetToolbarButtonGroups()
 	slices.SortFunc(buttonGroups, func(a, b plugins.ToolbarButtonGroup) int {
 		return cmp.Compare(a.PluginName, b.PluginName)
@@ -66,12 +65,12 @@ func HandlePadOpen(c fiber.Ctx, uiAssets embed.FS, retrievedSettings *settings.S
 // needs. Kept local so the socialmeta package stays router-agnostic.
 func buildRequestInfo(c fiber.Ctx) socialmeta.RequestInfo {
 	scheme := "http"
-	if c.Protocol() == "https" {
+	if c.Scheme() == "https" {
 		scheme = "https"
 	}
 	return socialmeta.RequestInfo{
 		Scheme:         scheme,
-		Host:           string(c.Request().Host()),
+		Host:           c.Host(),
 		Path:           c.Path(),
 		AcceptLanguage: c.Get("Accept-Language"),
 	}

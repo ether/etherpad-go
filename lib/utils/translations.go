@@ -54,9 +54,15 @@ func LoadTranslations(language string, uiAssets embed.FS, hooks *hooks.Hook) (ma
 		language = "en"
 	}
 
+	// A language without a file (e.g. from a stale cookie) gets English,
+	// not an error page.
 	content, err := uiAssets.ReadFile(baseUiAssetsDir + language + ".json")
 	if err != nil {
-		content, _ = uiAssets.ReadFile("assets/locales/en.json")
+		content, err = uiAssets.ReadFile(baseUiAssetsDir + "en.json")
+		language = "en"
+	}
+	if err != nil {
+		return nil, fmt.Errorf("read file: %w", err)
 	}
 
 	pluginTranslations := make(map[string]string)
@@ -72,11 +78,23 @@ func LoadTranslations(language string, uiAssets embed.FS, hooks *hooks.Hook) (ma
 	if err := json.Unmarshal(content, &keyValues); err != nil {
 		return nil, fmt.Errorf("parse translations: %w", err)
 	}
-	if err != nil {
-		return nil, fmt.Errorf("read file: %w", err)
-	}
 
 	delete(keyValues, "@metadata")
+
+	// English fills in what the language has no translation for, so a new
+	// label shows in English instead of as an empty string.
+	if language != "en" {
+		if enContent, err := uiAssets.ReadFile(baseUiAssetsDir + "en.json"); err == nil {
+			var en map[string]interface{}
+			if json.Unmarshal(enContent, &en) == nil {
+				for k, v := range en {
+					if _, ok := keyValues[k]; !ok && k != "@metadata" {
+						keyValues[k] = v
+					}
+				}
+			}
+		}
+	}
 
 	out := make(map[string]string, len(keyValues))
 	for k, v := range keyValues {

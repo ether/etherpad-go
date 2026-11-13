@@ -701,6 +701,8 @@ func testKickUser(t *testing.T, ds testutils.TestDataStore) {
 func testSaveSettings(t *testing.T, ds testutils.TestDataStore) {
 	hub := ws.NewHub()
 	settingsToLoad := settings.Displayed
+	settingsToLoad.ShowSettingsInAdminPage = true
+	settingsToLoad.Root = t.TempDir()
 	client := &ws.Client{
 		Hub:       hub,
 		Conn:      ds.MockWebSocket,
@@ -783,6 +785,7 @@ func testSettingsReadOnlyInCluster(t *testing.T, ds testutils.TestDataStore) {
 	settingsToLoad.DBType = "postgres"
 	settingsToLoad.Cluster.Mode = "on"
 	settingsToLoad.Root = t.TempDir()
+	settingsToLoad.ShowSettingsInAdminPage = true
 	client := &ws.Client{
 		Hub:       hub,
 		Conn:      ds.MockWebSocket,

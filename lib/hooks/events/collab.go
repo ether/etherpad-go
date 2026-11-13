@@ -66,8 +66,11 @@ type ClientVarsContext struct {
 // DropMessage() to suppress the message entirely. Message is the chat message
 // exposed as `any`.
 type ChatNewMessageContext struct {
-	Message  any
-	Text     *string
+	Message any
+	Text    *string
+	// Pad is the pad (*pad.Pad) the message is posted to, as in
+	// etherpad-lite's context.pad.
+	Pad      any
 	PadId    string
 	AuthorId string
 

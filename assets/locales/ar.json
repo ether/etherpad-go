@@ -98,6 +98,7 @@
 	"pad.settings.disablechat": "تعطيل الدردشة",
 	"pad.settings.enforceSettings": "فرض الإعدادات على المستخدمين الآخرين",
 	"pad.settings.enforcedNotice": "هذه الإعدادات مقفلة من قِبل مُصمم هذه اللوحة. تواصل مع مُصمم اللوحة إذا كنت ترغب في تغييرها.",
+	"pad.deletionToken.reveal": "عرض ونسخ رمز الحذف",
 	"pad.importExport.import_export": "استيراد/تصدير",
 	"pad.importExport.import": "تحميل أي ملف نصي أو وثيقة",
 	"pad.importExport.importSuccessful": "ناجح!",

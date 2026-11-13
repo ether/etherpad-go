@@ -12,9 +12,11 @@ import (
 	"github.com/ether/etherpad-go/lib/api/pad"
 	"github.com/ether/etherpad-go/lib/hooks/events"
 	padModel "github.com/ether/etherpad-go/lib/models/pad"
+	padManager "github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/test/testutils"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestPadAPI(t *testing.T) {
@@ -277,8 +279,9 @@ func testCreatePadSuccess(t *testing.T, tsStore testutils.TestDataStore) {
 	initStore := tsStore.ToInitStore()
 	pad.Init(initStore)
 
+	initialText := "Initial text"
 	reqBody := pad.CreatePadRequest{
-		Text:     "Initial text",
+		Text:     &initialText,
 		AuthorId: "",
 	}
 	body, _ := json.Marshal(reqBody)
@@ -923,7 +926,8 @@ func testCopyPadWithoutHistorySuccess(t *testing.T, tsStore testutils.TestDataSt
 
 	destPad, err := tsStore.PadManager.GetPad("nohistdst", nil, nil)
 	assert.NoError(t, err)
-	assert.Equal(t, 0, destPad.Head)
+	// An empty revision 0 and the content as revision 1, as etherpad-lite.
+	assert.Equal(t, 1, destPad.Head)
 }
 
 func testCopyPadWithoutHistoryDestinationExistsNoForce(t *testing.T, tsStore testutils.TestDataStore) {
@@ -1231,4 +1235,98 @@ func TestCopyPadColonDestination(t *testing.T) {
 		},
 	})
 	defer testDb.StartTestDBHandler()
+}
+
+// Deletion tokens through the HTTP API (etherpad-lite: createPad returns
+// {deletionToken}; deletePad checks a token it is given; a move keeps it).
+func TestPadDeletionTokensAPI(t *testing.T) {
+	testDb := testutils.NewTestDBHandler(t)
+	testDb.AddTests(testutils.TestRunConfig{
+		Name: "createPad, deletePad, move and copy",
+		Test: func(t *testing.T, tsStore testutils.TestDataStore) {
+			initStore := tsStore.ToInitStore()
+			pad.Init(initStore)
+			request := func(method, url string) (int, []byte) {
+				resp, err := initStore.C.Test(httptest.NewRequest(method, url, nil))
+				require.NoError(t, err)
+				body, _ := io.ReadAll(resp.Body)
+				return resp.StatusCode, body
+			}
+			create := func(padID string) *string {
+				status, body := request("POST", "/admin/api/pads/"+padID)
+				require.Equal(t, 200, status, string(body))
+				var resp pad.CreatePadResponse
+				require.NoError(t, json.Unmarshal(body, &resp))
+				return resp.DeletionToken
+			}
+
+			token := create("apiTokenPad")
+			require.NotNil(t, token, "createPad returns the deletion token")
+
+			status, _ := request("DELETE", "/admin/api/pads/apiTokenPad?deletionToken=wrong")
+			assert.Equal(t, 401, status, "a wrong token is refused")
+			status, _ = request("DELETE", "/admin/api/pads/apiTokenPad?deletionToken="+*token)
+			assert.Equal(t, 200, status, "the right token deletes")
+
+			// A move keeps the token, a copy gets none of the source's.
+			moveToken := create("apiTokenMoveSrc")
+			status, body := postPadOperation(t, tsStore, "/admin/api/pads/apiTokenMoveSrc/move", "apiTokenMoveDst", false)
+			require.Equal(t, 200, status, string(body))
+			status, _ = request("DELETE", "/admin/api/pads/apiTokenMoveDst?deletionToken="+*moveToken)
+			assert.Equal(t, 200, status)
+
+			copyToken := create("apiTokenCopySrc")
+			status, body = postPadOperation(t, tsStore, "/admin/api/pads/apiTokenCopySrc/copy", "apiTokenCopyDst", false)
+			require.Equal(t, 200, status, string(body))
+			status, _ = request("DELETE", "/admin/api/pads/apiTokenCopyDst?deletionToken="+*copyToken)
+			assert.Equal(t, 401, status, "the source's token does not delete the copy")
+
+			// An admin call without a token is trusted.
+			create("apiTokenAdmin")
+			status, _ = request("DELETE", "/admin/api/pads/apiTokenAdmin")
+			assert.Equal(t, 200, status)
+
+			// The moved pad offers its creator no second token.
+			create("apiTokenMove2Src")
+			status, body = postPadOperation(t, tsStore, "/admin/api/pads/apiTokenMove2Src/move", "apiTokenMove2Dst", false)
+			require.Equal(t, 200, status, string(body))
+			second, err := padManager.NewDeletionTokens(tsStore.DS).CreateIfAbsent("apiTokenMove2Dst")
+			require.NoError(t, err)
+			assert.Nil(t, second)
+
+			// --force replaces the destination's own token.
+			srcToken := create("apiTokenForceSrc")
+			dstToken := create("apiTokenForceDst")
+			status, body = postPadOperation(t, tsStore, "/admin/api/pads/apiTokenForceSrc/move", "apiTokenForceDst", true)
+			require.Equal(t, 200, status, string(body))
+			status, _ = request("DELETE", "/admin/api/pads/apiTokenForceDst?deletionToken="+*dstToken)
+			assert.Equal(t, 401, status, "the overwritten pad's token is gone")
+			status, _ = request("DELETE", "/admin/api/pads/apiTokenForceDst?deletionToken="+*srcToken)
+			assert.Equal(t, 200, status)
+
+			// The transfer never invalidates a token the destination already
+			// handed out, and leaves the source's (removed with the source).
+			tokens := padManager.NewDeletionTokens(tsStore.DS)
+			raceSrc := create("apiTokenRaceSrc")
+			raceDst, err := tokens.CreateIfAbsent("apiTokenRaceDst")
+			require.NoError(t, err)
+			require.NoError(t, tokens.Transfer("apiTokenRaceSrc", "apiTokenRaceDst"))
+			assert.True(t, tokens.IsValid("apiTokenRaceDst", *raceDst))
+			assert.False(t, tokens.IsValid("apiTokenRaceDst", *raceSrc))
+			assert.True(t, tokens.IsValid("apiTokenRaceSrc", *raceSrc))
+
+			// No token when every user may delete, and a wrong one is ignored.
+			tsStore.Settings.AllowPadDeletionByAllUsers = true
+			assert.Nil(t, create("apiTokenNone"))
+			status, _ = request("DELETE", "/admin/api/pads/apiTokenNone?deletionToken=bogus")
+			assert.Equal(t, 200, status)
+			tsStore.Settings.AllowPadDeletionByAllUsers = false
+
+			// No token with requireAuthentication.
+			tsStore.Settings.RequireAuthentication = true
+			assert.Nil(t, create("apiTokenAuthn"))
+			tsStore.Settings.RequireAuthentication = false
+		},
+	})
+	testDb.StartTestDBHandler()
 }

@@ -49,17 +49,19 @@ type SocialMetaSettings struct {
 }
 
 type PadOptions struct {
-	NoColors         bool    `mapstructure:"noColors"`
-	ShowControls     bool    `mapstructure:"showControls"`
-	ShowChat         bool    `mapstructure:"showChat"`
-	ShowLineNumbers  bool    `mapstructure:"showLineNumbers"`
-	UseMonospaceFont bool    `mapstructure:"useMonospaceFont"`
-	UserName         *bool   `mapstructure:"userName"`
-	UserColor        *bool   `mapstructure:"userColor"`
-	RTL              bool    `mapstructure:"rtl"`
-	AlwaysShowChat   bool    `mapstructure:"alwaysShowChat"`
-	ChatAndUsers     bool    `mapstructure:"chatAndUsers"`
-	Lang             *string `mapstructure:"lang"`
+	NoColors         bool `mapstructure:"noColors"`
+	ShowControls     bool `mapstructure:"showControls"`
+	ShowChat         bool `mapstructure:"showChat"`
+	ShowLineNumbers  bool `mapstructure:"showLineNumbers"`
+	UseMonospaceFont bool `mapstructure:"useMonospaceFont"`
+	// UserName and UserColor preset every user's name and colour; nil means
+	// no preset. Old settings files wrote false for that (see ReadConfig).
+	UserName       *string `mapstructure:"userName"`
+	UserColor      *string `mapstructure:"userColor"`
+	RTL            bool    `mapstructure:"rtl"`
+	AlwaysShowChat bool    `mapstructure:"alwaysShowChat"`
+	ChatAndUsers   bool    `mapstructure:"chatAndUsers"`
+	Lang           *string `mapstructure:"lang"`
 	// FadeInactiveAuthorColors fades the background of authors who are no
 	// longer active. EnforceReadableAuthorColors clamps author backgrounds
 	// to a shade that keeps the text readable (WCAG AA). Both default to true.
@@ -102,6 +104,11 @@ type User struct {
 	Password *string `json:"password" mapstructure:"password"`
 	IsAdmin  *bool   `json:"is_admin" mapstructure:"is_admin"`
 	Username *string `json:"username" mapstructure:"username"`
+	// ReadOnly makes every pad read-only for this user. CanCreate=false
+	// keeps the user from creating pads (unset means allowed). Both as in
+	// etherpad-lite's settings.users.
+	ReadOnly  *bool `json:"readOnly,omitempty" mapstructure:"readOnly"`
+	CanCreate *bool `json:"canCreate,omitempty" mapstructure:"canCreate"`
 }
 
 type Cookie struct {
@@ -291,6 +298,12 @@ type Settings struct {
 	// options for everyone on the pad and enforce them (upstream #7586).
 	// Default true.
 	EnablePadWideSettings bool `json:"enablePadWideSettings" mapstructure:"enablePadWideSettings"`
+	// AllowPadDeletionByAllUsers lets every user who can edit a pad delete
+	// it. Off: only the pad's creator, or whoever has its deletion token.
+	AllowPadDeletionByAllUsers bool `json:"allowPadDeletionByAllUsers" mapstructure:"allowPadDeletionByAllUsers"`
+	// SuppressPadDeletionTokenModal keeps issuing deletion tokens but does
+	// not interrupt the creator with the "save your token" dialog.
+	SuppressPadDeletionTokenModal bool `json:"suppressPadDeletionTokenModal" mapstructure:"suppressPadDeletionTokenModal"`
 
 	SkinName     string `json:"skinName" mapstructure:"skinName"`
 	SkinVariants string `json:"skinVariants" mapstructure:"skinVariants"`
@@ -317,8 +330,13 @@ type Settings struct {
 
 	AllowUnknownFileEnds bool `json:"allowUnknownFileEnds" mapstructure:"allowUnknownFileEnds"`
 
-	LogLevel                     string `json:"loglevel" mapstructure:"loglevel"`
-	DisableIPLogging             bool   `json:"disableIPLogging" mapstructure:"disableIPLogging"`
+	LogLevel string `json:"loglevel" mapstructure:"loglevel"`
+	// DisableIPLogging is the old switch; IPLogging replaces it (see
+	// ReadConfig) and is what LogIP uses.
+	DisableIPLogging bool `json:"disableIPLogging" mapstructure:"disableIPLogging"`
+	// IPLogging is how client IP addresses appear in logs: "anonymous"
+	// (default), "truncated" or "full".
+	IPLogging                    string `json:"ipLogging" mapstructure:"ipLogging"`
 	AutomaticReconnectionTimeout int    `json:"automaticReconnectionTimeout" mapstructure:"automaticReconnectionTimeout"`
 
 	LoadTest        bool `json:"loadTest" mapstructure:"loadTest"`
@@ -477,4 +495,12 @@ func InitSettings(logger *zap.SugaredLogger) {
 
 	Displayed = *setting
 
+}
+
+// LogIP is the client IP address as it may appear in a log line.
+func (s *Settings) LogIP(ip string) string {
+	if s == nil {
+		return AnonymizeIP(ip, IPLoggingAnonymous)
+	}
+	return AnonymizeIP(ip, s.IPLogging)
 }

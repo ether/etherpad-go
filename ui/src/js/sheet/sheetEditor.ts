@@ -790,11 +790,10 @@ export function startSheetEditor(root: HTMLElement): void {
   });
 
   const sendClientReady = (): void => {
-    let token = Cookies.get('token');
-    if (token == null || !padutils.isValidAuthorToken(token)) {
-      token = padutils.generateAuthorToken();
-      Cookies.set('token', token, { expires: 60 });
-    }
+    // The author token is an HttpOnly cookie (see pad.ts); only an older
+    // version's readable cookie is passed on.
+    const legacyToken = Cookies.get('token');
+    const token = legacyToken != null && padutils.isValidAuthorToken(legacyToken) ? legacyToken : '';
     socket.emit('message', {
       component: 'sheet',
       type: 'CLIENT_READY',

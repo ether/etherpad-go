@@ -80,7 +80,8 @@ type UserInfoUpdate struct {
 type PadDelete struct {
 	Type string `json:"type"`
 	Data struct {
-		PadID string `json:"padId"`
+		PadID         string `json:"padId"`
+		DeletionToken string `json:"deletionToken"`
 	}
 }
 
@@ -116,5 +117,5 @@ type ChangesetInfo struct {
 	Start               int         `json:"start"`
 	Granularity         int         `json:"granularity"`
 	APool               apool.APool `json:"apool"`
-	RequestId           int         `json:"requestID"`
+	RequestId           any         `json:"requestID"`
 }

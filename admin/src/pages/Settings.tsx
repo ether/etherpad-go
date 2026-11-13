@@ -92,6 +92,34 @@ const advancedFields: FieldDef[] = [
   { key: 'cleanup.keepRevisions', label: 'Keep Revisions', type: 'number' },
 ]
 
+// settings.json may hold comments and trailing commas (like etherpad-lite's).
+// For the form they are dropped; the text editor keeps the file as it is.
+export function parseSettingsText(text: string): any {
+  let out = ''
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i]
+    if (c === '"') {
+      let j = i + 1
+      while (j < text.length && text[j] !== '"') j += text[j] === '\\' ? 2 : 1
+      out += text.slice(i, j + 1)
+      i = j
+    } else if (c === '/' && text[i + 1] === '/') {
+      while (i < text.length && text[i] !== '\n') i++
+      out += '\n'
+    } else if (c === '/' && text[i + 1] === '*') {
+      const end = text.indexOf('*/', i + 2)
+      i = end < 0 ? text.length : end + 1
+      out += ' '
+    } else if (c === ']' || c === '}') {
+      out = out.replace(/,\s*$/, '')
+      out += c
+    } else {
+      out += c
+    }
+  }
+  return JSON.parse(out)
+}
+
 // ── Nested object helpers ──────────────────────────────────────────────────
 function getNestedValue(obj: any, path: string): any {
   return path.split('.').reduce((o, k) => o?.[k], obj)
@@ -118,7 +146,7 @@ export function SettingsPage() {
   useEffect(() => { actions.loadSettings() }, [])
 
   const parsed = useMemo(() => {
-    try { return JSON.parse(store.settings) } catch { return null }
+    try { return parseSettingsText(store.settings) } catch { return null }
   }, [store.settings])
 
   const updateField = useCallback((key: string, value: any) => {

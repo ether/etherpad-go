@@ -3,10 +3,12 @@ package groups
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"strings"
 
 	"github.com/ether/etherpad-go/lib"
 	"github.com/ether/etherpad-go/lib/api/errors"
+	"github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/utils"
 	"github.com/gofiber/fiber/v3"
 )
@@ -86,6 +88,15 @@ func DeleteGroup(store *lib.InitStore) fiber.Handler {
 		_, err := store.Store.GetGroup(groupId)
 		if err != nil {
 			return c.Status(404).JSON(errors.NewInvalidParamError("group does not exist"))
+		}
+
+		// The group's pads and sessions go with it, as in etherpad-lite.
+		// Group ids of createGroupIfNotExistsFor are derived from the
+		// mapper, so a group created again for the same mapper gets the same
+		// id: what is left of the old one would come back with it.
+		if err := deleteGroupContent(store, groupId); err != nil {
+			store.Logger.Errorf("deleting the pads and sessions of group %s: %v", groupId, err)
+			return c.Status(500).JSON(errors.InternalServerError)
 		}
 
 		// Delete the group
@@ -287,4 +298,39 @@ func Init(store *lib.InitStore) {
 	// Group pads
 	store.PrivateAPI.Get("/groups/:groupId/pads", ListGroupPads(store))
 	store.PrivateAPI.Post("/groups/:groupId/pads", CreateGroupPad(store))
+}
+
+// deleteGroupContent removes the pads and sessions of a group.
+func deleteGroupContent(store *lib.InitStore, groupId string) error {
+	padIds, err := store.Store.GetPadIds()
+	if err != nil {
+		return err
+	}
+	if padIds != nil {
+		for _, padId := range *padIds {
+			if !strings.HasPrefix(padId, groupId+"$") {
+				continue
+			}
+			unlock, err := store.PadManager.LockPad(padId)
+			if err != nil {
+				return err
+			}
+			err = store.Handler.DeletePad(padId)
+			unlock()
+			if err != nil {
+				return fmt.Errorf("pad %s: %w", padId, err)
+			}
+		}
+	}
+	sessions := pad.NewSessionManager(store.Store)
+	found, err := sessions.ListSessionsOfGroup(groupId)
+	if err != nil {
+		return err
+	}
+	for sessionId := range found {
+		if _, err := sessions.DeleteSession(sessionId); err != nil {
+			return fmt.Errorf("session %s: %w", sessionId, err)
+		}
+	}
+	return nil
 }

@@ -91,7 +91,6 @@ func NewImportHandler(
 // @Failure 500 {object} ImportResponse
 // @Router /p/{pad}/import [post]
 func (h *ImportHandler) ImportPad(ctx fiber.Ctx) error {
-	tokenCookie := ctx.Cookies("token")
 	padId := ctx.Params("pad")
 
 	// An import replaces the pad's content and unloads it from the cache; no
@@ -103,15 +102,14 @@ func (h *ImportHandler) ImportPad(ctx fiber.Ctx) error {
 	defer unlock()
 
 	// Check access
-	grantedAccess, err := h.securityManager.CheckAccess(&padId, nil, &tokenCookie, nil)
+	// An import changes the pad, so it needs write access: not through the
+	// read-only id and not with a read-only authorization (etherpad-lite
+	// checks webaccess.userCanModify as well).
+	grantedAccess, err := h.securityManager.CheckRequestAccess(ctx, padId)
 	if err != nil {
-		return ctx.Status(500).JSON(ImportResponse{
-			Code:    2,
-			Message: "internalError",
-			Data:    ImportData{DirectDatabaseAccess: false},
-		})
+		h.logger.Infof("Import into %s denied: %v", padId, err)
 	}
-	if grantedAccess.AccessStatus != "grant" {
+	if err != nil || grantedAccess == nil || grantedAccess.AccessStatus != "grant" || !h.securityManager.RequestCanModify(ctx, padId) {
 		return ctx.Status(403).JSON(ImportResponse{
 			Code:    1,
 			Message: "accessDenied",
@@ -251,11 +249,14 @@ func (h *ImportHandler) importEtherpad(padId string, authorId string, content []
 		return false, &ImportError{Status: "padHasData"}
 	}
 
-	// Unload pad before raw import (SetPadRaw will delete and recreate)
+	// Unload pad before raw import (SetPadRaw will delete and recreate).
+	// ImportPad holds the pad lock for the whole import.
 	h.padManager.UnloadPad(padId)
 
 	// Parse the etherpad JSON and import directly to database
-	if err := h.importer.SetPadRaw(padId, content, authorId); err != nil {
+	err = h.importer.SetPadRaw(padId, content, authorId)
+	h.padManager.UnloadPad(padId)
+	if err != nil {
 		if errors.Is(err, io.ErrImportChangesCreator) {
 			h.logger.Warnf("Rejected .etherpad import into %s: %v", padId, err)
 			return false, &ImportError{Status: "permission", Message: err.Error()}
@@ -437,33 +438,4 @@ func isValidText(content string) bool {
 		// This includes: umlauts, bullet points, emojis, etc.
 	}
 	return true
-}
-
-// Legacy function for backward compatibility
-func ImportPad(ctx fiber.Ctx, securityManager *pad.SecurityManager) error {
-	tokenCookie := ctx.Cookies("token")
-	padId := ctx.Params("pad")
-	grantedAccess, err := securityManager.CheckAccess(&padId, nil, &tokenCookie, nil)
-	if err != nil {
-		return ctx.Status(500).JSON(ImportResponse{
-			Code:    2,
-			Message: "internalError",
-			Data:    ImportData{DirectDatabaseAccess: false},
-		})
-	}
-	if grantedAccess.AccessStatus != "grant" {
-		return ctx.Status(403).JSON(ImportResponse{
-			Code:    1,
-			Message: "accessDenied",
-			Data:    ImportData{DirectDatabaseAccess: false},
-		})
-	}
-
-	// This legacy function doesn't have access to all required dependencies
-	// It should be replaced with the ImportHandler
-	return ctx.Status(501).JSON(ImportResponse{
-		Code:    2,
-		Message: "notImplemented",
-		Data:    ImportData{DirectDatabaseAccess: false},
-	})
 }

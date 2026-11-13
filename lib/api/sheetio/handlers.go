@@ -7,14 +7,16 @@ import (
 	"github.com/gofiber/fiber/v3"
 )
 
-// checkGrant authorizes the request for the pad, returning the author id.
-func checkGrant(c fiber.Ctx, store *lib.InitStore, padId string) (string, error) {
-	token := c.Cookies("token")
-	granted, err := store.SecurityManager.CheckAccess(&padId, nil, &token, nil)
-	if err != nil {
-		return "", fiber.NewError(fiber.StatusInternalServerError, "internalError")
+// checkGrant authorizes the request for the pad, returning the author id:
+// with the webaccess user and the author token cookie, as pad import and
+// export do. write also needs write access (not through the read-only id,
+// not with a readOnly authorization).
+func checkGrant(c fiber.Ctx, store *lib.InitStore, padId string, write bool) (string, error) {
+	granted, err := store.SecurityManager.CheckRequestAccess(c, padId)
+	if err != nil || granted == nil || granted.AccessStatus != "grant" {
+		return "", fiber.NewError(fiber.StatusForbidden, "accessDenied")
 	}
-	if granted.AccessStatus != "grant" {
+	if write && !store.SecurityManager.RequestCanModify(c, padId) {
 		return "", fiber.NewError(fiber.StatusForbidden, "accessDenied")
 	}
 	return granted.AuthorId, nil
@@ -31,7 +33,7 @@ func ImportSheet(store *lib.InitStore) fiber.Handler {
 			return c.Status(503).SendString("Pad temporarily unavailable")
 		}
 		defer unlock()
-		if _, err := checkGrant(c, store, padId); err != nil {
+		if _, err := checkGrant(c, store, padId, true); err != nil {
 			return err
 		}
 
@@ -65,7 +67,7 @@ func ImportSheet(store *lib.InitStore) fiber.Handler {
 func ExportSheet(store *lib.InitStore) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		padId := c.Params("pad")
-		if _, err := checkGrant(c, store, padId); err != nil {
+		if _, err := checkGrant(c, store, padId, false); err != nil {
 			return err
 		}
 

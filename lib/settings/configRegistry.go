@@ -90,7 +90,7 @@ var Registry = []ConfigKey{
 	{Key: PadOptionsRtl, Default: false, Description: "Right-to-left text"},
 	{Key: PadOptionsAlwaysShowChat, Default: false, Description: "Always show chat"},
 	{Key: PadOptionsChatAndUsers, Default: false, Description: "Chat and users list"},
-	{Key: PadOptionsLang, Default: "en-gb", Description: "Pad language"},
+	{Key: PadOptionsLang, Default: nil, Description: "Pad language; null keeps the language the user picked"},
 	{Key: PadOptionsFadeInactiveAuthorColors, Default: true, Description: "Fade the colours of inactive authors"},
 	{Key: PadOptionsEnforceReadableAuthorColors, Default: true, Description: "Clamp author colours to a readable contrast (WCAG AA)"},
 
@@ -235,6 +235,7 @@ var Registry = []ConfigKey{
 		Default:     100,
 		Description: "Revisions to keep",
 	},
+	{Key: "ipLogging", Default: IPLoggingAnonymous, Description: "How client IP addresses appear in logs: anonymous, truncated or full"},
 	{Key: PadRetentionEnabled, Default: false, Description: "Enable automatic pad retention"},
 	{Key: PadRetentionDryRun, Default: true, Description: "Log pad retention deletions without deleting"},
 	{Key: PadRetentionDeleteAfterDays, Default: 365, Description: "Delete pads after this many inactive days"},
@@ -287,6 +288,16 @@ var Registry = []ConfigKey{
 		Key:         EnableDarkMode,
 		Default:     true,
 		Description: "Enable dark mode",
+	},
+	{
+		Key:         AllowPadDeletionByAllUsers,
+		Default:     false,
+		Description: "Let every user who can edit a pad delete it, not only its creator",
+	},
+	{
+		Key:         SuppressPadDeletionTokenModal,
+		Default:     false,
+		Description: "Do not show the creator the dialog with the pad deletion token",
 	},
 	{
 		Key:         EnablePadWideSettings,

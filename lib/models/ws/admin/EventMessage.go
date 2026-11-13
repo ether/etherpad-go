@@ -13,6 +13,9 @@ type PadLoadData struct {
 	Pattern   string `json:"pattern"`
 	SortBy    string `json:"sortBy"`
 	Ascending bool   `json:"ascending"`
+	// Filter narrows the list before it is paged: all (default), empty,
+	// active, recent or stale. See AdminMessageHandler.padLoad.
+	Filter string `json:"filter,omitempty"`
 }
 
 type PadDeleteData = string

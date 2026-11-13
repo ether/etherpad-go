@@ -18,6 +18,7 @@ export function useAdminActions() {
       pattern: string
       sortBy: string
       ascending: boolean
+      filter?: string
     }) => emit('padLoad', opts),
     createPad: (padName: string) => emit('createPad', { padName }),
     deletePad: (padName: string) => emit('deletePad', padName),

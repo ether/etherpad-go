@@ -1,5 +1,7 @@
 package events
 
+import "github.com/ether/etherpad-go/lib/settings"
+
 // OnAccessCheckContext is passed to onAccessCheck hooks when access to a concrete
 // pad is being checked (socket pad access). Mirrors the original's "any false
 // denies" semantics: a single Deny() denies access.
@@ -51,6 +53,8 @@ type AuthenticateContext struct {
 	Path          string
 	RequireAdmin  bool
 	GetHeader     func(key string) string
+	// Users is settings.users, as etherpad-lite passes it to authenticate.
+	Users map[string]settings.User
 
 	answered bool
 	rejected bool
@@ -205,3 +209,39 @@ func (c *AuthzFailureContext) Handled() bool              { return c.handled }
 func (c *AuthzFailureContext) Status() int                { return c.status }
 func (c *AuthzFailureContext) Body() string               { return c.body }
 func (c *AuthzFailureContext) Headers() map[string]string { return c.headers }
+
+// AuthFailureContext is passed to the deprecated authFailure hook, which runs
+// for authentication and authorization failures after authnFailure or
+// authzFailure did not handle them. Prefer those two.
+type AuthFailureContext struct {
+	Path         string
+	RequireAdmin bool
+	// Authentication is true for a failed login (default 401), false for a
+	// denied authorization (default 403).
+	Authentication bool
+
+	handled bool
+	status  int
+	body    string
+	headers map[string]string
+}
+
+// Respond marks the failure as handled and records the response to send.
+func (c *AuthFailureContext) Respond(status int, body string) {
+	c.handled = true
+	c.status = status
+	c.body = body
+}
+
+// SetHeader records a response header to set alongside the Respond status/body.
+func (c *AuthFailureContext) SetHeader(key, value string) {
+	if c.headers == nil {
+		c.headers = make(map[string]string)
+	}
+	c.headers[key] = value
+}
+
+func (c *AuthFailureContext) Handled() bool              { return c.handled }
+func (c *AuthFailureContext) Status() int                { return c.status }
+func (c *AuthFailureContext) Body() string               { return c.body }
+func (c *AuthFailureContext) Headers() map[string]string { return c.headers }

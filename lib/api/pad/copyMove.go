@@ -9,6 +9,7 @@ import (
 	"github.com/ether/etherpad-go/lib/hooks/events"
 	db2 "github.com/ether/etherpad-go/lib/models/db"
 	padModel "github.com/ether/etherpad-go/lib/models/pad"
+	padManager "github.com/ether/etherpad-go/lib/pad"
 	"github.com/gofiber/fiber/v3"
 )
 
@@ -209,16 +210,21 @@ func CopyPadWithoutHistory(initStore *lib.InitStore) fiber.Handler {
 			return c.Status(hErr.status).JSON(hErr.body)
 		}
 
-		// Creating the destination pad re-adds the trailing newline, so strip it
-		// from the source text first (mirrors the original copyPadWithoutHistory).
-		text := strings.TrimSuffix(sourcePad.Text(), "\n")
-
 		var authorId *string
 		if request.AuthorId != "" {
 			authorId = &request.AuthorId
 		}
 
-		if _, err := initStore.PadManager.GetPad(request.DestinationID, &text, authorId); err != nil {
+		// An empty pad, then one revision with the source's content: text,
+		// formatting and authorship (etherpad-lite's copyPadWithoutHistory).
+		// Creating the copy from the plain text lost both.
+		empty := ""
+		dst, err := initStore.PadManager.GetPad(request.DestinationID, &empty, authorId)
+		if err != nil {
+			return c.Status(500).JSON(errors2.InternalServerError)
+		}
+		if _, err := dst.ReplaceContent(sourcePad.AText, &sourcePad.Pool, authorId); err != nil {
+			initStore.Logger.Errorf("Copying %s to %s: %v", padId, request.DestinationID, err)
 			return c.Status(500).JSON(errors2.InternalServerError)
 		}
 
@@ -269,6 +275,14 @@ func MovePad(initStore *lib.InitStore) fiber.Handler {
 		}
 
 		firePadCopy(initStore, srcPad, request.DestinationID)
+
+		// A move is the same pad under a new id: the deletion token its
+		// creator saved keeps working there (etherpad-lite #7995). A copy
+		// is another pad and gets no token of the source's.
+		if err := padManager.NewDeletionTokens(initStore.Store).Transfer(padId, request.DestinationID); err != nil {
+			initStore.Logger.Errorf("Moving the deletion token of pad %s to %s: %v", padId, request.DestinationID, err)
+			return c.Status(500).JSON(errors2.InternalServerError)
+		}
 
 		// Remove the source pad after a successful copy (fires padRemove)
 		if err := initStore.PadManager.RemovePad(padId); err != nil {

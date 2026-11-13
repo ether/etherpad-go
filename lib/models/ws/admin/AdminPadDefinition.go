@@ -10,4 +10,6 @@ type PadDBSearch struct {
 type PadDefinition struct {
 	Total   int           `json:"total"`
 	Results []PadDBSearch `json:"results"`
+	// Error is set when the pads could not be loaded.
+	Error string `json:"error,omitempty"`
 }

@@ -45,6 +45,8 @@
 	"pad.settings.fontType": "Anaw n tsefsit:",
 	"pad.settings.language": "Tutlayt:",
 	"pad.settings.about": "Ɣef",
+	"pad.deletionToken.copy": "Nɣel",
+	"pad.deletionToken.copied": "Yettwanɣel",
 	"pad.importExport.import_export": "Kter/Sifeḍ",
 	"pad.importExport.import": "Sali aḍris neɣ isemli",
 	"pad.importExport.importSuccessful": "Yedda!",

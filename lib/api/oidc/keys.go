@@ -20,7 +20,11 @@ const (
 )
 
 // loadOrCreate returns the value stored under key, or stores and returns the
-// one create makes. All instances on one database thereby share the value.
+// one create makes. All instances on one database thereby share the value:
+// the insert only succeeds if the key is still unused, so when several
+// instances start at once they all end up with the first one's value
+// (a plain write would let the last one win and leave the others signing
+// with a key nobody else accepts).
 func loadOrCreate(store db.DataStore, key string, create func() (string, error)) (string, error) {
 	raw, err := store.GetOIDCStorageValue(key)
 	if err != nil {
@@ -33,10 +37,18 @@ func loadOrCreate(store db.DataStore, key string, create func() (string, error))
 	if err != nil {
 		return "", err
 	}
-	if err := store.SetOIDCStorageValue(key, value); err != nil {
+	stored, err := store.AddOIDCStorageValue(key, value)
+	if err != nil {
 		return "", err
 	}
-	return value, nil
+	if stored == "" {
+		// An empty value was stored earlier: replace it.
+		if err := store.SetOIDCStorageValue(key, value); err != nil {
+			return "", err
+		}
+		return value, nil
+	}
+	return stored, nil
 }
 
 // loadOrCreateSigningKey returns the RSA key the ID tokens are signed with.

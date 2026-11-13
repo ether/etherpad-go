@@ -86,9 +86,14 @@ func decodeInto[T any](message []byte, msgType string, logger *zap.SugaredLogger
 
 // dispatchMessage routes a single client message to its handler.
 func (c *Client) dispatchMessage(message []byte, retrievedSettings *settings.Settings, logger *zap.SugaredLogger) {
+	// A message that makes a handler panic must not take the whole server
+	// down. The connection is closed so the client reconnects and resyncs:
+	// whatever the panic interrupted was not stored, and the client resends
+	// unacknowledged changes after reconnecting.
+	defer recoverClientPanic(c, retrievedSettings, logger, "pad")
 	msgType, inner, err := parseMessageType(message)
 	if err != nil {
-		logger.Warnf("Ignoring malformed message from %s: %v", c.ClientIP, err)
+		logger.Warnf("Ignoring malformed message from %s: %v", retrievedSettings.LogIP(c.ClientIP), err)
 		return
 	}
 

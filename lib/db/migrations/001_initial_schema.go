@@ -19,6 +19,7 @@ func GetMigrations() []Migration {
 		migration010ClusterNodes(),
 		migration011SheetEpoch(),
 		migration012PadSettings(),
+		migration013MySQLBinaryIDs(),
 	}
 }
 

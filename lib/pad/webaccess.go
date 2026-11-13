@@ -4,7 +4,6 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"errors"
-	"fmt"
 	"net/url"
 	"regexp"
 	"strings"
@@ -47,7 +46,7 @@ func UserCanModify(padId *string, req *webaccess.SocketClientRequest, readOnlyMa
 		return true
 	}
 
-	if req == nil || *req.ReadOnly {
+	if req == nil || (req.ReadOnly != nil && *req.ReadOnly) {
 		return false
 	}
 
@@ -75,10 +74,10 @@ func CheckAccess(ctx fiber.Ctx, logger *zap.SugaredLogger, retrievedSettings *se
 func CheckAccessWithHooks(ctx fiber.Ctx, logger *zap.SugaredLogger, retrievedSettings *settings.Settings, readOnlyManager *ReadOnlyManager, hookSystem *hooks.Hook) error {
 	// Liveness and readiness probes carry no data and must work for the
 	// orchestrator even when the pads require a login.
-	if p := ctx.Path(); p == "/health/live" || p == "/health/ready" {
+	if p := ctx.Path(); p == "/health/live" || p == "/health/ready" || isPublicAsset(p) {
 		return ctx.Next()
 	}
-	var requireAdmin = strings.HasPrefix(strings.ToLower(ctx.Path()), "/admin-auth")
+	var requireAdmin = isAdminPath(ctx.Path())
 	// ///////////////////////////////////////////////////////////////////////////////////////////////
 	// Step 1: Check the preAuthorize hook for early permit/deny (permit is only allowed for
 	// non-admin pages). If any plugin explicitly grants or denies access, skip the remaining steps.
@@ -243,25 +242,16 @@ func CheckAccessWithHooks(ctx fiber.Ctx, logger *zap.SugaredLogger, retrievedSet
 		webAccessCtx.Username = user.Username
 	}
 
-	var authheader = ctx.Get("authorization")
-	var httpBasicAuth = authheader != "" && strings.HasPrefix(authheader, "Basic ")
-
+	username, password, httpBasicAuth := parseBasicAuth(ctx.Get("authorization"))
 	if httpBasicAuth {
-		var basicAuthColonPassword, err = base64.StdEncoding.DecodeString(strings.Split(authheader, " ")[1])
-
-		if err != nil {
-			return errors.New("invalid base 64")
-		}
-
-		var userNamePassword = strings.Split(string(basicAuthColonPassword), ":")
-		webAccessCtx.Username = &userNamePassword[0]
-		webAccessCtx.Password = &userNamePassword[1]
+		webAccessCtx.Username = &username
+		webAccessCtx.Password = &password
 	}
 
 	// sendAuthnFailure fires the authnFailure hook then falls back to the
 	// default 401 response. It REPLACES all inline 401 logic below.
 	sendAuthnFailure := func() error {
-		logger.Infof("failed authentication from IP %s", ctx.IP())
+		logger.Infof("failed authentication from IP %s", retrievedSettings.LogIP(ctx.IP()))
 		if hookSystem != nil {
 			failCtx := &events.AuthnFailureContext{Path: ctx.Path(), RequireAdmin: requireAdmin}
 			hookSystem.ExecuteAuthnFailureHooks(failCtx)
@@ -270,6 +260,9 @@ func CheckAccessWithHooks(ctx fiber.Ctx, logger *zap.SugaredLogger, retrievedSet
 					ctx.Set(k, v)
 				}
 				return ctx.Status(failCtx.Status()).SendString(failCtx.Body())
+			}
+			if handled, err := sendAuthFailure(ctx, hookSystem, requireAdmin, true); handled {
+				return err
 			}
 		}
 		if !requireAdmin {
@@ -295,6 +288,7 @@ func CheckAccessWithHooks(ctx fiber.Ctx, logger *zap.SugaredLogger, retrievedSet
 			Path:          ctx.Path(),
 			RequireAdmin:  requireAdmin,
 			GetHeader:     func(k string) string { return ctx.Get(k) },
+			Users:         retrievedSettings.Users,
 		}
 		hookSystem.ExecuteAuthenticateHooks(authCtx)
 		if authCtx.Answered() {
@@ -304,15 +298,11 @@ func CheckAccessWithHooks(ctx fiber.Ctx, logger *zap.SugaredLogger, retrievedSet
 			// Plugin authenticated the user. Populate the session user, looking up
 			// settings.Users for admin status when the username is known there.
 			username := authCtx.Username()
-			var isAdmin bool
+			var known *settings.User
 			if u, ok := retrievedSettings.Users[username]; ok {
-				isAdmin = u.IsAdmin != nil && *u.IsAdmin
+				known = &u
 			}
-			unameCopy := username
-			ctx.Locals(clientVars.WebAccessStore, &webaccess.SocketClientRequest{
-				Username: &unameCopy,
-				IsAdmin:  isAdmin,
-			})
+			ctx.Locals(clientVars.WebAccessStore, sessionUser(username, known))
 			pluginAuthenticated = true
 		}
 	}
@@ -334,14 +324,8 @@ func CheckAccessWithHooks(ctx fiber.Ctx, logger *zap.SugaredLogger, retrievedSet
 			return sendAuthnFailure()
 		}
 		var retrievedUserFromMap = retrievedSettings.Users[*webAccessCtx.Username]
-		// Make a shallow copy so that the password property can be deleted (to prevent it from
-		// appearing in logs or in the database) without breaking future authentication attempts.
-		ctx.Locals(clientVars.WebAccessStore, &webaccess.SocketClientRequest{
-			Username: retrievedUserFromMap.Username,
-			IsAdmin:  retrievedUserFromMap.IsAdmin != nil && *retrievedUserFromMap.IsAdmin,
-		})
-
-		retrievedUserFromMap.Username = webAccessCtx.Username
+		// The session user carries no password, so it cannot leak into logs.
+		ctx.Locals(clientVars.WebAccessStore, sessionUser(*webAccessCtx.Username, &retrievedUserFromMap))
 		// Remove password
 		if webAccessCtx.Username == nil {
 			logger.Warn("authenticate hook failed to add user settings to session")
@@ -352,7 +336,7 @@ func CheckAccessWithHooks(ctx fiber.Ctx, logger *zap.SugaredLogger, retrievedSet
 			webAccessCtx.Username = &newUsername
 		}
 
-		logger.Infof(fmt.Sprintf(`Successful authentication from IP %s for user %s`, ctx.IP(), *webAccessCtx.Username))
+		logger.Infof("Successful authentication from IP %s for user %s", retrievedSettings.LogIP(ctx.IP()), *webAccessCtx.Username)
 	}
 	// ///////////////////////////////////////////////////////////////////////////////////////////////
 	// Step 4: Try to access the thing again. If this fails, give the user a 403 error. Plugins can
@@ -370,6 +354,9 @@ func CheckAccessWithHooks(ctx fiber.Ctx, logger *zap.SugaredLogger, retrievedSet
 				}
 				return ctx.Status(failCtx.Status()).SendString(failCtx.Body())
 			}
+			if handled, err := sendAuthFailure(ctx, hookSystem, requireAdmin, false); handled {
+				return err
+			}
 		}
 		return ctx.Status(403).SendString("Forbidden")
 	}
@@ -384,6 +371,113 @@ func CheckAccessWithHooks(ctx fiber.Ctx, logger *zap.SugaredLogger, retrievedSet
 	}
 
 	return sendAuthzFailure()
+}
+
+// ResolvePadAuthorization decides an authenticated user's level for a pad
+// like webaccess does for "/p/<padId>": admins and, without
+// requireAuthorization, every user get "create"; otherwise the authorize
+// hooks decide, and no answer means no access (""). padId is the real pad id.
+func ResolvePadAuthorization(user *webaccess.SocketClientRequest, padId string, cfg *settings.Settings, hookSystem *hooks.Hook) string {
+	if user == nil {
+		return ""
+	}
+	if user.IsAdmin || !cfg.RequireAuthorization {
+		return "create"
+	}
+	if hookSystem == nil {
+		return ""
+	}
+	authorizeCtx := &events.AuthorizeContext{Path: "/p/" + url.PathEscape(padId), PadId: padId, User: user}
+	hookSystem.ExecuteAuthorizeHooks(authorizeCtx)
+	if authorizeCtx.Decision() != events.AuthorizeGrant {
+		return ""
+	}
+	level, err := NormalizeAuthzLevel(authorizeCtx.Level())
+	if err != nil {
+		return ""
+	}
+	return *level
+}
+
+// sessionUser is the authenticated user as the rest of the request sees it
+// (etherpad-lite's req.session.user): name, admin flag and the readOnly and
+// canCreate restrictions from settings.users, without the password.
+func sessionUser(username string, u *settings.User) *webaccess.SocketClientRequest {
+	name := username
+	user := &webaccess.SocketClientRequest{Username: &name}
+	if u == nil {
+		return user
+	}
+	user.IsAdmin = u.IsAdmin != nil && *u.IsAdmin
+	if u.ReadOnly != nil {
+		readOnly := *u.ReadOnly
+		user.ReadOnly = &readOnly
+	}
+	if u.CanCreate != nil {
+		canCreate := *u.CanCreate
+		user.CanCreate = &canCreate
+	}
+	return user
+}
+
+// sendAuthFailure runs the deprecated authFailure hook and sends its response
+// when a callback handled the failure.
+func sendAuthFailure(ctx fiber.Ctx, hookSystem *hooks.Hook, requireAdmin, authentication bool) (bool, error) {
+	failCtx := &events.AuthFailureContext{Path: ctx.Path(), RequireAdmin: requireAdmin, Authentication: authentication}
+	hookSystem.ExecuteAuthFailureHooks(failCtx)
+	if !failCtx.Handled() {
+		return false, nil
+	}
+	for k, v := range failCtx.Headers() {
+		ctx.Set(k, v)
+	}
+	return true, ctx.Status(failCtx.Status()).SendString(failCtx.Body())
+}
+
+// parseBasicAuth reads "Basic base64(user:password)". The password is
+// everything after the first ':', so it may contain ':' itself. Anything
+// malformed (no ':', invalid base64) counts as no credentials, which leads to
+// the normal authentication failure.
+func parseBasicAuth(header string) (username, password string, ok bool) {
+	const prefix = "Basic "
+	if len(header) <= len(prefix) || !strings.EqualFold(header[:len(prefix)], prefix) {
+		return "", "", false
+	}
+	decoded, err := base64.StdEncoding.DecodeString(strings.TrimSpace(header[len(prefix):]))
+	if err != nil {
+		return "", "", false
+	}
+	username, password, ok = strings.Cut(string(decoded), ":")
+	return username, password, ok
+}
+
+// isAdminPath reports whether path is (below) /admin-auth. Repeated slashes
+// are collapsed first, so "//admin-auth//" is treated as the admin path too.
+func isAdminPath(path string) bool {
+	for strings.Contains(path, "//") {
+		path = strings.ReplaceAll(path, "//", "/")
+	}
+	return strings.HasPrefix(strings.ToLower(path), "/admin-auth")
+}
+
+// publicAssetPrefixes are served without authentication, like
+// etherpad-lite's static content (expressPreSession): they hold no pad data,
+// and a login page could not be styled without them.
+var publicAssetPrefixes = []string{"/static/", "/css/", "/images/", "/js/"}
+
+func isPublicAsset(path string) bool {
+	if path == "/favicon.ico" || path == "/robots.txt" {
+		return true
+	}
+	if strings.Contains(path, "..") {
+		return false
+	}
+	for _, prefix := range publicAssetPrefixes {
+		if strings.HasPrefix(path, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 // NormalizeAuthzLevel mirrors the original webaccess.normalizeAuthzLevel:

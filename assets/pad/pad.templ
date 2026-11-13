@@ -207,7 +207,24 @@ templ SettingsPopup(translations map[string]string, availablefonts []string, set
                   </div>
                 </div>
               }
-              <button id="delete-pad">{translations["pad.settings.deletePad"]}</button>
+              // Pad deletion (upstream #7926, #7959, #7996); pad_deletion.ts
+              // shows what applies to this session.
+              <p id="delete-pad-token-reveal" hidden>
+                  <ep-checkbox id="delete-pad-token-toggle" label={translations["pad.deletionToken.reveal"]}></ep-checkbox>
+              </p>
+              <div id="delete-pad-token-reveal-panel" hidden>
+                  <p>{translations["pad.deletionToken.revealHelp"]}</p>
+                  <label for="delete-pad-token-reveal-value" class="sr-only">{translations["pad.deletionToken.tokenValueLabel"]}</label>
+                  <input type="text" id="delete-pad-token-reveal-value" readonly/>
+                  <span id="delete-pad-token-reveal-status" role="status" aria-live="polite"></span>
+              </div>
+              <button id="delete-pad" hidden>{translations["pad.settings.deletePad"]}</button>
+              <details id="delete-pad-with-token" hidden>
+                  <summary>{translations["pad.deletionToken.deleteWithToken"]}</summary>
+                  <label for="delete-pad-token-input">{translations["pad.deletionToken.tokenFieldLabel"]}</label>
+                  <input type="password" id="delete-pad-token-input" autocomplete="off" spellcheck="false"/>
+                  <button id="delete-pad-token-submit" type="button">{translations["pad.settings.deletePad"]}</button>
+              </details>
               <div id="theme-switcher" style="display: none;">
                     <svg width="2rem" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" />
@@ -232,6 +249,23 @@ templ SettingsPopup(translations map[string]string, availablefonts []string, set
               <span>{translations["pad.settings.poweredBy"]}</span>
               <a href="https://etherpad.org">Etherpad</a>
           </div></div>
+}
+
+// DeletionTokenModal shows the creator the pad's deletion token once.
+templ DeletionTokenModal(translations map[string]string) {
+          <div id="deletiontoken-modal" class="popup" role="dialog" aria-modal="true"
+               aria-labelledby="deletiontoken-modal-title" aria-describedby="deletiontoken-modal-body" hidden>
+            <div class="popup-content">
+              <h1 id="deletiontoken-modal-title">{translations["pad.deletionToken.modalTitle"]}</h1>
+              <p id="deletiontoken-modal-body">{translations["pad.deletionToken.modalBody"]}</p>
+              <div class="deletiontoken-row">
+                <label for="deletiontoken-value" class="sr-only">{translations["pad.deletionToken.tokenValueLabel"]}</label>
+                <input type="text" id="deletiontoken-value" readonly/>
+                <button type="button" id="deletiontoken-copy">{translations["pad.deletionToken.copy"]}</button>
+              </div>
+              <button type="button" id="deletiontoken-ack">{translations["pad.deletionToken.acknowledge"]}</button>
+            </div>
+          </div>
 }
 
 templ EmbedPopup(translations map[string]string) {
@@ -497,6 +531,7 @@ availableFonts []string, buttonGroups []pluginTypes.ToolbarButtonGroup, settings
 
             @EditorLoadingBox(translations)
             @SettingsPopup(translations, availableFonts, settingsGroups, settings.EnablePadWideSettings)
+            @DeletionTokenModal(translations)
             @ImportExportPopup(translations)
             @ConnectivityPopup(translations)
             @EmbedPopup(translations)

@@ -58,12 +58,7 @@ func testTokenlessConnectionCannotDeleteOthersPad(t *testing.T, ds testutils.Tes
 
 	other, otherAuthor := tokenlessClientReady(t, ds, padId, "null-ws-other")
 	require.NotEqual(t, creator, otherAuthor)
-	ds.PadMessageHandler.HandlePadDelete(other, libws.PadDelete{
-		Type: "PAD_DELETE",
-		Data: struct {
-			PadID string `json:"padId"`
-		}{PadID: padId},
-	})
+	ds.PadMessageHandler.HandlePadDelete(other, padDeleteMessage(padId, ""), ds.Settings)
 	exists, err := ds.PadManager.DoesPadExist(padId)
 	require.NoError(t, err)
 	assert.True(t, *exists, "pad was deleted by an unrelated token-less connection")

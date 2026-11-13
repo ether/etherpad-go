@@ -3,23 +3,26 @@ package ws
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	padModel "github.com/ether/etherpad-go/lib/models/pad"
 	"os"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
-	adminutils "github.com/ether/etherpad-go/lib/adminutils"
+	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/changeset"
 	"github.com/ether/etherpad-go/lib/db"
 	"github.com/ether/etherpad-go/lib/hooks"
 	db2 "github.com/ether/etherpad-go/lib/models/db"
-	"github.com/ether/etherpad-go/lib/models/revision"
 	"github.com/ether/etherpad-go/lib/models/ws/admin"
 	"github.com/ether/etherpad-go/lib/pad"
 	"github.com/ether/etherpad-go/lib/plugins"
 	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/ether/etherpad-go/lib/updater"
+	"github.com/ether/etherpad-go/lib/utils"
 	libutils "github.com/ether/etherpad-go/lib/utils"
 	"github.com/gofiber/fiber/v3"
 	"go.uber.org/zap"
@@ -53,11 +56,31 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 	switch message.Event {
 	case "load":
 		{
+			// The settings.json text as it is on disk (comments, ${ENV}
+			// placeholders and all) is what the editor shows and saves.
+			// The parsed settings used to be sent and saved instead, which
+			// replaced the file by every resolved value: secrets from the
+			// environment ended up in the file, comments and placeholders
+			// were gone. The live values go along redacted.
 			resp := make([]interface{}, 2)
 			resp[0] = "settings"
-			resp[1] = map[string]interface{}{
-				"results":  retrievedSettings,
-				"readOnly": retrievedSettings.Clustered(),
+			if !retrievedSettings.ShowSettingsInAdminPage {
+				resp[1] = map[string]interface{}{"results": "NOT_ALLOWED"}
+			} else {
+				raw, err := os.ReadFile(settingsFilePath(retrievedSettings))
+				if err != nil && !os.IsNotExist(err) {
+					h.Logger.Errorf("Reading the settings file: %v", err)
+				}
+				text := string(raw)
+				if err != nil {
+					text = "{\n}\n"
+				}
+				resp[1] = map[string]interface{}{
+					"results":  text,
+					"resolved": retrievedSettings.ResolvedForAdmin(),
+					"flags":    map[string]interface{}{"readOnly": retrievedSettings.Clustered()},
+					"readOnly": retrievedSettings.Clustered(),
+				}
 			}
 			responseBytes, err := json.Marshal(resp)
 			if err != nil {
@@ -217,28 +240,27 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 		}
 	case "padLoad":
 		{
+			// Every padLoad gets a reply, also on failure: without one the
+			// admin page waits forever (etherpad-lite #7935).
+			failed := func(msg string) {
+				resp, err := json.Marshal([]interface{}{"results:padLoad", admin.PadDefinition{
+					Results: []admin.PadDBSearch{}, Error: msg,
+				}})
+				if err == nil {
+					c.SafeSend(resp)
+				}
+			}
 			var padLoadData admin.PadLoadData
 			if err := json.Unmarshal(message.Data, &padLoadData); err != nil {
 				h.Logger.Warn("Error unmarshalling padLoad data:", err.Error())
+				failed("invalid request")
 				return
 			}
-			dbPads, err := h.store.QueryPad(padLoadData.Offset, padLoadData.Limit, padLoadData.SortBy, padLoadData.Ascending, padLoadData.Pattern)
+			padDtos, err := h.padLoad(padLoadData, time.Now())
 			if err != nil {
 				h.Logger.Warn("Error querying pads:", err.Error())
+				failed(err.Error())
 				return
-			}
-
-			var padDtos admin.PadDefinition
-
-			padDtos.Total = dbPads.TotalPads
-			padDtos.Results = make([]admin.PadDBSearch, 0)
-			for _, dbPad := range dbPads.Pads {
-				padDtos.Results = append(padDtos.Results, admin.PadDBSearch{
-					PadName:        dbPad.Padname,
-					RevisionNumber: dbPad.RevisionNumber,
-					LastEdited:     dbPad.LastEdited,
-					UserCount:      len(h.padMessageHandler.GetRoomSockets(dbPad.Padname)),
-				})
 			}
 
 			resp := make([]interface{}, 2)
@@ -448,15 +470,25 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 				c.SafeSend(responseBytes)
 				return
 			}
+			if !retrievedSettings.ShowSettingsInAdminPage {
+				responseBytes, _ := json.Marshal([]interface{}{"results:saveSettings", map[string]interface{}{"error": "NOT_ALLOWED"}})
+				c.SafeSend(responseBytes)
+				return
+			}
 			var settingsJSON string
 			if err := json.Unmarshal(message.Data, &settingsJSON); err != nil {
 				settingsJSON = string(message.Data)
 			}
-			settingsPath := "settings.json"
-			if retrievedSettings.Root != "" {
-				settingsPath = retrievedSettings.Root + "/settings.json"
+			// Written byte for byte (comments stay), but only if it parses:
+			// a typo must not leave a server that no longer starts.
+			if _, err := settings.PrepareSettingsJSON([]byte(settingsJSON)); err != nil {
+				responseBytes, _ := json.Marshal([]interface{}{"results:saveSettings", map[string]interface{}{
+					"error": "The settings are not valid JSON, nothing was saved: " + err.Error()}})
+				c.SafeSend(responseBytes)
+				return
 			}
-			if err := os.WriteFile(settingsPath, []byte(settingsJSON), 0644); err != nil {
+			settingsPath := settingsFilePath(retrievedSettings)
+			if err := writeFileAtomic(settingsPath, []byte(settingsJSON)); err != nil {
 				h.Logger.Errorf("Error saving settings: %v", err)
 				resp := make([]interface{}, 2)
 				resp[0] = "results:saveSettings"
@@ -696,11 +728,25 @@ func (h AdminMessageHandler) DeleteRevisions(padId string, keepRevisions int) er
 	h.Logger.Debugf("Starting deletion of revisions for pad %s, keeping last %d revisions", padId, keepRevisions)
 
 	retrievedPad, err := h.padManager.GetPad(padId, nil, nil)
-	if err != nil {
-		return err
+	if err == nil {
+		err = retrievedPad.Check()
 	}
-
-	if err := retrievedPad.Check(); err != nil {
+	if err != nil {
+		missing, mErr := h.missingRevisions(padId)
+		if mErr == nil && len(missing) > 0 {
+			latest, rErr := h.latestText(padId)
+			if rErr != nil {
+				return fmt.Errorf("pad %s is missing revision(s) %v: %v. Nothing changed", padId, missing, rErr)
+			}
+			if keepRevisions == 0 {
+				// Full compaction needs no history: it repairs the pad
+				// from its latest text.
+				return h.compactDamagedPad(padId, missing, latest)
+			}
+			return fmt.Errorf("pad %s is missing revision(s) %v, so its history cannot be shortened. "+
+				"The pad's text is safe (it can be rebuilt from revision %d on); a full compaction "+
+				"(keepRevisions 0) rebuilds the pad from it without the history", padId, missing, latest.from)
+		}
 		h.Logger.Errorf("Pad %s failed integrity check before revision deletion: %s", padId, err.Error())
 		return err
 	}
@@ -710,7 +756,6 @@ func (h AdminMessageHandler) DeleteRevisions(padId string, keepRevisions int) er
 		return nil
 	}
 
-	h.padMessageHandler.KickSessionsFromPad(padId)
 	cleanupUntilRevision := retrievedPad.Head - keepRevisions
 	h.Logger.Infof("Deleting revisions for pad %s until revision %d", padId, cleanupUntilRevision)
 	compressedChangeset, err := h.padMessageHandler.ComposePadChangesets(retrievedPad, 0, cleanupUntilRevision+1)
@@ -718,78 +763,74 @@ func (h AdminMessageHandler) DeleteRevisions(padId string, keepRevisions int) er
 		h.Logger.Warn("Error composing changeset:", err.Error())
 		return err
 	}
-
-	// Save revisions to keep (we need to resave because of changed changesets due to compression)
-	revisionsToKeep, err := retrievedPad.GetRevisions(0, retrievedPad.Head)
-	if err != nil {
-		h.Logger.Warn("Error getting revisions to keep:", err.Error())
-		return err
-	}
-	currentRevsToKeep := make(map[int]db2.PadSingleRevision)
-	for i := range *revisionsToKeep {
-		currentRevsToKeep[(*revisionsToKeep)[i].RevNum] = (*revisionsToKeep)[i]
-	}
-
-	if err := retrievedPad.RemoveAllSavedRevisions(); err != nil {
-		h.Logger.Warn("Error removing saved revisions:", err.Error())
-		return err
-	}
-
-	padContent, err := h.padManager.GetPad(padId, nil, nil)
+	oldRevisions, err := retrievedPad.GetRevisions(0, retrievedPad.Head)
 	if err != nil {
 		return err
 	}
-	padContent.Head = keepRevisions
-	if len(padContent.SavedRevisions) > 0 {
-		newSavedRevisions := make([]revision.SavedRevision, 0)
-		for i := 0; i < len(padContent.SavedRevisions); i++ {
-			if padContent.SavedRevisions[i].RevNum > cleanupUntilRevision {
-				padContent.SavedRevisions[i].RevNum = padContent.SavedRevisions[i].RevNum - cleanupUntilRevision
-				newSavedRevisions = append(newSavedRevisions, padContent.SavedRevisions[i])
-			}
-		}
-		padContent.SavedRevisions = newSavedRevisions
-	}
-	if err := padContent.Save(); err != nil {
-		return errors.New("error saving pad after revision cleanup" + err.Error())
+	byNum := make(map[int]db2.PadSingleRevision, len(*oldRevisions))
+	for _, r := range *oldRevisions {
+		byNum[r.RevNum] = r
 	}
 
-	newAtext := changeset.MakeAText("\n", nil)
-	pool := padContent.Pool
-	optNewAtext, err := changeset.ApplyToAText(compressedChangeset, newAtext, pool)
-	if err != nil {
-		h.Logger.Warn("Error applying compressed changeset to atext:", err.Error())
-		return err
-	}
-	newAtext = *optNewAtext
-
-	createdRevision := adminutils.CreateRevision(compressedChangeset, currentRevsToKeep[cleanupUntilRevision].Timestamp, true, currentRevsToKeep[cleanupUntilRevision].AuthorId, newAtext, pool)
-
-	if err := h.store.SaveRevision(padContent.Id, 0, createdRevision.Changeset, newAtext.ToDBAText(), pool.ToRevDB(), createdRevision.Meta.Author, createdRevision.Meta.Timestamp); err != nil {
-		h.Logger.Warn("Error saving compressed revision:", err.Error())
-		return err
-	}
-	for i := 0; i < keepRevisions; i++ {
-		rev := i + cleanupUntilRevision + 1
-		newRev := rev - cleanupUntilRevision
-
-		currentRevisionDb, ok := currentRevsToKeep[rev]
-		if !ok {
-			h.Logger.Warn("Error: revision", rev, "not found in current revisions to keep")
-			return errors.New("revision not found in current revisions to keep")
-		}
-		optNewAtext, err = changeset.ApplyToAText(currentRevisionDb.Changeset, newAtext, pool)
+	// Build the new history in memory first and check that it ends at the
+	// pad's current text. It is then swapped in with one transaction: the
+	// old code deleted every revision before writing the new ones, so a
+	// failed write lost the pad's latest text.
+	pool := retrievedPad.Pool
+	poolDB := pool.ToRevDB()
+	atext := changeset.MakeAText("\n", nil)
+	newRevisions := make([]db2.PadSingleRevision, 0, keepRevisions+1)
+	appendRev := func(cs string, src db2.PadSingleRevision) error {
+		next, err := changeset.ApplyToAText(cs, atext, pool)
 		if err != nil {
-			h.Logger.Warn("Error applying changeset to atext for revision", rev, ":", err.Error())
 			return err
 		}
-		newAtext = *optNewAtext
+		atext = *next
+		newRevisions = append(newRevisions, db2.PadSingleRevision{
+			PadId: padId, RevNum: len(newRevisions), Changeset: cs, AText: atext.ToDBAText(),
+			AuthorId: src.AuthorId, Timestamp: src.Timestamp, Pool: &poolDB,
+		})
+		return nil
+	}
+	base, ok := byNum[cleanupUntilRevision]
+	if !ok {
+		return fmt.Errorf("revision %d of pad %s is missing", cleanupUntilRevision, padId)
+	}
+	if err := appendRev(compressedChangeset, base); err != nil {
+		return err
+	}
+	for rev := cleanupUntilRevision + 1; rev <= retrievedPad.Head; rev++ {
+		src, ok := byNum[rev]
+		if !ok {
+			return fmt.Errorf("revision %d of pad %s is missing", rev, padId)
+		}
+		if err := appendRev(src.Changeset, src); err != nil {
+			return fmt.Errorf("revision %d: %w", rev, err)
+		}
+	}
+	if atext.Text != retrievedPad.AText.Text || atext.Attribs != retrievedPad.AText.Attribs {
+		return fmt.Errorf("compacted history of pad %s does not end at its text; nothing changed", padId)
+	}
 
-		createdRevision = adminutils.CreateRevision(currentRevisionDb.Changeset, currentRevisionDb.Timestamp, true, currentRevisionDb.AuthorId, newAtext, pool)
-		if err := h.store.SaveRevision(padContent.Id, newRev, createdRevision.Changeset, newAtext.ToDBAText(), pool.ToRevDB(), createdRevision.Meta.Author, createdRevision.Meta.Timestamp); err != nil {
-			h.Logger.Warn("Error saving revision after deleting:", err.Error())
-			return err
+	savedRevisions := make([]db2.SavedRevision, 0)
+	for _, sr := range retrievedPad.SavedRevisions {
+		if sr.RevNum > cleanupUntilRevision {
+			savedRevisions = append(savedRevisions, db2.SavedRevision{
+				RevNum: sr.RevNum - cleanupUntilRevision, SavedBy: sr.SavedBy, Timestamp: sr.Timestamp, Label: sr.Label, Id: sr.Id,
+			})
 		}
+	}
+	row := db2.PadDB{
+		Head: keepRevisions, SavedRevisions: savedRevisions, ChatHead: retrievedPad.ChatHead, Pool: poolDB,
+		ATextText: atext.Text, ATextAttribs: atext.Attribs, PublicStatus: retrievedPad.PublicStatus,
+		DocumentType: retrievedPad.DocumentType, ReadOnlyId: retrievedPad.ReadonlyId,
+	}
+
+	h.padMessageHandler.KickSessionsFromPad(padId)
+	if err := h.store.ReplaceRevisions(padId, row, newRevisions); err != nil {
+		h.padManager.UnloadPad(padId)
+		h.Logger.Warnf("Compacting pad %s failed, the pad is unchanged: %v", padId, err)
+		return err
 	}
 
 	h.padManager.UnloadPad(padId)
@@ -802,4 +843,248 @@ func (h AdminMessageHandler) DeleteRevisions(padId string, keepRevisions int) er
 		return err
 	}
 	return nil
+}
+
+// missingRevisions lists the revision numbers below the highest stored one
+// that are not stored.
+func (h AdminMessageHandler) missingRevisions(padId string) ([]int, error) {
+	v, err := h.store.GetPadVersion(padId)
+	if err != nil {
+		return nil, err
+	}
+	if v.Rev < 0 {
+		return nil, nil
+	}
+	// One by one: reading a range refuses a range with holes.
+	var missing []int
+	for r := 0; r <= v.Rev; r++ {
+		if _, err := h.store.GetRevision(padId, r); err != nil {
+			missing = append(missing, r)
+		}
+	}
+	return missing, nil
+}
+
+type recoveredText struct {
+	atext      apool.AText
+	pool       apool.APool
+	from, head int
+	authorId   *string
+	timestamp  int64
+}
+
+func poolFromRev(src db2.RevPool) apool.APool {
+	pool := apool.NewAPool()
+	for k, a := range src.NumToAttrib {
+		num, err := strconv.Atoi(k)
+		if err != nil || len(a) < 2 {
+			continue
+		}
+		attr := apool.Attribute{Key: a[0], Value: a[1]}
+		pool.NumToAttrib[num] = attr
+		pool.AttribToNum[attr] = num
+	}
+	pool.NextNum = src.NextNum
+	return pool
+}
+
+// latestText rebuilds the pad's latest text despite holes in its history:
+// from the newest revision that stores its text (key revisions do), with
+// the revisions after it. It fails when one of those is missing, since the
+// latest text then cannot be known.
+func (h AdminMessageHandler) latestText(padId string) (*recoveredText, error) {
+	v, err := h.store.GetPadVersion(padId)
+	if err != nil {
+		return nil, err
+	}
+	var base *db2.PadSingleRevision
+	for r := v.Rev; r >= 0; r-- {
+		rev, err := h.store.GetRevision(padId, r)
+		if err == nil && rev.AText.Text != "" {
+			base = rev
+			break
+		}
+	}
+	if base == nil {
+		return nil, errors.New("no revision stores the pad's text")
+	}
+	row, err := h.store.GetPad(padId)
+	if err != nil {
+		return nil, err
+	}
+	pool := poolFromRev(row.Pool)
+	out := &recoveredText{atext: apool.FromDBAText(base.AText), pool: pool, from: base.RevNum, head: base.RevNum,
+		authorId: base.AuthorId, timestamp: base.Timestamp}
+	for r := base.RevNum + 1; r <= v.Rev; r++ {
+		rev, err := h.store.GetRevision(padId, r)
+		if err != nil {
+			return nil, fmt.Errorf("revision %d after the last stored text (revision %d) is missing, so the latest text cannot be rebuilt", r, base.RevNum)
+		}
+		next, err := changeset.ApplyToAText(rev.Changeset, out.atext, pool)
+		if err != nil {
+			return nil, fmt.Errorf("revision %d: %w", r, err)
+		}
+		out.atext, out.head, out.authorId, out.timestamp = *next, r, rev.AuthorId, rev.Timestamp
+	}
+	return out, nil
+}
+
+// compactDamagedPad replaces the history of a pad with holes by one
+// revision holding its latest text.
+func (h AdminMessageHandler) compactDamagedPad(padId string, missing []int, latest *recoveredText) error {
+	row, err := h.store.GetPad(padId)
+	if err != nil {
+		return err
+	}
+	pool := latest.pool
+	text := latest.atext.Text
+	ops, err := changeset.DeserializeOps(latest.atext.Attribs)
+	if err != nil {
+		return err
+	}
+	bodyLen := utils.RuneCount(text) - 1
+	builder := changeset.NewBuilder(1)
+	pos := 0
+	for _, op := range *ops {
+		start, end := pos, min(pos+op.Chars, bodyLen)
+		pos += op.Chars
+		if start >= end {
+			continue
+		}
+		attribs := changeset.FromString(op.Attribs, &pool)
+		if a := attribs.Get("author"); a == nil || *a == "" {
+			attribs.Set("author", padModel.SystemAuthorId)
+		}
+		builder.Insert(utils.RuneSlice(text, start, end), changeset.AttribsString(attribs.String()), nil)
+	}
+	cs := builder.ToString()
+	atext, err := changeset.ApplyToAText(cs, changeset.MakeAText("\n", nil), pool)
+	if err != nil {
+		return err
+	}
+	if atext.Text != text {
+		return fmt.Errorf("pad %s: could not rebuild the latest text; nothing changed", padId)
+	}
+	poolDB := pool.ToRevDB()
+	rev := db2.PadSingleRevision{PadId: padId, RevNum: 0, Changeset: cs, AText: atext.ToDBAText(),
+		AuthorId: latest.authorId, Timestamp: latest.timestamp, Pool: &poolDB}
+	newRow := db2.PadDB{Head: 0, SavedRevisions: []db2.SavedRevision{}, ChatHead: row.ChatHead, Pool: poolDB,
+		ATextText: atext.Text, ATextAttribs: atext.Attribs, PublicStatus: row.PublicStatus,
+		DocumentType: row.DocumentType, ReadOnlyId: row.ReadOnlyId}
+	h.padMessageHandler.KickSessionsFromPad(padId)
+	h.padManager.UnloadPad(padId)
+	if err := h.store.ReplaceRevisions(padId, newRow, []db2.PadSingleRevision{rev}); err != nil {
+		return err
+	}
+	h.padManager.UnloadPad(padId)
+	h.Logger.Warnf("Pad %s was missing revision(s) %v; its history was replaced by its latest text", padId, missing)
+	repaired, err := h.padManager.GetPad(padId, nil, nil)
+	if err != nil {
+		return err
+	}
+	return repaired.Check()
+}
+
+func settingsFilePath(s *settings.Settings) string {
+	if s.Root != "" {
+		return s.Root + "/settings.json"
+	}
+	return "settings.json"
+}
+
+// writeFileAtomic replaces path in one step: a crash while writing leaves the
+// old file, never a truncated one.
+func writeFileAtomic(path string, data []byte) error {
+	mode := os.FileMode(0o644)
+	if st, err := os.Stat(path); err == nil {
+		mode = st.Mode().Perm()
+	}
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, data, mode); err != nil {
+		return err
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	return nil
+}
+
+// Pad list filters of the admin page. recent and stale are measured from
+// the last edit.
+const (
+	padFilterRecentWindow = 7 * 24 * time.Hour
+	padFilterStaleAfter   = 90 * 24 * time.Hour
+)
+
+var errUnknownPadFilter = errors.New("unknown filter")
+
+// padFilter returns the test of an admin pad list filter other than "all".
+func padFilter(name string, now time.Time) (func(admin.PadDBSearch) bool, error) {
+	switch name {
+	case "empty":
+		return func(p admin.PadDBSearch) bool { return p.RevisionNumber == 0 }, nil
+	case "active":
+		return func(p admin.PadDBSearch) bool { return p.UserCount > 0 }, nil
+	case "recent":
+		return func(p admin.PadDBSearch) bool {
+			return p.LastEdited > 0 && now.Sub(time.UnixMilli(p.LastEdited)) <= padFilterRecentWindow
+		}, nil
+	case "stale":
+		return func(p admin.PadDBSearch) bool {
+			return p.LastEdited > 0 && now.Sub(time.UnixMilli(p.LastEdited)) > padFilterStaleAfter
+		}, nil
+	}
+	return nil, fmt.Errorf("%w %q", errUnknownPadFilter, name)
+}
+
+// padLoad lists pads for the admin page. A filter is applied to the whole
+// matching set before it is paged, so total counts the filtered pads and
+// every page holds them (filtering a page afterwards showed at most one
+// page of hits).
+func (h *AdminMessageHandler) padLoad(q admin.PadLoadData, now time.Time) (admin.PadDefinition, error) {
+	out := admin.PadDefinition{Results: make([]admin.PadDBSearch, 0)}
+	row := func(p db2.PadDBSearch) admin.PadDBSearch {
+		return admin.PadDBSearch{
+			PadName:        p.Padname,
+			RevisionNumber: p.RevisionNumber,
+			LastEdited:     p.LastEdited,
+			UserCount:      len(h.padMessageHandler.GetRoomSockets(p.Padname)),
+		}
+	}
+	if q.Filter == "" || q.Filter == "all" {
+		res, err := h.store.QueryPad(q.Offset, q.Limit, q.SortBy, q.Ascending, q.Pattern)
+		if err != nil {
+			return out, errors.New("the pads could not be loaded")
+		}
+		out.Total = res.TotalPads
+		for _, p := range res.Pads {
+			out.Results = append(out.Results, row(p))
+		}
+		return out, nil
+	}
+	keep, err := padFilter(q.Filter, now)
+	if err != nil {
+		return out, err
+	}
+
+	first, err := h.store.QueryPad(0, 1, q.SortBy, q.Ascending, q.Pattern)
+	if err != nil {
+		return out, errors.New("the pads could not be loaded")
+	}
+	all, err := h.store.QueryPad(0, first.TotalPads, q.SortBy, q.Ascending, q.Pattern)
+	if err != nil {
+		return out, errors.New("the pads could not be loaded")
+	}
+	var matched []admin.PadDBSearch
+	for _, p := range all.Pads {
+		if r := row(p); keep(r) {
+			matched = append(matched, r)
+		}
+	}
+	out.Total = len(matched)
+	start := min(max(q.Offset, 0), len(matched))
+	end := min(start+max(q.Limit, 0), len(matched))
+	out.Results = append(out.Results, matched[start:end]...)
+	return out, nil
 }

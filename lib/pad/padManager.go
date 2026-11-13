@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strings"
 	"sync"
 	"unicode/utf8"
 
@@ -86,12 +87,15 @@ func (g *GlobalPadCache) DeletePad(padID string) {
 }
 
 type Manager struct {
-	store          db.DataStore
-	globalPadCache *GlobalPadCache
-	author         *author.Manager
-	hook           *hooks.Hook
-	padList        List
-	padLocks       *padLocks
+	// lowerCasePadIds, if set, reports the lowerCasePadIds setting: new
+	// pads get lower-case ids (existing pads keep theirs).
+	lowerCasePadIds func() bool
+	store           db.DataStore
+	globalPadCache  *GlobalPadCache
+	author          *author.Manager
+	hook            *hooks.Hook
+	padList         List
+	padLocks        *padLocks
 	// loadMu makes load-or-create of an uncached pad atomic, so concurrent
 	// callers can't each build their own *Pad and overwrite one another in
 	// the cache (a writer could then keep appending to an orphaned object).
@@ -178,7 +182,14 @@ var padIdTransforms = []struct {
 // the id exists. The result may still be invalid ("a$b"); callers check it
 // with CanOpenPadId.
 func (m *Manager) SanitizePadId(padID string) (string, error) {
+	transforms := make([]func(string) string, 0, len(padIdTransforms)+1)
 	for _, t := range padIdTransforms {
+		transforms = append(transforms, func(s string) string { return t.from.ReplaceAllString(s, t.to) })
+	}
+	if m.lowerCasePadIds != nil && m.lowerCasePadIds() {
+		transforms = append(transforms, strings.ToLower)
+	}
+	for _, transform := range transforms {
 		exists, err := m.DoesPadExist(padID)
 		if err != nil {
 			return "", err
@@ -186,9 +197,17 @@ func (m *Manager) SanitizePadId(padID string) (string, error) {
 		if *exists {
 			return padID, nil
 		}
-		padID = t.from.ReplaceAllString(padID, t.to)
+		padID = transform(padID)
 	}
 	return padID, nil
+}
+
+// SetLowerCasePadIds connects the lowerCasePadIds setting (etherpad-lite):
+// when it reports true, a requested id that names no existing pad is
+// lower-cased, so "/p/Foo" opens (or creates) "foo"; pads created before
+// with upper-case letters stay reachable under their id.
+func (m *Manager) SetLowerCasePadIds(enabled func() bool) {
+	m.lowerCasePadIds = enabled
 }
 
 // CanOpenPadId reports whether a pad with this id may be opened: either the id
@@ -208,6 +227,15 @@ func (m *Manager) CanOpenPadId(padID string) (bool, error) {
 	return *exists, nil
 }
 
+// PurgePad removes a pad's records without loading it: for pads that
+// cannot be loaded any more (damaged, or an id that is no longer valid).
+func (m *Manager) PurgePad(padID string) error {
+	if err := m.store.RemoveChat(padID); err != nil {
+		return err
+	}
+	return m.RemovePad(padID)
+}
+
 func (m *Manager) RemovePad(padID string) error {
 	// Capture the loaded pad (if any) before deletion so the padRemove hook can
 	// hand listeners the pad context, mirroring the original Etherpad which
@@ -216,6 +244,11 @@ func (m *Manager) RemovePad(padID string) error {
 
 	if err := m.store.RemovePad(padID); err != nil {
 		return err
+	}
+	// The token deleted nothing more once the pad is gone, and a new pad
+	// with the same id must not inherit it.
+	if err := NewDeletionTokens(m.store).Remove(padID); err != nil {
+		return fmt.Errorf("removing the deletion token of pad %s: %w", padID, err)
 	}
 	m.globalPadCache.DeletePad(padID)
 	m.padList.RemovePad(padID)

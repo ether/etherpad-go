@@ -100,7 +100,21 @@ func NewPad(id string, db db.DataStore, hook *hooks.Hook) Pad {
 	return *p
 }
 
+// Check verifies the pad's stored data. Errors name the pad, and the
+// revision or chat message at fault ("(pad foo revision 3)"), so an
+// operator reading the log knows where to look.
 func (p *Pad) Check() error {
+	return p.check()
+}
+
+func (p *Pad) revisionError(r int, msg string, err error) error {
+	if err != nil {
+		return fmt.Errorf("%s: %w (pad %s revision %d)", msg, err, p.Id, r)
+	}
+	return fmt.Errorf("%s (pad %s revision %d)", msg, p.Id, r)
+}
+
+func (p *Pad) check() error {
 	if !IsLegacyPadId(p.Id) {
 		return errors.New("pad id contains leading or trailing whitespace")
 	}
@@ -138,43 +152,43 @@ func (p *Pad) Check() error {
 		isKeyRev := r == p.getKeyRevisionNumber(r)
 		revChangeset, err := p.GetRevisionChangeset(r)
 		if err != nil {
-			return errors.New("pad revision " + strconv.Itoa(r) + " retrieval failed: " + err.Error())
+			return p.revisionError(r, "pad revision retrieval failed", err)
 		}
 		revAuthor, err := p.GetRevisionAuthor(r)
 		if err != nil {
-			return errors.New("pad revision " + strconv.Itoa(r) + " author retrieval failed: " + err.Error())
+			return p.revisionError(r, "pad revision author retrieval failed", err)
 		}
 		revTimestamp, err := p.GetRevisionDate(r)
 		if err != nil {
-			return errors.New("pad revision " + strconv.Itoa(r) + " timestamp retrieval failed: " + err.Error())
+			return p.revisionError(r, "pad revision timestamp retrieval failed", err)
 		}
 
 		atext, err := p.getKeyRevisionAText(r)
 		if err != nil {
-			return errors.New("pad revision " + strconv.Itoa(r) + " atext retrieval failed: " + err.Error())
+			return p.revisionError(r, "pad revision atext retrieval failed", err)
 		}
 
 		revs = append(revs, utils2.CreateRevision(*revChangeset, *revTimestamp, isKeyRev, revAuthor, *atext, padPool))
 	}
 
 	atext := changeset.MakeAText("\n", nil)
-	for _, rev := range revs {
+	for r, rev := range revs {
 		if rev.Meta.Author != nil && *rev.Meta.Author != "" {
 			authorIds[*rev.Meta.Author] = struct{}{}
 		}
 		if rev.Meta.Timestamp < 0 {
-			return errors.New("pad revision has negative timestamp")
+			return p.revisionError(r, "pad revision has negative timestamp", nil)
 		}
 
 		if rev.Changeset == "" {
-			return errors.New("pad revision has empty changeset")
+			return p.revisionError(r, "pad revision has empty changeset", nil)
 		}
 		if _, err := changeset.CheckRep(rev.Changeset); err != nil {
-			return errors.New("pad revision has invalid changeset: " + err.Error())
+			return p.revisionError(r, "pad revision has invalid changeset", err)
 		}
 		unpackedChangeset, err := changeset.Unpack(rev.Changeset)
 		if err != nil {
-			return errors.New("pad revision has invalid changeset: " + err.Error())
+			return p.revisionError(r, "pad revision has invalid changeset", err)
 		}
 
 		// Changeset lengths count runes, so slice the text as runes: slicing
@@ -183,40 +197,40 @@ func (p *Pad) Check() error {
 
 		deserializedOps, err := changeset.DeserializeOps(unpackedChangeset.Ops)
 		if err != nil {
-			return errors.New("pad revision has invalid changeset ops: " + err.Error())
+			return p.revisionError(r, "pad revision has invalid changeset ops", err)
 		}
 		for _, op := range *deserializedOps {
 			if op.OpCode == "=" || op.OpCode == "-" {
 				if len(text) < op.Chars {
-					return errors.New("pad revision has changeset op exceeding atext length")
+					return p.revisionError(r, "pad revision has changeset op exceeding atext length", nil)
 				}
 				consumed := string(text[:op.Chars])
 				nlines := utils.CountLines(consumed, '\n')
 				if nlines != op.Lines {
-					return errors.New("pad revision has changeset op with mismatched lines count")
+					return p.revisionError(r, "pad revision has changeset op with mismatched lines count", nil)
 				}
 				if op.Lines > 0 {
 					if !strings.HasSuffix(consumed, "\n") {
-						return errors.New("pad revision has changeset op with invalid lines content")
+						return p.revisionError(r, "pad revision has changeset op with invalid lines content", nil)
 					}
 				}
 				text = text[op.Chars:]
 			}
 			fromString := changeset.FromString(op.Attribs, &padPool)
 			if op.Attribs != fromString.String() {
-				return errors.New("pad revision has invalid changeset attribs")
+				return p.revisionError(r, "pad revision has invalid changeset attribs", nil)
 			}
 		}
 		optAtext, err := changeset.ApplyToAText(rev.Changeset, atext, padPool)
 		if err != nil {
-			return errors.New("pad revision changeset application failed: " + err.Error())
+			return p.revisionError(r, "pad revision changeset application failed", err)
 		}
 
 		atext = *optAtext
 
 		if rev.Meta.IsKeyRev {
 			if !apool.ATextsEqual(*rev.Meta.Atext, atext) {
-				return errors.New("pad key revision atext does not match computed atext")
+				return p.revisionError(r, "pad key revision atext does not match computed atext", nil)
 			}
 		}
 	}
@@ -249,17 +263,23 @@ func (p *Pad) Check() error {
 
 	chatMsgs, err := p.GetChatMessages(0, p.ChatHead)
 	if err != nil {
-		return errors.New("pad chat messages retrieval failed: " + err.Error())
+		return fmt.Errorf("pad chat messages retrieval failed: %w (pad %s)", err, p.Id)
 	}
+	seen := make(map[int]bool, len(*chatMsgs))
 	for _, msg := range *chatMsgs {
-		if *msg.Time < 0 {
-			return errors.New("pad chat message has negative timestamp")
+		seen[msg.Head] = true
+		if msg.Time != nil && *msg.Time < 0 {
+			return fmt.Errorf("pad chat message has negative timestamp (pad %s chat message %d)", p.Id, msg.Head)
 		}
-		if msg.AuthorId == nil {
-			return errors.New("pad chat message has nil author id")
-		}
+		// A message without author is fine: anonymizing an author clears
+		// the authorship of their chat.
 		if msg.PadId != p.Id {
-			return errors.New("pad chat message has mismatched pad id")
+			return fmt.Errorf("pad chat message has mismatched pad id (pad %s chat message %d)", p.Id, msg.Head)
+		}
+	}
+	for n := 0; n <= p.ChatHead; n++ {
+		if !seen[n] {
+			return fmt.Errorf("pad chat message is missing (pad %s chat message %d)", p.Id, n)
 		}
 	}
 	return nil
@@ -467,6 +487,11 @@ func (p *Pad) Init(text *string, author *string, authorManager *author.Manager) 
 			attribAuthor := SystemAuthorId
 			if hasAuthor && !usedDefaultContent {
 				attribAuthor = *author
+			}
+			if attribAuthor == SystemAuthorId {
+				if err := p.ensureSystemAuthor(); err != nil {
+					return err
+				}
 			}
 			as := "*" + utils.NumToString(p.Pool.PutAttrib(apool.Attribute{Key: "author", Value: attribAuthor}, nil))
 			firstAttribs, firstPool = &as, &p.Pool
@@ -738,16 +763,8 @@ func (p *Pad) AppendRevision(cs string, authorId *string) (*int, error) {
 	// never created through the normal author flows, so make sure its row
 	// exists before saving a revision attributed to it.
 	if authorId != nil && *authorId == SystemAuthorId {
-		if _, getErr := p.db.GetAuthor(SystemAuthorId); getErr != nil {
-			systemName := "System"
-			if saveErr := p.db.SaveAuthor(db2.AuthorDB{
-				ID:        SystemAuthorId,
-				Name:      &systemName,
-				ColorId:   "#808080",
-				Timestamp: time.Now().Unix(),
-			}); saveErr != nil {
-				return nil, errors.New("Error ensuring system author exists " + saveErr.Error())
-			}
+		if err := p.ensureSystemAuthor(); err != nil {
+			return nil, err
 		}
 	}
 
@@ -839,18 +856,33 @@ func (p *Pad) GetChatMessages(start int, end int) (*[]db2.ChatMessageDBWithDispl
 }
 
 func (p *Pad) AddSavedRevision(author string) error {
+	return p.AddSavedRevisionAt(p.Head, author, nil)
+}
+
+// ErrRevisionAlreadySaved is returned for a revision that is saved already.
+var ErrRevisionAlreadySaved = errors.New("saved revision already exists")
+
+// AddSavedRevisionAt saves revision rev (at most head) with a label;
+// without one it is "Revision <rev>".
+func (p *Pad) AddSavedRevisionAt(rev int, author string, label *string) error {
+	if rev < 0 || rev > p.Head {
+		return fmt.Errorf("revision %d of pad %s does not exist", rev, p.Id)
+	}
 	for _, savedRev := range p.SavedRevisions {
-		if savedRev.RevNum == p.Head {
-			return errors.New("saved revision already exists")
+		if savedRev.RevNum == rev {
+			return ErrRevisionAlreadySaved
 		}
 	}
 
-	label := "Revision " + strconv.Itoa(p.Head)
+	if label == nil {
+		l := "Revision " + strconv.Itoa(rev)
+		label = &l
+	}
 	saved := append(append([]revision.SavedRevision{}, p.SavedRevisions...), revision.SavedRevision{
-		RevNum:    p.Head,
+		RevNum:    rev,
 		SavedBy:   author,
 		Timestamp: time.Now().UnixNano() / int64(time.Millisecond),
-		Label:     &label,
+		Label:     label,
 		Id:        utils.RandomString(10),
 	})
 	// Callers hold the pad lock, which reloaded the saved revisions, so
@@ -877,4 +909,23 @@ func savedRevisionsToDB(saved []revision.SavedRevision) []db2.SavedRevision {
 		out = append(out, db2.SavedRevision{RevNum: r.RevNum, SavedBy: r.SavedBy, Timestamp: r.Timestamp, Label: r.Label, Id: r.Id})
 	}
 	return out
+}
+
+// ensureSystemAuthor creates the row of the reserved system author if it
+// does not exist yet. Text attributed to it must resolve to an author like
+// any other, or loading the pad fails.
+func (p *Pad) ensureSystemAuthor() error {
+	if _, err := p.db.GetAuthor(SystemAuthorId); err == nil {
+		return nil
+	}
+	systemName := "System"
+	if err := p.db.SaveAuthor(db2.AuthorDB{
+		ID:        SystemAuthorId,
+		Name:      &systemName,
+		ColorId:   "#808080",
+		Timestamp: time.Now().Unix(),
+	}); err != nil {
+		return errors.New("Error ensuring system author exists " + err.Error())
+	}
+	return nil
 }

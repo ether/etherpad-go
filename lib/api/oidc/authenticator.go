@@ -263,3 +263,36 @@ func (a *Authenticator) renderLogin(rw http.ResponseWriter, req *http.Request, a
 		http.Error(rw, "rendering the login page failed", http.StatusInternalServerError)
 	}
 }
+
+// ValidateServiceToken reports whether token is an access token a
+// configured client got with the client_credentials grant. etherpad-lite
+// accepts such tokens for its HTTP API (/api); /admin/api takes admin
+// tokens only. A token issued to a user is never one, even when the user
+// is named like a client.
+func (a *Authenticator) ValidateServiceToken(token string) bool {
+	if token == "" || a.provider == nil {
+		return false
+	}
+	// Opaque access tokens are "<token id>:<subject>", encrypted by the
+	// provider (op.CreateBearerToken).
+	plain, err := a.provider.Crypto().Decrypt(token)
+	if err != nil {
+		return false
+	}
+	id, subject, found := strings.Cut(plain, ":")
+	if !found {
+		return false
+	}
+	t, err := a.storage.getAccessToken(id)
+	if err != nil || t.Subject != subject {
+		return false
+	}
+	c, ok := a.storage.clients[t.ClientID]
+	if !ok || !c.confidential {
+		return false
+	}
+	if _, isUser := a.storage.users[t.Subject]; isUser {
+		return false
+	}
+	return t.Subject == t.ClientID && t.RefreshTokenID == ""
+}

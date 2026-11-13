@@ -38,26 +38,24 @@ func (f *Factory) NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apoo
 		return nil, err
 	}
 
-	var padOptions = make(map[string]*bool)
-
-	var boolTrue = true
-	var boolFalse = false
-
-	padOptions["noColors"] = &boolFalse
-	padOptions["showControls"] = &boolTrue
-	padOptions["showChat"] = &boolTrue
-	padOptions["showLineNumbers"] = &boolTrue
-	padOptions["useMonospaceFont"] = &boolFalse
-	padOptions["userName"] = nil
-	padOptions["userColor"] = nil
-	padOptions["rtl"] = &boolFalse
-	padOptions["alwaysShowChat"] = &boolFalse
-	padOptions["chatAndUsers"] = &boolFalse
-	padOptions["lang"] = nil
-	fadeInactive := retrievedSettings.PadOptions.FadeInactiveAuthorColors
-	enforceReadable := retrievedSettings.PadOptions.EnforceReadableAuthorColors
-	padOptions["fadeInactiveAuthorColors"] = &fadeInactive
-	padOptions["enforceReadableAuthorColors"] = &enforceReadable
+	// The pad options of settings.json (they used to be hard-coded here, so
+	// e.g. "showChat": false or "noColors": true had no effect).
+	opts := retrievedSettings.PadOptions
+	padOptions := map[string]any{
+		"noColors":                    opts.NoColors,
+		"showControls":                opts.ShowControls,
+		"showChat":                    opts.ShowChat,
+		"showLineNumbers":             opts.ShowLineNumbers,
+		"useMonospaceFont":            opts.UseMonospaceFont,
+		"userName":                    opts.UserName,
+		"userColor":                   opts.UserColor,
+		"rtl":                         opts.RTL,
+		"alwaysShowChat":              opts.AlwaysShowChat,
+		"chatAndUsers":                opts.ChatAndUsers,
+		"lang":                        opts.Lang,
+		"fadeInactiveAuthorColors":    opts.FadeInactiveAuthorColors,
+		"enforceReadableAuthorColors": opts.EnforceReadableAuthorColors,
+	}
 
 	var padShortCutEnabled = make(map[string]bool)
 	padShortCutEnabled["altF9"] = true
@@ -146,7 +144,7 @@ func (f *Factory) NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apoo
 	return &clientVars.ClientVars{
 		SkinName:            retrievedSettings.SkinName,
 		SkinVariants:        retrievedSettings.SkinVariants,
-		RandomVersionString: "f2cb49c4",
+		RandomVersionString: utils.RandomVersionString,
 		AccountPrivs: clientVars.AccountPrivs{
 			MaxRevisions: 100,
 		},

@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"log"
+	"runtime/debug"
 	"time"
 
 	"github.com/ether/etherpad-go/lib/models/ws/admin"
@@ -40,8 +41,11 @@ type Client struct {
 	legacySessionIdWarned bool
 	ClientIP              string
 	WebAccessUser         any
-	Handler               *PadMessageHandler
-	adminHandler          *AdminMessageHandler
+	// CookieToken is the author token from the HttpOnly cookie of the
+	// websocket handshake; it wins over the token in CLIENT_READY.
+	CookieToken  string
+	Handler      *PadMessageHandler
+	adminHandler *AdminMessageHandler
 }
 
 func (c *Client) readPumpAdmin(retrievedSettings *settings.Settings, logger *zap.SugaredLogger) {
@@ -66,7 +70,26 @@ func (c *Client) readPumpAdmin(retrievedSettings *settings.Settings, logger *zap
 			logger.Error("error unmarshalling", err)
 			return
 		}
-		c.adminHandler.HandleMessage(eventMessage, retrievedSettings, c)
+		c.dispatchAdminMessage(eventMessage, retrievedSettings, logger)
+	}
+}
+
+func (c *Client) dispatchAdminMessage(eventMessage admin.EventMessage, retrievedSettings *settings.Settings, logger *zap.SugaredLogger) {
+	defer recoverClientPanic(c, retrievedSettings, logger, "admin")
+	c.adminHandler.HandleMessage(eventMessage, retrievedSettings, c)
+}
+
+// recoverClientPanic is deferred around the handling of one websocket
+// message: it logs a panic and closes that client's connection instead of
+// letting the panic end the process.
+func recoverClientPanic(c *Client, retrievedSettings *settings.Settings, logger *zap.SugaredLogger, kind string) {
+	r := recover()
+	if r == nil {
+		return
+	}
+	logger.Errorf("panic while handling a %s message from %s: %v\n%s", kind, retrievedSettings.LogIP(c.ClientIP), r, debug.Stack())
+	if c.Conn != nil {
+		_ = c.Conn.Close()
 	}
 }
 
@@ -163,8 +186,8 @@ func (c *Client) SendPadDelete() {
 // ServeWs handles websocket requests from the peer using Fiber's websocket middleware.
 func ServeWs(conn *websocket.Conn, sessionID string, integratorSessionID string, clientIP string, webAccessUser any,
 	configSettings *settings.Settings,
-	logger *zap.SugaredLogger, handler *PadMessageHandler) {
-	client := &Client{Hub: handler.hub, Conn: conn, Send: make(chan []byte, 256), SessionId: sessionID, IntegratorSessionID: integratorSessionID, ClientIP: clientIP, WebAccessUser: webAccessUser, Handler: handler}
+	logger *zap.SugaredLogger, handler *PadMessageHandler, cookieToken string) {
+	client := &Client{Hub: handler.hub, Conn: conn, Send: make(chan []byte, 256), SessionId: sessionID, IntegratorSessionID: integratorSessionID, ClientIP: clientIP, WebAccessUser: webAccessUser, Handler: handler, CookieToken: cookieToken}
 	handler.SessionStore.initSession(sessionID)
 	client.Hub.Register <- client
 	go client.writePump()

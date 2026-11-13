@@ -2,7 +2,6 @@ package timeslider
 
 import (
 	"embed"
-	"strconv"
 
 	"github.com/a-h/templ"
 	"github.com/ether/etherpad-go/assets/timeslider"
@@ -22,11 +21,11 @@ func HandleTimesliderOpen(c fiber.Ctx, uiAssets embed.FS, retrievedSettings *set
 		return err
 	}
 
-	jsFilePath := "/js/timeslider/assets/timeslider.js?v=" + strconv.Itoa(utils.RandomVersionString)
+	jsFilePath := "/js/timeslider/assets/timeslider.js?v=" + utils.RandomVersionString
 
 	padName := c.Params("pad")
 	scheme := "http"
-	if c.Protocol() == "https" {
+	if c.Scheme() == "https" {
 		scheme = "https"
 	}
 	favicon := ""
@@ -40,7 +39,7 @@ func HandleTimesliderOpen(c fiber.Ctx, uiAssets embed.FS, retrievedSettings *set
 	socialMetaHTML := socialmeta.Render(socialmeta.Opts{
 		Req: socialmeta.RequestInfo{
 			Scheme:         scheme,
-			Host:           string(c.Request().Host()),
+			Host:           c.Host(),
 			Path:           c.Path(),
 			AcceptLanguage: c.Get("Accept-Language"),
 		},

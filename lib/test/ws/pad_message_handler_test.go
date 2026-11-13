@@ -2,6 +2,7 @@ package ws
 
 import (
 	"encoding/json"
+	padModel "github.com/ether/etherpad-go/lib/models/pad"
 	"strings"
 	"testing"
 	"time"
@@ -489,17 +490,10 @@ func testHandlePadDelete(t *testing.T, ds testutils.TestDataStore) {
 	assert.True(t, *exists)
 
 	// Create pad delete message
-	padDelete := libws.PadDelete{
-		Type: "PAD_DELETE",
-		Data: struct {
-			PadID string `json:"padId"`
-		}{
-			PadID: padId,
-		},
-	}
+	padDelete := padDeleteMessage(padId, "")
 
 	// Handle pad delete
-	ds.PadMessageHandler.HandlePadDelete(client, padDelete)
+	ds.PadMessageHandler.HandlePadDelete(client, padDelete, ds.Settings)
 
 	// Verify pad was deleted
 	exists, err = ds.PadManager.DoesPadExist(padId)
@@ -536,17 +530,10 @@ func testHandlePadDeleteNotFirstContributor(t *testing.T, ds testutils.TestDataS
 	assert.True(t, *exists)
 
 	// Create pad delete message
-	padDelete := libws.PadDelete{
-		Type: "PAD_DELETE",
-		Data: struct {
-			PadID string `json:"padId"`
-		}{
-			PadID: padId,
-		},
-	}
+	padDelete := padDeleteMessage(padId, "")
 
 	// Handle pad delete (should be rejected)
-	ds.PadMessageHandler.HandlePadDelete(client, padDelete)
+	ds.PadMessageHandler.HandlePadDelete(client, padDelete, ds.Settings)
 
 	// Verify pad still exists (delete was rejected because not first contributor)
 	exists, err = ds.PadManager.DoesPadExist(padId)
@@ -781,9 +768,9 @@ func testHandleChangesetRequest(t *testing.T, ds testutils.TestDataStore) {
 			PadId     string `json:"padId"`
 			Token     string `json:"token"`
 			Data      struct {
-				Start       int `json:"start"`
-				Granularity int `json:"granularity"`
-				RequestID   int `json:"requestID"`
+				Start       ws.RevNum `json:"start"`
+				Granularity int       `json:"granularity"`
+				RequestID   any       `json:"requestID"`
 			} `json:"data"`
 		}{
 			Component: "pad",
@@ -791,9 +778,9 @@ func testHandleChangesetRequest(t *testing.T, ds testutils.TestDataStore) {
 			PadId:     padId,
 			Token:     "test-token",
 			Data: struct {
-				Start       int `json:"start"`
-				Granularity int `json:"granularity"`
-				RequestID   int `json:"requestID"`
+				Start       ws.RevNum `json:"start"`
+				Granularity int       `json:"granularity"`
+				RequestID   any       `json:"requestID"`
 			}{
 				Start:       0,
 				Granularity: 100,
@@ -840,15 +827,15 @@ func testHandleChangesetRequestInvalidParams(t *testing.T, ds testutils.TestData
 			PadId     string `json:"padId"`
 			Token     string `json:"token"`
 			Data      struct {
-				Start       int `json:"start"`
-				Granularity int `json:"granularity"`
-				RequestID   int `json:"requestID"`
+				Start       ws.RevNum `json:"start"`
+				Granularity int       `json:"granularity"`
+				RequestID   any       `json:"requestID"`
 			} `json:"data"`
 		}{
 			Data: struct {
-				Start       int `json:"start"`
-				Granularity int `json:"granularity"`
-				RequestID   int `json:"requestID"`
+				Start       ws.RevNum `json:"start"`
+				Granularity int       `json:"granularity"`
+				RequestID   any       `json:"requestID"`
 			}{
 				Start:       0,
 				Granularity: 0, // Invalid
@@ -1234,9 +1221,9 @@ func testHandleChangesetRequestVerifyFormat(t *testing.T, ds testutils.TestDataS
 			PadId     string `json:"padId"`
 			Token     string `json:"token"`
 			Data      struct {
-				Start       int `json:"start"`
-				Granularity int `json:"granularity"`
-				RequestID   int `json:"requestID"`
+				Start       ws.RevNum `json:"start"`
+				Granularity int       `json:"granularity"`
+				RequestID   any       `json:"requestID"`
 			} `json:"data"`
 		}{
 			Component: "pad",
@@ -1244,9 +1231,9 @@ func testHandleChangesetRequestVerifyFormat(t *testing.T, ds testutils.TestDataS
 			PadId:     padId,
 			Token:     "test-token",
 			Data: struct {
-				Start       int `json:"start"`
-				Granularity int `json:"granularity"`
-				RequestID   int `json:"requestID"`
+				Start       ws.RevNum `json:"start"`
+				Granularity int       `json:"granularity"`
+				RequestID   any       `json:"requestID"`
 			}{
 				Start:       0,
 				Granularity: 100,
@@ -1341,17 +1328,10 @@ func testHandlePadDeleteVerifyMessage(t *testing.T, ds testutils.TestDataStore) 
 	assert.True(t, *exists)
 
 	// Create pad delete message
-	padDelete := libws.PadDelete{
-		Type: "PAD_DELETE",
-		Data: struct {
-			PadID string `json:"padId"`
-		}{
-			PadID: padId,
-		},
-	}
+	padDelete := padDeleteMessage(padId, "")
 
 	// Handle pad delete
-	ds.PadMessageHandler.HandlePadDelete(client, padDelete)
+	ds.PadMessageHandler.HandlePadDelete(client, padDelete, ds.Settings)
 
 	// Wait for messages to be sent
 	time.Sleep(150 * time.Millisecond)
@@ -1541,9 +1521,9 @@ func testHandleMessageChangesetReq(t *testing.T, ds testutils.TestDataStore) {
 			PadId     string `json:"padId"`
 			Token     string `json:"token"`
 			Data      struct {
-				Start       int `json:"start"`
-				Granularity int `json:"granularity"`
-				RequestID   int `json:"requestID"`
+				Start       ws.RevNum `json:"start"`
+				Granularity int       `json:"granularity"`
+				RequestID   any       `json:"requestID"`
 			} `json:"data"`
 		}{
 			Component: "pad",
@@ -1551,9 +1531,9 @@ func testHandleMessageChangesetReq(t *testing.T, ds testutils.TestDataStore) {
 			PadId:     padId,
 			Token:     "test-token",
 			Data: struct {
-				Start       int `json:"start"`
-				Granularity int `json:"granularity"`
-				RequestID   int `json:"requestID"`
+				Start       ws.RevNum `json:"start"`
+				Granularity int       `json:"granularity"`
+				RequestID   any       `json:"requestID"`
 			}{
 				Start:       0,
 				Granularity: 100,
@@ -2133,7 +2113,10 @@ func testChatNewMessageRewritesText(t *testing.T, ds testutils.TestDataStore) {
 	session := ds.PadMessageHandler.SessionStore.GetSessionForTest(sessionId)
 	require.NotNil(t, session)
 
+	var hookPadId string
+	var hookPad any
 	id := ds.Hooks.EnqueueChatNewMessageHook(func(ctx *events.ChatNewMessageContext) {
+		hookPadId, hookPad = ctx.PadId, ctx.Pad
 		*ctx.Text = "REWRITTEN"
 	})
 	defer ds.Hooks.DequeueHook(hooks.ChatNewMessageString, id)
@@ -2143,6 +2126,11 @@ func testChatNewMessageRewritesText(t *testing.T, ds testutils.TestDataStore) {
 		Text: "original", Time: &chatTime, AuthorId: &authorId,
 	})
 	wg.Wait()
+	// etherpad-lite chat spec: the hook gets the pad and its id.
+	assert.Equal(t, padId, hookPadId)
+	if p, ok := hookPad.(*padModel.Pad); assert.True(t, ok, "ctx.Pad is the pad") {
+		assert.Equal(t, padId, p.Id)
+	}
 
 	retrievedPad, err := ds.PadManager.GetPad(padId, nil, &authorId)
 	require.NoError(t, err)
@@ -2226,4 +2214,12 @@ func testChatNewMessageNilTextKeepsOriginal(t *testing.T, ds testutils.TestDataS
 	require.NoError(t, err)
 	require.Len(t, *msgs, 1)
 	assert.Equal(t, "original text", (*msgs)[0].Message)
+}
+
+// padDeleteMessage is the PAD_DELETE message a client sends.
+func padDeleteMessage(padID, deletionToken string) libws.PadDelete {
+	msg := libws.PadDelete{Type: "PAD_DELETE"}
+	msg.Data.PadID = padID
+	msg.Data.DeletionToken = deletionToken
+	return msg
 }

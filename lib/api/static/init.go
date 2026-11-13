@@ -2,10 +2,13 @@ package static
 
 import (
 	"embed"
+	"encoding/json"
+	padManager "github.com/ether/etherpad-go/lib/pad"
 	"io/fs"
 	"net/http"
 	"os"
 	"path"
+	"regexp"
 	"strings"
 
 	"github.com/a-h/templ"
@@ -27,7 +30,7 @@ import (
 // the homepage. Upstream #7635.
 func buildHomeSocialMeta(c fiber.Ctx, s *settings.Settings) string {
 	scheme := "http"
-	if c.Protocol() == "https" {
+	if c.Scheme() == "https" {
 		scheme = "https"
 	}
 	favicon := ""
@@ -41,7 +44,7 @@ func buildHomeSocialMeta(c fiber.Ctx, s *settings.Settings) string {
 	return socialmeta.Render(socialmeta.Opts{
 		Req: socialmeta.RequestInfo{
 			Scheme:         scheme,
-			Host:           string(c.Request().Host()),
+			Host:           c.Host(),
 			Path:           c.Path(),
 			AcceptLanguage: c.Get("Accept-Language"),
 		},
@@ -55,6 +58,41 @@ func buildHomeSocialMeta(c fiber.Ctx, s *settings.Settings) string {
 		Locales:        hooks.AllLocales,
 		Kind:           socialmeta.KindHome,
 	})
+}
+
+// servePluginStatic answers /static/plugins/<plugin>/static/<file>; anything
+// else, and a missing file, is a plain 404 that names no path.
+func servePluginStatic(c fiber.Ctx) error {
+	filePath, ok := pluginStaticFile(c.Params("*"))
+	if !ok {
+		return c.SendStatus(fiber.StatusNotFound)
+	}
+	if err := c.SendFile(filePath); err != nil {
+		return c.SendStatus(fiber.StatusNotFound)
+	}
+	return nil
+}
+
+var pluginNamePattern = regexp.MustCompile(`^ep_[A-Za-z0-9_-]+$`)
+
+// pluginStaticFile maps "<plugin>/static/<file>" to its path below
+// ./plugins, or reports false for anything else (other folders of the
+// plugin, "..", absolute or empty paths).
+func pluginStaticFile(rel string) (string, bool) {
+	plugin, rest, ok := strings.Cut(rel, "/")
+	if !ok || !pluginNamePattern.MatchString(plugin) {
+		return "", false
+	}
+	rest, ok = strings.CutPrefix(rest, "static/")
+	if !ok || rest == "" || strings.Contains(rest, "\\") {
+		return "", false
+	}
+	for _, segment := range strings.Split(rest, "/") {
+		if segment == "" || segment == "." || segment == ".." {
+			return "", false
+		}
+	}
+	return "./plugins/" + plugin + "/static/" + rest, true
 }
 
 func registerEmbeddedStatic(app *fiber.App, route string, subPath string, uiAssets embed.FS) {
@@ -195,14 +233,27 @@ func Init(store *lib.InitStore) {
 		return plugins.ReturnPluginResponse(ctx)
 	})
 	store.C.Post("/jserror", func(ctx fiber.Ctx) error {
-		store.Logger.Warnf("Frontend error report: %s", string(ctx.Body()))
+		store.Logger.Warnf("Frontend error report: %s", clientReport(ctx.Body()))
 		return ctx.SendStatus(fiber.StatusNoContent)
 	})
-
-	store.C.Get("/static/plugins/*", func(c fiber.Ctx) error {
-		filePath := c.Params("*")
-		return c.SendFile("./plugins/" + filePath)
+	// The pad posts what it knows about a lost connection (etherpad-lite's
+	// apicalls): logged, nothing else.
+	store.C.Post("/ep/pad/connection-diagnostic-info", func(ctx fiber.Ctx) error {
+		var body struct {
+			DiagnosticInfo json.RawMessage `json:"diagnosticInfo"`
+		}
+		if json.Unmarshal(ctx.Body(), &body) != nil || len(body.DiagnosticInfo) == 0 || body.DiagnosticInfo[0] != '{' {
+			store.Logger.Warn("DIAGNOSTIC-INFO: No diagnostic info provided")
+			return ctx.Status(fiber.StatusBadRequest).SendString("No diagnostic info provided")
+		}
+		store.Logger.Infof("DIAGNOSTIC-INFO: %s", clientReport(body.DiagnosticInfo))
+		return ctx.SendString("OK")
 	})
+
+	// Plugins' own static files, as in etherpad-lite: only what a plugin
+	// keeps in its static/ folder, never its sources or configuration. The
+	// route needs no login (public assets), so nothing outside is reachable.
+	store.C.Get("/static/plugins/*", servePluginStatic)
 
 	// Serve the React admin SPA index.html from the embedded build output
 	adminIndexHTML, err := store.UiAssets.ReadFile("assets/js/admin/index.html")
@@ -298,10 +349,12 @@ func Init(store *lib.InitStore) {
 		if handled, err := pad2.GuardPadURL(ctx, store.PadManager); handled {
 			return err
 		}
+		padManager.EnsureAuthorTokenCookie(ctx, store.RetrievedSettings)
 		return pad2.HandlePadOpen(ctx, store.UiAssets, store.RetrievedSettings, store.Hooks)
 	})
 
 	store.C.Get("/s/:pad", func(ctx fiber.Ctx) error {
+		padManager.EnsureAuthorTokenCookie(ctx, store.RetrievedSettings)
 		return pad2.HandleSheetOpen(ctx)
 	})
 
@@ -313,7 +366,14 @@ func Init(store *lib.InitStore) {
 		if handled, err := pad2.GuardPadURL(c, store.PadManager); handled {
 			return err
 		}
+		padManager.EnsureAuthorTokenCookie(c, store.RetrievedSettings)
 		return timeslider.HandleTimesliderOpen(c, store.UiAssets, store.RetrievedSettings, store.Hooks)
+	})
+
+	// Like etherpad-lite's default robots.txt: crawlers stay out of pads.
+	store.C.Get("/robots.txt", func(c fiber.Ctx) error {
+		c.Set(fiber.HeaderContentType, fiber.MIMETextPlainCharsetUTF8)
+		return c.SendString("User-agent: *\nDisallow: /p/\n")
 	})
 
 	store.C.Get("/favicon.ico", func(c fiber.Ctx) error {
@@ -359,4 +419,25 @@ func Init(store *lib.InitStore) {
 			return c.Type("html").SendString(adminHTML)
 		})
 	}
+}
+
+// clientReport makes text a browser sent fit for one log line: at most
+// 4 KiB, control characters (line breaks that would fake log lines)
+// replaced.
+func clientReport(b []byte) string {
+	const limit = 4096
+	truncated := len(b) > limit
+	if truncated {
+		b = b[:limit]
+	}
+	s := strings.Map(func(r rune) rune {
+		if r < 0x20 || r == 0x7f {
+			return ' '
+		}
+		return r
+	}, strings.ToValidUTF8(string(b), "?"))
+	if truncated {
+		s += " …(truncated)"
+	}
+	return s
 }

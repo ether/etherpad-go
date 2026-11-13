@@ -358,12 +358,14 @@ func (test *TestDBHandler) TestRun(
 		go hub.Run()
 		sess := ws.NewSessionStore()
 		padManager := pad.NewManager(ds, &hooks)
+		padManager.SetLowerCasePadIds(func() bool { return cfg.LowerCasePadIDs })
 		loggerPart := zap.NewNop().Sugar()
 		importer := io.NewImporter(padManager, authManager, ds, loggerPart, &hooks)
 		padMessageHandler := ws.NewPadMessageHandler(
 			ds, &hooks, padManager, &sess, hub, loggerPart, TestAssets, &cfg,
 		)
-		app := fiber.New()
+		// As the server: see server.FiberConfig.
+		app := fiber.New(fiber.Config{Immutable: true})
 		adminMessageHandler := ws.NewAdminMessageHandler(
 			ds, &hooks, padManager, padMessageHandler, loggerPart, hub,
 			app, nil,

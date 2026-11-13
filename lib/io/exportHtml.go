@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/ether/etherpad-go/assets/export"
 	"github.com/ether/etherpad-go/lib/apool"
@@ -647,11 +648,33 @@ func escapeHTMLAttribute(s string) string {
 	return s
 }
 
-// encodeWhitespace encodes whitespace for proper HTML display
+// encodeWhitespace replaces tabs by spaces and writes every character
+// outside printable ASCII (other than whitespace) as a numeric entity, as
+// etherpad-lite's _encodeWhitespace: the HTML is then right in any charset.
 func encodeWhitespace(s string) string {
-	// Replace tabs with spaces
 	s = strings.ReplaceAll(s, "\t", "    ")
-	return s
+	ascii := true
+	for i := 0; i < len(s); i++ {
+		if s[i] >= 0x80 {
+			ascii = false
+			break
+		}
+	}
+	if ascii {
+		return s
+	}
+	var b strings.Builder
+	b.Grow(len(s) + 16)
+	for _, r := range s {
+		if (r >= 0x21 && r <= 0x7e) || unicode.IsSpace(r) {
+			b.WriteRune(r)
+			continue
+		}
+		b.WriteString("&#")
+		b.WriteString(strconv.Itoa(int(r)))
+		b.WriteByte(';')
+	}
+	return b.String()
 }
 
 // processSpaces handles space processing for HTML export

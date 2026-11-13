@@ -65,12 +65,9 @@ func (m *MemoryDataStore) GetAuthors(ids []string) (*[]db.AuthorDB, error) {
 
 	var authors []db.AuthorDB
 	for _, id := range ids {
-		author, ok := m.authorStore[id]
-		if ok {
+		// Unknown ids are skipped, as the SQL stores do (WHERE id IN ...).
+		if author, ok := m.authorStore[id]; ok {
 			authors = append(authors, author)
-		}
-		if !ok {
-			return nil, errors.New(AuthorNotFoundError)
 		}
 	}
 	return &authors, nil
@@ -622,7 +619,9 @@ func (m *MemoryDataStore) RemoveChat(padId string) error {
 	defer m.mu.Unlock()
 
 	for k := range m.chatPads {
-		if strings.HasPrefix(k, padId+":") {
+		// Only "<padId>:<number>": a pad "a" must not take the chat of a
+		// pad "a:b" with it.
+		if rest, ok := strings.CutPrefix(k, padId+":"); ok && isDigits(rest) {
 			delete(m.chatPads, k)
 		}
 	}
@@ -768,10 +767,14 @@ func (m *MemoryDataStore) QueryPad(
 	padSearch := make([]db.PadDBSearch, 0, len(padsToSearch))
 	for _, padKey := range padsToSearch {
 		retrievedPad := m.padStore[padKey]
+		var lastEdited int64
+		if retrievedPad.UpdatedAt != nil {
+			lastEdited = retrievedPad.UpdatedAt.UnixMilli()
+		}
 		padSearch = append(padSearch, db.PadDBSearch{
 			Padname:        padKey,
 			RevisionNumber: retrievedPad.Head,
-			LastEdited:     retrievedPad.UpdatedAt.UnixMilli(),
+			LastEdited:     lastEdited,
 		})
 	}
 
@@ -1152,4 +1155,16 @@ func copyStringPtr(s *string) *string {
 	}
 	v := *s
 	return &v
+}
+
+func isDigits(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, c := range s {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
 }

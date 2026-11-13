@@ -42,6 +42,8 @@ type wsUpgradeData struct {
 	IntegratorSessionID string
 	ClientIP            string
 	WebAccessUser       any
+	// AuthorToken is the HttpOnly author token cookie of the handshake.
+	AuthorToken string
 }
 
 func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets embed.FS) {
@@ -68,7 +70,9 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 
 	readOnlyManager := pad.NewReadOnlyManager(dataStore)
 
-	app := fiber.New(fiber.Config{})
+	app := fiber.New(FiberConfig(settings.TrustProxy))
+	// A panicking handler answers 500 instead of ending the process.
+	app.Use(recoverMiddleware(setupLogger))
 	app.Use(compress.New(compress.Config{
 		Level: compress.LevelBestSpeed,
 	}))
@@ -78,6 +82,7 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 	})
 
 	padManager := pad.NewManager(dataStore, &retrievedHooks)
+	padManager.SetLowerCasePadIds(func() bool { return settings.LowerCasePadIDs })
 	authorManager := author.NewManager(dataStore)
 	importer := io.NewImporter(padManager, authorManager, dataStore, setupLogger, &retrievedHooks)
 	globalHub := ws.NewHub()
@@ -186,16 +191,13 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 			// marked HttpOnly. Falls back to the legacy in-message
 			// `sessionID` field in HandleMessage for older clients.
 			// Upstream #7045 / #7755.
-			cookiePrefix := settings.Cookie.Prefix
-			integratorSessionID := c.Cookies(cookiePrefix + "sessionID")
-			if integratorSessionID == "" {
-				integratorSessionID = c.Cookies("sessionID")
-			}
+			integratorSessionID := integratorSessionIDCookie(c.Cookies, settings.Cookie.Prefix)
 			wsPreUpgrade.Store(connID, wsUpgradeData{
 				SessionID:           sess.ID(),
 				IntegratorSessionID: integratorSessionID,
 				ClientIP:            c.IP(),
 				WebAccessUser:       c.Locals("sessionUser"),
+				AuthorToken:         pad.AuthorTokenFromCookies(c.Cookies, &settings),
 			})
 			c.Locals("wsConnID", connID)
 			return c.Next()
@@ -217,8 +219,8 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 		}
 		// Enforce a hard per-message ceiling matching the configured buffer size.
 		conn.SetReadLimit(int64(wsBufSize))
-		setupLogger.Debugf("[WS] New connection sessionID=%s clientIP=%s", data.SessionID, data.ClientIP)
-		ws.ServeWs(conn, data.SessionID, data.IntegratorSessionID, data.ClientIP, data.WebAccessUser, &settings, setupLogger, padMessageHandler)
+		setupLogger.Debugf("[WS] New connection sessionID=%s clientIP=%s", data.SessionID, settings.LogIP(data.ClientIP))
+		ws.ServeWs(conn, data.SessionID, data.IntegratorSessionID, data.ClientIP, data.WebAccessUser, &settings, setupLogger, padMessageHandler, data.AuthorToken)
 	}, fiberws.Config{
 		ReadBufferSize:  wsBufSize,
 		WriteBufferSize: wsBufSize,

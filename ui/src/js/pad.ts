@@ -48,6 +48,7 @@ import * as socketio from './socketio';
 import {colorutils} from './colorutils';
 import {editorBus} from './core/EventBus';
 import {createPadSettings, creatorDefaults, myViewOverrides} from './pad_settings';
+import {createPadDeletion} from './pad_deletion';
 
 const showPadRetentionNotice = (info: any) => {
     if (!info) return;
@@ -264,11 +265,12 @@ const sendClientReady = (isReconnect) => {
         document.title = `${padId.replace(/_+/g, ' ')} | ${title}`;
     }
 
-    let token = Cookies.get('token');
-    if (token == null || !padutils.isValidAuthorToken(token)) {
-        token = padutils.generateAuthorToken();
-        Cookies.set('token', token, {expires: 60});
-    }
+    // The author token is an HttpOnly cookie the server sets with the page
+    // and reads from the socket handshake; scripts cannot read it, so it
+    // cannot be stolen by one. A token still readable here is the cookie of
+    // an older version; sending it keeps older servers working.
+    const legacyToken = Cookies.get('token');
+    const token = legacyToken != null && padutils.isValidAuthorToken(legacyToken) ? legacyToken : '';
 
     const params = getUrlVars();
     const userInfo = {
@@ -350,11 +352,15 @@ const handshake = async () => {
     // ----- admin shout messages -----
     socket.on('shout', (obj) => {
         if (obj.type === 'COLLABROOM') {
+            const message = obj.data.payload.message || {};
+            // A refused pad deletion is answered by the delete action itself.
+            if (pad.padDeletion?.handleShout(message.messageKey)) return;
             const date = new Date(obj.data.payload.timestamp);
+            const text = typeof message.messageKey === 'string' ? html10n.get(message.messageKey) : message.message;
             notifications.add({
                 title: 'Admin message',
-                text: '[' + date.toLocaleTimeString() + ']: ' + obj.data.payload.message.message,
-                sticky: obj.data.payload.message.sticky,
+                text: '[' + date.toLocaleTimeString() + ']: ' + text,
+                sticky: message.sticky,
             });
         }
     });
@@ -399,12 +405,6 @@ const handshake = async () => {
                 setInterval(ping, window.clientVars.sessionRefreshInterval);
             }
 
-            if (!window.clientVars.collab_client_vars.isInitialAuthor) {
-                const padDeleteButton = document.getElementById('delete-pad');
-                if (padDeleteButton) {
-                    padDeleteButton.remove();
-                }
-            }
 
             if (window.clientVars.mode === 'development') {
                 console.warn('Enabling development mode with live update');
@@ -414,7 +414,11 @@ const handshake = async () => {
                 });
             }
         } else if (obj.disconnect) {
-            if (obj.disconnect === 'deleted') forgetRecentPad();
+            if (obj.disconnect === 'deleted') {
+                forgetRecentPad();
+                // This page asked for the deletion: go to the start page.
+                if (pad.padDeletion?.handleDeleted()) return;
+            }
             // Server-initiated disconnect
             editorBus.emit('connection:disconnected', {reason: obj.disconnect});
             padconnectionstatus.disconnected(obj.disconnect);
@@ -513,6 +517,7 @@ const pad = {
     clientTimeOffset: null,
     padOptions: {},
     padSettings: null as ReturnType<typeof createPadSettings> | null,
+    padDeletion: null as ReturnType<typeof createPadDeletion> | null,
     _messageQ: new MessageQueue(),
 
     // Accessors
@@ -666,6 +671,17 @@ const pad = {
             // applied above, and enforced ones override them.
             pad.padSettings?.bindControls();
             pad.padSettings?.apply();
+
+            pad.padDeletion = createPadDeletion({
+                vars: () => window.clientVars,
+                t: (key) => html10n.get(key),
+                confirm: (message) => window.confirm(message),
+                alert: (message) => window.alert(message),
+                send: (msg) => pad.collabClient.sendMessage(msg),
+                navigateHome: () => { window.location.href = new URL('..', window.location.href).href; },
+                storage: () => { try { return window.localStorage; } catch (_e) { return null; } },
+            });
+            pad.padDeletion.init();
 
             editorBus.emit('editor:ready', {ace: padeditor.ace});
         };

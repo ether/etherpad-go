@@ -58,6 +58,11 @@ func AnalyzeLine(text string, aline string, attrpool apool.APool) (*LineModel, e
 			if alignStr != nil {
 				lineMarker = 1
 			}
+			// Any line attribute (heading, alignment, a plugin's) sits on a
+			// "*" line marker, which is not part of the text.
+			if lmkr := attribs.Get("lmkr"); lmkr != nil && *lmkr != "" && len(*ops) > 0 && (*ops)[0].Chars == 1 {
+				lineMarker = 1
+			}
 
 			listTypeStr := attribs.Get("list")
 			if listTypeStr != nil {

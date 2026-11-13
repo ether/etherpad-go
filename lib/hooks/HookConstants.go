@@ -20,6 +20,11 @@ const GetAuthorIdString = "getAuthorId"
 const AuthenticateString = "authenticate"
 const AuthorizeString = "authorize"
 const AuthnFailureString = "authnFailure"
+
+// AuthFailureString is etherpad-lite's deprecated authFailure hook, fired
+// for authentication and authorization failures that the specific hook did
+// not handle.
+const AuthFailureString = "authFailure"
 const AuthzFailureString = "authzFailure"
 const ExportFileNameString = "exportFileName"
 const StylesForExportString = "stylesForExport"
