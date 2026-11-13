@@ -180,3 +180,17 @@ func (m *MigrationManager) setVersion(version int, description string) error {
 func (m *MigrationManager) GetCurrentVersion() (int, error) {
 	return m.getCurrentVersion()
 }
+
+// NewMigrationManagerUpTo is a manager that stops at maxVersion, to set up
+// a database as an older release left it (upgrade tests).
+func NewMigrationManagerUpTo(db *sql.DB, dialect Dialect, maxVersion int) *MigrationManager {
+	m := NewMigrationManager(db, dialect)
+	kept := m.migrations[:0]
+	for _, mig := range m.migrations {
+		if mig.Version <= maxVersion {
+			kept = append(kept, mig)
+		}
+	}
+	m.migrations = kept
+	return m
+}
