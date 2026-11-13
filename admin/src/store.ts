@@ -46,6 +46,8 @@ export interface AdminState {
   connected: boolean
   loading: boolean
   toast: Toast | null
+  // authError is set when the server refused the admin connection.
+  authError: string | null
   update: UpdateCheckResult | null
   updateStatus: UpdateStatus | null
   pads: PadRecord[]
@@ -77,6 +79,7 @@ type Action =
   | { type: 'SET_CONNECTED'; payload: boolean }
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'SET_TOAST'; payload: Toast | null }
+  | { type: 'SET_AUTH_ERROR'; payload: string | null }
   | { type: 'SET_CURRENT_PAGE'; payload: string }
   | { type: 'SET_SETTINGS'; payload: string }
   | { type: 'SET_SETTINGS_READONLY'; payload: boolean }
@@ -106,6 +109,7 @@ const initialState: AdminState = {
   connected: false,
   loading: false,
   toast: null,
+  authError: null,
   update: null,
   updateStatus: null,
   pads: [],
@@ -139,6 +143,8 @@ function adminReducer(state: AdminState, action: Action): AdminState {
       return { ...state, loading: action.payload }
     case 'SET_TOAST':
       return { ...state, toast: action.payload }
+    case 'SET_AUTH_ERROR':
+      return { ...state, authError: action.payload }
     case 'SET_CURRENT_PAGE':
       return { ...state, currentPage: action.payload }
     case 'SET_SETTINGS':
@@ -197,6 +203,7 @@ interface AdminStore extends AdminState {
   setConnected: (connected: boolean) => void
   setLoading: (loading: boolean) => void
   setToast: (toast: Toast | null) => void
+  showAuthError: (message: string) => void
   setCurrentPage: (page: string) => void
   setShoutMessage: (msg: string) => void
   setShoutSticky: (sticky: boolean) => void
@@ -225,6 +232,10 @@ export function AdminProvider({ children }: { children: ReactNode }) {
   )
   const setToast = useCallback(
     (toast: Toast | null) => dispatch({ type: 'SET_TOAST', payload: toast }),
+    [],
+  )
+  const showAuthError = useCallback(
+    (message: string) => dispatch({ type: 'SET_AUTH_ERROR', payload: message }),
     [],
   )
   const setCurrentPage = useCallback(
@@ -321,6 +332,9 @@ export function AdminProvider({ children }: { children: ReactNode }) {
           },
         })
         dispatch({ type: 'SET_LAST_UPDATED', payload: new Date() })
+        if (payload?.error) {
+          dispatch({ type: 'SET_TOAST', payload: { kind: 'error', message: String(payload.error) } })
+        }
         break
       case 'results:installed': {
         const raw = Array.isArray(payload) ? payload : (payload?.installed ?? [])
@@ -405,6 +419,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     setConnected,
     setLoading,
     setToast,
+    showAuthError,
     setCurrentPage,
     setShoutMessage,
     setShoutSticky,

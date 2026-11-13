@@ -15,6 +15,8 @@ import { useAdminActions } from '@/hooks/useAdminActions'
 
 const PAD_LIMIT = 12
 
+type PadFilter = 'all' | 'active' | 'empty' | 'recent' | 'stale'
+
 export function PadsPage() {
   const store = useAdminStore()
   const actions = useAdminActions()
@@ -33,15 +35,26 @@ export function PadsPage() {
   // Fulltext search state
   const [contentQuery, setContentQuery] = useState('')
 
-  const doRequest = useCallback(() => {
+  // Pad list filter, applied by the server before paging.
+  const [filter, setFilter] = useState<PadFilter>('all')
+
+  // doRequest takes the values that just changed: the store has not been
+  // updated yet when a handler calls it.
+  const doRequest = useCallback((changed: Partial<{
+    offset: number
+    sortBy: string
+    ascending: boolean
+    filter: PadFilter
+  }> = {}) => {
     actions.requestPads({
-      offset: store.padOffset,
+      offset: changed.offset ?? store.padOffset,
       limit: PAD_LIMIT,
       pattern: store.padSearch,
-      sortBy: store.padSort,
-      ascending: store.padAscending,
+      sortBy: changed.sortBy ?? store.padSort,
+      ascending: changed.ascending ?? store.padAscending,
+      filter: changed.filter ?? filter,
     })
-  }, [actions, store.padOffset, store.padSearch, store.padSort, store.padAscending])
+  }, [actions, store.padOffset, store.padSearch, store.padSort, store.padAscending, filter])
 
   useEffect(() => {
     store.setPadLimit(PAD_LIMIT)
@@ -51,6 +64,7 @@ export function PadsPage() {
       pattern: '',
       sortBy: 'padName',
       ascending: true,
+      filter: 'all',
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -58,29 +72,36 @@ export function PadsPage() {
   const handleSort = (key: string) => {
     if (store.padSort === key) {
       store.setPadAscending(!store.padAscending)
+      doRequest({ ascending: !store.padAscending })
     } else {
       store.setPadSort(key)
       store.setPadAscending(true)
+      doRequest({ sortBy: key, ascending: true })
     }
-    setTimeout(() => doRequest(), 0)
   }
 
   const handleSearch = () => {
     store.setPadOffset(0)
-    setTimeout(() => doRequest(), 0)
+    doRequest({ offset: 0 })
+  }
+
+  const handleFilter = (next: PadFilter) => {
+    setFilter(next)
+    store.setPadOffset(0)
+    doRequest({ offset: 0, filter: next })
   }
 
   const handlePrev = () => {
     if (store.padOffset >= PAD_LIMIT) {
       store.setPadOffset(store.padOffset - PAD_LIMIT)
-      setTimeout(() => doRequest(), 0)
+      doRequest({ offset: store.padOffset - PAD_LIMIT })
     }
   }
 
   const handleNext = () => {
     if (store.padOffset + PAD_LIMIT < store.padsTotal) {
       store.setPadOffset(store.padOffset + PAD_LIMIT)
-      setTimeout(() => doRequest(), 0)
+      doRequest({ offset: store.padOffset + PAD_LIMIT })
     }
   }
 
@@ -204,6 +225,19 @@ export function PadsPage() {
           >
             Apply
           </button>
+          <select
+            aria-label="Filter pads"
+            data-testid="pad-filter"
+            value={filter}
+            onChange={(e) => handleFilter(e.target.value as PadFilter)}
+            className="rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-black dark:text-white focus:border-black dark:focus:border-white focus:outline-none"
+          >
+            <option value="all">All pads</option>
+            <option value="active">Open now</option>
+            <option value="empty">Empty</option>
+            <option value="recent">Edited in the last 7 days</option>
+            <option value="stale">Not edited for 90 days</option>
+          </select>
         </div>
         <button
           type="button"

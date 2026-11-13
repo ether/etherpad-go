@@ -20,6 +20,19 @@ export function useEmit(): EmitFn {
   return emit
 }
 
+// checkAdminToken asks the server whether the token is still an admin
+// token. Network trouble is "unknown": the caller keeps retrying.
+export async function checkAdminToken(token: string): Promise<'ok' | 'rejected' | 'unknown'> {
+  try {
+    const resp = await fetch(`/admin/validate?token=${encodeURIComponent(token)}`)
+    if (resp.ok) return 'ok'
+    if (resp.status === 401 || resp.status === 403) return 'rejected'
+    return 'unknown'
+  } catch {
+    return 'unknown'
+  }
+}
+
 // ── Provider ───────────────────────────────────────────────────────────────
 
 export function AdminSocketProvider({ children, token }: { children: ReactNode; token: string }) {
@@ -41,11 +54,25 @@ export function AdminSocketProvider({ children, token }: { children: ReactNode; 
   const emitRef = useRef(emit)
   emitRef.current = emit
 
+  // The token is renewed while the page is open; a reconnect must use the
+  // current one, not the one the first connection was made with.
+  const tokenRef = useRef(token)
+  tokenRef.current = token
+
+  const showAuthErrorRef = useRef(store.showAuthError)
+  showAuthErrorRef.current = store.showAuthError
+
+  const stopped = useRef(false)
+
   const connect = useCallback(() => {
+    if (stopped.current) return
     const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const socket = new WebSocket(`${proto}//${window.location.host}/admin/ws?token=${encodeURIComponent(token)}`)
+    const sentToken = tokenRef.current
+    const socket = new WebSocket(`${proto}//${window.location.host}/admin/ws?token=${encodeURIComponent(sentToken)}`)
+    let opened = false
 
     socket.onopen = () => {
+      opened = true
       setConnectedRef.current(true)
       // Initial data load
       emitRef.current('load')
@@ -54,8 +81,23 @@ export function AdminSocketProvider({ children, token }: { children: ReactNode; 
       emitRef.current('getStats')
     }
 
-    socket.onclose = () => {
+    socket.onclose = async () => {
       setConnectedRef.current(false)
+      if (stopped.current) return
+      // A connection that never opened may have been refused because the
+      // token is not (or no longer) an admin token. Retrying with it again
+      // would fail silently forever, so tell the user instead.
+      if (!opened && sentToken === tokenRef.current) {
+        const verdict = await checkAdminToken(sentToken)
+        if (verdict === 'rejected') {
+          stopped.current = true
+          showAuthErrorRef.current(
+            'The admin connection was refused: you are not signed in as an administrator, ' +
+            'or your sign-in has expired. Sign in again.',
+          )
+          return
+        }
+      }
       // Reconnect after 2 seconds
       setTimeout(connect, 2000)
     }
@@ -76,8 +118,10 @@ export function AdminSocketProvider({ children, token }: { children: ReactNode; 
   }, [])
 
   useEffect(() => {
+    stopped.current = false
     connect()
     return () => {
+      stopped.current = true
       ws.current?.close()
     }
   }, [connect])

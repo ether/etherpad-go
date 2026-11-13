@@ -1220,7 +1220,17 @@ func (p *PadMessageHandler) DeletePad(padId string) error {
 	}
 	retrievedPadObj, err := p.padManager.GetPad(padId, nil, nil)
 	if err != nil {
-		return err
+		// A pad that cannot be loaded (damaged, or an id that is no longer
+		// valid) must still be deletable from the admin page; otherwise it
+		// stays forever (etherpad-lite #7935). Its records are removed
+		// directly.
+		p.Logger.Warnf("Pad %s cannot be loaded (%v); removing its records", padId, err)
+		p.KickSessionsFromPad(padId)
+		if err := p.padManager.PurgePad(padId); err != nil {
+			return err
+		}
+		p.publish(cluster.Event{Kind: cluster.KindDeleted, Pad: padId})
+		return nil
 	}
 	if err := retrievedPadObj.Remove(); err != nil {
 		return err

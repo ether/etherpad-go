@@ -240,28 +240,27 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 		}
 	case "padLoad":
 		{
+			// Every padLoad gets a reply, also on failure: without one the
+			// admin page waits forever (etherpad-lite #7935).
+			failed := func(msg string) {
+				resp, err := json.Marshal([]interface{}{"results:padLoad", admin.PadDefinition{
+					Results: []admin.PadDBSearch{}, Error: msg,
+				}})
+				if err == nil {
+					c.SafeSend(resp)
+				}
+			}
 			var padLoadData admin.PadLoadData
 			if err := json.Unmarshal(message.Data, &padLoadData); err != nil {
 				h.Logger.Warn("Error unmarshalling padLoad data:", err.Error())
+				failed("invalid request")
 				return
 			}
-			dbPads, err := h.store.QueryPad(padLoadData.Offset, padLoadData.Limit, padLoadData.SortBy, padLoadData.Ascending, padLoadData.Pattern)
+			padDtos, err := h.padLoad(padLoadData, time.Now())
 			if err != nil {
 				h.Logger.Warn("Error querying pads:", err.Error())
+				failed(err.Error())
 				return
-			}
-
-			var padDtos admin.PadDefinition
-
-			padDtos.Total = dbPads.TotalPads
-			padDtos.Results = make([]admin.PadDBSearch, 0)
-			for _, dbPad := range dbPads.Pads {
-				padDtos.Results = append(padDtos.Results, admin.PadDBSearch{
-					PadName:        dbPad.Padname,
-					RevisionNumber: dbPad.RevisionNumber,
-					LastEdited:     dbPad.LastEdited,
-					UserCount:      len(h.padMessageHandler.GetRoomSockets(dbPad.Padname)),
-				})
 			}
 
 			resp := make([]interface{}, 2)
@@ -1009,4 +1008,83 @@ func writeFileAtomic(path string, data []byte) error {
 		return err
 	}
 	return nil
+}
+
+// Pad list filters of the admin page. recent and stale are measured from
+// the last edit.
+const (
+	padFilterRecentWindow = 7 * 24 * time.Hour
+	padFilterStaleAfter   = 90 * 24 * time.Hour
+)
+
+var errUnknownPadFilter = errors.New("unknown filter")
+
+// padFilter returns the test of an admin pad list filter other than "all".
+func padFilter(name string, now time.Time) (func(admin.PadDBSearch) bool, error) {
+	switch name {
+	case "empty":
+		return func(p admin.PadDBSearch) bool { return p.RevisionNumber == 0 }, nil
+	case "active":
+		return func(p admin.PadDBSearch) bool { return p.UserCount > 0 }, nil
+	case "recent":
+		return func(p admin.PadDBSearch) bool {
+			return p.LastEdited > 0 && now.Sub(time.UnixMilli(p.LastEdited)) <= padFilterRecentWindow
+		}, nil
+	case "stale":
+		return func(p admin.PadDBSearch) bool {
+			return p.LastEdited > 0 && now.Sub(time.UnixMilli(p.LastEdited)) > padFilterStaleAfter
+		}, nil
+	}
+	return nil, fmt.Errorf("%w %q", errUnknownPadFilter, name)
+}
+
+// padLoad lists pads for the admin page. A filter is applied to the whole
+// matching set before it is paged, so total counts the filtered pads and
+// every page holds them (filtering a page afterwards showed at most one
+// page of hits).
+func (h *AdminMessageHandler) padLoad(q admin.PadLoadData, now time.Time) (admin.PadDefinition, error) {
+	out := admin.PadDefinition{Results: make([]admin.PadDBSearch, 0)}
+	row := func(p db2.PadDBSearch) admin.PadDBSearch {
+		return admin.PadDBSearch{
+			PadName:        p.Padname,
+			RevisionNumber: p.RevisionNumber,
+			LastEdited:     p.LastEdited,
+			UserCount:      len(h.padMessageHandler.GetRoomSockets(p.Padname)),
+		}
+	}
+	if q.Filter == "" || q.Filter == "all" {
+		res, err := h.store.QueryPad(q.Offset, q.Limit, q.SortBy, q.Ascending, q.Pattern)
+		if err != nil {
+			return out, errors.New("the pads could not be loaded")
+		}
+		out.Total = res.TotalPads
+		for _, p := range res.Pads {
+			out.Results = append(out.Results, row(p))
+		}
+		return out, nil
+	}
+	keep, err := padFilter(q.Filter, now)
+	if err != nil {
+		return out, err
+	}
+
+	first, err := h.store.QueryPad(0, 1, q.SortBy, q.Ascending, q.Pattern)
+	if err != nil {
+		return out, errors.New("the pads could not be loaded")
+	}
+	all, err := h.store.QueryPad(0, first.TotalPads, q.SortBy, q.Ascending, q.Pattern)
+	if err != nil {
+		return out, errors.New("the pads could not be loaded")
+	}
+	var matched []admin.PadDBSearch
+	for _, p := range all.Pads {
+		if r := row(p); keep(r) {
+			matched = append(matched, r)
+		}
+	}
+	out.Total = len(matched)
+	start := min(max(q.Offset, 0), len(matched))
+	end := min(start+max(q.Limit, 0), len(matched))
+	out.Results = append(out.Results, matched[start:end]...)
+	return out, nil
 }

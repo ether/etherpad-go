@@ -488,6 +488,11 @@ func (p *Pad) Init(text *string, author *string, authorManager *author.Manager) 
 			if hasAuthor && !usedDefaultContent {
 				attribAuthor = *author
 			}
+			if attribAuthor == SystemAuthorId {
+				if err := p.ensureSystemAuthor(); err != nil {
+					return err
+				}
+			}
 			as := "*" + utils.NumToString(p.Pool.PutAttrib(apool.Attribute{Key: "author", Value: attribAuthor}, nil))
 			firstAttribs, firstPool = &as, &p.Pool
 		}
@@ -758,16 +763,8 @@ func (p *Pad) AppendRevision(cs string, authorId *string) (*int, error) {
 	// never created through the normal author flows, so make sure its row
 	// exists before saving a revision attributed to it.
 	if authorId != nil && *authorId == SystemAuthorId {
-		if _, getErr := p.db.GetAuthor(SystemAuthorId); getErr != nil {
-			systemName := "System"
-			if saveErr := p.db.SaveAuthor(db2.AuthorDB{
-				ID:        SystemAuthorId,
-				Name:      &systemName,
-				ColorId:   "#808080",
-				Timestamp: time.Now().Unix(),
-			}); saveErr != nil {
-				return nil, errors.New("Error ensuring system author exists " + saveErr.Error())
-			}
+		if err := p.ensureSystemAuthor(); err != nil {
+			return nil, err
 		}
 	}
 
@@ -897,4 +894,23 @@ func savedRevisionsToDB(saved []revision.SavedRevision) []db2.SavedRevision {
 		out = append(out, db2.SavedRevision{RevNum: r.RevNum, SavedBy: r.SavedBy, Timestamp: r.Timestamp, Label: r.Label, Id: r.Id})
 	}
 	return out
+}
+
+// ensureSystemAuthor creates the row of the reserved system author if it
+// does not exist yet. Text attributed to it must resolve to an author like
+// any other, or loading the pad fails.
+func (p *Pad) ensureSystemAuthor() error {
+	if _, err := p.db.GetAuthor(SystemAuthorId); err == nil {
+		return nil
+	}
+	systemName := "System"
+	if err := p.db.SaveAuthor(db2.AuthorDB{
+		ID:        SystemAuthorId,
+		Name:      &systemName,
+		ColorId:   "#808080",
+		Timestamp: time.Now().Unix(),
+	}); err != nil {
+		return errors.New("Error ensuring system author exists " + err.Error())
+	}
+	return nil
 }

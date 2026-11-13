@@ -3,7 +3,6 @@ package welcome
 import (
 	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/ether/etherpad-go/lib/utils"
-	"strconv"
 )
 
 // tr returns the translation for key, falling back to the given English
@@ -95,7 +94,7 @@ templ Page(settings *settings.Settings, translations map[string]string, socialMe
 					</section>
 				</div>
 			</main>
-			<script type="module" src={"/js/welcome/assets/welcome.js?v="+strconv.Itoa(utils.RandomVersionString)}></script>
+			<script type="module" src={"/js/welcome/assets/welcome.js?v="+utils.RandomVersionString}></script>
 		</body>
 	</html>
 }

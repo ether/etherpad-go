@@ -227,6 +227,15 @@ func (m *Manager) CanOpenPadId(padID string) (bool, error) {
 	return *exists, nil
 }
 
+// PurgePad removes a pad's records without loading it: for pads that
+// cannot be loaded any more (damaged, or an id that is no longer valid).
+func (m *Manager) PurgePad(padID string) error {
+	if err := m.store.RemoveChat(padID); err != nil {
+		return err
+	}
+	return m.RemovePad(padID)
+}
+
 func (m *Manager) RemovePad(padID string) error {
 	// Capture the loaded pad (if any) before deletion so the padRemove hook can
 	// hand listeners the pad context, mirroring the original Etherpad which
