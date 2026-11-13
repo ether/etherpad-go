@@ -265,10 +265,12 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       case 'settings': {
         // Server wraps settings in { results: ... }
         const settings = payload?.results ?? payload
+        // The server sends settings.json as it is on disk; it is edited and
+        // saved as such, so comments and ${ENV} placeholders stay.
         let formatted: string
         try {
           formatted = typeof settings === 'string'
-            ? JSON.stringify(JSON.parse(settings), null, 2)
+            ? settings
             : JSON.stringify(settings, null, 2)
         } catch {
           formatted = String(settings)

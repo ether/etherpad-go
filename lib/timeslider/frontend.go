@@ -2,7 +2,6 @@ package timeslider
 
 import (
 	"embed"
-	"strconv"
 
 	"github.com/a-h/templ"
 	"github.com/ether/etherpad-go/assets/timeslider"
@@ -22,7 +21,7 @@ func HandleTimesliderOpen(c fiber.Ctx, uiAssets embed.FS, retrievedSettings *set
 		return err
 	}
 
-	jsFilePath := "/js/timeslider/assets/timeslider.js?v=" + strconv.Itoa(utils.RandomVersionString)
+	jsFilePath := "/js/timeslider/assets/timeslider.js?v=" + utils.RandomVersionString
 
 	padName := c.Params("pad")
 	scheme := "http"

@@ -56,11 +56,31 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 	switch message.Event {
 	case "load":
 		{
+			// The settings.json text as it is on disk (comments, ${ENV}
+			// placeholders and all) is what the editor shows and saves.
+			// The parsed settings used to be sent and saved instead, which
+			// replaced the file by every resolved value: secrets from the
+			// environment ended up in the file, comments and placeholders
+			// were gone. The live values go along redacted.
 			resp := make([]interface{}, 2)
 			resp[0] = "settings"
-			resp[1] = map[string]interface{}{
-				"results":  retrievedSettings,
-				"readOnly": retrievedSettings.Clustered(),
+			if !retrievedSettings.ShowSettingsInAdminPage {
+				resp[1] = map[string]interface{}{"results": "NOT_ALLOWED"}
+			} else {
+				raw, err := os.ReadFile(settingsFilePath(retrievedSettings))
+				if err != nil && !os.IsNotExist(err) {
+					h.Logger.Errorf("Reading the settings file: %v", err)
+				}
+				text := string(raw)
+				if err != nil {
+					text = "{\n}\n"
+				}
+				resp[1] = map[string]interface{}{
+					"results":  text,
+					"resolved": retrievedSettings.ResolvedForAdmin(),
+					"flags":    map[string]interface{}{"readOnly": retrievedSettings.Clustered()},
+					"readOnly": retrievedSettings.Clustered(),
+				}
 			}
 			responseBytes, err := json.Marshal(resp)
 			if err != nil {
@@ -451,15 +471,25 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 				c.SafeSend(responseBytes)
 				return
 			}
+			if !retrievedSettings.ShowSettingsInAdminPage {
+				responseBytes, _ := json.Marshal([]interface{}{"results:saveSettings", map[string]interface{}{"error": "NOT_ALLOWED"}})
+				c.SafeSend(responseBytes)
+				return
+			}
 			var settingsJSON string
 			if err := json.Unmarshal(message.Data, &settingsJSON); err != nil {
 				settingsJSON = string(message.Data)
 			}
-			settingsPath := "settings.json"
-			if retrievedSettings.Root != "" {
-				settingsPath = retrievedSettings.Root + "/settings.json"
+			// Written byte for byte (comments stay), but only if it parses:
+			// a typo must not leave a server that no longer starts.
+			if _, err := settings.PrepareSettingsJSON([]byte(settingsJSON)); err != nil {
+				responseBytes, _ := json.Marshal([]interface{}{"results:saveSettings", map[string]interface{}{
+					"error": "The settings are not valid JSON, nothing was saved: " + err.Error()}})
+				c.SafeSend(responseBytes)
+				return
 			}
-			if err := os.WriteFile(settingsPath, []byte(settingsJSON), 0644); err != nil {
+			settingsPath := settingsFilePath(retrievedSettings)
+			if err := writeFileAtomic(settingsPath, []byte(settingsJSON)); err != nil {
 				h.Logger.Errorf("Error saving settings: %v", err)
 				resp := make([]interface{}, 2)
 				resp[0] = "results:saveSettings"
@@ -954,4 +984,29 @@ func (h AdminMessageHandler) compactDamagedPad(padId string, missing []int, late
 		return err
 	}
 	return repaired.Check()
+}
+
+func settingsFilePath(s *settings.Settings) string {
+	if s.Root != "" {
+		return s.Root + "/settings.json"
+	}
+	return "settings.json"
+}
+
+// writeFileAtomic replaces path in one step: a crash while writing leaves the
+// old file, never a truncated one.
+func writeFileAtomic(path string, data []byte) error {
+	mode := os.FileMode(0o644)
+	if st, err := os.Stat(path); err == nil {
+		mode = st.Mode().Perm()
+	}
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, data, mode); err != nil {
+		return err
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	return nil
 }

@@ -1,7 +1,9 @@
 package settings
 
 import (
+	"bytes"
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 
@@ -17,15 +19,19 @@ func ReadConfig() (*Settings, error) {
 
 	ApplyRegistryDefaults()
 
-	viper.SetConfigName("settings")
 	viper.SetConfigType("json")
-	viper.AddConfigPath(".")
-
-	if err := viper.ReadInConfig(); err != nil {
-		var notFound viper.ConfigFileNotFoundError
-		if !errors.As(err, &notFound) {
+	// settings.json may hold comments, trailing commas and ${VAR:default}
+	// values, like etherpad-lite's; viper reads plain JSON.
+	if raw, err := os.ReadFile("settings.json"); err == nil {
+		prepared, err := PrepareSettingsJSON(raw)
+		if err != nil {
+			return nil, fmt.Errorf("settings.json: %w", err)
+		}
+		if err := viper.ReadConfig(bytes.NewReader(prepared)); err != nil {
 			return nil, err
 		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return nil, err
 	}
 
 	// Older settings files (and etherpad-lite's template) wrote

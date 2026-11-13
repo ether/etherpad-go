@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"embed"
 	"slices"
-	"strconv"
 
 	"github.com/a-h/templ"
 	"github.com/ether/etherpad-go/lib/hooks"
@@ -41,7 +40,7 @@ func HandlePadOpen(c fiber.Ctx, uiAssets embed.FS, retrievedSettings *settings.S
 		return err
 	}
 
-	jsFilePath := "/js/pad/assets/pad.js?v=" + strconv.Itoa(utils.RandomVersionString)
+	jsFilePath := "/js/pad/assets/pad.js?v=" + utils.RandomVersionString
 	buttonGroups := plugins.GetToolbarButtonGroups()
 	slices.SortFunc(buttonGroups, func(a, b plugins.ToolbarButtonGroup) int {
 		return cmp.Compare(a.PluginName, b.PluginName)
