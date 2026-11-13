@@ -7,10 +7,10 @@ behaviour, they are not line-by-line translations.
 
 | Status | Files | Test cases |
 |---|---|---|
-| Ported | 29 | 325 |
-| Partly ported | 2 | 17 |
+| Ported | 32 | 363 |
+| Partly ported | 1 | 9 |
 | Not applicable to Go | 35 | 303 |
-| To compare case by case | 106 | 1089 |
+| To compare case by case | 104 | 1059 |
 
 "To compare" does not mean untested: most of these areas have Go tests (the Go code refers
 to more than 20 upstream issues). It means nobody has checked yet, case by case, which
@@ -49,13 +49,15 @@ upstream cases the Go tests cover and which are missing.
 | `padDeletionManager` | 10 | `lib/test/pad/deletion_token_test.go` |
 | `padDeletionUiPlacement` | 2 | `ui/src/js/pad_deletion.test.ts`, `lib/test/ws/pad_deletion_test.go` |
 | `Pad` | 25 | `lib/pad/pad_test.go`, `pad_parity_test.go`, `insert_author_test.go`; normalizePadSettings in `lib/models/pad/settings_test.go`; pad-wide settings end to end in `lib/test/ws/pad_settings_test.go`, client logic in `ui/src/js/pad_settings.test.ts` |
+| `ImportEtherpad` | 21 | `lib/test/api/io/import_etherpad_parity_test.go`, `import_etherpad_security_test.go`, `import_etherpad_roundtrip_test.go`; an author's pads come from the revisions they wrote. The two exportEtherpadAdditionalContent cases do not apply: Go plugins have no free-form keys in the database |
+| `ExportEtherpad` | 9 | `lib/test/api/io/export_etherpad_parity_test.go`, `export_etherpad_revbound_test.go`; the three exportEtherpadAdditionalContent cases do not apply (see ImportEtherpad) |
+| `padInsertAuthorInvariant` | 8 | `lib/pad/insert_author_test.go`; legacy `.etherpad` import and restore in `lib/test/api/io/import_etherpad_parity_test.go`, restoreRevision in `lib/test/api/pad/restore_revision_test.go`; copyPadWithoutHistory creates the copy from the text, so the source's attributes cannot break it |
 
 ## Partly ported
 
 | Spec | Cases | State |
 |---|---|---|
 | `new/easysync-other` | 9 | moveOpsToNewPool, makeSplice, applyToAttribution and split/join are covered in `lib/changeset`; filterAttribNumbers, makeAttribsString, toSplices and opAttributeValue do not exist in the Go package (deprecated or client-only upstream) |
-| `padInsertAuthorInvariant` | 8 | pad-level cases in `lib/pad/insert_author_test.go`; the `.etherpad` import and copyPadWithoutHistory cases are open |
 
 ## `:` in pad ids
 
@@ -134,8 +136,6 @@ Existing Go tests in this area: `lib/io`, `lib/test/api/io`
 
 | Spec | Cases |
 |---|---|
-| `ExportEtherpad` | 9 |
-| `ImportEtherpad` | 21 |
 | `export` | 86 |
 | `export_list` | 5 |
 | `exportHtmlAuthorColorXss` | 7 |

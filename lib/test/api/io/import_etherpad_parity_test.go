@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/db"
 	libio "github.com/ether/etherpad-go/lib/io"
 	db2 "github.com/ether/etherpad-go/lib/models/db"
@@ -31,6 +32,7 @@ func TestImportEtherpadParity(t *testing.T) {
 		testutils.TestRunConfig{Name: "authors list the imported pad", Test: testImportAuthorPads},
 		testutils.TestRunConfig{Name: "order of records does not matter", Test: testImportRecordOrder},
 		testutils.TestRunConfig{Name: "pad sub-keys other than revs and chat are ignored", Test: testImportIgnoresPadSubKeys},
+		testutils.TestRunConfig{Name: "legacy unattributed inserts stay editable and restorable", Test: testImportLegacyUnattributed},
 	)
 	testDb.StartTestDBHandler()
 }
@@ -326,4 +328,53 @@ func testImportIgnoresPadSubKeys(t *testing.T, ds testutils.TestDataStore) {
 	require.NoError(t, err)
 	require.Len(t, *chats, 1)
 	assert.Equal(t, "hi", (*chats)[0].Message)
+}
+
+// etherpad-lite padInsertAuthorInvariant: a file from before every insert had
+// to carry an author imports, and the pad can still be edited and restored;
+// restored runs without an author go to the system author.
+func testImportLegacyUnattributed(t *testing.T, ds testutils.TestDataStore) {
+	records := map[string]any{
+		"pad:legacySource:revs:0": map[string]any{
+			"changeset": "Z:1>b+b$hello world",
+			"meta": map[string]any{
+				"author": "", "timestamp": 1700000000000,
+				"pool":  map[string]any{"numToAttrib": map[string]any{}, "nextNum": 0},
+				"atext": map[string]string{"text": "hello world\n", "attribs": "+b|1+1"},
+			},
+		},
+		"pad:legacySource": map[string]any{
+			"atext":          map[string]string{"text": "hello world\n", "attribs": "+b|1+1"},
+			"pool":           map[string]any{"numToAttrib": map[string]any{}, "nextNum": 0},
+			"head":           0,
+			"chatHead":       -1,
+			"publicStatus":   false,
+			"savedRevisions": []any{},
+		},
+	}
+	padId := "impLegacyUnattributed"
+	require.NoError(t, ds.Importer.SetPadRaw(padId, marshal(t, records), "a.importer0000000001"))
+
+	ds.PadManager.UnloadPad(padId)
+	p, err := ds.PadManager.GetPad(padId, nil, nil)
+	require.NoError(t, err)
+	require.NoError(t, p.Check())
+	assert.Equal(t, "hello world\n", p.Text())
+	assert.Contains(t, p.AText.Attribs, "*", "the import attributed the legacy insert")
+
+	editor, err := ds.AuthorManager.CreateAuthor(nil)
+	require.NoError(t, err)
+	require.NoError(t, p.SetText("changed\n", &editor.Id))
+	_, err = p.RestoreRevision(0, nil)
+	require.NoError(t, err)
+	assert.Equal(t, "hello world\n", p.Text())
+	assert.Contains(t, p.AText.Attribs, "*", "the restored run carries an author")
+	found := false
+	p.Pool.EachAttrib(func(a apool.Attribute) {
+		if a.Key == "author" && a.Value == modelpad.SystemAuthorId {
+			found = true
+		}
+	})
+	assert.True(t, found, "attributed to the system author")
+	require.NoError(t, p.Check())
 }

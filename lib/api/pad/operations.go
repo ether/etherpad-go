@@ -8,7 +8,6 @@ import (
 	errors2 "github.com/ether/etherpad-go/lib/api/errors"
 	utils2 "github.com/ether/etherpad-go/lib/api/utils"
 	"github.com/ether/etherpad-go/lib/apool"
-	"github.com/ether/etherpad-go/lib/changeset"
 	io2 "github.com/ether/etherpad-go/lib/io"
 	padModel "github.com/ether/etherpad-go/lib/models/pad"
 	padManager "github.com/ether/etherpad-go/lib/pad"
@@ -121,53 +120,9 @@ func RestoreRevision(initStore *lib.InitStore) fiber.Handler {
 			return c.Status(400).JSON(errors2.RevisionHigherThanHeadError)
 		}
 
-		// Get the atext at the target revision
-		atext := pad.GetInternalRevisionAText(request.Rev)
-		if atext == nil {
-			return c.Status(500).JSON(errors2.InternalApiError)
-		}
-
-		oldText := pad.Text()
-		atextText := atext.Text + "\n"
-
-		// Create a new changeset with a helper builder object
-		builder := changeset.NewBuilder(len(oldText))
-
-		// Iterate over attribute runs
-		textIndex := 0
-		newTextStart := 0
-		newTextEnd := len(atextText)
-		ops, err := changeset.DeserializeOps(atext.Attribs)
-		if err != nil {
-			return c.Status(500).JSON(errors2.InternalApiError)
-		}
-
-		for _, op := range *ops {
-			nextIndex := textIndex + op.Chars
-			if !(nextIndex <= newTextStart || textIndex >= newTextEnd) {
-				start := max(newTextStart, textIndex)
-				end := min(newTextEnd, nextIndex)
-				builder.Insert(atextText[start:end], changeset.KeepArgs{}, nil)
-			}
-			textIndex = nextIndex
-		}
-
-		// Remove old text
-		lastNewlinePos := strings.LastIndex(oldText, "\n")
-		if lastNewlinePos < 0 {
-			builder.Remove(len(oldText)-1, 0)
-		} else {
-			newlineCount := strings.Count(oldText, "\n")
-			builder.Remove(lastNewlinePos, newlineCount-1)
-			builder.Remove(len(oldText)-lastNewlinePos-1, 0)
-		}
-
-		cs := builder.ToString()
-
-		// Append the revision
 		authorId := request.AuthorId
-		_, err = pad.AppendRevision(cs, &authorId)
-		if err != nil {
+		if _, err := pad.RestoreRevision(request.Rev, &authorId); err != nil {
+			initStore.Logger.Errorf("restoreRevision %d of %s: %v", request.Rev, padId, err)
 			return c.Status(500).JSON(errors2.InternalServerError)
 		}
 

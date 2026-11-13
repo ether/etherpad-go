@@ -109,3 +109,9 @@ func (b *Builder) ToString() string {
 	var newLen = b.oldLen + b.assem.LengthChange()
 	return Pack(b.oldLen, newLen, b.assem.String(), b.charBank.String())
 }
+
+// AttribsString makes KeepArgs from an attribute string such as "*0*3",
+// whose numbers refer to the pool the changeset is applied with.
+func AttribsString(attribs string) KeepArgs {
+	return KeepArgs{stringAttribs: &attribs}
+}

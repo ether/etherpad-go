@@ -19,6 +19,7 @@ import (
 
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/author"
+	"github.com/ether/etherpad-go/lib/changeset"
 	"github.com/ether/etherpad-go/lib/db"
 	"github.com/ether/etherpad-go/lib/hooks"
 	"github.com/ether/etherpad-go/lib/hooks/events"
@@ -210,10 +211,9 @@ func (i *Importer) SetPadRaw(padId string, content []byte, authorId string) erro
 			continue
 		}
 		if len(attrib) >= 2 {
-			pool.NumToAttrib[num] = apool.Attribute{
-				Key:   attrib[0],
-				Value: attrib[1],
-			}
+			a := apool.Attribute{Key: attrib[0], Value: attrib[1]}
+			pool.NumToAttrib[num] = a
+			pool.AttribToNum[a] = num
 		}
 	}
 	pool.NextNum = padData.Pool.NextNum
@@ -277,6 +277,15 @@ func (i *Importer) SetPadRaw(padId string, content []byte, authorId string) erro
 	}
 	imp.pad.ChatHead = len(imp.chats) - 1
 
+	// Files from before every insert had to carry an author: attribute
+	// those inserts to the system author, as etherpad-lite does, so the
+	// pad keeps the invariant that its edits and restores rely on.
+	if changed, err := attributeLegacyInserts(imp, &pool); err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidEtherpadFile, err)
+	} else if changed && i.logger != nil {
+		i.logger.Infof("Import into %s: attributed unattributed inserts to %s", padId, padModel.SystemAuthorId)
+	}
+
 	// Like etherpad-lite, validate the whole import in a scratch store before
 	// anything is written: a broken file must be rejected while the target
 	// pad is still intact, not leave a half-imported pad behind.
@@ -306,6 +315,79 @@ func (i *Importer) SetPadRaw(padId string, content []byte, authorId string) erro
 		return fmt.Errorf("import into %s failed, the previous pad is unchanged: %w", padId, err)
 	}
 	return nil
+}
+
+// attributeLegacyInserts gives every insert op without an author the
+// system author and, when it changed anything, recomputes the pad's text and
+// the revisions' stored texts from the rewritten changesets. A file that
+// needs nothing is left exactly as it is.
+func attributeLegacyInserts(imp *parsedEtherpad, pool *apool.APool) (bool, error) {
+	revNums := make([]int, 0, len(imp.revisions))
+	for n := range imp.revisions {
+		revNums = append(revNums, n)
+	}
+	sort.Ints(revNums)
+
+	changed := false
+	rewritten := make(map[int]string, len(revNums))
+	for _, n := range revNums {
+		cs, err := changeset.Unpack(imp.revisions[n].Changeset)
+		if err != nil {
+			return false, fmt.Errorf("revision %d: %w", n, err)
+		}
+		ops, err := changeset.DeserializeOps(cs.Ops)
+		if err != nil {
+			return false, fmt.Errorf("revision %d: %w", n, err)
+		}
+		assem := changeset.NewOpAssembler()
+		revChanged := false
+		for _, op := range *ops {
+			if op.OpCode == "+" {
+				attribs := changeset.FromString(op.Attribs, pool)
+				if v := attribs.Get("author"); v == nil || *v == "" {
+					attribs.Set("author", padModel.SystemAuthorId)
+					op.Attribs = attribs.String()
+					revChanged = true
+				}
+			}
+			assem.Append(op)
+		}
+		if revChanged {
+			changed = true
+			rewritten[n] = changeset.Pack(cs.OldLen, cs.NewLen, assem.String(), cs.CharBank)
+		}
+	}
+	if !changed {
+		return false, nil
+	}
+
+	atext := changeset.MakeAText("\n", nil)
+	for _, n := range revNums {
+		rev := imp.revisions[n]
+		if cs, ok := rewritten[n]; ok {
+			rev.Changeset = cs
+		}
+		next, err := changeset.ApplyToAText(rev.Changeset, atext, *pool)
+		if err != nil {
+			return false, fmt.Errorf("revision %d: %w", n, err)
+		}
+		atext = *next
+		if rev.Meta.AText != nil {
+			rev.Meta.AText = &AText{Text: atext.Text, Attribs: atext.Attribs}
+			rev.Meta.Pool = poolForRevision(pool)
+		}
+		imp.revisions[n] = rev
+	}
+	imp.pad.ATextText = atext.Text
+	imp.pad.ATextAttribs = atext.Attribs
+	imp.pad.Pool = pool.ToRevDB()
+	imp.referencedAuthors = append(imp.referencedAuthors, padModel.SystemAuthorId)
+	return true, nil
+}
+
+func poolForRevision(pool *apool.APool) *PoolWithAttribToNum {
+	p := pool.ToRevDB()
+	return &PoolWithAttribToNum{NumToAttrib: p.NumToAttrib, AttribToNum: p.AttribToNum, NextNum: p.NextNum}
 }
 
 // sourcePadID returns the id of the pad the records were exported from and
