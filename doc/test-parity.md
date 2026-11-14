@@ -7,14 +7,9 @@ behaviour, they are not line-by-line translations.
 
 | Status | Files | Test cases |
 |---|---|---|
-| Ported | 88 | 854 |
+| Ported | 125 | 1245 |
 | Partly ported | 4 | 140 |
-| Not applicable to Go | 41 | 344 |
-| To compare case by case | 39 | 396 |
-
-"To compare" does not mean untested: most of these areas have Go tests (the Go code refers
-to more than 20 upstream issues). It means nobody has checked yet, case by case, which
-upstream cases the Go tests cover and which are missing.
+| Not applicable to Go | 43 | 349 |
 
 ## Ported
 
@@ -98,6 +93,13 @@ upstream cases the Go tests cover and which are missing.
 | `admin/padLoadResilience` | 4 | `lib/test/ws/delete_unloadable_pad_test.go` |
 | `settings` | 21 | `lib/settings/jsonc_test.go` (comments, trailing commas, `${VAR:default}`), `settings_test.go` (EP__ nested variables, air-gapped via `ETHERPAD_UPDATES_*`, fadeInactiveAuthorColors), `lib/utils/version_string_test.go`; the 5 CommonJS-compatibility cases are about Node's require() and do not apply. Go plugins are compiled in and have no ep_* settings blocks; EP__ variables set any nested setting |
 | `settingsModalHeading` | 2 | `assets/pad/settings_heading_test.go` |
+| `downstream/wire-socket-sequence` | 2 | `lib/test/ws/wire_sequence_test.go` (CLIENT_READY → CLIENT_VARS, USER_CHANGES → ACCEPT_COMMIT) |
+| `downstream/wire-vectors` | 2 | `lib/changeset/wire_vectors_test.go` with lite's fixture `lib/changeset/testdata/wire-vectors.json` |
+| `anonymizeAuthor` | 8 | `lib/test/author/privacy_test.go` (counters, dry run, erased flag, lastSeen, idempotent, unknown author) |
+| `api/anonymizeAuthor` | 3 | `lib/test/api/legacy/anonymize_test.go` (gated by `gdprAuthorErasure.enabled` like lite); the REST API (`POST /admin/api/author/:authorId/anonymize?dryRun=true`) is admin-only and not gated |
+| `admin/anonymizeAuthorSocket` | 7 | `lib/test/ws/admin_authors_test.go`, `playwright/admin-spec/admin_authors.spec.ts` |
+| `admin/authorSearch` | 6 | `lib/test/ws/admin_authors_test.go` (pattern, sort by name/lastSeen, paging, include erased, cap) |
+| `tokenTransfer` | 10 | `lib/api/tokentransfer/tokentransfer_test.go`, `ui/src/js/tokenTransfer.test.ts`, `playwright/specs/token_transfer.spec.ts`; the prefs live in localStorage, so the client sends them in the body |
 | `specialpages` | 14 | `lib/test/api/static/page_head_test.go` (theme-color, dark-mode pre-paint, `/javascript`), `proxy_path_test.go` (pages with x-proxy-path) |
 | `favicon` | 6 | `lib/test/api/static/favicon_test.go` |
 | `i18n` | 1 | `lib/hooks/i18n_sort_test.go` |
@@ -109,6 +111,36 @@ upstream cases the Go tests cover and which are missing.
 | `new/sanitizeProxyPath` | 26 | `lib/utils/proxy_path_test.go` |
 | `new/timesliderReturnUrl` | 5 | `ui/src/js/timesliderReturnUrl.test.ts` |
 | `new/SkinColors` | 5 | `lib/skin/colors_test.go` |
+| `socialMeta` | 15 | `lib/test/api/static/social_meta_test.go` |
+| `socialMeta-unit` | 37 | `lib/socialmeta/socialMeta_test.go` |
+| `new/sanitizePathname` | 4 | `lib/api/static/plugin_static_test.go` (`TestAdminLocaleName`, with the Windows cases; plugin assets in `TestPluginStaticFiles`) |
+| `new/getHomeUrl` | 3 | `ui/src/js/getHomeUrl.test.ts` |
+| `new/prom-instruments` | 5 | `lib/metrics/scaling_test.go`, `lib/test/api/stats/metrics_test.go` |
+| `new/updater/versionCompare` | 18 | `lib/updater/parity_pure_test.go` |
+| `new/updater/refSafety` | 9 | `lib/updater/parity_pure_test.go` (git ref forms have no counterpart: the tag goes into a release URL) |
+| `new/updater/MaintenanceWindow` | 22 | `lib/updater/parity_pure_test.go` (with a DST case) |
+| `new/updater/UpdatePolicy` | 15 | `lib/updater/parity_pure_test.go`; autonomous without a valid window keeps auto off, unlike lite |
+| `new/updater/state` | 32 | `lib/updater/parity_state_test.go`; no email fields (etherpad-go sends no mail) |
+| `new/updater/lock` | 8 | `lib/updater/parity_lock_test.go` |
+| `new/updater/InstallMethodDetector` | 6 | `lib/updater/parity_install_test.go` (binary, container incl. Kubernetes, managed instead of git/npm) |
+| `new/updater/preflight` | 22 | `lib/updater/parity_preflight_test.go`; the git, pnpm and Node engine checks have no counterpart for a single binary |
+| `new/updater/VersionChecker` | 8 | `lib/updater/versionchecker_test.go` |
+| `new/updater/Scheduler` | 29 | `lib/updater/parity_scheduler_test.go`, `updater_test.go` (resume after restart); no grace-start emails |
+| `new/updater/trustedKeys` | 6 | `lib/updater/executor_test.go` (ed25519 over the checksums instead of git verify-tag) |
+| `new/updater/Notifier` | 13 | `lib/updater/notifier_test.go` (with the mails the updater sends) |
+| `new/updater/smtpTransportKey` | 5 | `lib/mail/mail_test.go` |
+| `new/updater/updateLog` | 11 | `lib/updater/updatelog_test.go` |
+| `new/updater/SessionDrainer` | 8 | `lib/updater/executor_test.go`, `updater_test.go` (`TestDrainerShortWindow`, cancel) |
+| `new/updater/RollbackHandler` | 10 | `lib/updater/updater_test.go`, `integration_test.go` (binary backup instead of git checkout + pnpm) |
+| `new/updater/UpdateExecutor` | 7 | `lib/updater/executor_test.go`, `integration_test.go` (download, checksum, atomic swap) |
+| `new/updater/applyPipeline` | 14 | `lib/updater/updater_test.go`, `integration_test.go` |
+| `new/hooks/express/updateStatus` | 9 | `lib/api/versionstatus/versionstatus_test.go`, `ui/src/js/pad_outdated_notice.test.ts` |
+| `new/privacy/updateCheck-optout` | 2 | `tier: off` is the opt-out: no check, no `/api/version-status` |
+| `updateActions` | 18 | `lib/updater/updater_test.go` (cancel, acknowledge, busy, stale verification); the actions are admin websocket events, `playwright/admin-spec/admin_updates.spec.ts` |
+| `updateStatus` | 6 | the status is an admin websocket event (admin only, so nothing to redact); `lib/updater/updater_test.go` |
+| `updater-integration` | 5 | `lib/updater/integration_test.go` (fake GitHub, check to verified or rolled back) |
+| `updater-scheduler-integration` | 2 | `lib/updater/integration_test.go` (a schedule across a restart) |
+| `updater-window-integration` | 4 | `lib/updater/integration_test.go` (autonomous waits for its window) |
 ## Partly ported
 
 | Spec | Cases | State |
@@ -127,86 +159,12 @@ serve them as long as a pad with exactly that id exists. `/p/a:b` and `/p/a b` r
 `/p/a_b` when no such pad exists. Unlike upstream, the HTTP API also serves existing `:` pads
 (upstream's `getPadSafe` refuses them), so no stored pad becomes unreachable through the API.
 
-## To compare case by case
-
-### Changeset core
-
-Existing Go tests in this area: `lib/changeset`, `lib/apool`
-
-| Spec | Cases | Note |
-|---|---|---|
-
-### HTTP API
-
-Existing Go tests in this area: `lib/test/api/*`, `lib/api/pad`
-
-| Spec | Cases |
-|---|---|
-| `downstream/wire-socket-sequence` | 2 |
-| `downstream/wire-vectors` | 2 |
-
-### Authors and privacy
-
-Existing Go tests in this area: `lib/test/author`, `lib/test/api/author`
-
-| Spec | Cases | Note |
-|---|---|---|
-| `anonymizeAuthor` | 8 | anonymization exists (`lib/test/author`), but returns no counters, has no dry run, no erased flag and no lastSeen |
-| `api/anonymizeAuthor` | 3 | see anonymizeAuthor; the API has no gdprAuthorErasure switch (admin API only) |
-| `admin/anonymizeAuthorSocket` | 7 | the admin UI has no author management (authorLoad, preview, anonymize) |
-| `admin/authorSearch` | 6 | see admin/anonymizeAuthorSocket |
-| `tokenTransfer` | 10 | etherpad-go has no token transfer (moving an author's identity to another browser) |
-
-### Pages, paths, metadata
-
-Existing Go tests in this area: `lib/test/api/static`, `lib/test/api/stats`, `lib/utils`
-
-| Spec | Cases |
-|---|---|
-| `socialMeta` | 15 |
-| `socialMeta-unit` | 37 |
-| `new/sanitizePathname` | 4 |
-| `new/getHomeUrl` | 3 |
-| `new/path_exists` | 3 |
-| `new/takeOverSignal` | 2 |
-| `new/prom-instruments` | 5 |
-
-### Updater
-
-Existing Go tests in this area: `lib/updater`, `lib/server/update_test.go` (Go has its own updater design)
-
-| Spec | Cases |
-|---|---|
-| `new/hooks/express/updateStatus` | 9 |
-| `new/privacy/updateCheck-optout` | 2 |
-| `new/updater/InstallMethodDetector` | 6 |
-| `new/updater/MaintenanceWindow` | 22 |
-| `new/updater/Notifier` | 13 |
-| `new/updater/RollbackHandler` | 10 |
-| `new/updater/Scheduler` | 29 |
-| `new/updater/SessionDrainer` | 8 |
-| `new/updater/UpdateExecutor` | 7 |
-| `new/updater/UpdatePolicy` | 15 |
-| `new/updater/VersionChecker` | 8 |
-| `new/updater/applyPipeline` | 14 |
-| `new/updater/lock` | 8 |
-| `new/updater/preflight` | 22 |
-| `new/updater/refSafety` | 9 |
-| `new/updater/smtpTransportKey` | 5 |
-| `new/updater/state` | 32 |
-| `new/updater/trustedKeys` | 6 |
-| `new/updater/updateLog` | 11 |
-| `new/updater/versionCompare` | 18 |
-| `updateActions` | 18 |
-| `updateStatus` | 6 |
-| `updater-integration` | 5 |
-| `updater-scheduler-integration` | 2 |
-| `updater-window-integration` | 4 |
-
 ## Not applicable to Go
 
 | Spec | Cases | Why |
 |---|---|---|
+| `new/path_exists` | 3 | a Node helper; Go uses `os.Stat` |
+| `new/takeOverSignal` | 2 | replaces Node signal listeners; Go receives signals on channels (`signal.Notify`) |
 | `timesliderRedirect` | 3 | the timeslider is its own page at /p/:pad/timeslider, there is no redirect to a #timeslider hash |
 | `security` | 12 | tests the Node `security` package for plugins; Go plugins use Go's html escaping |
 | `sessionFixation` | 3 | there is no server-side login session to fixate: Basic credentials are checked per request, the admin UI uses OIDC tokens |

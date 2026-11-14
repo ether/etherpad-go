@@ -5,6 +5,8 @@ import { Toast } from '@/components/Toast'
 import { OverviewPage } from '@/pages/Overview'
 import { PadsPage } from '@/pages/Pads'
 import { ApiKeysPage } from '@/pages/ApiKeys'
+import { UpdatesPage } from '@/pages/Updates'
+import { AuthorsPage } from '@/pages/Authors'
 import { BroadcastPage } from '@/pages/Broadcast'
 import { SettingsPage } from '@/pages/Settings'
 import { MonitoringPage } from '@/pages/Monitoring'
@@ -42,6 +44,8 @@ function AuthenticatedApp({ token }: { token: string }) {
             <Route path="/pads" element={<PadsPage />} />
             <Route path="/broadcast" element={<BroadcastPage />} />
             <Route path="/keys" element={<ApiKeysPage />} />
+            <Route path="/updates" element={<UpdatesPage />} />
+            <Route path="/authors" element={<AuthorsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

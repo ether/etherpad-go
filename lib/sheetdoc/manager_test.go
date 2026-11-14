@@ -70,3 +70,47 @@ func TestManagerReloadRebasesStaleOp(t *testing.T) {
 		t.Fatalf("stale op not rebased after reload: %+v", wb.SheetByID(DefaultSheetID).Cells)
 	}
 }
+
+// A client that resends an op after a reconnect (same cid) must not get it
+// applied twice; the cid survives a reload from the store.
+func TestManagerSubmitOnceDropsResentOp(t *testing.T) {
+	store := db.NewMemoryDataStore()
+	m := NewManager(store)
+	ins := sheet.Op{Type: sheet.OpInsertRows, Sheet: DefaultSheetID, Index: 0, Count: 1, Cid: "c1:1"}
+	_, rev, dup, err := m.SubmitOnce("p1", ins, nil, 1)
+	if err != nil || rev != 1 || dup {
+		t.Fatalf("first submit: rev %d dup %v err %v", rev, dup, err)
+	}
+	other := sheet.Op{Type: sheet.OpSetCell, Sheet: DefaultSheetID, Raw: strptr("x"), BaseRev: 1, Cid: "c2:1"}
+	if _, _, _, err := m.SubmitOnce("p1", other, nil, 2); err != nil {
+		t.Fatal(err)
+	}
+
+	// Reloaded from the store, as after a restart or on another instance.
+	m2 := NewManager(store)
+	stored, rev, dup, err := m2.SubmitOnce("p1", ins, nil, 3)
+	if err != nil || !dup || rev != 1 || stored.Cid != "c1:1" {
+		t.Fatalf("resend: rev %d dup %v cid %q err %v", rev, dup, stored.Cid, err)
+	}
+	_, head, err := m2.Snapshot("p1")
+	if err != nil || head != 2 {
+		t.Fatalf("head %d (want 2, the resend changes nothing), err %v", head, err)
+	}
+	ops, err := m2.OpsSince("p1", 0)
+	if err != nil || len(ops) != 2 || ops[0].Cid != "c1:1" || ops[1].Cid != "c2:1" {
+		t.Fatalf("ops since 0: %+v %v", ops, err)
+	}
+
+	// Without a cid nothing is deduplicated.
+	_, rev, dup, err = m2.SubmitOnce("p1", sheet.Op{Type: sheet.OpInsertRows, Sheet: DefaultSheetID, Index: 0, Count: 1, BaseRev: 2}, nil, 4)
+	if err != nil || dup || rev != 3 {
+		t.Fatalf("op without cid: rev %d dup %v err %v", rev, dup, err)
+	}
+}
+
+func TestOpCidIsBounded(t *testing.T) {
+	op := sheet.Op{Type: sheet.OpInsertRows, Sheet: DefaultSheetID, Count: 1, Cid: string(make([]byte, sheet.MaxCidLength+1))}
+	if op.Validate() == nil {
+		t.Fatal("an overlong cid must be refused")
+	}
+}

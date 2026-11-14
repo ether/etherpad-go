@@ -35,6 +35,8 @@ const (
 	KindDeleted Kind = "deleted"
 	// KindAll: send Payload to every client.
 	KindAll Kind = "all"
+	// KindErased: author Author was erased; close its sessions.
+	KindErased Kind = "erased"
 )
 
 // Event is one message between instances.

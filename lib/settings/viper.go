@@ -12,6 +12,7 @@ import (
 
 func ReadConfig() (*Settings, error) {
 	viper.Reset()
+	ignoreServiceLinkPort()
 
 	viper.SetEnvPrefix("etherpad")
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
@@ -101,5 +102,17 @@ func applyNestedEnv(environ []string) {
 			continue
 		}
 		viper.Set(strings.Join(parts, "."), v)
+	}
+}
+
+// ignoreServiceLinkPort drops ETHERPAD_PORT when Kubernetes set it, not the
+// admin: for a Service named "etherpad" every pod in the namespace gets
+// ETHERPAD_PORT=tcp://<cluster ip>:<port> (service links), which would be
+// read as the port to listen on. A real port is a number.
+func ignoreServiceLinkPort() {
+	v := os.Getenv(EnvVar(Port))
+	if strings.HasPrefix(v, "tcp://") || strings.HasPrefix(v, "udp://") || strings.HasPrefix(v, "sctp://") {
+		fmt.Fprintf(os.Stderr, "ignoring %s=%s: set by Kubernetes for a Service named etherpad (service links), not a port; set enableServiceLinks: false in the pod spec to avoid it\n", EnvVar(Port), v)
+		_ = os.Unsetenv(EnvVar(Port))
 	}
 }

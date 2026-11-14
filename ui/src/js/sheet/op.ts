@@ -48,6 +48,10 @@ export interface Op {
   // setFreeze (0 or 1 each)
   frozenRows?: number;
   frozenCols?: number;
+  // The sending client's id for the op ("<client>:<seq>"). The server stores
+  // it, so a client that lost the acknowledgement in a reconnect finds its op
+  // again, and a resent op is not applied twice.
+  cid?: string;
 }
 
 // serializeOp produces the JSON the Go server unmarshals into sheet.Op.

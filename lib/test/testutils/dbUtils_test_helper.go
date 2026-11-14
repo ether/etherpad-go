@@ -217,9 +217,7 @@ func (test *TestDBHandler) StartTestDBHandler() {
 // finishes. Skips the test when EP_TEST_SKIP_SQL_SERVERS is set.
 func newSQLDataStore(t *testing.T, kind testdb.Kind) db.DataStore {
 	t.Helper()
-	if testdb.SkipSQLServers() {
-		t.Skipf("%s skipped: EP_TEST_SKIP_SQL_SERVERS is set", kind)
-	}
+	testdb.SkipIfDisabled(t, kind)
 	pool := databasePools[kind]
 	name := pool.borrow(t, kind)
 
@@ -256,6 +254,8 @@ func openDataStore(server *testdb.Server, name string) (db.DataStore, error) {
 			Host:     server.Host,
 			Port:     server.Port,
 			MaxConns: testDBMaxConns,
+			// Through PgBouncer in CI's pgbouncer job.
+			PgBouncer: testdb.PgBouncer(),
 		})
 	}
 	return db.NewMySQLDB(db.MySQLOptions{

@@ -110,6 +110,44 @@ a warning and runs without it; with `mode: on` it refuses to start.
 **SQLite and the memory store** are for single instances. Running several
 processes on one SQLite file is not supported.
 
+## Connection pooling (PgBouncer)
+
+Each instance opens up to `dbSettings.maxConnections` connections for queries
+(default 25) and up to half as many plus two more for locks: 12 for pad
+locks and 2 for leader jobs and migrations at the default, so 39 in all. A
+lock holds its connection for as long as the pad is locked.
+
+Instances can share PostgreSQL through PgBouncer in **transaction mode**. Set
+`dbSettings.pgBouncer` to `true` (`ETHERPAD_DBSETTINGS_PGBOUNCER=true`) and
+point `dbSettings.host`/`port` at PgBouncer:
+
+* **No named prepared statements.** pgx then caches only the parameter and
+  result types (`QueryExecModeCacheDescribe`). Every query runs with the
+  unnamed statement, which lives only for that query. A named statement
+  would stay on a server connection that PgBouncer gives to other clients
+  next. With PgBouncer 1.21+ and `max_prepared_statements` above 0, the
+  setting is not needed, but it does no harm.
+* **Locks need no setting.** Pad locks, leader jobs and the migration lock
+  are transaction-level advisory locks (`pg_advisory_xact_lock`) held in an
+  open transaction. While a transaction runs, PgBouncer keeps the server
+  connection for this client, so a lock cannot end up on someone else's
+  connection. Directly on PostgreSQL this behaves the same.
+* **Pool size.** A held lock takes one PgBouncer server connection.
+  `default_pool_size` (per database and user) must therefore be at least
+  `instances × (maxConnections + maxConnections/2 + 2)`. With fewer, lock
+  holders wait for query connections that the other lock holders keep busy,
+  until the lock timeout (30 s). Example: 3 instances with `maxConnections`
+  10 need a pool of 3 × 17 = 51.
+* **Timeouts.** A leader holds its lock in a long open transaction. Leave
+  PgBouncer's `idle_transaction_timeout` and PostgreSQL's
+  `idle_in_transaction_session_timeout` at 0, or set them above a minute.
+  When they end the transaction, the leader notices, steps down, and an
+  instance takes the job over again.
+
+Session mode needs no setting. CI runs the PostgreSQL tests through PgBouncer
+in transaction mode with `max_prepared_statements = 0`
+(`EP_TEST_POSTGRES_PGBOUNCER=1`).
+
 ## Kubernetes
 
 Requirements:
@@ -118,9 +156,10 @@ Requirements:
 * Pods can reach each other on `7946/TCP` and `7946/UDP` (default in most
   clusters; allow it explicitly if you use NetworkPolicies).
 * `POD_IP` set through the downward API, so each pod advertises its own IP.
-* Enough database connections: each pod uses up to 25 for its work plus up to
-  14 for locks (pad locks, leader lock, migrations), so plan for about 40 per
-  pod in `max_connections`.
+* Enough database connections: each pod uses up to `dbSettings.maxConnections`
+  (25) for its work plus up to 14 for locks (pad locks, leader lock,
+  migrations), so plan for about 40 per pod in `max_connections`, or see
+  "Connection pooling" for PgBouncer.
 * `terminationGracePeriodSeconds` longer than `cluster.shutdownDelaySeconds`
   plus a few seconds (the default 30 is fine).
 
@@ -141,6 +180,10 @@ spec:
       labels: { app: etherpad }
     spec:
       terminationGracePeriodSeconds: 30
+      # Without it, Kubernetes puts ETHERPAD_PORT=tcp://... (for the Service
+      # "etherpad") into the environment, which looks like a setting.
+      # etherpad-go ignores that value, but other ETHERPAD_* links stay.
+      enableServiceLinks: false
       containers:
         - name: etherpad
           image: ghcr.io/ether/etherpad-go:develop
@@ -241,7 +284,10 @@ database; check the release notes of versions with schema changes.
   writes through several instances at once and reports commit latency,
   cross-pod latency and whether any accepted change was lost, duplicated or
   diverged (`lost: 0, duplicated: 0, divergent instances: []`). Add
-  `-prefill 1000000` to test a 1 MB pad.
+  `-prefill 1000000` to test a 1 MB pad. Start the instances with
+  `ETHERPAD_LOADTEST=true` for the benches: all their authors come from one
+  IP, and `commitRateLimiting` (10 commits per second and IP) would stop
+  them otherwise.
 
 ## What changes in a cluster
 
@@ -297,20 +343,63 @@ etherpad-go killbench -victim http://127.0.0.1:9101 -survivors http://127.0.0.1:
   -victim-pid <pid of the first instance> -authors 8 -duration 15s -kill-after 5s
 ```
 
-It runs against local processes (it kills by process id). On a test machine
-with PostgreSQL, 8 authors and about 1,150 changes per run, nothing was lost
-or duplicated and the longest wait for an acknowledgement across the kill was
-about 0.3-0.4 s.
+With `-kill-cmd` a shell command stops the victim instead, e.g.
+`kill -TERM <pid>` for a graceful shutdown or `kubectl delete pod <name>`
+(see "Testing on Kubernetes"). As with clusterbench, the instances need
+`ETHERPAD_LOADTEST=true`. On a test machine with PostgreSQL, 8 authors and
+about 1,000 changes per run, nothing was lost or duplicated, with SIGKILL as
+with SIGTERM; the longest wait for an acknowledgement across the kill was
+0.15-0.2 s.
+
+A client over the rate limit gets `disconnect: rateLimited`, as in
+etherpad-lite, and the pad shows it. Before, the commit was dropped
+silently and the client waited for its acknowledgement for ever.
+
+## Testing on Kubernetes
+
+`test/kubernetes/run.sh` tests the deployment above on a real cluster (CI:
+the `kubernetes` job, on kind): three replicas and PostgreSQL come up and
+see each other; clusterbench writes through two pods; the two-instance
+browser specs run against two different pods; killbench deletes a pod the
+normal way (SIGTERM, drain) and one with `--grace-period=0 --force` while
+8 authors type through it; a rolling restart keeps the pad text, and the
+new pods form a cluster again. Locally, with kind and the image built:
+
+```
+kind create cluster --name ep --config test/kubernetes/kind.yaml
+docker build -t etherpad-go:k8s-test . && kind load docker-image etherpad-go:k8s-test --name ep
+go build -o etherpad-go . && test/kubernetes/run.sh ./etherpad-go   # RUN_PLAYWRIGHT=1 adds the browser specs
+```
+
+## Testing two instances in the browser
+
+`playwright/cluster-spec` runs the browser tests against two instances on one
+PostgreSQL database: edits, chat, names, pad-wide settings and sheet edits of a
+user on one instance reach a user on the other. CI runs them in the
+`playwright-cluster` job. Locally, with a database `etherpad_cluster` that the
+user `etherpad` (password `etherpad`) owns:
+
+```
+go build -o etherpad-go .
+playwright/cluster-spec/start.sh ./etherpad-go /tmp/cluster-logs   # ports 9001 and 9002
+cd playwright && npx playwright test -c cluster.config.ts
+```
+
+`EP_PG_HOST`, `EP_PG_PORT`, `EP_PG_DB`, `EP_PG_USER` and `EP_PG_PASSWORD` select
+another database; `PW_CHANNEL=chrome` uses an installed Chrome.
+
+## Sheet edits across reconnects
+
+A sheet edit that is in flight when the connection breaks is not lost. Each
+edit carries a client id that is stored with it. After the reconnect the
+server replays the edits the browser missed: if its own edit is among them,
+only the acknowledgement was lost; if not, the browser sends it again, and the
+server drops a second copy by its id. Edits made while offline wait in the
+browser and are sent afterwards. This works on any instance, as the replay
+comes from the database.
 
 ## Current limitations
 
-* **Sheets: edits in flight when the connection breaks.** Acknowledged sheet
-  edits are always stored. But after a reconnect the sheet client in the
-  browser starts again from the stored state and drops edits that were not
-  acknowledged yet (also on a single instance, at any network interruption).
-  Pads do not have this gap: their client sends such changes again.
 * **User counts** in the admin statistics are per pod.
-* **Database connections.** The pool sizes are not configurable yet (25 work
-  connections plus up to 14 for locks per pod).
 * **Mixed versions during a rollout.** Old and new pods briefly share the
   database; check the release notes of versions with schema changes.

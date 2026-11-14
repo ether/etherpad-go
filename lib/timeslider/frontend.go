@@ -24,7 +24,7 @@ func HandleTimesliderOpen(c fiber.Ctx, uiAssets embed.FS, retrievedSettings *set
 
 	jsFilePath := "../../js/timeslider/assets/timeslider.js?v=" + utils.RandomVersionString
 
-	padName := c.Params("pad")
+	padName := utils.PadParam(c)
 	scheme := "http"
 	if c.Scheme() == "https" {
 		scheme = "https"
@@ -52,7 +52,7 @@ func HandleTimesliderOpen(c fiber.Ctx, uiAssets embed.FS, retrievedSettings *set
 			DescriptionOverride: retrievedSettings.SocialMeta.Description,
 		},
 		AvailableLangs: availableLangsSet,
-		Locales:        hooks.AllLocales,
+		Locales:        hooks.AllLocales(),
 		Kind:           socialmeta.KindTimeslider,
 		PadName:        padName,
 	})

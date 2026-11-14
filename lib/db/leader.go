@@ -75,7 +75,10 @@ func (d SQLiteDB) TryLeadership(name string) (Leadership, bool, error) {
 	return d.leaders.try(name)
 }
 
-// Postgres: a session-level advisory lock on a dedicated connection.
+// Postgres: a transaction-level advisory lock in a transaction held open on
+// a dedicated connection (see lockOne for why not a session lock). The open
+// transaction only ran SELECTs in READ COMMITTED, so it holds no snapshot and
+// does not hold back vacuum.
 
 type pgLeadership struct {
 	release func()
@@ -93,14 +96,26 @@ func (d PostgresDB) TryLeadership(name string) (Leadership, bool, error) {
 	if err != nil {
 		return nil, false, err
 	}
-	key := advisoryLockKey(leaderLockName(name))
-	var got bool
-	if err := conn.QueryRow(ctx, `SELECT pg_try_advisory_lock($1)`, key).Scan(&got); err != nil {
+	drop := func() {
+		_ = conn.Conn().Close(context.Background())
 		conn.Release()
-		return nil, false, fmt.Errorf("pg_try_advisory_lock: %w", err)
+	}
+	tx, err := conn.Begin(ctx)
+	if err != nil {
+		drop()
+		return nil, false, fmt.Errorf("begin leader transaction: %w", err)
+	}
+	var got bool
+	if err := tx.QueryRow(ctx, `SELECT pg_try_advisory_xact_lock($1)`, advisoryLockKey(leaderLockName(name))).Scan(&got); err != nil {
+		drop()
+		return nil, false, fmt.Errorf("pg_try_advisory_xact_lock: %w", err)
 	}
 	if !got {
-		conn.Release()
+		if err := tx.Rollback(ctx); err != nil {
+			drop()
+		} else {
+			conn.Release()
+		}
 		return nil, false, nil
 	}
 	var mu sync.Mutex
@@ -114,9 +129,10 @@ func (d PostgresDB) TryLeadership(name string) (Leadership, bool, error) {
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), leaderQueryTimeout)
 			defer cancel()
-			// The lock lives as long as this connection; if the
-			// connection is broken, the lock is gone.
-			if err := conn.Ping(ctx); err != nil {
+			// The lock lives as long as this transaction; if it was
+			// ended (connection broken, idle-in-transaction timeout),
+			// the lock is gone.
+			if _, err := tx.Exec(ctx, `SELECT 1`); err != nil {
 				lost = true
 				_ = conn.Conn().Close(context.Background())
 				return err
@@ -126,10 +142,12 @@ func (d PostgresDB) TryLeadership(name string) (Leadership, bool, error) {
 		release: func() {
 			mu.Lock()
 			defer mu.Unlock()
-			if !lost {
-				if _, err := conn.Exec(context.Background(), `SELECT pg_advisory_unlock($1)`, key); err != nil {
-					_ = conn.Conn().Close(context.Background())
-				}
+			if lost {
+				conn.Release()
+				return
+			}
+			if err := tx.Rollback(context.Background()); err != nil {
+				_ = conn.Conn().Close(context.Background())
 			}
 			conn.Release()
 		},

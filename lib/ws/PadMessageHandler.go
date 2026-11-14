@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/ether/etherpad-go/lib/metrics"
 	"github.com/ether/etherpad-go/lib/models/ws/admin"
 	"math"
 	"regexp"
@@ -155,6 +156,8 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 	if padID == "" {
 		return
 	}
+	// The apply path only (to the stored revision), not the fan-out.
+	stopApplyTimer := metrics.RecordChangesetApply()
 	// Rebase + append + broadcast must not interleave with other writers.
 	unlock, err := p.padManager.LockPad(padID)
 	if err != nil {
@@ -400,6 +403,7 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 		return
 	}
 	finalRev := *newRev
+	stopApplyTimer()
 
 	// Mirror the original's _correctMarkersInPad: if the accepted revision
 	// left line markers (e.g. list bullets) that are not at the start of a
@@ -529,7 +533,7 @@ func (p *PadMessageHandler) HandleMessage(message any, client *Client, retrieved
 			// The pad that opens (and whose access is checked) is the
 			// sanitized one: "foo bar" opens "foo_bar", and with
 			// lowerCasePadIds "Foo" opens "foo".
-			thisSession.PadId = padId
+			p.SessionStore.setPadId(client.SessionId, padId)
 			thisSession.Auth.PadId = padId
 		}
 
@@ -1057,6 +1061,13 @@ func (p *PadMessageHandler) SendChatMessageToPadClients(session *ws.Session, cha
 		return
 	}
 	defer unlock()
+	// An erased author's session that was still connected must not tie new
+	// chat to the author again. Checked under the pad lock, which erasing
+	// the author's chat also takes per pad.
+	if chatMessage.AuthorId != nil && p.authorManager.IsErased(*chatMessage.AuthorId) {
+		p.disconnectAuthorLocal(*chatMessage.AuthorId)
+		return
+	}
 	retrievedPad, err := p.padManager.GetPad(session.PadId, nil, chatMessage.AuthorId)
 	if err != nil {
 		p.Logger.Warn("Error retrieving pad for chat message", err)
@@ -1094,6 +1105,7 @@ func (p *PadMessageHandler) SendChatMessageToPadClients(session *ws.Session, cha
 
 	var marshalledMessage, _ = json.Marshal(arr)
 	p.broadcastToRoom(session.PadId, marshalledMessage, "")
+	metrics.RecordSocketEmit("CHAT_MESSAGE")
 }
 
 // BroadcastSystemChatToRoom sends a chat message to all clients in a pad room without saving to the database.
@@ -1110,6 +1122,7 @@ func (p *PadMessageHandler) BroadcastSystemChatToRoom(padId string, message map[
 	}
 	var marshalled, _ = json.Marshal(arr)
 	p.broadcastToRoom(padId, marshalled, "")
+	metrics.RecordSocketEmit("CHAT_MESSAGE")
 }
 
 // setDeletionClientVars fills the pad-deletion fields of CLIENT_VARS like
@@ -1551,7 +1564,7 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 	if ready.Data.Reconnect != nil && *ready.Data.Reconnect {
 		// This is a reconnect - the client already has the pad content
 		// We need to send any changesets the client missed while disconnected
-		thisSession.PadId = retrievedPad.Id
+		p.SessionStore.setPadId(client.SessionId, retrievedPad.Id)
 
 		// Get the client's current revision
 		clientRev := 0
@@ -1725,7 +1738,7 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 			}
 		}
 		// Join the pad and start receiving updates
-		thisSession.PadId = retrievedPad.Id
+		p.SessionStore.setPadId(client.SessionId, retrievedPad.Id)
 		// Send the clientVars to the Client
 		client.SafeSend(encoded)
 		// Save the current revision in sessioninfos, should be the same as in clientVars
@@ -1923,6 +1936,7 @@ func (p *PadMessageHandler) updatePadClients(pad *pad2.Pad, only *Client) {
 			}
 
 			socket.SafeSend(marshalledMessage)
+			metrics.RecordSocketEmit("NEW_CHANGES")
 			sessionInfo.Time = currentTime
 			sessionInfo.Revision = r
 		}
@@ -1946,6 +1960,7 @@ func (p *PadMessageHandler) SendCustomMessageToPad(padId string, msgType string)
 		return
 	}
 	p.broadcastToRoom(padId, encoded, "")
+	metrics.RecordSocketEmit(msgType)
 }
 
 // HandleClientMessage handles the COLLABROOM CLIENT_MESSAGE family,
@@ -1994,6 +2009,41 @@ func (p *PadMessageHandler) GetRoomSockets(padID string) []Client {
 	}
 	p.hub.ClientsRWMutex.RUnlock()
 	return sockets
+}
+
+// disconnectSession tells one client why and closes its connection.
+func (p *PadMessageHandler) disconnectSession(client *Client, reason string) {
+	sendDisconnectMessage(client, reason)
+	if client.Conn != nil {
+		_ = client.Conn.Close()
+	}
+}
+
+// DisconnectAuthor closes the connections of an erased author's sessions on
+// every instance, so none of them can write the identity back.
+func (p *PadMessageHandler) DisconnectAuthor(authorID string) {
+	p.disconnectAuthorLocal(authorID)
+	p.publish(cluster.Event{Kind: cluster.KindErased, Author: authorID})
+}
+
+func (p *PadMessageHandler) disconnectAuthorLocal(authorID string) {
+	if authorID == "" {
+		return
+	}
+	var victims []*Client
+	p.hub.ClientsRWMutex.RLock()
+	for k := range p.hub.Clients {
+		if k == nil || k.SessionId == "" {
+			continue
+		}
+		if s := p.SessionStore.getSession(k.SessionId); s != nil && s.Author == authorID {
+			victims = append(victims, k)
+		}
+	}
+	p.hub.ClientsRWMutex.RUnlock()
+	for _, k := range victims {
+		p.disconnectSession(k, "kicked")
+	}
 }
 
 func (p *PadMessageHandler) KickSessionsFromPad(padID string) {

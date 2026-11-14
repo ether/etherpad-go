@@ -211,9 +211,9 @@ const suppressDeletionTokenDialog = async (page: Page) => {
     });
 };
 
-const navigateToPad = async (page: Page, padId: string) => {
+const navigateToPad = async (page: Page, padId: string, base = 'http://localhost:9001') => {
     await suppressDeletionTokenDialog(page);
-    const padUrl = `http://localhost:9001/p/${padId}`;
+    const padUrl = `${base}/p/${padId}`;
     for (let attempt = 0; attempt < 3; attempt++) {
         try {
             await page.goto(padUrl, { waitUntil: 'domcontentloaded', timeout: PAD_TIMEOUT });
@@ -233,14 +233,15 @@ const navigateToPad = async (page: Page, padId: string) => {
     }
 };
 
-export const goToNewPad = async (page: Page) => {
+export const goToNewPad = async (page: Page, base?: string) => {
     const padId = "FRONTEND_TESTS" + randomUUID();
-    await navigateToPad(page, padId);
+    await navigateToPad(page, padId, base);
     return padId;
 }
 
-export const goToPad = async (page: Page, padId: string) => {
-    await navigateToPad(page, padId);
+// base selects the instance (the cluster specs run two).
+export const goToPad = async (page: Page, padId: string, base?: string) => {
+    await navigateToPad(page, padId, base);
 }
 
 export const clearPadContent = async (page: Page) => {

@@ -102,6 +102,7 @@ type UpdateState struct {
 	Execution     Execution    `json:"execution"`
 	BootCount     int          `json:"bootCount"`
 	LastResult    *LastResult  `json:"lastResult,omitempty"`
+	Email         EmailLog     `json:"email"`
 }
 
 // EmptyState returns the initial state for a fresh install or unreadable file.

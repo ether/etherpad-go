@@ -99,6 +99,31 @@ templ Page(settings *settings.Settings, translations map[string]string, socialMe
 						<div class="kicker">{tr(translations, "index.recent", "Recently edited")}</div>
 						<div id="recentList"></div>
 					</section>
+					<details class="transfer" id="transferSection">
+						<summary>{tr(translations, "index.transferSessionTitle", "Transfer session")}</summary>
+						<div class="transfer-grid">
+							<div class="transfer-box">
+								<h3>{tr(translations, "index.transferSessionTitle", "Transfer session")}</h3>
+								<p>{tr(translations, "index.transferSessionDescription", "Transfer your current session to another browser or device.")}</p>
+								<button type="button" class="btn-dark" id="transferNow">{tr(translations, "index.transferSessionNow", "Transfer session now")}</button>
+								<div id="transferResult" hidden>
+									<label class="transfer-label" for="transferCode">{tr(translations, "index.code", "Transfer code")}</label>
+									<input type="text" id="transferCode" readonly/>
+									<p>{tr(translations, "index.transferToSystemDescription", "Open the copied link in the target browser or device to transfer your session.")}</p>
+									<button type="button" class="btn-light" id="copyTransferLink">{tr(translations, "index.copyLinkButton", "Copy link to clipboard")}</button>
+								</div>
+								<p class="transfer-error" id="transferError" role="alert" hidden>{tr(translations, "index.sessionTransferError", "The session could not be transferred. Please try again.")}</p>
+							</div>
+							<form class="transfer-box" id="receiveForm">
+								<h3>{tr(translations, "index.receiveSessionTitle", "Receive session")}</h3>
+								<p>{tr(translations, "index.receiveSessionDescription", "Receive an Etherpad session from another browser or device. This replaces your current session.")}</p>
+								<label class="transfer-label" for="codeInput">{tr(translations, "index.code", "Transfer code")}</label>
+								<input type="text" id="codeInput" autocomplete="off" spellcheck="false"/>
+								<button type="submit" class="btn-dark" id="receiveButton" disabled>{tr(translations, "index.receiveSessionTitle", "Receive session")}</button>
+								<p class="transfer-error" id="receiveError" role="alert" hidden>{tr(translations, "index.sessionTransferError", "The session could not be transferred. Please try again.")}</p>
+							</form>
+						</div>
+					</details>
 				</div>
 			</main>
 			<script type="module" src={"js/welcome/assets/welcome.js?v=" + utils.RandomVersionString}></script>

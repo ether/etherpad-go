@@ -79,7 +79,12 @@ func (a *API) call(function string, p args) (any, *apiError) {
 		if e != nil {
 			return nil, e
 		}
-		return field(data, "authorName"), nil
+		// An author without a name (never named, or erased) has null, as
+		// in etherpad-lite; the REST API answers "".
+		if name := field(data, "authorName"); name != "" && name != nil {
+			return name, nil
+		}
+		return nil, nil
 	case "listPadsOfAuthor":
 		data, e := a.rest("GET", "/author/"+esc(p["authorID"])+"/pads", nil, nil, "authorID does not exist")
 		if e != nil {
@@ -90,10 +95,23 @@ func (a *API) call(function string, p args) (any, *apiError) {
 		}
 		return map[string]any{"padIDs": data}, nil
 	case "anonymizeAuthor":
+		// Opt-in, as in etherpad-lite: an API key should not be able to
+		// erase authors unless the operator decided so.
+		if !a.store.RetrievedSettings.GdprAuthorErasure.Enabled {
+			return nil, wrongParam("anonymizeAuthor is disabled — set gdprAuthorErasure.enabled = true in settings.json to enable GDPR Art. 17 erasure")
+		}
 		if p["authorID"] == "" {
 			return nil, wrongParam("authorID is required")
 		}
-		return a.rest("POST", "/author/"+esc(p["authorID"])+"/anonymize", nil, nil, "authorID does not exist")
+		data, e := a.rest("POST", "/author/"+esc(p["authorID"])+"/anonymize", nil, nil, "authorID does not exist")
+		if e != nil {
+			return nil, e
+		}
+		out := map[string]any{}
+		for _, k := range []string{"affectedPads", "removedTokenMappings", "removedExternalMappings", "clearedChatMessages"} {
+			out[k] = field(data, k)
+		}
+		return out, nil
 
 	// ── sessions ──
 	case "createSession":

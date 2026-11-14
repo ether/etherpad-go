@@ -53,6 +53,10 @@ func NewAdminMessageHandler(store db.DataStore, h *hooks.Hook, m *pad.Manager, p
 }
 
 func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrievedSettings *settings.Settings, c *Client) {
+	if isAuthorEvent(message.Event) {
+		h.handleAuthorEvent(message.Event, message.Data, retrievedSettings, c)
+		return
+	}
 	if isAPIKeyEvent(message.Event) {
 		h.handleAPIKeyEvent(message.Event, message.Data, c)
 		return
@@ -166,6 +170,45 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 			resp := make([]interface{}, 2)
 			resp[0] = "results:updateStatus"
 			resp[1] = h.updater.Status()
+			if responseBytes, err := json.Marshal(resp); err == nil {
+				c.SafeSend(responseBytes)
+			}
+		}
+	case "getUpdateLog":
+		{
+			if h.updater == nil {
+				h.Logger.Error("Updater not available")
+				return
+			}
+			resp := []any{"results:updateLog", map[string]any{"lines": h.updater.LogTail(200)}}
+			if responseBytes, err := json.Marshal(resp); err == nil {
+				c.SafeSend(responseBytes)
+			}
+		}
+	case "sendTestMail":
+		{
+			if h.updater == nil {
+				h.Logger.Error("Updater not available")
+				return
+			}
+			resp := []any{"results:sendTestMail", map[string]any{"ok": true}}
+			if err := h.updater.TestMail(); err != nil {
+				resp[1] = map[string]any{"ok": false, "error": err.Error()}
+			}
+			if responseBytes, err := json.Marshal(resp); err == nil {
+				c.SafeSend(responseBytes)
+			}
+		}
+	case "cancelUpdate":
+		{
+			if h.updater == nil {
+				h.Logger.Error("Updater not available")
+				return
+			}
+			resp := []any{"results:cancelUpdate", map[string]any{"ok": true}}
+			if err := h.updater.Cancel(); err != nil {
+				resp[1] = map[string]any{"ok": false, "error": err.Error()}
+			}
 			if responseBytes, err := json.Marshal(resp); err == nil {
 				c.SafeSend(responseBytes)
 			}

@@ -116,6 +116,8 @@ func (p *PadMessageHandler) onClusterEvent(e cluster.Event) {
 		p.padManager.UnloadPad(e.Pad)
 	case cluster.KindAll:
 		p.sendToAllLocal(e.Payload)
+	case cluster.KindErased:
+		p.disconnectAuthorLocal(e.Author)
 	}
 }
 

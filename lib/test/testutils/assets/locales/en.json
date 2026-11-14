@@ -258,5 +258,7 @@
   "pad.impexp.importfailed": "Import failed",
   "pad.impexp.copypaste": "Please copy paste",
   "pad.impexp.exportdisabled": "Exporting as {{type}} format is disabled. Please contact your system administrator for details.",
-  "pad.impexp.maxFileSize": "File too big. Contact your site administrator to increase the allowed file size for import"
+  "pad.impexp.maxFileSize": "File too big. Contact your site administrator to increase the allowed file size for import",
+  "pad.outdatedNotice.title": "Etherpad update available",
+  "pad.outdatedNotice.text": "A newer version of Etherpad has been released. Consider updating this server."
 }

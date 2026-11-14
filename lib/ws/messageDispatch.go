@@ -104,7 +104,11 @@ func (c *Client) dispatchMessage(message []byte, retrievedSettings *settings.Set
 	if msgType == msgUserChanges || msgType == msgSheetOp {
 		retrievedSettings.CommitRateLimiting.LoadTest = retrievedSettings.LoadTest
 		if err := ratelimiter.CheckRateLimit(ratelimiter.IPAddress(c.ClientIP), retrievedSettings.CommitRateLimiting); err != nil {
-			logger.Warn("Rate limit exceeded:", err.Error())
+			logger.Warnf("Rate limited IP %s. To rate limit less, raise commitRateLimiting in settings.json", retrievedSettings.LogIP(c.ClientIP))
+			// As in etherpad-lite: tell the client, which shows it, instead
+			// of dropping the commit silently while it waits for the
+			// acknowledgement forever.
+			sendDisconnectMessage(c, "rateLimited")
 			return
 		}
 	}

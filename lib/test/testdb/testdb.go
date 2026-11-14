@@ -76,6 +76,11 @@ func SkipSQLServers() bool {
 
 func isCI() bool { return envBool("EP_CI") }
 
+// PgBouncer reports that the PostgreSQL server is reached through PgBouncer
+// in transaction mode (EP_TEST_POSTGRES_PGBOUNCER=1): the data stores then
+// avoid named prepared statements, like with dbSettings.pgBouncer.
+func PgBouncer() bool { return envBool("EP_TEST_POSTGRES_PGBOUNCER") }
+
 func envBool(key string) bool {
 	v := strings.ToLower(strings.TrimSpace(os.Getenv(key)))
 	return v == "1" || v == "true" || v == "yes"
@@ -108,14 +113,25 @@ func Acquire(kind Kind) (*Server, error) {
 // is set and fails it when the server is unavailable.
 func Get(t testing.TB, kind Kind) *Server {
 	t.Helper()
-	if SkipSQLServers() {
-		t.Skipf("%s skipped: EP_TEST_SKIP_SQL_SERVERS is set", kind)
-	}
+	SkipIfDisabled(t, kind)
 	srv, err := Acquire(kind)
 	if err != nil {
 		t.Fatalf("%s test server unavailable: %v", kind, err)
 	}
 	return srv
+}
+
+// SkipIfDisabled skips the test when servers of this kind are switched off:
+// EP_TEST_SKIP_SQL_SERVERS for all, EP_TEST_SKIP_MYSQL for MySQL (CI's
+// PgBouncer job only has PostgreSQL).
+func SkipIfDisabled(t testing.TB, kind Kind) {
+	t.Helper()
+	if SkipSQLServers() {
+		t.Skipf("%s skipped: EP_TEST_SKIP_SQL_SERVERS is set", kind)
+	}
+	if kind == MySQL && envBool("EP_TEST_SKIP_MYSQL") {
+		t.Skipf("%s skipped: EP_TEST_SKIP_MYSQL is set", kind)
+	}
 }
 
 func acquire(kind Kind) (*Server, error) {
@@ -251,8 +267,12 @@ func (s *Server) AdminUser() string { return s.adminUser() }
 // DSN returns a database/sql DSN for database (driver "pgx" or "mysql").
 func (s *Server) DSN(database string) string {
 	if s.Kind == Postgres {
-		return fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable",
+		dsn := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable",
 			s.adminUser(), Password, s.Host, s.Port, database)
+		if PgBouncer() {
+			dsn += "&default_query_exec_mode=cache_describe"
+		}
+		return dsn
 	}
 	cfg := mysql2.NewConfig()
 	cfg.User = s.adminUser()

@@ -19,6 +19,7 @@
 
 
 import { listRecent } from './recentDocs';
+import {codeFromLocation, createTransfer, isValidTransferId, redeemTransfer, transferLink} from './tokenTransfer';
 
 const randomPadName = () => {
   // the number of distinct chars (64) is chosen to ensure that the selection will be uniform when
@@ -102,6 +103,84 @@ const renderRecent = (): void => {
   section.hidden = false;
 };
 
+// Session transfer: "send" creates a code for another browser, "receive"
+// redeems one. A transfer link (?transfer=<code>) opens the section with the
+// code filled in; redeeming still needs a click, so a link alone never
+// replaces a session.
+const initTransfer = (): void => {
+  const section = document.getElementById('transferSection') as HTMLDetailsElement | null;
+  if (section == null) return;
+  const fetchFn = (url: string, init?: RequestInit) => fetch(url, {credentials: 'same-origin', ...init});
+  const storage = window.localStorage;
+
+  const nowButton = byId<HTMLButtonElement>('transferNow');
+  const result = byId('transferResult');
+  const codeOut = byId<HTMLInputElement>('transferCode');
+  const copyButton = byId<HTMLButtonElement>('copyTransferLink');
+  const sendError = byId('transferError');
+  let link = '';
+
+  nowButton.addEventListener('click', async () => {
+    nowButton.disabled = true;
+    sendError.hidden = true;
+    const id = await createTransfer(fetchFn, storage);
+    nowButton.disabled = false;
+    if (id == null) {
+      result.hidden = true;
+      sendError.hidden = false;
+      return;
+    }
+    link = transferLink(document.baseURI, id);
+    codeOut.value = id;
+    copyButton.disabled = false;
+    result.hidden = false;
+  });
+  codeOut.addEventListener('focus', () => codeOut.select());
+  copyButton.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(link);
+      copyButton.textContent = '✓';
+      copyButton.disabled = true;
+    } catch {
+      codeOut.value = link;
+      codeOut.select();
+    }
+  });
+
+  const form = byId<HTMLFormElement>('receiveForm');
+  const input = byId<HTMLInputElement>('codeInput');
+  const receiveButton = byId<HTMLButtonElement>('receiveButton');
+  const receiveError = byId('receiveError');
+  let pending = false;
+  const sync = () => { receiveButton.disabled = pending || !isValidTransferId(input.value); };
+  input.addEventListener('input', () => { receiveError.hidden = true; sync(); });
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (pending) return;
+    pending = true;
+    receiveError.hidden = true;
+    sync();
+    if (await redeemTransfer(input.value, fetchFn, storage)) {
+      // Drop ?transfer= so a reload does not try the spent code again.
+      const u = new URL(window.location.href);
+      u.searchParams.delete('transfer');
+      window.location.replace(u.toString());
+      return;
+    }
+    pending = false;
+    sync();
+    receiveError.hidden = false;
+  });
+
+  const code = codeFromLocation(window.location.href);
+  if (code != null) {
+    input.value = code;
+    section.open = true;
+    sync();
+    receiveButton.focus();
+  }
+};
+
 const initWelcomeScreen = (): void => {
   const goToNameForm = byId<HTMLFormElement>('go2Name');
   const padNameInput = byId<HTMLInputElement>('padname');
@@ -128,6 +207,7 @@ const initWelcomeScreen = (): void => {
 
   renderHeader();
   renderRecent();
+  initTransfer();
 
   // start the custom js
   if (typeof window.customStart === 'function') window.customStart();

@@ -1,0 +1,10 @@
+# A one-node kind cluster for test/kubernetes/run.sh. The kubelet patch only
+# matters on hosts that still use cgroup v1 (GitHub's runners use v2).
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+    kubeadmConfigPatches:
+      - |
+        kind: KubeletConfiguration
+        failCgroupV1: false

@@ -63,3 +63,20 @@ func TestPluginStaticFiles(t *testing.T) {
 		assert.NotContains(t, body, "plugins/", "the response does not reveal paths: "+path)
 	}
 }
+
+// Port of etherpad-lite's sanitizePathname cases for the one file path a
+// request names directly besides plugin assets: /admin/locales/<file>,
+// which is read from disk in dev mode. Windows separators and drive
+// letters count as well, since the server runs there too.
+func TestAdminLocaleName(t *testing.T) {
+	for _, ok := range []string{"de.json", "en.json", "pt-br.json", "zh-hant.json", "be-tarask.json", "sr_EC.json"} {
+		assert.True(t, adminLocaleName.MatchString(ok), ok)
+	}
+	for _, bad := range []string{
+		"", ".", "..", "../", "../foo", "foo/../..", `..\`, `..\foo`, `foo\..\..`, `..\..\settings.json`,
+		"/", "/foo", `\`, `\foo`, "C:/foo.json", `C:\foo.json`, "c:/foo.json",
+		".json", "..json", "de.json/", "de.json.exe", "de", "settings.json\x00.json", "de .json",
+	} {
+		assert.False(t, adminLocaleName.MatchString(bad), "%q", bad)
+	}
+}

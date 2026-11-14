@@ -45,6 +45,9 @@ type MemoryDataStore struct {
 	sheetStore    map[string]db.SheetDB
 	sheetOps      map[string]map[int]db.SheetOpDB
 	sheetEpoch    map[string]int
+	// authorExtra and tokenTransfers: author_privacy.go.
+	authorExtra    map[string]memoryAuthorExtra
+	tokenTransfers map[string]TokenTransfer
 
 	// oauth token tables
 	oauthAccessTokens  map[string]OAuthTokenRow

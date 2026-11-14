@@ -59,6 +59,19 @@ func (s *SessionStore) GetStats() (SessionStat, error) {
 	return stats, nil
 }
 
+// PadUserCounts is the number of sessions per pad.
+func (s *SessionStore) PadUserCounts() map[string]int {
+	s.sync.RLock()
+	defer s.sync.RUnlock()
+	counts := map[string]int{}
+	for _, session := range s.sessions {
+		if session.PadId != "" {
+			counts[session.PadId]++
+		}
+	}
+	return counts
+}
+
 // padOf returns the pad the session is in. It reads under the store's lock:
 // the pad id is set while the session joins, and broadcasts on other
 // goroutines look it up at the same time.
@@ -69,6 +82,16 @@ func (s *SessionStore) padOf(sessionId string) string {
 		return session.PadId
 	}
 	return ""
+}
+
+// setPadId sets the session's pad under the store's lock; padOf reads it on
+// other goroutines (broadcasts) at the same time.
+func (s *SessionStore) setPadId(sessionId, padId string) {
+	s.sync.Lock()
+	if session := s.sessions[sessionId]; session != nil {
+		session.PadId = padId
+	}
+	s.sync.Unlock()
 }
 
 func (s *SessionStore) addPadReadOnlyIds(sessionId, padId string, readOnlyPadId string, readOnly bool) {

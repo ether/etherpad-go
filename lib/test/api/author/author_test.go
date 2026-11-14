@@ -65,6 +65,10 @@ func TestAuthor(t *testing.T) {
 			Name: "Anonymize Author Idempotent",
 			Test: testAnonymizeAuthorIdempotent,
 		},
+		testutils.TestRunConfig{
+			Name: "Anonymize Author Disabled",
+			Test: testAnonymizeAuthorDisabled,
+		},
 	)
 	defer testDb.StartTestDBHandler()
 }
@@ -278,6 +282,7 @@ func testGetAuthorNameNotFound(t *testing.T, tsStore testutils.TestDataStore) {
 // ========== Anonymize Author (GDPR Art. 17 erasure) ==========
 
 func testAnonymizeAuthor(t *testing.T, tsStore testutils.TestDataStore) {
+	tsStore.Settings.GdprAuthorErasure.Enabled = true
 	initStore := tsStore.ToInitStore()
 	author.Init(initStore)
 
@@ -325,6 +330,7 @@ func testAnonymizeAuthor(t *testing.T, tsStore testutils.TestDataStore) {
 }
 
 func testAnonymizeAuthorNotFound(t *testing.T, tsStore testutils.TestDataStore) {
+	tsStore.Settings.GdprAuthorErasure.Enabled = true
 	initStore := tsStore.ToInitStore()
 	author.Init(initStore)
 
@@ -337,6 +343,7 @@ func testAnonymizeAuthorNotFound(t *testing.T, tsStore testutils.TestDataStore) 
 }
 
 func testAnonymizeAuthorIdempotent(t *testing.T, tsStore testutils.TestDataStore) {
+	tsStore.Settings.GdprAuthorErasure.Enabled = true
 	initStore := tsStore.ToInitStore()
 	author.Init(initStore)
 
@@ -351,4 +358,25 @@ func testAnonymizeAuthorIdempotent(t *testing.T, tsStore testutils.TestDataStore
 		require.NotNil(t, resp)
 		assert.Equal(t, 200, resp.StatusCode, "anonymize call %d must succeed", i+1)
 	}
+}
+
+// Off by default (gdprAuthorErasure.enabled): an API key alone cannot erase.
+func testAnonymizeAuthorDisabled(t *testing.T, tsStore testutils.TestDataStore) {
+	initStore := tsStore.ToInitStore()
+	author.Init(initStore)
+
+	testName := "Not To Be Erased"
+	createdAuthor, err := tsStore.AuthorManager.CreateAuthor(&testName)
+	require.NoError(t, err)
+
+	for _, q := range []string{"", "?dryRun=true"} {
+		req := httptest.NewRequest("POST", "/admin/api/author/"+createdAuthor.Id+"/anonymize"+q, nil)
+		resp, err := initStore.C.Test(req)
+		require.NoError(t, err)
+		assert.Equal(t, 403, resp.StatusCode)
+	}
+	name, err := tsStore.AuthorManager.GetAuthorName(createdAuthor.Id)
+	require.NoError(t, err)
+	require.NotNil(t, name)
+	assert.Equal(t, testName, *name)
 }

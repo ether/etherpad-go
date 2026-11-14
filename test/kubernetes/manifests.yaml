@@ -1,0 +1,117 @@
+# The deployment from doc/cluster.md ("Kubernetes"), with a PostgreSQL for
+# the test and the locally built image. ETHERPAD_LOADTEST lets the benches'
+# authors, who all come through one port-forward, past commitRateLimiting.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: etherpad-db
+stringData:
+  username: etherpad
+  password: etherpad
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: etherpad-db
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: etherpad-db }
+  template:
+    metadata:
+      labels: { app: etherpad-db }
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:17-alpine
+          env:
+            - name: POSTGRES_DB
+              value: etherpad
+            - name: POSTGRES_USER
+              valueFrom: { secretKeyRef: { name: etherpad-db, key: username } }
+            - name: POSTGRES_PASSWORD
+              valueFrom: { secretKeyRef: { name: etherpad-db, key: password } }
+          ports:
+            - { containerPort: 5432 }
+          readinessProbe:
+            exec: { command: ["pg_isready", "-U", "etherpad", "-d", "etherpad"] }
+            periodSeconds: 2
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: etherpad-db-rw
+spec:
+  selector: { app: etherpad-db }
+  ports:
+    - { port: 5432, targetPort: 5432 }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: etherpad
+spec:
+  replicas: 3
+  selector:
+    matchLabels: { app: etherpad }
+  template:
+    metadata:
+      labels: { app: etherpad }
+    spec:
+      terminationGracePeriodSeconds: 30
+      # Unlike doc/cluster.md, service links stay on here: the test checks
+      # that the ETHERPAD_PORT=tcp://... Kubernetes sets for the Service
+      # "etherpad" is not taken as the port.
+      containers:
+        - name: etherpad
+          image: etherpad-go:k8s-test
+          imagePullPolicy: Never
+          env:
+            - name: POD_IP
+              valueFrom:
+                fieldRef: { fieldPath: status.podIP }
+            - name: ETHERPAD_DBTYPE
+              value: postgres
+            - name: ETHERPAD_DBSETTINGS_HOST
+              value: etherpad-db-rw
+            - name: ETHERPAD_DBSETTINGS_PORT
+              value: "5432"
+            - name: ETHERPAD_DBSETTINGS_DATABASE
+              value: etherpad
+            - name: ETHERPAD_DBSETTINGS_USER
+              valueFrom: { secretKeyRef: { name: etherpad-db, key: username } }
+            - name: ETHERPAD_DBSETTINGS_PASSWORD
+              valueFrom: { secretKeyRef: { name: etherpad-db, key: password } }
+            - name: ETHERPAD_UPDATES_TIER
+              value: notify
+            - name: ETHERPAD_LOADTEST
+              value: "true"
+          ports:
+            - { name: http,        containerPort: 9001, protocol: TCP }
+            - { name: gossip-tcp,  containerPort: 7946, protocol: TCP }
+            - { name: gossip-udp,  containerPort: 7946, protocol: UDP }
+          readinessProbe:
+            httpGet: { path: /health/ready, port: http }
+            periodSeconds: 2
+          livenessProbe:
+            httpGet: { path: /health/live, port: http }
+            periodSeconds: 10
+            failureThreshold: 6
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: etherpad
+spec:
+  selector: { app: etherpad }
+  ports:
+    - { name: http, port: 80, targetPort: http }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: etherpad
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: { app: etherpad }

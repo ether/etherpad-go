@@ -32,6 +32,8 @@
     "user": null,
     "password": null,
     "charset": null,
+    "maxConnections": 25,
+    "pgBouncer": false,
     "filename": "var/dirty.db",
     "collection": null,
     "url": null
@@ -122,6 +124,17 @@
       "end": "",
       "tz": "local"
     }
+  },
+  "gdprAuthorErasure": {
+    "enabled": false
+  },
+  "adminEmail": "",
+  "mail": {
+    "host": "",
+    "port": 587,
+    "secure": false,
+    "from": "",
+    "auth": null
   },
   "disableIPlogging": false,
   "automaticReconnectionTimeout": 0,

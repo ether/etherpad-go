@@ -222,7 +222,9 @@ func createTestClient(hub *libws.Hub, sessionId string, padId string, mockConn *
 		Room:      padId,
 		SessionId: sessionId,
 	}
+	hub.ClientsRWMutex.Lock()
 	hub.Clients[client] = true
+	hub.ClientsRWMutex.Unlock()
 	return client
 }
 

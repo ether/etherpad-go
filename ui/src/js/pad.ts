@@ -49,6 +49,8 @@ import {colorutils} from './colorutils';
 import {editorBus} from './core/EventBus';
 import {createPadSettings, creatorDefaults, myViewOverrides} from './pad_settings';
 import {createPadDeletion} from './pad_deletion';
+import {getHomeUrl} from './getHomeUrl';
+import {maybeShowOutdatedNotice} from './pad_outdated_notice';
 
 const showPadRetentionNotice = (info: any) => {
     if (!info) return;
@@ -678,10 +680,18 @@ const pad = {
                 confirm: (message) => window.confirm(message),
                 alert: (message) => window.alert(message),
                 send: (msg) => pad.collabClient.sendMessage(msg),
-                navigateHome: () => { window.location.href = new URL('..', window.location.href).href; },
+                navigateHome: () => { window.location.href = getHomeUrl(window.location.href); },
                 storage: () => { try { return window.localStorage; } catch (_e) { return null; } },
             });
             pad.padDeletion.init();
+
+            void maybeShowOutdatedNotice({
+                padId: () => window.clientVars?.padId || null,
+                href: () => window.location.href,
+                fetch: (url) => fetch(url, {credentials: 'same-origin'}),
+                t: (key) => html10n.get(key),
+                show: (title, text) => notifications.add({title, text: `${title}: ${text}`, position: 'bottom', time: 8000, class_name: 'outdated-notice'}),
+            });
 
             editorBus.emit('editor:ready', {ace: padeditor.ace});
         };

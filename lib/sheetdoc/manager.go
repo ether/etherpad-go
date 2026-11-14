@@ -196,18 +196,36 @@ func (m *Manager) applyStored(padId string, doc *sheet.Document, from, to int) e
 // Submit rebases, applies, and persists one op, returning the rebased op (for
 // broadcast) and the new head revision.
 func (m *Manager) Submit(padId string, op sheet.Op, authorId *string, tsMillis int64) (sheet.Op, int, error) {
+	rebased, rev, _, err := m.SubmitOnce(padId, op, authorId, tsMillis)
+	return rebased, rev, err
+}
+
+// SubmitOnce is Submit for ops a client may send twice: an op whose cid is
+// already in the log after its base revision (the client resent it after a
+// reconnect) is not applied again. duplicate reports that case; rebased and
+// rev are then the stored op and its revision.
+func (m *Manager) SubmitOnce(padId string, op sheet.Op, authorId *string, tsMillis int64) (rebased sheet.Op, rev int, duplicate bool, err error) {
 	for attempt := 0; ; attempt++ {
-		rebased, rev, err := m.submitOnce(padId, op, authorId, tsMillis)
+		rebased, rev, duplicate, err = m.submitOnce(padId, op, authorId, tsMillis)
 		if errors.Is(err, db.ErrConflict) && attempt < maxSubmitRetries {
 			// Another instance stored this revision first; rebase onto it.
 			continue
 		}
-		return rebased, rev, err
+		return rebased, rev, duplicate, err
 	}
 }
 
-func (m *Manager) submitOnce(padId string, op sheet.Op, authorId *string, tsMillis int64) (rebased sheet.Op, rev int, err error) {
+func (m *Manager) submitOnce(padId string, op sheet.Op, authorId *string, tsMillis int64) (rebased sheet.Op, rev int, duplicate bool, err error) {
 	err = m.withDoc(padId, func(e *entry) error {
+		if op.Cid != "" {
+			log := e.doc.Log()
+			for i := min(max(op.BaseRev, 0), len(log)); i < len(log); i++ {
+				if log[i].Cid == op.Cid {
+					rebased, rev, duplicate = log[i], i+1, true
+					return nil
+				}
+			}
+		}
 		newRev, err := e.doc.Submit(op)
 		if err != nil {
 			// A failed apply may have changed the workbook partly.
@@ -234,7 +252,7 @@ func (m *Manager) submitOnce(padId string, op sheet.Op, authorId *string, tsMill
 		rebased, rev = applied, newRev
 		return nil
 	})
-	return rebased, rev, err
+	return rebased, rev, duplicate, err
 }
 
 // SetWorkbook replaces the document's workbook (e.g. from an xlsx import),

@@ -56,7 +56,7 @@ func sharedStores(t *testing.T) []sharedStore {
 			var store db.DataStore
 			var err error
 			if kind == testdb.Postgres {
-				store, err = db.NewPostgresDB(db.PostgresOptions{Username: srv.AdminUser(), Password: testdb.Password, Database: name, Host: srv.Host, Port: srv.Port, MaxConns: 8})
+				store, err = db.NewPostgresDB(db.PostgresOptions{Username: srv.AdminUser(), Password: testdb.Password, Database: name, Host: srv.Host, Port: srv.Port, MaxConns: 8, PgBouncer: testdb.PgBouncer()})
 			} else {
 				store, err = db.NewMySQLDB(db.MySQLOptions{Username: srv.AdminUser(), Password: testdb.Password, Database: name, Host: srv.Host, Port: srv.Port, MaxConns: 8})
 			}

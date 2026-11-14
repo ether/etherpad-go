@@ -46,6 +46,13 @@ var NotAGroupPadError = Error{
 	Error:   400,
 }
 
+// AuthorErasureDisabledError: gdprAuthorErasure.enabled is off, the default
+// (opt-in as in etherpad-lite).
+var AuthorErasureDisabledError = Error{
+	Message: "author erasure is disabled; set gdprAuthorErasure.enabled = true in settings.json to enable GDPR Art. 17 erasure",
+	Error:   403,
+}
+
 var AuthorNotFoundError = Error{
 	Message: "Author not found",
 	Error:   404,

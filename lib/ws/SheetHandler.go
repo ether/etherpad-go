@@ -130,7 +130,7 @@ func (p *PadMessageHandler) flushSheet(padId string, except string, sender *Clie
 				switch {
 				case socket.SessionId == except:
 				case sender != nil && socket.SessionId == sender.SessionId && op.Rev == acceptRev:
-					p.sendAcceptSheetOp(sender, acceptRev)
+					p.sendAcceptSheetOp(sender, acceptRev, op.Op.Cid)
 				default:
 					socket.SafeSend(encoded)
 				}
@@ -171,9 +171,16 @@ func (p *PadMessageHandler) handleSheetOp(task SheetTask) {
 	op.BaseRev = task.message.Data.Data.BaseRev
 
 	author := session.Author
-	_, newRev, err := p.sheetManager.Submit(session.PadId, op, &author, time.Now().UnixMilli())
+	_, newRev, duplicate, err := p.sheetManager.SubmitOnce(session.PadId, op, &author, time.Now().UnixMilli())
 	if err != nil {
 		p.Logger.Warn("sheet submit failed: ", err)
+		return
+	}
+	if duplicate {
+		// Sent again after a reconnect: it is stored already and the
+		// clients have it. The acknowledgement names the op, so a client
+		// that already took the op from the missed ops ignores it.
+		p.sendAcceptSheetOp(task.socket, newRev, op.Cid)
 		return
 	}
 
@@ -185,10 +192,11 @@ func (p *PadMessageHandler) handleSheetOp(task SheetTask) {
 	p.publish(cluster.Event{Kind: cluster.KindRevision, Pad: session.PadId, Rev: newRev})
 }
 
-func (p *PadMessageHandler) sendAcceptSheetOp(client *Client, newRev int) {
+func (p *PadMessageHandler) sendAcceptSheetOp(client *Client, newRev int, cid string) {
 	msg := ws.AcceptSheetOp{Type: "COLLABROOM"}
 	msg.Data.Type = "ACCEPT_SHEET_OP"
 	msg.Data.NewRev = newRev
+	msg.Data.Cid = cid
 	encoded, err := json.Marshal([]any{"message", msg})
 	if err != nil {
 		p.Logger.Warn("marshal ACCEPT_SHEET_OP: ", err)
@@ -288,11 +296,20 @@ func (p *PadMessageHandler) HandleSheetClientReady(ready ws.ClientReady, client 
 	// starts from.
 	p.flushSheet(session.PadId, client.SessionId, nil, 0)
 
-	if ready.Data.Reconnect != nil && *ready.Data.Reconnect {
-		clientRev := 0
-		if ready.Data.ClientRev != nil {
-			clientRev = *ready.Data.ClientRev
-		}
+	clientRev := -1
+	if ready.Data.Reconnect != nil && *ready.Data.Reconnect && ready.Data.ClientRev != nil {
+		clientRev = *ready.Data.ClientRev
+	}
+	_, head, err := p.sheetManager.State(session.PadId)
+	if err != nil {
+		p.Logger.Warn("sheet state unavailable: ", err)
+		return
+	}
+	if clientRev < 0 || clientRev > head {
+		// A fresh join, or the client knows revisions the server does not
+		// (the sheet was restored): it starts over from the snapshot.
+		p.sendSheetVars(client, session)
+	} else {
 		ops, err := p.sheetManager.OpsSince(session.PadId, clientRev)
 		if err != nil {
 			p.Logger.Warn("OpsSince failed: ", err)
@@ -301,8 +318,7 @@ func (p *PadMessageHandler) HandleSheetClientReady(ready ws.ClientReady, client 
 		for i, op := range ops {
 			p.sendReconnectSheetOp(client, op, clientRev+i+1)
 		}
-	} else {
-		p.sendSheetVars(client, session)
+		p.sendSheetCaughtUp(client, clientRev+len(ops))
 	}
 
 	p.announceSheetPresence(client, session)
@@ -349,6 +365,15 @@ func (p *PadMessageHandler) sendReconnectSheetOp(client *Client, op sheet.Op, re
 	msg.Data.Type = "NEW_SHEET_OP"
 	msg.Data.Op = opBytes
 	msg.Data.NewRev = rev
+	encoded, err := json.Marshal([]any{"message", msg})
+	if err != nil {
+		return
+	}
+	client.SafeSend(encoded)
+}
+
+func (p *PadMessageHandler) sendSheetCaughtUp(client *Client, head int) {
+	msg := ws.SheetCaughtUp{Type: "COLLABROOM", Data: ws.SheetCaughtUpData{Type: "SHEET_CAUGHT_UP", Head: head}}
 	encoded, err := json.Marshal([]any{"message", msg})
 	if err != nil {
 		return

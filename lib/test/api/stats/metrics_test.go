@@ -7,7 +7,9 @@ import (
 	"testing"
 
 	"github.com/ether/etherpad-go/lib/api/stats"
+	"github.com/ether/etherpad-go/lib/metrics"
 	"github.com/ether/etherpad-go/lib/test/testutils"
+	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/require"
 )
 
@@ -20,6 +22,10 @@ func TestAdminMessageHandlerAllMethods(t *testing.T) {
 		testutils.TestRunConfig{
 			Name: "Metrics Endpoint Exists",
 			Test: testMetricsEndpointExists,
+		},
+		testutils.TestRunConfig{
+			Name: "scalingDiveMetrics adds the load-test instruments",
+			Test: testScalingDiveMetrics,
 		},
 		testutils.TestRunConfig{
 			Name: "Health Endpoint Exists",
@@ -80,4 +86,31 @@ func testGetStatsEndpoint(t *testing.T, testDb testutils.TestDataStore) {
 	require.GreaterOrEqual(t, response.TotalPads, 1)
 	require.GreaterOrEqual(t, response.TotalSessions, 0)
 	require.GreaterOrEqual(t, response.TotalActivePads, 0)
+}
+
+func metricsBody(t *testing.T, testDb testutils.TestDataStore) string {
+	t.Helper()
+	resp, err := testDb.App.Test(httptest.NewRequest("GET", "/metrics", nil))
+	require.NoError(t, err)
+	require.Equal(t, 200, resp.StatusCode)
+	b, _ := io.ReadAll(resp.Body)
+	return string(b)
+}
+
+func testScalingDiveMetrics(t *testing.T, testDb testutils.TestDataStore) {
+	stats.Init(testDb.ToInitStore())
+	metrics.RecordSocketEmit("NEW_CHANGES")
+	require.NotContains(t, metricsBody(t, testDb), "etherpad_socket_emits_total", "off by default")
+
+	testDb.Settings.ScalingDiveMetrics = true
+	t.Cleanup(func() { metrics.SetEnabled(false) })
+	testDb.App = fiber.New()
+	store := testDb.ToInitStore()
+	store.C = testDb.App
+	stats.Init(store)
+	metrics.RecordSocketEmit("NEW_CHANGES")
+	metrics.RecordChangesetApply()()
+	body := metricsBody(t, testDb)
+	require.Contains(t, body, `etherpad_socket_emits_total{type="NEW_CHANGES"}`)
+	require.Contains(t, body, "etherpad_changeset_apply_duration_seconds_count")
 }

@@ -520,7 +520,7 @@ func TestSQLDatastores(t *testing.T) {
 		"Postgres": func(t *testing.T) db.DataStore {
 			srv := testdb.Get(t, testdb.Postgres)
 			store, err := db.NewPostgresDB(db.PostgresOptions{Username: srv.AdminUser(), Password: testdb.Password,
-				Database: srv.NewDatabase(t), Host: srv.Host, Port: srv.Port, MaxConns: 4})
+				Database: srv.NewDatabase(t), Host: srv.Host, Port: srv.Port, MaxConns: 4, PgBouncer: testdb.PgBouncer()})
 			require.NoError(t, err)
 			return store
 		},

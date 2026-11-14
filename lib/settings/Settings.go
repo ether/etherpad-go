@@ -21,6 +21,12 @@ type DBSettings struct {
 	User     string `mapstructure:"user"`
 	Password string `mapstructure:"password"`
 	Charset  string `mapstructure:"charset"`
+	// MaxConnections caps the query connections per instance (PostgreSQL,
+	// MySQL); 0 or less means 25.
+	MaxConnections int `mapstructure:"maxConnections"`
+	// PgBouncer: PostgreSQL is reached through PgBouncer (or another pooler)
+	// in transaction mode, so no named prepared statements are used.
+	PgBouncer bool `mapstructure:"pgBouncer"`
 }
 
 type TTL struct {
@@ -120,6 +126,32 @@ type Cookie struct {
 	// SessionCleanup controls periodic removal of expired/stale sessions.
 	// Defaults to true. Set to false to disable the cleanup goroutine.
 	SessionCleanup *bool `json:"sessionCleanup" mapstructure:"sessionCleanup"`
+}
+
+// MailSettings is the SMTP server the updater sends its notices through
+// (etherpad-lite's mail). Without a host nothing is sent; the notices only
+// appear in the log.
+type MailSettings struct {
+	Host string `json:"host" mapstructure:"host"`
+	// Port defaults to 587 (submission with STARTTLS).
+	Port int `json:"port" mapstructure:"port"`
+	// Secure connects with TLS from the start (port 465); otherwise
+	// STARTTLS is used when the server offers it.
+	Secure bool   `json:"secure" mapstructure:"secure"`
+	From   string `json:"from" mapstructure:"from"`
+	// Auth is optional: a server that relays without login needs none.
+	Auth *MailAuth `json:"auth" mapstructure:"auth"`
+}
+
+// GdprAuthorErasure is the switch of author erasure.
+type GdprAuthorErasure struct {
+	Enabled bool `json:"enabled" mapstructure:"enabled"`
+}
+
+// MailAuth is a login for the SMTP server.
+type MailAuth struct {
+	User string `json:"user" mapstructure:"user"`
+	Pass string `json:"pass" mapstructure:"pass"`
 }
 
 // Updates configures the self-update subsystem (lib/updater).
@@ -322,6 +354,10 @@ type Settings struct {
 	PadShortcutEnabled PadShortcutEnabled `json:"padShortcutEnabled" mapstructure:"padShortcutEnabled"`
 
 	EnableMetrics bool `json:"enableMetrics" mapstructure:"enableMetrics"`
+	// ScalingDiveMetrics adds the load-test instruments of lib/metrics to
+	// /metrics (etherpad-lite's scalingDiveMetrics). Off by default: the
+	// per-pad gauge has one series per open pad.
+	ScalingDiveMetrics bool `json:"scalingDiveMetrics" mapstructure:"scalingDiveMetrics"`
 
 	RequireSession bool `json:"requireSession" mapstructure:"requireSession"`
 	EditOnly       bool `json:"editOnly" mapstructure:"editOnly"`
@@ -347,6 +383,13 @@ type Settings struct {
 	Cookie Cookie `json:"cookie" mapstructure:"cookie"`
 
 	Updates Updates `json:"updates" mapstructure:"updates"`
+	// AdminEmail receives the updater's notices (outdated instance, a
+	// scheduled update, a failed one); "" sends none.
+	AdminEmail string `json:"adminEmail" mapstructure:"adminEmail"`
+	// GdprAuthorErasure enables erasing authors (GDPR Art. 17) in the HTTP
+	// API (anonymizeAuthor) and the admin page; off by default.
+	GdprAuthorErasure GdprAuthorErasure `json:"gdprAuthorErasure" mapstructure:"gdprAuthorErasure"`
+	Mail              MailSettings      `json:"mail" mapstructure:"mail"`
 
 	Cluster Cluster `json:"cluster" mapstructure:"cluster"`
 

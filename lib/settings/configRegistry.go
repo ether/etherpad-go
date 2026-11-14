@@ -67,6 +67,16 @@ var Registry = []ConfigKey{
 	{Key: DBSettingsPort, Default: nil, Description: "Database port"},
 	{Key: DBSettingsCharset, Default: "utf8mb4", Description: "Database charset (only relevant for MySQL)"},
 	{
+		Key:         DBSettingsMaxConnections,
+		Default:     25,
+		Description: "Connections for queries per instance (PostgreSQL, MySQL); up to about half as many again are used for locks",
+	},
+	{
+		Key:         DBSettingsPgBouncer,
+		Default:     false,
+		Description: "PostgreSQL is reached through PgBouncer in transaction mode: no named prepared statements",
+	},
+	{
 		Key:         DBSettingsFilename,
 		Default:     "var/etherpad.db",
 		Description: "SQLite database filename",
@@ -124,6 +134,7 @@ var Registry = []ConfigKey{
 	// Misc / runtime
 	// ---------------------------------------------------------------------
 	{Key: EnableMetrics, Default: true, Description: "Enable metrics"},
+	{Key: ScalingDiveMetrics, Default: false, Description: "Per-pad and hot-path Prometheus metrics for load tests (changeset apply time, emits by type, users per pad under a pseudonym, as /metrics is public)"},
 	{Key: CleanupExpr, Default: true, Description: "Enable cleanup expressions"},
 	{Key: RequireSession, Default: false, Description: "Require session"},
 	{Key: EditOnly, Default: false, Description: "Edit-only mode"},
@@ -214,6 +225,12 @@ var Registry = []ConfigKey{
 	{Key: UpdatesRequireSignature, Default: false, Description: "Require ed25519 verification of the release checksums file"},
 	{Key: UpdatesTrustedPublicKey, Default: "", Description: "Base64 ed25519 public key for checksums verification"},
 	{Key: UpdatesStateFile, Default: "var/update-state.json", Description: "Path to the persisted update state file"},
+	{Key: AdminEmail, Default: "", Description: "E-mail address for the updater's notices; empty sends none"},
+	{Key: GdprAuthorErasureEnabled, Default: false, Description: "Allow erasing authors (GDPR Art. 17) in the HTTP API and the admin page"},
+	{Key: MailHost, Default: "", Description: "SMTP host for outgoing mail; empty only logs the mails"},
+	{Key: MailPort, Default: 587, Description: "SMTP port"},
+	{Key: MailSecure, Default: false, Description: "Connect to the SMTP server with TLS from the start (port 465)"},
+	{Key: MailFrom, Default: "", Description: "Sender address of outgoing mail"},
 	{Key: UpdatesMaintenanceWindowStart, Default: "", Description: "Autonomous maintenance window start (HH:MM)"},
 	{Key: UpdatesMaintenanceWindowEnd, Default: "", Description: "Autonomous maintenance window end (HH:MM)"},
 	{Key: UpdatesMaintenanceWindowTz, Default: "local", Description: "Maintenance window timezone: local|utc"},

@@ -191,7 +191,7 @@ func TestStateRoundTrip(t *testing.T) {
 	want := EmptyState()
 	want.LastETag = "abc"
 	want.Latest = &ReleaseInfo{Version: "2.0.0", Tag: "v2.0.0"}
-	want.Execution = Execution{Status: StatusScheduled, TargetTag: "v2.0.0"}
+	want.Execution = Execution{Status: StatusScheduled, TargetTag: "v2.0.0", ScheduledFor: "2026-01-01T12:30:00Z"}
 	if err := SaveState(path, want); err != nil {
 		t.Fatal(err)
 	}

@@ -59,5 +59,46 @@ path for it. etherpad-go no longer creates the file.
   `deleteGroup` removes the group's pads and sessions in both.
 - `getHTML` leaves out the `start` attributes etherpad-lite writes on imported ordered lists
   (`<ol start="2">` on a nested list, which browsers then number from 2).
-- `anonymizeAuthor` answers `{authorId, anonymized}`, not etherpad-lite's counters.
 - The REST-style paths `/rest/{version}/...` are not served.
+
+## Erasing an author (GDPR Art. 17)
+
+Erasing an author removes what identifies them and keeps the pad text: the name and colour,
+the browser token and external ids (`createAuthorIfNotExistsFor` mappers) that lead to the
+author, and the authorship of their chat messages. The author id stays in the pads'
+history, but nothing ties it to a person any more.
+A plain second erasure changes nothing and returns zeros.
+
+- `anonymizeAuthor` (`/api/{version}/anonymizeAuthor?authorID=...`) and the admin page
+  *Authors* need `"gdprAuthorErasure": {"enabled": true}` in `settings.json`, as in
+  etherpad-lite. Without it the call fails and the page says the feature is off. The call
+  answers etherpad-lite's counters: `affectedPads`, `removedTokenMappings`,
+  `removedExternalMappings`, `clearedChatMessages`.
+- `POST /admin/api/author/{authorId}/anonymize` (admin REST API) is under the same switch
+  (403 when it is off); add `?dryRun=true` to get the counters without erasing.
+- Sessions still connected as the erased author are disconnected, on every instance of a
+  cluster. An erased author takes no new name, colour or chat. Erasing again cleans up
+  whatever raced past that, and keeps the time of the first erasure.
+- `createAuthorIfNotExistsFor` gives one author per external id, also for concurrent first
+  calls: the mapper is unique (migration 16).
+- The admin page lists authors with their last activity (`lastSeen`), finds them by name, id
+  or external id, and shows a dry run before erasing.
+
+## Moving a session to another browser
+
+The author token is an HttpOnly cookie, so a browser cannot copy it to another one. The welcome
+page has a *Transfer session* section instead (etherpad-lite's `tokenTransfer`):
+
+- `POST /tokenTransfer` with `{"prefs": "<JSON>"}` reads the author cookie of the request and
+  returns `{"id": "<32 hex>"}`. Without an author cookie (the browser never opened a pad) it
+  answers 400.
+- `POST /tokenTransfer/{id}` sets the author cookie (`SameSite=Lax`) in the browser that sends
+  it and returns `{"ok": true, "prefs": ..., "prefsHttp": ...}`. A code works once and for 5
+  minutes; unknown codes answer 404, expired ones 410. Unlike etherpad-lite, `GET` is refused
+  (405), and so are requests from another site's page (`Sec-Fetch-Site` other than
+  `same-origin`, or an `Origin` of another host; 403). Otherwise a link or an image elsewhere
+  could swap a visitor's identity for one the attacker also holds. Creating a code is
+  same-origin only too.
+
+The link the welcome page copies (`/?transfer=<id>`) only fills in the code; the session is
+replaced only when the user clicks *Receive session*.

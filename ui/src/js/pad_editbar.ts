@@ -29,6 +29,7 @@ import padutils from "./pad_utils";
 import {getReturnToPadUrl} from './timesliderReturnUrl';
 import {padeditor} from './pad_editor';
 import * as padsavedrevs from './pad_savedrevs';
+import {getHomeUrl} from './getHomeUrl';
 
 const q = (selector) => document.querySelector(selector);
 const qa = (selector) => Array.from(document.querySelectorAll(selector));
@@ -474,9 +475,9 @@ export const padeditbar = new class {
     this.registerDropdownCommand('import_export');
     this.registerDropdownCommand('embed');
     this.registerDropdownCommand('share_qr');
-    this.registerCommand('home', ()=>{
-      window.location.href = window.location.href + "/../.."
-    })
+    this.registerCommand('home', () => {
+      window.location.href = getHomeUrl(window.location.href);
+    });
 
     this.registerCommand('settings', () => {
       this.toggleDropDown('settings');
@@ -499,10 +500,6 @@ export const padeditbar = new class {
       this.toggleDropDown('users');
       q('#myusernameedit')?.focus();
     });
-    this.registerCommand('home', ()=>{
-      globalThis.location.href = globalThis.location.href + "/../.."
-    })
-
     this.registerCommand('embed', () => {
       this.setEmbedLinks();
       this.toggleDropDown('embed');

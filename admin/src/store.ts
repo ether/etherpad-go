@@ -18,6 +18,35 @@ export interface UpdateStatus {
   execution?: { status: string; targetTag?: string; reason?: string }
   lastResult?: { outcome: string; targetTag?: string; reason?: string; at?: string } | null
   policy?: { canManual?: boolean; canAuto?: boolean; canAutonomous?: boolean; reason?: string }
+  canCancel?: boolean
+  canAcknowledge?: boolean
+  adminEmail?: string
+}
+
+export interface AuthorEntry {
+  authorID: string
+  name: string | null
+  colorId: string
+  mapper: string[]
+  lastSeen: number | null
+  erased: boolean
+  erasedAt: number | null
+}
+
+export interface AuthorLoadResult {
+  total: number
+  results: AuthorEntry[]
+  cappedAt?: number | null
+  error?: string
+}
+
+export interface ErasureCounts {
+  authorID?: string
+  affectedPads?: number
+  removedTokenMappings?: number
+  removedExternalMappings?: number
+  clearedChatMessages?: number
+  error?: string
 }
 
 export interface PadRecord {
@@ -66,6 +95,13 @@ export interface AdminState {
   authError: string | null
   // apiKeys is the last answer about the HTTP API keys; null before one.
   apiKeys: ApiKeysResult | null
+  // updateLog is the end of the update log; null before it was loaded.
+  updateLog: string[] | null
+  authors: AuthorLoadResult | null
+  // erasurePreview is the dry run of the author about to be erased.
+  erasurePreview: ErasureCounts | null
+  // erasureDone is the answer of the last erasure.
+  erasureDone: ErasureCounts | null
   update: UpdateCheckResult | null
   updateStatus: UpdateStatus | null
   pads: PadRecord[]
@@ -99,6 +135,10 @@ type Action =
   | { type: 'SET_TOAST'; payload: Toast | null }
   | { type: 'SET_AUTH_ERROR'; payload: string | null }
   | { type: 'SET_API_KEYS'; payload: ApiKeysResult | null }
+  | { type: 'SET_UPDATE_LOG'; payload: string[] }
+  | { type: 'SET_AUTHORS'; payload: AuthorLoadResult }
+  | { type: 'SET_ERASURE_PREVIEW'; payload: ErasureCounts | null }
+  | { type: 'SET_ERASURE_DONE'; payload: ErasureCounts | null }
   | { type: 'SET_CURRENT_PAGE'; payload: string }
   | { type: 'SET_SETTINGS'; payload: string }
   | { type: 'SET_SETTINGS_READONLY'; payload: boolean }
@@ -130,6 +170,10 @@ const initialState: AdminState = {
   toast: null,
   authError: null,
   apiKeys: null,
+  updateLog: null,
+  authors: null,
+  erasurePreview: null,
+  erasureDone: null,
   update: null,
   updateStatus: null,
   pads: [],
@@ -167,6 +211,14 @@ function adminReducer(state: AdminState, action: Action): AdminState {
       return { ...state, authError: action.payload }
     case 'SET_API_KEYS':
       return { ...state, apiKeys: action.payload }
+    case 'SET_UPDATE_LOG':
+      return { ...state, updateLog: action.payload }
+    case 'SET_AUTHORS':
+      return { ...state, authors: action.payload }
+    case 'SET_ERASURE_PREVIEW':
+      return { ...state, erasurePreview: action.payload }
+    case 'SET_ERASURE_DONE':
+      return { ...state, erasureDone: action.payload }
     case 'SET_CURRENT_PAGE':
       return { ...state, currentPage: action.payload }
     case 'SET_SETTINGS':
@@ -335,6 +387,41 @@ export function AdminProvider({ children }: { children: ReactNode }) {
           payload: payload?.ok
             ? { kind: 'info', message: 'Update started — the server will restart shortly.' }
             : { kind: 'error', message: payload?.error ?? 'Failed to start update' },
+        })
+        break
+      case 'results:authorLoad':
+        dispatch({ type: 'SET_AUTHORS', payload: payload as AuthorLoadResult })
+        break
+      case 'results:anonymizeAuthorPreview':
+        dispatch({ type: 'SET_ERASURE_PREVIEW', payload: payload as ErasureCounts })
+        break
+      case 'results:anonymizeAuthor':
+        dispatch({ type: 'SET_ERASURE_DONE', payload: payload as ErasureCounts })
+        dispatch({ type: 'SET_ERASURE_PREVIEW', payload: null })
+        dispatch({
+          type: 'SET_TOAST',
+          payload: payload?.error
+            ? { kind: 'error', message: `Erasing failed: ${payload.error}` }
+            : { kind: 'success', message: 'Author erased.' },
+        })
+        break
+      case 'results:updateLog':
+        dispatch({ type: 'SET_UPDATE_LOG', payload: Array.isArray(payload?.lines) ? payload.lines : [] })
+        break
+      case 'results:sendTestMail':
+        dispatch({
+          type: 'SET_TOAST',
+          payload: payload?.ok
+            ? { kind: 'success', message: 'Test mail sent.' }
+            : { kind: 'error', message: payload?.error ?? 'Sending the test mail failed' },
+        })
+        break
+      case 'results:cancelUpdate':
+        dispatch({
+          type: 'SET_TOAST',
+          payload: payload?.ok
+            ? { kind: 'success', message: 'Update cancelled.' }
+            : { kind: 'error', message: payload?.error ?? 'Failed to cancel' },
         })
         break
       case 'results:acknowledgeUpdate':
