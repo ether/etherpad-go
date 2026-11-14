@@ -10,7 +10,7 @@ const A = process.env.EP_NODE_A ?? 'http://localhost:9001';
 const B = process.env.EP_NODE_B ?? 'http://localhost:9002';
 
 const twoUsers = async (browser: import('@playwright/test').Browser, page: Page) => {
-    const padId = await goToNewPad(page); // on A (baseURL)
+    const padId = await goToNewPad(page, A);
     const ctx = await browser.newContext();
     const onB = await ctx.newPage();
     await goToPad(onB, padId, B);

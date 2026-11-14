@@ -233,9 +233,9 @@ const navigateToPad = async (page: Page, padId: string, base = 'http://localhost
     }
 };
 
-export const goToNewPad = async (page: Page) => {
+export const goToNewPad = async (page: Page, base?: string) => {
     const padId = "FRONTEND_TESTS" + randomUUID();
-    await navigateToPad(page, padId);
+    await navigateToPad(page, padId, base);
     return padId;
 }
 
