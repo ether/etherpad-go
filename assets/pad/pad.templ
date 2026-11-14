@@ -1,6 +1,7 @@
 package pad
 
 import (
+	"github.com/ether/etherpad-go/assets/head"
     padModel "github.com/ether/etherpad-go/lib/models"
 	"github.com/ether/etherpad-go/lib/hooks"
 	"github.com/ether/etherpad-go/lib/settings"
@@ -500,20 +501,17 @@ templ ChatBox(translations map[string]string) {
 
 
 templ PadIndex(pad padModel.Model, jsScript string, translations map[string]string, settings *settings.Settings,
-availableFonts []string, buttonGroups []pluginTypes.ToolbarButtonGroup, settingsGroups []pluginTypes.SettingsMenuItemGroup, socialMetaHTML string) {
-  <html class="pad super-light-toolbar super-light-editor light-background">
+availableFonts []string, buttonGroups []pluginTypes.ToolbarButtonGroup, settingsGroups []pluginTypes.SettingsMenuItemGroup, socialMetaHTML string, page head.Info) {
+  <!DOCTYPE html>
+  <html lang={page.Lang} dir={page.Dir} translate="no" class={page.HTMLClass()}>
   <head>
+    @head.Meta(page)
     <title>{settings.Title}</title>
     <script type="module" src={jsScript}></script>
       <link href="/css/static/pad.css" rel="stylesheet"/>
       <link href="/css/static/iframe_editor.css" rel="stylesheet"/>
     <link  href={"/css/skin/"+ settings.SkinName + "/pad.css"} rel="stylesheet"/>
     <style title="dynamicsyntax"></style>
-    // Baseline theme-color derived from the configured toolbar variant.
-    // Kept in sync with the runtime toolbar by updateThemeColorMeta in
-    // skin_variants.ts so dark-mode users don't get a light address bar
-    // above a dark toolbar. Upstream #7606 / #7690.
-    <meta name="theme-color" content="#ffffff"/>
     // Open Graph + Twitter Card preview metadata. Pre-rendered with all
     // values HTML-escaped (pad name is user-controlled). Upstream #7635.
     @templ.Raw(socialMetaHTML)

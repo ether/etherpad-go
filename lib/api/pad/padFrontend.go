@@ -3,6 +3,7 @@ package pad
 import (
 	"cmp"
 	"embed"
+	"github.com/ether/etherpad-go/assets/head"
 	"slices"
 
 	"github.com/a-h/templ"
@@ -56,7 +57,7 @@ func HandlePadOpen(c fiber.Ctx, uiAssets embed.FS, retrievedSettings *settings.S
 		PadName:        padName,
 	})
 
-	padComp := padAsset.PadIndex(pad, jsFilePath, keyValues, retrievedSettings, AvailableFonts, buttonGroups, settingsMenuGroups, socialMetaHTML)
+	padComp := padAsset.PadIndex(pad, jsFilePath, keyValues, retrievedSettings, AvailableFonts, buttonGroups, settingsMenuGroups, socialMetaHTML, head.For(retrievedSettings, language, true))
 
 	return adaptor.HTTPHandler(templ.Handler(padComp))(c)
 }

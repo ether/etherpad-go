@@ -3,6 +3,7 @@ package static
 import (
 	"embed"
 	"encoding/json"
+	"github.com/ether/etherpad-go/assets/head"
 	padManager "github.com/ether/etherpad-go/lib/pad"
 	"io/fs"
 	"net/http"
@@ -376,9 +377,7 @@ func Init(store *lib.InitStore) {
 		return c.SendString("User-agent: *\nDisallow: /p/\n")
 	})
 
-	store.C.Get("/favicon.ico", func(c fiber.Ctx) error {
-		return c.Redirect().Status(fiber.StatusMovedPermanently).To("/images/favicon.ico")
-	})
+	store.C.Get("/favicon.ico", serveFavicon(store))
 
 	store.C.Get("/", func(c fiber.Ctx) error {
 		var language = c.Cookies("language", "en")
@@ -387,7 +386,7 @@ func Init(store *lib.InitStore) {
 			return err
 		}
 		socialMetaHTML := buildHomeSocialMeta(c, store.RetrievedSettings)
-		component := welcome.Page(store.RetrievedSettings, keyValues, socialMetaHTML)
+		component := welcome.Page(store.RetrievedSettings, keyValues, socialMetaHTML, head.For(store.RetrievedSettings, language, false))
 		return adaptor.HTTPHandler(templ.Handler(component))(c)
 	})
 

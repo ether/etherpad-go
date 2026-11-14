@@ -2,6 +2,7 @@ package timeslider
 
 import (
 	"embed"
+	"github.com/ether/etherpad-go/assets/head"
 
 	"github.com/a-h/templ"
 	"github.com/ether/etherpad-go/assets/timeslider"
@@ -55,7 +56,7 @@ func HandleTimesliderOpen(c fiber.Ctx, uiAssets embed.FS, retrievedSettings *set
 		PadName:        padName,
 	})
 
-	timesliderComp := timeslider.Timeslider(jsFilePath, keyValues, retrievedSettings, socialMetaHTML)
+	timesliderComp := timeslider.Timeslider(jsFilePath, keyValues, retrievedSettings, socialMetaHTML, head.For(retrievedSettings, language, true))
 
 	return adaptor.HTTPHandler(templ.Handler(timesliderComp))(c)
 }

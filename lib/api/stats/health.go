@@ -103,6 +103,7 @@ func Handler(
 			}
 		}
 
-		return c.Status(httpStatus).JSON(resp)
+		// The media type of the health check draft, as etherpad-lite.
+		return c.Status(httpStatus).JSON(resp, "application/health+json")
 	}
 }

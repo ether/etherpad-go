@@ -3,6 +3,8 @@ package hooks
 import (
 	"embed"
 	"encoding/json"
+	"golang.org/x/text/collate"
+	"golang.org/x/text/language"
 	"io/fs"
 	"path"
 	"path/filepath"
@@ -652,8 +654,28 @@ func sortAvailableLangs(langs map[string]LanguageInfo) []LanguageEntry {
 	for code, info := range langs {
 		entries = append(entries, LanguageEntry{Code: code, Info: info})
 	}
-	sort.Slice(entries, func(i, j int) bool {
-		return strings.ToLower(entries[i].Info.DisplayName) < strings.ToLower(entries[j].Info.DisplayName)
+	// Like etherpad-lite's localeCompare(..., {sensitivity: 'base'}): case
+	// and accents do not count, so "Čeština" comes before "Deutsch", not
+	// after every ASCII name. The code breaks ties, for a stable order.
+	c := collate.New(language.Und, collate.IgnoreCase, collate.IgnoreDiacritics)
+	sort.SliceStable(entries, func(i, j int) bool {
+		if r := c.CompareString(entries[i].Info.DisplayName, entries[j].Info.DisplayName); r != 0 {
+			return r < 0
+		}
+		return entries[i].Code < entries[j].Code
 	})
 	return entries
+}
+
+// PageLanguage is the lang and dir of a page in language: the language if
+// it is one of the available ones, else English.
+func PageLanguage(language string) (lang, dir string) {
+	info, ok := AvailableLangs[language]
+	if !ok {
+		return "en", "ltr"
+	}
+	if info.Direction == "rtl" {
+		return language, "rtl"
+	}
+	return language, "ltr"
 }

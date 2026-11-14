@@ -173,7 +173,6 @@ func (e *ExportPDF) embedEtherpadData(pdfContent []byte, padId string, optRevNum
 func (e *ExportPDF) loadFonts(pdf *gopdf.GoPdf) error {
 	regularPaths := []string{
 		"assets/font/Roboto-Regular.ttf",
-		"test_assets/assets/font/Roboto-Regular.ttf",
 	}
 
 	var regularBytes []byte
@@ -194,7 +193,6 @@ func (e *ExportPDF) loadFonts(pdf *gopdf.GoPdf) error {
 
 	boldPaths := []string{
 		"assets/font/Roboto-Bold.ttf",
-		"test_assets/assets/font/Roboto-Bold.ttf",
 	}
 
 	var boldBytes []byte
