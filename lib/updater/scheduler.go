@@ -48,9 +48,9 @@ const maxGraceMinutes = 7 * 24 * 60
 
 // failedOutcomes are the results after which the same release is not
 // applied automatically again: it would fail, or roll back, the same way
-// on every check. A newer release is scheduled; an admin can still apply
-// this one by hand.
-var failedOutcomes = map[string]bool{"failed": true, "preflight-failed": true, "rolled-back": true, "rollback-failed": true}
+// on every check, or an admin cancelled it. A newer release is scheduled;
+// an admin can still apply this one by hand, or acknowledge the failure.
+var failedOutcomes = map[string]bool{"failed": true, "preflight-failed": true, "rolled-back": true, "rollback-failed": true, "cancelled": true}
 
 // DecideSchedule decides whether to arm, cancel or leave the auto-apply timer.
 func DecideSchedule(in ScheduleInput) ScheduleDecision {

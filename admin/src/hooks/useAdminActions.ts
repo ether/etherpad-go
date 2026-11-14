@@ -10,6 +10,9 @@ export function useAdminActions() {
     getUpdateStatus: () => emit('getUpdateStatus'),
     applyUpdate: () => emit('applyUpdate'),
     acknowledgeUpdate: () => emit('acknowledgeUpdate'),
+    cancelUpdate: () => emit('cancelUpdate'),
+    getUpdateLog: () => emit('getUpdateLog'),
+    sendTestMail: () => emit('sendTestMail'),
     getInstalled: () => emit('getInstalled'),
     getStats: () => emit('getStats'),
     requestPads: (opts: {

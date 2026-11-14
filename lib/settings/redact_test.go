@@ -34,6 +34,14 @@ func TestRedactSettings(t *testing.T) {
 		assert.Equal(t, "localhost", out["host"])
 		assert.Equal(t, "/data/etherpad.db", out["filename"])
 	})
+	t.Run("the SMTP password", func(t *testing.T) {
+		out := RedactSettings(map[string]any{"mail": map[string]any{
+			"host": "smtp.example.com", "auth": map[string]any{"user": "etherpad", "pass": "secret"},
+		}}).(map[string]any)["mail"].(map[string]any)
+		assert.Equal(t, Redacted, out["auth"].(map[string]any)["pass"])
+		assert.Equal(t, "etherpad", out["auth"].(map[string]any)["user"])
+		assert.Equal(t, "smtp.example.com", out["host"])
+	})
 	t.Run("sso client secrets", func(t *testing.T) {
 		out := RedactSettings(map[string]any{"sso": map[string]any{"clients": []any{
 			map[string]any{"client_id": "app1", "client_secret": "shhh"},

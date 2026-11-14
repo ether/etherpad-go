@@ -18,6 +18,9 @@ export interface UpdateStatus {
   execution?: { status: string; targetTag?: string; reason?: string }
   lastResult?: { outcome: string; targetTag?: string; reason?: string; at?: string } | null
   policy?: { canManual?: boolean; canAuto?: boolean; canAutonomous?: boolean; reason?: string }
+  canCancel?: boolean
+  canAcknowledge?: boolean
+  adminEmail?: string
 }
 
 export interface PadRecord {
@@ -66,6 +69,8 @@ export interface AdminState {
   authError: string | null
   // apiKeys is the last answer about the HTTP API keys; null before one.
   apiKeys: ApiKeysResult | null
+  // updateLog is the end of the update log; null before it was loaded.
+  updateLog: string[] | null
   update: UpdateCheckResult | null
   updateStatus: UpdateStatus | null
   pads: PadRecord[]
@@ -99,6 +104,7 @@ type Action =
   | { type: 'SET_TOAST'; payload: Toast | null }
   | { type: 'SET_AUTH_ERROR'; payload: string | null }
   | { type: 'SET_API_KEYS'; payload: ApiKeysResult | null }
+  | { type: 'SET_UPDATE_LOG'; payload: string[] }
   | { type: 'SET_CURRENT_PAGE'; payload: string }
   | { type: 'SET_SETTINGS'; payload: string }
   | { type: 'SET_SETTINGS_READONLY'; payload: boolean }
@@ -130,6 +136,7 @@ const initialState: AdminState = {
   toast: null,
   authError: null,
   apiKeys: null,
+  updateLog: null,
   update: null,
   updateStatus: null,
   pads: [],
@@ -167,6 +174,8 @@ function adminReducer(state: AdminState, action: Action): AdminState {
       return { ...state, authError: action.payload }
     case 'SET_API_KEYS':
       return { ...state, apiKeys: action.payload }
+    case 'SET_UPDATE_LOG':
+      return { ...state, updateLog: action.payload }
     case 'SET_CURRENT_PAGE':
       return { ...state, currentPage: action.payload }
     case 'SET_SETTINGS':
@@ -335,6 +344,25 @@ export function AdminProvider({ children }: { children: ReactNode }) {
           payload: payload?.ok
             ? { kind: 'info', message: 'Update started — the server will restart shortly.' }
             : { kind: 'error', message: payload?.error ?? 'Failed to start update' },
+        })
+        break
+      case 'results:updateLog':
+        dispatch({ type: 'SET_UPDATE_LOG', payload: Array.isArray(payload?.lines) ? payload.lines : [] })
+        break
+      case 'results:sendTestMail':
+        dispatch({
+          type: 'SET_TOAST',
+          payload: payload?.ok
+            ? { kind: 'success', message: 'Test mail sent.' }
+            : { kind: 'error', message: payload?.error ?? 'Sending the test mail failed' },
+        })
+        break
+      case 'results:cancelUpdate':
+        dispatch({
+          type: 'SET_TOAST',
+          payload: payload?.ok
+            ? { kind: 'success', message: 'Update cancelled.' }
+            : { kind: 'error', message: payload?.error ?? 'Failed to cancel' },
         })
         break
       case 'results:acknowledgeUpdate':

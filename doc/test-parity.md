@@ -7,10 +7,10 @@ behaviour, they are not line-by-line translations.
 
 | Status | Files | Test cases |
 |---|---|---|
-| Ported | 104 | 1093 |
+| Ported | 118 | 1207 |
 | Partly ported | 4 | 140 |
 | Not applicable to Go | 43 | 349 |
-| To compare case by case | 21 | 152 |
+| To compare case by case | 7 | 38 |
 
 "To compare" does not mean untested: most of these areas have Go tests (the Go code refers
 to more than 20 upstream issues). It means nobody has checked yet, case by case, which
@@ -125,6 +125,20 @@ upstream cases the Go tests cover and which are missing.
 | `new/updater/VersionChecker` | 8 | `lib/updater/versionchecker_test.go` |
 | `new/updater/Scheduler` | 29 | `lib/updater/parity_scheduler_test.go`, `updater_test.go` (resume after restart); no grace-start emails |
 | `new/updater/trustedKeys` | 6 | `lib/updater/executor_test.go` (ed25519 over the checksums instead of git verify-tag) |
+| `new/updater/Notifier` | 13 | `lib/updater/notifier_test.go` (with the mails the updater sends) |
+| `new/updater/smtpTransportKey` | 5 | `lib/mail/mail_test.go` |
+| `new/updater/updateLog` | 11 | `lib/updater/updatelog_test.go` |
+| `new/updater/SessionDrainer` | 8 | `lib/updater/executor_test.go`, `updater_test.go` (`TestDrainerShortWindow`, cancel) |
+| `new/updater/RollbackHandler` | 10 | `lib/updater/updater_test.go`, `integration_test.go` (binary backup instead of git checkout + pnpm) |
+| `new/updater/UpdateExecutor` | 7 | `lib/updater/executor_test.go`, `integration_test.go` (download, checksum, atomic swap) |
+| `new/updater/applyPipeline` | 14 | `lib/updater/updater_test.go`, `integration_test.go` |
+| `new/hooks/express/updateStatus` | 9 | `lib/api/versionstatus/versionstatus_test.go`, `ui/src/js/pad_outdated_notice.test.ts` |
+| `new/privacy/updateCheck-optout` | 2 | `tier: off` is the opt-out: no check, no `/api/version-status` |
+| `updateActions` | 18 | `lib/updater/updater_test.go` (cancel, acknowledge, busy, stale verification); the actions are admin websocket events, `playwright/admin-spec/admin_updates.spec.ts` |
+| `updateStatus` | 6 | the status is an admin websocket event (admin only, so nothing to redact); `lib/updater/updater_test.go` |
+| `updater-integration` | 5 | `lib/updater/integration_test.go` (fake GitHub, check to verified or rolled back) |
+| `updater-scheduler-integration` | 2 | `lib/updater/integration_test.go` (a schedule across a restart) |
+| `updater-window-integration` | 4 | `lib/updater/integration_test.go` (autonomous waits for its window) |
 ## Partly ported
 
 | Spec | Cases | State |
@@ -172,27 +186,6 @@ Existing Go tests in this area: `lib/test/author`, `lib/test/api/author`
 | `admin/anonymizeAuthorSocket` | 7 | the admin UI has no author management (authorLoad, preview, anonymize) |
 | `admin/authorSearch` | 6 | see admin/anonymizeAuthorSocket |
 | `tokenTransfer` | 10 | etherpad-go has no token transfer (moving an author's identity to another browser) |
-
-### Updater
-
-Existing Go tests in this area: `lib/updater`, `lib/server/update_test.go` (Go has its own updater design)
-
-| Spec | Cases |
-|---|---|
-| `new/hooks/express/updateStatus` | 9 |
-| `new/privacy/updateCheck-optout` | 2 |
-| `new/updater/Notifier` | 13 |
-| `new/updater/RollbackHandler` | 10 |
-| `new/updater/SessionDrainer` | 8 |
-| `new/updater/UpdateExecutor` | 7 |
-| `new/updater/applyPipeline` | 14 |
-| `new/updater/smtpTransportKey` | 5 |
-| `new/updater/updateLog` | 11 |
-| `updateActions` | 18 |
-| `updateStatus` | 6 |
-| `updater-integration` | 5 |
-| `updater-scheduler-integration` | 2 |
-| `updater-window-integration` | 4 |
 
 ## Not applicable to Go
 

@@ -3,6 +3,7 @@ package updater
 import (
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -74,6 +75,7 @@ func TestCheckPendingVerificationCrashLoopRollsBack(t *testing.T) {
 	}
 
 	u, exitCode := newTestUpdater(t, exe)
+	u.cfg.CurrentVersion = "2.0.0" // booted into the new binary
 	u.state = EmptyState()
 	u.state.Execution = Execution{Status: StatusPendingVerification, TargetTag: "v2.0.0", FromVersion: "1.0.0", BackupPath: backup}
 	u.state.BootCount = maxBoots // next boot exceeds the limit
@@ -116,6 +118,7 @@ func TestAcknowledge(t *testing.T) {
 
 func TestCheckPendingVerificationArmsHealthTimer(t *testing.T) {
 	u, _ := newTestUpdater(t, filepath.Join(t.TempDir(), "etherpad"))
+	u.cfg.CurrentVersion = "2.0.0"
 	u.state = EmptyState()
 	u.state.Execution = Execution{Status: StatusPendingVerification, TargetTag: "v2.0.0"}
 	u.state.BootCount = 0
@@ -188,5 +191,221 @@ func TestResumeLeavesOtherStates(t *testing.T) {
 		if u.state.Execution != st || u.applyTimer != nil {
 			t.Errorf("%s changed: %+v", st.Status, u.state.Execution)
 		}
+	}
+}
+
+// Port of etherpad-lite's updateActions cases (cancel, acknowledge, busy,
+// stale pending verification).
+
+func TestStalePendingVerificationLeftToAdmin(t *testing.T) {
+	dir := t.TempDir()
+	exe := filepath.Join(dir, "etherpad")
+	backup := exe + ".bak"
+	_ = os.WriteFile(exe, []byte("HAND-INSTALLED"), 0o755)
+	_ = os.WriteFile(backup, []byte("OLD"), 0o755)
+	u, exitCode := newTestUpdater(t, exe)
+	u.cfg.CurrentVersion = "2.1.0" // an admin installed another version by hand
+	u.state = EmptyState()
+	u.state.Execution = Execution{Status: StatusPendingVerification, TargetTag: "v2.0.0", FromVersion: "1.0.0", BackupPath: backup}
+	u.state.BootCount = maxBoots
+
+	u.checkPendingVerification()
+	if got, _ := os.ReadFile(exe); string(got) != "HAND-INSTALLED" || *exitCode != -1 {
+		t.Fatalf("rolled back over the running version: %q exit %d", got, *exitCode)
+	}
+	if u.healthTimer != nil || u.state.Execution.Status != StatusPendingVerification {
+		t.Fatalf("expected it left alone: %+v", u.state.Execution)
+	}
+	if err := u.Acknowledge(); err != nil {
+		t.Fatalf("an admin can clear it: %v", err)
+	}
+	if u.state.Execution.Status != StatusIdle {
+		t.Errorf("status %q", u.state.Execution.Status)
+	}
+}
+
+func TestAcknowledgeTerminalStates(t *testing.T) {
+	for _, st := range []Execution{
+		{Status: StatusRollbackFailed, TargetTag: "v2.0.0", Reason: "x"},
+		{Status: StatusPreflightFailed, TargetTag: "v2.0.0", Reason: "insufficient-disk-space"},
+		{Status: StatusRolledBack, TargetTag: "v2.0.0", Reason: "health-check-timeout"},
+	} {
+		u, _ := newTestUpdater(t, filepath.Join(t.TempDir(), "etherpad"))
+		u.state = EmptyState()
+		u.state.Execution = st
+		u.state.LastResult = &LastResult{TargetTag: "v2.0.0", Outcome: "rolled-back", At: "2026-01-01T00:00:00Z"}
+		if err := u.Acknowledge(); err != nil {
+			t.Fatalf("%s: %v", st.Status, err)
+		}
+		if u.state.Execution.Status != StatusIdle {
+			t.Errorf("%s: %q", st.Status, u.state.Execution.Status)
+		}
+		// The release may be scheduled automatically again.
+		d := DecideSchedule(ScheduleInput{CanAuto: true, Tier: TierAuto, Latest: &ReleaseInfo{Version: "2.0.0", Tag: "v2.0.0"},
+			Execution: u.state.Execution, LastResult: u.state.LastResult, Now: time.Now()})
+		if d.Action != ScheduleArm {
+			t.Errorf("%s: not scheduled after acknowledging: %+v", st.Status, d)
+		}
+		if LoadState(u.cfg.StatePath).Execution.Status != StatusIdle {
+			t.Errorf("%s: not persisted (or the state file is invalid)", st.Status)
+		}
+	}
+	for _, st := range []Execution{{Status: StatusIdle}, {Status: StatusScheduled, TargetTag: "v2.0.0", ScheduledFor: "2026-01-01T00:00:00Z"},
+		{Status: StatusDraining, TargetTag: "v2.0.0"}, {Status: StatusExecuting, TargetTag: "v2.0.0"}, {Status: StatusVerified, TargetTag: "v2.0.0"}} {
+		u, _ := newTestUpdater(t, filepath.Join(t.TempDir(), "etherpad"))
+		u.state = EmptyState()
+		u.state.Execution = st
+		if err := u.Acknowledge(); err != ErrNotTerminal {
+			t.Errorf("%s: %v, want ErrNotTerminal", st.Status, err)
+		}
+	}
+	// A verification whose timer runs is not stale.
+	u, _ := newTestUpdater(t, filepath.Join(t.TempDir(), "etherpad"))
+	u.cfg.CurrentVersion = "2.0.0"
+	u.state = EmptyState()
+	u.state.Execution = Execution{Status: StatusPendingVerification, TargetTag: "v2.0.0", FromVersion: "1.0.0", BackupPath: "x", DeadlineAt: "2026-01-01T00:00:00Z"}
+	u.checkPendingVerification()
+	if err := u.Acknowledge(); err != ErrNotTerminal {
+		t.Errorf("running verification acknowledged: %v", err)
+	}
+	u.Stop()
+}
+
+func TestCancelSchedule(t *testing.T) {
+	u, _ := newTestUpdater(t, filepath.Join(t.TempDir(), "etherpad"))
+	u.state = EmptyState()
+	if err := u.Cancel(); err != ErrNothingToCancel {
+		t.Errorf("idle: %v", err)
+	}
+	u.state.Execution = Execution{Status: StatusScheduled, TargetTag: "v2.0.0", ScheduledFor: time.Now().Add(time.Hour).UTC().Format(time.RFC3339)}
+	u.mu.Lock()
+	u.armApplyTimerLocked("v2.0.0", time.Now().Add(time.Hour))
+	u.mu.Unlock()
+
+	if err := u.Cancel(); err != nil {
+		t.Fatal(err)
+	}
+	if u.state.Execution.Status != StatusIdle || u.applyTimer != nil {
+		t.Errorf("not cancelled: %+v timer %v", u.state.Execution, u.applyTimer)
+	}
+	if r := u.state.LastResult; r == nil || r.Outcome != "cancelled" || r.TargetTag != "v2.0.0" {
+		t.Errorf("lastResult %+v", r)
+	}
+	d := DecideSchedule(ScheduleInput{CanAuto: true, Tier: TierAuto, Latest: &ReleaseInfo{Version: "2.0.0", Tag: "v2.0.0"},
+		Execution: u.state.Execution, LastResult: u.state.LastResult, Now: time.Now()})
+	if d.Action != ScheduleNone {
+		t.Errorf("the cancelled release was scheduled again: %+v", d)
+	}
+	if LoadState(u.cfg.StatePath).LastResult == nil {
+		t.Error("not persisted (or the state file is invalid)")
+	}
+}
+
+func TestCancelDrain(t *testing.T) {
+	u, _ := newTestUpdater(t, filepath.Join(t.TempDir(), "etherpad"))
+	var notices []int
+	u.broadcast = func(s int) { notices = append(notices, s) }
+	u.state = EmptyState()
+	u.state.Execution = Execution{Status: StatusDraining, TargetTag: "v2.0.0", DrainEndsAt: "2026-01-01T00:00:00Z"}
+	if err := u.Cancel(); err != ErrNothingToCancel {
+		t.Errorf("no drainer running: %v", err)
+	}
+
+	d := NewDrainer(60, u.setAccepting, u.broadcast)
+	u.drainer = d
+	done := make(chan DrainResult)
+	go func() { done <- d.Start() }()
+	time.Sleep(20 * time.Millisecond)
+	if u.IsAcceptingConnections() {
+		t.Error("draining should refuse new connections")
+	}
+	if err := u.Cancel(); err != nil {
+		t.Fatal(err)
+	}
+	if res := <-done; res != DrainCancelled {
+		t.Errorf("drain %v", res)
+	}
+	if !u.IsAcceptingConnections() {
+		t.Error("connections accepted again after cancel")
+	}
+}
+
+func TestApplyNowBusy(t *testing.T) {
+	for _, st := range []ExecutionStatus{StatusPreflight, StatusDraining, StatusExecuting, StatusPendingVerification, StatusRollingBack} {
+		u, _ := newTestUpdater(t, filepath.Join(t.TempDir(), "etherpad"))
+		u.state = EmptyState()
+		u.state.Latest = &ReleaseInfo{Version: "2.0.0", Tag: "v2.0.0"}
+		u.state.Execution = Execution{Status: st, TargetTag: "v2.0.0"}
+		if err := u.ApplyNow(); err != ErrBusy {
+			t.Errorf("%s: %v, want ErrBusy", st, err)
+		}
+	}
+	u, _ := newTestUpdater(t, filepath.Join(t.TempDir(), "etherpad"))
+	u.state = EmptyState()
+	if err := u.ApplyNow(); err == nil {
+		t.Error("no known release: error expected")
+	}
+	u.cfg.Tier = TierNotify
+	u.state.Latest = &ReleaseInfo{Version: "2.0.0", Tag: "v2.0.0"}
+	if err := u.ApplyNow(); err == nil {
+		t.Error("notify tier: manual apply not permitted")
+	}
+}
+
+// etherpad-lite's SessionDrainer: announcements below the window only, and
+// connections refused during the drain and accepted again after it.
+func TestDrainerShortWindow(t *testing.T) {
+	var mu sync.Mutex
+	var announced []int
+	accepting := true
+	var seenRefused bool
+	d := NewDrainer(2, func(b bool) {
+		mu.Lock()
+		defer mu.Unlock()
+		if !b {
+			seenRefused = true
+		}
+		accepting = b
+	}, func(s int) {
+		mu.Lock()
+		defer mu.Unlock()
+		announced = append(announced, s)
+	})
+	if res := d.Start(); res != DrainCompleted {
+		t.Fatalf("result %v", res)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if !seenRefused || !accepting {
+		t.Errorf("refused during, accepting after: %v %v", seenRefused, accepting)
+	}
+	// 60, 30 and 10 are not below a 2s window: only the start is announced.
+	if len(announced) != 1 || announced[0] != 2 {
+		t.Errorf("announced %v, want [2]", announced)
+	}
+}
+
+// etherpad-lite's RollbackHandler: a rollback that cannot restore the
+// backup ends in rollback-failed and still restarts.
+func TestRollbackFailureIsTerminal(t *testing.T) {
+	dir := t.TempDir()
+	exe := filepath.Join(dir, "etherpad")
+	_ = os.WriteFile(exe, []byte("NEW"), 0o755)
+	u, exitCode := newTestUpdater(t, exe)
+	u.cfg.CurrentVersion = "2.0.0"
+	u.state = EmptyState()
+	u.state.Execution = Execution{Status: StatusPendingVerification, TargetTag: "v2.0.0", FromVersion: "1.0.0",
+		BackupPath: filepath.Join(dir, "missing.bak"), DeadlineAt: "2026-01-01T00:00:00Z"}
+
+	u.rollback("health-check-timeout")
+	if u.state.Execution.Status != StatusRollbackFailed || *exitCode != ExitCodeRestart {
+		t.Fatalf("status %q exit %d", u.state.Execution.Status, *exitCode)
+	}
+	if u.state.LastResult == nil || u.state.LastResult.Outcome != "rollback-failed" {
+		t.Errorf("lastResult %+v", u.state.LastResult)
+	}
+	if p := EvaluatePolicy(PolicyInput{Tier: TierAuto, InstallMethod: InstallBinary, CurrentVersion: "1.0.0",
+		Latest: &ReleaseInfo{Version: "2.0.0", Tag: "v2.0.0"}, ExecutionStatus: u.state.Execution.Status}); p.CanAuto {
+		t.Error("auto must stay off after a failed rollback")
 	}
 }

@@ -48,3 +48,7 @@ func isMinorOrMoreBehind(current, latest string) bool {
 	}
 	return lat.Major() == cur.Major() && lat.Minor() > cur.Minor()
 }
+
+// MinorOrMoreBehind reports whether latest is at least a minor version
+// ahead of current (for the outdated notice on pads).
+func MinorOrMoreBehind(current, latest string) bool { return isMinorOrMoreBehind(current, latest) }

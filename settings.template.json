@@ -123,6 +123,14 @@
       "tz": "local"
     }
   },
+  "adminEmail": "",
+  "mail": {
+    "host": "",
+    "port": 587,
+    "secure": false,
+    "from": "",
+    "auth": null
+  },
   "disableIPlogging": false,
   "automaticReconnectionTimeout": 0,
   "scrollWhenFocusLineIsOutOfViewport": {

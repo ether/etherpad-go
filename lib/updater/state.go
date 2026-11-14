@@ -50,7 +50,9 @@ var requiredFields = map[ExecutionStatus][]string{
 }
 
 var knownOutcomes = map[string]bool{
-	"verified": true, "failed": true, "preflight-failed": true, "rolled-back": true, "rollback-failed": true,
+	"verified": true, "failed": true, "preflight-failed": true, "rolled-back": true, "rollback-failed": true, "cancelled": true,
+	"acknowledged-failed": true, "acknowledged-preflight-failed": true, "acknowledged-rolled-back": true,
+	"acknowledged-rollback-failed": true, "acknowledged-cancelled": true,
 }
 
 func validTime(s string) bool {
@@ -79,10 +81,13 @@ func validState(s UpdateState) bool {
 	if e.TargetTag != "" && !IsValidTag(e.TargetTag) {
 		return false
 	}
-	for _, ts := range []string{e.ScheduledFor, e.DrainEndsAt, e.DeadlineAt, e.At, s.LastCheckAt} {
+	for _, ts := range []string{e.ScheduledFor, e.DrainEndsAt, e.DeadlineAt, e.At, s.LastCheckAt, s.Email.SevereAt} {
 		if !validTime(ts) {
 			return false
 		}
+	}
+	if s.Email.GraceStartTag != "" && !IsValidTag(s.Email.GraceStartTag) {
+		return false
 	}
 	if s.BootCount < 0 {
 		return false

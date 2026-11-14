@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/ether/etherpad-go/lib/cluster"
 	"github.com/ether/etherpad-go/lib/lifecycle"
+	"github.com/ether/etherpad-go/lib/updater"
 	"net/http"
 	"os"
 	"os/signal"
@@ -89,6 +90,10 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 	// Started after the hub so a drain can warn connected clients of the
 	// imminent restart via a sticky shout.
 	upd := StartUpdater(setupLogger, &settings, gitVersion, func(secsLeft int) {
+		if secsLeft == updater.DrainCancelledNotice {
+			globalHub.BroadcastShout("The update was cancelled; the server keeps running.", false)
+			return
+		}
 		globalHub.BroadcastShout(fmt.Sprintf("This server is updating and will restart in %d seconds. Your changes are saved.", secsLeft), true)
 	})
 	sessionStore := ws.NewSessionStore()
@@ -143,6 +148,8 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 	go globalHub.Run()
 
 	adminAPIRoute := app.Group("/admin/api")
+
+	registerVersionStatus(app, upd, padManager, dataStore, &settings)
 
 	authenticator := api2.InitAPI(&lib.InitStore{
 		C:                 app,

@@ -78,7 +78,19 @@ export function OverviewPage() {
             Update status: <span className="font-medium">{execStatus}</span>
             {store.updateStatus?.execution?.reason ? ` — ${store.updateStatus.execution.reason}` : ''}
           </span>
-          {rollbackFailed && (
+          {store.updateStatus?.canCancel && (
+            <button
+              type="button"
+              onClick={() => {
+                actions.cancelUpdate()
+                setTimeout(() => actions.getUpdateStatus(), 1000)
+              }}
+              className="rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-xs font-medium text-gray-800 dark:text-gray-200 transition-colors hover:bg-gray-50 dark:hover:bg-gray-800"
+            >
+              Cancel
+            </button>
+          )}
+          {(rollbackFailed || store.updateStatus?.canAcknowledge) && (
             <button
               type="button"
               onClick={() => {

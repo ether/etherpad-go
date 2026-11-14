@@ -170,6 +170,45 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 				c.SafeSend(responseBytes)
 			}
 		}
+	case "getUpdateLog":
+		{
+			if h.updater == nil {
+				h.Logger.Error("Updater not available")
+				return
+			}
+			resp := []any{"results:updateLog", map[string]any{"lines": h.updater.LogTail(200)}}
+			if responseBytes, err := json.Marshal(resp); err == nil {
+				c.SafeSend(responseBytes)
+			}
+		}
+	case "sendTestMail":
+		{
+			if h.updater == nil {
+				h.Logger.Error("Updater not available")
+				return
+			}
+			resp := []any{"results:sendTestMail", map[string]any{"ok": true}}
+			if err := h.updater.TestMail(); err != nil {
+				resp[1] = map[string]any{"ok": false, "error": err.Error()}
+			}
+			if responseBytes, err := json.Marshal(resp); err == nil {
+				c.SafeSend(responseBytes)
+			}
+		}
+	case "cancelUpdate":
+		{
+			if h.updater == nil {
+				h.Logger.Error("Updater not available")
+				return
+			}
+			resp := []any{"results:cancelUpdate", map[string]any{"ok": true}}
+			if err := h.updater.Cancel(); err != nil {
+				resp[1] = map[string]any{"ok": false, "error": err.Error()}
+			}
+			if responseBytes, err := json.Marshal(resp); err == nil {
+				c.SafeSend(responseBytes)
+			}
+		}
 	case "acknowledgeUpdate":
 		{
 			if h.updater == nil {

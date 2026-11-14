@@ -122,6 +122,27 @@ type Cookie struct {
 	SessionCleanup *bool `json:"sessionCleanup" mapstructure:"sessionCleanup"`
 }
 
+// MailSettings is the SMTP server the updater sends its notices through
+// (etherpad-lite's mail). Without a host nothing is sent; the notices only
+// appear in the log.
+type MailSettings struct {
+	Host string `json:"host" mapstructure:"host"`
+	// Port defaults to 587 (submission with STARTTLS).
+	Port int `json:"port" mapstructure:"port"`
+	// Secure connects with TLS from the start (port 465); otherwise
+	// STARTTLS is used when the server offers it.
+	Secure bool   `json:"secure" mapstructure:"secure"`
+	From   string `json:"from" mapstructure:"from"`
+	// Auth is optional: a server that relays without login needs none.
+	Auth *MailAuth `json:"auth" mapstructure:"auth"`
+}
+
+// MailAuth is a login for the SMTP server.
+type MailAuth struct {
+	User string `json:"user" mapstructure:"user"`
+	Pass string `json:"pass" mapstructure:"pass"`
+}
+
 // Updates configures the self-update subsystem (lib/updater).
 type Updates struct {
 	// Tier: off | notify | manual | auto | autonomous.
@@ -351,6 +372,10 @@ type Settings struct {
 	Cookie Cookie `json:"cookie" mapstructure:"cookie"`
 
 	Updates Updates `json:"updates" mapstructure:"updates"`
+	// AdminEmail receives the updater's notices (outdated instance, a
+	// scheduled update, a failed one); "" sends none.
+	AdminEmail string       `json:"adminEmail" mapstructure:"adminEmail"`
+	Mail       MailSettings `json:"mail" mapstructure:"mail"`
 
 	Cluster Cluster `json:"cluster" mapstructure:"cluster"`
 

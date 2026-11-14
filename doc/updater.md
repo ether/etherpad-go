@@ -41,8 +41,10 @@ It is configured under the `updates` key in `settings.json` (defaults live in
 
 `installMethod: auto` resolves to:
 
-- `docker` if `/.dockerenv` exists — **never self-applies**; the container orchestrator owns
-  the image. The updater only notifies.
+- `docker` inside a container — `/.dockerenv` (Docker), `/run/.containerenv` (Podman, CRI-O)
+  or `KUBERNETES_SERVICE_HOST` in the environment (every Kubernetes pod, also with containerd,
+  which writes no marker file) — **never self-applies**; the container orchestrator owns the
+  image. The updater only notifies.
 - `binary` if the running executable's directory is writable — **self-applies**.
 - `managed` otherwise (read-only/package-managed) — notifies only.
 
@@ -77,6 +79,9 @@ The updater downloads, per release tag:
 
 ## Apply pipeline
 
+Preflight refuses an apply without enough free disk space next to the executable (twice the
+binary plus 50 MB).
+
 `lock → preflight → drain (warn clients, refuse new /socket.io upgrades) → download + verify
 → atomic swap → exit 75`. On the next boot the update is held `pending-verification` until the
 server serves a healthy boot (then `verified`); a crash loop or health-check timeout triggers
@@ -84,14 +89,54 @@ an automatic rollback to the previous binary. A failed rollback is terminal
 (`rollback-failed`) and blocks further auto-applies until an admin **acknowledges** it from
 the admin UI.
 
+A release whose automatic apply failed, was rolled back or was cancelled is not applied
+automatically again (that would repeat on every check); a newer release is, an admin can apply
+it by hand, or acknowledge the failure to let it be scheduled again. A schedule survives a
+restart, and an apply the process died in is recorded as failed instead of blocking the
+updater. If, at boot, a version other than the update's target is running (installed by hand),
+the pending verification is left to the admin instead of rolling back over it.
+
 ## Admin UI
 
-The admin dashboard can check for updates, trigger a manual apply, show the current execution
-state, and acknowledge a terminal `rollback-failed` state.
+The **Updates** page (`/admin/updates`) shows the running and latest version, what the
+updater is doing and its log (`update.log` next to the state file, rotated at 1 MB, three
+backups). There an admin can check for updates, apply one, **cancel** a scheduled update or
+the drain before the restart, and **acknowledge** a failed preflight, a rollback, a failed
+rollback or a verification nobody can finish.
+
+## Outdated notice on pads
+
+When the running version is a minor release or more behind, the first author of a pad sees a
+short notice on opening it (`/api/version-status`, cached for a minute per pad and author). With
+`tier: off` the endpoint does not exist.
+
+## E-mail notices
+
+With `adminEmail` set, the updater mails that address when the instance is a minor release or
+more behind (at most every 30 days), when it schedules an update, and when an apply fails, is
+rolled back or the rollback fails (once per release and outcome; a failed rollback always).
+`mail` is the SMTP server; without `mail.host` the mails are only written to the log. The
+Updates page can send a test mail.
+
+```json
+"adminEmail": "ops@example.org",
+"mail": {
+  "host": "smtp.example.org",
+  "port": 587,
+  "secure": false,
+  "from": "etherpad@example.org",
+  "auth": { "user": "etherpad", "pass": "${SMTP_PASSWORD}" }
+}
+```
+
+`port` defaults to 587; there STARTTLS is used when the server offers it, and a password is
+only sent over TLS (or to `localhost`). `secure: true` connects with TLS from the start (465).
+The password is redacted on the admin settings page.
 
 ## Not covered
 
 - **Session-cookie signing**: the Fiber session id is an opaque, server-side-stored random
   token (tampering yields an invalid session), so it is not signed/rotated. Only the OIDC
   signing secret is rotated (see `lib/security/secretrotator.go`).
-- **Email/SMTP notifications**: surfaced via logs and the admin UI instead.
+- **Vulnerability notices** (etherpad-lite's `vulnerableBelow` list): etherpad-go publishes no
+  such list.
