@@ -21,7 +21,9 @@ COPY ./assets/js/sheet/assets/sheet.js ./assets/js/sheet/assets/sheet.js
 COPY ./assets/css/build ./assets/css/build
 
 RUN templ generate
-RUN go build -o app .
+# Static: the runtime image is scratch, without a C library or loader, so a
+# cgo build (the default in golang:bookworm) would not start there.
+RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o app .
 
 
 FROM alpine:3.24 AS busybox

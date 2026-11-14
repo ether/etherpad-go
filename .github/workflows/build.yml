@@ -404,7 +404,8 @@ jobs:
       - name: Build app (for the benches)
         run: go build -o etherpad-go
       - name: Build image
-        run: docker build -t etherpad-go:k8s-test .
+        # The release image (see the docker job), not a test build.
+        run: docker build -f Dockerfile.build -t etherpad-go:k8s-test .
       - name: Create kind cluster
         run: |
           go install sigs.k8s.io/kind@v0.33.0

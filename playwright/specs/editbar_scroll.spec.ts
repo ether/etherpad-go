@@ -37,7 +37,9 @@ test.describe('desktop toolbar overflow', () => {
         expect(dimensionsBefore.scrollWidth).toBeGreaterThan(dimensionsBefore.clientWidth);
 
         await menuLeft.hover();
-        await page.mouse.wheel(0, 800);
+        // A small step: with a large one (and Windows' wheel scaling) the
+        // toolbar can reach its end, and the right arrow rightly fades.
+        await page.mouse.wheel(0, 120);
 
         await expect.poll(async () => {
             return await menuLeft.evaluate((node) => node.scrollLeft);
@@ -56,6 +58,9 @@ test.describe('desktop toolbar overflow', () => {
         });
         expect(arrowState.beforeContent).toContain('‹');
         expect(arrowState.afterContent).toContain('›');
-        expect(Number(arrowState.afterOpacity)).toBeGreaterThan(0.2);
+        await expect(toolbar).toHaveClass(/toolbar-can-scroll-right/);
+        // The arrows fade in with a transition.
+        await expect.poll(() => toolbar.evaluate((node) => Number(getComputedStyle(node, '::after').opacity)))
+            .toBeGreaterThan(0.2);
     });
 });
