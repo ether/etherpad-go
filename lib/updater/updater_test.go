@@ -134,3 +134,59 @@ func TestCheckPendingVerificationArmsHealthTimer(t *testing.T) {
 	// Clean up the timer so it cannot fire a rollback after the test.
 	u.Stop()
 }
+
+// A schedule from before a restart fires: the check after the restart sees
+// "already scheduled" and would never arm the lost timer.
+func TestResumeArmsPersistedSchedule(t *testing.T) {
+	u, _ := newTestUpdater(t, filepath.Join(t.TempDir(), "etherpad"))
+	u.cfg.Tier = TierAuto
+	at := time.Now().Add(time.Hour).UTC().Truncate(time.Second)
+	u.state = EmptyState()
+	u.state.Execution = Execution{Status: StatusScheduled, TargetTag: "v2.0.0", ScheduledFor: at.Format(time.RFC3339)}
+
+	u.resumeLocked()
+	if u.applyTimer == nil || u.timerTargetTag != "v2.0.0" {
+		t.Fatalf("timer not armed: %v %q", u.applyTimer, u.timerTargetTag)
+	}
+	u.Stop()
+}
+
+// An apply the process died in (preflight, draining, executing) is recorded
+// as failed and leaves the state idle, so it does not block later updates.
+func TestResumeClearsInterruptedApply(t *testing.T) {
+	for _, st := range []ExecutionStatus{StatusPreflight, StatusDraining, StatusExecuting} {
+		u, _ := newTestUpdater(t, filepath.Join(t.TempDir(), "etherpad"))
+		u.state = EmptyState()
+		u.state.Execution = Execution{Status: st, TargetTag: "v2.0.0", FromVersion: "1.0.0"}
+
+		u.resumeLocked()
+		if u.state.Execution.Status != StatusIdle {
+			t.Errorf("%s: status %q, want idle", st, u.state.Execution.Status)
+		}
+		if r := u.state.LastResult; r == nil || r.Outcome != "failed" || r.TargetTag != "v2.0.0" {
+			t.Errorf("%s: lastResult %+v", st, r)
+		}
+		if LoadState(u.cfg.StatePath).Execution.Status != StatusIdle {
+			t.Errorf("%s: not persisted", st)
+		}
+		// The failed release is not scheduled again automatically.
+		d := DecideSchedule(ScheduleInput{CanAuto: true, Tier: TierAuto, Latest: &ReleaseInfo{Version: "2.0.0", Tag: "v2.0.0"},
+			Execution: u.state.Execution, LastResult: u.state.LastResult, Now: time.Now()})
+		if d.Action != ScheduleNone {
+			t.Errorf("%s: re-scheduled the interrupted release: %+v", st, d)
+		}
+	}
+}
+
+// Pending verification is left to checkPendingVerification.
+func TestResumeLeavesOtherStates(t *testing.T) {
+	for _, st := range []Execution{{Status: StatusIdle}, {Status: StatusVerified, TargetTag: "v2.0.0"}, {Status: StatusRollbackFailed, TargetTag: "v2.0.0"}} {
+		u, _ := newTestUpdater(t, filepath.Join(t.TempDir(), "etherpad"))
+		u.state = EmptyState()
+		u.state.Execution = st
+		u.resumeLocked()
+		if u.state.Execution != st || u.applyTimer != nil {
+			t.Errorf("%s changed: %+v", st.Status, u.state.Execution)
+		}
+	}
+}

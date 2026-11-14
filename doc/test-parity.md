@@ -7,10 +7,10 @@ behaviour, they are not line-by-line translations.
 
 | Status | Files | Test cases |
 |---|---|---|
-| Ported | 93 | 918 |
+| Ported | 104 | 1093 |
 | Partly ported | 4 | 140 |
 | Not applicable to Go | 43 | 349 |
-| To compare case by case | 32 | 327 |
+| To compare case by case | 21 | 152 |
 
 "To compare" does not mean untested: most of these areas have Go tests (the Go code refers
 to more than 20 upstream issues). It means nobody has checked yet, case by case, which
@@ -114,6 +114,17 @@ upstream cases the Go tests cover and which are missing.
 | `new/sanitizePathname` | 4 | `lib/api/static/plugin_static_test.go` (`TestAdminLocaleName`, with the Windows cases; plugin assets in `TestPluginStaticFiles`) |
 | `new/getHomeUrl` | 3 | `ui/src/js/getHomeUrl.test.ts` |
 | `new/prom-instruments` | 5 | `lib/metrics/scaling_test.go`, `lib/test/api/stats/metrics_test.go` |
+| `new/updater/versionCompare` | 18 | `lib/updater/parity_pure_test.go` |
+| `new/updater/refSafety` | 9 | `lib/updater/parity_pure_test.go` (git ref forms have no counterpart: the tag goes into a release URL) |
+| `new/updater/MaintenanceWindow` | 22 | `lib/updater/parity_pure_test.go` (with a DST case) |
+| `new/updater/UpdatePolicy` | 15 | `lib/updater/parity_pure_test.go`; autonomous without a valid window keeps auto off, unlike lite |
+| `new/updater/state` | 32 | `lib/updater/parity_state_test.go`; no email fields (etherpad-go sends no mail) |
+| `new/updater/lock` | 8 | `lib/updater/parity_lock_test.go` |
+| `new/updater/InstallMethodDetector` | 6 | `lib/updater/parity_install_test.go` (binary, container incl. Kubernetes, managed instead of git/npm) |
+| `new/updater/preflight` | 22 | `lib/updater/parity_preflight_test.go`; the git, pnpm and Node engine checks have no counterpart for a single binary |
+| `new/updater/VersionChecker` | 8 | `lib/updater/versionchecker_test.go` |
+| `new/updater/Scheduler` | 29 | `lib/updater/parity_scheduler_test.go`, `updater_test.go` (resume after restart); no grace-start emails |
+| `new/updater/trustedKeys` | 6 | `lib/updater/executor_test.go` (ed25519 over the checksums instead of git verify-tag) |
 ## Partly ported
 
 | Spec | Cases | State |
@@ -170,24 +181,13 @@ Existing Go tests in this area: `lib/updater`, `lib/server/update_test.go` (Go h
 |---|---|
 | `new/hooks/express/updateStatus` | 9 |
 | `new/privacy/updateCheck-optout` | 2 |
-| `new/updater/InstallMethodDetector` | 6 |
-| `new/updater/MaintenanceWindow` | 22 |
 | `new/updater/Notifier` | 13 |
 | `new/updater/RollbackHandler` | 10 |
-| `new/updater/Scheduler` | 29 |
 | `new/updater/SessionDrainer` | 8 |
 | `new/updater/UpdateExecutor` | 7 |
-| `new/updater/UpdatePolicy` | 15 |
-| `new/updater/VersionChecker` | 8 |
 | `new/updater/applyPipeline` | 14 |
-| `new/updater/lock` | 8 |
-| `new/updater/preflight` | 22 |
-| `new/updater/refSafety` | 9 |
 | `new/updater/smtpTransportKey` | 5 |
-| `new/updater/state` | 32 |
-| `new/updater/trustedKeys` | 6 |
 | `new/updater/updateLog` | 11 |
-| `new/updater/versionCompare` | 18 |
 | `updateActions` | 18 |
 | `updateStatus` | 6 |
 | `updater-integration` | 5 |

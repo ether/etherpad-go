@@ -38,6 +38,10 @@ func (r ghRelease) toReleaseInfo() *ReleaseInfo {
 	}
 }
 
+// maxReleaseJSON bounds a release document read from the API (the notes
+// and a few dozen assets are far below it).
+const maxReleaseJSON = 4 << 20
+
 // CheckKind is the discriminator for a CheckResult.
 type CheckKind string
 
@@ -101,13 +105,15 @@ func (v *VersionChecker) CheckLatest(prevETag string) CheckResult {
 	}
 
 	var rel ghRelease
-	if err := json.NewDecoder(resp.Body).Decode(&rel); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxReleaseJSON)).Decode(&rel); err != nil {
 		return CheckResult{Kind: CheckError, Status: resp.StatusCode}
 	}
 	if rel.Prerelease || rel.Draft {
 		return CheckResult{Kind: CheckPrerelease, ETag: resp.Header.Get("ETag"), Status: resp.StatusCode}
 	}
-	if !IsValidTag(rel.TagName) {
+	// A tag that is no version ("nightly") would be stored as the latest
+	// release and never compare as newer: report it instead.
+	if _, ok := parseVersion(rel.TagName); !ok || !IsValidTag(rel.TagName) {
 		return CheckResult{Kind: CheckError, Status: resp.StatusCode}
 	}
 	return CheckResult{Kind: CheckUpdated, Release: rel.toReleaseInfo(), ETag: resp.Header.Get("ETag"), Status: resp.StatusCode}
@@ -134,7 +140,7 @@ func (v *VersionChecker) fetchReleaseByTag(tag string) (*ghRelease, error) {
 		return nil, fmt.Errorf("github returned %d fetching release %s: %s", resp.StatusCode, tag, string(body))
 	}
 	var rel ghRelease
-	if err := json.NewDecoder(resp.Body).Decode(&rel); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxReleaseJSON)).Decode(&rel); err != nil {
 		return nil, err
 	}
 	return &rel, nil

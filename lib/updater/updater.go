@@ -98,6 +98,7 @@ func (u *Updater) Start() {
 	u.mu.Unlock()
 
 	u.checkPendingVerification()
+	u.resumeLocked()
 
 	if u.cfg.Tier == TierOff {
 		u.logger.Info("updater: tier=off; not checking for updates")
@@ -203,6 +204,7 @@ func (u *Updater) decideScheduleLocked() {
 		Tier:          u.cfg.Tier,
 		Latest:        u.state.Latest,
 		Execution:     u.state.Execution,
+		LastResult:    u.state.LastResult,
 		Now:           u.now(),
 		GraceMinutes:  u.cfg.GraceMinutes,
 		Window:        u.cfg.Window,
@@ -295,6 +297,35 @@ func (u *Updater) recordResult(target ReleaseInfo, outcome, reason string) {
 		At:          u.nowStr(),
 	}
 	u.saveLocked()
+}
+
+// resumeLocked picks up what the previous run left in the state file:
+//   - a scheduled apply is armed again for its time (a check finds it
+//     "already scheduled" and would never arm the lost timer);
+//   - an apply that was preflighting, draining or executing when the
+//     process died is over: the running binary is still the old one, so it
+//     is recorded as failed and the state goes back to idle instead of
+//     blocking every later schedule.
+func (u *Updater) resumeLocked() {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	exec := u.state.Execution
+	switch exec.Status {
+	case StatusScheduled:
+		at, err := time.Parse(time.RFC3339, exec.ScheduledFor)
+		if err != nil {
+			u.state.Execution = Execution{Status: StatusIdle}
+			u.saveLocked()
+			return
+		}
+		u.armApplyTimerLocked(exec.TargetTag, at)
+		u.logger.Infof("updater: resuming scheduled apply of %s for %s", exec.TargetTag, exec.ScheduledFor)
+	case StatusPreflight, StatusDraining, StatusExecuting:
+		u.logger.Warnf("updater: the apply of %s was interrupted (%s); the old version keeps running", exec.TargetTag, exec.Status)
+		u.state.LastResult = &LastResult{TargetTag: exec.TargetTag, FromVersion: u.cfg.CurrentVersion, Outcome: "failed", Reason: "interrupted-" + string(exec.Status), At: u.nowStr()}
+		u.state.Execution = Execution{Status: StatusIdle}
+		u.saveLocked()
+	}
 }
 
 // runApply executes the full apply pipeline: lock → preflight → drain →

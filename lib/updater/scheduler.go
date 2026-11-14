@@ -36,10 +36,21 @@ type ScheduleInput struct {
 	Tier          Tier
 	Latest        *ReleaseInfo
 	Execution     Execution
+	LastResult    *LastResult
 	Now           time.Time
 	GraceMinutes  int
 	Window        *MaintenanceWindow
 }
+
+// maxGraceMinutes caps the grace period: a typo like 99999 minutes would
+// otherwise park the update for months.
+const maxGraceMinutes = 7 * 24 * 60
+
+// failedOutcomes are the results after which the same release is not
+// applied automatically again: it would fail, or roll back, the same way
+// on every check. A newer release is scheduled; an admin can still apply
+// this one by hand.
+var failedOutcomes = map[string]bool{"failed": true, "preflight-failed": true, "rolled-back": true, "rollback-failed": true}
 
 // DecideSchedule decides whether to arm, cancel or leave the auto-apply timer.
 func DecideSchedule(in ScheduleInput) ScheduleDecision {
@@ -57,13 +68,29 @@ func DecideSchedule(in ScheduleInput) ScheduleDecision {
 	if in.Execution.Status == StatusScheduled && in.Execution.TargetTag == in.Latest.Tag {
 		return ScheduleDecision{Action: ScheduleNone}
 	}
+	if failedTag(in) == in.Latest.Tag {
+		return ScheduleDecision{Action: ScheduleNone}
+	}
 
-	scheduledFor := in.Now.Add(time.Duration(in.GraceMinutes) * time.Minute)
+	grace := min(max(in.GraceMinutes, 0), maxGraceMinutes)
+	scheduledFor := in.Now.Add(time.Duration(grace) * time.Minute)
 	// Autonomous tier: never land outside the maintenance window.
 	if in.Tier == TierAutonomous && in.CanAutonomous && in.Window != nil && !in.Window.InWindow(scheduledFor) {
 		scheduledFor = in.Window.NextWindowStart(scheduledFor)
 	}
 	return ScheduleDecision{Action: ScheduleArm, TargetTag: in.Latest.Tag, ScheduledFor: scheduledFor}
+}
+
+// failedTag is the release whose last automatic attempt failed, or "".
+func failedTag(in ScheduleInput) string {
+	switch in.Execution.Status {
+	case StatusPreflightFailed, StatusRolledBack:
+		return in.Execution.TargetTag
+	}
+	if in.LastResult != nil && failedOutcomes[in.LastResult.Outcome] {
+		return in.LastResult.TargetTag
+	}
+	return ""
 }
 
 // TriggerAction is the outcome of DecideTriggerApply.
