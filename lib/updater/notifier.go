@@ -13,11 +13,14 @@ type EmailLog struct {
 	LastFailureKey string `json:"lastFailureKey,omitempty"` // "<outcome>:<tag>" of the last failure mail
 }
 
-// Email is one planned mail.
+// Email is one planned mail. Mark records it in the log; the updater calls
+// it once the mail went out, so a mail that failed (or had no sender) is
+// planned again instead of being taken as sent.
 type Email struct {
 	Kind    string
 	Subject string
 	Body    string
+	Mark    func(*EmailLog) `json:"-"`
 }
 
 // severeInterval is how often the "outdated" mail repeats.
@@ -27,8 +30,8 @@ const severeInterval = 30 * 24 * time.Hour
 const adminPath = "/admin/updates"
 
 // DecideEmails plans the "outdated" mail: when the instance is a minor
-// version or more behind, at most every 30 days. It is pure: the caller
-// sends and stores the new log.
+// version or more behind, at most every 30 days. It is pure: the returned
+// log is what it would be once the mails went out (see Email.Mark).
 func DecideEmails(adminEmail, current, latest string, now time.Time, log EmailLog) ([]Email, EmailLog) {
 	if adminEmail == "" || !isMinorOrMoreBehind(current, latest) {
 		return nil, log
@@ -36,8 +39,10 @@ func DecideEmails(adminEmail, current, latest string, now time.Time, log EmailLo
 	if last, err := time.Parse(time.RFC3339, log.SevereAt); err == nil && now.Sub(last) < severeInterval {
 		return nil, log
 	}
-	log.SevereAt = now.UTC().Format(time.RFC3339)
+	at := now.UTC().Format(time.RFC3339)
+	log.SevereAt = at
 	return []Email{{
+		Mark:    func(l *EmailLog) { l.SevereAt = at },
 		Kind:    "severe",
 		Subject: fmt.Sprintf("[Etherpad] Your instance is outdated (%s)", current),
 		Body: fmt.Sprintf("Your Etherpad version (%s) is at least one minor release behind the latest published version (%s). Consider scheduling an upgrade.",
@@ -52,6 +57,7 @@ func DecideGraceStartEmail(adminEmail, current string, target ReleaseInfo, at ti
 	}
 	log.GraceStartTag = target.Tag
 	return []Email{{
+		Mark:    func(l *EmailLog) { l.GraceStartTag = target.Tag },
 		Kind:    "grace-start",
 		Subject: fmt.Sprintf("[Etherpad] Auto-update scheduled for %s", target.Version),
 		Body: fmt.Sprintf("Etherpad will auto-update to %s at %s. Your version is %s. To cancel, visit %s.",
@@ -88,6 +94,7 @@ func DecideOutcomeEmail(adminEmail, outcome, reason, targetTag, currentVersion s
 	}
 	log.LastFailureKey = key
 	return []Email{{
+		Mark:    func(l *EmailLog) { l.LastFailureKey = key },
 		Kind:    kind,
 		Subject: subject,
 		Body:    fmt.Sprintf("Etherpad attempted to update to %s but failed: %s.\nThe running version is %s.%s", targetTag, reason, currentVersion, tail),

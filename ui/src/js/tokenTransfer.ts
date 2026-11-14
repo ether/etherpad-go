@@ -51,7 +51,9 @@ export const redeemTransfer = async (code: string, fetchFn: FetchLike, storage: 
   const id = code.trim();
   if (!isValidTransferId(id)) return false;
   try {
-    const r = await fetchFn(`./tokenTransfer/${encodeURIComponent(id)}`, {method: 'GET'});
+    // POST: redeeming replaces this browser's identity, which a plain link
+    // must not do (the server refuses GET and requests from other sites).
+    const r = await fetchFn(`./tokenTransfer/${encodeURIComponent(id)}`, {method: 'POST'});
     const data = await safeJson(r) as {ok?: unknown; prefs?: unknown} | null;
     if (!r.ok || data == null || typeof data !== 'object' || data.ok !== true) return false;
     if (typeof data.prefs === 'string' && data.prefs !== '') {

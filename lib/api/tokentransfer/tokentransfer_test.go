@@ -52,7 +52,17 @@ func (f *fixture) post(t *testing.T, cookie string, body string) (int, map[strin
 
 func (f *fixture) get(t *testing.T, id string) (*http.Response, map[string]any) {
 	t.Helper()
-	resp, err := f.app.Test(httptest.NewRequest("GET", "/tokenTransfer/"+id, nil))
+	return f.redeem(t, id, map[string]string{"Sec-Fetch-Site": "same-origin"}, "POST")
+}
+
+// redeem sends method /tokenTransfer/id with the given headers.
+func (f *fixture) redeem(t *testing.T, id string, headers map[string]string, method string) (*http.Response, map[string]any) {
+	t.Helper()
+	req := httptest.NewRequest(method, "/tokenTransfer/"+id, nil)
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+	resp, err := f.app.Test(req)
 	require.NoError(t, err)
 	b, _ := io.ReadAll(resp.Body)
 	var m map[string]any
@@ -84,7 +94,44 @@ func TestTransferHappyPath(t *testing.T) {
 	require.NotEmpty(t, cookie)
 	assert.Contains(t, cookie, "ep_token="+token)
 	assert.Contains(t, strings.ToLower(cookie), "httponly")
+	assert.Contains(t, strings.ToLower(cookie), "samesite=lax")
 	assert.Equal(t, "no-store", resp.Header.Get("Cache-Control"))
+}
+
+// Another site must not swap a visitor's identity: no GET (a link, an
+// image), no POST from another site's page. Refused requests leave the code
+// unused.
+func TestTransferRefusesOtherSites(t *testing.T) {
+	f := newFixture("")
+	_, m := f.post(t, "token="+token, `{}`)
+	id := m["id"].(string)
+	for _, tc := range []struct {
+		method  string
+		headers map[string]string
+		want    int
+	}{
+		{"GET", map[string]string{"Sec-Fetch-Site": "same-origin"}, 405},
+		{"GET", nil, 405},
+		{"POST", map[string]string{"Sec-Fetch-Site": "cross-site"}, 403},
+		{"POST", map[string]string{"Sec-Fetch-Site": "same-site"}, 403},
+		{"POST", map[string]string{"Sec-Fetch-Site": "none"}, 403},
+		{"POST", map[string]string{"Origin": "https://evil.example"}, 403},
+	} {
+		resp, _ := f.redeem(t, id, tc.headers, tc.method)
+		assert.Equal(t, tc.want, resp.StatusCode, "%s %v", tc.method, tc.headers)
+		assert.NotContains(t, strings.Join(resp.Header.Values("Set-Cookie"), ";"), token)
+	}
+	// Still unused: a page of this site (Origin of the host) redeems it.
+	resp, _ := f.redeem(t, id, map[string]string{"Origin": "http://example.com"}, "POST")
+	assert.Equal(t, 200, resp.StatusCode)
+
+	// Creating a code from another site is refused as well.
+	req := httptest.NewRequest("POST", "/tokenTransfer", strings.NewReader(`{}`))
+	req.Header.Set("Cookie", "token="+token)
+	req.Header.Set("Sec-Fetch-Site", "cross-site")
+	r, err := f.app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 403, r.StatusCode)
 }
 
 func TestTransferPrefs(t *testing.T) {

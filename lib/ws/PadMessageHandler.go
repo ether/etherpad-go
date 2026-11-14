@@ -1061,6 +1061,13 @@ func (p *PadMessageHandler) SendChatMessageToPadClients(session *ws.Session, cha
 		return
 	}
 	defer unlock()
+	// An erased author's session that was still connected must not tie new
+	// chat to the author again. Checked under the pad lock, which erasing
+	// the author's chat also takes per pad.
+	if chatMessage.AuthorId != nil && p.authorManager.IsErased(*chatMessage.AuthorId) {
+		p.disconnectAuthorLocal(*chatMessage.AuthorId)
+		return
+	}
 	retrievedPad, err := p.padManager.GetPad(session.PadId, nil, chatMessage.AuthorId)
 	if err != nil {
 		p.Logger.Warn("Error retrieving pad for chat message", err)
@@ -1115,6 +1122,7 @@ func (p *PadMessageHandler) BroadcastSystemChatToRoom(padId string, message map[
 	}
 	var marshalled, _ = json.Marshal(arr)
 	p.broadcastToRoom(padId, marshalled, "")
+	metrics.RecordSocketEmit("CHAT_MESSAGE")
 }
 
 // setDeletionClientVars fills the pad-deletion fields of CLIENT_VARS like
@@ -2001,6 +2009,41 @@ func (p *PadMessageHandler) GetRoomSockets(padID string) []Client {
 	}
 	p.hub.ClientsRWMutex.RUnlock()
 	return sockets
+}
+
+// disconnectSession tells one client why and closes its connection.
+func (p *PadMessageHandler) disconnectSession(client *Client, reason string) {
+	sendDisconnectMessage(client, reason)
+	if client.Conn != nil {
+		_ = client.Conn.Close()
+	}
+}
+
+// DisconnectAuthor closes the connections of an erased author's sessions on
+// every instance, so none of them can write the identity back.
+func (p *PadMessageHandler) DisconnectAuthor(authorID string) {
+	p.disconnectAuthorLocal(authorID)
+	p.publish(cluster.Event{Kind: cluster.KindErased, Author: authorID})
+}
+
+func (p *PadMessageHandler) disconnectAuthorLocal(authorID string) {
+	if authorID == "" {
+		return
+	}
+	var victims []*Client
+	p.hub.ClientsRWMutex.RLock()
+	for k := range p.hub.Clients {
+		if k == nil || k.SessionId == "" {
+			continue
+		}
+		if s := p.SessionStore.getSession(k.SessionId); s != nil && s.Author == authorID {
+			victims = append(victims, k)
+		}
+	}
+	p.hub.ClientsRWMutex.RUnlock()
+	for _, k := range victims {
+		p.disconnectSession(k, "kicked")
+	}
 }
 
 func (p *PadMessageHandler) KickSessionsFromPad(padID string) {

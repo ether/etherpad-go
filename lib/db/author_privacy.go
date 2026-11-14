@@ -174,9 +174,27 @@ func getAuthorByMapper(q querier, mapper string) (string, error) {
 	return id, err
 }
 
+// ErrMapperTaken: another author already has the mapper (unique since
+// migration 16, so two concurrent first uses cannot both get it).
+var ErrMapperTaken = errors.New("mapper belongs to another author")
+
 func setAuthorMapper(q querier, authorId, mapper string) error {
 	_, err := q.exec(`UPDATE globalAuthor SET mapper = ? WHERE id = ?`, mapper, authorId)
+	if isUniqueViolation(err) {
+		return ErrMapperTaken
+	}
 	return err
+}
+
+// isUniqueViolation recognises a unique-index violation of SQLite,
+// PostgreSQL (23505) and MySQL/MariaDB (1062).
+func isUniqueViolation(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "unique constraint") || strings.Contains(msg, "23505") ||
+		strings.Contains(msg, "duplicate entry") || strings.Contains(msg, "1062")
 }
 
 func removeMapperOfAuthor(q querier, authorId string) (bool, error) {
@@ -400,6 +418,11 @@ func (m *MemoryDataStore) GetAuthorByMapper(mapper string) (string, error) {
 func (m *MemoryDataStore) SetAuthorMapper(authorId, mapper string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	for id, e := range m.authorExtra {
+		if id != authorId && e.mapper != nil && *e.mapper == mapper {
+			return ErrMapperTaken
+		}
+	}
 	e := m.extra(authorId)
 	e.mapper = &mapper
 	m.authorExtra[authorId] = e

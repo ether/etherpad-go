@@ -139,21 +139,15 @@ jobs:
     # The PostgreSQL tests through PgBouncer in transaction mode without
     # prepared statement support (doc/cluster.md, "Connection pooling").
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:alpine
-        env:
-          POSTGRES_USER: test_user
-          POSTGRES_PASSWORD: test_password
-          POSTGRES_DB: test_db
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U test_user -d test_db"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 12
     steps:
+      # Not a service container: PgBouncer opens up to default_pool_size
+      # server connections per test database, more than the default 100.
+      - name: Start PostgreSQL
+        run: |
+          docker run -d --name pg -p 5432:5432 -e POSTGRES_USER=test_user -e POSTGRES_PASSWORD=test_password \
+            -e POSTGRES_DB=test_db postgres:alpine -c max_connections=500 -c fsync=off
+          for _ in $(seq 1 60); do docker exec pg pg_isready -U test_user -d test_db && exit 0; sleep 1; done
+          exit 1
       - name: Checkout
         uses: actions/checkout@v7
       - name: Set up Go

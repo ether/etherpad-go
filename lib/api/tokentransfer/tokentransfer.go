@@ -10,7 +10,9 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"net/url"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/ether/etherpad-go/lib/db"
@@ -68,6 +70,9 @@ func newID() (string, error) {
 // Create answers POST /tokenTransfer: a code for the requester's author
 // token cookie (it is HttpOnly, so the browser cannot send it any other way).
 func (h *Handler) Create(c fiber.Ctx) error {
+	if !sameOrigin(c) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Cross-site request"})
+	}
 	token := pad.AuthorTokenFromCookies(c.Cookies, h.Settings)
 	if token == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "No author cookie to transfer"})
@@ -95,10 +100,31 @@ func (h *Handler) Create(c fiber.Ctx) error {
 	return c.JSON(fiber.Map{"id": id})
 }
 
-// Redeem answers GET /tokenTransfer/:id: 404 for an unknown or used code,
-// 410 for an expired one; otherwise the author token cookie is set.
+// sameOrigin reports whether the request comes from a page of this site.
+// Browsers send Sec-Fetch-Site; older ones at least Origin on a POST. A
+// request with neither (curl, a test) is not from another site's page.
+func sameOrigin(c fiber.Ctx) bool {
+	if site := c.Get("Sec-Fetch-Site"); site != "" {
+		return site == "same-origin"
+	}
+	origin := c.Get(fiber.HeaderOrigin)
+	if origin == "" {
+		return true
+	}
+	u, err := url.Parse(origin)
+	return err == nil && strings.EqualFold(u.Host, c.Host())
+}
+
+// Redeem answers POST /tokenTransfer/:id from a page of this site: 404 for
+// an unknown or used code, 410 for an expired one; otherwise this browser
+// takes over the author token. Not a GET, and never from another site: a
+// link, an image or a form elsewhere must not swap a visitor's identity for
+// one the attacker also holds. The welcome page asks before it redeems.
 func (h *Handler) Redeem(c fiber.Ctx) error {
 	c.Set(fiber.HeaderCacheControl, "no-store")
+	if !sameOrigin(c) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Cross-site request"})
+	}
 	id := c.Params("id")
 	if !idPattern.MatchString(id) {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Token not found"})
@@ -113,7 +139,7 @@ func (h *Handler) Redeem(c fiber.Ctx) error {
 	if t.CreatedAt.IsZero() || h.now().Sub(t.CreatedAt) > TTL {
 		return c.Status(fiber.StatusGone).JSON(fiber.Map{"error": "Token expired"})
 	}
-	pad.SetAuthorTokenCookie(c, h.Settings, t.Token)
+	pad.SetAuthorTokenCookieLax(c, h.Settings, t.Token)
 	prefs := normalizePrefs(t.Prefs)
 	return c.JSON(fiber.Map{"ok": true, "prefs": prefs, "prefsHttp": prefs})
 }
@@ -121,5 +147,11 @@ func (h *Handler) Redeem(c fiber.Ctx) error {
 // Register adds the routes.
 func Register(app fiber.Router, h *Handler) {
 	app.Post("/tokenTransfer", h.Create)
-	app.Get("/tokenTransfer/:id", h.Redeem)
+	app.Post("/tokenTransfer/:id", h.Redeem)
+	// etherpad-lite redeems with GET; here that would let any link swap the
+	// identity, so it is refused.
+	app.Get("/tokenTransfer/:id", func(c fiber.Ctx) error {
+		c.Set(fiber.HeaderAllow, fiber.MethodPost)
+		return c.Status(fiber.StatusMethodNotAllowed).JSON(fiber.Map{"error": "Use POST"})
+	})
 }

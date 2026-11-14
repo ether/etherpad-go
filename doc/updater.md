@@ -93,8 +93,12 @@ A release whose automatic apply failed, was rolled back or was cancelled is not 
 automatically again (that would repeat on every check); a newer release is, an admin can apply
 it by hand, or acknowledge the failure to let it be scheduled again. A schedule survives a
 restart, and an apply the process died in is recorded as failed instead of blocking the
-updater. If, at boot, a version other than the update's target is running (installed by hand),
-the pending verification is left to the admin instead of rolling back over it.
+updater. Cancelling during the drain counts as cancelled too. A rollback the process died in
+is resolved at the next boot: if the old version runs, it is recorded as rolled back; if the
+target still runs, the rollback runs again; with any other version it becomes
+`rollback-failed` for the admin. If, at boot, a version other than the update's target is
+running (installed by hand), the pending verification is left to the admin instead of rolling
+back over it.
 
 ## Admin UI
 
@@ -116,7 +120,10 @@ With `adminEmail` set, the updater mails that address when the instance is a min
 more behind (at most every 30 days), when it schedules an update, and when an apply fails, is
 rolled back or the rollback fails (once per release and outcome; a failed rollback always).
 `mail` is the SMTP server; without `mail.host` the mails are only written to the log. The
-Updates page can send a test mail.
+Updates page can send a test mail. A notice counts as sent only once the server accepted it.
+If sending fails, it goes out again at the next check (the "outdated" and "scheduled"
+notices), or with the next failure of the same kind. A rollback saves its state before it
+waits for its mail.
 
 ```json
 "adminEmail": "ops@example.org",

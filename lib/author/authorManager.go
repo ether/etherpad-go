@@ -29,7 +29,21 @@ type Author struct {
 	Timestamp int64   `json:"timestamp" example:"1704067200000"`
 }
 
+// ErrAuthorErased is returned for writes to an erased author: its identity
+// must not come back through a session that was still connected.
+var ErrAuthorErased = errors.New("author is erased")
+
+// IsErased reports whether the author was erased (GDPR Art. 17). Unknown
+// authors are not erased.
+func (m *Manager) IsErased(authorId string) bool {
+	row, err := m.Db.GetAuthorRow(authorId)
+	return err == nil && row != nil && row.Erased
+}
+
 func (m *Manager) SetAuthorColor(author string, colorId string) error {
+	if m.IsErased(author) {
+		return ErrAuthorErased
+	}
 	if err := m.Db.SaveAuthorColor(author, colorId); err != nil {
 		return err
 	}
@@ -119,7 +133,16 @@ func (m *Manager) CreateAuthorIfNotExistsFor(mapper string, name *string) (*Auth
 			return nil, err
 		}
 		id = created.Id
-		if err := m.Db.SetAuthorMapper(id, mapper); err != nil {
+		if err := m.Db.SetAuthorMapper(id, mapper); errors.Is(err, db.ErrMapperTaken) {
+			// A concurrent first use won: take its author. The one created
+			// here has no token or mapper and stays unused.
+			if id, err = m.Db.GetAuthorByMapper(mapper); err != nil {
+				return nil, err
+			}
+			if id == "" {
+				return nil, db.ErrMapperTaken
+			}
+		} else if err != nil {
 			return nil, err
 		}
 	}
@@ -150,6 +173,9 @@ func (m *Manager) GetAuthorName(authorId string) (*string, error) {
 }
 
 func (m *Manager) SetAuthorName(authorId string, authorName string) error {
+	if m.IsErased(authorId) {
+		return ErrAuthorErased
+	}
 	if err := m.Db.SaveAuthorName(authorId, authorName); err != nil {
 		return err
 	}
@@ -257,10 +283,12 @@ type ErasureResult struct {
 // author's chat messages lose their authorship, and the author is marked
 // erased. Pad text and revisions stay; without the identity record their
 // author ids are opaque. With dryRun nothing changes and the counters tell
-// what would. An unknown author, or one already erased, gives zero
-// counters; a run that stopped before marking the author erased is
-// completed by the next one. Returns db.AuthorNotFoundError for an unknown
-// author too, so callers can tell.
+// what would. An unknown author gives zero counters and
+// db.AuthorNotFoundError, so callers can tell. A run that stopped before
+// marking the author erased is completed by the next one. An author already
+// erased is cleaned up again (a session still connected may have written a
+// name, a colour or chat meanwhile); its counters then count only what was
+// left, so a plain repeat gives zeros.
 func (m *Manager) Anonymize(authorId string, dryRun bool) (ErasureResult, error) {
 	var res ErasureResult
 	a, err := m.Db.GetAuthor(authorId)
@@ -271,11 +299,11 @@ func (m *Manager) Anonymize(authorId string, dryRun bool) (ErasureResult, error)
 	if err != nil {
 		return res, err
 	}
-	if row != nil && row.Erased {
-		return res, nil
-	}
-	if pads, err := m.Db.GetPadIdsOfAuthor(authorId); err == nil && pads != nil {
-		res.AffectedPads = len(*pads)
+	erased := row != nil && row.Erased
+	if !erased {
+		if pads, err := m.Db.GetPadIdsOfAuthor(authorId); err == nil && pads != nil {
+			res.AffectedPads = len(*pads)
+		}
 	}
 	if a.Token != nil && *a.Token != "" {
 		res.RemovedTokenMappings = 1
@@ -288,6 +316,9 @@ func (m *Manager) Anonymize(authorId string, dryRun bool) (ErasureResult, error)
 	}
 	if dryRun {
 		return res, nil
+	}
+	if erased && res == (ErasureResult{}) && (a.Name == nil || *a.Name == "") && (a.ColorId == "" || a.ColorId == "0") {
+		return res, nil // nothing came back
 	}
 
 	// Sever the bindings to the person first, before touching anything else.
@@ -310,6 +341,9 @@ func (m *Manager) Anonymize(authorId string, dryRun bool) (ErasureResult, error)
 	// Null authorship on chat messages the author posted.
 	if err := m.Db.ClearChatAuthorship(authorId); err != nil {
 		return res, err
+	}
+	if erased {
+		return res, nil // keeps the time of the first erasure
 	}
 	// Last: an interrupted run is not marked erased and runs again in full.
 	return res, m.Db.MarkAuthorErased(authorId, nowMillis())

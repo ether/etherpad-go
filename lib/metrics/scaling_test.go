@@ -59,8 +59,36 @@ func TestSetPadUsers(t *testing.T) {
 	reset(t, true)
 	SetPadUsers(map[string]int{"a": 2, "b": 1})
 	SetPadUsers(map[string]int{"a": 3})
-	assert.Equal(t, 3.0, testutil.ToFloat64(PadUsers.WithLabelValues("a")))
+	assert.Equal(t, 3.0, testutil.ToFloat64(PadUsers.WithLabelValues(PadLabel("a"))))
 	assert.Equal(t, 1, testutil.CollectAndCount(PadUsers), "the drained pad b is gone")
+}
+
+// /metrics is public: the series carry a pseudonym, never the pad name,
+// which can be what gives access to a pad.
+func TestPadUsersHidePadNames(t *testing.T) {
+	reset(t, true)
+	const secretPad = "g.s8oes9dhwrvt0zif$unguessable-pad"
+	SetPadUsers(map[string]int{secretPad: 1})
+	reg := prometheus.NewRegistry()
+	Register(reg)
+	families, err := reg.Gather()
+	require.NoError(t, err)
+	var labels []string
+	for _, f := range families {
+		if f.GetName() != "etherpad_pad_users" {
+			continue
+		}
+		for _, m := range f.GetMetric() {
+			for _, l := range m.GetLabel() {
+				labels = append(labels, l.GetName()+"="+l.GetValue())
+			}
+		}
+	}
+	require.Len(t, labels, 1)
+	assert.NotContains(t, labels[0], "unguessable")
+	assert.Regexp(t, `^pad=[0-9a-f]{12}$`, labels[0])
+	assert.Equal(t, PadLabel(secretPad), PadLabel(secretPad), "stable within the process")
+	assert.NotEqual(t, PadLabel("a"), PadLabel("b"))
 }
 
 func TestDisabledByDefault(t *testing.T) {

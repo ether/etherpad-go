@@ -84,6 +84,9 @@ func (h AdminMessageHandler) handleAuthorEvent(event string, data json.RawMessag
 		}
 		if !dryRun {
 			h.Logger.Infof("admin: erased author %s (%d pads, %d chat messages)", req.AuthorID, res.AffectedPads, res.ClearedChatMessages)
+			if h.padMessageHandler != nil {
+				h.padMessageHandler.DisconnectAuthor(req.AuthorID)
+			}
 		}
 		reply(authorErasureReply{AuthorID: req.AuthorID, ErasureResult: &res})
 	}

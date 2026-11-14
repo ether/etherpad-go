@@ -2,6 +2,7 @@ package author
 
 import (
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -19,11 +20,13 @@ func TestAuthorPrivacy(t *testing.T) {
 	h.AddTests(
 		testutils.TestRunConfig{Name: "erasure zeroes the identity and counts", Test: testErasure},
 		testutils.TestRunConfig{Name: "erasure is idempotent", Test: testErasureIdempotent},
+		testutils.TestRunConfig{Name: "an erased author takes no writes and is cleaned again", Test: testErasedAuthorStaysErased},
 		testutils.TestRunConfig{Name: "an unknown author", Test: testErasureUnknown},
 		testutils.TestRunConfig{Name: "an interrupted erasure runs again", Test: testErasureInterrupted},
 		testutils.TestRunConfig{Name: "dry run changes nothing", Test: testErasureDryRun},
 		testutils.TestRunConfig{Name: "lastSeen", Test: testLastSeen},
 		testutils.TestRunConfig{Name: "mapper", Test: testMapper},
+		testutils.TestRunConfig{Name: "concurrent first uses of a mapper get one author", Test: testMapperConcurrent},
 		testutils.TestRunConfig{Name: "search", Test: testSearch},
 		testutils.TestRunConfig{Name: "search cap", Test: testSearchCap},
 		testutils.TestRunConfig{Name: "token transfers", Test: testTokenTransferStore},
@@ -283,4 +286,84 @@ func testTokenTransferStore(t *testing.T, ds testutils.TestDataStore) {
 	require.NoError(t, ds.DS.RemoveTokenTransfersBefore(now.Add(-time.Minute)))
 	_, err = ds.DS.TakeTokenTransfer("old")
 	assert.ErrorIs(t, err, db.ErrTokenTransferNotFound, "expired ones are removed")
+}
+
+// A session still connected after the erasure must not bring the identity
+// back: name and colour are refused, and what raced past (written straight
+// to the store here) is cleared by the next erasure, which keeps the first
+// erasure time.
+func testErasedAuthorStaysErased(t *testing.T, ds testutils.TestDataStore) {
+	m := ds.AuthorManager
+	a, err := m.CreateAuthorIfNotExistsFor(uniq("m"), ptr("Erin"))
+	require.NoError(t, err)
+	padID := uniq("erasedPad")
+	_, err = ds.PadManager.GetPad(padID, ptr("hello"), &a.Id)
+	require.NoError(t, err)
+	_, err = m.Anonymize(a.Id, false)
+	require.NoError(t, err)
+	first, err := ds.DS.GetAuthorRow(a.Id)
+	require.NoError(t, err)
+
+	assert.ErrorIs(t, m.SetAuthorName(a.Id, "Erin again"), author.ErrAuthorErased)
+	assert.ErrorIs(t, m.SetAuthorColor(a.Id, "#abcdef"), author.ErrAuthorErased)
+	assert.True(t, m.IsErased(a.Id))
+
+	// Raced past the checks.
+	require.NoError(t, ds.DS.SaveAuthorName(a.Id, "Erin raced"))
+	require.NoError(t, ds.DS.SaveChatMessage(padID, 0, &a.Id, time.Now().UnixMilli(), "raced chat"))
+
+	dry, err := m.Anonymize(a.Id, true)
+	require.NoError(t, err)
+	assert.Equal(t, author.ErasureResult{ClearedChatMessages: 1}, dry)
+	res, err := m.Anonymize(a.Id, false)
+	require.NoError(t, err)
+	assert.Equal(t, author.ErasureResult{ClearedChatMessages: 1}, res)
+
+	rec, err := ds.DS.GetAuthor(a.Id)
+	require.NoError(t, err)
+	assert.Nil(t, rec.Name)
+	chats, err := ds.DS.GetChatsOfPad(padID, 0, 0)
+	require.NoError(t, err)
+	require.Len(t, *chats, 1)
+	assert.Nil(t, (*chats)[0].AuthorId)
+	after, err := ds.DS.GetAuthorRow(a.Id)
+	require.NoError(t, err)
+	assert.Equal(t, first.ErasedAt, after.ErasedAt, "the first erasure time stays")
+
+	again, err := m.Anonymize(a.Id, false)
+	require.NoError(t, err)
+	assert.Equal(t, author.ErasureResult{}, again)
+}
+
+// Concurrent createAuthorIfNotExistsFor for one external id: one author,
+// thanks to the unique mapper (migration 16).
+func testMapperConcurrent(t *testing.T, ds testutils.TestDataStore) {
+	mapper := uniq("lms-user")
+	const n = 8
+	ids := make([]string, n)
+	errs := make([]error, n)
+	var wg sync.WaitGroup
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			a, err := ds.AuthorManager.CreateAuthorIfNotExistsFor(mapper, nil)
+			errs[i] = err
+			if a != nil {
+				ids[i] = a.Id
+			}
+		}(i)
+	}
+	wg.Wait()
+	for i := 0; i < n; i++ {
+		require.NoError(t, errs[i])
+		assert.Equal(t, ids[0], ids[i], "one external id, two authors")
+	}
+	got, err := ds.DS.GetAuthorByMapper(mapper)
+	require.NoError(t, err)
+	assert.Equal(t, ids[0], got)
+	// Setting the mapper of another author is refused.
+	other, err := ds.AuthorManager.CreateAuthor(nil)
+	require.NoError(t, err)
+	assert.ErrorIs(t, ds.DS.SetAuthorMapper(other.Id, mapper), db.ErrMapperTaken)
 }

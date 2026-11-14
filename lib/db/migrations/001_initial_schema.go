@@ -22,6 +22,7 @@ func GetMigrations() []Migration {
 		migration013MySQLBinaryIDs(),
 		migration014APIKeys(),
 		migration015AuthorPrivacy(),
+		migration016UniqueAuthorMapper(),
 	}
 }
 

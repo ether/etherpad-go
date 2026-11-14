@@ -37,10 +37,11 @@ describe('token transfer', () => {
   })
 
   it('redeems once and stores the prefs', async () => {
-    const calls: Array<{url: string}> = []
+    const calls: Array<{url: string; init?: any}> = []
     const s = memStorage({[PREFS_KEY]: '{"old":1}'})
     expect(await redeemTransfer(` ${ID} `, fakeFetch(true, {ok: true, prefs: '{"new":2}'}, calls), s)).toBe(true)
     expect(calls[0].url).toBe(`./tokenTransfer/${ID}`)
+    expect(calls[0].init.method).toBe('POST') // a GET would let a link swap the identity
     expect(s.data[PREFS_KEY]).toBe('{"new":2}')
   })
 

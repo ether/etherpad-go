@@ -63,8 +63,19 @@ func EnsureAuthorTokenCookie(c fiber.Ctx, cfg *settings.Settings) string {
 // SetAuthorTokenCookie writes token as the HttpOnly author token cookie
 // (and drops the older JavaScript-readable one).
 func SetAuthorTokenCookie(c fiber.Ctx, cfg *settings.Settings, token string) {
-	name := authorTokenCookieName(cfg)
 	secure, sameSite := authorTokenCookieFlags(c.Scheme() == "https", c.Get("Sec-Fetch-Site"))
+	setAuthorTokenCookie(c, cfg, token, secure, sameSite)
+}
+
+// SetAuthorTokenCookieLax is SetAuthorTokenCookie with SameSite=Lax
+// always: for a token the browser takes over (a session transfer), which no
+// other site may trigger.
+func SetAuthorTokenCookieLax(c fiber.Ctx, cfg *settings.Settings, token string) {
+	setAuthorTokenCookie(c, cfg, token, c.Scheme() == "https", fiber.CookieSameSiteLaxMode)
+}
+
+func setAuthorTokenCookie(c fiber.Ctx, cfg *settings.Settings, token string, secure bool, sameSite string) {
+	name := authorTokenCookieName(cfg)
 	c.Cookie(&fiber.Cookie{
 		Name:     name,
 		Value:    token,

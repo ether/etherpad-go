@@ -49,11 +49,15 @@ type Updater struct {
 	exePath       string
 	installMethod InstallMethod
 
-	mu             sync.Mutex
-	state          UpdateState
-	applyTimer     *time.Timer
-	healthTimer    *time.Timer
-	drainer        *Drainer // set while an apply drains, for Cancel
+	mu          sync.Mutex
+	state       UpdateState
+	applyTimer  *time.Timer
+	healthTimer *time.Timer
+	drainer     *Drainer // set while an apply drains, for Cancel
+	// mailsInFlight are mails being sent (Kind + Subject), so a mail
+	// planned again before the first send is done is not sent twice.
+	mailMu         sync.Mutex
+	mailsInFlight  map[string]bool
 	timerTargetTag string
 
 	accepting atomic.Bool
@@ -199,12 +203,29 @@ func (u *Updater) performCheck() {
 
 	if u.state.Latest != nil {
 		to := u.adminEmail()
-		mails, log := DecideEmails(to, u.cfg.CurrentVersion, u.state.Latest.Version, u.now(), u.state.Email)
-		u.state.Email = log
+		mails, _ := DecideEmails(to, u.cfg.CurrentVersion, u.state.Latest.Version, u.now(), u.state.Email)
 		u.sendMails(to, mails, false)
 	}
 	u.decideScheduleLocked()
+	u.graceMailLocked()
 	u.saveLocked()
+}
+
+// graceMailLocked mails "update scheduled" while an apply is scheduled and
+// the mail has not gone out yet: when it is armed, and again at the next
+// check if sending failed.
+func (u *Updater) graceMailLocked() {
+	exec := u.state.Execution
+	if exec.Status != StatusScheduled || u.state.Latest == nil || u.state.Latest.Tag != exec.TargetTag {
+		return
+	}
+	at, err := time.Parse(time.RFC3339, exec.ScheduledFor)
+	if err != nil {
+		return
+	}
+	to := u.adminEmail()
+	mails, _ := DecideGraceStartEmail(to, u.cfg.CurrentVersion, *u.state.Latest, at, u.state.Email)
+	u.sendMails(to, mails, false)
 }
 
 func (u *Updater) currentETag() string {
@@ -236,12 +257,7 @@ func (u *Updater) decideScheduleLocked() {
 		}
 		u.armApplyTimerLocked(d.TargetTag, d.ScheduledFor)
 		u.logger.Infof("updater: scheduled auto-apply of %s for %s", d.TargetTag, d.ScheduledFor.Format(time.RFC3339))
-		if u.state.Latest != nil {
-			to := u.adminEmail()
-			mails, log := DecideGraceStartEmail(to, u.cfg.CurrentVersion, *u.state.Latest, d.ScheduledFor, u.state.Email)
-			u.state.Email = log
-			u.sendMails(to, mails, false)
-		}
+		u.graceMailLocked()
 	case ScheduleCancel:
 		u.cancelApplyTimerLocked()
 		u.state.Execution = Execution{Status: StatusIdle}
@@ -319,8 +335,9 @@ func (u *Updater) recordResult(target ReleaseInfo, outcome, reason string) {
 		Reason:      reason,
 		At:          u.nowStr(),
 	}
-	u.outcomeMailLocked(outcome, reason, target.Tag, false)
+	to, mails := u.outcomeMailsLocked(outcome, reason, target.Tag)
 	u.saveLocked()
+	u.sendMails(to, mails, false)
 }
 
 func (u *Updater) adminEmail() string {
@@ -334,19 +351,46 @@ func (u *Updater) adminEmail() string {
 const mailWait = 30 * time.Second
 
 // sendMails delivers mails in the background; with wait (the process is
-// about to exit) it waits for them, at most mailWait. A failed send is
-// logged by the mailer and never stops the updater.
+// about to exit) it waits for them, at most mailWait, and must then be
+// called without u.mu. A mail counts as sent (Email.Mark, saved) only once
+// the server took it: one that failed, or found no sender, is planned again
+// at the next occasion. A failed send never stops the updater.
 func (u *Updater) sendMails(to string, mails []Email, wait bool) {
 	if len(mails) == 0 || u.cfg.SendMail == nil {
+		return
+	}
+	u.mailMu.Lock()
+	if u.mailsInFlight == nil {
+		u.mailsInFlight = map[string]bool{}
+	}
+	var todo []Email
+	for _, m := range mails {
+		key := m.Kind + "\x00" + m.Subject
+		if !u.mailsInFlight[key] {
+			u.mailsInFlight[key] = true
+			todo = append(todo, m)
+		}
+	}
+	u.mailMu.Unlock()
+	if len(todo) == 0 {
 		return
 	}
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		for _, m := range mails {
-			if err := u.cfg.SendMail(to, m.Subject, m.Body); err != nil {
+		for _, m := range todo {
+			err := u.cfg.SendMail(to, m.Subject, m.Body)
+			if err != nil {
 				u.logger.Warnf("updater: the %s mail was not sent: %v", m.Kind, err)
+			} else if m.Mark != nil {
+				u.mu.Lock()
+				m.Mark(&u.state.Email)
+				u.saveLocked()
+				u.mu.Unlock()
 			}
+			u.mailMu.Lock()
+			delete(u.mailsInFlight, m.Kind+"\x00"+m.Subject)
+			u.mailMu.Unlock()
 		}
 	}()
 	if wait {
@@ -357,15 +401,15 @@ func (u *Updater) sendMails(to string, mails []Email, wait bool) {
 	}
 }
 
-// outcomeMailLocked mails the admin about a failed apply (deduplicated).
-func (u *Updater) outcomeMailLocked(outcome, reason, tag string, wait bool) {
+// outcomeMailsLocked plans the mail to the admin about a failed apply
+// (deduplicated); the caller sends it, after releasing u.mu when it waits.
+func (u *Updater) outcomeMailsLocked(outcome, reason, tag string) (string, []Email) {
 	if outcome == "verified" {
-		return
+		return "", nil
 	}
 	to := u.adminEmail()
-	mails, log := DecideOutcomeEmail(to, outcome, reason, tag, u.cfg.CurrentVersion, u.state.Email)
-	u.state.Email = log
-	u.sendMails(to, mails, wait)
+	mails, _ := DecideOutcomeEmail(to, outcome, reason, tag, u.cfg.CurrentVersion, u.state.Email)
+	return to, mails
 }
 
 // resumeLocked picks up what the previous run left in the state file:
@@ -376,6 +420,9 @@ func (u *Updater) outcomeMailLocked(outcome, reason, tag string, wait bool) {
 //     is recorded as failed and the state goes back to idle instead of
 //     blocking every later schedule.
 func (u *Updater) resumeLocked() {
+	if u.resumeRollback() {
+		return
+	}
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	exec := u.state.Execution
@@ -392,9 +439,53 @@ func (u *Updater) resumeLocked() {
 	case StatusPreflight, StatusDraining, StatusExecuting:
 		u.logger.Warnf("updater: the apply of %s was interrupted (%s); the old version keeps running", exec.TargetTag, exec.Status)
 		u.state.LastResult = &LastResult{TargetTag: exec.TargetTag, FromVersion: u.cfg.CurrentVersion, Outcome: "failed", Reason: "interrupted-" + string(exec.Status), At: u.nowStr()}
-		u.outcomeMailLocked("failed", "interrupted-"+string(exec.Status), exec.TargetTag, false)
+		to, mails := u.outcomeMailsLocked("failed", "interrupted-"+string(exec.Status), exec.TargetTag)
 		u.state.Execution = Execution{Status: StatusIdle}
 		u.saveLocked()
+		u.sendMails(to, mails, false)
+	}
+}
+
+// resumeRollback finishes a rollback the process was stopped in. Which
+// binary runs now tells how far it got: the old version means the backup is
+// back (rolled back); the target version means it did not happen, so it
+// runs again (and restarts); anything else is left to the admin as a failed
+// rollback, which they can acknowledge. Reports whether it rolled back
+// again (the process then exits).
+func (u *Updater) resumeRollback() bool {
+	u.mu.Lock()
+	exec := u.state.Execution
+	if exec.Status != StatusRollingBack {
+		u.mu.Unlock()
+		return false
+	}
+	running := strings.TrimPrefix(u.cfg.CurrentVersion, "v")
+	switch {
+	case exec.FromVersion != "" && running == strings.TrimPrefix(exec.FromVersion, "v"):
+		u.logger.Warnf("updater: the rollback from %s was interrupted, but %s is running again: rolled back", exec.TargetTag, u.cfg.CurrentVersion)
+		u.state.Execution = Execution{Status: StatusRolledBack, TargetTag: exec.TargetTag, Reason: exec.Reason, At: u.nowStr()}
+		u.state.BootCount = 0
+		u.state.LastResult = &LastResult{TargetTag: exec.TargetTag, FromVersion: exec.FromVersion, Outcome: "rolled-back", Reason: exec.Reason, At: u.nowStr()}
+		to, mails := u.outcomeMailsLocked("rolled-back", exec.Reason, exec.TargetTag)
+		u.saveLocked()
+		u.mu.Unlock()
+		u.sendMails(to, mails, false)
+		return false
+	case exec.BackupPath != "" && running == strings.TrimPrefix(exec.TargetTag, "v"):
+		u.mu.Unlock()
+		u.logger.Warnf("updater: the rollback from %s was interrupted; rolling back again", exec.TargetTag)
+		u.rollback(exec.Reason)
+		return true
+	default:
+		reason := "interrupted rollback; running " + u.cfg.CurrentVersion
+		u.logger.Errorf("updater: a rollback from %s was interrupted and %s is running; manual check required", exec.TargetTag, u.cfg.CurrentVersion)
+		u.state.Execution = Execution{Status: StatusRollbackFailed, TargetTag: exec.TargetTag, Reason: reason, At: u.nowStr()}
+		u.state.LastResult = &LastResult{TargetTag: exec.TargetTag, FromVersion: exec.FromVersion, Outcome: "rollback-failed", Reason: reason, At: u.nowStr()}
+		to, mails := u.outcomeMailsLocked("rollback-failed", reason, exec.TargetTag)
+		u.saveLocked()
+		u.mu.Unlock()
+		u.sendMails(to, mails, false)
+		return false
 	}
 }
 
@@ -438,7 +529,12 @@ func (u *Updater) runApply(target ReleaseInfo) {
 		if u.broadcast != nil {
 			u.broadcast(DrainCancelledNotice)
 		}
-		u.setExecution(Execution{Status: StatusIdle})
+		u.mu.Lock()
+		// As for a cancelled schedule: not armed again by the next check.
+		u.state.LastResult = &LastResult{TargetTag: target.Tag, FromVersion: u.cfg.CurrentVersion, Outcome: "cancelled", At: u.nowStr()}
+		u.state.Execution = Execution{Status: StatusIdle}
+		u.saveLocked()
+		u.mu.Unlock()
 		return
 	}
 
@@ -542,20 +638,24 @@ func (u *Updater) rollback(reason string) {
 	if err != nil {
 		u.state.Execution = Execution{Status: StatusRollbackFailed, TargetTag: exec.TargetTag, Reason: err.Error(), At: u.nowStr()}
 		u.state.LastResult = &LastResult{TargetTag: exec.TargetTag, FromVersion: exec.FromVersion, Outcome: "rollback-failed", Reason: err.Error(), At: u.nowStr()}
-		u.outcomeMailLocked("rollback-failed", err.Error(), exec.TargetTag, true)
+		to, mails := u.outcomeMailsLocked("rollback-failed", err.Error(), exec.TargetTag)
+		// Saved first: the mail may wait for a slow server, and the state
+		// must not be lost if the process is killed meanwhile.
 		u.saveLocked()
 		u.mu.Unlock()
 		u.logger.Errorf("updater: rollback failed (manual intervention required): %v", err)
+		u.sendMails(to, mails, true)
 		u.exit(ExitCodeRestart)
 		return
 	}
 	u.state.Execution = Execution{Status: StatusRolledBack, TargetTag: exec.TargetTag, Reason: reason, At: u.nowStr()}
 	u.state.BootCount = 0
 	u.state.LastResult = &LastResult{TargetTag: exec.TargetTag, FromVersion: exec.FromVersion, Outcome: "rolled-back", Reason: reason, At: u.nowStr()}
-	u.outcomeMailLocked("rolled-back", reason, exec.TargetTag, true)
+	to, mails := u.outcomeMailsLocked("rolled-back", reason, exec.TargetTag)
 	u.saveLocked()
 	u.mu.Unlock()
 	u.logger.Warn("updater: rolled back to previous binary; restarting")
+	u.sendMails(to, mails, true)
 	u.exit(ExitCodeRestart)
 }
 
@@ -728,6 +828,11 @@ func (u *Updater) canAcknowledgeLocked() bool {
 		return true
 	case StatusPendingVerification:
 		return u.healthTimer == nil
+	case StatusIdle:
+		// A failed, cancelled or interrupted apply leaves the state idle
+		// but keeps its release from being scheduled again; acknowledging
+		// lets it be.
+		return u.state.LastResult != nil && failedOutcomes[u.state.LastResult.Outcome]
 	}
 	return false
 }

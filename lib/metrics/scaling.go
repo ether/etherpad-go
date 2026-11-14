@@ -6,6 +6,10 @@
 package metrics
 
 import (
+	"crypto/hmac"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"sync/atomic"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -29,11 +33,30 @@ var (
 		Name: "etherpad_socket_emits_total",
 		Help: "Number of socket broadcast emits, bucketed by message type",
 	}, []string{"type"})
+	// PadUsers is keyed by a pseudonym of the pad, not its name: /metrics
+	// is not behind a login, and pad names (of group pads, of unguessable
+	// pads) are what gives access to them.
 	PadUsers = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "etherpad_pad_users",
-		Help: "Active users connected to a pad, keyed by padId",
-	}, []string{"padId"})
+		Help: "Active users connected to a pad, keyed by a pseudonym of the pad (stable within one process)",
+	}, []string{"pad"})
 )
+
+// padLabelKey keys the pad pseudonyms; random per process, so a label
+// cannot be traced back to a pad name by trying names.
+var padLabelKey = func() []byte {
+	k := make([]byte, 32)
+	_, _ = rand.Read(k)
+	return k
+}()
+
+// PadLabel is the pseudonym of padID in the metrics: 12 hex digits of an
+// HMAC-SHA256 with the process's key.
+func PadLabel(padID string) string {
+	m := hmac.New(sha256.New, padLabelKey)
+	m.Write([]byte(padID))
+	return hex.EncodeToString(m.Sum(nil))[:12]
+}
 
 // knownTypes are the label values of SocketEmitsTotal; anything else (a
 // plugin's or an HTTP API caller's message type) counts as "other", so the
@@ -73,7 +96,7 @@ func SetPadUsers(counts map[string]int) {
 	}
 	PadUsers.Reset()
 	for padID, n := range counts {
-		PadUsers.WithLabelValues(padID).Set(float64(n))
+		PadUsers.WithLabelValues(PadLabel(padID)).Add(float64(n))
 	}
 }
 
