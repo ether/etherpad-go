@@ -14,15 +14,18 @@ import (
 // system author. Every author in the pad must resolve, or the client never
 // gets its CLIENT_VARS and the pad does not open.
 func TestDefaultTextAuthorsResolve(t *testing.T) {
+	// Set once for all database variants: they run in parallel, and a
+	// variant restoring the value in its own cleanup would pull it away
+	// from one still running. The parent's cleanup runs after all of them.
+	saved := settings.Displayed.DefaultPadText
+	settings.Displayed.DefaultPadText = "Welcome to Etherpad!\n"
+	t.Cleanup(func() { settings.Displayed.DefaultPadText = saved })
 	testDb := testutils.NewTestDBHandler(t)
 	testDb.AddTests(testutils.TestRunConfig{Name: "authors of a new pad resolve", Test: testDefaultTextAuthorsResolve})
 	defer testDb.StartTestDBHandler()
 }
 
 func testDefaultTextAuthorsResolve(t *testing.T, ds testutils.TestDataStore) {
-	saved := settings.Displayed.DefaultPadText
-	settings.Displayed.DefaultPadText = "Welcome to Etherpad!\n"
-	t.Cleanup(func() { settings.Displayed.DefaultPadText = saved })
 	a, err := ds.AuthorManager.CreateAuthor(nil)
 	require.NoError(t, err)
 	p, err := ds.PadManager.GetPad("defaultTextAuthors", nil, &a.Id)

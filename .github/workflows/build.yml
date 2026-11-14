@@ -218,11 +218,83 @@ jobs:
           path: playwright/playwright-report/
           retention-days: 7
 
+  playwright-cluster:
+    # Two instances on one PostgreSQL database (doc/cluster.md): edits, chat,
+    # names, pad settings and sheets have to reach users on the other one.
+    needs:
+      - test
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:alpine
+        env:
+          POSTGRES_USER: etherpad
+          POSTGRES_PASSWORD: etherpad
+          POSTGRES_DB: etherpad_cluster
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U etherpad -d etherpad_cluster"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: 1.27
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - name: Install pnpm
+        run: npm install -g pnpm@latest
+      - name: Install pnpm dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build UI
+        run: node build.js
+        working-directory: ./ui
+      - name: Install templ
+        run: go install github.com/a-h/templ/cmd/templ@latest
+      - name: Generate templ
+        run: templ generate
+      - name: Build admin
+        run: pnpm build
+        working-directory: ./admin
+      - name: Build app
+        run: go build -o etherpad-go
+      - name: Start two instances
+        run: playwright/cluster-spec/start.sh ./etherpad-go "$RUNNER_TEMP/cluster"
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium
+        working-directory: ./playwright
+        timeout-minutes: 15
+      - name: Run cluster tests
+        run: pnpm exec playwright test -c cluster.config.ts
+        working-directory: ./playwright
+        env:
+          CI: true
+        timeout-minutes: 15
+      - name: Instance logs
+        if: failure()
+        run: tail -n 200 "$RUNNER_TEMP"/cluster/node*.log
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report-cluster
+          path: playwright/playwright-report-cluster/
+          retention-days: 7
   build:
     needs:
       - test
       - typecheck
       - playwright
+      - playwright-cluster
     strategy:
       fail-fast: false
       matrix:

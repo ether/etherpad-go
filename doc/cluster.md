@@ -302,13 +302,35 @@ with PostgreSQL, 8 authors and about 1,150 changes per run, nothing was lost
 or duplicated and the longest wait for an acknowledgement across the kill was
 about 0.3-0.4 s.
 
+## Testing two instances in the browser
+
+`playwright/cluster-spec` runs the browser tests against two instances on one
+PostgreSQL database: edits, chat, names, pad-wide settings and sheet edits of a
+user on one instance reach a user on the other. CI runs them in the
+`playwright-cluster` job. Locally, with a database `etherpad_cluster` that the
+user `etherpad` (password `etherpad`) owns:
+
+```
+go build -o etherpad-go .
+playwright/cluster-spec/start.sh ./etherpad-go /tmp/cluster-logs   # ports 9001 and 9002
+cd playwright && npx playwright test -c cluster.config.ts
+```
+
+`EP_PG_HOST`, `EP_PG_PORT`, `EP_PG_DB`, `EP_PG_USER` and `EP_PG_PASSWORD` select
+another database; `PW_CHANNEL=chrome` uses an installed Chrome.
+
+## Sheet edits across reconnects
+
+A sheet edit that is in flight when the connection breaks is not lost. Each
+edit carries a client id that is stored with it. After the reconnect the
+server replays the edits the browser missed: if its own edit is among them,
+only the acknowledgement was lost; if not, the browser sends it again, and the
+server drops a second copy by its id. Edits made while offline wait in the
+browser and are sent afterwards. This works on any instance, as the replay
+comes from the database.
+
 ## Current limitations
 
-* **Sheets: edits in flight when the connection breaks.** Acknowledged sheet
-  edits are always stored. But after a reconnect the sheet client in the
-  browser starts again from the stored state and drops edits that were not
-  acknowledged yet (also on a single instance, at any network interruption).
-  Pads do not have this gap: their client sends such changes again.
 * **User counts** in the admin statistics are per pod.
 * **Database connections.** The pool sizes are not configurable yet (25 work
   connections plus up to 14 for locks per pod).
