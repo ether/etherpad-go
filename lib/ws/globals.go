@@ -84,6 +84,16 @@ func (s *SessionStore) padOf(sessionId string) string {
 	return ""
 }
 
+// setPadId sets the session's pad under the store's lock; padOf reads it on
+// other goroutines (broadcasts) at the same time.
+func (s *SessionStore) setPadId(sessionId, padId string) {
+	s.sync.Lock()
+	if session := s.sessions[sessionId]; session != nil {
+		session.PadId = padId
+	}
+	s.sync.Unlock()
+}
+
 func (s *SessionStore) addPadReadOnlyIds(sessionId, padId string, readOnlyPadId string, readOnly bool) {
 	s.sync.Lock()
 	s.sessions[sessionId].ReadOnlyPadId = readOnlyPadId

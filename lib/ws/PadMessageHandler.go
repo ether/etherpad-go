@@ -533,7 +533,7 @@ func (p *PadMessageHandler) HandleMessage(message any, client *Client, retrieved
 			// The pad that opens (and whose access is checked) is the
 			// sanitized one: "foo bar" opens "foo_bar", and with
 			// lowerCasePadIds "Foo" opens "foo".
-			thisSession.PadId = padId
+			p.SessionStore.setPadId(client.SessionId, padId)
 			thisSession.Auth.PadId = padId
 		}
 
@@ -1564,7 +1564,7 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 	if ready.Data.Reconnect != nil && *ready.Data.Reconnect {
 		// This is a reconnect - the client already has the pad content
 		// We need to send any changesets the client missed while disconnected
-		thisSession.PadId = retrievedPad.Id
+		p.SessionStore.setPadId(client.SessionId, retrievedPad.Id)
 
 		// Get the client's current revision
 		clientRev := 0
@@ -1738,7 +1738,7 @@ func (p *PadMessageHandler) HandleClientReadyMessage(ready ws.ClientReady, clien
 			}
 		}
 		// Join the pad and start receiving updates
-		thisSession.PadId = retrievedPad.Id
+		p.SessionStore.setPadId(client.SessionId, retrievedPad.Id)
 		// Send the clientVars to the Client
 		client.SafeSend(encoded)
 		// Save the current revision in sessioninfos, should be the same as in clientVars
