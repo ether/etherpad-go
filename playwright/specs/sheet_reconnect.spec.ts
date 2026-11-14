@@ -97,4 +97,38 @@ test.describe('sheet reconnect', () => {
       await other.close();
     }
   });
+
+  test('an op dropped as rate limited goes out again after Reconnect', async ({ page, browser }) => {
+    const padId = `sheet-reconnect-ratelimit-${Date.now()}`;
+    let limitNext = false;
+    await page.routeWebSocket(/\/socket\.io\//, (ws: WebSocketRoute) => {
+      const server = ws.connectToServer();
+      ws.onMessage((m) => {
+        // The server drops a commit over the limit and says so (as
+        // etherpad-lite does); the connection stays open.
+        if (limitNext && String(m).includes('"SHEET_OP"')) {
+          limitNext = false;
+          ws.send(JSON.stringify(['message', { disconnect: 'rateLimited' }]));
+          return;
+        }
+        server.send(m);
+      });
+      server.onMessage((m) => ws.send(m));
+    });
+    await openSheet(page, padId);
+    limitNext = true;
+    await typeInto(page, 0, 0, 'limited');
+    await expect(page.locator('.sheet-connection')).toContainText('Offline');
+    await page.locator('.sheet-reconnect').click();
+    await expect(page.locator('.sheet-connection')).toHaveText('Ready', { timeout: 15000 });
+
+    const other = await browser.newContext();
+    try {
+      const page2 = await other.newPage();
+      await openSheet(page2, padId);
+      await expect(cell(page2, 0, 0)).toHaveText('limited');
+    } finally {
+      await other.close();
+    }
+  });
 });

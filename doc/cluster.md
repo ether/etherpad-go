@@ -156,9 +156,10 @@ Requirements:
 * Pods can reach each other on `7946/TCP` and `7946/UDP` (default in most
   clusters; allow it explicitly if you use NetworkPolicies).
 * `POD_IP` set through the downward API, so each pod advertises its own IP.
-* Enough database connections: each pod uses up to 25 for its work plus up to
-  14 for locks (pad locks, leader lock, migrations), so plan for about 40 per
-  pod in `max_connections`.
+* Enough database connections: each pod uses up to `dbSettings.maxConnections`
+  (25) for its work plus up to 14 for locks (pad locks, leader lock,
+  migrations), so plan for about 40 per pod in `max_connections`, or see
+  "Connection pooling" for PgBouncer.
 * `terminationGracePeriodSeconds` longer than `cluster.shutdownDelaySeconds`
   plus a few seconds (the default 30 is fine).
 
@@ -279,7 +280,10 @@ database; check the release notes of versions with schema changes.
   writes through several instances at once and reports commit latency,
   cross-pod latency and whether any accepted change was lost, duplicated or
   diverged (`lost: 0, duplicated: 0, divergent instances: []`). Add
-  `-prefill 1000000` to test a 1 MB pad.
+  `-prefill 1000000` to test a 1 MB pad. Start the instances with
+  `ETHERPAD_LOADTEST=true` for the benches: all their authors come from one
+  IP, and `commitRateLimiting` (10 commits per second and IP) would stop
+  them otherwise.
 
 ## What changes in a cluster
 
@@ -335,10 +339,33 @@ etherpad-go killbench -victim http://127.0.0.1:9101 -survivors http://127.0.0.1:
   -victim-pid <pid of the first instance> -authors 8 -duration 15s -kill-after 5s
 ```
 
-It runs against local processes (it kills by process id). On a test machine
-with PostgreSQL, 8 authors and about 1,150 changes per run, nothing was lost
-or duplicated and the longest wait for an acknowledgement across the kill was
-about 0.3-0.4 s.
+With `-kill-cmd` a shell command stops the victim instead, e.g.
+`kill -TERM <pid>` for a graceful shutdown or `kubectl delete pod <name>`
+(see "Testing on Kubernetes"). As with clusterbench, the instances need
+`ETHERPAD_LOADTEST=true`. On a test machine with PostgreSQL, 8 authors and
+about 1,000 changes per run, nothing was lost or duplicated, with SIGKILL as
+with SIGTERM; the longest wait for an acknowledgement across the kill was
+0.15-0.2 s.
+
+A client over the rate limit gets `disconnect: rateLimited`, as in
+etherpad-lite, and the pad shows it. Before, the commit was dropped
+silently and the client waited for its acknowledgement for ever.
+
+## Testing on Kubernetes
+
+`test/kubernetes/run.sh` tests the deployment above on a real cluster (CI:
+the `kubernetes` job, on kind): three replicas and PostgreSQL come up and
+see each other; clusterbench writes through two pods; the two-instance
+browser specs run against two different pods; killbench deletes a pod the
+normal way (SIGTERM, drain) and one with `--grace-period=0 --force` while
+8 authors type through it; a rolling restart keeps the pad text, and the
+new pods form a cluster again. Locally, with kind and the image built:
+
+```
+kind create cluster --name ep --config test/kubernetes/kind.yaml
+docker build -t etherpad-go:k8s-test . && kind load docker-image etherpad-go:k8s-test --name ep
+go build -o etherpad-go . && test/kubernetes/run.sh ./etherpad-go   # RUN_PLAYWRIGHT=1 adds the browser specs
+```
 
 ## Testing two instances in the browser
 

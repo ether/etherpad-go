@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/exec"
 	"sort"
 	"strings"
 	"sync"
@@ -23,9 +24,13 @@ type KillBenchConfig struct {
 	Survivors []string
 	// VictimPID is the process killed with SIGKILL after KillAfter.
 	VictimPID int
-	KillAfter time.Duration
-	Pad       string
-	Authors   int
+	// KillCommand, if set instead, is run with sh -c after KillAfter, e.g.
+	// "kubectl delete pod etherpad-0" (graceful) or with --grace-period=0
+	// --force (hard). Its exit status decides whether the kill counts.
+	KillCommand string
+	KillAfter   time.Duration
+	Pad         string
+	Authors     int
 	// Duration is how long the authors write, from the start.
 	Duration time.Duration
 	Interval time.Duration
@@ -68,8 +73,8 @@ func (r *KillBenchResult) String() string {
 // that the authors carry on through the survivors without losing or
 // duplicating a change.
 func RunKillBench(logger *zap.SugaredLogger, cfg KillBenchConfig) (*KillBenchResult, error) {
-	if cfg.Victim == "" || len(cfg.Survivors) == 0 || cfg.VictimPID <= 0 {
-		return nil, errors.New("need -victim, -survivors and -victim-pid")
+	if cfg.Victim == "" || len(cfg.Survivors) == 0 || (cfg.VictimPID <= 0 && cfg.KillCommand == "") {
+		return nil, errors.New("need -victim, -survivors and -victim-pid or -kill-cmd")
 	}
 	if cfg.Pad == "" {
 		cfg.Pad = "killbench-" + randomPadName()
@@ -105,14 +110,24 @@ func RunKillBench(logger *zap.SugaredLogger, cfg KillBenchConfig) (*KillBenchRes
 
 	go func() {
 		time.Sleep(cfg.KillAfter)
-		proc, err := os.FindProcess(cfg.VictimPID)
-		if err == nil {
-			err = proc.Kill() // SIGKILL: no shutdown, no draining
+		var err error
+		if cfg.KillCommand != "" {
+			var out []byte
+			out, err = exec.Command("sh", "-c", cfg.KillCommand).CombinedOutput()
+			if err != nil {
+				err = fmt.Errorf("%w: %s", err, strings.TrimSpace(string(out)))
+			}
+		} else {
+			var proc *os.Process
+			proc, err = os.FindProcess(cfg.VictimPID)
+			if err == nil {
+				err = proc.Kill() // SIGKILL: no shutdown, no draining
+			}
 		}
 		mu.Lock()
 		defer mu.Unlock()
 		if err != nil {
-			logger.Errorf("killing %d: %v", cfg.VictimPID, err)
+			logger.Errorf("killing the victim: %v", err)
 			return
 		}
 		res.Killed = true
@@ -184,6 +199,7 @@ func RunKillBenchFromCLI(logger *zap.SugaredLogger, args []string) {
 	victim := fs.String("victim", "", "base URL of the instance the authors write through and that is killed")
 	survivors := fs.String("survivors", "", "comma-separated base URLs the authors reconnect to")
 	pid := fs.Int("victim-pid", 0, "process id of the victim instance")
+	killCmd := fs.String("kill-cmd", "", "shell command that stops the victim instead of -victim-pid (e.g. kubectl delete pod ...)")
 	killAfter := fs.Duration("kill-after", 5*time.Second, "when to kill the victim")
 	pad := fs.String("pad", "", "pad to edit (default: a new random pad)")
 	authors := fs.Int("authors", 4, "number of writing clients")
@@ -199,7 +215,7 @@ func RunKillBenchFromCLI(logger *zap.SugaredLogger, args []string) {
 		}
 	}
 	res, err := RunKillBench(logger, KillBenchConfig{
-		Victim: *victim, Survivors: hs, VictimPID: *pid, KillAfter: *killAfter,
+		Victim: *victim, Survivors: hs, VictimPID: *pid, KillCommand: *killCmd, KillAfter: *killAfter,
 		Pad: *pad, Authors: *authors, Duration: *duration, Interval: *interval,
 	})
 	if err != nil {

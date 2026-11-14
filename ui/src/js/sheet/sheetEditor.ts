@@ -99,7 +99,11 @@ export function startSheetEditor(root: HTMLElement): void {
       retry.addEventListener('click', () => {
         connState = 'reconnecting';
         renderConn();
-        socket.connect();
+        // Still connected (the server only stopped listening, e.g. rate
+        // limited): join again over this connection. Otherwise connect;
+        // the 'reconnect' event joins.
+        if (socket.getConnectionState().status === 'connected') rejoin();
+        else socket.connect();
       });
       connEl.append(' ', retry);
     }
@@ -849,7 +853,7 @@ export function startSheetEditor(root: HTMLElement): void {
   // After an outage the server has a fresh connection that has to join again.
   // With a state to continue from, the client asks for the ops it missed
   // (ending with SHEET_CAUGHT_UP); otherwise it starts over.
-  socket.on('reconnect', () => {
+  const rejoin = (): void => {
     if (!collab) {
       sendClientReady();
       return;
@@ -864,7 +868,8 @@ export function startSheetEditor(root: HTMLElement): void {
       reconnect: true,
       client_rev: collab.rev,
     });
-  });
+  };
+  socket.on('reconnect', rejoin);
   socket.on('disconnect', () => {
     collab?.disconnected();
     connState = 'reconnecting';
@@ -883,6 +888,16 @@ export function startSheetEditor(root: HTMLElement): void {
   });
   socket.on('message', (msg: { type?: string; data?: any }) => {
     if (!msg || typeof msg !== 'object') return;
+    // The server stopped taking messages from this connection (e.g.
+    // rateLimited, as in etherpad-lite): an op it dropped is still
+    // pending here and goes out again after "Reconnect".
+    const disconnect = (msg as { disconnect?: unknown }).disconnect;
+    if (typeof disconnect === 'string') {
+      collab?.disconnected();
+      connState = 'offline';
+      renderConn();
+      return;
+    }
     if (msg.type === 'SHEET_VARS') {
       initSheet(msg.data as SheetVarsData);
       return;

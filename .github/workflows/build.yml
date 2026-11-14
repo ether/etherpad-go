@@ -368,6 +368,70 @@ jobs:
           name: playwright-report-cluster
           path: playwright/playwright-report-cluster/
           retention-days: 7
+  kubernetes:
+    # The deployment from doc/cluster.md on a kind cluster: 3 replicas,
+    # clusterbench, browser specs across pods, pods deleted gracefully and
+    # by force while users type, rolling restart (test/kubernetes/run.sh).
+    needs:
+      - test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: 1.27
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - name: Install pnpm
+        run: npm install -g pnpm@latest
+      - name: Install pnpm dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build UI
+        run: node build.js
+        working-directory: ./ui
+      - name: Install templ
+        run: go install github.com/a-h/templ/cmd/templ@latest
+      - name: Generate templ
+        run: templ generate
+      - name: Build admin
+        run: pnpm build
+        working-directory: ./admin
+      - name: Build app (for the benches)
+        run: go build -o etherpad-go
+      - name: Build image
+        run: docker build -t etherpad-go:k8s-test .
+      - name: Create kind cluster
+        run: |
+          go install sigs.k8s.io/kind@v0.33.0
+          "$(go env GOPATH)/bin/kind" create cluster --name ep --config test/kubernetes/kind.yaml --wait 120s
+          "$(go env GOPATH)/bin/kind" load docker-image etherpad-go:k8s-test --name ep
+          kubectl cluster-info
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium
+        working-directory: ./playwright
+        timeout-minutes: 15
+      - name: Run the Kubernetes test
+        run: test/kubernetes/run.sh ./etherpad-go
+        env:
+          CI: true
+          RUN_PLAYWRIGHT: "1"
+          K8S_TEST_LOGS: ${{ runner.temp }}/k8s-test
+        timeout-minutes: 25
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: kubernetes-test
+          path: |
+            ${{ runner.temp }}/k8s-test/
+            playwright/playwright-report-cluster/
+          retention-days: 7
   build:
     needs:
       - test
@@ -375,6 +439,7 @@ jobs:
       - typecheck
       - playwright
       - playwright-cluster
+      - kubernetes
     strategy:
       fail-fast: false
       matrix:
