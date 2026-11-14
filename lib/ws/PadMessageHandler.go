@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/ether/etherpad-go/lib/metrics"
 	"github.com/ether/etherpad-go/lib/models/ws/admin"
 	"math"
 	"regexp"
@@ -155,6 +156,8 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 	if padID == "" {
 		return
 	}
+	// The apply path only (to the stored revision), not the fan-out.
+	stopApplyTimer := metrics.RecordChangesetApply()
 	// Rebase + append + broadcast must not interleave with other writers.
 	unlock, err := p.padManager.LockPad(padID)
 	if err != nil {
@@ -400,6 +403,7 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 		return
 	}
 	finalRev := *newRev
+	stopApplyTimer()
 
 	// Mirror the original's _correctMarkersInPad: if the accepted revision
 	// left line markers (e.g. list bullets) that are not at the start of a
@@ -1094,6 +1098,7 @@ func (p *PadMessageHandler) SendChatMessageToPadClients(session *ws.Session, cha
 
 	var marshalledMessage, _ = json.Marshal(arr)
 	p.broadcastToRoom(session.PadId, marshalledMessage, "")
+	metrics.RecordSocketEmit("CHAT_MESSAGE")
 }
 
 // BroadcastSystemChatToRoom sends a chat message to all clients in a pad room without saving to the database.
@@ -1923,6 +1928,7 @@ func (p *PadMessageHandler) updatePadClients(pad *pad2.Pad, only *Client) {
 			}
 
 			socket.SafeSend(marshalledMessage)
+			metrics.RecordSocketEmit("NEW_CHANGES")
 			sessionInfo.Time = currentTime
 			sessionInfo.Revision = r
 		}
@@ -1946,6 +1952,7 @@ func (p *PadMessageHandler) SendCustomMessageToPad(padId string, msgType string)
 		return
 	}
 	p.broadcastToRoom(padId, encoded, "")
+	metrics.RecordSocketEmit(msgType)
 }
 
 // HandleClientMessage handles the COLLABROOM CLIENT_MESSAGE family,

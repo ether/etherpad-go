@@ -29,7 +29,7 @@ var AvailableFonts = []string{
 }
 
 func HandlePadOpen(c fiber.Ctx, uiAssets embed.FS, retrievedSettings *settings.Settings, hooks2 *hooks.Hook) error {
-	padName := c.Params("pad")
+	padName := utils.PadParam(c)
 	pad := models.Model{
 		Name: padName,
 	}

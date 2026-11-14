@@ -79,6 +79,12 @@ func servePluginStatic(c fiber.Ctx) error {
 
 var pluginNamePattern = regexp.MustCompile(`^ep_[A-Za-z0-9_-]+$`)
 
+// adminLocaleName is a locale file of the admin ("de.json", "zh-hant.json").
+// The name ends up in a file path in dev mode, where a backslash is a
+// separator on Windows ("..\\..\\settings.json"), so only these characters
+// pass (etherpad-lite's sanitizePathname guards the same).
+var adminLocaleName = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]*\.json$`)
+
 // pluginStaticFile maps "<plugin>/static/<file>" to its path below
 // ./plugins, or reports false for anything else (other folders of the
 // plugin, "..", absolute or empty paths).
@@ -316,6 +322,9 @@ func Init(store *lib.InitStore) {
 	})
 
 	store.C.Get("/admin/locales/:file", func(c fiber.Ctx) error {
+		if !adminLocaleName.MatchString(c.Params("file")) {
+			return c.SendStatus(fiber.StatusNotFound)
+		}
 		err := serveAdminAsset(c, store.UiAssets, store.RetrievedSettings, path.Join("locales", c.Params("file")), "application/json; charset=utf-8")
 		if err != nil {
 			store.Logger.Errorf("Error serving admin locale: %v", err)

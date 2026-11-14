@@ -10,6 +10,7 @@ const (
 	Port                                  = "port"
 	ShowSettingsInAdminPage               = "showSettingsInAdminPage"
 	EnableMetrics                         = "enableMetrics"
+	ScalingDiveMetrics                    = "scalingDiveMetrics"
 	CleanupExpr                           = "cleanup"
 	CleanupEnabled                        = "cleanup.enabled"
 	CleanupKeepRevisions                  = "cleanup.keepRevisions"

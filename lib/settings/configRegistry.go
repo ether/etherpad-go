@@ -124,6 +124,7 @@ var Registry = []ConfigKey{
 	// Misc / runtime
 	// ---------------------------------------------------------------------
 	{Key: EnableMetrics, Default: true, Description: "Enable metrics"},
+	{Key: ScalingDiveMetrics, Default: false, Description: "Per-pad and hot-path Prometheus metrics for load tests (changeset apply time, emits by type, users per pad)"},
 	{Key: CleanupExpr, Default: true, Description: "Enable cleanup expressions"},
 	{Key: RequireSession, Default: false, Description: "Require session"},
 	{Key: EditOnly, Default: false, Description: "Edit-only mode"},

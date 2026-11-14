@@ -2,6 +2,7 @@ package stats
 
 import (
 	"github.com/ether/etherpad-go/lib/lifecycle"
+	"github.com/ether/etherpad-go/lib/metrics"
 	"time"
 
 	"github.com/ether/etherpad-go/lib"
@@ -65,6 +66,7 @@ func Init(store *lib.InitStore) {
 
 	store.PrivateAPI.Get("/stats", GetStats(store))
 
+	metrics.SetEnabled(store.RetrievedSettings.EnableMetrics && store.RetrievedSettings.ScalingDiveMetrics)
 	if store.RetrievedSettings.EnableMetrics {
 		go func() {
 			ticker := time.NewTicker(10 * time.Second)
@@ -78,6 +80,7 @@ func Init(store *lib.InitStore) {
 
 				etherpadActivePads.Set(float64(stats.ActivePads))
 				etherpadTotalUsers.Set(float64(stats.ActiveUsers))
+				metrics.SetPadUsers(store.Handler.SessionStore.PadUserCounts())
 			}
 		}()
 		reg := prometheus.NewRegistry()
@@ -87,6 +90,7 @@ func Init(store *lib.InitStore) {
 			etherpadActivePads,
 			etherpadTotalUsers,
 		)
+		metrics.Register(reg)
 		handler := promhttp.HandlerFor(
 			reg,
 			promhttp.HandlerOpts{},

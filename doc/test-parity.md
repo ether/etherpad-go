@@ -7,10 +7,10 @@ behaviour, they are not line-by-line translations.
 
 | Status | Files | Test cases |
 |---|---|---|
-| Ported | 88 | 854 |
+| Ported | 93 | 918 |
 | Partly ported | 4 | 140 |
-| Not applicable to Go | 41 | 344 |
-| To compare case by case | 39 | 396 |
+| Not applicable to Go | 43 | 349 |
+| To compare case by case | 32 | 327 |
 
 "To compare" does not mean untested: most of these areas have Go tests (the Go code refers
 to more than 20 upstream issues). It means nobody has checked yet, case by case, which
@@ -109,6 +109,11 @@ upstream cases the Go tests cover and which are missing.
 | `new/sanitizeProxyPath` | 26 | `lib/utils/proxy_path_test.go` |
 | `new/timesliderReturnUrl` | 5 | `ui/src/js/timesliderReturnUrl.test.ts` |
 | `new/SkinColors` | 5 | `lib/skin/colors_test.go` |
+| `socialMeta` | 15 | `lib/test/api/static/social_meta_test.go` |
+| `socialMeta-unit` | 37 | `lib/socialmeta/socialMeta_test.go` |
+| `new/sanitizePathname` | 4 | `lib/api/static/plugin_static_test.go` (`TestAdminLocaleName`, with the Windows cases; plugin assets in `TestPluginStaticFiles`) |
+| `new/getHomeUrl` | 3 | `ui/src/js/getHomeUrl.test.ts` |
+| `new/prom-instruments` | 5 | `lib/metrics/scaling_test.go`, `lib/test/api/stats/metrics_test.go` |
 ## Partly ported
 
 | Spec | Cases | State |
@@ -157,20 +162,6 @@ Existing Go tests in this area: `lib/test/author`, `lib/test/api/author`
 | `admin/authorSearch` | 6 | see admin/anonymizeAuthorSocket |
 | `tokenTransfer` | 10 | etherpad-go has no token transfer (moving an author's identity to another browser) |
 
-### Pages, paths, metadata
-
-Existing Go tests in this area: `lib/test/api/static`, `lib/test/api/stats`, `lib/utils`
-
-| Spec | Cases |
-|---|---|
-| `socialMeta` | 15 |
-| `socialMeta-unit` | 37 |
-| `new/sanitizePathname` | 4 |
-| `new/getHomeUrl` | 3 |
-| `new/path_exists` | 3 |
-| `new/takeOverSignal` | 2 |
-| `new/prom-instruments` | 5 |
-
 ### Updater
 
 Existing Go tests in this area: `lib/updater`, `lib/server/update_test.go` (Go has its own updater design)
@@ -207,6 +198,8 @@ Existing Go tests in this area: `lib/updater`, `lib/server/update_test.go` (Go h
 
 | Spec | Cases | Why |
 |---|---|---|
+| `new/path_exists` | 3 | a Node helper; Go uses `os.Stat` |
+| `new/takeOverSignal` | 2 | replaces Node signal listeners; Go receives signals on channels (`signal.Notify`) |
 | `timesliderRedirect` | 3 | the timeslider is its own page at /p/:pad/timeslider, there is no redirect to a #timeslider hash |
 | `security` | 12 | tests the Node `security` package for plugins; Go plugins use Go's html escaping |
 | `sessionFixation` | 3 | there is no server-side login session to fixate: Basic credentials are checked per request, the admin UI uses OIDC tokens |

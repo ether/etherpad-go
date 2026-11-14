@@ -322,6 +322,10 @@ type Settings struct {
 	PadShortcutEnabled PadShortcutEnabled `json:"padShortcutEnabled" mapstructure:"padShortcutEnabled"`
 
 	EnableMetrics bool `json:"enableMetrics" mapstructure:"enableMetrics"`
+	// ScalingDiveMetrics adds the load-test instruments of lib/metrics to
+	// /metrics (etherpad-lite's scalingDiveMetrics). Off by default: the
+	// per-pad gauge has one series per open pad.
+	ScalingDiveMetrics bool `json:"scalingDiveMetrics" mapstructure:"scalingDiveMetrics"`
 
 	RequireSession bool `json:"requireSession" mapstructure:"requireSession"`
 	EditOnly       bool `json:"editOnly" mapstructure:"editOnly"`

@@ -49,6 +49,7 @@ import {colorutils} from './colorutils';
 import {editorBus} from './core/EventBus';
 import {createPadSettings, creatorDefaults, myViewOverrides} from './pad_settings';
 import {createPadDeletion} from './pad_deletion';
+import {getHomeUrl} from './getHomeUrl';
 
 const showPadRetentionNotice = (info: any) => {
     if (!info) return;
@@ -678,7 +679,7 @@ const pad = {
                 confirm: (message) => window.confirm(message),
                 alert: (message) => window.alert(message),
                 send: (msg) => pad.collabClient.sendMessage(msg),
-                navigateHome: () => { window.location.href = new URL('..', window.location.href).href; },
+                navigateHome: () => { window.location.href = getHomeUrl(window.location.href); },
                 storage: () => { try { return window.localStorage; } catch (_e) { return null; } },
             });
             pad.padDeletion.init();
