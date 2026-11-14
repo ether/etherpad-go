@@ -59,6 +59,9 @@ spec:
       labels: { app: etherpad }
     spec:
       terminationGracePeriodSeconds: 30
+      # Unlike doc/cluster.md, service links stay on here: the test checks
+      # that the ETHERPAD_PORT=tcp://... Kubernetes sets for the Service
+      # "etherpad" is not taken as the port.
       containers:
         - name: etherpad
           image: etherpad-go:k8s-test

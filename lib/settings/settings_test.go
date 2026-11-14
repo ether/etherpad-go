@@ -26,6 +26,17 @@ func TestEnvOverride(t *testing.T) {
 	require.Equal(t, "9999", cfg.Port)
 }
 
+// Kubernetes sets ETHERPAD_PORT=tcp://<ip>:<port> in every pod of the
+// namespace of a Service named etherpad (service links). That is not a
+// port: the default (or settings.json) stays.
+func TestServiceLinkPortIsIgnored(t *testing.T) {
+	t.Setenv("ETHERPAD_PORT", "tcp://10.96.71.48:80")
+	t.Setenv("ETHERPAD_SERVICE_HOST", "10.96.71.48")
+	cfg, err := ReadConfig()
+	require.NoError(t, err)
+	require.Equal(t, "9001", cfg.Port)
+}
+
 // Port of etherpad-lite's settings spec, "Parse plugin settings": EP__a__b
 // sets a nested setting, typed.
 func TestNestedEnvSettings(t *testing.T) {

@@ -180,6 +180,10 @@ spec:
       labels: { app: etherpad }
     spec:
       terminationGracePeriodSeconds: 30
+      # Without it, Kubernetes puts ETHERPAD_PORT=tcp://... (for the Service
+      # "etherpad") into the environment, which looks like a setting.
+      # etherpad-go ignores that value, but other ETHERPAD_* links stay.
+      enableServiceLinks: false
       containers:
         - name: etherpad
           image: ghcr.io/ether/etherpad-go:develop
