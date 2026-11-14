@@ -201,5 +201,9 @@ func TestParityPolicy(t *testing.T) {
 	assert.Equal(t, PolicyResult{CanNotify: true, CanManual: true, CanAuto: true, Reason: "ok"},
 		eval(func(i *PolicyInput) { i.Tier = TierAuto; i.WindowConfigured, i.WindowValid = false, false }), "lower tiers ignore the window")
 	assert.Equal(t, "rollback-failed-terminal",
-		eval(func(i *PolicyInput) { i.Tier = TierAutonomous; i.WindowConfigured = false; i.ExecutionStatus = StatusRollbackFailed }).Reason)
+		eval(func(i *PolicyInput) {
+			i.Tier = TierAutonomous
+			i.WindowConfigured = false
+			i.ExecutionStatus = StatusRollbackFailed
+		}).Reason)
 }
