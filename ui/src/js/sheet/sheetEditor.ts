@@ -45,6 +45,8 @@ body { margin: 0; overflow: hidden; }
 .sheet-titlebar { display: flex; align-items: center; gap: 8px; height: 36px; flex: none; padding: 0 12px; background: #107c41; color: #fff; font: 14px system-ui, sans-serif; }
 .sheet-titlebar svg { flex: none; display: block; }
 .sheet-title-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sheet-connection[data-state="reconnecting"], .sheet-connection[data-state="offline"] { color: #a4262c; font-weight: 600; }
+.sheet-reconnect { font: inherit; padding: 0 6px; border: 1px solid #a4262c; border-radius: 3px; background: #fff; color: #a4262c; cursor: pointer; }
 .sheet-statusbar { display: flex; align-items: center; justify-content: space-between; height: 22px; padding: 0 10px; background: #f5f6f7; border-top: 1px solid #d4d8dd; font: 12px system-ui, sans-serif; color: #444; }
 .sheet-stats { display: flex; gap: 16px; }
 `;
@@ -75,6 +77,33 @@ export function startSheetEditor(root: HTMLElement): void {
   // Client-local filter state (per active sheet, reset on switch — not collaborative).
   let hiddenRows = new Set<number>();
   let tabs: { el: HTMLElement; refresh: () => void } | null = null;
+  // Connection state, shown in the status bar. Edits made while the
+  // connection is down are kept and sent after the reconnect.
+  let connState: 'online' | 'reconnecting' | 'offline' = 'online';
+  let connEl: HTMLElement | null = null;
+  const renderConn = (): void => {
+    if (!connEl) return;
+    connEl.textContent = '';
+    connEl.dataset.state = connState;
+    if (connState === 'online') {
+      connEl.textContent = 'Ready';
+      return;
+    }
+    const kept = collab?.hasPending() ? ' Your changes are kept and will be saved.' : '';
+    connEl.textContent = (connState === 'reconnecting' ? 'Reconnecting…' : 'Offline.') + kept;
+    if (connState === 'offline') {
+      const retry = document.createElement('button');
+      retry.type = 'button';
+      retry.className = 'sheet-reconnect';
+      retry.textContent = 'Reconnect';
+      retry.addEventListener('click', () => {
+        connState = 'reconnecting';
+        renderConn();
+        socket.connect();
+      });
+      connEl.append(' ', retry);
+    }
+  };
   let toolbarEl: ToolbarElement | null = null;
 
   const transport = {
@@ -242,6 +271,7 @@ export function startSheetEditor(root: HTMLElement): void {
       formulaBar.setActive(rangeRefA1(r0, c0, r1, c1), rawValue(selection.focus.row, selection.focus.col));
     }
     updateStats();
+    if (connState !== 'online') renderConn();
   };
 
   const editingNow = (): boolean => view?.isEditing() ?? false;
@@ -249,8 +279,12 @@ export function startSheetEditor(root: HTMLElement): void {
   const initSheet = (data: SheetVarsData): void => {
     activeSheetId = data.snapshot.sheets?.[0]?.id ?? 's1';
     readOnly = data.readonly;
+    // A client that could not be caught up gets a fresh snapshot; its
+    // unconfirmed edits are carried over instead of being dropped.
+    const carried = collab?.pendingOps() ?? [];
     collab = new SheetCollabClient(data.snapshot, data.head, transport);
     collab.onChange = onChange;
+    connState = 'online';
     presence = new SheetPresence(data.userId);
     presence.onChange = onChange;
 
@@ -546,7 +580,9 @@ export function startSheetEditor(root: HTMLElement): void {
     const statusbar = document.createElement('div');
     statusbar.className = 'sheet-statusbar';
     const readyEl = document.createElement('span');
-    readyEl.textContent = 'Ready';
+    readyEl.className = 'sheet-connection';
+    connEl = readyEl;
+    renderConn();
     statsEl = document.createElement('span');
     statsEl.className = 'sheet-stats';
     statusbar.append(readyEl, statsEl);
@@ -613,6 +649,7 @@ export function startSheetEditor(root: HTMLElement): void {
       },
     });
     onChange();
+    if (carried.length > 0 && !readOnly) collab.requeue(carried);
   };
 
   // Copy/Cut/Paste (TSV) and range delete. Skipped when a cell is mid-edit so
@@ -809,6 +846,41 @@ export function startSheetEditor(root: HTMLElement): void {
   // SHEET_VARS reply re-runs initSheet with a fresh snapshot, which is exactly
   // the SHEET_RELOAD semantic.
   socket.on('connect', () => sendClientReady());
+  // After an outage the server has a fresh connection that has to join again.
+  // With a state to continue from, the client asks for the ops it missed
+  // (ending with SHEET_CAUGHT_UP); otherwise it starts over.
+  socket.on('reconnect', () => {
+    if (!collab) {
+      sendClientReady();
+      return;
+    }
+    const legacyToken = Cookies.get('token');
+    socket.emit('message', {
+      component: 'sheet',
+      type: 'CLIENT_READY',
+      padId,
+      token: legacyToken != null && padutils.isValidAuthorToken(legacyToken) ? legacyToken : '',
+      userInfo: { colorId: null, name: null },
+      reconnect: true,
+      client_rev: collab.rev,
+    });
+  });
+  socket.on('disconnect', () => {
+    collab?.disconnected();
+    connState = 'reconnecting';
+    renderConn();
+  });
+  socket.on('reconnect_failed', () => {
+    connState = 'offline';
+    renderConn();
+  });
+  // Leaving the page would lose edits the server has not confirmed.
+  window.addEventListener('beforeunload', (e) => {
+    if (collab?.hasPending()) {
+      e.preventDefault();
+      e.returnValue = '';
+    }
+  });
   socket.on('message', (msg: { type?: string; data?: any }) => {
     if (!msg || typeof msg !== 'object') return;
     if (msg.type === 'SHEET_VARS') {
@@ -817,7 +889,12 @@ export function startSheetEditor(root: HTMLElement): void {
     }
     if (msg.type === 'COLLABROOM' && msg.data) {
       const d = msg.data;
-      if (d.type === 'ACCEPT_SHEET_OP') collab?.onAccept(d.newRev);
+      if (d.type === 'ACCEPT_SHEET_OP') collab?.onAccept(d.newRev, d.cid);
+      else if (d.type === 'SHEET_CAUGHT_UP') {
+        connState = 'online';
+        collab?.resume();
+        renderConn();
+      }
       else if (d.type === 'NEW_SHEET_OP') {
         collab?.onRemote(d.op as Op, d.newRev);
         if (d.author) presence?.clearLiveEdit(d.author);

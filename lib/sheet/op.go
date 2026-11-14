@@ -70,7 +70,15 @@ type Op struct {
 	// setFreeze. 0 or 1 each (freeze first row / first col only for now).
 	FrozenRows int `json:"frozenRows,omitempty"`
 	FrozenCols int `json:"frozenCols,omitempty"`
+
+	// Cid is the sending client's id for the op. It is stored with the op,
+	// so a client that lost the acknowledgement in a reconnect finds its op
+	// in the missed ops, and a resent op is not applied twice.
+	Cid string `json:"cid,omitempty"`
 }
+
+// MaxCidLength bounds Op.Cid; clients send "<random>:<seq>".
+const MaxCidLength = 64
 
 func (o Op) isStructural() bool {
 	switch o.Type {
@@ -84,6 +92,9 @@ func (o Op) isStructural() bool {
 func (o Op) Validate() error {
 	if o.Sheet == "" {
 		return fmt.Errorf("op missing sheet id")
+	}
+	if len(o.Cid) > MaxCidLength {
+		return fmt.Errorf("op cid longer than %d bytes", MaxCidLength)
 	}
 	switch o.Type {
 	case OpSetCell:

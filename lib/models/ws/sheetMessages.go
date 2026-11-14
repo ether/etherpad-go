@@ -42,6 +42,22 @@ type AcceptSheetOp struct {
 type AcceptSheetOpData struct {
 	Type   string `json:"type"` // "ACCEPT_SHEET_OP"
 	NewRev int    `json:"newRev"`
+	// Cid is the acknowledged op's client id, so a client never takes an
+	// acknowledgement for a different op as its own.
+	Cid string `json:"cid,omitempty"`
+}
+
+// SheetCaughtUp ends the missed ops a reconnecting client gets: everything up
+// to Head has been sent, ops the client still waits for were not stored and
+// have to be sent again. Sent as ["message", SheetCaughtUp].
+type SheetCaughtUp struct {
+	Type string            `json:"type"` // "COLLABROOM"
+	Data SheetCaughtUpData `json:"data"`
+}
+
+type SheetCaughtUpData struct {
+	Type string `json:"type"` // "SHEET_CAUGHT_UP"
+	Head int    `json:"head"`
 }
 
 // NewSheetOp broadcasts a rebased op to the other clients of a sheet.
