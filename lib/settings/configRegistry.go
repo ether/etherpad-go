@@ -216,6 +216,7 @@ var Registry = []ConfigKey{
 	{Key: UpdatesTrustedPublicKey, Default: "", Description: "Base64 ed25519 public key for checksums verification"},
 	{Key: UpdatesStateFile, Default: "var/update-state.json", Description: "Path to the persisted update state file"},
 	{Key: AdminEmail, Default: "", Description: "E-mail address for the updater's notices; empty sends none"},
+	{Key: GdprAuthorErasureEnabled, Default: false, Description: "Allow erasing authors (GDPR Art. 17) in the HTTP API and the admin page"},
 	{Key: MailHost, Default: "", Description: "SMTP host for outgoing mail; empty only logs the mails"},
 	{Key: MailPort, Default: 587, Description: "SMTP port"},
 	{Key: MailSecure, Default: false, Description: "Connect to the SMTP server with TLS from the start (port 465)"},

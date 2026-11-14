@@ -13,6 +13,10 @@ export function useAdminActions() {
     cancelUpdate: () => emit('cancelUpdate'),
     getUpdateLog: () => emit('getUpdateLog'),
     sendTestMail: () => emit('sendTestMail'),
+    loadAuthors: (q: { pattern: string; offset: number; limit: number; sortBy: string; ascending: boolean; includeErased: boolean }) =>
+      emit('authorLoad', q),
+    previewErasure: (authorID: string) => emit('anonymizeAuthorPreview', { authorID }),
+    eraseAuthor: (authorID: string) => emit('anonymizeAuthor', { authorID }),
     getInstalled: () => emit('getInstalled'),
     getStats: () => emit('getStats'),
     requestPads: (opts: {

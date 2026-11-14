@@ -7,6 +7,7 @@ import {
   Settings,
   KeyRound,
   CloudDownload,
+  Users,
 } from 'lucide-react'
 import { useAdminStore } from '@/store'
 
@@ -14,6 +15,7 @@ const navItems = [
   { to: '/', label: 'Overview', icon: LayoutDashboard },
   { to: '/monitoring', label: 'Monitoring', icon: Activity },
   { to: '/pads', label: 'Pads', icon: FileText },
+  { to: '/authors', label: 'Authors', icon: Users },
   { to: '/broadcast', label: 'Broadcast', icon: Megaphone },
   { to: '/keys', label: 'API keys', icon: KeyRound },
   { to: '/updates', label: 'Updates', icon: CloudDownload },

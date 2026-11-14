@@ -3,6 +3,7 @@ package server
 import (
 	"embed"
 	"fmt"
+	"github.com/ether/etherpad-go/lib/api/tokentransfer"
 	"github.com/ether/etherpad-go/lib/cluster"
 	"github.com/ether/etherpad-go/lib/lifecycle"
 	"github.com/ether/etherpad-go/lib/updater"
@@ -150,6 +151,7 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 	adminAPIRoute := app.Group("/admin/api")
 
 	registerVersionStatus(app, upd, padManager, dataStore, &settings)
+	tokentransfer.Register(app, &tokentransfer.Handler{Store: dataStore, Settings: &settings})
 
 	authenticator := api2.InitAPI(&lib.InitStore{
 		C:                 app,

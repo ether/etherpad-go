@@ -30,7 +30,20 @@ type Author struct {
 }
 
 func (m *Manager) SetAuthorColor(author string, colorId string) error {
-	return m.Db.SaveAuthorColor(author, colorId)
+	if err := m.Db.SaveAuthorColor(author, colorId); err != nil {
+		return err
+	}
+	m.touch(author)
+	return nil
+}
+
+// nowMillis is the clock of lastSeen; tests replace it.
+var nowMillis = func() int64 { return time.Now().UnixMilli() }
+
+// touch records that the author was seen now (lastSeen: created, renamed,
+// recoloured). A failure only loses the timestamp.
+func (m *Manager) touch(authorId string) {
+	_ = m.Db.TouchAuthor(authorId, nowMillis())
 }
 
 func (m *Manager) mapAuthorWithDBKey(token string) (*Author, error) {
@@ -75,10 +88,47 @@ func (m *Manager) CreateAuthor(name *string) (*Author, error) {
 	if err := m.Db.SaveAuthor(MapToDB(author)); err != nil {
 		return nil, err
 	}
+	m.touch(authorId)
 
 	return &Author{
 		Id: authorId,
 	}, nil
+}
+
+// CreateAuthorIfNotExistsFor returns the author of an external id (the
+// mapper, e.g. a user id of an LMS), creating it on first use, and sets its
+// name when one is given (etherpad-lite's createAuthorIfNotExistsFor).
+// Authors created by an older etherpad-go have the mapper as their token;
+// they are found that way and get the mapper recorded.
+func (m *Manager) CreateAuthorIfNotExistsFor(mapper string, name *string) (*Author, error) {
+	id, err := m.Db.GetAuthorByMapper(mapper)
+	if err != nil {
+		return nil, err
+	}
+	if id == "" {
+		if legacy, lerr := m.Db.GetAuthorByToken(mapper); lerr == nil && legacy != nil {
+			id = *legacy
+			if err := m.Db.SetAuthorMapper(id, mapper); err != nil {
+				return nil, err
+			}
+		}
+	}
+	if id == "" {
+		created, err := m.CreateAuthor(nil)
+		if err != nil {
+			return nil, err
+		}
+		id = created.Id
+		if err := m.Db.SetAuthorMapper(id, mapper); err != nil {
+			return nil, err
+		}
+	}
+	if name != nil && *name != "" {
+		if err := m.SetAuthorName(id, *name); err != nil {
+			return nil, err
+		}
+	}
+	return &Author{Id: id}, nil
 }
 
 func (m *Manager) saveAuthor(author Author) error {
@@ -100,8 +150,11 @@ func (m *Manager) GetAuthorName(authorId string) (*string, error) {
 }
 
 func (m *Manager) SetAuthorName(authorId string, authorName string) error {
-
-	return m.Db.SaveAuthorName(authorId, authorName)
+	if err := m.Db.SaveAuthorName(authorId, authorName); err != nil {
+		return err
+	}
+	m.touch(authorId)
+	return nil
 }
 
 func (m *Manager) GetAuthorId(token string) (*Author, error) {
@@ -186,15 +239,64 @@ func (m *Manager) GetAuthor(authorId string) (*Author, error) {
  * @param {String} authorId The id of the author
  */
 func (m *Manager) AnonymizeAuthor(authorId string) error {
-	if _, err := m.Db.GetAuthor(authorId); err != nil {
-		return errors.New(db.AuthorNotFoundError)
+	_, err := m.Anonymize(authorId, false)
+	return err
+}
+
+// ErasureResult counts what erasing an author touches (etherpad-lite's
+// anonymizeAuthor counters).
+type ErasureResult struct {
+	AffectedPads            int `json:"affectedPads"`
+	RemovedTokenMappings    int `json:"removedTokenMappings"`
+	RemovedExternalMappings int `json:"removedExternalMappings"`
+	ClearedChatMessages     int `json:"clearedChatMessages"`
+}
+
+// Anonymize erases an author (GDPR Art. 17): the token and the mapper that
+// tie a person to the author are removed, name and colour zeroed, the
+// author's chat messages lose their authorship, and the author is marked
+// erased. Pad text and revisions stay; without the identity record their
+// author ids are opaque. With dryRun nothing changes and the counters tell
+// what would. An unknown author, or one already erased, gives zero
+// counters; a run that stopped before marking the author erased is
+// completed by the next one. Returns db.AuthorNotFoundError for an unknown
+// author too, so callers can tell.
+func (m *Manager) Anonymize(authorId string, dryRun bool) (ErasureResult, error) {
+	var res ErasureResult
+	a, err := m.Db.GetAuthor(authorId)
+	if err != nil {
+		return res, errors.New(db.AuthorNotFoundError)
+	}
+	row, err := m.Db.GetAuthorRow(authorId)
+	if err != nil {
+		return res, err
+	}
+	if row != nil && row.Erased {
+		return res, nil
+	}
+	if pads, err := m.Db.GetPadIdsOfAuthor(authorId); err == nil && pads != nil {
+		res.AffectedPads = len(*pads)
+	}
+	if a.Token != nil && *a.Token != "" {
+		res.RemovedTokenMappings = 1
+	}
+	if row != nil && row.Mapper != nil {
+		res.RemovedExternalMappings = 1
+	}
+	if n, err := m.Db.CountChatMessagesOfAuthor(authorId); err == nil {
+		res.ClearedChatMessages = n
+	}
+	if dryRun {
+		return res, nil
 	}
 
-	// Sever the token binding first, before touching anything else.
+	// Sever the bindings to the person first, before touching anything else.
 	if err := m.Db.RemoveTokenOfAuthor(authorId); err != nil {
-		return err
+		return res, err
 	}
-
+	if _, err := m.Db.RemoveMapperOfAuthor(authorId); err != nil {
+		return res, err
+	}
 	// Zero the display identity. The token was already removed above, so
 	// SaveAuthor's token-preservation has nothing left to preserve.
 	if err := m.saveAuthor(Author{
@@ -203,11 +305,75 @@ func (m *Manager) AnonymizeAuthor(authorId string) error {
 		ColorId:   "0",
 		Timestamp: time.Now().Unix(),
 	}); err != nil {
-		return err
+		return res, err
 	}
-
 	// Null authorship on chat messages the author posted.
-	return m.Db.ClearChatAuthorship(authorId)
+	if err := m.Db.ClearChatAuthorship(authorId); err != nil {
+		return res, err
+	}
+	// Last: an interrupted run is not marked erased and runs again in full.
+	return res, m.Db.MarkAuthorErased(authorId, nowMillis())
+}
+
+// AuthorListEntry is one author of the admin's list.
+type AuthorListEntry struct {
+	AuthorID string   `json:"authorID"`
+	Name     *string  `json:"name"`
+	ColorID  string   `json:"colorId"`
+	Mapper   []string `json:"mapper"`
+	LastSeen *int64   `json:"lastSeen"`
+	Erased   bool     `json:"erased"`
+	ErasedAt *int64   `json:"erasedAt"`
+}
+
+// AuthorSearchResult is a page of the admin's author list.
+type AuthorSearchResult struct {
+	Total    int               `json:"total"`
+	Results  []AuthorListEntry `json:"results"`
+	CappedAt *int              `json:"cappedAt"`
+}
+
+// authorSearchCap bounds the matches counted and paged through.
+const authorSearchCap = 1000
+
+// SearchAuthors pages through the authors matching pattern in id, name or
+// mapper, erased ones only when asked (etherpad-lite's searchAuthors). At
+// most authorSearchCap are considered; CappedAt says the cap was hit.
+func (m *Manager) SearchAuthors(pattern string, offset, limit int, sortBy string, ascending, includeErased bool) (AuthorSearchResult, error) {
+	if sortBy != "lastSeen" {
+		sortBy = "name"
+	}
+	limit = min(max(limit, 1), 100)
+	offset = max(offset, 0)
+	rows, err := m.Db.SearchAuthors(db.AuthorSearch{
+		Pattern: pattern, IncludeErased: includeErased, SortBy: sortBy, Ascending: ascending, Cap: authorSearchCap + 1,
+	})
+	if err != nil {
+		return AuthorSearchResult{}, err
+	}
+	out := AuthorSearchResult{Results: []AuthorListEntry{}}
+	if len(rows) > authorSearchCap {
+		rows = rows[:authorSearchCap]
+		c := authorSearchCap
+		out.CappedAt = &c
+	}
+	out.Total = len(rows)
+	for _, r := range rows[min(offset, len(rows)):min(offset+limit, len(rows))] {
+		e := AuthorListEntry{AuthorID: r.ID, Name: r.Name, ColorID: r.ColorId, Mapper: []string{}, Erased: r.Erased}
+		if r.Mapper != nil {
+			e.Mapper = []string{*r.Mapper}
+		}
+		if r.LastSeen != 0 {
+			ls := r.LastSeen
+			e.LastSeen = &ls
+		}
+		if r.ErasedAt != 0 {
+			ea := r.ErasedAt
+			e.ErasedAt = &ea
+		}
+		out.Results = append(out.Results, e)
+	}
+	return out, nil
 }
 
 func (m *Manager) GetPadsOfAuthor(authorId string) (*[]string, error) {

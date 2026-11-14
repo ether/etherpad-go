@@ -110,6 +110,7 @@ const (
 	UpdatesTrustedPublicKey               = "updates.trustedPublicKey"
 	UpdatesStateFile                      = "updates.stateFile"
 	AdminEmail                            = "adminEmail"
+	GdprAuthorErasureEnabled              = "gdprAuthorErasure.enabled"
 	MailHost                              = "mail.host"
 	MailPort                              = "mail.port"
 	MailSecure                            = "mail.secure"

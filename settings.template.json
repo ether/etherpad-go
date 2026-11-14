@@ -123,6 +123,9 @@
       "tz": "local"
     }
   },
+  "gdprAuthorErasure": {
+    "enabled": false
+  },
   "adminEmail": "",
   "mail": {
     "host": "",

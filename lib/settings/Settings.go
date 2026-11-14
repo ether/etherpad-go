@@ -137,6 +137,11 @@ type MailSettings struct {
 	Auth *MailAuth `json:"auth" mapstructure:"auth"`
 }
 
+// GdprAuthorErasure is the switch of author erasure.
+type GdprAuthorErasure struct {
+	Enabled bool `json:"enabled" mapstructure:"enabled"`
+}
+
 // MailAuth is a login for the SMTP server.
 type MailAuth struct {
 	User string `json:"user" mapstructure:"user"`
@@ -374,8 +379,11 @@ type Settings struct {
 	Updates Updates `json:"updates" mapstructure:"updates"`
 	// AdminEmail receives the updater's notices (outdated instance, a
 	// scheduled update, a failed one); "" sends none.
-	AdminEmail string       `json:"adminEmail" mapstructure:"adminEmail"`
-	Mail       MailSettings `json:"mail" mapstructure:"mail"`
+	AdminEmail string `json:"adminEmail" mapstructure:"adminEmail"`
+	// GdprAuthorErasure enables erasing authors (GDPR Art. 17) in the HTTP
+	// API (anonymizeAuthor) and the admin page; off by default.
+	GdprAuthorErasure GdprAuthorErasure `json:"gdprAuthorErasure" mapstructure:"gdprAuthorErasure"`
+	Mail              MailSettings      `json:"mail" mapstructure:"mail"`
 
 	Cluster Cluster `json:"cluster" mapstructure:"cluster"`
 

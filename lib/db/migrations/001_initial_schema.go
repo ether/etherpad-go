@@ -21,6 +21,7 @@ func GetMigrations() []Migration {
 		migration012PadSettings(),
 		migration013MySQLBinaryIDs(),
 		migration014APIKeys(),
+		migration015AuthorPrivacy(),
 	}
 }
 

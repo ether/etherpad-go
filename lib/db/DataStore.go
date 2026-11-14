@@ -175,6 +175,7 @@ type DataStore interface {
 	ConsistencyMethods
 	ClusterMethods
 	APIKeyMethods
+	AuthorPrivacyMethods
 	PadHeadMethods
 	LeaderMethods
 	Close() error

@@ -38,8 +38,10 @@ type PadsResponse struct {
 
 // AnonymizeAuthorResponse represents the response after anonymizing an author
 type AnonymizeAuthorResponse struct {
-	AuthorId   string `json:"authorId" example:"a.s8oes9dhwrvt0zif"`
-	Anonymized bool   `json:"anonymized" example:"true"`
+	AuthorId string `json:"authorId" example:"a.s8oes9dhwrvt0zif"`
+	// Anonymized is false for a dry run (?dryRun=true), which only counts.
+	Anonymized bool `json:"anonymized" example:"true"`
+	author.ErasureResult
 }
 
 // CreateAuthor godoc
@@ -99,15 +101,13 @@ func CreateAuthorIfNotExistsFor(initStore *lib.InitStore, authorManager *author.
 			return c.Status(400).JSON(errors.NewMissingParamError("authorMapper"))
 		}
 
-		// Get or create author by token (mapper)
-		existingAuthor, err := authorManager.GetAuthor4Token(request.AuthorMapper)
+		var name *string
+		if request.Name != "" {
+			name = &request.Name
+		}
+		existingAuthor, err := authorManager.CreateAuthorIfNotExistsFor(request.AuthorMapper, name)
 		if err != nil {
 			return c.Status(500).JSON(errors.InternalServerError)
-		}
-
-		// Update name if provided
-		if request.Name != "" {
-			authorManager.SetAuthorName(existingAuthor.Id, request.Name)
 		}
 
 		return c.JSON(CreateDtoResponse{
@@ -227,6 +227,7 @@ func GetAuthorPads(initStore *lib.InitStore, authorManager *author.Manager) fibe
 // @Accept json
 // @Produce json
 // @Param authorId path string true "Author ID"
+// @Param dryRun query bool false "Only count what would be erased"
 // @Success 200 {object} AnonymizeAuthorResponse
 // @Failure 400 {object} errors.Error
 // @Failure 404 {object} errors.Error
@@ -240,7 +241,9 @@ func AnonymizeAuthor(initStore *lib.InitStore, authorManager *author.Manager) fi
 			return c.Status(400).JSON(errors.NewInvalidParamError("authorId is required"))
 		}
 
-		if err := authorManager.AnonymizeAuthor(authorId); err != nil {
+		dryRun := c.Query("dryRun") == "true"
+		res, err := authorManager.Anonymize(authorId, dryRun)
+		if err != nil {
 			if err.Error() == db.AuthorNotFoundError {
 				return c.Status(404).JSON(errors.AuthorNotFoundError)
 			}
@@ -248,8 +251,9 @@ func AnonymizeAuthor(initStore *lib.InitStore, authorManager *author.Manager) fi
 		}
 
 		return c.JSON(AnonymizeAuthorResponse{
-			AuthorId:   authorId,
-			Anonymized: true,
+			AuthorId:      authorId,
+			Anonymized:    !dryRun,
+			ErasureResult: res,
 		})
 	}
 }
