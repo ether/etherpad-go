@@ -20,6 +20,7 @@ func TestPageHead(t *testing.T) {
 		testutils.TestRunConfig{Name: "theme-color", Test: testThemeColor},
 		testutils.TestRunConfig{Name: "dark-mode pre-paint script", Test: testPrePaint},
 		testutils.TestRunConfig{Name: "charset, viewport, skin variants", Test: testHeadBasics},
+		testutils.TestRunConfig{Name: "/javascript license page", Test: testJavascriptPage},
 	)
 	defer testDb.StartTestDBHandler()
 }
@@ -88,12 +89,13 @@ func testHeadBasics(t *testing.T, ds testutils.TestDataStore) {
 	ds.Settings.SkinName = "colibris"
 	ds.Settings.SkinVariants = "dark-toolbar super-dark-editor dark-background"
 	ds.Settings.Title = "My Pads"
+	manifests := map[string]string{"/": "/manifest.json", "/p/testpad": "../manifest.json", "/p/testpad/timeslider": "../../manifest.json"}
 	for _, url := range []string{"/", "/p/testpad", "/p/testpad/timeslider"} {
 		html := page(t, ds, url)
 		assert.True(t, strings.HasPrefix(html, "<!doctype html>") || strings.HasPrefix(html, "<!DOCTYPE html>"), "%s: standards mode", url)
 		assert.Contains(t, html, `<meta charset="utf-8">`, url)
 		assert.Contains(t, html, `name="viewport"`, url)
-		assert.Contains(t, html, `<link rel="manifest" href="/manifest.json">`, url)
+		assert.Contains(t, html, `<link rel="manifest" href="`+manifests[url]+`">`, url)
 		assert.Contains(t, html, `lang="en"`, url)
 	}
 	pad := page(t, ds, "/p/testpad")
@@ -101,4 +103,18 @@ func testHeadBasics(t *testing.T, ds testutils.TestDataStore) {
 	assert.Contains(t, pad, `<meta name="robots" content="noindex, nofollow">`)
 	assert.Contains(t, page(t, ds, "/p/testpad/timeslider"), "<title>My Pads Timeslider</title>")
 	assert.NotContains(t, page(t, ds, "/"), "noindex", "the start page may be indexed")
+	ts := page(t, ds, "/p/testpad/timeslider")
+	assert.NotContains(t, ts, "{translations[", "toolbar titles are translated, not template source")
+	assert.Contains(t, ts, `title="Settings"`)
+}
+
+// etherpad-lite's /javascript: LibreJS web labels for the served scripts.
+func testJavascriptPage(t *testing.T, ds testutils.TestDataStore) {
+	html := page(t, ds, "/javascript")
+	assert.Contains(t, html, `<table id="jslicense-labels1">`)
+	for _, js := range []string{"js/pad/assets/pad.js", "js/timeslider/assets/timeslider.js", "js/welcome/assets/welcome.js", "js/sheet/assets/sheet.js"} {
+		assert.Contains(t, html, `href="`+js+`"`, "relative, so it works under a proxy prefix")
+	}
+	assert.Contains(t, html, `>GNU-GPL-3.0-only</a>`, "the sheet bundles HyperFormula")
+	assert.NotContains(t, html, `href="/`)
 }

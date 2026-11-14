@@ -4,11 +4,13 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/ether/etherpad-go/lib/plugins/ep_rss"
 	"github.com/ether/etherpad-go/lib/test/testutils"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestEPRSS(t *testing.T) {
@@ -48,8 +50,13 @@ func testEpRSSFeed(t *testing.T, th testutils.TestDataStore) {
 			assert.NoError(t, err)
 			assert.Equal(t, http.StatusMovedPermanently, resp.StatusCode)
 
+			// Relative, so a reverse proxy's path prefix stays.
 			location := resp.Header.Get("Location")
-			assert.Equal(t, tt.expected, location)
+			assert.Equal(t, "feed", location)
+			base, _ := url.Parse("http://pads.example" + tt.path)
+			ref, err := url.Parse(location)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, base.ResolveReference(ref).Path)
 		})
 	}
 }

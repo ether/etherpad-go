@@ -14,7 +14,7 @@ import (
 // (added in plan 2); here we only deliver the shell.
 func HandleSheetOpen(c fiber.Ctx) error {
 	padName := c.Params("pad")
-	jsFilePath := "/js/sheet/assets/sheet.js?v=" + utils.RandomVersionString
+	jsFilePath := "../js/sheet/assets/sheet.js?v=" + utils.RandomVersionString
 	comp := sheetAsset.SheetIndex(padName, jsFilePath)
 	return adaptor.HTTPHandler(templ.Handler(comp))(c)
 }

@@ -41,7 +41,7 @@ func HandlePadOpen(c fiber.Ctx, uiAssets embed.FS, retrievedSettings *settings.S
 		return err
 	}
 
-	jsFilePath := "/js/pad/assets/pad.js?v=" + utils.RandomVersionString
+	jsFilePath := "../js/pad/assets/pad.js?v=" + utils.RandomVersionString
 	buttonGroups := plugins.GetToolbarButtonGroups()
 	slices.SortFunc(buttonGroups, func(a, b plugins.ToolbarButtonGroup) int {
 		return cmp.Compare(a.PluginName, b.PluginName)
@@ -49,7 +49,7 @@ func HandlePadOpen(c fiber.Ctx, uiAssets embed.FS, retrievedSettings *settings.S
 	settingsMenuGroups := plugins.GetSettingsMenuGroups()
 
 	socialMetaHTML := socialmeta.Render(socialmeta.Opts{
-		Req:            buildRequestInfo(c),
+		Req:            buildRequestInfo(c, retrievedSettings.TrustProxy),
 		Settings:       socialMetaSettings(retrievedSettings),
 		AvailableLangs: availableLangsSet(),
 		Locales:        hooks.AllLocales,
@@ -57,14 +57,14 @@ func HandlePadOpen(c fiber.Ctx, uiAssets embed.FS, retrievedSettings *settings.S
 		PadName:        padName,
 	})
 
-	padComp := padAsset.PadIndex(pad, jsFilePath, keyValues, retrievedSettings, AvailableFonts, buttonGroups, settingsMenuGroups, socialMetaHTML, head.For(retrievedSettings, language, true))
+	padComp := padAsset.PadIndex(pad, jsFilePath, keyValues, retrievedSettings, AvailableFonts, buttonGroups, settingsMenuGroups, socialMetaHTML, head.For(retrievedSettings, language, "../", true))
 
 	return adaptor.HTTPHandler(templ.Handler(padComp))(c)
 }
 
 // buildRequestInfo translates a fiber.Ctx into the request facts socialmeta
 // needs. Kept local so the socialmeta package stays router-agnostic.
-func buildRequestInfo(c fiber.Ctx) socialmeta.RequestInfo {
+func buildRequestInfo(c fiber.Ctx, trustProxy bool) socialmeta.RequestInfo {
 	scheme := "http"
 	if c.Scheme() == "https" {
 		scheme = "https"
@@ -74,6 +74,7 @@ func buildRequestInfo(c fiber.Ctx) socialmeta.RequestInfo {
 		Host:           c.Host(),
 		Path:           c.Path(),
 		AcceptLanguage: c.Get("Accept-Language"),
+		ProxyPath:      utils.RequestProxyPath(c, trustProxy),
 	}
 }
 

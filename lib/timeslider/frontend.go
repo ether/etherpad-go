@@ -22,7 +22,7 @@ func HandleTimesliderOpen(c fiber.Ctx, uiAssets embed.FS, retrievedSettings *set
 		return err
 	}
 
-	jsFilePath := "/js/timeslider/assets/timeslider.js?v=" + utils.RandomVersionString
+	jsFilePath := "../../js/timeslider/assets/timeslider.js?v=" + utils.RandomVersionString
 
 	padName := c.Params("pad")
 	scheme := "http"
@@ -43,6 +43,7 @@ func HandleTimesliderOpen(c fiber.Ctx, uiAssets embed.FS, retrievedSettings *set
 			Host:           c.Host(),
 			Path:           c.Path(),
 			AcceptLanguage: c.Get("Accept-Language"),
+			ProxyPath:      utils.RequestProxyPath(c, retrievedSettings.TrustProxy),
 		},
 		Settings: socialmeta.Settings{
 			Title:               retrievedSettings.Title,
@@ -56,7 +57,7 @@ func HandleTimesliderOpen(c fiber.Ctx, uiAssets embed.FS, retrievedSettings *set
 		PadName:        padName,
 	})
 
-	timesliderComp := timeslider.Timeslider(jsFilePath, keyValues, retrievedSettings, socialMetaHTML, head.For(retrievedSettings, language, true))
+	timesliderComp := timeslider.Timeslider(jsFilePath, keyValues, retrievedSettings, socialMetaHTML, head.For(retrievedSettings, language, "../../", true))
 
 	return adaptor.HTTPHandler(templ.Handler(timesliderComp))(c)
 }

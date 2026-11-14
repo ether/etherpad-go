@@ -90,7 +90,7 @@ templ ConnectivityPopup(translations map[string]string) {
         <p>{translations["pad.modals.disconnected.cause"]}</p>
         <button id="forcereconnect" class="btn btn-primary">{translations["pad.modals.forcereconnect"]}</button>
       </div>
-      <form id="reconnectform" method="post" action="/ep/pad/reconnect" accept-charset="UTF-8" style="display: none;">
+      <form id="reconnectform" method="post" action="../../ep/pad/reconnect" accept-charset="UTF-8" style="display: none;">
           <input type="hidden" class="padId" name="padId">
           <input type="hidden" class="diagnosticInfo" name="diagnosticInfo">
           <input type="hidden" class="missedChanges" name="missedChanges">
@@ -123,11 +123,11 @@ templ Timeslider(jsScript string, translations map[string]string, settings *sett
         @head.Meta(page)
         <title>{strings.ReplaceAll(translations["timeslider.pageTitle"], "{{appTitle}}", settings.Title)}</title>
         <script type="module" src={jsScript}></script>
-        <link rel="stylesheet" href="/css/static/pad.css">
-        <link rel="stylesheet" href="/css/static/iframe_editor.css">
-        <link rel="stylesheet" href="/css/static/timeslider.css">
-        <link rel="stylesheet" href={"/css/skin/"+ settings.SkinName + "/pad.css"}>
-        <link rel="stylesheet" href={"/css/skin/" + settings.SkinName  + "/timeslider.css"}>
+        <link rel="stylesheet" href={page.Root + "css/static/pad.css"}>
+        <link rel="stylesheet" href={page.Root + "css/static/iframe_editor.css"}>
+        <link rel="stylesheet" href={page.Root + "css/static/timeslider.css"}>
+        <link rel="stylesheet" href={page.Root + "css/skin/" + settings.SkinName + "/pad.css"}>
+        <link rel="stylesheet" href={page.Root + "css/skin/" + settings.SkinName + "/timeslider.css"}>
         <style type="text/css" title="dynamicsyntax"></style>
         // Open Graph + Twitter Card preview metadata. Upstream #7635.
         @templ.Raw(socialMetaHTML)
@@ -151,18 +151,18 @@ templ Timeslider(jsScript string, translations map[string]string, settings *sett
             <div class="editbarright menu_right">
               <ul>
                 <li data-type="button" data-key="import_export">
-                  <a class="grouped-left" title='{translations["timeslider.toolbar.exportlink.title"]}' aria-label='{translations["timeslider.toolbar.exportlink.title"]}'>
-                    <button class="buttonicon buttonicon-import_export" title='{translations["timeslider.toolbar.exportlink.title"]}' aria-label='{translations["timeslider.toolbar.exportlink.title"]}'></button>
+                  <a class="grouped-left" title={translations["timeslider.toolbar.exportlink.title"]} aria-label={translations["timeslider.toolbar.exportlink.title"]}>
+                    <button class="buttonicon buttonicon-import_export" title={translations["timeslider.toolbar.exportlink.title"]} aria-label={translations["timeslider.toolbar.exportlink.title"]}></button>
                   </a>
                 </li>
                 <li data-type="button" data-key="settings">
-                  <a class="grouped-middle" title='{translations["pad.toolbar.settings.title"]}' aria-label='{translations["pad.toolbar.settings.title"]}'>
-                    <button class="buttonicon buttonicon-settings" title='{translations["pad.toolbar.settings.title"]}' aria-label='{translations["pad.toolbar.settings.title"]}'></button>
+                  <a class="grouped-middle" title={translations["pad.toolbar.settings.title"]} aria-label={translations["pad.toolbar.settings.title"]}>
+                    <button class="buttonicon buttonicon-settings" title={translations["pad.toolbar.settings.title"]} aria-label={translations["pad.toolbar.settings.title"]}></button>
                   </a>
                 </li>
                 <li data-type="button" data-key="timeslider_returnToPad">
                   <a class="grouped-right">
-                    <button class="buttontext" aria-label='{translations["timeslider.toolbar.returnbutton"]}'>{translations["timeslider.toolbar.returnbutton"]}</button>
+                    <button class="buttontext" aria-label={translations["timeslider.toolbar.returnbutton"]}>{translations["timeslider.toolbar.returnbutton"]}</button>
                   </a>
                 </li>
               </ul>

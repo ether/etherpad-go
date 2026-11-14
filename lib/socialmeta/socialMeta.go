@@ -78,6 +78,11 @@ type RequestInfo struct {
 	// AcceptLanguage is the raw Accept-Language header for language
 	// negotiation. May be empty.
 	AcceptLanguage string
+	// ProxyPath is the cleaned path prefix a reverse proxy serves Etherpad
+	// under (utils.RequestProxyPath), "" at the root. It goes in front of
+	// the path in og:url and og:image when they are built from the
+	// request; a publicURL is taken as it is, as in etherpad-lite.
+	ProxyPath string
 }
 
 // FromHTTPRequest builds a RequestInfo from a net/http request. Fiber
@@ -154,7 +159,7 @@ func buildAbsoluteURL(req RequestInfo, pathname, publicURL string) string {
 	if host == "" {
 		host = "localhost"
 	}
-	return scheme + "://" + host + pathname
+	return scheme + "://" + host + req.ProxyPath + pathname
 }
 
 func resolveImageURL(req RequestInfo, faviconSetting, publicURL string) string {

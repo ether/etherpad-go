@@ -9,6 +9,11 @@ import (
 
 // Info describes a page for Meta.
 type Info struct {
+	// Root leads from the page to the site root: "" for /, "../" for
+	// /p/:pad, "../../" for /p/:pad/timeslider. URLs are relative to it, so
+	// the pages work behind a reverse proxy that serves Etherpad under a
+	// path prefix.
+	Root string
 	// Lang and Dir are the page's <html lang> and dir.
 	Lang           string
 	Dir            string
@@ -20,9 +25,9 @@ type Info struct {
 }
 
 // For builds the Info of a page in language (the language cookie).
-func For(s *settings.Settings, language string, pad bool) Info {
+func For(s *settings.Settings, language, root string, pad bool) Info {
 	lang, dir := hooks.PageLanguage(language)
-	return Info{Lang: lang, Dir: dir, SkinName: s.SkinName, SkinVariants: s.SkinVariants, EnableDarkMode: s.EnableDarkMode, Pad: pad}
+	return Info{Root: root, Lang: lang, Dir: dir, SkinName: s.SkinName, SkinVariants: s.SkinVariants, EnableDarkMode: s.EnableDarkMode, Pad: pad}
 }
 
 // HTMLClass is the class of the pad pages' <html>: the configured variants.
@@ -84,6 +89,6 @@ templ Meta(i Info) {
 			})();
 		</script>
 	}
-	<link rel="shortcut icon" href="/favicon.ico"/>
-	<link rel="manifest" href="/manifest.json"/>
+	<link rel="shortcut icon" href={ i.Root + "favicon.ico" }/>
+	<link rel="manifest" href={ i.Root + "manifest.json" }/>
 }

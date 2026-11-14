@@ -82,6 +82,27 @@ settings.json.template → settings.json
 
 and adjust it to your needs.
 
+### Behind a reverse proxy under a path
+
+Etherpad can be served under a path such as `https://example.org/pads/`. The proxy
+strips the prefix and names it in the `x-proxy-path` header, for example with nginx:
+
+```nginx
+location /pads/ {
+    proxy_pass http://127.0.0.1:9001/;
+    proxy_set_header x-proxy-path /pads;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+}
+```
+
+With `"trustProxy": true` the standard `X-Forwarded-Prefix` (Traefik, HAProxy) and
+`X-Ingress-Path` (Home Assistant) work too; without it they are ignored, since any client
+could send them when Etherpad is reachable directly. Pages, the admin UI, the websockets
+and `/manifest.json` then stay under the prefix. Pages that carry the prefix answer with
+`Vary` on these headers and are not stored by shared caches.
+
 ---
 
 ## Docker

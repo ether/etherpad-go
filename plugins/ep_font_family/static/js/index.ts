@@ -6,6 +6,7 @@
  */
 
 import { editorBus } from 'ep_etherpad-lite/static/js/core/EventBus'
+import { siteUrl } from 'ep_etherpad-lite/static/js/core/basePath'
 
 const fonts = ['arial', 'avant-garde', 'bookman', 'calibri', 'courier', 'garamond', 'helvetica', 'monospace', 'palatino', 'times-new-roman'] as const
 const fontRegex = /(?:^| )font([a-z-]+)/
@@ -28,7 +29,7 @@ const onDomReady = (fn: () => void) => {
 
 const link = document.createElement('link')
 link.rel = 'stylesheet'
-link.href = '/static/plugins/ep_font_family/static/css/fonts.css'
+link.href = siteUrl('/static/plugins/ep_font_family/static/css/fonts.css')
 document.head.appendChild(link)
 
 // ---------------------------------------------------------------------------

@@ -6,6 +6,7 @@
  */
 
 import { editorBus } from 'ep_etherpad-lite/static/js/core/EventBus'
+import { siteUrl } from 'ep_etherpad-lite/static/js/core/basePath'
 
 const tags = ['left', 'center', 'justify', 'right'] as const
 
@@ -15,7 +16,7 @@ const tags = ['left', 'center', 'justify', 'right'] as const
 
 const link = document.createElement('link')
 link.rel = 'stylesheet'
-link.href = '/static/plugins/ep_align/static/css/align.css'
+link.href = siteUrl('/static/plugins/ep_align/static/css/align.css')
 document.head.appendChild(link)
 
 // ---------------------------------------------------------------------------

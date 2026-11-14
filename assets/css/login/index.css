@@ -43,7 +43,7 @@ input:invalid:required {
 
 
 .login-background {
-    background-image: url("/images/fond.jpg");
+    background-image: url("../../images/fond.jpg");
     background-position: center;
     background-repeat: no-repeat;
     background-size: cover;

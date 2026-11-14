@@ -6,15 +6,15 @@ import * as esbuild from 'esbuild';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 // @ts-ignore plain JS module shared with build.js
-import {cssBundles, cssExternal} from '../css-build.js';
+import {cssBundles, cssExternal, rebaseUrls} from '../css-build.js';
 
 const uiDir = path.resolve(__dirname, '..');
 const staticRoot = path.resolve(uiDir, '../assets');
 
-const build = async (entry: string) => {
+const build = async (entry: string, outdir = '/out') => {
   const result = await esbuild.build({
     absWorkingDir: uiDir, bundle: true, minify: true, write: false,
-    entryPoints: [entry], outdir: '/out', external: cssExternal,
+    entryPoints: [entry], outdir, external: cssExternal,
     // The loaders build.js uses: anything not external would be inlined.
     loader: {'.woff': 'base64', '.woff2': 'base64', '.ttf': 'base64', '.eot': 'base64', '.svg': 'base64',
       '.png': 'base64', '.jpg': 'base64', '.gif': 'base64', '.otf': 'base64'},
@@ -35,15 +35,22 @@ describe('CSS font URLs stay external (#8268)', () => {
         expect((await build(entry)).length).toBeLessThan(200 * 1024);
       });
 
-      it('points every external font URL at a file under the static root', async () => {
-        const css = await build(entry);
-        const outDir = path.resolve(uiDir, bundle.outdir);
+      it('points every external font URL at a file, as served and under a proxy prefix', async () => {
+        // What build.js writes: esbuild's output for the real outdir, rebased
+        // to the URL the bundle is served at.
+        const css = rebaseUrls(await build(entry, bundle.outdir), bundle, uiDir);
         const urls = [...css.matchAll(/url\(["']?([^"')]+)["']?\)/g)].map((m) => m[1])
             .filter((u) => /\.(woff2?|ttf|otf|eot|svg)([?#]|$)/.test(u) && !u.startsWith('data:'));
         for (const url of urls) {
-          const resolved = path.resolve(outDir, url.split('?')[0].split('#')[0]);
-          expect(resolved.startsWith(staticRoot + path.sep), url).toBe(true);
-          expect(fs.existsSync(resolved), `${url} -> ${resolved}`).toBe(true);
+          expect(url.startsWith('/'), `${url} is relative`).toBe(false);
+          const clean = url.split('?')[0].split('#')[0];
+          // The browser resolves it against the served URL; under /sub that
+          // must stay below /sub.
+          const served = path.posix.resolve(bundle.servedAt, clean);
+          const underPrefix = path.posix.resolve('/sub' + bundle.servedAt, clean);
+          expect(underPrefix, url).toBe('/sub' + served);
+          const file = path.join(staticRoot, served);
+          expect(fs.existsSync(file), `${url} -> ${file}`).toBe(true);
         }
       });
     });

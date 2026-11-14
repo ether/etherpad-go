@@ -13,8 +13,6 @@ import (
 	"golang.org/x/net/html"
 )
 
-const feedUrl = "/p/%s/feed"
-
 type FeedCache struct {
 	LastEdited int64
 	Feed       string
@@ -55,13 +53,16 @@ const staleTime = 5 * time.Minute
 func registerFeedRoutes(app *fiber.App, padManager *pad.Manager, zap *zap.SugaredLogger) {
 	// Redirects
 	app.Get("/p/:padID/rss", func(c fiber.Ctx) error {
-		return c.Redirect().Status(fiber.StatusMovedPermanently).To(fmt.Sprintf(feedUrl, c.Params("padID")))
+		// Relative, so a reverse proxy's path prefix stays.
+		return c.Redirect().Status(fiber.StatusMovedPermanently).To("feed")
 	})
 	app.Get("/p/:padID/feed.rss", func(c fiber.Ctx) error {
-		return c.Redirect().Status(fiber.StatusMovedPermanently).To(fmt.Sprintf(feedUrl, c.Params("padID")))
+		// Relative, so a reverse proxy's path prefix stays.
+		return c.Redirect().Status(fiber.StatusMovedPermanently).To("feed")
 	})
 	app.Get("/p/:padID/atom.xml", func(c fiber.Ctx) error {
-		return c.Redirect().Status(fiber.StatusMovedPermanently).To(fmt.Sprintf(feedUrl, c.Params("padID")))
+		// Relative, so a reverse proxy's path prefix stays.
+		return c.Redirect().Status(fiber.StatusMovedPermanently).To("feed")
 	})
 
 	// Main feed handler

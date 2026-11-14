@@ -5,7 +5,7 @@ form {
 }
 
 body {
-    background: url(/images/fond.jpg) center center no-repeat fixed #fff;
+    background: url(../../../images/fond.jpg) center center no-repeat fixed #fff;
     font-family: Quicksand, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
     font-size: 16px;
     line-height: 1.42857143;

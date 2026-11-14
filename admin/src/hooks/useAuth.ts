@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { adminBase } from '@/base'
 
 type OidcConfig = {
   authority: string
@@ -60,7 +61,7 @@ export function useAuth() {
       if (!oidc || !refreshToken) return
 
       try {
-        const resp = await fetch('/oauth2/token', {
+        const resp = await fetch(`${adminBase()}/oauth2/token`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: new URLSearchParams({
@@ -110,14 +111,14 @@ export function useAuth() {
       code_challenge_method: 'S256',
     })
 
-    window.location.href = `/oauth2/auth?${params}`
+    window.location.href = `${adminBase()}/oauth2/auth?${params}`
   }, [])
 
   const exchangeCode = useCallback(async (code: string, oidc: NonNullable<OidcConfig>) => {
     const verifier = sessionStorage.getItem('oidc_verifier')
     if (!verifier) throw new Error('Missing code verifier')
 
-    const resp = await fetch('/oauth2/token', {
+    const resp = await fetch(`${adminBase()}/oauth2/token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
@@ -147,11 +148,11 @@ export function useAuth() {
       const existingRefresh = sessionStorage.getItem('admin_refresh_token') || ''
 
       if (existing) {
-        const resp = await fetch(`/admin/validate?token=${encodeURIComponent(existing)}`)
+        const resp = await fetch(`${adminBase()}/admin/validate?token=${encodeURIComponent(existing)}`)
         if (resp.ok) {
           setState({ token: existing, loading: false, error: null })
           // Fetch OIDC config for refresh
-          const configResp = await fetch('/admin/config')
+          const configResp = await fetch(`${adminBase()}/admin/config`)
           const config = await configResp.json()
           if (config.oidc) {
             oidcConfigRef.current = config.oidc
@@ -162,12 +163,12 @@ export function useAuth() {
 
         // Token expired — try refresh before re-auth
         if (existingRefresh) {
-          const configResp = await fetch('/admin/config')
+          const configResp = await fetch(`${adminBase()}/admin/config`)
           const config = await configResp.json()
           if (config.oidc) {
             oidcConfigRef.current = config.oidc
             try {
-              const resp = await fetch('/oauth2/token', {
+              const resp = await fetch(`${adminBase()}/oauth2/token`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                 body: new URLSearchParams({
@@ -195,7 +196,7 @@ export function useAuth() {
       }
 
       // Fetch OIDC config
-      const configResp = await fetch('/admin/config')
+      const configResp = await fetch(`${adminBase()}/admin/config`)
       const config = await configResp.json()
       const oidc: OidcConfig = config.oidc
       oidcConfigRef.current = oidc

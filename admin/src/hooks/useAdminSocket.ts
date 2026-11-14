@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useRef } from 'react
 import React from 'react'
 import type { ReactNode } from 'react'
 import { useAdminStore } from '@/store'
+import { adminBase } from '@/base'
 
 // ── Emit context ───────────────────────────────────────────────────────────
 // The emit function is shared via context so any component (or hook like
@@ -24,7 +25,7 @@ export function useEmit(): EmitFn {
 // token. Network trouble is "unknown": the caller keeps retrying.
 export async function checkAdminToken(token: string): Promise<'ok' | 'rejected' | 'unknown'> {
   try {
-    const resp = await fetch(`/admin/validate?token=${encodeURIComponent(token)}`)
+    const resp = await fetch(`${adminBase()}/admin/validate?token=${encodeURIComponent(token)}`)
     if (resp.ok) return 'ok'
     if (resp.status === 401 || resp.status === 403) return 'rejected'
     return 'unknown'
@@ -68,7 +69,7 @@ export function AdminSocketProvider({ children, token }: { children: ReactNode; 
     if (stopped.current) return
     const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const sentToken = tokenRef.current
-    const socket = new WebSocket(`${proto}//${window.location.host}/admin/ws?token=${encodeURIComponent(sentToken)}`)
+    const socket = new WebSocket(`${proto}//${window.location.host}${adminBase()}/admin/ws?token=${encodeURIComponent(sentToken)}`)
     let opened = false
 
     socket.onopen = () => {

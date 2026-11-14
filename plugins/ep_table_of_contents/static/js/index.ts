@@ -6,6 +6,7 @@
  */
 
 import { editorBus } from 'ep_etherpad-lite/static/js/core/EventBus'
+import { siteUrl } from 'ep_etherpad-lite/static/js/core/basePath'
 
 // ---------------------------------------------------------------------------
 // CSS injection — runs immediately at module load
@@ -14,7 +15,7 @@ import { editorBus } from 'ep_etherpad-lite/static/js/core/EventBus'
 const cssLink = document.createElement('link')
 cssLink.rel = 'stylesheet'
 cssLink.type = 'text/css'
-cssLink.href = '/static/plugins/ep_table_of_contents/static/css/toc.css'
+cssLink.href = siteUrl('/static/plugins/ep_table_of_contents/static/css/toc.css')
 document.head.appendChild(cssLink)
 
 // ---------------------------------------------------------------------------

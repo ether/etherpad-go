@@ -29,7 +29,7 @@ import (
 
 // buildHomeSocialMeta renders the Open Graph + Twitter Card meta block for
 // the homepage. Upstream #7635.
-func buildHomeSocialMeta(c fiber.Ctx, s *settings.Settings) string {
+func buildHomeSocialMeta(c fiber.Ctx, s *settings.Settings, proxyPath string) string {
 	scheme := "http"
 	if c.Scheme() == "https" {
 		scheme = "https"
@@ -48,6 +48,7 @@ func buildHomeSocialMeta(c fiber.Ctx, s *settings.Settings) string {
 			Host:           c.Host(),
 			Path:           c.Path(),
 			AcceptLanguage: c.Get("Accept-Language"),
+			ProxyPath:      proxyPath,
 		},
 		Settings: socialmeta.Settings{
 			Title:               s.Title,
@@ -263,10 +264,10 @@ func Init(store *lib.InitStore) {
 	} else {
 		adminHTML := string(adminIndexHTML)
 		store.C.Get("/admin/index.html", func(c fiber.Ctx) error {
-			return c.Type("html").SendString(adminHTML)
+			return c.Type("html").SendString(adminPage(c, adminHTML, store.RetrievedSettings.TrustProxy))
 		})
 		store.C.Get("/admin/", func(c fiber.Ctx) error {
-			return c.Type("html").SendString(adminHTML)
+			return c.Type("html").SendString(adminPage(c, adminHTML, store.RetrievedSettings.TrustProxy))
 		})
 	}
 
@@ -355,6 +356,9 @@ func Init(store *lib.InitStore) {
 	})
 
 	store.C.Get("/s/:pad", func(ctx fiber.Ctx) error {
+		if handled, err := pad2.RedirectTrailingSlash(ctx); handled {
+			return err
+		}
 		padManager.EnsureAuthorTokenCookie(ctx, store.RetrievedSettings)
 		return pad2.HandleSheetOpen(ctx)
 	})
@@ -378,6 +382,8 @@ func Init(store *lib.InitStore) {
 	})
 
 	store.C.Get("/favicon.ico", serveFavicon(store))
+	store.C.Get("/manifest.json", serveManifest(store.RetrievedSettings))
+	store.C.Get("/javascript", serveJavascriptPage(store.UiAssets))
 
 	store.C.Get("/", func(c fiber.Ctx) error {
 		var language = c.Cookies("language", "en")
@@ -385,8 +391,12 @@ func Init(store *lib.InitStore) {
 		if err != nil {
 			return err
 		}
-		socialMetaHTML := buildHomeSocialMeta(c, store.RetrievedSettings)
-		component := welcome.Page(store.RetrievedSettings, keyValues, socialMetaHTML, head.For(store.RetrievedSettings, language, false))
+		// The home page is "/" or "<prefix>/", so its links are absolute
+		// from the prefix, as in etherpad-lite: relative ones would miss it
+		// when the proxy forwards "<prefix>" without the trailing slash.
+		proxyPath := utils.RequestProxyPath(c, store.RetrievedSettings.TrustProxy)
+		socialMetaHTML := buildHomeSocialMeta(c, store.RetrievedSettings, proxyPath)
+		component := welcome.Page(store.RetrievedSettings, keyValues, socialMetaHTML, head.For(store.RetrievedSettings, language, proxyPath+"/", false))
 		return adaptor.HTTPHandler(templ.Handler(component))(c)
 	})
 
@@ -415,9 +425,24 @@ func Init(store *lib.InitStore) {
 			if !shouldServeAdminSPA(c.Path()) {
 				return c.Next()
 			}
-			return c.Type("html").SendString(adminHTML)
+			return c.Type("html").SendString(adminPage(c, adminHTML, store.RetrievedSettings.TrustProxy))
 		})
 	}
+}
+
+// adminPage is the admin SPA's index.html for this request. Vite builds it
+// with absolute /admin/ and /favicon.ico URLs; behind a reverse proxy
+// prefix they get it in front (the prefix is cleaned, it has no quote).
+// The SPA itself takes the prefix from its location.
+func adminPage(c fiber.Ctx, html string, trustProxy bool) string {
+	prefix := utils.RequestProxyPath(c, trustProxy)
+	if prefix == "" {
+		return html
+	}
+	return strings.NewReplacer(
+		`"/admin/`, `"`+prefix+`/admin/`,
+		`"/favicon.ico"`, `"`+prefix+`/favicon.ico"`,
+	).Replace(html)
 }
 
 // clientReport makes text a browser sent fit for one log line: at most

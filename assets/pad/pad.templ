@@ -86,7 +86,7 @@ templ EditorLoadingBox(translations map[string]string) {
               </p>
             </div>
             <p id="loading" class="editorloadingbox-message">
-              <img src='/images/brand.svg' class='etherpadBrand'/><br/>
+              <img src='../images/brand.svg' class='etherpadBrand'/><br/>
               {translations["pad.loading"]}
             </p>
             <noscript>
@@ -366,7 +366,7 @@ templ ConnectivityPopup(translations map[string]string) {
               <div class="reconnecting">
                 <h1>{translations["pad.modals.reconnecting"]}</h1>
                 <i class='buttonicon buttonicon-spin5 icon-spin'>
-                  <img src='/images/brand.svg' class='etherpadBrand'/><br/>
+                  <img src='../images/brand.svg' class='etherpadBrand'/><br/>
                 </i>
               </div>
               <div class="userdup">
@@ -430,7 +430,7 @@ templ ConnectivityPopup(translations map[string]string) {
                 <p id="defaulttext">{translations["pad.modals.disconnected.cause"]}</p>
                 <button id="forcereconnect" class="btn btn-primary">{translations["pad.modals.forcereconnect"]}</button>
               </div>
-              <form id="reconnectform" method="post" action="/ep/pad/reconnect" accept-charset="UTF-8" style="display: none;">
+              <form id="reconnectform" method="post" action="../ep/pad/reconnect" accept-charset="UTF-8" style="display: none;">
                   <input type="hidden" class="padId" name="padId"/>
                   <input type="hidden" class="diagnosticInfo" name="diagnosticInfo"/>
                   <input type="hidden" class="missedChanges" name="missedChanges"/>
@@ -508,14 +508,14 @@ availableFonts []string, buttonGroups []pluginTypes.ToolbarButtonGroup, settings
     @head.Meta(page)
     <title>{settings.Title}</title>
     <script type="module" src={jsScript}></script>
-      <link href="/css/static/pad.css" rel="stylesheet"/>
-      <link href="/css/static/iframe_editor.css" rel="stylesheet"/>
-    <link  href={"/css/skin/"+ settings.SkinName + "/pad.css"} rel="stylesheet"/>
+      <link href={page.Root + "css/static/pad.css"} rel="stylesheet"/>
+      <link href={page.Root + "css/static/iframe_editor.css"} rel="stylesheet"/>
+    <link href={page.Root + "css/skin/" + settings.SkinName + "/pad.css"} rel="stylesheet"/>
     <style title="dynamicsyntax"></style>
     // Open Graph + Twitter Card preview metadata. Pre-rendered with all
     // values HTML-escaped (pad name is user-controlled). Upstream #7635.
     @templ.Raw(socialMetaHTML)
-    <link rel="localizations" type="application/l10n+json" href="/locales.json"/>
+    <link rel="localizations" type="application/l10n+json" href={page.Root + "locales.json"}/>
   </head>
   <body>
   // WCAG 2.4.1 — bypass the toolbar and jump straight to the editor.

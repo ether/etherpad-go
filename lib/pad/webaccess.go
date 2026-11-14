@@ -466,7 +466,7 @@ func isAdminPath(path string) bool {
 var publicAssetPrefixes = []string{"/static/", "/css/", "/images/", "/js/"}
 
 func isPublicAsset(path string) bool {
-	if path == "/favicon.ico" || path == "/robots.txt" {
+	if path == "/favicon.ico" || path == "/robots.txt" || path == "/manifest.json" {
 		return true
 	}
 	if strings.Contains(path, "..") {
