@@ -198,6 +198,8 @@ jobs:
           default_pool_size = 20
           ignore_startup_parameters = extra_float_digits
           unix_socket_dir =
+          pidfile = pgbouncer.pid
+          logfile = pgbouncer.log
           INI
           echo '"test_user" "test_password"' > "$RUNNER_TEMP/userlist.txt"
           cd "$RUNNER_TEMP" && pgbouncer -d pgbouncer.ini
@@ -214,6 +216,9 @@ jobs:
           EP_TEST_POSTGRES_PGBOUNCER: "true"
           EP_TEST_SKIP_MYSQL: "true"
         run: go test -p 1 ./...
+      - name: PgBouncer log
+        if: failure()
+        run: tail -n 100 "$RUNNER_TEMP/pgbouncer.log" || true
   typecheck:
     # TypeScript is bundled with esbuild (ui/build.js) and vite, neither of
     # which type-checks, so run tsc for ui, admin, playwright and plugins here.
