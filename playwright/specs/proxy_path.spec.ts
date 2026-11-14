@@ -9,26 +9,36 @@ import {randomUUID} from "node:crypto";
 // the prefix: the proxy answers anything else with 404 and records it.
 
 const PREFIX = '/sub';
+// A prefix that itself holds an "admin" segment.
+const ADMIN_PREFIX = '/x/admin/y';
+const PREFIXES = [ADMIN_PREFIX, PREFIX];
 const UPSTREAM = 9001;
 
 let server: http.Server;
+let origin = '';
 let base = '';
 const outside: string[] = [];
 
-const strip = (url: string): string | null =>
-    url === PREFIX ? '/' : url.startsWith(PREFIX + '/') ? url.slice(PREFIX.length) : null;
+const match = (url: string): [string, string] | null => {
+    for (const p of PREFIXES) {
+        if (url === p) return [p, '/'];
+        if (url.startsWith(p + '/')) return [p, url.slice(p.length)];
+    }
+    return null;
+};
 
 test.beforeAll(async () => {
     server = http.createServer((req, res) => {
-        const path = strip(req.url ?? '');
-        if (path === null) {
+        const m = match(req.url ?? '');
+        if (m === null) {
             outside.push(req.url ?? '');
             res.writeHead(404).end('outside the prefix');
             return;
         }
+        const [prefix, path] = m;
         const up = http.request({
             host: '127.0.0.1', port: UPSTREAM, path, method: req.method,
-            headers: {...req.headers, 'x-proxy-path': PREFIX},
+            headers: {...req.headers, 'x-proxy-path': prefix},
         }, (r) => {
             res.writeHead(r.statusCode ?? 502, r.headers);
             r.pipe(res);
@@ -37,16 +47,17 @@ test.beforeAll(async () => {
         req.pipe(up);
     });
     server.on('upgrade', (req, sock, head) => {
-        const path = strip(req.url ?? '');
-        if (path === null) {
+        const m = match(req.url ?? '');
+        if (m === null) {
             outside.push('ws ' + req.url);
             sock.destroy();
             return;
         }
+        const [prefix, path] = m;
         const up = net.connect(UPSTREAM, '127.0.0.1', () => {
             let s = `${req.method} ${path} HTTP/1.1\r\n`;
             for (let i = 0; i < req.rawHeaders.length; i += 2) s += `${req.rawHeaders[i]}: ${req.rawHeaders[i + 1]}\r\n`;
-            up.write(s + `x-proxy-path: ${PREFIX}\r\n\r\n`);
+            up.write(s + `x-proxy-path: ${prefix}\r\n\r\n`);
             up.write(head);
             up.pipe(sock);
             sock.pipe(up);
@@ -55,7 +66,8 @@ test.beforeAll(async () => {
         sock.on('error', () => up.destroy());
     });
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-    base = `http://127.0.0.1:${(server.address() as AddressInfo).port}${PREFIX}`;
+    origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    base = origin + PREFIX;
 });
 
 test.afterAll(async () => {
@@ -131,14 +143,21 @@ test('a trailing slash leads back to the pad', async ({page}) => {
     expect(outside).toEqual([]);
 });
 
-test('the admin page loads under the prefix', async ({page}) => {
-    const failed = failedRequests(page);
-    await page.goto(`${base}/admin/`);
-    await expect(page.locator('#root')).not.toBeEmpty({timeout: 15000});
-    await page.waitForLoadState('networkidle');
-    expect(failed.filter((f) => !f.includes('/admin/validate'))).toEqual([]);
-    expect(outside).toEqual([]);
-});
+for (const prefix of [PREFIX, ADMIN_PREFIX]) {
+    test(`the admin page loads under ${prefix}`, async ({page}) => {
+        const failed = failedRequests(page);
+        const requests: string[] = [];
+        page.on('request', (r) => requests.push(new URL(r.url()).pathname));
+        await page.goto(`${origin}${prefix}/admin/`);
+        await expect(page.locator('#root')).not.toBeEmpty({timeout: 15000});
+        await page.waitForLoadState('networkidle');
+        expect(failed.filter((f) => !f.includes('/admin/validate'))).toEqual([]);
+        expect(outside).toEqual([]);
+        // The config is fetched from this prefix, not a shorter one.
+        expect(requests).toContain(`${prefix}/admin/config`);
+        expect(page.url()).toContain(`${prefix}/admin`);
+    });
+}
 
 test('the manifest is prefixed', async ({request}) => {
     const m = await (await request.get(`${base}/manifest.json`)).json();

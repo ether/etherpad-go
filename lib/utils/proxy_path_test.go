@@ -2,6 +2,7 @@ package utils
 
 import (
 	"regexp"
+	"strings"
 	"testing"
 )
 
@@ -30,6 +31,10 @@ func TestCleanProxyPath(t *testing.T) {
 		"//pad":              "/pad",
 		"<>\"'()=&":          "",
 		"\t ":                "",
+		"/":                  "",
+		"///":                "",
+		"/pads/":             "/pads",
+		"/pads//":            "/pads",
 	}
 	for in, want := range cases {
 		if got := CleanProxyPath(in); got != want {
@@ -44,6 +49,9 @@ func TestCleanProxyPath(t *testing.T) {
 		got := CleanProxyPath(in)
 		if !safe.MatchString(got) || regexp.MustCompile(`[<>"'()=&:\\ ]`).MatchString(got) {
 			t.Errorf("CleanProxyPath(%q) = %q is not safe", in, got)
+		}
+		if strings.HasSuffix(got, "/") {
+			t.Errorf("CleanProxyPath(%q) = %q ends with /", in, got)
 		}
 		if len(got) > 1 && got[1] == '/' {
 			t.Errorf("CleanProxyPath(%q) = %q is protocol-relative", in, got)

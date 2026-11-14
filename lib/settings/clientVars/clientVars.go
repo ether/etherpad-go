@@ -144,6 +144,7 @@ func (f *Factory) NewClientVars(pad pad.Pad, sessionInfo *ws.Session, apool apoo
 	return &clientVars.ClientVars{
 		SkinName:            retrievedSettings.SkinName,
 		SkinVariants:        retrievedSettings.SkinVariants,
+		EnableDarkMode:      retrievedSettings.EnableDarkMode,
 		RandomVersionString: utils.RandomVersionString,
 		AccountPrivs: clientVars.AccountPrivs{
 			MaxRevisions: 100,

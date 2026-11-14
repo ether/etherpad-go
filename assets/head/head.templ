@@ -76,9 +76,16 @@ templ Meta(i Info) {
 		<script>
 			(function () {
 				try {
+					// Light chosen: the media-scoped dark theme-color must not
+					// colour the address bar of a dark OS above a light toolbar.
+					var keepLight = function () {
+						document.querySelectorAll('meta[name="theme-color"][media]').forEach(function (m) {
+							if (m.getAttribute('media').indexOf('dark') >= 0) m.remove(); else m.removeAttribute('media');
+						});
+					};
 					// pad.ts skips the automatic switch on the skin-variants builder, so do we.
-					if (window.location.hash.toLowerCase() === '#skinvariantsbuilder') return;
-					if (localStorage.getItem('ep_darkMode') === 'false') return;
+					if (window.location.hash.toLowerCase() === '#skinvariantsbuilder') return keepLight();
+					if (localStorage.getItem('ep_darkMode') === 'false') return keepLight();
 					if (!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)) return;
 					var el = document.documentElement;
 					['super-light', 'light', 'dark', 'super-dark'].forEach(function (c) {

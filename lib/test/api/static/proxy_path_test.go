@@ -166,11 +166,14 @@ func testProxyPathHostile(t *testing.T, ds testutils.TestDataStore) {
 		"https://evil.example":     "/https//evil.example/",
 		`/a"><script>alert(1)</sc`: "/ascriptalert1/sc/",
 		"/sub/../admin":            "/",
+		"/":                        "/",
+		"/sub/":                    "/sub/",
 	} {
 		start, icons := manifest(t, ds, map[string]string{"x-proxy-path": raw})
 		assert.Equal(t, want, start, raw)
 		for _, s := range icons {
 			assert.False(t, strings.HasPrefix(s, "//"), "%q: protocol-relative %s", raw, s)
+			assert.False(t, strings.Contains(s, "//images/") || strings.Contains(s, "//favicon"), "%q: prefix ends with a slash: %s", raw, s)
 		}
 		_, home := proxyGet(t, ds, "/", map[string]string{"x-proxy-path": raw})
 		assert.NotContains(t, home, "<script>alert", raw)

@@ -38,8 +38,10 @@ var (
 // CleanProxyPath makes a header value safe to put in front of a path in
 // HTML, JavaScript, CSS and Location headers: only [A-Za-z0-9-_./] stay,
 // a leading // becomes / (no protocol-relative URL), a missing leading /
-// is added, and a value with a ".." segment is dropped. The result is ""
-// or starts with exactly one "/" (etherpad-lite's sanitizeProxyPath).
+// is added, a value with a ".." segment is dropped and trailing slashes
+// go. The result is "" or starts with exactly one "/" and does not end
+// with one (etherpad-lite's sanitizeProxyPath, which keeps "/" and a
+// trailing slash).
 func CleanProxyPath(raw string) string {
 	cleaned := proxyPathDisallowed.ReplaceAllString(raw, "")
 	if cleaned == "" {
@@ -54,7 +56,9 @@ func CleanProxyPath(raw string) string {
 	if proxyPathTraversal.MatchString(cleaned) {
 		return ""
 	}
-	return cleaned
+	// Callers append "/..." to it: "/" or "/pads/" would make "//images"
+	// (another host) or "/pads//images". "/" is no prefix at all.
+	return strings.TrimRight(cleaned, "/")
 }
 
 // ProxyPath is the path prefix of the request: the first proxy path header

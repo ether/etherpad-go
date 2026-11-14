@@ -151,7 +151,7 @@ func Meta(i Info) templ.Component {
 			}
 		}
 		if i.PrePaintDark() {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<script>\n\t\t\t(function () {\n\t\t\t\ttry {\n\t\t\t\t\t// pad.ts skips the automatic switch on the skin-variants builder, so do we.\n\t\t\t\t\tif (window.location.hash.toLowerCase() === '#skinvariantsbuilder') return;\n\t\t\t\t\tif (localStorage.getItem('ep_darkMode') === 'false') return;\n\t\t\t\t\tif (!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)) return;\n\t\t\t\t\tvar el = document.documentElement;\n\t\t\t\t\t['super-light', 'light', 'dark', 'super-dark'].forEach(function (c) {\n\t\t\t\t\t\t['editor', 'background', 'toolbar'].forEach(function (k) { el.classList.remove(c + '-' + k); });\n\t\t\t\t\t});\n\t\t\t\t\tel.classList.add('super-dark-editor', 'dark-background', 'super-dark-toolbar');\n\t\t\t\t} catch (e) { /* no localStorage or matchMedia: stay light */ }\n\t\t\t})();\n\t\t</script>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<script>\n\t\t\t(function () {\n\t\t\t\ttry {\n\t\t\t\t\t// Light chosen: the media-scoped dark theme-color must not\n\t\t\t\t\t// colour the address bar of a dark OS above a light toolbar.\n\t\t\t\t\tvar keepLight = function () {\n\t\t\t\t\t\tdocument.querySelectorAll('meta[name=\"theme-color\"][media]').forEach(function (m) {\n\t\t\t\t\t\t\tif (m.getAttribute('media').indexOf('dark') >= 0) m.remove(); else m.removeAttribute('media');\n\t\t\t\t\t\t});\n\t\t\t\t\t};\n\t\t\t\t\t// pad.ts skips the automatic switch on the skin-variants builder, so do we.\n\t\t\t\t\tif (window.location.hash.toLowerCase() === '#skinvariantsbuilder') return keepLight();\n\t\t\t\t\tif (localStorage.getItem('ep_darkMode') === 'false') return keepLight();\n\t\t\t\t\tif (!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)) return;\n\t\t\t\t\tvar el = document.documentElement;\n\t\t\t\t\t['super-light', 'light', 'dark', 'super-dark'].forEach(function (c) {\n\t\t\t\t\t\t['editor', 'background', 'toolbar'].forEach(function (k) { el.classList.remove(c + '-' + k); });\n\t\t\t\t\t});\n\t\t\t\t\tel.classList.add('super-dark-editor', 'dark-background', 'super-dark-toolbar');\n\t\t\t\t} catch (e) { /* no localStorage or matchMedia: stay light */ }\n\t\t\t})();\n\t\t</script>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -163,7 +163,7 @@ func Meta(i Info) templ.Component {
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templruntime.NewAttributeExpression(i.Root + "favicon.ico").ResolveURL(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `assets/head/head.templ`, Line: 92, Col: 56}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `assets/head/head.templ`, Line: 99, Col: 56}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var5)
 		if templ_7745c5c3_Err != nil {
@@ -176,7 +176,7 @@ func Meta(i Info) templ.Component {
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templruntime.NewAttributeExpression(i.Root + "manifest.json").ResolveURL(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `assets/head/head.templ`, Line: 93, Col: 53}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `assets/head/head.templ`, Line: 100, Col: 53}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var6)
 		if templ_7745c5c3_Err != nil {
