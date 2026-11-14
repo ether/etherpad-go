@@ -67,6 +67,16 @@ var Registry = []ConfigKey{
 	{Key: DBSettingsPort, Default: nil, Description: "Database port"},
 	{Key: DBSettingsCharset, Default: "utf8mb4", Description: "Database charset (only relevant for MySQL)"},
 	{
+		Key:         DBSettingsMaxConnections,
+		Default:     25,
+		Description: "Connections for queries per instance (PostgreSQL, MySQL); up to about half as many again are used for locks",
+	},
+	{
+		Key:         DBSettingsPgBouncer,
+		Default:     false,
+		Description: "PostgreSQL is reached through PgBouncer in transaction mode: no named prepared statements",
+	},
+	{
 		Key:         DBSettingsFilename,
 		Default:     "var/etherpad.db",
 		Description: "SQLite database filename",

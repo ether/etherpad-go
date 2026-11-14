@@ -32,6 +32,8 @@
     "user": null,
     "password": null,
     "charset": null,
+    "maxConnections": 25,
+    "pgBouncer": false,
     "filename": "var/dirty.db",
     "collection": null,
     "url": null

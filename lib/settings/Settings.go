@@ -21,6 +21,12 @@ type DBSettings struct {
 	User     string `mapstructure:"user"`
 	Password string `mapstructure:"password"`
 	Charset  string `mapstructure:"charset"`
+	// MaxConnections caps the query connections per instance (PostgreSQL,
+	// MySQL); 0 or less means 25.
+	MaxConnections int `mapstructure:"maxConnections"`
+	// PgBouncer: PostgreSQL is reached through PgBouncer (or another pooler)
+	// in transaction mode, so no named prepared statements are used.
+	PgBouncer bool `mapstructure:"pgBouncer"`
 }
 
 type TTL struct {

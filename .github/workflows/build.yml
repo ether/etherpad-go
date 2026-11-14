@@ -135,6 +135,85 @@ jobs:
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
         timeout-minutes: 5
 
+  test-pgbouncer:
+    # The PostgreSQL tests through PgBouncer in transaction mode without
+    # prepared statement support (doc/cluster.md, "Connection pooling").
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:alpine
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U test_user -d test_db"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: 1.27
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - name: Install pnpm
+        run: npm install -g pnpm@latest
+      - name: Install pnpm dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build UI
+        run: node build.js
+        working-directory: ./ui
+      - name: Install templ
+        run: go install github.com/a-h/templ/cmd/templ@latest
+      - name: Generate templ
+        run: templ generate
+      - name: Build admin
+        run: pnpm build
+        working-directory: ./admin
+      - name: Start PgBouncer
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q pgbouncer
+          sudo systemctl stop pgbouncer || true
+          cat > "$RUNNER_TEMP/pgbouncer.ini" <<'INI'
+          [databases]
+          * = host=127.0.0.1 port=5432
+
+          [pgbouncer]
+          listen_addr = 127.0.0.1
+          listen_port = 6432
+          auth_type = plain
+          auth_file = userlist.txt
+          pool_mode = transaction
+          max_prepared_statements = 0
+          max_client_conn = 2000
+          default_pool_size = 20
+          ignore_startup_parameters = extra_float_digits
+          unix_socket_dir =
+          INI
+          echo '"test_user" "test_password"' > "$RUNNER_TEMP/userlist.txt"
+          cd "$RUNNER_TEMP" && pgbouncer -d pgbouncer.ini
+          for _ in $(seq 1 30); do
+            PGPASSWORD=test_password psql -h 127.0.0.1 -p 6432 -U test_user -d test_db -tc 'select 1' && exit 0
+            sleep 1
+          done
+          exit 1
+      - name: Run the PostgreSQL tests through PgBouncer
+        env:
+          EP_CI: "true"
+          EP_TEST_POSTGRES_HOST: "127.0.0.1"
+          EP_TEST_POSTGRES_PORT: "6432"
+          EP_TEST_POSTGRES_PGBOUNCER: "true"
+          EP_TEST_SKIP_MYSQL: "true"
+        run: go test -p 1 ./...
   typecheck:
     # TypeScript is bundled with esbuild (ui/build.js) and vite, neither of
     # which type-checks, so run tsc for ui, admin, playwright and plugins here.
@@ -292,6 +371,7 @@ jobs:
   build:
     needs:
       - test
+      - test-pgbouncer
       - typecheck
       - playwright
       - playwright-cluster

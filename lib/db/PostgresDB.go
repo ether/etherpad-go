@@ -1164,6 +1164,9 @@ type PostgresOptions struct {
 	Database string
 	// MaxConns caps the connection pool; 0 means the default of 25.
 	MaxConns int
+	// PgBouncer avoids named prepared statements, for PgBouncer (or a
+	// similar pooler) in transaction mode.
+	PgBouncer bool
 }
 
 func NewPostgresDB(options PostgresOptions) (*PostgresDB, error) {
@@ -1185,6 +1188,15 @@ func NewPostgresDB(options PostgresOptions) (*PostgresDB, error) {
 		config.MaxConns = int32(options.MaxConns)
 	}
 	config.MinConns = min(5, config.MaxConns)
+	if options.PgBouncer {
+		// Only the parameter and result types are cached, per client
+		// connection; each query runs with the unnamed statement in one
+		// message batch, so nothing stays on the server connection that
+		// PgBouncer hands on. Unlike QueryExecModeExec the parameter
+		// types are known, so a []byte for a JSON column is sent as JSON,
+		// not as bytea. pgx lists this mode as PgBouncer-compatible.
+		config.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeCacheDescribe
+	}
 
 	pool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {

@@ -41,6 +41,8 @@ const (
 	DBSettingsPassword                    = "dbSettings.password"
 	DBSettingsCharset                     = "dbSettings.charset"
 	DBSettingsFilename                    = "dbSettings.filename"
+	DBSettingsMaxConnections              = "dbSettings.maxConnections"
+	DBSettingsPgBouncer                   = "dbSettings.pgBouncer"
 	DefaultPadText                        = "defaultPadText"
 	PadOptionsNoColors                    = "padOptions.noColors"
 	PadOptionsShowControls                = "padOptions.showControls"

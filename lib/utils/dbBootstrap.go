@@ -97,6 +97,11 @@ func GetDB(retrievedSettings settings.Settings, setupLogger *zap.SugaredLogger) 
 			Host:     retrievedSettings.DBSettings.Host,
 			Database: retrievedSettings.DBSettings.Database,
 			Port:     port,
+			MaxConns: retrievedSettings.DBSettings.MaxConnections,
+			// Through PgBouncer in transaction mode a named prepared
+			// statement would land on a server connection other
+			// clients use next.
+			PgBouncer: retrievedSettings.DBSettings.PgBouncer,
 		})
 	} else if retrievedSettings.DBType == settings.MYSQL {
 		setupLogger.Infof("Using MySQL database at %s with database %s", retrievedSettings.DBSettings.Host, retrievedSettings.DBSettings.Database)
@@ -111,6 +116,7 @@ func GetDB(retrievedSettings settings.Settings, setupLogger *zap.SugaredLogger) 
 			Host:     retrievedSettings.DBSettings.Host,
 			Database: retrievedSettings.DBSettings.Database,
 			Port:     port,
+			MaxConns: retrievedSettings.DBSettings.MaxConnections,
 		})
 	}
 	return nil, errors.New("unsupported database type")

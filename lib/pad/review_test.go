@@ -43,7 +43,7 @@ func TestOneConnectionPool(t *testing.T) {
 			withTimeout(t, 60*time.Second, func() { // runs the migrations
 				var err error
 				if kind == testdb.Postgres {
-					store, err = db.NewPostgresDB(db.PostgresOptions{Username: srv.AdminUser(), Password: testdb.Password, Database: name, Host: srv.Host, Port: srv.Port, MaxConns: 1})
+					store, err = db.NewPostgresDB(db.PostgresOptions{Username: srv.AdminUser(), Password: testdb.Password, Database: name, Host: srv.Host, Port: srv.Port, MaxConns: 1, PgBouncer: testdb.PgBouncer()})
 				} else {
 					store, err = db.NewMySQLDB(db.MySQLOptions{Username: srv.AdminUser(), Password: testdb.Password, Database: name, Host: srv.Host, Port: srv.Port, MaxConns: 1})
 				}

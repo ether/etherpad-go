@@ -31,12 +31,21 @@ func (m *MigrationManager) lock() (release func(), err error) {
 	}
 	switch m.dialect {
 	case DialectPostgres:
-		if _, err := conn.ExecContext(ctx, `SELECT pg_advisory_lock($1)`, postgresMigrationLockKey); err != nil {
+		// Held by a transaction, not the session, so it also works
+		// through PgBouncer in transaction mode. The migrations run on
+		// other connections; this transaction only holds the lock.
+		tx, err := conn.BeginTx(context.Background(), nil)
+		if err != nil {
+			conn.Close()
+			return nil, err
+		}
+		if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock($1)`, postgresMigrationLockKey); err != nil {
+			_ = tx.Rollback()
 			conn.Close()
 			return nil, err
 		}
 		return func() {
-			_, _ = conn.ExecContext(context.Background(), `SELECT pg_advisory_unlock($1)`, postgresMigrationLockKey)
+			_ = tx.Rollback()
 			conn.Close()
 		}, nil
 	default:

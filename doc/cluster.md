@@ -110,6 +110,44 @@ a warning and runs without it; with `mode: on` it refuses to start.
 **SQLite and the memory store** are for single instances. Running several
 processes on one SQLite file is not supported.
 
+## Connection pooling (PgBouncer)
+
+Each instance opens up to `dbSettings.maxConnections` connections for queries
+(default 25) and up to half as many plus two more for locks: 12 for pad
+locks and 2 for leader jobs and migrations at the default, so 39 in all. A
+lock holds its connection for as long as the pad is locked.
+
+Instances can share PostgreSQL through PgBouncer in **transaction mode**. Set
+`dbSettings.pgBouncer` to `true` (`ETHERPAD_DBSETTINGS_PGBOUNCER=true`) and
+point `dbSettings.host`/`port` at PgBouncer:
+
+* **No named prepared statements.** pgx then caches only the parameter and
+  result types (`QueryExecModeCacheDescribe`). Every query runs with the
+  unnamed statement, which lives only for that query. A named statement
+  would stay on a server connection that PgBouncer gives to other clients
+  next. With PgBouncer 1.21+ and `max_prepared_statements` above 0, the
+  setting is not needed, but it does no harm.
+* **Locks need no setting.** Pad locks, leader jobs and the migration lock
+  are transaction-level advisory locks (`pg_advisory_xact_lock`) held in an
+  open transaction. While a transaction runs, PgBouncer keeps the server
+  connection for this client, so a lock cannot end up on someone else's
+  connection. Directly on PostgreSQL this behaves the same.
+* **Pool size.** A held lock takes one PgBouncer server connection.
+  `default_pool_size` (per database and user) must therefore be at least
+  `instances × (maxConnections + maxConnections/2 + 2)`. With fewer, lock
+  holders wait for query connections that the other lock holders keep busy,
+  until the lock timeout (30 s). Example: 3 instances with `maxConnections`
+  10 need a pool of 3 × 17 = 51.
+* **Timeouts.** A leader holds its lock in a long open transaction. Leave
+  PgBouncer's `idle_transaction_timeout` and PostgreSQL's
+  `idle_in_transaction_session_timeout` at 0, or set them above a minute.
+  When they end the transaction, the leader notices, steps down, and an
+  instance takes the job over again.
+
+Session mode needs no setting. CI runs the PostgreSQL tests through PgBouncer
+in transaction mode with `max_prepared_statements = 0`
+(`EP_TEST_POSTGRES_PGBOUNCER=1`).
+
 ## Kubernetes
 
 Requirements:
@@ -332,7 +370,5 @@ comes from the database.
 ## Current limitations
 
 * **User counts** in the admin statistics are per pod.
-* **Database connections.** The pool sizes are not configurable yet (25 work
-  connections plus up to 14 for locks per pod).
 * **Mixed versions during a rollout.** Old and new pods briefly share the
   database; check the release notes of versions with schema changes.

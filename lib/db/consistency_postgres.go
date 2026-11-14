@@ -77,25 +77,33 @@ func (d PostgresDB) LockPadsExclusive(padIDs []string) (func(), error) {
 	return d.lockSlots.lockAll(padLockNames(padIDs), d.lockOne)
 }
 
-// lockOne takes a session-level advisory lock on a connection of the lock
-// pool: if the process dies, the connection closes and Postgres releases
-// the lock.
+// lockOne takes a transaction-level advisory lock in an open transaction on a
+// connection of the lock pool; release ends the transaction. If the process
+// dies, the connection closes and Postgres releases the lock. A transaction,
+// not the session, holds the lock so that it also works through PgBouncer in
+// transaction mode: there the server connection belongs to this client only
+// while a transaction runs, and a session lock would stay on a connection
+// other clients get next (doc/cluster.md, "Connection pooling").
 func (d PostgresDB) lockOne(ctx context.Context, name string) (func(), error) {
 	conn, err := d.lockPool.Acquire(ctx)
 	if err != nil {
 		return nil, err
 	}
-	key := advisoryLockKey(name)
-	if _, err := conn.Exec(ctx, `SELECT pg_advisory_lock($1)`, key); err != nil {
+	tx, err := conn.Begin(ctx)
+	if err != nil {
+		_ = conn.Conn().Close(context.Background())
+		conn.Release()
+		return nil, fmt.Errorf("begin lock transaction: %w", err)
+	}
+	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock($1)`, advisoryLockKey(name)); err != nil {
 		// A cancelled wait may leave the connection in an unknown state.
 		_ = conn.Conn().Close(context.Background())
 		conn.Release()
-		return nil, fmt.Errorf("pg_advisory_lock: %w", err)
+		return nil, fmt.Errorf("pg_advisory_xact_lock: %w", err)
 	}
 	return func() {
-		if _, err := conn.Exec(context.Background(), `SELECT pg_advisory_unlock($1)`, key); err != nil {
-			// The lock is still held by this connection; dropping it
-			// releases the lock.
+		if err := tx.Rollback(context.Background()); err != nil {
+			// Closing the connection ends the transaction and its lock.
 			_ = conn.Conn().Close(context.Background())
 		}
 		conn.Release()
