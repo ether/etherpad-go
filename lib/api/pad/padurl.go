@@ -14,6 +14,9 @@ import (
 // valid and names no existing pad, since opening a pad URL creates the pad.
 // It returns true when it has answered the request.
 func GuardPadURL(c fiber.Ctx, pm *padManager.Manager) (bool, error) {
+	if handled, err := RedirectTrailingSlash(c); handled {
+		return true, err
+	}
 	raw := c.Params("pad")
 	padID := raw
 	if unescaped, err := url.PathUnescape(raw); err == nil {
@@ -51,4 +54,26 @@ func GuardPadURL(c fiber.Ctx, pm *padManager.Manager) (bool, error) {
 	}
 	c.Set(fiber.HeaderLocation, location)
 	return true, c.Status(fiber.StatusFound).SendString(`You should be redirected to <a href="` + location + `">` + location + `</a>`)
+}
+
+// RedirectTrailingSlash sends "/p/<pad>/" to "/p/<pad>" (and so on): the
+// pages' URLs are relative to the path without the slash, with it they
+// would point one level too deep. The Location is relative ("../<pad>"),
+// so a reverse proxy's prefix stays. It returns true when it has answered.
+func RedirectTrailingSlash(c fiber.Ctx) (bool, error) {
+	path := c.Path()
+	if len(path) < 2 || !strings.HasSuffix(path, "/") {
+		return false, nil
+	}
+	trimmed := strings.TrimRight(path, "/")
+	last := trimmed[strings.LastIndex(trimmed, "/")+1:]
+	if last == "" {
+		return false, nil
+	}
+	location := strings.Repeat("../", len(path)-len(trimmed)) + last
+	if q := string(c.Request().URI().QueryString()); q != "" {
+		location += "?" + q
+	}
+	c.Set(fiber.HeaderLocation, location)
+	return true, c.SendStatus(fiber.StatusFound)
 }

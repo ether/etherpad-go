@@ -7,10 +7,10 @@ behaviour, they are not line-by-line translations.
 
 | Status | Files | Test cases |
 |---|---|---|
-| Ported | 77 | 768 |
+| Ported | 88 | 854 |
 | Partly ported | 4 | 140 |
-| Not applicable to Go | 40 | 341 |
-| To compare case by case | 51 | 485 |
+| Not applicable to Go | 41 | 344 |
+| To compare case by case | 39 | 396 |
 
 "To compare" does not mean untested: most of these areas have Go tests (the Go code refers
 to more than 20 upstream issues). It means nobody has checked yet, case by case, which
@@ -98,6 +98,17 @@ upstream cases the Go tests cover and which are missing.
 | `admin/padLoadResilience` | 4 | `lib/test/ws/delete_unloadable_pad_test.go` |
 | `settings` | 21 | `lib/settings/jsonc_test.go` (comments, trailing commas, `${VAR:default}`), `settings_test.go` (EP__ nested variables, air-gapped via `ETHERPAD_UPDATES_*`, fadeInactiveAuthorColors), `lib/utils/version_string_test.go`; the 5 CommonJS-compatibility cases are about Node's require() and do not apply. Go plugins are compiled in and have no ep_* settings blocks; EP__ variables set any nested setting |
 | `settingsModalHeading` | 2 | `assets/pad/settings_heading_test.go` |
+| `specialpages` | 14 | `lib/test/api/static/page_head_test.go` (theme-color, dark-mode pre-paint, `/javascript`), `proxy_path_test.go` (pages with x-proxy-path) |
+| `favicon` | 6 | `lib/test/api/static/favicon_test.go` |
+| `i18n` | 1 | `lib/hooks/i18n_sort_test.go` |
+| `pwaManifest` | 5 | `lib/test/api/static/proxy_path_test.go` |
+| `urlBasePath` | 10 | `lib/test/api/static/proxy_path_test.go`, `playwright/specs/proxy_path.spec.ts` (behind a real prefix proxy); the pad's reconnect form and manifest link stay relative |
+| `proxyPathRedirect` | 5 | `lib/test/api/static/proxy_path_test.go` (hostile prefixes); the pad URL and trailing-slash redirects are relative, so they cannot leave the origin |
+| `proxyPathVary` | 6 | `lib/test/api/static/proxy_path_test.go`, `lib/api/static/admin_page_test.go` (admin page) |
+| `health` | 3 | `lib/test/api/stats/health_test.go` |
+| `new/sanitizeProxyPath` | 26 | `lib/utils/proxy_path_test.go` |
+| `new/timesliderReturnUrl` | 5 | `ui/src/js/timesliderReturnUrl.test.ts` |
+| `new/SkinColors` | 5 | `lib/skin/colors_test.go` |
 ## Partly ported
 
 | Spec | Cases | State |
@@ -145,12 +156,6 @@ Existing Go tests in this area: `lib/test/author`, `lib/test/api/author`
 | `admin/anonymizeAuthorSocket` | 7 | the admin UI has no author management (authorLoad, preview, anonymize) |
 | `admin/authorSearch` | 6 | see admin/anonymizeAuthorSocket |
 | `tokenTransfer` | 10 | etherpad-go has no token transfer (moving an author's identity to another browser) |
-### Access, sessions, security
-
-Existing Go tests in this area: `lib/test/pad/webaccess_test.go`, `lib/security`, `lib/api/oidc`
-
-| Spec | Cases |
-|---|---|
 
 ### Pages, paths, metadata
 
@@ -158,23 +163,11 @@ Existing Go tests in this area: `lib/test/api/static`, `lib/test/api/stats`, `li
 
 | Spec | Cases |
 |---|---|
-| `specialpages` | 14 |
-| `favicon` | 6 |
-| `i18n` | 1 |
-| `pwaManifest` | 5 |
 | `socialMeta` | 15 |
 | `socialMeta-unit` | 37 |
-| `urlBasePath` | 10 |
-| `proxyPathRedirect` | 5 |
-| `proxyPathVary` | 6 |
-| `timesliderRedirect` | 3 |
-| `health` | 3 |
 | `new/sanitizePathname` | 4 |
-| `new/sanitizeProxyPath` | 26 |
 | `new/getHomeUrl` | 3 |
-| `new/timesliderReturnUrl` | 5 |
 | `new/path_exists` | 3 |
-| `new/SkinColors` | 5 |
 | `new/takeOverSignal` | 2 |
 | `new/prom-instruments` | 5 |
 
@@ -214,6 +207,7 @@ Existing Go tests in this area: `lib/updater`, `lib/server/update_test.go` (Go h
 
 | Spec | Cases | Why |
 |---|---|---|
+| `timesliderRedirect` | 3 | the timeslider is its own page at /p/:pad/timeslider, there is no redirect to a #timeslider hash |
 | `security` | 12 | tests the Node `security` package for plugins; Go plugins use Go's html escaping |
 | `sessionFixation` | 3 | there is no server-side login session to fixate: Basic credentials are checked per request, the admin UI uses OIDC tokens |
 | `LinkInstaller` | 7 | npm plugin installer |

@@ -70,11 +70,17 @@ func (e EtherpadChecker) Check() Check {
 // @Success 200 {object} HealthResponse "Service is healthy"
 // @Failure 503 {object} HealthResponse "Service is unhealthy"
 // @Router /health [get]
+//
+// With detailed false (the public /health, as in etherpad-lite) only status
+// and releaseId are answered, with the same HTTP status: the checks name
+// active pads, cluster members and database errors, which anonymous
+// clients must not read. The admin API serves the detailed answer.
 func Handler(
 	version string,
 	releaseID string,
 	serviceID string,
 	checkers []Checker,
+	detailed bool,
 ) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		resp := HealthResponse{
@@ -103,6 +109,10 @@ func Handler(
 			}
 		}
 
-		return c.Status(httpStatus).JSON(resp)
+		if !detailed {
+			resp = HealthResponse{Status: resp.Status, ReleaseID: resp.ReleaseID}
+		}
+		// The media type of the health check draft, as etherpad-lite.
+		return c.Status(httpStatus).JSON(resp, "application/health+json")
 	}
 }

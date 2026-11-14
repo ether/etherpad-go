@@ -7,6 +7,7 @@
  */
 
 import { editorBus } from 'ep_etherpad-lite/static/js/core/EventBus'
+import { siteUrl } from 'ep_etherpad-lite/static/js/core/basePath'
 
 const cssFiles = ['ep_heading/static/css/editor.css']
 const tags = ['h1', 'h2', 'h3', 'h4', 'code'] as const
@@ -29,7 +30,7 @@ const onDomReady = (fn: () => void) => {
 
 const link = document.createElement('link')
 link.rel = 'stylesheet'
-link.href = '/static/plugins/ep_heading/static/css/editor.css'
+link.href = siteUrl('/static/plugins/ep_heading/static/css/editor.css')
 document.head.appendChild(link)
 
 // ---------------------------------------------------------------------------

@@ -33,9 +33,17 @@ const toolbarColorForTokens = (tokens: string[]): string => {
 // keep the light meta and see a white address bar above a dark toolbar
 // (issue #7606 follow-up, upstream #7690). When no meta is present the
 // helper is a no-op.
-const updateThemeColorMeta = (newClasses: string[]) => {
-  const meta = document.querySelector('meta[name="theme-color"]');
-  if (!meta) return;
+//
+// With dark mode on, the server sends two metas scoped to the OS colour
+// scheme. Once the toolbar is known that scheme no longer matters: one
+// meta remains, without media, so a dark OS does not keep the dark one
+// above a light toolbar.
+export const updateThemeColorMeta = (newClasses: string[]) => {
+  const metas = Array.from(document.querySelectorAll('meta[name="theme-color"]'));
+  if (metas.length === 0) return;
+  const [meta, ...rest] = metas;
+  rest.forEach((m) => m.remove());
+  meta.removeAttribute('media');
   meta.setAttribute('content',
       toolbarColorForTokens(newClasses.join(' ').split(/\s+/).filter(Boolean)));
 };
@@ -53,7 +61,9 @@ const getHtmlTargets = () => {
 };
 
 // add corresponding classes when config change
-export const updateSkinVariantsClasses = (newClasses) => {
+export const updateSkinVariantsClasses = (classes: string[]) => {
+  // Callers pass "a b c" as one entry too; classList.add throws on spaces.
+  const newClasses = classes.flatMap((c) => c.split(/\s+/)).filter(Boolean);
   const domsToUpdate = getHtmlTargets();
 
   colors.forEach((color) => {

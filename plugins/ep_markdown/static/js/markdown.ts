@@ -6,6 +6,7 @@
  */
 
 import { editorBus } from 'ep_etherpad-lite/static/js/core/EventBus'
+import { siteUrl } from 'ep_etherpad-lite/static/js/core/basePath'
 
 // ---------------------------------------------------------------------------
 // CSS injection — runs immediately at module load
@@ -13,7 +14,7 @@ import { editorBus } from 'ep_etherpad-lite/static/js/core/EventBus'
 
 const cssLink = document.createElement('link')
 cssLink.rel = 'stylesheet'
-cssLink.href = '/static/plugins/ep_markdown/static/css/markdown.css'
+cssLink.href = siteUrl('/static/plugins/ep_markdown/static/css/markdown.css')
 document.head.appendChild(cssLink)
 
 // ---------------------------------------------------------------------------

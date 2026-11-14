@@ -6,6 +6,7 @@
  */
 
 import { editorBus } from 'ep_etherpad-lite/static/js/core/EventBus'
+import { siteUrl } from 'ep_etherpad-lite/static/js/core/basePath'
 
 // ---------------------------------------------------------------------------
 // CSS injection — runs immediately at module load
@@ -14,7 +15,7 @@ import { editorBus } from 'ep_etherpad-lite/static/js/core/EventBus'
 const link = document.createElement('link')
 link.rel = 'stylesheet'
 link.type = 'text/css'
-link.href = '../static/plugins/ep_print/static/css/print.css'
+link.href = siteUrl('/static/plugins/ep_print/static/css/print.css')
 link.media = 'print'
 document.head.appendChild(link)
 

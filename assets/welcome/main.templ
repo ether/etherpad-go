@@ -1,6 +1,7 @@
 package welcome
 
 import (
+	"github.com/ether/etherpad-go/assets/head"
 	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/ether/etherpad-go/lib/utils"
 )
@@ -14,13 +15,19 @@ func tr(t map[string]string, key, fallback string) string {
 	return fallback
 }
 
-templ Page(settings *settings.Settings, translations map[string]string, socialMetaHTML string) {
-	<html lang="en">
+templ Page(settings *settings.Settings, translations map[string]string, socialMetaHTML string, page head.Info) {
+	<!DOCTYPE html>
+	<html lang={page.Lang} dir={page.Dir}>
 		<head>
+			@head.Meta(page)
+			// Everything below and the script's links ("p/<name>") are
+			// relative to the site root, also when a proxy forwards the
+			// prefix without its trailing slash.
+			<base href={ page.Root }/>
 			// Skin first, launcher styles second: the launcher owns the page layout;
 			// skins can still override via more specific selectors.
-			<link rel="stylesheet" href={"/css/skin/"+ settings.SkinName + "/index.css"}/>
-			<link rel="stylesheet" href="/css/welcome/main.css"/>
+			<link rel="stylesheet" href={"css/skin/" + settings.SkinName + "/index.css"}/>
+			<link rel="stylesheet" href="css/welcome/main.css"/>
 			<link rel="localizations" type="application/l10n+json" href="locales.json"/>
 			<title>{settings.Title}</title>
 			// Open Graph + Twitter Card preview metadata. Upstream #7635.
@@ -94,7 +101,7 @@ templ Page(settings *settings.Settings, translations map[string]string, socialMe
 					</section>
 				</div>
 			</main>
-			<script type="module" src={"/js/welcome/assets/welcome.js?v="+utils.RandomVersionString}></script>
+			<script type="module" src={"js/welcome/assets/welcome.js?v=" + utils.RandomVersionString}></script>
 		</body>
 	</html>
 }

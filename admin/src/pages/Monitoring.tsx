@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { RefreshCw, Search, X } from 'lucide-react'
 import { useAdminStore } from '@/store'
 import { useAdminActions } from '@/hooks/useAdminActions'
+import { adminBase } from '@/base'
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -194,7 +195,7 @@ export function MonitoringPage() {
                     <td className="whitespace-nowrap px-5 py-3">
                       {conn.padId ? (
                         <a
-                          href={`/p/${conn.padId}`}
+                          href={`${adminBase()}/p/${conn.padId}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline"
@@ -276,7 +277,7 @@ export function MonitoringPage() {
                 className="px-5 py-4 transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/50"
               >
                 <a
-                  href={`/p/${result.padId}`}
+                  href={`${adminBase()}/p/${result.padId}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline"

@@ -83,6 +83,7 @@ type PadRetention struct {
 type ClientVars struct {
 	SkinName                           string                             `json:"skinName"`
 	SkinVariants                       string                             `json:"skinVariants"`
+	EnableDarkMode                     bool                               `json:"enableDarkMode"`
 	RandomVersionString                string                             `json:"randomVersionString"`
 	AccountPrivs                       AccountPrivs                       `json:"accountPrivs"`
 	AutomaticReconnectionTimeout       int                                `json:"automaticReconnectionTimeout"`

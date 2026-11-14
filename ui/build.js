@@ -1,5 +1,5 @@
 import * as esbuild from 'esbuild';
-import {cssBundles, cssExternal} from './css-build.js';
+import {cssBundles, cssExternal, rebaseUrls} from './css-build.js';
 import * as fs from "node:fs";
 import * as path from "node:path";
 import {execSync, spawn} from "node:child_process";
@@ -339,7 +339,14 @@ const results = await Promise.allSettled([
   // served by lib/api/pad/sheetFrontend.go), not sheet.entry.js.
   esbuild.build({ ...esbuildOpts, entryPoints: { sheet: "./src/sheet.entry.ts" }, outdir: '../assets/js/sheet/assets', alias, loader: loaders, logLevel: 'info' }),
   // CSS bundles
-  ...cssBundles.map((bundle) => esbuild.build({ ...esbuildOpts, ...bundle, external: cssExternal, loader: loaders, logLevel: 'info' })),
+  ...cssBundles.map(async ({servedAt, ...bundle}) => {
+    const result = await esbuild.build({ ...esbuildOpts, ...bundle, external: cssExternal, loader: loaders, logLevel: 'info' });
+    for (const out of Object.keys(result.metafile.outputs).filter((f) => f.endsWith('.css'))) {
+      const file = path.resolve(absWorkingDir, out);
+      fs.writeFileSync(file, rebaseUrls(fs.readFileSync(file, 'utf8'), {...bundle, servedAt}, absWorkingDir));
+    }
+    return result;
+  }),
   // Admin React app (Vite)
   buildAdmin(),
 ]);

@@ -1,6 +1,10 @@
+import {basePath} from './js/core/basePath'
+
+export {basePath}
+
 export function createSocket(path = '/socket.io/'): WebSocket {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const url = `${protocol}//${window.location.host}${path}`
+    const url = `${protocol}//${window.location.host}${basePath()}${path}`
     return new WebSocket(url)
 }
 

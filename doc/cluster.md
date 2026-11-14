@@ -246,7 +246,7 @@ database; check the release notes of versions with schema changes.
 ## What changes in a cluster
 
 * **Background jobs run on one pod.** The pad retention sweep runs on the
-  elected leader only (a database lock; `/health` shows `retentionLeader`).
+  elected leader only (a database lock; `/admin/api/health` shows `retentionLeader`).
   Opening an expired pad still expires it on any pod.
 * **The self-updater only notifies.** Tiers above `notify` are treated as
   `notify`; update by rolling out a new image.
@@ -281,7 +281,8 @@ Sheets (the spreadsheet document type) follow the same rules as pads:
 |----------|-----|---------|
 | `/health/live` | liveness probe | `200` while the process serves requests |
 | `/health/ready` | readiness probe | `200` when started, not shutting down and the database is reachable; `503` otherwise |
-| `/health` | monitoring | database, sessions and a `cluster` check: `enabled`, `members` (instances this pod sees) and `retentionLeader`. A clustered database without a running bus is a warning, not a failure. |
+| `/health` | public status | `status` and `releaseId` only, as in etherpad-lite; `503` when a check fails |
+| `/admin/api/health` | monitoring (admin token) | database, sessions and a `cluster` check: `enabled`, `members` (instances this pod sees) and `retentionLeader`. A clustered database without a running bus is a warning, not a failure. |
 
 The probes need no login, also when the pads require authentication.
 

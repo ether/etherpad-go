@@ -50,12 +50,9 @@ func Init(store *lib.InitStore) {
 	// @Produce json
 	// @Success 200 {object} HealthResponse
 	// @Router /health [get]
-	store.C.Get("/health", Handler(
-		version,
-		releaseID,
-		"etherpad-api",
-		checks,
-	))
+	store.C.Get("/health", Handler(version, releaseID, "etherpad-api", checks, false))
+	// The same with every check, for admins: /admin/api/health.
+	store.PrivateAPI.Get("/health", Handler(version, releaseID, "etherpad-api", checks, true))
 	// Kubernetes probes. Without a lifecycle (tests, embedding) the
 	// instance counts as ready.
 	state := store.Lifecycle

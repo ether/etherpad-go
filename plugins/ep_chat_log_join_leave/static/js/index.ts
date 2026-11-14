@@ -7,6 +7,7 @@
 
 import notifications from 'ep_etherpad-lite/static/js/notifications'
 import { editorBus } from 'ep_etherpad-lite/static/js/core/EventBus'
+import { siteUrl } from 'ep_etherpad-lite/static/js/core/basePath'
 
 const defaultMsg: Record<string, string> = {
   join: 'joined the pad',
@@ -19,7 +20,7 @@ const defaultMsg: Record<string, string> = {
 
 const link = document.createElement('link')
 link.rel = 'stylesheet'
-link.href = '/static/plugins/ep_chat_log_join_leave/static/css/index.css'
+link.href = siteUrl('/static/plugins/ep_chat_log_join_leave/static/css/index.css')
 document.head.appendChild(link)
 
 // ---------------------------------------------------------------------------

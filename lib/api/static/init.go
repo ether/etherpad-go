@@ -3,11 +3,14 @@ package static
 import (
 	"embed"
 	"encoding/json"
+	"fmt"
+	"github.com/ether/etherpad-go/assets/head"
 	padManager "github.com/ether/etherpad-go/lib/pad"
 	"io/fs"
 	"net/http"
 	"os"
 	"path"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -28,7 +31,7 @@ import (
 
 // buildHomeSocialMeta renders the Open Graph + Twitter Card meta block for
 // the homepage. Upstream #7635.
-func buildHomeSocialMeta(c fiber.Ctx, s *settings.Settings) string {
+func buildHomeSocialMeta(c fiber.Ctx, s *settings.Settings, proxyPath string) string {
 	scheme := "http"
 	if c.Scheme() == "https" {
 		scheme = "https"
@@ -47,6 +50,7 @@ func buildHomeSocialMeta(c fiber.Ctx, s *settings.Settings) string {
 			Host:           c.Host(),
 			Path:           c.Path(),
 			AcceptLanguage: c.Get("Accept-Language"),
+			ProxyPath:      proxyPath,
 		},
 		Settings: socialmeta.Settings{
 			Title:               s.Title,
@@ -151,49 +155,56 @@ func isDevEnabled(retrievedSettings *settings.Settings) bool {
 	return utils.IsDevModeEnabled()
 }
 
-func buildColibrisCssInDev(retrievedSettings *settings.Settings) {
-	pathToBuild := path.Join(retrievedSettings.Root, "assets")
-	entryPoints := []string{"./css/skin/colibris/pad.css"}
-	outDir := path.Join(pathToBuild, "css", "build", "skin", "colibris")
-	for _, ep := range entryPoints {
-		result := api.Build(api.BuildOptions{
-			EntryPoints:   []string{ep},
-			AbsWorkingDir: pathToBuild,
-			Bundle:        true,
-			Write:         true,
-			Outdir:        outDir,
-			LogLevel:      api.LogLevelWarning,
-			Loader:        loaderConfig,
-			Plugins:       []api.Plugin{externalFonts},
-		})
-		if len(result.Errors) > 0 {
-			panic("Error building css/static/pad.css")
-		}
-	}
+// devCSSBundle is one stylesheet the dev mode bundles: entry (relative to
+// assets/), the output file and the URL directory it is served from.
+type devCSSBundle struct {
+	entry, out, servedAt string
+	extra                api.BuildOptions
 }
 
-func buildStaticPadCSSInDev(retrievedSettings *settings.Settings) {
-	pathToBuild := path.Join(retrievedSettings.Root, "assets")
-	entryPoints := []string{"./css/static/pad.css"}
-	outDir := path.Join(pathToBuild, "css", "build", "static")
+var devCSSBundles = []devCSSBundle{
+	{entry: "./css/skin/colibris/pad.css", out: "css/build/skin/colibris/pad.css", servedAt: "/css/skin/colibris"},
+	{entry: "./css/static/pad.css", out: "css/build/static/pad.css", servedAt: "/css/static",
+		extra: api.BuildOptions{AssetNames: "fonts/[name]-[hash]", PublicPath: "/font"}},
+}
 
-	for _, ep := range entryPoints {
-		result := api.Build(api.BuildOptions{
-			EntryPoints:   []string{ep},
-			AbsWorkingDir: pathToBuild,
-			Bundle:        true,
-			Write:         true,
-			Outdir:        outDir,
-			LogLevel:      api.LogLevelWarning,
-			AssetNames:    "fonts/[name]-[hash]",
-			PublicPath:    "/font",
-			Loader:        loaderConfig,
-			Plugins:       []api.Plugin{externalFonts},
-		})
-		if len(result.Errors) > 0 {
-			panic("Error building css/static/pad.css")
+// fontURL is an external font URL as externalFonts leaves it: relative to
+// the stylesheet that names it, not to the bundle.
+var fontURL = regexp.MustCompile(`url\((["']?)(?:\.\.?/)*(font/[^"')]*)(["']?)\)`)
+
+// rebaseFontURLs points the font URLs of a bundle served from servedAt at
+// assets/font (served at /font), relative, so a reverse proxy's path
+// prefix stays (as ui/css-build.js's rebaseUrls does for the build).
+func rebaseFontURLs(css []byte, servedAt string) []byte {
+	up := strings.Repeat("../", strings.Count(strings.Trim(servedAt, "/"), "/")+1)
+	return fontURL.ReplaceAll(css, []byte("url(${1}"+up+"${2}${3})"))
+}
+
+// buildDevCSS bundles b from the assets under root and returns the CSS.
+func buildDevCSS(root string, b devCSSBundle) ([]byte, error) {
+	pathToBuild, err := filepath.Abs(path.Join(root, "assets"))
+	if err != nil {
+		return nil, err
+	}
+	opts := b.extra
+	opts.EntryPoints = []string{b.entry}
+	opts.AbsWorkingDir = pathToBuild
+	opts.Bundle = true
+	opts.Write = false
+	opts.Outdir = path.Dir(path.Join(pathToBuild, b.out))
+	opts.LogLevel = api.LogLevelWarning
+	opts.Loader = loaderConfig
+	opts.Plugins = []api.Plugin{externalFonts}
+	result := api.Build(opts)
+	if len(result.Errors) > 0 {
+		return nil, fmt.Errorf("building %s: %s", b.entry, result.Errors[0].Text)
+	}
+	for _, f := range result.OutputFiles {
+		if strings.HasSuffix(f.Path, ".css") {
+			return rebaseFontURLs(f.Contents, b.servedAt), nil
 		}
 	}
+	return nil, fmt.Errorf("building %s: no CSS output", b.entry)
 }
 
 func buildCssInDev(retrievedSettings *settings.Settings) {
@@ -201,8 +212,19 @@ func buildCssInDev(retrievedSettings *settings.Settings) {
 		return
 	}
 
-	buildColibrisCssInDev(retrievedSettings)
-	buildStaticPadCSSInDev(retrievedSettings)
+	for _, b := range devCSSBundles {
+		css, err := buildDevCSS(retrievedSettings.Root, b)
+		if err != nil {
+			panic(err.Error())
+		}
+		out := path.Join(retrievedSettings.Root, "assets", b.out)
+		if err := os.MkdirAll(path.Dir(out), 0o755); err != nil {
+			panic(err.Error())
+		}
+		if err := os.WriteFile(out, css, 0o644); err != nil {
+			panic(err.Error())
+		}
+	}
 }
 
 func Init(store *lib.InitStore) {
@@ -262,10 +284,10 @@ func Init(store *lib.InitStore) {
 	} else {
 		adminHTML := string(adminIndexHTML)
 		store.C.Get("/admin/index.html", func(c fiber.Ctx) error {
-			return c.Type("html").SendString(adminHTML)
+			return c.Type("html").SendString(adminPage(c, adminHTML, store.RetrievedSettings.TrustProxy))
 		})
 		store.C.Get("/admin/", func(c fiber.Ctx) error {
-			return c.Type("html").SendString(adminHTML)
+			return c.Type("html").SendString(adminPage(c, adminHTML, store.RetrievedSettings.TrustProxy))
 		})
 	}
 
@@ -354,6 +376,9 @@ func Init(store *lib.InitStore) {
 	})
 
 	store.C.Get("/s/:pad", func(ctx fiber.Ctx) error {
+		if handled, err := pad2.RedirectTrailingSlash(ctx); handled {
+			return err
+		}
 		padManager.EnsureAuthorTokenCookie(ctx, store.RetrievedSettings)
 		return pad2.HandleSheetOpen(ctx)
 	})
@@ -376,9 +401,9 @@ func Init(store *lib.InitStore) {
 		return c.SendString("User-agent: *\nDisallow: /p/\n")
 	})
 
-	store.C.Get("/favicon.ico", func(c fiber.Ctx) error {
-		return c.Redirect().Status(fiber.StatusMovedPermanently).To("/images/favicon.ico")
-	})
+	store.C.Get("/favicon.ico", serveFavicon(store))
+	store.C.Get("/manifest.json", serveManifest(store.RetrievedSettings))
+	store.C.Get("/javascript", serveJavascriptPage(store.UiAssets))
 
 	store.C.Get("/", func(c fiber.Ctx) error {
 		var language = c.Cookies("language", "en")
@@ -386,8 +411,12 @@ func Init(store *lib.InitStore) {
 		if err != nil {
 			return err
 		}
-		socialMetaHTML := buildHomeSocialMeta(c, store.RetrievedSettings)
-		component := welcome.Page(store.RetrievedSettings, keyValues, socialMetaHTML)
+		// The home page is "/" or "<prefix>/", so its links are absolute
+		// from the prefix, as in etherpad-lite: relative ones would miss it
+		// when the proxy forwards "<prefix>" without the trailing slash.
+		proxyPath := utils.RequestProxyPath(c, store.RetrievedSettings.TrustProxy)
+		socialMetaHTML := buildHomeSocialMeta(c, store.RetrievedSettings, proxyPath)
+		component := welcome.Page(store.RetrievedSettings, keyValues, socialMetaHTML, head.For(store.RetrievedSettings, language, proxyPath+"/", false))
 		return adaptor.HTTPHandler(templ.Handler(component))(c)
 	})
 
@@ -416,9 +445,24 @@ func Init(store *lib.InitStore) {
 			if !shouldServeAdminSPA(c.Path()) {
 				return c.Next()
 			}
-			return c.Type("html").SendString(adminHTML)
+			return c.Type("html").SendString(adminPage(c, adminHTML, store.RetrievedSettings.TrustProxy))
 		})
 	}
+}
+
+// adminPage is the admin SPA's index.html for this request. Vite builds it
+// with absolute /admin/ and /favicon.ico URLs; behind a reverse proxy
+// prefix they get it in front (the prefix is cleaned, it has no quote).
+// The SPA itself takes the prefix from its location.
+func adminPage(c fiber.Ctx, html string, trustProxy bool) string {
+	prefix := utils.RequestProxyPath(c, trustProxy)
+	if prefix == "" {
+		return html
+	}
+	return strings.NewReplacer(
+		`"/admin/`, `"`+prefix+`/admin/`,
+		`"/favicon.ico"`, `"`+prefix+`/favicon.ico"`,
+	).Replace(html)
 }
 
 // clientReport makes text a browser sent fit for one log line: at most

@@ -6,6 +6,7 @@
  */
 
 import { editorBus } from 'ep_etherpad-lite/static/js/core/EventBus'
+import { siteUrl } from 'ep_etherpad-lite/static/js/core/basePath'
 
 const sizes = ['8', '9', '10', '11', '12', '13', '14', '16', '18', '20', '24', '28', '36', '48', '60'] as const
 const sizeRegex = /(?:^| )font-size:(\d+px)/
@@ -28,7 +29,7 @@ const onDomReady = (fn: () => void) => {
 
 const link = document.createElement('link')
 link.rel = 'stylesheet'
-link.href = '/static/plugins/ep_font_size/static/css/size.css'
+link.href = siteUrl('/static/plugins/ep_font_size/static/css/size.css')
 document.head.appendChild(link)
 
 // ---------------------------------------------------------------------------

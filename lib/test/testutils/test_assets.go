@@ -2,7 +2,7 @@ package testutils
 
 import "embed"
 
-//go:embed test_assets/assets
+//go:embed assets
 var TestAssets embed.FS
 
 func GetTestAssets() embed.FS {

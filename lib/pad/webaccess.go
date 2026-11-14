@@ -74,7 +74,7 @@ func CheckAccess(ctx fiber.Ctx, logger *zap.SugaredLogger, retrievedSettings *se
 func CheckAccessWithHooks(ctx fiber.Ctx, logger *zap.SugaredLogger, retrievedSettings *settings.Settings, readOnlyManager *ReadOnlyManager, hookSystem *hooks.Hook) error {
 	// Liveness and readiness probes carry no data and must work for the
 	// orchestrator even when the pads require a login.
-	if p := ctx.Path(); p == "/health/live" || p == "/health/ready" || isPublicAsset(p) {
+	if p := ctx.Path(); p == "/health" || p == "/health/live" || p == "/health/ready" || isPublicAsset(p) {
 		return ctx.Next()
 	}
 	var requireAdmin = isAdminPath(ctx.Path())
@@ -466,7 +466,7 @@ func isAdminPath(path string) bool {
 var publicAssetPrefixes = []string{"/static/", "/css/", "/images/", "/js/"}
 
 func isPublicAsset(path string) bool {
-	if path == "/favicon.ico" || path == "/robots.txt" {
+	if path == "/favicon.ico" || path == "/robots.txt" || path == "/manifest.json" {
 		return true
 	}
 	if strings.Contains(path, "..") {

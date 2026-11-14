@@ -6,6 +6,7 @@
  */
 
 import { editorBus } from 'ep_etherpad-lite/static/js/core/EventBus'
+import { siteUrl } from 'ep_etherpad-lite/static/js/core/basePath'
 
 const colors = ['black', 'red', 'green', 'blue', 'yellow', 'orange'] as const
 const colorRegex = /(?:^| )color:([A-Za-z0-9]*)/
@@ -29,7 +30,7 @@ const onDomReady = (fn: () => void) => {
 
 const link = document.createElement('link')
 link.rel = 'stylesheet'
-link.href = '/static/plugins/ep_font_color/static/css/color.css'
+link.href = siteUrl('/static/plugins/ep_font_color/static/css/color.css')
 document.head.appendChild(link)
 
 const setToolbarColorIndicator = (control: HTMLElement, index: number) => {

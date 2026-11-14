@@ -1,0 +1,101 @@
+// Package head renders what every page puts first in its <head>.
+package head
+
+import (
+	"github.com/ether/etherpad-go/lib/hooks"
+	"github.com/ether/etherpad-go/lib/settings"
+	"github.com/ether/etherpad-go/lib/skin"
+)
+
+// Info describes a page for Meta.
+type Info struct {
+	// Root leads from the page to the site root: "" for /, "../" for
+	// /p/:pad, "../../" for /p/:pad/timeslider. URLs are relative to it, so
+	// the pages work behind a reverse proxy that serves Etherpad under a
+	// path prefix.
+	Root string
+	// Lang and Dir are the page's <html lang> and dir.
+	Lang           string
+	Dir            string
+	SkinName       string
+	SkinVariants   string
+	EnableDarkMode bool
+	// Pad marks the pad and timeslider pages: not indexed, no referrer.
+	Pad bool
+}
+
+// For builds the Info of a page in language (the language cookie).
+func For(s *settings.Settings, language, root string, pad bool) Info {
+	lang, dir := hooks.PageLanguage(language)
+	return Info{Root: root, Lang: lang, Dir: dir, SkinName: s.SkinName, SkinVariants: s.SkinVariants, EnableDarkMode: s.EnableDarkMode, Pad: pad}
+}
+
+// HTMLClass is the class of the pad pages' <html>: the configured variants.
+func (i Info) HTMLClass() string {
+	if i.SkinVariants == "" {
+		return "pad super-light-toolbar super-light-editor light-background"
+	}
+	return "pad " + i.SkinVariants
+}
+
+// ThemeColor is the light theme-color, "" when the skin's colours are not known.
+func (i Info) ThemeColor() string { return skin.ConfiguredToolbarColor(i.SkinName, i.SkinVariants) }
+
+// DarkThemeColor is the theme-color on a client in dark mode, "" when dark
+// mode cannot switch on.
+func (i Info) DarkThemeColor() string {
+	if !i.EnableDarkMode {
+		return ""
+	}
+	return skin.DarkToolbarColor(i.SkinName)
+}
+
+// PrePaintDark tells whether the page switches to dark before it paints.
+func (i Info) PrePaintDark() bool { return i.EnableDarkMode && i.SkinName == "colibris" }
+
+// Meta is the start of <head>: charset, viewport, theme-color, favicon and
+// manifest; on colibris with dark mode, the script that switches a dark-OS
+// client to the dark variants before the first paint (etherpad-lite #7606).
+// It must come before the stylesheets.
+templ Meta(i Info) {
+	<meta charset="utf-8"/>
+	if i.Pad {
+		<meta name="robots" content="noindex, nofollow"/>
+		<meta name="referrer" content="no-referrer"/>
+	}
+	<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0"/>
+	if i.ThemeColor() != "" {
+		if i.DarkThemeColor() != "" {
+			<meta name="theme-color" content={ i.ThemeColor() } media="(prefers-color-scheme: light)"/>
+			<meta name="theme-color" content={ i.DarkThemeColor() } media="(prefers-color-scheme: dark)"/>
+		} else {
+			<meta name="theme-color" content={ i.ThemeColor() }/>
+		}
+	}
+	if i.PrePaintDark() {
+		<script>
+			(function () {
+				try {
+					// Light chosen: the media-scoped dark theme-color must not
+					// colour the address bar of a dark OS above a light toolbar.
+					var keepLight = function () {
+						document.querySelectorAll('meta[name="theme-color"][media]').forEach(function (m) {
+							if (m.getAttribute('media').indexOf('dark') >= 0) m.remove(); else m.removeAttribute('media');
+						});
+					};
+					// pad.ts skips the automatic switch on the skin-variants builder, so do we.
+					if (window.location.hash.toLowerCase() === '#skinvariantsbuilder') return keepLight();
+					if (localStorage.getItem('ep_darkMode') === 'false') return keepLight();
+					if (!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)) return;
+					var el = document.documentElement;
+					['super-light', 'light', 'dark', 'super-dark'].forEach(function (c) {
+						['editor', 'background', 'toolbar'].forEach(function (k) { el.classList.remove(c + '-' + k); });
+					});
+					el.classList.add('super-dark-editor', 'dark-background', 'super-dark-toolbar');
+				} catch (e) { /* no localStorage or matchMedia: stay light */ }
+			})();
+		</script>
+	}
+	<link rel="shortcut icon" href={ i.Root + "favicon.ico" }/>
+	<link rel="manifest" href={ i.Root + "manifest.json" }/>
+}

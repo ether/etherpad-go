@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { useAdminStore } from '@/store'
 import { useAdminActions } from '@/hooks/useAdminActions'
+import { adminBase } from '@/base'
 
 const PAD_LIMIT = 12
 
@@ -292,7 +293,7 @@ export function PadsPage() {
               >
                 <button
                   type="button"
-                  onClick={() => window.open(`/p/${result.padId}`, '_blank')}
+                  onClick={() => window.open(`${adminBase()}/p/${result.padId}`, '_blank')}
                   className="text-sm font-medium text-black dark:text-white underline decoration-gray-300 dark:decoration-gray-600 underline-offset-2 transition-colors hover:decoration-black dark:hover:decoration-white"
                 >
                   {result.padId}
@@ -438,7 +439,7 @@ export function PadsPage() {
                         <button
                           type="button"
                           onClick={() =>
-                            window.open(`/p/${pad.padName}`, '_blank')
+                            window.open(`${adminBase()}/p/${pad.padName}`, '_blank')
                           }
                           title="Open pad"
                           className="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-black dark:hover:text-white"

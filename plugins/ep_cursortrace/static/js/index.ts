@@ -6,6 +6,7 @@
  */
 
 import { editorBus } from 'ep_etherpad-lite/static/js/core/EventBus'
+import { siteUrl } from 'ep_etherpad-lite/static/js/core/basePath'
 
 declare const pad: {
   getUserId: () => string
@@ -30,7 +31,7 @@ declare const $: any
 const cssLink = document.createElement('link')
 cssLink.rel = 'stylesheet'
 cssLink.type = 'text/css'
-cssLink.href = '/static/plugins/ep_cursortrace/static/css/cursortrace.css'
+cssLink.href = siteUrl('/static/plugins/ep_cursortrace/static/css/cursortrace.css')
 document.head.appendChild(cssLink)
 
 // ---------------------------------------------------------------------------
