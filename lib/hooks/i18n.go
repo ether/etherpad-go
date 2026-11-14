@@ -11,6 +11,8 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"sync"
+	"sync/atomic"
 
 	"github.com/gofiber/fiber/v3"
 	"go.uber.org/zap"
@@ -510,12 +512,22 @@ func generateLocaleIndex(locales Locales) Locales {
 
 var AvailableLangs = map[string]LanguageInfo{}
 
-// AllLocales holds every loaded locale's translation map keyed by language
-// tag (e.g. "en", "de"). Each value is map[string]string. Populated by
-// ExpressPreSession at startup. Server-side renderers (e.g. socialmeta)
-// look up translations here without re-parsing the embedded locale files.
-// Upstream #7635 (refactor that exposes i18n.locales for server use).
-var AllLocales = map[string]map[string]string{}
+// allLocales holds every loaded locale's translation map keyed by language
+// tag (e.g. "en", "de"), set by ExpressPreSession. Server-side renderers
+// (e.g. socialmeta) read it through AllLocales without re-parsing the
+// embedded locale files. Upstream #7635. It is replaced as a whole, never
+// changed in place: pages render while another app (in tests, many) sets
+// it up.
+var allLocales atomic.Pointer[map[string]map[string]string]
+
+// AllLocales returns the loaded locales; nil before ExpressPreSession.
+// Read-only for callers.
+func AllLocales() map[string]map[string]string {
+	if m := allLocales.Load(); m != nil {
+		return *m
+	}
+	return nil
+}
 
 // LanguageEntry is the ordered (code, info) pair used by templates that
 // render the language dropdown. Go maps have no stable iteration order, so
@@ -528,21 +540,29 @@ type LanguageEntry struct {
 
 var SortedAvailableLangs []LanguageEntry
 
+var langsOnce sync.Once
+
 func ExpressPreSession(app *fiber.App, uiAssets embed.FS) {
 	var locales = getAllLocales(uiAssets)
 	var localeIndex = generateLocaleIndex(locales)
-	AvailableLangs = getAvailableLangs(locales)
-	SortedAvailableLangs = sortAvailableLangs(AvailableLangs)
+	// Set once: they come from the embedded locale files, and pages read
+	// them (without a lock) while another app is set up (in tests, many).
+	langsOnce.Do(func() {
+		AvailableLangs = getAvailableLangs(locales)
+		SortedAvailableLangs = sortAvailableLangs(AvailableLangs)
+	})
 	// Materialise typed copy for server-side consumers (e.g. socialmeta).
+	all := make(map[string]map[string]string, len(locales))
 	for k, v := range locales {
 		if m, ok := v.(map[string]string); ok {
-			AllLocales[k] = m
+			all[k] = m
 		}
 	}
 
 	for key, value := range locales["en"].(map[string]string) {
 		localeIndex["en"].(map[string]string)[key] = value
 	}
+	allLocales.Store(&all)
 
 	app.Get("/locales/:lang", func(c fiber.Ctx) error {
 		var localesToSend = make(Locales)

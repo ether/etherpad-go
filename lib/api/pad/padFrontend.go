@@ -52,7 +52,7 @@ func HandlePadOpen(c fiber.Ctx, uiAssets embed.FS, retrievedSettings *settings.S
 		Req:            buildRequestInfo(c, retrievedSettings.TrustProxy),
 		Settings:       socialMetaSettings(retrievedSettings),
 		AvailableLangs: availableLangsSet(),
-		Locales:        hooks.AllLocales,
+		Locales:        hooks.AllLocales(),
 		Kind:           socialmeta.KindPad,
 		PadName:        padName,
 	})

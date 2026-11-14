@@ -52,7 +52,7 @@ func HandleTimesliderOpen(c fiber.Ctx, uiAssets embed.FS, retrievedSettings *set
 			DescriptionOverride: retrievedSettings.SocialMeta.Description,
 		},
 		AvailableLangs: availableLangsSet,
-		Locales:        hooks.AllLocales,
+		Locales:        hooks.AllLocales(),
 		Kind:           socialmeta.KindTimeslider,
 		PadName:        padName,
 	})

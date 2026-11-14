@@ -59,7 +59,7 @@ func buildHomeSocialMeta(c fiber.Ctx, s *settings.Settings, proxyPath string) st
 			DescriptionOverride: s.SocialMeta.Description,
 		},
 		AvailableLangs: availableLangsSet,
-		Locales:        hooks.AllLocales,
+		Locales:        hooks.AllLocales(),
 		Kind:           socialmeta.KindHome,
 	})
 }
