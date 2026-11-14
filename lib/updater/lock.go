@@ -3,6 +3,7 @@ package updater
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"time"
 )
 
@@ -19,6 +20,9 @@ const lockStaleAfter = 2 * time.Hour
 // if a live, non-stale lock is held by another process. A lock that is stale
 // (older than lockStaleAfter) or owned by a dead PID is reaped and re-acquired.
 func acquireLock(path string) (bool, error) {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return false, err
+	}
 	if held, err := tryCreate(path); err != nil {
 		return false, err
 	} else if held {

@@ -1,8 +1,8 @@
 package updater
 
 import (
+	"regexp"
 	"strconv"
-	"strings"
 	"time"
 )
 
@@ -38,20 +38,18 @@ func ParseWindow(start, end, tz string) (*MaintenanceWindow, bool) {
 	return &MaintenanceWindow{StartMin: sm, EndMin: em, TZ: tz}, true
 }
 
+// hhmm is exactly two-digit hours and minutes ("03:00", not "3:00" or
+// "+3:00"), as etherpad-lite's parseWindow.
+var hhmm = regexp.MustCompile(`^([01][0-9]|2[0-3]):([0-5][0-9])$`)
+
 func parseHHMM(s string) (int, bool) {
-	parts := strings.SplitN(strings.TrimSpace(s), ":", 2)
-	if len(parts) != 2 {
+	m := hhmm.FindStringSubmatch(s)
+	if m == nil {
 		return 0, false
 	}
-	h, err := strconv.Atoi(parts[0])
-	if err != nil || h < 0 || h > 23 {
-		return 0, false
-	}
-	m, err := strconv.Atoi(parts[1])
-	if err != nil || m < 0 || m > 59 {
-		return 0, false
-	}
-	return h*60 + m, true
+	h, _ := strconv.Atoi(m[1])
+	mins, _ := strconv.Atoi(m[2])
+	return h*60 + mins, true
 }
 
 func (w *MaintenanceWindow) location() *time.Location {
@@ -79,7 +77,9 @@ func (w *MaintenanceWindow) NextWindowStart(now time.Time) time.Time {
 	t := now.In(loc)
 	start := time.Date(t.Year(), t.Month(), t.Day(), w.StartMin/60, w.StartMin%60, 0, 0, loc)
 	if !start.After(t) {
-		start = start.Add(24 * time.Hour)
+		// The next calendar day, not +24h: across a DST change a day has 23
+		// or 25 hours, and the window starts at its wall-clock time.
+		start = time.Date(t.Year(), t.Month(), t.Day()+1, w.StartMin/60, w.StartMin%60, 0, 0, loc)
 	}
 	return start
 }

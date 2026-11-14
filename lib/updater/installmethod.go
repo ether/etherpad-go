@@ -5,20 +5,47 @@ import (
 	"path/filepath"
 )
 
+// installProbe is what detectInstallMethod looks at, so tests can point it
+// at a temp directory.
+type installProbe struct {
+	markers []string            // files that only exist inside a container
+	getenv  func(string) string // environment
+	exe     func() (string, error)
+}
+
+var hostProbe = installProbe{
+	// Docker writes /.dockerenv, Podman and CRI-O /run/.containerenv;
+	// containerd (most Kubernetes clusters) writes neither, but Kubernetes
+	// sets KUBERNETES_SERVICE_HOST in every pod.
+	markers: []string{"/.dockerenv", "/run/.containerenv"},
+	getenv:  os.Getenv,
+	exe:     os.Executable,
+}
+
 // DetectInstallMethod determines whether an in-place update is possible. An
 // explicit, non-auto override is returned verbatim.
 //
-// Detection order: a Docker environment is never self-updated (the orchestrator
-// owns the image), then a standalone executable whose directory is writable is
-// updatable as a binary, otherwise the install is treated as read-only/managed.
+// Detection order: a container is never self-updated (the orchestrator owns
+// the image, and a replaced binary would be gone after the next restart),
+// then a standalone executable whose directory is writable is updatable as a
+// binary, otherwise the install is treated as read-only/managed.
 func DetectInstallMethod(override InstallMethod) InstallMethod {
+	return detectInstallMethod(override, hostProbe)
+}
+
+func detectInstallMethod(override InstallMethod, p installProbe) InstallMethod {
 	if override != "" && override != InstallAuto {
 		return override
 	}
-	if _, err := os.Stat("/.dockerenv"); err == nil {
+	for _, m := range p.markers {
+		if _, err := os.Stat(m); err == nil {
+			return InstallDocker
+		}
+	}
+	if p.getenv("KUBERNETES_SERVICE_HOST") != "" {
 		return InstallDocker
 	}
-	exe, err := os.Executable()
+	exe, err := p.exe()
 	if err != nil {
 		return InstallManaged
 	}
