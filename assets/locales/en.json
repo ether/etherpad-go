@@ -48,6 +48,8 @@
   "index.open": "Open",
   "index.recent": "Recently edited",
   "index.settings": "Settings",
+  "index.code": "Transfer code",
+  "index.sessionTransferError": "The session could not be transferred. Please try again.",
   "index.transferSessionTitle": "Transfer session",
   "index.receiveSessionTitle": "Receive session",
   "index.receiveSessionDescription": "Here you can receive an Etherpad session from another browser or device. Please note, however, that this will delete your current session, if any.",

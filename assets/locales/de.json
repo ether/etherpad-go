@@ -68,6 +68,7 @@
 	"index.recent": "Zuletzt bearbeitet",
 	"index.createOpenPad": "Pad öffnen",
   "index.settings": "Einstellungen",
+  "index.sessionTransferError": "Die Sitzung konnte nicht übertragen werden. Bitte versuche es erneut.",
   "index.receiveSessionTitle": "Sitzung empfangen",
   "index.receiveSessionDescription": "Hier kannst du eine Etherpad-Sitzung aus einem anderen Browser oder Gerät empfangen. Bedenke allerdings, dass dadurch deine aktuelle Sitzung, falls vorhanden gelöscht wird.",
   "index.code": "Übertragungscode",

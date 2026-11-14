@@ -59,5 +59,37 @@ path for it. etherpad-go no longer creates the file.
   `deleteGroup` removes the group's pads and sessions in both.
 - `getHTML` leaves out the `start` attributes etherpad-lite writes on imported ordered lists
   (`<ol start="2">` on a nested list, which browsers then number from 2).
-- `anonymizeAuthor` answers `{authorId, anonymized}`, not etherpad-lite's counters.
 - The REST-style paths `/rest/{version}/...` are not served.
+
+## Erasing an author (GDPR Art. 17)
+
+Erasing an author removes what identifies them and keeps the pad text: the name and colour,
+the browser token and external ids (`createAuthorIfNotExistsFor` mappers) that lead to the
+author, and the authorship of their chat messages. The author id stays in the pads'
+history, but nothing ties it to a person any more.
+Erasing an author twice changes nothing; the second call returns zeros.
+
+- `anonymizeAuthor` (`/api/{version}/anonymizeAuthor?authorID=...`) and the admin page
+  *Authors* need `"gdprAuthorErasure": {"enabled": true}` in `settings.json`, as in
+  etherpad-lite. Without it the call fails and the page says the feature is off. The call
+  answers etherpad-lite's counters: `affectedPads`, `removedTokenMappings`,
+  `removedExternalMappings`, `clearedChatMessages`.
+- `POST /admin/api/author/{authorId}/anonymize` (admin REST API) is not gated; add
+  `?dryRun=true` to get the counters without erasing.
+- The admin page lists authors with their last activity (`lastSeen`), finds them by name, id
+  or external id, and shows a dry run before erasing.
+
+## Moving a session to another browser
+
+The author token is an HttpOnly cookie, so a browser cannot copy it to another one. The welcome
+page has a *Transfer session* section instead (etherpad-lite's `tokenTransfer`):
+
+- `POST /tokenTransfer` with `{"prefs": "<JSON>"}` reads the author cookie of the request and
+  returns `{"id": "<32 hex>"}`. Without an author cookie (the browser never opened a pad) it
+  answers 400.
+- `GET /tokenTransfer/{id}` sets the author cookie in the browser that opens it and returns
+  `{"ok": true, "prefs": ..., "prefsHttp": ...}`. A code works once and for 5 minutes;
+  unknown codes answer 404, expired ones 410.
+
+The link the welcome page copies (`/?transfer=<id>`) only fills in the code; the session is
+replaced only when the user clicks *Receive session*.
