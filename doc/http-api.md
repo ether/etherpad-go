@@ -52,6 +52,19 @@ Keys live in the database, so all instances of a cluster know them. A key from a
 and listed as "APIKEY.txt"; the file is then no longer needed. `EP_APIKEY_FILE` names another
 path for it. etherpad-go no longer creates the file.
 
+## Path styles
+
+The functions answer under three path styles, as in etherpad-lite, with the same API keys and
+response format:
+
+- `/api/{version}/{function}`, GET or POST, e.g. `/api/1.3.1/createGroup`. Documented at
+  `/api/openapi.json` and `/api/{version}/openapi.json`.
+- `/rest/{version}/{resource}/{action}`, GET or POST, e.g. `/rest/1.3.1/group/create`.
+  Documented at `/rest/openapi.json` and `/rest/{version}/openapi.json`.
+- `/api/2/...`, one HTTP method and path per function, e.g. `POST /api/2/groups`,
+  `GET /api/2/pads/text?padID=...`, `PATCH /api/2/pads/text`. Documented at `/api-docs.json`,
+  which can be browsed at `/api-docs`. An unknown route answers `{"code":1,"message":"not found"}`.
+
 ## Differences to etherpad-lite
 
 - `createGroupIfNotExistsFor` derives the group id from the mapper. After `deleteGroup` the
@@ -59,7 +72,9 @@ path for it. etherpad-go no longer creates the file.
   `deleteGroup` removes the group's pads and sessions in both.
 - `getHTML` leaves out the `start` attributes etherpad-lite writes on imported ordered lists
   (`<ol start="2">` on a nested list, which browsers then number from 2).
-- The REST-style paths `/rest/{version}/...` are not served.
+- etherpad-lite parses no body for `PATCH` and `PUT` on `/api/2`, so `appendText`,
+  `appendChatMessage` and `restoreRevision` there only take query parameters. etherpad-go also reads
+  the body.
 
 ## Erasing an author (GDPR Art. 17)
 

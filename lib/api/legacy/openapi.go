@@ -47,8 +47,18 @@ func summary(function string) string {
 // definition is the OpenAPI document of a version. Every function answers
 // GET and POST; the document names POST only, as etherpad-lite's.
 func (a *API) definition(version, serverURL string) fiber.Map {
+	return a.definitionWith(version, serverURL, func(f string) string { return "/" + f })
+}
+
+// definitionWith is definition with the path of each function from pathFor;
+// functions without one ("") are left out.
+func (a *API) definitionWith(version, serverURL string, pathFor func(string) string) fiber.Map {
 	paths := fiber.Map{}
 	for _, function := range sortedFunctions(version) {
+		path := pathFor(function)
+		if path == "" {
+			continue
+		}
 		tag := functionTags[function]
 		if tag == "" {
 			tag = "pad"
@@ -59,7 +69,7 @@ func (a *API) definition(version, serverURL string) fiber.Map {
 				"name": p, "in": "query", "schema": fiber.Map{"type": "string"},
 			})
 		}
-		paths["/"+function] = fiber.Map{"post": fiber.Map{
+		paths[path] = fiber.Map{"post": fiber.Map{
 			"operationId": function,
 			"summary":     summary(function),
 			"tags":        []string{tag},

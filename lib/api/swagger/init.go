@@ -16,4 +16,10 @@ func Init(app *fiber.App) {
 		DeepLinking:  true,
 		DocExpansion: "list",
 	}))
+	// etherpad-lite's /api-docs: the REST API /api/2 of /api-docs.json
+	// (lib/api/legacy/rest.go).
+	app.Get("/api-docs/*", swaggo.New(swaggo.Config{
+		URL:          "/api-docs.json",
+		DocExpansion: "list",
+	}))
 }
