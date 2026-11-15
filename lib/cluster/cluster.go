@@ -65,15 +65,23 @@ type Bus interface {
 	Enabled() bool
 	// Members is the number of instances, this one included.
 	Members() int
+	// SetLocalUsers tells the bus how to count this instance's connected
+	// users, which it shares with the others.
+	SetLocalUsers(fn func() int)
+	// OtherInstances returns the other live instances and their connected
+	// users, as last reported (a few seconds old at most).
+	OtherInstances() (instances, users int, err error)
 	Close() error
 }
 
 // Local is the bus of a single instance: nothing to send.
 type Local struct{}
 
-func (Local) Publish(Event)         {}
-func (Local) SendTo(string, Event)  {}
-func (Local) Subscribe(func(Event)) {}
-func (Local) Enabled() bool         { return false }
-func (Local) Members() int          { return 1 }
-func (Local) Close() error          { return nil }
+func (Local) Publish(Event)                     {}
+func (Local) SendTo(string, Event)              {}
+func (Local) Subscribe(func(Event))             {}
+func (Local) Enabled() bool                     { return false }
+func (Local) Members() int                      { return 1 }
+func (Local) SetLocalUsers(func() int)          {}
+func (Local) OtherInstances() (int, int, error) { return 0, 0, nil }
+func (Local) Close() error                      { return nil }

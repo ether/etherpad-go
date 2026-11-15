@@ -107,7 +107,11 @@ export function OverviewPage() {
 
       {/* Metric cards */}
       <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <MetricCard label="Live Users" value={store.totalUsers} description="currently connected" />
+        <MetricCard
+          label="Live Users"
+          value={store.totalUsers}
+          description={store.instances > 1 ? `connected to ${store.instances} instances` : 'currently connected'}
+        />
         <MetricCard label="Pads Indexed" value={store.padsTotal} description="current search scope" />
         <MetricCard label="Server Version" value={versionValue} description="running release" />
         <MetricCard label="Active Plugins" value={activePluginCount} description="enabled integrations" />

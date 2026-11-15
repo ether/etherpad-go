@@ -12,12 +12,16 @@ type ClusterNode struct {
 	ID       string
 	Address  string
 	LastSeen time.Time
+	// Users is the instance's connected users at its last heartbeat.
+	Users int
 }
 
 // ClusterMethods are the instance registry: every instance records its
 // gossip address and refreshes it periodically; the others join it.
 type ClusterMethods interface {
-	HeartbeatClusterNode(id, address string, now time.Time) error
+	// HeartbeatClusterNode records the instance as alive at now, with its
+	// connected users.
+	HeartbeatClusterNode(id, address string, now time.Time, users int) error
 	ListClusterNodes(aliveSince time.Time) ([]ClusterNode, error)
 	RemoveClusterNode(id string) error
 	// PruneClusterNodes removes instances not seen since before.
@@ -26,17 +30,17 @@ type ClusterMethods interface {
 
 // --- Postgres ---
 
-func (d PostgresDB) HeartbeatClusterNode(id, address string, now time.Time) error {
+func (d PostgresDB) HeartbeatClusterNode(id, address string, now time.Time, users int) error {
 	_, err := d.pool.Exec(context.Background(),
-		`INSERT INTO cluster_nodes (id, address, last_seen) VALUES ($1, $2, $3)
-		 ON CONFLICT (id) DO UPDATE SET address = EXCLUDED.address, last_seen = EXCLUDED.last_seen`,
-		id, address, now.UnixMilli())
+		`INSERT INTO cluster_nodes (id, address, last_seen, users) VALUES ($1, $2, $3, $4)
+		 ON CONFLICT (id) DO UPDATE SET address = EXCLUDED.address, last_seen = EXCLUDED.last_seen, users = EXCLUDED.users`,
+		id, address, now.UnixMilli(), users)
 	return err
 }
 
 func (d PostgresDB) ListClusterNodes(aliveSince time.Time) ([]ClusterNode, error) {
 	rows, err := d.pool.Query(context.Background(),
-		`SELECT id, address, last_seen FROM cluster_nodes WHERE last_seen >= $1`, aliveSince.UnixMilli())
+		`SELECT id, address, last_seen, users FROM cluster_nodes WHERE last_seen >= $1`, aliveSince.UnixMilli())
 	if err != nil {
 		return nil, err
 	}
@@ -45,7 +49,7 @@ func (d PostgresDB) ListClusterNodes(aliveSince time.Time) ([]ClusterNode, error
 	for rows.Next() {
 		var n ClusterNode
 		var seen int64
-		if err := rows.Scan(&n.ID, &n.Address, &seen); err != nil {
+		if err := rows.Scan(&n.ID, &n.Address, &seen, &n.Users); err != nil {
 			return nil, err
 		}
 		n.LastSeen = time.UnixMilli(seen)
@@ -66,11 +70,11 @@ func (d PostgresDB) PruneClusterNodes(before time.Time) error {
 
 // --- MySQL ---
 
-func (d MysqlDB) HeartbeatClusterNode(id, address string, now time.Time) error {
+func (d MysqlDB) HeartbeatClusterNode(id, address string, now time.Time, users int) error {
 	_, err := d.sqlDB.Exec(
-		`INSERT INTO cluster_nodes (id, address, last_seen) VALUES (?, ?, ?)
-		 ON DUPLICATE KEY UPDATE address = VALUES(address), last_seen = VALUES(last_seen)`,
-		id, address, now.UnixMilli())
+		`INSERT INTO cluster_nodes (id, address, last_seen, users) VALUES (?, ?, ?, ?)
+		 ON DUPLICATE KEY UPDATE address = VALUES(address), last_seen = VALUES(last_seen), users = VALUES(users)`,
+		id, address, now.UnixMilli(), users)
 	return err
 }
 
@@ -90,11 +94,11 @@ func (d MysqlDB) PruneClusterNodes(before time.Time) error {
 
 // --- SQLite ---
 
-func (d SQLiteDB) HeartbeatClusterNode(id, address string, now time.Time) error {
+func (d SQLiteDB) HeartbeatClusterNode(id, address string, now time.Time, users int) error {
 	_, err := d.sqlDB.Exec(
-		`INSERT INTO cluster_nodes (id, address, last_seen) VALUES (?, ?, ?)
-		 ON CONFLICT(id) DO UPDATE SET address = excluded.address, last_seen = excluded.last_seen`,
-		id, address, now.UnixMilli())
+		`INSERT INTO cluster_nodes (id, address, last_seen, users) VALUES (?, ?, ?, ?)
+		 ON CONFLICT(id) DO UPDATE SET address = excluded.address, last_seen = excluded.last_seen, users = excluded.users`,
+		id, address, now.UnixMilli(), users)
 	return err
 }
 
@@ -113,7 +117,7 @@ func (d SQLiteDB) PruneClusterNodes(before time.Time) error {
 }
 
 func listClusterNodesSQL(query func(string, ...any) (*sql.Rows, error), aliveSince time.Time) ([]ClusterNode, error) {
-	rows, err := query(`SELECT id, address, last_seen FROM cluster_nodes WHERE last_seen >= ?`, aliveSince.UnixMilli())
+	rows, err := query(`SELECT id, address, last_seen, users FROM cluster_nodes WHERE last_seen >= ?`, aliveSince.UnixMilli())
 	if err != nil {
 		return nil, err
 	}
@@ -122,7 +126,7 @@ func listClusterNodesSQL(query func(string, ...any) (*sql.Rows, error), aliveSin
 	for rows.Next() {
 		var n ClusterNode
 		var seen int64
-		if err := rows.Scan(&n.ID, &n.Address, &seen); err != nil {
+		if err := rows.Scan(&n.ID, &n.Address, &seen, &n.Users); err != nil {
 			return nil, err
 		}
 		n.LastSeen = time.UnixMilli(seen)
@@ -133,10 +137,10 @@ func listClusterNodesSQL(query func(string, ...any) (*sql.Rows, error), aliveSin
 
 // --- Memory ---
 
-func (m *MemoryDataStore) HeartbeatClusterNode(id, address string, now time.Time) error {
+func (m *MemoryDataStore) HeartbeatClusterNode(id, address string, now time.Time, users int) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.clusterNodes[id] = ClusterNode{ID: id, Address: address, LastSeen: now}
+	m.clusterNodes[id] = ClusterNode{ID: id, Address: address, LastSeen: now, Users: users}
 	return nil
 }
 

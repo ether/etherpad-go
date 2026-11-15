@@ -31,6 +31,8 @@ func (p *PadMessageHandler) SetCluster(bus cluster.Bus) {
 	if !bus.Enabled() {
 		return
 	}
+	// Shared with the others for the cluster-wide statistics.
+	bus.SetLocalUsers(p.SessionStore.Count)
 	bus.Subscribe(p.onClusterEvent)
 	go p.catchUpLoop()
 }
@@ -40,6 +42,19 @@ func (p *PadMessageHandler) StopCluster() {
 	if p.cluster != nil && p.cluster.bus.Enabled() {
 		close(p.cluster.stop)
 	}
+}
+
+// ClusterUsers is the number of connected users on all instances: this
+// one's now, the others' from their last heartbeat. instances counts this
+// one too. If the registry cannot be read, it is this instance's count.
+func (p *PadMessageHandler) ClusterUsers() (users, instances int) {
+	users, instances = p.SessionStore.Count(), 1
+	others, otherUsers, err := p.clusterBus().OtherInstances()
+	if err != nil {
+		p.Logger.Warnf("cluster user count: %v", err)
+		return users, instances
+	}
+	return users + otherUsers, instances + others
 }
 
 func (p *PadMessageHandler) clusterBus() cluster.Bus {

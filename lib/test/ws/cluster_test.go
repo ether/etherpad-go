@@ -24,6 +24,8 @@ type pairBus struct {
 	mu   sync.Mutex
 	peer *pairBus
 	subs []func(cluster.Event)
+	// users counts this instance's users, as SetLocalUsers set it.
+	users func() int
 }
 
 func newBusPair() (*pairBus, *pairBus) {
@@ -55,7 +57,24 @@ func (b *pairBus) Subscribe(fn func(cluster.Event)) {
 }
 func (b *pairBus) Enabled() bool { return true }
 func (b *pairBus) Members() int  { return 2 }
-func (b *pairBus) Close() error  { return nil }
+func (b *pairBus) SetLocalUsers(fn func() int) {
+	b.mu.Lock()
+	b.users = fn
+	b.mu.Unlock()
+}
+
+// OtherInstances: the peer, with its users counted now (the real bus reads
+// the last heartbeat).
+func (b *pairBus) OtherInstances() (int, int, error) {
+	b.peer.mu.Lock()
+	fn := b.peer.users
+	b.peer.mu.Unlock()
+	if fn == nil {
+		return 1, 0, nil
+	}
+	return 1, fn(), nil
+}
+func (b *pairBus) Close() error { return nil }
 
 type instance struct {
 	handler *libws.PadMessageHandler
@@ -235,4 +254,31 @@ func testClusterUserDup(t *testing.T, ds testutils.TestDataStore) {
 	for _, m := range drainClientMessages(onB) {
 		assert.NotContains(t, m, `"userdup"`, "the new session on B stays")
 	}
+}
+
+// The admin statistics count the users of every instance.
+func TestClusterUserCount(t *testing.T) {
+	testutils.RunSequentialMemorySQLite(t, testutils.TestRunConfig{
+		Name: "users of both instances",
+		Test: func(t *testing.T, ds testutils.TestDataStore) {
+			busA, busB := newBusPair()
+			sessB := libws.NewSessionStore()
+			hubB := libws.NewHub()
+			go hubB.Run()
+			b := libws.NewPadMessageHandler(ds.DS, ds.Hooks, pad.NewManager(ds.DS, ds.Hooks), &sessB, hubB, ds.Logger, testutils.GetTestAssets(), ds.Settings)
+			ds.PadMessageHandler.SetCluster(busA)
+			b.SetCluster(busB)
+
+			ds.PadMessageHandler.SessionStore.InitSessionForTest("count-a1")
+			sessB.InitSessionForTest("count-b1")
+			sessB.InitSessionForTest("count-b2")
+
+			users, instances := ds.PadMessageHandler.ClusterUsers()
+			assert.Equal(t, 3, users)
+			assert.Equal(t, 2, instances)
+			users, instances = b.ClusterUsers()
+			assert.Equal(t, 3, users)
+			assert.Equal(t, 2, instances)
+		},
+	})
 }

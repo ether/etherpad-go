@@ -108,11 +108,13 @@ func New(store *lib.InitStore, keys *apikeys.Manager, bearer Authenticator) *API
 	return &API{store: store, inner: inner.Handler(), keys: keys, bearer: bearer}
 }
 
-// Register adds the routes: /api (current version), /api/{version}/{function}.
+// Register adds the routes: /api (current version), /api/{version}/{function},
+// and the REST styles (rest.go).
 func (a *API) Register(app *fiber.App) {
 	app.Get("/api", a.currentVersion)
 	app.Get("/api/", a.currentVersion)
 	app.Get("/api/openapi.json", func(c fiber.Ctx) error { return a.serveDefinition(c, LatestVersion) })
+	a.registerREST(app)
 	app.Get("/api/:version/:function", a.serve)
 	app.Post("/api/:version/:function", a.serve)
 }
@@ -130,8 +132,12 @@ func (a *API) serve(c fiber.Ctx) error {
 }
 
 func (a *API) handle(c fiber.Ctx) (Response, int) {
-	version := c.Params("version")
-	function := c.Params("function")
+	return a.handleCall(c, c.Params("version"), c.Params("function"))
+}
+
+// handleCall calls function of API version with the request's fields, for
+// every path style: /api/{version}/{function}, /rest/... and /api/2/....
+func (a *API) handleCall(c fiber.Ctx, version, function string) (Response, int) {
 	params, ok := versions[version]
 	if !ok {
 		return reply(&apiError{code: 3, message: "no such api version"})
@@ -205,7 +211,7 @@ func requestFields(c fiber.Ctx) (map[string]string, error) {
 	c.RequestCtx().QueryArgs().VisitAll(func(k, v []byte) {
 		fields[string(k)] = string(v)
 	})
-	if c.Method() != fiber.MethodPost {
+	if m := c.Method(); m == fiber.MethodGet || m == fiber.MethodHead {
 		return fields, nil
 	}
 	ct := strings.ToLower(c.Get(fiber.HeaderContentType))

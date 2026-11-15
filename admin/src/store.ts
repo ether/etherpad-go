@@ -112,6 +112,8 @@ export interface AdminState {
   padOffset: number
   padLimit: number
   totalUsers: number
+  // instances the user count covers (more than 1 in a cluster)
+  instances: number
   shoutMessage: string
   shoutSticky: boolean
   shouts: ShoutMessage[]
@@ -147,6 +149,7 @@ type Action =
   | { type: 'SET_PADS'; payload: { pads: PadRecord[]; total: number } }
   | { type: 'SET_PLUGINS'; payload: PluginRecord[] }
   | { type: 'SET_TOTAL_USERS'; payload: number }
+  | { type: 'SET_INSTANCES'; payload: number }
   | { type: 'ADD_SHOUT'; payload: ShoutMessage }
   | { type: 'SET_SHOUT_MESSAGE'; payload: string }
   | { type: 'SET_SHOUT_STICKY'; payload: boolean }
@@ -184,6 +187,7 @@ const initialState: AdminState = {
   padOffset: 0,
   padLimit: 12,
   totalUsers: 0,
+  instances: 1,
   shoutMessage: '',
   shoutSticky: false,
   shouts: [],
@@ -235,6 +239,8 @@ function adminReducer(state: AdminState, action: Action): AdminState {
       return { ...state, plugins: action.payload }
     case 'SET_TOTAL_USERS':
       return { ...state, totalUsers: action.payload }
+    case 'SET_INSTANCES':
+      return { ...state, instances: action.payload }
     case 'ADD_SHOUT':
       return {
         ...state,
@@ -459,6 +465,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       }
       case 'results:stats':
         dispatch({ type: 'SET_TOTAL_USERS', payload: payload.totalUsers ?? payload ?? 0 })
+        dispatch({ type: 'SET_INSTANCES', payload: typeof payload?.instances === 'number' ? payload.instances : 1 })
         dispatch({ type: 'SET_LAST_UPDATED', payload: new Date() })
         break
       case 'result:shout': {

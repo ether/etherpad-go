@@ -491,9 +491,10 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 		}
 	case "getStats":
 		{
-			totalUsers := len(h.padMessageHandler.SessionStore.sessions)
+			totalUsers, instances := h.padMessageHandler.ClusterUsers()
 			totalUserMessage := admin.Stats{
 				TotalUsers: totalUsers,
+				Instances:  instances,
 			}
 			resp := make([]interface{}, 2)
 			resp[0] = "results:stats"
