@@ -66,6 +66,11 @@ spec:
         - name: etherpad
           image: etherpad-go:k8s-test
           imagePullPolicy: Never
+          # The image runs as an unprivileged user; refuse to start as root.
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities: { drop: [ALL] }
           env:
             - name: POD_IP
               valueFrom:

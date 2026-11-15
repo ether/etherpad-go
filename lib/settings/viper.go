@@ -2,7 +2,6 @@ package settings
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -23,16 +22,22 @@ func ReadConfig() (*Settings, error) {
 	viper.SetConfigType("json")
 	// settings.json may hold comments, trailing commas and ${VAR:default}
 	// values, like etherpad-lite's; viper reads plain JSON.
-	if raw, err := os.ReadFile("settings.json"); err == nil {
+	file, saveFile, err := settingsFiles()
+	if err != nil {
+		return nil, err
+	}
+	if file != "" {
+		raw, err := os.ReadFile(file)
+		if err != nil {
+			return nil, fmt.Errorf("settings file %s: %w", file, err)
+		}
 		prepared, err := PrepareSettingsJSON(raw)
 		if err != nil {
-			return nil, fmt.Errorf("settings.json: %w", err)
+			return nil, fmt.Errorf("%s: %w", file, err)
 		}
 		if err := viper.ReadConfig(bytes.NewReader(prepared)); err != nil {
 			return nil, err
 		}
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return nil, err
 	}
 
 	// Older settings files (and etherpad-lite's template) wrote
@@ -73,6 +78,7 @@ func ReadConfig() (*Settings, error) {
 		// An unknown mode must not log addresses.
 		s.IPLogging = IPLoggingAnonymous
 	}
+	s.SettingsFile, s.SettingsSaveFile = file, saveFile
 	return &s, nil
 }
 

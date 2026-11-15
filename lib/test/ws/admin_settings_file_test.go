@@ -42,7 +42,8 @@ func adminAsk(t *testing.T, ds testutils.TestDataStore, event string, data any) 
 
 func testAdminSettingsFile(t *testing.T, ds testutils.TestDataStore) {
 	dir := t.TempDir()
-	ds.Settings.Root = dir
+	ds.Settings.SettingsFile = filepath.Join(dir, "settings.json")
+	ds.Settings.SettingsSaveFile = filepath.Join(dir, "settings.json")
 	ds.Settings.ShowSettingsInAdminPage = true
 	ds.Settings.TrustProxy = true
 	pw := "db-secret"

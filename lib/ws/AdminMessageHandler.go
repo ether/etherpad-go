@@ -75,7 +75,13 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 			if !retrievedSettings.ShowSettingsInAdminPage {
 				resp[1] = map[string]interface{}{"results": "NOT_ALLOWED"}
 			} else {
-				raw, err := os.ReadFile(settingsFilePath(retrievedSettings))
+				// The file the server started with, or the one a save
+				// creates when there was none.
+				file := retrievedSettings.SettingsFile
+				if file == "" {
+					file = retrievedSettings.SettingsSaveFile
+				}
+				raw, err := os.ReadFile(file)
 				if err != nil && !os.IsNotExist(err) {
 					h.Logger.Errorf("Reading the settings file: %v", err)
 				}
@@ -535,7 +541,10 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 				c.SafeSend(responseBytes)
 				return
 			}
-			settingsPath := settingsFilePath(retrievedSettings)
+			settingsPath := retrievedSettings.SettingsSaveFile
+			if settingsPath == "" {
+				settingsPath = "settings.json"
+			}
 			if err := writeFileAtomic(settingsPath, []byte(settingsJSON)); err != nil {
 				h.Logger.Errorf("Error saving settings: %v", err)
 				resp := make([]interface{}, 2)
@@ -1031,13 +1040,6 @@ func (h AdminMessageHandler) compactDamagedPad(padId string, missing []int, late
 		return err
 	}
 	return repaired.Check()
-}
-
-func settingsFilePath(s *settings.Settings) string {
-	if s.Root != "" {
-		return s.Root + "/settings.json"
-	}
-	return "settings.json"
 }
 
 // writeFileAtomic replaces path in one step: a crash while writing leaves the
