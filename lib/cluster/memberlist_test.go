@@ -133,3 +133,38 @@ func TestConcurrentStartersAgreeOnTheGossipKey(t *testing.T) {
 		}
 	}
 }
+
+// Each instance reports its connected users with its heartbeat; the others
+// add them up. A stopped instance no longer counts.
+func TestInstancesShareTheirUserCounts(t *testing.T) {
+	store := db.NewMemoryDataStore()
+	a := startNode(t, store)
+	b := startNode(t, store)
+	a.SetLocalUsers(func() int { return 3 })
+	b.SetLocalUsers(func() int { return 4 })
+	a.heartbeat()
+	b.heartbeat()
+
+	inst, users, err := a.OtherInstances()
+	require.NoError(t, err)
+	assert.Equal(t, 1, inst)
+	assert.Equal(t, 4, users)
+	inst, users, err = b.OtherInstances()
+	require.NoError(t, err)
+	assert.Equal(t, 1, inst)
+	assert.Equal(t, 3, users)
+
+	require.NoError(t, b.Close())
+	inst, users, err = a.OtherInstances()
+	require.NoError(t, err)
+	assert.Equal(t, 0, inst)
+	assert.Equal(t, 0, users)
+
+	// One that was killed (no more heartbeats) drops out after three
+	// heartbeat intervals.
+	require.NoError(t, store.HeartbeatClusterNode("ghost", "127.0.0.1:1", time.Now().Add(-4*heartbeatInterval), 9))
+	inst, users, err = a.OtherInstances()
+	require.NoError(t, err)
+	assert.Equal(t, 0, inst)
+	assert.Equal(t, 0, users)
+}

@@ -398,8 +398,15 @@ server drops a second copy by its id. Edits made while offline wait in the
 browser and are sent afterwards. This works on any instance, as the replay
 comes from the database.
 
+## Statistics
+
+The "Live Users" on the admin overview count every instance: each one sends
+its connected users with its heartbeat (every 5 s) to the registry, and the
+page adds them up, saying how many instances it counted. An instance stopped
+normally removes itself; one that was killed drops out after 15 s. The
+Prometheus metrics stay per instance; Prometheus adds them up itself.
+
 ## Current limitations
 
-* **User counts** in the admin statistics are per pod.
 * **Mixed versions during a rollout.** Old and new pods briefly share the
   database; check the release notes of versions with schema changes.

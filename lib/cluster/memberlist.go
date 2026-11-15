@@ -11,6 +11,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ether/etherpad-go/lib/db"
@@ -55,6 +56,9 @@ type Memberlist struct {
 	wg        sync.WaitGroup
 	closeOnce sync.Once
 	closeErr  error
+
+	// localUsers counts this instance's connected users for the heartbeat.
+	localUsers atomic.Pointer[func() int]
 }
 
 // NewMemberlist starts the gossip listener, registers this instance in the
@@ -155,7 +159,7 @@ func gossipKey(store db.DataStore) ([]byte, error) {
 // connected to: at start, and to heal after a network split.
 func (b *Memberlist) heartbeat() {
 	now := time.Now()
-	if err := b.store.HeartbeatClusterNode(b.name, b.addr, now); err != nil {
+	if err := b.store.HeartbeatClusterNode(b.name, b.addr, now, b.countLocalUsers()); err != nil {
 		b.logger.Warnw("cluster heartbeat failed", "error", err)
 		return
 	}
@@ -280,7 +284,36 @@ func (b *Memberlist) receiveLoop() {
 }
 
 func (b *Memberlist) Enabled() bool { return true }
-func (b *Memberlist) Members() int  { return b.ml.NumMembers() }
+
+// SetLocalUsers sets how this instance counts its connected users; the
+// count goes out with every heartbeat.
+func (b *Memberlist) SetLocalUsers(fn func() int) { b.localUsers.Store(&fn) }
+
+func (b *Memberlist) countLocalUsers() int {
+	if fn := b.localUsers.Load(); fn != nil {
+		return (*fn)()
+	}
+	return 0
+}
+
+// OtherInstances reads the registry: the instances besides this one with a
+// heartbeat in the last three intervals, and their connected users at that
+// heartbeat. An instance stopped normally removes itself; one that was
+// killed drops out after those three intervals.
+func (b *Memberlist) OtherInstances() (instances, users int, err error) {
+	nodes, err := b.store.ListClusterNodes(time.Now().Add(-3 * heartbeatInterval))
+	if err != nil {
+		return 0, 0, err
+	}
+	for _, n := range nodes {
+		if n.ID != b.name {
+			instances++
+			users += n.Users
+		}
+	}
+	return instances, users, nil
+}
+func (b *Memberlist) Members() int { return b.ml.NumMembers() }
 
 // Close leaves the cluster and removes this instance from the registry.
 func (b *Memberlist) Close() error {

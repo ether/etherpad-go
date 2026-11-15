@@ -59,6 +59,13 @@ func (s *SessionStore) GetStats() (SessionStat, error) {
 	return stats, nil
 }
 
+// Count is the number of sessions (connected users) of this instance.
+func (s *SessionStore) Count() int {
+	s.sync.RLock()
+	defer s.sync.RUnlock()
+	return len(s.sessions)
+}
+
 // PadUserCounts is the number of sessions per pad.
 func (s *SessionStore) PadUserCounts() map[string]int {
 	s.sync.RLock()
