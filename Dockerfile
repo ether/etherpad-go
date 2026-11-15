@@ -27,10 +27,13 @@ RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o app .
 
 
 FROM alpine:3.24 AS busybox
+# The shell's tools for looking around the container (issue 413), on
+# purpose without network tools (wget, nc, ...): the server runs as root.
+ARG SHELL_APPLETS="sh ls cat less head tail grep find vi env ps df du pwd echo test readlink mkdir cp mv rm chmod"
 RUN apk add --no-cache busybox-static \
     && mkdir -p /rootfs/bin \
     && cp /bin/busybox.static /rootfs/bin/busybox \
-    && for applet in $(/bin/busybox.static --list); do ln -sf /bin/busybox /rootfs/bin/$applet; done \
+    && for applet in $SHELL_APPLETS; do ln -s /bin/busybox /rootfs/bin/$applet; done \
     && ln -s /etherpad-go /rootfs/app
 
 FROM scratch AS runtime
@@ -40,7 +43,7 @@ ENV NODE_ENV=production
 ENV ETHERPAD_SETTINGS_PATH=/
 # Named like in the README, and on PATH: `docker exec <container>
 # etherpad-go config show`, or a shell (busybox) with `docker exec -it
-# <container> sh` (busybox: sh, ls, cat, vi, wget, ...). /app stays as a link for deployments that start /app.
+# <container> sh` (busybox: sh, ls, cat, vi, ...). /app stays as a link for deployments that start /app.
 COPY --from=backend /app/app /etherpad-go
 COPY --from=busybox /rootfs /
 

@@ -414,6 +414,7 @@ jobs:
             test "$(etherpad-go config get port)" = 9001
             test "$(readlink /app)" = /etherpad-go
             ls / > /dev/null
+            ! command -v wget && ! command -v nc
           '
       - name: Create kind cluster
         run: |
