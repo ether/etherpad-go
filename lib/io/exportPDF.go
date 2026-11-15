@@ -397,14 +397,15 @@ func (e *ExportPDF) parseLineSegments(text string, aline string, padPool *apool.
 	return splitLinks(segments), info, nil
 }
 
-// fontColors are ep_font_color's colours.
+// fontColors are ep_font_color's colours: the CSS named colours its
+// stylesheet gives them (plugins/ep_font_color/static/css/color.css).
 var fontColors = map[string][3]uint8{
 	"black":  {0, 0, 0},
-	"red":    {220, 38, 38},
-	"green":  {22, 128, 61},
-	"blue":   {29, 78, 216},
-	"yellow": {202, 138, 4},
-	"orange": {234, 88, 12},
+	"red":    {255, 0, 0},
+	"green":  {0, 128, 0},
+	"blue":   {0, 0, 255},
+	"yellow": {255, 255, 0},
+	"orange": {255, 165, 0},
 }
 
 // splitLinks cuts the segments at the URLs in the line's text (found like

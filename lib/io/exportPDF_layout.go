@@ -29,8 +29,11 @@ type piece struct {
 // visualLine is what fits on one line of the page.
 type visualLine struct {
 	pieces []piece
-	width  float64
-	height float64 // the tallest piece's line height
+	width  float64 // with the trailing spaces, as drawn
+	// visible is width without the spaces at the end of the line: what
+	// fitting and alignment go by.
+	visible float64
+	height  float64 // the tallest piece's line height
 }
 
 type pdfRenderer struct {
@@ -88,6 +91,9 @@ func (r *pdfRenderer) layout(segments []textSegment, baseSize, firstWidth, width
 		} else {
 			l.pieces = append(l.pieces, piece{seg: seg, text: text, width: w, size: size})
 		}
+		if trimmed := strings.TrimRightFunc(text, unicode.IsSpace); trimmed != "" {
+			l.visible = l.width + r.measure(seg, size, trimmed)
+		}
 		l.width += w
 		if h := size * 1.5; h > l.height {
 			l.height = h
@@ -121,7 +127,8 @@ func (r *pdfRenderer) layout(segments []textSegment, baseSize, firstWidth, width
 			var part []rune
 			for _, ch := range []rune(tok) {
 				try := string(append(part, ch))
-				if len(part) > 0 && cur().width+r.measure(seg, size, try) > avail && !unicode.IsSpace(ch) {
+				fit := strings.TrimRightFunc(try, unicode.IsSpace)
+				if len(part) > 0 && cur().width+r.measure(seg, size, fit) > avail && !unicode.IsSpace(ch) {
 					add(seg, string(part), r.measure(seg, size, string(part)), size)
 					newLine()
 					part = part[:0]
@@ -224,9 +231,9 @@ func (r *pdfRenderer) paragraph(segments []textSegment, size float64, alignment 
 		x := textLeft
 		switch alignment {
 		case "center":
-			x = textLeft + (width-line.width)/2
+			x = textLeft + (width-line.visible)/2
 		case "right":
-			x = textLeft + width - line.width
+			x = textLeft + width - line.visible
 		}
 		if err := r.draw(line, x, y); err != nil {
 			return err
@@ -300,8 +307,9 @@ func (e *ExportPDF) renderFormattedText(pdf *gopdf.GoPdf, mono bool, retrievedPa
 		} else {
 			lastListType, lastListLevel = "", 0
 		}
-		if len(segments) == 0 {
-			// An empty line keeps its height.
+		if len(segments) == 0 && prefix == "" {
+			// An empty line keeps its height; an empty list item still
+			// gets its bullet or number (paragraph).
 			r.ensureSpace(lineHeight)
 			pdf.SetXY(marginLeft, pdf.GetY()+lineHeight)
 			continue

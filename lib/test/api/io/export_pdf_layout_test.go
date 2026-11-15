@@ -67,6 +67,7 @@ func testExportPdfLayout(t *testing.T, ds testutils.TestDataStore) {
 	lmkr := src.PutAttrib(apool.Attribute{Key: "lmkr", Value: "1"}, nil)
 	list := src.PutAttrib(apool.Attribute{Key: "list", Value: "bullet1"}, nil)
 	order := src.PutAttrib(apool.Attribute{Key: "insertorder", Value: "first"}, nil)
+	number := src.PutAttrib(apool.Attribute{Key: "list", Value: "number1"}, nil)
 
 	long := strings.TrimSpace(strings.Repeat("lorem ipsum dolor ", 40))
 	atext := buildAText([]pdfLine{
@@ -74,6 +75,9 @@ func testExportPdfLayout(t *testing.T, ds testutils.TestDataStore) {
 		{text: long},
 		{text: "monospaced", attribs: []int{mono}},
 		{text: "item " + long, marker: []int{lmkr, list, order}},
+		{text: "first", marker: []int{lmkr, number, order}},
+		{text: "", marker: []int{lmkr, number, order}},
+		{text: "third", marker: []int{lmkr, number, order}},
 	})
 
 	p, err := ds.PadManager.GetPad(padId, nil, nil)
@@ -124,6 +128,8 @@ func testExportPdfLayout(t *testing.T, ds testutils.TestDataStore) {
 	text := all.String()
 	assert.Equal(t, 2*strings.Count(long, "lorem"), strings.Count(text, "lorem"))
 	assert.Contains(t, text, "monospaced")
+	// The empty list item keeps its number.
+	assert.Regexp(t, `1\.\W*first\W*2\.\W*3\.\W*third`, text)
 	assert.Greater(t, len(lines), 10, "long lines wrap")
 
 	var monoFont bool

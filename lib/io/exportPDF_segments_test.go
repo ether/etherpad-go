@@ -1,9 +1,13 @@
 package io
 
 import (
+	"bytes"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/ether/etherpad-go/lib/apool"
+	"github.com/signintech/gopdf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -27,7 +31,7 @@ func TestParseLineSegmentsPluginAttributes(t *testing.T) {
 	assert.Equal(t, "big", segs[1].text)
 	assert.InDelta(t, 18.0, segs[1].size, 0.01) // 24px = 18pt
 	require.NotNil(t, segs[1].color)
-	assert.Equal(t, fontColors["red"], *segs[1].color)
+	assert.Equal(t, [3]uint8{255, 0, 0}, *segs[1].color) // CSS red, as in the pad
 
 	assert.Equal(t, " plain", segs[2].text)
 	assert.False(t, segs[2].mono)
@@ -60,4 +64,41 @@ func TestSplitLinks(t *testing.T) {
 	}
 	assert.Equal(t, "see https://example.com/x and www.etherpad.org.", text)
 	assert.Equal(t, []string{"https://example.com/x", "http://www.etherpad.org"}, links)
+}
+
+func testRenderer(t *testing.T) *pdfRenderer {
+	t.Helper()
+	pdf := &gopdf.GoPdf{}
+	pdf.Start(gopdf.Config{PageSize: *gopdf.PageSizeA4})
+	pdf.AddPage()
+	b, err := os.ReadFile("../../assets/font/Roboto-Regular.ttf")
+	require.NoError(t, err)
+	require.NoError(t, pdf.AddTTFFontByReader("Roboto", bytes.NewReader(b)))
+	return &pdfRenderer{pdf: pdf}
+}
+
+// Fitting and alignment go by a line's width without its trailing spaces:
+// a line never needs more than the available width, however many spaces
+// end it.
+func TestLayoutVisibleWidth(t *testing.T) {
+	r := testRenderer(t)
+	const avail = 200.0
+	text := strings.Repeat("word     ", 40) + "end"
+	lines := r.layout([]textSegment{{text: text}}, 12, avail, avail)
+	require.Greater(t, len(lines), 3)
+	var withSpaces int
+	for i, l := range lines {
+		assert.LessOrEqual(t, l.visible, avail, "line %d", i)
+		assert.LessOrEqual(t, l.visible, l.width, "line %d", i)
+		if l.width > l.visible {
+			withSpaces++
+		}
+	}
+	assert.Greater(t, withSpaces, 0, "lines end with their spaces")
+
+	// A word longer than the line, broken by characters, fits too.
+	lines = r.layout([]textSegment{{text: strings.Repeat("x", 300) + "   "}}, 12, avail, avail)
+	for i, l := range lines {
+		assert.LessOrEqual(t, l.visible, avail, "line %d", i)
+	}
 }
