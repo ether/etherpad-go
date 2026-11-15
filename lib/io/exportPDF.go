@@ -14,8 +14,6 @@ import (
 	"github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/changeset"
 	"github.com/ether/etherpad-go/lib/hooks"
-	"github.com/ether/etherpad-go/lib/hooks/events"
-	"github.com/ether/etherpad-go/lib/models/pad"
 	padLib "github.com/ether/etherpad-go/lib/pad"
 	"github.com/pdfcpu/pdfcpu/pkg/api"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/model"
@@ -67,6 +65,15 @@ type textSegment struct {
 	underline     bool
 	strikethrough bool
 	authorColor   string
+	// link is the target of a URL in the text (as the HTML export links it).
+	link string
+	// mono: ep_font_family's courier or monospace, set in RobotoMono. The
+	// other families are proprietary fonts the PDF cannot embed.
+	mono bool
+	// size is ep_font_size's point size; 0 means the line's size.
+	size float64
+	// color is ep_font_color's text colour; nil means black.
+	color *[3]uint8
 }
 
 type lineInfo struct {
@@ -95,11 +102,12 @@ func (e *ExportPDF) GetPadPdfDocument(padId string, optRevNum *int) ([]byte, err
 	pdf.Start(gopdf.Config{PageSize: *gopdf.PageSizeA4})
 	pdf.AddPage()
 
-	if err := e.loadFonts(&pdf); err != nil {
+	mono, err := e.loadFonts(&pdf)
+	if err != nil {
 		return nil, err
 	}
 
-	if err := e.renderFormattedText(&pdf, retrievedPad, atext); err != nil {
+	if err := e.renderFormattedText(&pdf, mono, retrievedPad, atext); err != nil {
 		return nil, err
 	}
 
@@ -170,13 +178,13 @@ func (e *ExportPDF) embedEtherpadData(pdfContent []byte, padId string, optRevNum
 	return outputPdf, nil
 }
 
-func (e *ExportPDF) loadFonts(pdf *gopdf.GoPdf) error {
+// loadFonts adds the fonts; mono reports whether RobotoMono is there.
+func (e *ExportPDF) loadFonts(pdf *gopdf.GoPdf) (mono bool, err error) {
 	regularPaths := []string{
 		"assets/font/Roboto-Regular.ttf",
 	}
 
 	var regularBytes []byte
-	var err error
 	for _, path := range regularPaths {
 		regularBytes, err = e.uiAssets.ReadFile(path)
 		if err == nil {
@@ -184,11 +192,11 @@ func (e *ExportPDF) loadFonts(pdf *gopdf.GoPdf) error {
 		}
 	}
 	if err != nil {
-		return fmt.Errorf("failed to read regular font file: %w", err)
+		return false, fmt.Errorf("failed to read regular font file: %w", err)
 	}
 	err = pdf.AddTTFFontByReader("Roboto", bytes.NewReader(regularBytes))
 	if err != nil {
-		return fmt.Errorf("failed to load regular font: %w", err)
+		return false, fmt.Errorf("failed to load regular font: %w", err)
 	}
 
 	boldPaths := []string{
@@ -203,196 +211,27 @@ func (e *ExportPDF) loadFonts(pdf *gopdf.GoPdf) error {
 		}
 	}
 	if err != nil {
-		return fmt.Errorf("failed to read bold font file: %w", err)
+		return false, fmt.Errorf("failed to read bold font file: %w", err)
 	}
 	err = pdf.AddTTFFontByReader("Roboto-Bold", bytes.NewReader(boldBytes))
 	if err != nil {
-		return fmt.Errorf("failed to load bold font: %w", err)
+		return false, fmt.Errorf("failed to load bold font: %w", err)
 	}
-
-	return nil
-}
-
-func (e *ExportPDF) renderFormattedText(pdf *gopdf.GoPdf, retrievedPad *pad.Pad, atext apool.AText) error {
-	padPool := retrievedPad.Pool
-	textLines := padLib.SplitRemoveLastRune(atext.Text)
-	attribLines, err := changeset.SplitAttributionLines(atext.Attribs, atext.Text)
-	if err != nil {
-		return err
-	}
-
-	authorColors := e.buildAuthorColorCache(&padPool)
-
-	pdf.SetX(marginLeft)
-	pdf.SetY(marginTop)
-
-	listCounters := make(map[int]int)
-	lastListType := ""
-	lastListLevel := 0
-
-	for i, lineText := range textLines {
-		var aline string
-		if i < len(attribLines) {
-			aline = attribLines[i]
-		}
-
-		segments, info, err := e.parseLineSegments(lineText, aline, &padPool, authorColors)
+	loaded := 0
+	for name, path := range map[string]string{"RobotoMono": "assets/font/RobotoMono-Regular.ttf", "RobotoMono-Bold": "assets/font/RobotoMono-Bold.ttf"} {
+		b, err := e.uiAssets.ReadFile(path)
 		if err != nil {
-			return err
-		}
-
-		// Call hook to allow plugins to modify the line
-		padId := retrievedPad.Id
-		hookContext := &events.LinePDFForExportContext{
-			Apool:      &padPool,
-			AttribLine: &aline,
-			Text:       &lineText,
-			PadId:      &padId,
-			Alignment:  nil,
-			Heading:    nil,
-		}
-		e.Hooks.ExecuteHooks("getLinePDFForExport", hookContext)
-
-		if hookContext.Alignment != nil {
-			info.alignment = *hookContext.Alignment
-		}
-
-		if hookContext.Heading != nil {
-			info.heading = *hookContext.Heading
-		}
-
-		// Handle heading
-		if info.heading != "" {
-			if err := e.renderHeading(pdf, segments, info); err != nil {
-				return err
-			}
+			// Not in every asset set (tests): monospace text falls back to
+			// Roboto.
 			continue
 		}
-
-		// Handle list prefix with proper numbering
-		if info.listType != "" {
-			indent := marginLeft + float64(info.level-1)*20.0
-			pdf.SetX(indent)
-
-			if err := pdf.SetFont("Roboto", "", fontSize); err != nil {
-				return err
-			}
-
-			if info.listType != lastListType || info.level != lastListLevel {
-				if info.listType == "number" {
-					if lastListType != "number" || info.level != lastListLevel {
-						listCounters[info.level] = 0
-					}
-				}
-			}
-
-			if info.listType == "bullet" {
-				pdf.Cell(nil, "• ")
-			} else if info.listType == "number" {
-				listCounters[info.level]++
-				pdf.Cell(nil, fmt.Sprintf("%d. ", listCounters[info.level]))
-			}
-
-			lastListType = info.listType
-			lastListLevel = info.level
-		} else {
-			lastListType = ""
-			lastListLevel = 0
-
-			if info.alignment != "" && info.alignment != "left" {
-				totalWidth := e.calculateTotalWidth(pdf, segments, fontSize)
-				availableWidth := pageWidth - marginLeft - marginRight
-				switch info.alignment {
-				case "center":
-					pdf.SetX(marginLeft + (availableWidth-totalWidth)/2)
-				case "right":
-					pdf.SetX(marginLeft + availableWidth - totalWidth)
-				default:
-					pdf.SetX(marginLeft)
-				}
-			} else {
-				pdf.SetX(marginLeft)
-			}
+		if err := pdf.AddTTFFontByReader(name, bytes.NewReader(b)); err != nil {
+			return false, fmt.Errorf("failed to load %s: %w", name, err)
 		}
-
-		for _, seg := range segments {
-			if err := e.renderSegment(pdf, seg, fontSize, lineHeight); err != nil {
-				return err
-			}
-		}
-
-		pdf.Br(lineHeight)
-		pdf.SetX(marginLeft)
-
-		if pdf.GetY() > pageHeight-marginBottom {
-			pdf.AddPage()
-			pdf.SetX(marginLeft)
-			pdf.SetY(marginTop)
-		}
+		loaded++
 	}
 
-	return nil
-}
-
-func (e *ExportPDF) renderHeading(pdf *gopdf.GoPdf, segments []textSegment, info lineInfo) error {
-	style, ok := headingStyles[info.heading]
-	if !ok {
-		style = headingStyles["h1"]
-	}
-
-	// Add top margin
-	pdf.SetY(pdf.GetY() + style.marginTop)
-
-	// Check for page break
-	if pdf.GetY() > pageHeight-marginBottom-style.lineHeight {
-		pdf.AddPage()
-		pdf.SetX(marginLeft)
-		pdf.SetY(marginTop)
-	}
-
-	// Calculate alignment
-	if info.alignment != "" && info.alignment != "left" {
-		totalWidth := e.calculateTotalWidth(pdf, segments, style.fontSize)
-		availableWidth := pageWidth - marginLeft - marginRight
-		switch info.alignment {
-		case "center":
-			pdf.SetX(marginLeft + (availableWidth-totalWidth)/2)
-		case "right":
-			pdf.SetX(marginLeft + availableWidth - totalWidth)
-		default:
-			pdf.SetX(marginLeft)
-		}
-	} else {
-		pdf.SetX(marginLeft)
-	}
-
-	// Render segments with heading style
-	for _, seg := range segments {
-		// Force bold for headings
-		seg.bold = style.bold || seg.bold
-		if err := e.renderSegment(pdf, seg, style.fontSize, style.lineHeight); err != nil {
-			return err
-		}
-	}
-
-	pdf.Br(style.lineHeight + style.marginBottom)
-	pdf.SetX(marginLeft)
-
-	return nil
-}
-
-func (e *ExportPDF) calculateTotalWidth(pdf *gopdf.GoPdf, segments []textSegment, size float64) float64 {
-	totalWidth := 0.0
-	for _, seg := range segments {
-		fontName := "Roboto"
-		if seg.bold {
-			fontName = "Roboto-Bold"
-		}
-		pdf.SetFont(fontName, "", size)
-		w, _ := pdf.MeasureTextWidth(seg.text)
-		totalWidth += w
-	}
-	return totalWidth
+	return loaded == 2, nil
 }
 
 func (e *ExportPDF) buildAuthorColorCache(padPool *apool.APool) map[string]string {
@@ -479,7 +318,7 @@ func (e *ExportPDF) parseLineSegments(text string, aline string, padPool *apool.
 		if text != "" {
 			segments = append(segments, textSegment{text: text})
 		}
-		return segments, info, nil
+		return splitLinks(segments), info, nil
 	}
 
 	ops, err := changeset.DeserializeOps(aline)
@@ -530,6 +369,22 @@ func (e *ExportPDF) parseLineSegments(text string, aline string, padPool *apool.
 				seg.authorColor = color
 			}
 		}
+		if family := attribs.Get("font-family"); family != nil {
+			switch strings.ToLower(*family) {
+			case "courier", "monospace":
+				seg.mono = true
+			}
+		}
+		if size := attribs.Get("font-size"); size != nil {
+			if px, err := strconv.ParseFloat(strings.TrimSuffix(*size, "px"), 64); err == nil && px >= 4 && px <= 96 {
+				seg.size = px * 0.75 // CSS px to pt
+			}
+		}
+		if c := attribs.Get("color"); c != nil {
+			if rgb, ok := fontColors[strings.ToLower(*c)]; ok {
+				seg.color = &rgb
+			}
+		}
 
 		segments = append(segments, seg)
 		pos = endPos
@@ -539,7 +394,72 @@ func (e *ExportPDF) parseLineSegments(text string, aline string, padPool *apool.
 		segments = append(segments, textSegment{text: string(textRunes[pos:])})
 	}
 
-	return segments, info, nil
+	return splitLinks(segments), info, nil
+}
+
+// fontColors are ep_font_color's colours.
+var fontColors = map[string][3]uint8{
+	"black":  {0, 0, 0},
+	"red":    {220, 38, 38},
+	"green":  {22, 128, 61},
+	"blue":   {29, 78, 216},
+	"yellow": {202, 138, 4},
+	"orange": {234, 88, 12},
+}
+
+// splitLinks cuts the segments at the URLs in the line's text (found like
+// the HTML export finds them) and marks the URL parts as links.
+func splitLinks(segments []textSegment) []textSegment {
+	var full strings.Builder
+	for _, seg := range segments {
+		full.WriteString(seg.text)
+	}
+	urls := findURLs(full.String())
+	if len(urls) == 0 {
+		return segments
+	}
+	type span struct {
+		start, end int
+		href       string
+	}
+	spans := make([]span, 0, len(urls))
+	for _, u := range urls {
+		href := u.url
+		if strings.HasPrefix(strings.ToLower(href), "www.") {
+			href = "http://" + href
+		}
+		spans = append(spans, span{u.start, u.start + len([]rune(u.url)), href})
+	}
+	var out []textSegment
+	pos := 0
+	for _, seg := range segments {
+		runes := []rune(seg.text)
+		segStart, segEnd := pos, pos+len(runes)
+		cut := segStart
+		for _, sp := range spans {
+			if sp.end <= cut || sp.start >= segEnd {
+				continue
+			}
+			from, to := max(sp.start, cut), min(sp.end, segEnd)
+			if from > cut {
+				part := seg
+				part.text = string(runes[cut-segStart : from-segStart])
+				out = append(out, part)
+			}
+			part := seg
+			part.text = string(runes[from-segStart : to-segStart])
+			part.link = sp.href
+			out = append(out, part)
+			cut = to
+		}
+		if cut < segEnd {
+			part := seg
+			part.text = string(runes[cut-segStart:])
+			out = append(out, part)
+		}
+		pos = segEnd
+	}
+	return out
 }
 
 func parseHexColor(hex string) (r, g, b uint8, err error) {
@@ -562,44 +482,4 @@ func parseHexColor(hex string) (r, g, b uint8, err error) {
 	}
 
 	return uint8(rVal), uint8(gVal), uint8(bVal), nil
-}
-
-func (e *ExportPDF) renderSegment(pdf *gopdf.GoPdf, seg textSegment, size float64, height float64) error {
-	fontName := "Roboto"
-	if seg.bold {
-		fontName = "Roboto-Bold"
-	}
-
-	if err := pdf.SetFont(fontName, "", size); err != nil {
-		return err
-	}
-
-	startX := pdf.GetX()
-	startY := pdf.GetY()
-
-	textWidth, _ := pdf.MeasureTextWidth(seg.text)
-	endX := startX + textWidth
-
-	if seg.authorColor != "" {
-		r, g, b, err := parseHexColor(seg.authorColor)
-		if err == nil {
-			pdf.SetFillColor(r, g, b)
-			pdf.Rectangle(startX, startY, endX, startY+height-4, "F", 0, 0)
-		}
-	}
-
-	pdf.SetTextColor(0, 0, 0)
-	pdf.SetStrokeColor(0, 0, 0)
-
-	pdf.Cell(nil, seg.text)
-
-	if seg.underline {
-		pdf.Line(startX, startY+size-1, endX, startY+size-1)
-	}
-
-	if seg.strikethrough {
-		pdf.Line(startX, startY+size/2-1, endX, startY+size/2-1)
-	}
-
-	return nil
 }
