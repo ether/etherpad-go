@@ -406,6 +406,15 @@ jobs:
       - name: Build image
         # The release image (see the docker job), not a test build.
         run: docker build -f Dockerfile.build -t etherpad-go:k8s-test .
+      - name: The image's command line works (issue 413)
+        run: |
+          docker run --rm --entrypoint sh etherpad-go:k8s-test -c '
+            set -e
+            etherpad-go --help
+            test "$(etherpad-go config get port)" = 9001
+            test "$(readlink /app)" = /etherpad-go
+            ls / > /dev/null
+          '
       - name: Create kind cluster
         run: |
           go install sigs.k8s.io/kind@v0.33.0
