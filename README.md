@@ -156,15 +156,27 @@ docker exec etherpad_go etherpad-go config get port
 ### Files and the user in the image
 
 The server runs as the unprivileged user `65532`. It writes to two directories, which belong to
-that user:
+that user in the image:
 
 | Directory | What | Mount a volume here for |
 |---|---|---|
 | `/var` | the SQLite database (`var/etherpad.db`, the default) and the update state | SQLite |
-| `/data` | `settings.json` (`ETHERPAD_SETTINGS_PATH=/data`), also as saved in the admin UI | settings |
+| `/data` | `settings.json` (`ETHERPAD_SETTINGS_FILE=/data/settings.json`), also as saved in the admin UI | settings |
 
-A `settings.json` mounted at `/settings.json` is still read, as long as there is none in `/data`.
-Settings saved in the admin UI go to `/data/settings.json`, which is then the one read.
+The ownership in the image only covers the directories themselves and a named Docker volume
+created from them. **A host directory you bind-mount at `/var` or `/data` keeps its own owner**
+and must be writable for `65532`, or the server cannot open SQLite or save settings from the
+admin UI:
+
+```sh
+sudo chown -R 65532:65532 ./etherpad-data
+```
+
+A `settings.json` mounted at `/settings.json` is still read, as long as `/data/settings.json` does
+not exist. Settings saved in the admin UI go to `/data/settings.json`, which is then the one read.
+`/APIKEY.txt` and relative favicon paths are still looked up in `/`. If a settings file exists
+but cannot be read (no permission), the server does not start rather than fall back to the
+defaults.
 
 Upgrading from an image that ran as root: a volume on `/var` belongs to root, and the server
 stops with `attempt to write a readonly database`. Hand it over once:

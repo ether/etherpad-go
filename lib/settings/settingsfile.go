@@ -1,33 +1,52 @@
 package settings
 
 import (
+	"errors"
+	"fmt"
 	"os"
-	"path/filepath"
 )
 
-// SettingsPathEnv names the directory of settings.json (the Docker image
-// sets /data, which its user can write).
-const SettingsPathEnv = "ETHERPAD_SETTINGS_PATH"
+const (
+	// SettingsPathEnv is the server's root: assets, APIKEY.txt and relative
+	// favicon paths are looked up there.
+	SettingsPathEnv = "ETHERPAD_SETTINGS_PATH"
+	// SettingsFileEnv is the settings.json to read and to save from the
+	// admin UI (the Docker image: /data/settings.json, which its
+	// unprivileged user can write). Unset: settings.json in the working
+	// directory.
+	SettingsFileEnv = "ETHERPAD_SETTINGS_FILE"
+)
 
-// SettingsFile is the settings.json read for dir (ETHERPAD_SETTINGS_PATH,
-// or the server's root in the admin UI): the one in dir when dir holds
-// one, otherwise settings.json in the working directory (a file mounted
-// there keeps working).
-func SettingsFile(dir string) string {
-	if dir != "" {
-		p := filepath.Join(dir, "settings.json")
-		if _, err := os.Stat(p); err == nil {
-			return p
+const workingDirSettings = "settings.json"
+
+// settingsFiles are the settings.json the server reads ("" when there is
+// none) and the one the admin UI saves to. Reading and saving go by the
+// same rule:
+//
+//   - ETHERPAD_SETTINGS_FILE set: that file; while it does not exist yet,
+//     settings.json in the working directory is read (a file mounted at
+//     /settings.json keeps working) and the first save creates it;
+//   - otherwise settings.json in the working directory, for both.
+//
+// Only a missing file counts as missing: any other error (no permission,
+// say) is returned, so the server does not start on defaults, without the
+// authentication its settings ask for.
+func settingsFiles() (read, save string, err error) {
+	save = workingDirSettings
+	if f := os.Getenv(SettingsFileEnv); f != "" {
+		save = f
+	}
+	for _, candidate := range []string{save, workingDirSettings} {
+		_, statErr := os.Stat(candidate)
+		if statErr == nil {
+			return candidate, save, nil
+		}
+		if !errors.Is(statErr, os.ErrNotExist) {
+			return "", save, fmt.Errorf("settings file %s: %w", candidate, statErr)
+		}
+		if candidate == workingDirSettings {
+			break
 		}
 	}
-	return "settings.json"
-}
-
-// SettingsWriteFile is where the admin UI saves settings.json for dir: in
-// dir (SettingsFile then reads it from there), or the working directory.
-func SettingsWriteFile(dir string) string {
-	if dir != "" {
-		return filepath.Join(dir, "settings.json")
-	}
-	return "settings.json"
+	return "", save, nil
 }

@@ -18,14 +18,14 @@ func HandleConfigCommand(logger *zap.SugaredLogger) {
 	ApplyRegistryDefaults()
 	switch os.Args[2] {
 	case "show":
-		InitSettings(logger)
+		readConfigForCLI()
 		configShow()
 	case "dump":
 		configDump()
 	case "env":
 		configEnv()
 	case "get":
-		InitSettings(logger)
+		readConfigForCLI()
 		configGet(os.Args[3:])
 	case "init":
 		configInit()
@@ -35,6 +35,15 @@ func HandleConfigCommand(logger *zap.SugaredLogger) {
 		os.Exit(1)
 	}
 	os.Exit(0)
+}
+
+// readConfigForCLI loads the settings like the server, without its setup
+// (no database directory is created).
+func readConfigForCLI() {
+	if _, err := ReadConfig(); err != nil {
+		fmt.Fprintln(os.Stderr, "Error reading the config:", err)
+		os.Exit(1)
+	}
 }
 
 func configShow() {

@@ -75,7 +75,13 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 			if !retrievedSettings.ShowSettingsInAdminPage {
 				resp[1] = map[string]interface{}{"results": "NOT_ALLOWED"}
 			} else {
-				raw, err := os.ReadFile(settings.SettingsFile(retrievedSettings.Root))
+				// The file the server started with, or the one a save
+				// creates when there was none.
+				file := retrievedSettings.SettingsFile
+				if file == "" {
+					file = retrievedSettings.SettingsSaveFile
+				}
+				raw, err := os.ReadFile(file)
 				if err != nil && !os.IsNotExist(err) {
 					h.Logger.Errorf("Reading the settings file: %v", err)
 				}
@@ -535,7 +541,10 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 				c.SafeSend(responseBytes)
 				return
 			}
-			settingsPath := settings.SettingsWriteFile(retrievedSettings.Root)
+			settingsPath := retrievedSettings.SettingsSaveFile
+			if settingsPath == "" {
+				settingsPath = "settings.json"
+			}
 			if err := writeFileAtomic(settingsPath, []byte(settingsJSON)); err != nil {
 				h.Logger.Errorf("Error saving settings: %v", err)
 				resp := make([]interface{}, 2)

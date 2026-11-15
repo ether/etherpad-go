@@ -43,10 +43,13 @@ EXPOSE 3000
 ENV NODE_ENV=production
 # The server runs as an unprivileged user. It writes to /var (the SQLite
 # database var/etherpad.db and the update state) and to /data (settings.json
-# saved in the admin UI); both belong to that user. A volume on /var from
-# an image before this one belongs to root; hand it over once with
+# saved in the admin UI); both belong to that user in the image. A volume
+# or host directory mounted there must be writable for 65532: one from an
+# image before this one belongs to root; hand it over once with
 # docker run --rm -v <volume>:/var alpine chown -R 65532:65532 /var
-ENV ETHERPAD_SETTINGS_PATH=/data
+# The root (assets, /APIKEY.txt, relative favicon paths) stays /.
+ENV ETHERPAD_SETTINGS_PATH=/
+ENV ETHERPAD_SETTINGS_FILE=/data/settings.json
 # Named like in the README, and on PATH: `docker exec <container>
 # etherpad-go config show`, or a shell (busybox) with `docker exec -it
 # <container> sh` (busybox: sh, ls, cat, vi, ...). /app stays as a link for deployments that start /app.

@@ -433,7 +433,11 @@ type Settings struct {
 	Plugins map[string]PluginSettings `json:"plugins" mapstructure:"plugins"`
 
 	// Untracked fields
-	Root                string `json:"-"`
+	Root string `json:"-"`
+	// SettingsFile is the settings.json read at start ("" for none) and
+	// SettingsSaveFile the one the admin UI saves to (settingsFiles).
+	SettingsFile        string `json:"-" mapstructure:"-"`
+	SettingsSaveFile    string `json:"-" mapstructure:"-"`
 	GitVersion          string `json:"-"`
 	RandomVersionString string `json:"-"`
 }
@@ -515,7 +519,8 @@ func InitSettings(logger *zap.SugaredLogger) {
 
 	setting, err := ReadConfig()
 	if err != nil {
-		logger.Errorf("Error during reading the config " + err.Error())
+		// Never start on defaults instead: they do not require a login.
+		logger.Fatalf("Error during reading the config: %v", err)
 		return
 	}
 
