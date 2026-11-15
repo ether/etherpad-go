@@ -415,6 +415,9 @@ jobs:
             test "$(readlink /app)" = /etherpad-go
             ls / > /dev/null
             ! command -v wget && ! command -v nc
+            test "$(id -u)" = 65532
+            touch /var/probe /data/probe
+            ! touch /probe 2>/dev/null
           '
       - name: Create kind cluster
         run: |

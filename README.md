@@ -74,13 +74,7 @@ Get a specific configuration value:
 ./etherpad-go config get <key>
 ```
 
-In the Docker image the binary is `etherpad-go` on the `PATH`, and the image has a small shell
-(busybox):
-
-```bash
-docker exec <container> etherpad-go config show
-docker exec -it <container> sh
-```
+In the Docker image the same commands work through `docker exec` (see [Docker](#docker)).
 
 For customization, copy:
 
@@ -145,18 +139,41 @@ Prebuilt images are available via GitHub Container Registry:
 ghcr.io/ether/etherpad-go:<version>
 ```
 
-To open a shell in a running container:
+To open a shell in a running container (busybox: `ls`, `cat`, `less`, `grep`, `vi`, …, no
+network tools):
 
 ```sh
-docker exec -it etherpad_go /bin/sh
+docker exec -it etherpad_go sh
 ```
 
-The configuration CLI is available in the same image:
+The configuration CLI is the image's `etherpad-go`, on the `PATH`:
 
 ```sh
-docker exec etherpad_go /app config show
-docker exec etherpad_go /app config get port
+docker exec etherpad_go etherpad-go config show
+docker exec etherpad_go etherpad-go config get port
 ```
+
+### Files and the user in the image
+
+The server runs as the unprivileged user `65532`. It writes to two directories, which belong to
+that user:
+
+| Directory | What | Mount a volume here for |
+|---|---|---|
+| `/var` | the SQLite database (`var/etherpad.db`, the default) and the update state | SQLite |
+| `/data` | `settings.json` (`ETHERPAD_SETTINGS_PATH=/data`), also as saved in the admin UI | settings |
+
+A `settings.json` mounted at `/settings.json` is still read, as long as there is none in `/data`.
+Settings saved in the admin UI go to `/data/settings.json`, which is then the one read.
+
+Upgrading from an image that ran as root: a volume on `/var` belongs to root, and the server
+stops with `attempt to write a readonly database`. Hand it over once:
+
+```sh
+docker run --rm -v <volume>:/var alpine chown -R 65532:65532 /var
+```
+
+With Postgres or MySQL and no volume, nothing changes.
 
 ### Several instances / Kubernetes
 

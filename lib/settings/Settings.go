@@ -490,7 +490,7 @@ type Options struct {
 func InitSettings(logger *zap.SugaredLogger) {
 	var pathToRoot string
 
-	var envPathToSettings = os.Getenv("ETHERPAD_SETTINGS_PATH")
+	var envPathToSettings = os.Getenv(SettingsPathEnv)
 	if envPathToSettings != "" {
 		pathToRoot = envPathToSettings
 	}

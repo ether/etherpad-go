@@ -23,10 +23,11 @@ func ReadConfig() (*Settings, error) {
 	viper.SetConfigType("json")
 	// settings.json may hold comments, trailing commas and ${VAR:default}
 	// values, like etherpad-lite's; viper reads plain JSON.
-	if raw, err := os.ReadFile("settings.json"); err == nil {
+	file := SettingsFile(os.Getenv(SettingsPathEnv))
+	if raw, err := os.ReadFile(file); err == nil {
 		prepared, err := PrepareSettingsJSON(raw)
 		if err != nil {
-			return nil, fmt.Errorf("settings.json: %w", err)
+			return nil, fmt.Errorf("%s: %w", file, err)
 		}
 		if err := viper.ReadConfig(bytes.NewReader(prepared)); err != nil {
 			return nil, err

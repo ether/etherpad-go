@@ -25,6 +25,7 @@ func HandleConfigCommand(logger *zap.SugaredLogger) {
 	case "env":
 		configEnv()
 	case "get":
+		InitSettings(logger)
 		configGet(os.Args[3:])
 	case "init":
 		configInit()
