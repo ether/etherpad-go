@@ -74,6 +74,14 @@ Get a specific configuration value:
 ./etherpad-go config get <key>
 ```
 
+In the Docker image the binary is `etherpad-go` on the `PATH`, and the image has a small shell
+(busybox):
+
+```bash
+docker exec <container> etherpad-go config show
+docker exec -it <container> sh
+```
+
 For customization, copy:
 
 ```text
