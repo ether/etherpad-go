@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http/httptest"
+	"sync"
 	"testing"
 
 	"github.com/ether/etherpad-go/lib/api/stats"
@@ -22,10 +23,6 @@ func TestAdminMessageHandlerAllMethods(t *testing.T) {
 		testutils.TestRunConfig{
 			Name: "Metrics Endpoint Exists",
 			Test: testMetricsEndpointExists,
-		},
-		testutils.TestRunConfig{
-			Name: "scalingDiveMetrics adds the load-test instruments",
-			Test: testScalingDiveMetrics,
 		},
 		testutils.TestRunConfig{
 			Name: "Health Endpoint Exists",
@@ -97,7 +94,25 @@ func metricsBody(t *testing.T, testDb testutils.TestDataStore) string {
 	return string(b)
 }
 
+// The load-test instruments are switched on and off process-wide by
+// stats.Init. The other tests of this package call stats.Init in parallel,
+// each switching them to its own settings, so this one runs on its own: a
+// test of its own (top-level tests run one after the other), and its
+// database variants one at a time.
+func TestScalingDiveMetrics(t *testing.T) {
+	testDb := testutils.NewTestDBHandler(t)
+	defer testDb.StartTestDBHandler()
+	testDb.AddTests(testutils.TestRunConfig{
+		Name: "scalingDiveMetrics adds the load-test instruments",
+		Test: testScalingDiveMetrics,
+	})
+}
+
+var scalingMetricsMu sync.Mutex
+
 func testScalingDiveMetrics(t *testing.T, testDb testutils.TestDataStore) {
+	scalingMetricsMu.Lock()
+	t.Cleanup(scalingMetricsMu.Unlock) // registered first, so it runs last
 	stats.Init(testDb.ToInitStore())
 	metrics.RecordSocketEmit("NEW_CHANGES")
 	require.NotContains(t, metricsBody(t, testDb), "etherpad_socket_emits_total", "off by default")

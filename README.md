@@ -107,6 +107,26 @@ and `/manifest.json` then stay under the prefix. Pages that carry the prefix ans
 
 ---
 
+## Compacting pad history
+
+Long-lived pads collect revisions. `etherpad-go compact` collapses a pad's history (or keeps its
+last revisions) through the HTTP API of the running server, like etherpad-lite's
+`bin/compactPad`, `bin/compactAllPads` and `bin/compactStalePads`. It needs `cleanup.enabled = true`
+in the settings and an API key from the admin page. It is destructive: export what you cannot lose
+as `.etherpad` first.
+
+```bash
+export ETHERPAD_API_KEY=...                 # or --apikey
+etherpad-go compact myPad                   # collapse all history of one pad
+etherpad-go compact myPad --keep 50         # keep the last 50 revisions
+etherpad-go compact --all --dry-run         # list every pad and its revisions, change nothing
+etherpad-go compact --older-than 90         # pads not edited for 90 days
+```
+
+The server's address comes from `--url`, `ETHERPAD_URL` or the settings (`http://<ip>:<port>`).
+A pad that fails does not stop the run; the exit code is 1 when one did. In Docker:
+`docker exec -e ETHERPAD_API_KEY=... <container> etherpad-go compact --all`.
+
 ## Docker
 
 You can run Etherpad-Go using Docker.

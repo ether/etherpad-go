@@ -89,6 +89,23 @@
   "abiword": null,
   "soffice": null,
   "allowUnknownFileEnds": true,
+  /*
+   * Fonts of the PDF export. Without this, a font family of the pad
+   * (ep_font_family) is set in the embedded font of its kind: Liberation
+   * Sans (Arial, Helvetica, ...), Liberation Serif (Times New Roman,
+   * Garamond, ...) or Liberation Mono (Courier, ...). Give font files for a
+   * family to use the real face; relative paths are relative to Etherpad's
+   * root. A missing face uses the regular file; a file that cannot be read
+   * falls back to "fallback" (sans-serif, serif or monospace).
+   *
+   * "exportPdfFonts": {
+   *   "Garamond": "fonts/EBGaramond-Regular.ttf",
+   *   "Arial": {"regular": "/usr/share/fonts/arial.ttf", "bold": "/usr/share/fonts/arialbd.ttf",
+   *             "italic": "/usr/share/fonts/ariali.ttf", "boldItalic": "/usr/share/fonts/arialbi.ttf",
+   *             "fallback": "sans-serif"}
+   * },
+   */
+  "exportPdfFonts": {},
   "requireAuthentication": false,
   "requireAuthorization": false,
   "trustProxy": false,

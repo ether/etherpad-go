@@ -8,6 +8,7 @@ import (
 	"github.com/ether/etherpad-go/lib/apool"
 	"github.com/ether/etherpad-go/lib/changeset"
 	"github.com/ether/etherpad-go/lib/hooks/events"
+	"github.com/ether/etherpad-go/lib/io/pdffonts"
 	"github.com/ether/etherpad-go/lib/models/pad"
 	padLib "github.com/ether/etherpad-go/lib/pad"
 	"github.com/signintech/gopdf"
@@ -37,17 +38,17 @@ type visualLine struct {
 }
 
 type pdfRenderer struct {
-	pdf  *gopdf.GoPdf
-	mono bool
+	pdf   *gopdf.GoPdf
+	fonts *pdfFonts
 }
 
+// fontFor returns the font of a segment: its family's face for its bold
+// and italic, registered on first use.
 func (r *pdfRenderer) fontFor(seg textSegment) string {
-	name := "Roboto"
-	if seg.mono && r.mono {
-		name = "RobotoMono"
-	}
-	if seg.bold {
-		name += "-Bold"
+	name, err := r.fonts.fontFor(seg.family, pdffonts.VariantOf(seg.bold, seg.italic))
+	if err != nil {
+		r.fonts.warn("PDF export: font for %q: %v", seg.family, err)
+		name, _ = r.fonts.builtin(pdffonts.Sans, pdffonts.Regular)
 	}
 	return name
 }
@@ -220,7 +221,7 @@ func (r *pdfRenderer) paragraph(segments []textSegment, size float64, alignment 
 		r.ensureSpace(line.height)
 		y := r.pdf.GetY()
 		if i == 0 && prefix != "" {
-			if err := r.pdf.SetFont("Roboto", "", size); err != nil {
+			if err := r.pdf.SetFont(r.fontFor(textSegment{}), "", size); err != nil {
 				return err
 			}
 			r.pdf.SetXY(marginLeft+indent, y+line.height-size*1.5)
@@ -243,8 +244,8 @@ func (r *pdfRenderer) paragraph(segments []textSegment, size float64, alignment 
 	return nil
 }
 
-func (e *ExportPDF) renderFormattedText(pdf *gopdf.GoPdf, mono bool, retrievedPad *pad.Pad, atext apool.AText) error {
-	r := &pdfRenderer{pdf: pdf, mono: mono}
+func (e *ExportPDF) renderFormattedText(pdf *gopdf.GoPdf, fonts *pdfFonts, retrievedPad *pad.Pad, atext apool.AText) error {
+	r := &pdfRenderer{pdf: pdf, fonts: fonts}
 	padPool := retrievedPad.Pool
 	textLines := padLib.SplitRemoveLastRune(atext.Text)
 	attribLines, err := changeset.SplitAttributionLines(atext.Attribs, atext.Text)

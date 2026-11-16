@@ -68,12 +68,16 @@ func testExportPdfLayout(t *testing.T, ds testutils.TestDataStore) {
 	list := src.PutAttrib(apool.Attribute{Key: "list", Value: "bullet1"}, nil)
 	order := src.PutAttrib(apool.Attribute{Key: "insertorder", Value: "first"}, nil)
 	number := src.PutAttrib(apool.Attribute{Key: "list", Value: "number1"}, nil)
+	italic := src.PutAttrib(apool.Attribute{Key: "italic", Value: "true"}, nil)
+	garamond := src.PutAttrib(apool.Attribute{Key: "font-family", Value: "garamond"}, nil)
 
 	long := strings.TrimSpace(strings.Repeat("lorem ipsum dolor ", 40))
 	atext := buildAText([]pdfLine{
 		{text: "Visit https://example.com/x now"},
 		{text: long},
 		{text: "monospaced", attribs: []int{mono}},
+		{text: "slanted", attribs: []int{italic}},
+		{text: "bookish", attribs: []int{garamond}},
 		{text: "item " + long, marker: []int{lmkr, list, order}},
 		{text: "first", marker: []int{lmkr, number, order}},
 		{text: "", marker: []int{lmkr, number, order}},
@@ -150,9 +154,17 @@ func testExportPdfLayout(t *testing.T, ds testutils.TestDataStore) {
 
 	var monoFont bool
 	for f := range fonts {
-		if strings.Contains(f, "Mono") {
+		if strings.Contains(f, "LiberationMono") {
 			monoFont = true
 		}
 	}
-	assert.True(t, monoFont, "monospace text uses RobotoMono, fonts: %v", fonts)
+	assert.True(t, monoFont, "monospace text uses Liberation Mono, fonts: %v", fonts)
+	// Italic text has a real italic face; Garamond is set in the serif one.
+	var italicFont, serifFont bool
+	for f := range fonts {
+		italicFont = italicFont || strings.Contains(f, "LiberationSans-Italic")
+		serifFont = serifFont || strings.Contains(f, "LiberationSerif")
+	}
+	assert.True(t, italicFont, "italic text uses an italic face, fonts: %v", fonts)
+	assert.True(t, serifFont, "garamond uses the serif face, fonts: %v", fonts)
 }
