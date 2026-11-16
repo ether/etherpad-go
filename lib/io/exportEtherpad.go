@@ -153,14 +153,16 @@ func (e *ExportEtherpad) GetPadRaw(padId string, readOnlyId *string, revNum *int
 		export.Pad[strings.TrimSuffix(dstPfx, ":")] = record
 	}
 
-	authors := make(map[string]*author.Author)
-
 	for _, authorId := range retrievedPad.GetAllAuthors() {
 		retrievedAuthor, err := e.AuthorManager.GetAuthor(authorId)
 		if err != nil {
+			// The pool names an author without a record: left out, as
+			// etherpad-lite does. The pad's text and history still go.
+			if err.Error() == db.AuthorNotFoundError {
+				continue
+			}
 			return nil, err
 		}
-		authors[authorId] = retrievedAuthor
 		export.Authors["globalAuthor:"+authorId] = GlobalAuthor{
 			ColorId:   retrievedAuthor.ColorId,
 			Name:      retrievedAuthor.Name,
@@ -169,14 +171,15 @@ func (e *ExportEtherpad) GetPadRaw(padId string, readOnlyId *string, revNum *int
 		}
 	}
 
+	// A chat message's author may never have typed in the pad (not in the
+	// pool) or may be erased (no author id): its name comes with the message.
 	for _, chatMessage := range *chatMessages {
-		authorOfChat := authors[*chatMessage.ChatMessageDB.AuthorId]
 		export.Chats[fmt.Sprintf("%schat:%d", dstPfx, chatMessage.Head)] = ChatMessage{
 			Text:     chatMessage.ChatMessageDB.Message,
 			Time:     chatMessage.Time,
 			AuthorId: chatMessage.ChatMessageDB.AuthorId,
 			UserId:   chatMessage.ChatMessageDB.AuthorId,
-			UserName: authorOfChat.Name,
+			UserName: chatMessage.DisplayName,
 		}
 	}
 

@@ -45,6 +45,7 @@ func (p *Pad) ReplaceContent(target apool.AText, srcPool *apool.APool, authorId 
 	}
 	bodyLen := utils.RuneCount(target.Text) - 1
 	pos := 0
+	usesSystemAuthor := false
 	for _, op := range *ops {
 		start, end := pos, min(pos+op.Chars, bodyLen)
 		pos += op.Chars
@@ -57,6 +58,7 @@ func (p *Pad) ReplaceContent(target apool.AText, srcPool *apool.APool, authorId 
 		}
 		if v := attribs.Get("author"); v == nil || *v == "" {
 			attribs.Set("author", fallbackAuthor)
+			usesSystemAuthor = usesSystemAuthor || fallbackAuthor == SystemAuthorId
 		}
 		builder.Insert(utils.RuneSlice(target.Text, start, end), changeset.AttribsString(attribs.String()), nil)
 	}
@@ -68,6 +70,14 @@ func (p *Pad) ReplaceContent(target apool.AText, srcPool *apool.APool, authorId 
 		builder.Remove(utils.RuneCount(oldBody[lastNL+1:]), 0)
 	} else {
 		builder.Remove(utils.RuneCount(oldBody), 0)
+	}
+
+	// Text attributed to the system author must resolve to an author like
+	// any other (loading the pad, exporting it), so its record must exist.
+	if usesSystemAuthor {
+		if err := p.ensureSystemAuthor(); err != nil {
+			return nil, err
+		}
 	}
 
 	// The revision's author is whoever asked for it; without one the
