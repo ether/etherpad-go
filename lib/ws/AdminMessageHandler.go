@@ -75,7 +75,9 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 			if !retrievedSettings.ShowSettingsInAdminPage {
 				resp[1] = map[string]interface{}{"results": "NOT_ALLOWED"}
 			} else {
-				raw, err := os.ReadFile(settingsFilePath(retrievedSettings))
+				// The file saves go to, as the next start reads it; while
+				// none was saved, the file the server started with.
+				raw, err := readSettingsForAdmin(retrievedSettings)
 				if err != nil && !os.IsNotExist(err) {
 					h.Logger.Errorf("Reading the settings file: %v", err)
 				}
@@ -535,7 +537,10 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 				c.SafeSend(responseBytes)
 				return
 			}
-			settingsPath := settingsFilePath(retrievedSettings)
+			settingsPath := retrievedSettings.SettingsSaveFile
+			if settingsPath == "" {
+				settingsPath = "settings.json"
+			}
 			if err := writeFileAtomic(settingsPath, []byte(settingsJSON)); err != nil {
 				h.Logger.Errorf("Error saving settings: %v", err)
 				resp := make([]interface{}, 2)
@@ -1033,11 +1038,21 @@ func (h AdminMessageHandler) compactDamagedPad(padId string, missing []int, late
 	return repaired.Check()
 }
 
-func settingsFilePath(s *settings.Settings) string {
-	if s.Root != "" {
-		return s.Root + "/settings.json"
+// readSettingsForAdmin reads the save file, or, while it does not exist,
+// the file the server started with (a settings.json mounted at
+// /settings.json before the first save to /data/settings.json). Same order
+// as the next start, so a reload after a save shows what was saved.
+func readSettingsForAdmin(s *settings.Settings) ([]byte, error) {
+	if s.SettingsSaveFile != "" {
+		raw, err := os.ReadFile(s.SettingsSaveFile)
+		if err == nil || !os.IsNotExist(err) || s.SettingsFile == "" || s.SettingsFile == s.SettingsSaveFile {
+			return raw, err
+		}
 	}
-	return "settings.json"
+	if s.SettingsFile == "" {
+		return nil, os.ErrNotExist
+	}
+	return os.ReadFile(s.SettingsFile)
 }
 
 // writeFileAtomic replaces path in one step: a crash while writing leaves the

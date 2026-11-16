@@ -702,7 +702,7 @@ func testSaveSettings(t *testing.T, ds testutils.TestDataStore) {
 	hub := ws.NewHub()
 	settingsToLoad := settings.Displayed
 	settingsToLoad.ShowSettingsInAdminPage = true
-	settingsToLoad.Root = t.TempDir()
+	settingsToLoad.SettingsSaveFile = filepath.Join(t.TempDir(), "settings.json")
 	client := &ws.Client{
 		Hub:       hub,
 		Conn:      ds.MockWebSocket,
@@ -784,7 +784,7 @@ func testSettingsReadOnlyInCluster(t *testing.T, ds testutils.TestDataStore) {
 	settingsToLoad := settings.Displayed
 	settingsToLoad.DBType = "postgres"
 	settingsToLoad.Cluster.Mode = "on"
-	settingsToLoad.Root = t.TempDir()
+	settingsToLoad.SettingsSaveFile = filepath.Join(t.TempDir(), "settings.json")
 	settingsToLoad.ShowSettingsInAdminPage = true
 	client := &ws.Client{
 		Hub:       hub,
@@ -816,6 +816,6 @@ func testSettingsReadOnlyInCluster(t *testing.T, ds testutils.TestDataStore) {
 	assert.Nil(t, result["success"])
 	assert.Contains(t, result["error"], "read-only in a cluster")
 
-	_, statErr := os.Stat(filepath.Join(settingsToLoad.Root, "settings.json"))
+	_, statErr := os.Stat(settingsToLoad.SettingsSaveFile)
 	assert.True(t, os.IsNotExist(statErr), "no settings.json may be written")
 }

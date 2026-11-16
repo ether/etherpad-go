@@ -42,7 +42,8 @@ func adminAsk(t *testing.T, ds testutils.TestDataStore, event string, data any) 
 
 func testAdminSettingsFile(t *testing.T, ds testutils.TestDataStore) {
 	dir := t.TempDir()
-	ds.Settings.Root = dir
+	ds.Settings.SettingsFile = filepath.Join(dir, "settings.json")
+	ds.Settings.SettingsSaveFile = filepath.Join(dir, "settings.json")
 	ds.Settings.ShowSettingsInAdminPage = true
 	ds.Settings.TrustProxy = true
 	pw := "db-secret"
@@ -89,5 +90,26 @@ func testAdminSettingsFile(t *testing.T, ds testutils.TestDataStore) {
 		adminAsk(t, ds, "saveSettings", "{}")
 		after, _ := os.ReadFile(file)
 		assert.Equal(t, string(before), string(after))
+	})
+
+	// The Docker image: a settings.json mounted at /settings.json, saves to
+	// /data/settings.json, which does not exist at the start.
+	t.Run("a reload after a save shows the saved file", func(t *testing.T) {
+		ds.Settings.ShowSettingsInAdminPage = true
+		mounted := filepath.Join(t.TempDir(), "settings.json")
+		saveTo := filepath.Join(t.TempDir(), "settings.json")
+		require.NoError(t, os.WriteFile(mounted, []byte("{ \"title\": \"mounted\" }\n"), 0o600))
+		ds.Settings.SettingsFile = mounted
+		ds.Settings.SettingsSaveFile = saveTo
+
+		assert.Equal(t, "{ \"title\": \"mounted\" }\n", adminAsk(t, ds, "load", nil)["results"], "nothing saved yet: the mounted file")
+
+		saved := "{ \"title\": \"saved\" }\n"
+		require.Nil(t, adminAsk(t, ds, "saveSettings", saved)["error"])
+		assert.Equal(t, saved, adminAsk(t, ds, "load", nil)["results"], "the saved file, not the mounted one")
+
+		raw, err := os.ReadFile(mounted)
+		require.NoError(t, err)
+		assert.Equal(t, "{ \"title\": \"mounted\" }\n", string(raw), "the mounted file stays as it was")
 	})
 }

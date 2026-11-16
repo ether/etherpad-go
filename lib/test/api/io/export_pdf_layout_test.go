@@ -82,7 +82,9 @@ func testExportPdfLayout(t *testing.T, ds testutils.TestDataStore) {
 
 	p, err := ds.PadManager.GetPad(padId, nil, nil)
 	require.NoError(t, err)
-	_, err = p.ReplaceContent(atext, &src, nil)
+	author, err := ds.AuthorManager.GetAuthorId(token)
+	require.NoError(t, err)
+	_, err = p.ReplaceContent(atext, &src, &author.Id)
 	require.NoError(t, err)
 
 	req := httptest.NewRequest("GET", "/p/"+padId+"/export/pdf", nil)
@@ -96,12 +98,26 @@ func testExportPdfLayout(t *testing.T, ds testutils.TestDataStore) {
 		_ = os.WriteFile(d, body, 0o644)
 	}
 
-	// The URL is a link annotation.
-	assert.True(t, bytes.Contains(body, []byte("https://example.com/x")), "PDF has the link's URI")
-	assert.True(t, bytes.Contains(body, []byte("/URI")), "PDF has a URI action")
+	// The PDF carries the pad (etherpad.json) for a lossless import; both
+	// ends go through a temporary directory.
+	embedded, err := ds.Importer.ExtractEtherpadFromPdf(body)
+	require.NoError(t, err, "the PDF has the pad attached")
+	assert.Contains(t, string(embedded), "monospaced")
 
 	r, err := pdf.NewReader(bytes.NewReader(body), int64(len(body)))
 	require.NoError(t, err)
+
+	// The URL is a link annotation, still there after the pad was attached.
+	var uris []string
+	for n := 1; n <= r.NumPage(); n++ {
+		annots := r.Page(n).V.Key("Annots")
+		for i := 0; i < annots.Len(); i++ {
+			if uri := annots.Index(i).Key("A").Key("URI"); !uri.IsNull() {
+				uris = append(uris, uri.RawString())
+			}
+		}
+	}
+	assert.Contains(t, uris, "https://example.com/x", "link annotations: %v", uris)
 
 	const pageWidth, margin = 595.28, 40.0
 	lines := map[float64]bool{}

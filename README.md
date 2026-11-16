@@ -74,13 +74,7 @@ Get a specific configuration value:
 ./etherpad-go config get <key>
 ```
 
-In the Docker image the binary is `etherpad-go` on the `PATH`, and the image has a small shell
-(busybox):
-
-```bash
-docker exec <container> etherpad-go config show
-docker exec -it <container> sh
-```
+In the Docker image the same commands work through `docker exec` (see [Docker](#docker)).
 
 For customization, copy:
 
@@ -145,18 +139,53 @@ Prebuilt images are available via GitHub Container Registry:
 ghcr.io/ether/etherpad-go:<version>
 ```
 
-To open a shell in a running container:
+To open a shell in a running container (busybox: `ls`, `cat`, `less`, `grep`, `vi`, …, no
+network tools):
 
 ```sh
-docker exec -it etherpad_go /bin/sh
+docker exec -it etherpad_go sh
 ```
 
-The configuration CLI is available in the same image:
+The configuration CLI is the image's `etherpad-go`, on the `PATH`:
 
 ```sh
-docker exec etherpad_go /app config show
-docker exec etherpad_go /app config get port
+docker exec etherpad_go etherpad-go config show
+docker exec etherpad_go etherpad-go config get port
 ```
+
+### Files and the user in the image
+
+The server runs as the unprivileged user `65532`. It writes to two directories, which belong to
+that user in the image:
+
+| Directory | What | Mount a volume here for |
+|---|---|---|
+| `/var` | the SQLite database (`var/etherpad.db`, the default) and the update state | SQLite |
+| `/data` | `settings.json` (`ETHERPAD_SETTINGS_FILE=/data/settings.json`), also as saved in the admin UI | settings |
+
+The ownership in the image only covers the directories themselves and a named Docker volume
+created from them. **A host directory you bind-mount at `/var` or `/data` keeps its own owner**
+and must be writable for `65532`, or the server cannot open SQLite or save settings from the
+admin UI:
+
+```sh
+sudo chown -R 65532:65532 ./etherpad-data
+```
+
+A `settings.json` mounted at `/settings.json` is still read, as long as `/data/settings.json` does
+not exist. Settings saved in the admin UI go to `/data/settings.json`, which is then the one read.
+`/APIKEY.txt` and relative favicon paths are still looked up in `/`. If a settings file exists
+but cannot be read (no permission), the server does not start rather than fall back to the
+defaults.
+
+Upgrading from an image that ran as root: a volume on `/var` belongs to root, and the server
+stops with `attempt to write a readonly database`. Hand it over once:
+
+```sh
+docker run --rm -v <volume>:/var alpine chown -R 65532:65532 /var
+```
+
+With Postgres or MySQL and no volume, nothing changes.
 
 ### Several instances / Kubernetes
 
