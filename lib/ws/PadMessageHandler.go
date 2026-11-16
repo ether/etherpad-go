@@ -530,9 +530,17 @@ func (p *PadMessageHandler) HandleMessage(message any, client *Client, retrieved
 		if resolvedToken == "" {
 			resolvedToken = utils.GenerateAuthorToken()
 		}
-		thisSession = p.SessionStore.addHandleClientInformation(client.SessionId, castedMessage.Data.PadID, resolvedToken)
-		thisSession.Auth.IntegratorSessionID = resolvedSessionID
-		exists, err := p.padManager.DoesPadExist(thisSession.Auth.PadId)
+		// The new session is staged here and stored only once access to its
+		// pad is granted (etherpad-lite #8458): a CLIENT_READY for a pad the
+		// client may not open must not replace the session of the pad it
+		// has joined, nor leave it pointing at the refused pad.
+		staged := &ws.Session{Auth: &ws.SessionAuth{
+			Token:               resolvedToken,
+			PadId:               castedMessage.Data.PadID,
+			SessionId:           client.SessionId,
+			IntegratorSessionID: resolvedSessionID,
+		}}
+		exists, err := p.padManager.DoesPadExist(staged.Auth.PadId)
 
 		if err != nil {
 			p.Logger.Warnf("Error checking if pad exists: %v", err)
@@ -549,18 +557,16 @@ func (p *PadMessageHandler) HandleMessage(message any, client *Client, retrieved
 			// The pad that opens (and whose access is checked) is the
 			// sanitized one: "foo bar" opens "foo_bar", and with
 			// lowerCasePadIds "Foo" opens "foo".
-			p.SessionStore.setPadId(client.SessionId, padId)
-			thisSession.Auth.PadId = padId
+			staged.Auth.PadId = padId
 		}
 
-		padIds, err := p.readOnlyManager.GetIds(&thisSession.Auth.PadId)
+		padIds, err := p.readOnlyManager.GetIds(&staged.Auth.PadId)
 		if err != nil {
 			p.Logger.Warnf("Error retrieving read-only pad IDs: %v", err)
 			return
 		}
-		p.SessionStore.addPadReadOnlyIds(client.SessionId, padIds.PadId, padIds.ReadOnlyPadId, padIds.ReadOnly)
-		thisSession = p.SessionStore.getSession(client.SessionId)
-		thisSession.Auth.IntegratorSessionID = resolvedSessionID
+		staged.PadId, staged.ReadOnlyPadId, staged.ReadOnly = padIds.PadId, padIds.ReadOnlyPadId, padIds.ReadOnly
+		thisSession = staged
 	}
 
 	var auth = thisSession.Auth
@@ -601,6 +607,13 @@ func (p *PadMessageHandler) HandleMessage(message any, client *Client, retrieved
 
 		client.SafeSend(messageToSend)
 		p.Logger.Warn("Error checking access", err.Error())
+		return
+	}
+
+	// CLIENT_READY: access is granted, the staged session becomes the
+	// socket's session.
+	if ok && !p.SessionStore.replaceSession(client.SessionId, thisSession) {
+		p.Logger.Warn("Client disconnected")
 		return
 	}
 
