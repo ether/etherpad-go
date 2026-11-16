@@ -94,7 +94,7 @@ func (m *Manager) CreateAuthor(name *string) (*Author, error) {
 
 	author := Author{
 		Id:        authorId,
-		Name:      name,
+		Name:      sanitizeNamePtr(name),
 		ColorId:   utils.ColorPalette[rand.Intn(len(utils.ColorPalette))],
 		Timestamp: time.Now().Unix(),
 	}
@@ -169,14 +169,19 @@ func (m *Manager) GetAuthorName(authorId string) (*string, error) {
 		return nil, err
 	}
 
-	return author.Name, nil
+	return sanitizeNamePtr(author.Name), nil
 }
 
 func (m *Manager) SetAuthorName(authorId string, authorName string) error {
 	if m.IsErased(authorId) {
 		return ErrAuthorErased
 	}
-	if err := m.Db.SaveAuthorName(authorId, authorName); err != nil {
+	// Blank names are stored as "", which reads back as no name.
+	stored := ""
+	if n := SanitizeName(authorName); n != nil {
+		stored = *n
+	}
+	if err := m.Db.SaveAuthorName(authorId, stored); err != nil {
 		return err
 	}
 	m.touch(authorId)
@@ -393,7 +398,7 @@ func (m *Manager) SearchAuthors(pattern string, offset, limit int, sortBy string
 	}
 	out.Total = len(rows)
 	for _, r := range rows[min(offset, len(rows)):min(offset+limit, len(rows))] {
-		e := AuthorListEntry{AuthorID: r.ID, Name: r.Name, ColorID: r.ColorId, Mapper: []string{}, Erased: r.Erased}
+		e := AuthorListEntry{AuthorID: r.ID, Name: sanitizeNamePtr(r.Name), ColorID: r.ColorId, Mapper: []string{}, Erased: r.Erased}
 		if r.Mapper != nil {
 			e.Mapper = []string{*r.Mapper}
 		}

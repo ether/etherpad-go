@@ -852,7 +852,18 @@ func (p *Pad) GetAllChatters() (*[]string, error) {
 }
 
 func (p *Pad) GetChatMessages(start int, end int) (*[]db2.ChatMessageDBWithDisplayName, error) {
-	return p.db.GetChatsOfPad(p.Id, start, end)
+	msgs, err := p.db.GetChatsOfPad(p.Id, start, end)
+	if err != nil || msgs == nil {
+		return msgs, err
+	}
+	// The display name is the author's, joined in: names stored before the
+	// length cap must not go out at their full length.
+	for i := range *msgs {
+		if n := (*msgs)[i].DisplayName; n != nil {
+			(*msgs)[i].DisplayName = author.SanitizeName(*n)
+		}
+	}
+	return msgs, nil
 }
 
 func (p *Pad) AddSavedRevision(author string) error {

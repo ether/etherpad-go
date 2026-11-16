@@ -1268,9 +1268,6 @@ func (p *PadMessageHandler) HandleUserInfoUpdate(userInfo UserInfoUpdate, client
 		return
 	}
 
-	if userInfo.Data.UserInfo.Name == nil {
-		userInfo.Data.UserInfo.Name = nil
-	}
 	var session = p.SessionStore.getSession(client.SessionId)
 
 	if session == nil || session.Author == "" || session.PadId == "" {
@@ -1278,18 +1275,23 @@ func (p *PadMessageHandler) HandleUserInfoUpdate(userInfo UserInfoUpdate, client
 		return
 	}
 
+	// Unauthenticated input that is stored and sent to everyone in the
+	// pad: trimmed and capped (GHSA-w4w9-j4c3-hjf6). A blank name is none.
+	if userInfo.Data.UserInfo.Name != nil {
+		userInfo.Data.UserInfo.Name = author.SanitizeName(*userInfo.Data.UserInfo.Name)
+	}
 	var match, _ = regexp.MatchString("^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$", *userInfo.Data.UserInfo.ColorId)
 	if !match {
 		p.Logger.Warn("Malformed color", *userInfo.Data.UserInfo.ColorId)
 		return
 	}
 
-	if userInfo.Data.UserInfo.ColorId != nil {
-		p.authorManager.SetAuthorColor(session.Author, *userInfo.Data.UserInfo.ColorId)
-	}
+	p.authorManager.SetAuthorColor(session.Author, *userInfo.Data.UserInfo.ColorId)
+	name := ""
 	if userInfo.Data.UserInfo.Name != nil {
-		p.authorManager.SetAuthorName(session.Author, *userInfo.Data.UserInfo.Name)
+		name = *userInfo.Data.UserInfo.Name
 	}
+	p.authorManager.SetAuthorName(session.Author, name)
 	var padId = session.PadId
 
 	var userNewInfoDat = ws.UserNewInfoDat{
@@ -1974,6 +1976,13 @@ func (p *PadMessageHandler) HandleClientMessage(message ws.ClientMessage, client
 	payload := message.Data.Data.Payload
 	switch payload.Type {
 	case "suggestUserName":
+		// Unauthenticated input sent on to other clients: capped (GHSA-w4w9).
+		if n := author.SanitizeName(payload.NewName); n != nil {
+			payload.NewName = *n
+			message.Data.Data.Payload.NewName = *n
+		} else {
+			payload.NewName = ""
+		}
 		if payload.NewName == "" || payload.UnnamedId == "" {
 			p.Logger.Warnf("suggestUserName from %s is missing newName or unnamedId", session.Author)
 			return
