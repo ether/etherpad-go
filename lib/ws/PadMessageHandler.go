@@ -309,7 +309,10 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 				return
 			}
 
-			if revisionPad.Changeset == canonicalCs && revisionPad.AuthorId != nil && *revisionPad.AuthorId == session.Author {
+			// Stored revisions have their multi-line keeps and deletes split
+			// at line boundaries (below), so a retried edit in the original
+			// form must still match, or it would be applied twice.
+			if revisionPad.AuthorId != nil && *revisionPad.AuthorId == session.Author && changeset.EqualIgnoringLineSplits(canonicalCs, revisionPad.Changeset) {
 				// Assume this is a retransmission of an already applied changeset.
 				unpackedChangeset, err = changeset.Unpack(canonicalCs)
 				if err != nil {
@@ -370,6 +373,19 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 				projLen = utf8.RuneCountInString(*projectedText)
 			}
 			p.Logger.Warnf("Rejected USER_CHANGES whose application would leave the pad without a trailing '\\n' (length %d). Every USER_CHANGES must preserve the \"doc ends with \\n\" invariant.", projLen)
+			sendDisconnectMessage(task.socket, "badChangeset")
+			return
+		}
+
+		// ApplyToText only counts newlines per op. A multi-line keep or
+		// delete that ends mid-line is accepted by it but misapplied by the
+		// browsers, which apply changesets line by line: everyone watching
+		// would see other text than is stored (etherpad-lite #8495). Store
+		// and send the line-split form.
+		if split, splitErr := changeset.SplitOpsAtLineBoundaries(rebasedChangeset, prevText); splitErr == nil {
+			rebasedChangeset = split
+		} else {
+			p.Logger.Warnf("Error splitting changeset at line boundaries: %v", splitErr)
 			sendDisconnectMessage(task.socket, "badChangeset")
 			return
 		}
