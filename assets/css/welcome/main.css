@@ -248,3 +248,52 @@ html, body { height: 100%; }
 }
 .btn-dark:disabled { opacity: .45; cursor: default; }
 @media (max-width: 700px) { .transfer-grid { flex-direction: column; } }
+
+/* Dark mode (etherpad-lite #8486): with enableDarkMode the page follows the
+   system's colour scheme, unless light was chosen in a pad (the
+   data-auto-dark attribute, see main.templ). */
+@media (prefers-color-scheme: dark) {
+    :root[data-auto-dark] { color-scheme: dark; }
+    :where([data-auto-dark]) .launcher-body { background: #161b22; color: #e6ebf1; }
+    :where([data-auto-dark]) .topbar { background: #1d242e; border-bottom-color: #2a3340; }
+    :where([data-auto-dark]) .brand-mark,
+    :where([data-auto-dark]) .recent-dot,
+    :where([data-auto-dark]) .icon-pad span { background: #6f8cff; }
+    :where([data-auto-dark]) .kicker,
+    :where([data-auto-dark]) .recent-time { color: #8b97a6; }
+    :where([data-auto-dark]) .subtitle,
+    :where([data-auto-dark]) .card-desc,
+    :where([data-auto-dark]) .transfer summary,
+    :where([data-auto-dark]) .transfer-box p,
+    :where([data-auto-dark]) .transfer-label { color: #a3aebb; }
+    :where([data-auto-dark]) .card,
+    :where([data-auto-dark]) .open-field { background: #1d242e; border-color: #2f3946; }
+    :where([data-auto-dark]) .card-title,
+    :where([data-auto-dark]) .open-field input,
+    :where([data-auto-dark]) .recent-name,
+    :where([data-auto-dark]) .transfer { color: #e6ebf1; }
+    :where([data-auto-dark]) .card-pad:hover,
+    :where([data-auto-dark]) .open-field:focus-within { border-color: #6f8cff; }
+    :where([data-auto-dark]) .card-soon { background: #181e26; border-color: #2f3946; }
+    :where([data-auto-dark]) .card-soon .card-title { color: #7c8794; }
+    :where([data-auto-dark]) .card-soon .card-desc { color: #66717d; }
+    :where([data-auto-dark]) .soon-badge,
+    :where([data-auto-dark]) .icon-slides { background: #2b2440; }
+    :where([data-auto-dark]) .icon-pad { background: #222c48; }
+    :where([data-auto-dark]) .icon-sheet { background: #1b3329; }
+    :where([data-auto-dark]) .open-icon { border-color: #5d6875; }
+    :where([data-auto-dark]) .open-field input::placeholder { color: #6f7a87; }
+    :where([data-auto-dark]) .btn-dark { background: #6f8cff; color: #10151c; }
+    :where([data-auto-dark]) .btn-dark:hover { background: #8aa1ff; }
+    :where([data-auto-dark]) .btn-light { background: #1d242e; border-color: #3a4552; color: #e6ebf1; }
+    :where([data-auto-dark]) .recent-item { border-bottom-color: #242c37; }
+    :where([data-auto-dark]) .recent-item:hover { background: #1f2630; }
+    :where([data-auto-dark]) .transfer-box { border-color: #2f3946; }
+    :where([data-auto-dark]) .transfer-box input { background: #161b22; border-color: #3a4552; color: #e6ebf1; }
+    :where([data-auto-dark]) .transfer-error { color: #ff9b9b !important; }
+    :where([data-auto-dark]) a:focus-visible,
+    :where([data-auto-dark]) button:focus-visible,
+    :where([data-auto-dark]) input:focus-visible { outline: 2px solid #6f8cff; outline-offset: 2px; }
+    /* The name field shows focus on its frame (.open-field:focus-within). */
+    :where([data-auto-dark]) .open-field input:focus-visible { outline: none; }
+}

@@ -17,9 +17,26 @@ func tr(t map[string]string, key, fallback string) string {
 
 templ Page(settings *settings.Settings, translations map[string]string, socialMetaHTML string, page head.Info) {
 	<!DOCTYPE html>
-	<html lang={page.Lang} dir={page.Dir}>
+	<html lang={page.Lang} dir={page.Dir} data-auto-dark?={ settings.EnableDarkMode }>
 		<head>
 			@head.Meta(page)
+			if settings.EnableDarkMode {
+				// Follow the system's dark mode like the pad, unless light
+				// was chosen in a pad (etherpad-lite #8486); before the first
+				// paint, and again when another tab changes the choice.
+				<script>
+					(function () {
+						var update = function () {
+							var follow = true;
+							try { follow = localStorage.getItem('ep_darkMode') !== 'false'; } catch (e) { /* no storage: follow the system */ }
+							document.documentElement.toggleAttribute('data-auto-dark', follow);
+						};
+						update();
+						window.addEventListener('pageshow', update);
+						window.addEventListener('storage', function (e) { if (e.key === 'ep_darkMode' || e.key === null) update(); });
+					})();
+				</script>
+			}
 			// Everything below and the script's links ("p/<name>") are
 			// relative to the site root, also when a proxy forwards the
 			// prefix without its trailing slash.
