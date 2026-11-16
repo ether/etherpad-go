@@ -18,7 +18,7 @@ func MapFromDB(authorDB db.AuthorDB) Author {
 		Id:        authorDB.ID,
 		Token:     authorDB.Token,
 		ColorId:   authorDB.ColorId,
-		Name:      authorDB.Name,
+		Name:      sanitizeNamePtr(authorDB.Name),
 		Timestamp: authorDB.Timestamp,
 	}
 }

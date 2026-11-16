@@ -309,7 +309,10 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 				return
 			}
 
-			if revisionPad.Changeset == canonicalCs && revisionPad.AuthorId != nil && *revisionPad.AuthorId == session.Author {
+			// Stored revisions have their multi-line keeps and deletes split
+			// at line boundaries (below), so a retried edit in the original
+			// form must still match, or it would be applied twice.
+			if revisionPad.AuthorId != nil && *revisionPad.AuthorId == session.Author && changeset.EqualIgnoringLineSplits(canonicalCs, revisionPad.Changeset) {
 				// Assume this is a retransmission of an already applied changeset.
 				unpackedChangeset, err = changeset.Unpack(canonicalCs)
 				if err != nil {
@@ -370,6 +373,19 @@ func (p *PadMessageHandler) handleUserChanges(task Task) {
 				projLen = utf8.RuneCountInString(*projectedText)
 			}
 			p.Logger.Warnf("Rejected USER_CHANGES whose application would leave the pad without a trailing '\\n' (length %d). Every USER_CHANGES must preserve the \"doc ends with \\n\" invariant.", projLen)
+			sendDisconnectMessage(task.socket, "badChangeset")
+			return
+		}
+
+		// ApplyToText only counts newlines per op. A multi-line keep or
+		// delete that ends mid-line is accepted by it but misapplied by the
+		// browsers, which apply changesets line by line: everyone watching
+		// would see other text than is stored (etherpad-lite #8495). Store
+		// and send the line-split form.
+		if split, splitErr := changeset.SplitOpsAtLineBoundaries(rebasedChangeset, prevText); splitErr == nil {
+			rebasedChangeset = split
+		} else {
+			p.Logger.Warnf("Error splitting changeset at line boundaries: %v", splitErr)
 			sendDisconnectMessage(task.socket, "badChangeset")
 			return
 		}
@@ -514,9 +530,17 @@ func (p *PadMessageHandler) HandleMessage(message any, client *Client, retrieved
 		if resolvedToken == "" {
 			resolvedToken = utils.GenerateAuthorToken()
 		}
-		thisSession = p.SessionStore.addHandleClientInformation(client.SessionId, castedMessage.Data.PadID, resolvedToken)
-		thisSession.Auth.IntegratorSessionID = resolvedSessionID
-		exists, err := p.padManager.DoesPadExist(thisSession.Auth.PadId)
+		// The new session is staged here and stored only once access to its
+		// pad is granted (etherpad-lite #8458): a CLIENT_READY for a pad the
+		// client may not open must not replace the session of the pad it
+		// has joined, nor leave it pointing at the refused pad.
+		staged := &ws.Session{Auth: &ws.SessionAuth{
+			Token:               resolvedToken,
+			PadId:               castedMessage.Data.PadID,
+			SessionId:           client.SessionId,
+			IntegratorSessionID: resolvedSessionID,
+		}}
+		exists, err := p.padManager.DoesPadExist(staged.Auth.PadId)
 
 		if err != nil {
 			p.Logger.Warnf("Error checking if pad exists: %v", err)
@@ -533,18 +557,16 @@ func (p *PadMessageHandler) HandleMessage(message any, client *Client, retrieved
 			// The pad that opens (and whose access is checked) is the
 			// sanitized one: "foo bar" opens "foo_bar", and with
 			// lowerCasePadIds "Foo" opens "foo".
-			p.SessionStore.setPadId(client.SessionId, padId)
-			thisSession.Auth.PadId = padId
+			staged.Auth.PadId = padId
 		}
 
-		padIds, err := p.readOnlyManager.GetIds(&thisSession.Auth.PadId)
+		padIds, err := p.readOnlyManager.GetIds(&staged.Auth.PadId)
 		if err != nil {
 			p.Logger.Warnf("Error retrieving read-only pad IDs: %v", err)
 			return
 		}
-		p.SessionStore.addPadReadOnlyIds(client.SessionId, padIds.PadId, padIds.ReadOnlyPadId, padIds.ReadOnly)
-		thisSession = p.SessionStore.getSession(client.SessionId)
-		thisSession.Auth.IntegratorSessionID = resolvedSessionID
+		staged.PadId, staged.ReadOnlyPadId, staged.ReadOnly = padIds.PadId, padIds.ReadOnlyPadId, padIds.ReadOnly
+		thisSession = staged
 	}
 
 	var auth = thisSession.Auth
@@ -585,6 +607,13 @@ func (p *PadMessageHandler) HandleMessage(message any, client *Client, retrieved
 
 		client.SafeSend(messageToSend)
 		p.Logger.Warn("Error checking access", err.Error())
+		return
+	}
+
+	// CLIENT_READY: access is granted, the staged session becomes the
+	// socket's session.
+	if ok && !p.SessionStore.replaceSession(client.SessionId, thisSession) {
+		p.Logger.Warn("Client disconnected")
 		return
 	}
 
@@ -1268,9 +1297,6 @@ func (p *PadMessageHandler) HandleUserInfoUpdate(userInfo UserInfoUpdate, client
 		return
 	}
 
-	if userInfo.Data.UserInfo.Name == nil {
-		userInfo.Data.UserInfo.Name = nil
-	}
 	var session = p.SessionStore.getSession(client.SessionId)
 
 	if session == nil || session.Author == "" || session.PadId == "" {
@@ -1278,18 +1304,23 @@ func (p *PadMessageHandler) HandleUserInfoUpdate(userInfo UserInfoUpdate, client
 		return
 	}
 
+	// Unauthenticated input that is stored and sent to everyone in the
+	// pad: trimmed and capped (GHSA-w4w9-j4c3-hjf6). A blank name is none.
+	if userInfo.Data.UserInfo.Name != nil {
+		userInfo.Data.UserInfo.Name = author.SanitizeName(*userInfo.Data.UserInfo.Name)
+	}
 	var match, _ = regexp.MatchString("^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$", *userInfo.Data.UserInfo.ColorId)
 	if !match {
 		p.Logger.Warn("Malformed color", *userInfo.Data.UserInfo.ColorId)
 		return
 	}
 
-	if userInfo.Data.UserInfo.ColorId != nil {
-		p.authorManager.SetAuthorColor(session.Author, *userInfo.Data.UserInfo.ColorId)
-	}
+	p.authorManager.SetAuthorColor(session.Author, *userInfo.Data.UserInfo.ColorId)
+	name := ""
 	if userInfo.Data.UserInfo.Name != nil {
-		p.authorManager.SetAuthorName(session.Author, *userInfo.Data.UserInfo.Name)
+		name = *userInfo.Data.UserInfo.Name
 	}
+	p.authorManager.SetAuthorName(session.Author, name)
 	var padId = session.PadId
 
 	var userNewInfoDat = ws.UserNewInfoDat{
@@ -1974,6 +2005,13 @@ func (p *PadMessageHandler) HandleClientMessage(message ws.ClientMessage, client
 	payload := message.Data.Data.Payload
 	switch payload.Type {
 	case "suggestUserName":
+		// Unauthenticated input sent on to other clients: capped (GHSA-w4w9).
+		if n := author.SanitizeName(payload.NewName); n != nil {
+			payload.NewName = *n
+			message.Data.Data.Payload.NewName = *n
+		} else {
+			payload.NewName = ""
+		}
 		if payload.NewName == "" || payload.UnnamedId == "" {
 			p.Logger.Warnf("suggestUserName from %s is missing newName or unnamedId", session.Author)
 			return

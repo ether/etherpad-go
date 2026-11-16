@@ -247,15 +247,22 @@ func testIEEtherpad(t *testing.T, ds testutils.TestDataStore) {
 	assert.Contains(t, string(body), `<ul class="bullet"><li><ul class="bullet"><li>`)
 	assert.Contains(t, string(body), `hello</span></ul></li></ul>`)
 
-	t.Run("a file that changes the creator is refused", func(t *testing.T) {
+	// etherpad-lite #8470: the import goes through, the pad keeps its
+	// creator (it used to be refused with "permission").
+	t.Run("a file naming another creator keeps the pad's creator", func(t *testing.T) {
 		target := "ieEtherpadCreator"
 		resp, body := ieImport(t, app, target, "test.txt", []byte(iePadText), "")
 		require.Equal(t, 200, resp.StatusCode, string(body))
+		before, err := ds.DS.GetRevision(target, 0)
+		require.NoError(t, err)
 		resp, body = ieImport(t, app, target, "test.etherpad", file, "")
-		assert.Equal(t, 400, resp.StatusCode)
+		require.Equal(t, 200, resp.StatusCode, string(body))
 		require.NoError(t, json.Unmarshal(body, &res))
-		assert.Equal(t, "permission", res.Message)
-		assert.Equal(t, iePadText, iePadText_(t, ds, target))
+		assert.Equal(t, "ok", res.Message)
+		ds.PadManager.UnloadPad(target)
+		after, err := ds.DS.GetRevision(target, 0)
+		require.NoError(t, err)
+		assert.Equal(t, before.AuthorId, after.AuthorId, "the creator stays")
 	})
 }
 

@@ -164,6 +164,7 @@ export const paduserlist = (() => {
         const input = document.createElement('input');
         input.setAttribute('data-l10n-id', 'pad.userlist.unnamed');
         input.type = 'text';
+        input.maxLength = 128; // the server's cap on names (GHSA-w4w9-j4c3-hjf6)
         input.classList.add('editempty', 'newinput');
         input.value = html10n.get('pad.userlist.unnamed');
         if (isNameEditable(data)) input.disabled = true;

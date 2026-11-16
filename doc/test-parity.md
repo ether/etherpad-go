@@ -1,15 +1,15 @@
 # Test parity with etherpad-lite
 
-etherpad-lite has 172 backend test files with 1734 test cases (`src/tests/backend` and
-`src/tests/backend-new`, at etherpad-lite commit 1ddd7e272). This file tracks which of them
+etherpad-lite has 175 backend test files with 1784 test cases (`src/tests/backend` and
+`src/tests/backend-new`, at etherpad-lite commit 263e4a5b5). This file tracks which of them
 have a Go counterpart. Go tests are written for the Go implementation; they cover the same
 behaviour, they are not line-by-line translations.
 
 | Status | Files | Test cases |
 |---|---|---|
-| Ported | 125 | 1245 |
+| Ported | 127 | 1283 |
 | Partly ported | 4 | 140 |
-| Not applicable to Go | 43 | 349 |
+| Not applicable to Go | 44 | 361 |
 
 ## Ported
 
@@ -44,14 +44,14 @@ behaviour, they are not line-by-line translations.
 | `padDeletionManager` | 10 | `lib/test/pad/deletion_token_test.go` |
 | `padDeletionUiPlacement` | 2 | `ui/src/js/pad_deletion.test.ts`, `lib/test/ws/pad_deletion_test.go` |
 | `Pad` | 25 | `lib/pad/pad_test.go`, `pad_parity_test.go`, `insert_author_test.go`; normalizePadSettings in `lib/models/pad/settings_test.go`; pad-wide settings end to end in `lib/test/ws/pad_settings_test.go`, client logic in `ui/src/js/pad_settings.test.ts` |
-| `ImportEtherpad` | 21 | `lib/test/api/io/import_etherpad_parity_test.go`, `import_etherpad_security_test.go`, `import_etherpad_roundtrip_test.go`; an author's pads come from the revisions they wrote. The two exportEtherpadAdditionalContent cases do not apply: Go plugins have no free-form keys in the database |
+| `ImportEtherpad` | 27 | `lib/test/api/io/import_etherpad_parity_test.go`, `import_etherpad_security_test.go` (a non-creator's import keeps the pad's creator, also for pads created through the HTTP API), `import_etherpad_roundtrip_test.go`; an author's pads come from the revisions they wrote. The two exportEtherpadAdditionalContent cases do not apply: Go plugins have no free-form keys in the database |
 | `ExportEtherpad` | 9 | `lib/test/api/io/export_etherpad_parity_test.go`, `export_etherpad_revbound_test.go`; the three exportEtherpadAdditionalContent cases do not apply (see ImportEtherpad) |
 | `padInsertAuthorInvariant` | 8 | `lib/pad/insert_author_test.go`; legacy `.etherpad` import and restore in `lib/test/api/io/import_etherpad_parity_test.go`, restoreRevision in `lib/test/api/pad/restore_revision_test.go`; copyPadWithoutHistory creates the copy from the text, so the source's attributes cannot break it |
 
 | `export_list` | 5 | `lib/test/api/io/export_list_test.go` |
 | `exportHtmlAuthorColorXss` | 7 | `lib/io/importer_test.go` (`TestSanitizeImportedColorId`), `exportHtml_test.go` (`TestGetHTMLFromAtext_AuthorColorXSS`), `lib/test/api/io/export_author_color_test.go` |
 | `api/importexport` | 4 | `lib/test/api/io/import_html_cases_test.go` (the setHTML/getText table, 27 inputs); etherpad-go adds no empty line at the end of an import and stores a non-breaking space as a space; the HTML output is compared by round trip instead (`import_html_test.go`) |
-| `api/importexportGetPost` | 49 | `lib/test/api/io/importexport_parity_test.go`; invalid revisions (`1test`, `test1`) answer 400, malformed `.etherpad` files 400, where etherpad-lite answers 200/500; the LibreOffice cases run against the native DOCX/ODT/PDF import and export |
+| `api/importexportGetPost` | 50 | `lib/test/api/io/importexport_parity_test.go`; invalid revisions (`1test`, `test1`) answer 400, malformed `.etherpad` files 400, where etherpad-lite answers 200/500; the LibreOffice cases run against the native DOCX/ODT/PDF import and export |
 | `import` | 14 | `lib/test/api/io/import_roundtrip_parity_test.go`, `importexport_parity_test.go`; the mammoth/html-to-docx converter cases do not apply (DOCX is read and written natively). DOCX and ODT import keep the text only (alignment, headings and formatting are lost) |
 | `cssFontInlining` | 6 | `ui/src/css_font_inlining.test.ts` (vitest) |
 | `cleanupHoleSafety` | 2 | `lib/test/api/pad/compact_parity_test.go` (the history is swapped in one transaction, the cached pad is dropped on failure) |
@@ -61,7 +61,9 @@ behaviour, they are not line-by-line translations.
 | `api/deletePad` | 7 | `lib/test/api/pad/pad_api_test.go` (`TestPadDeletionTokensAPI`), on the admin REST API; `lib/test/api/legacy/deletion_token_test.go` on `/api/{version}` |
 | `api/movePadDeletionToken` | 5 | `lib/test/api/pad/pad_api_test.go` (`TestPadDeletionTokensAPI`), `lib/test/api/legacy/deletion_token_test.go` |
 | `chat` | 4 | `lib/test/ws/pad_message_handler_test.go` (chatNewMessage hook: text, pad, padId, drop), `lib/hooks/hook_test.go` |
-| `messages` | 14 | `lib/test/ws/messages_parity_test.go`, `pad_message_handler_test.go` (handleMessageSecurity) |
+| `messages` | 16 | `lib/test/ws/messages_parity_test.go`, `pad_message_handler_test.go` (handleMessageSecurity), `line_split_test.go` and `lib/changeset/linesplit_test.go` (multi-line keeps/deletes split at line boundaries) |
+| `authorNameCap` | 19 | `lib/author/name_test.go`, `lib/test/ws/author_name_cap_test.go`: names trimmed and cut to 128 code points when stored and when read (USER_NEWINFO, chat, every author read). Non-string names are refused by Go's message types; the admin search reads names through the same cap |
+| `crossPadMessageToctou` | 10 | `lib/test/ws/client_ready_staging_test.go`: a CLIENT_READY's session is stored only once access is granted, so a refused CLIENT_READY leaves the joined pad's session and room, and a refused socket gets none of the pad's messages. The interleavings themselves do not occur: Go handles a socket's messages one after the other |
 | `undo_clear_authorship` | 6 | `lib/test/ws/undo_clear_authorship_test.go` |
 | `lowerCasePadIds` | 4 | `lib/test/ws/lower_case_pad_ids_test.go`, `lib/test/api/static/lower_case_pad_ids_test.go` |
 | `pads-with-spaces` | 2 | `lib/test/api/static/lower_case_pad_ids_test.go` |
@@ -176,6 +178,7 @@ serve them as long as a pad with exactly that id exists. `/p/a:b` and `/p/a b` r
 | `openapi-admin` | 20 | etherpad-lite's admin OpenAPI document (verifyAdminAccess, update status); etherpad-go documents its admin REST API in `docs/swagger.yaml` |
 | `new/admin_utils` | 7 | etherpad-lite's admin helpers cleanComments and minify; the Go admin page sends settings.json as it is and the server parses it (`lib/settings/jsonc_test.go`) |
 | `contentcollector` | 3 | client-side DOM collector (JavaScript) |
+| `clientReadyJoinRace` | 12 | superseded CLIENT_READY joins interleave in Node's async handler; Go handles a socket's messages one after the other, so a later join starts after the earlier one has finished (`lib/test/ws/client_ready_staging_test.go` pins that the socket ends up in the later pad only) |
 | `crossPadWriteToctou` | 1 | Node pauses in an async hook between two reads of the session's pad; Go handles a socket's messages one after the other. The handler now reads the pad id once. |
 | `crypto` | 0 | no test cases |
 | `dockerfilePnpmPin` | 3 | checks etherpad-lite's Dockerfile |

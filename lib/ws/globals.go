@@ -44,6 +44,19 @@ func (s *SessionStore) addHandleClientInformation(sessionId string, padId string
 	return s.sessions[sessionId]
 }
 
+// replaceSession makes session the session of sessionId (a CLIENT_READY
+// whose access was granted). A socket that went away meanwhile gets none:
+// false.
+func (s *SessionStore) replaceSession(sessionId string, session *ws.Session) bool {
+	s.sync.Lock()
+	defer s.sync.Unlock()
+	if _, ok := s.sessions[sessionId]; !ok {
+		return false
+	}
+	s.sessions[sessionId] = session
+	return true
+}
+
 func (s *SessionStore) GetStats() (SessionStat, error) {
 	var stats SessionStat
 	s.sync.RLock()
