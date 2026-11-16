@@ -25,7 +25,7 @@ func TestParsePdfFontConfig(t *testing.T) {
 
 	require.Contains(t, cfg, "garamond")
 	assert.Equal(t, "/root/fonts/garamond.ttf", cfg["garamond"].files[pdffonts.Regular])
-	assert.Equal(t, pdffonts.Sans, cfg["garamond"].fallback, "no fallback: sans serif")
+	assert.Equal(t, pdffonts.Serif, cfg["garamond"].fallback, "no fallback: its own kind")
 
 	require.Contains(t, cfg, "arial")
 	a := cfg["arial"]
@@ -99,6 +99,26 @@ func TestPdfFontsCustom(t *testing.T) {
 	got, err = f.fontFor("arial", pdffonts.Regular)
 	require.NoError(t, err)
 	assert.Equal(t, "custom:arial:Regular", got)
+}
+
+// A configured family whose file fails falls back to the built-in font of
+// its own kind when no fallback is given.
+func TestPdfFontsFallbackKeepsTheKind(t *testing.T) {
+	missing := filepath.Join(t.TempDir(), "missing.ttf")
+	f := newTestFonts(t, parsePdfFontConfig(map[string]any{
+		"Courier New": missing,
+		"Garamond":    map[string]any{"regular": missing},
+		"Unknown":     missing,
+	}, ""))
+	for family, want := range map[string]string{
+		"courier new": "LiberationMono-Regular",
+		"garamond":    "LiberationSerif-Regular",
+		"unknown":     "LiberationSans-Regular",
+	} {
+		got, err := f.fontFor(family, pdffonts.Regular)
+		require.NoError(t, err)
+		assert.Equal(t, want, got, family)
+	}
 }
 
 // A font replaced in place is used by the next export.

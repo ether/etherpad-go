@@ -43,7 +43,7 @@ func mainWithClock(args []string, out, errOut io.Writer, api API, now func() tim
 	var keep optionalInt
 	fs.Var(&keep, "keep", "keep the last `N` revisions (default: collapse all history)")
 	dryRun := fs.Bool("dry-run", false, "list the pads and their revisions, change nothing")
-	baseURL := fs.String("url", "", "the server's `URL` (default: ETHERPAD_URL, else from the settings: http://<ip>:<port>)")
+	baseURL := fs.String("url", "", "the server's `URL` (default: ETHERPAD_URL, else from the settings: http://<ip>:<port>; a reverse proxy's https address works too)")
 	apiKey := fs.String("apikey", "", "an API `key` of the admin page (default: ETHERPAD_API_KEY)")
 	fs.Usage = func() {
 		fmt.Fprint(errOut, usage)
@@ -74,8 +74,8 @@ func mainWithClock(args []string, out, errOut io.Writer, api API, now func() tim
 		fs.Usage()
 		return 2
 	}
-	if *olderThan < 0 {
-		fmt.Fprintln(errOut, "--older-than must be a positive number of days.")
+	if *olderThan < 0 || *olderThan > MaxOlderThanDays {
+		fmt.Fprintf(errOut, "--older-than must be between 1 and %d days.\n", MaxOlderThanDays)
 		return 2
 	}
 	opts := Options{Pads: pads, OlderThanDays: *olderThan, DryRun: *dryRun, Keep: keep.value}
@@ -125,9 +125,11 @@ func (o *optionalInt) Set(s string) error {
 	return nil
 }
 
-// urlFromSettings is the server's address as its settings give it.
+// urlFromSettings is the server's address as its settings give it. The
+// server itself always speaks plain HTTP (TLS is a reverse proxy's job); give
+// --url for the proxy's https address.
 func urlFromSettings() string {
-	ip, port, scheme := "localhost", "9001", "http"
+	ip, port := "localhost", "9001"
 	if s, err := settings.ReadConfig(); err == nil {
 		if s.IP != "" && s.IP != "0.0.0.0" && s.IP != "::" {
 			ip = s.IP
@@ -135,12 +137,9 @@ func urlFromSettings() string {
 		if s.Port != "" {
 			port = s.Port
 		}
-		if s.SSL.Key != "" && s.SSL.Cert != "" {
-			scheme = "https"
-		}
 	}
 	if strings.Contains(ip, ":") && !strings.HasPrefix(ip, "[") {
 		ip = "[" + ip + "]"
 	}
-	return scheme + "://" + ip + ":" + port
+	return "http://" + ip + ":" + port
 }

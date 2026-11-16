@@ -23,8 +23,9 @@ import (
 //	}
 //
 // A face without a file uses the regular one; a file that cannot be read or
-// loaded falls back to the built-in font of the fallback kind (sans serif
-// when none is given). A font never makes an export fail.
+// loaded falls back to the built-in font of the fallback kind, or of the
+// family's own kind when none is given (sans serif for an unknown family).
+// A font never makes an export fail.
 type customFont struct {
 	files    [4]string // by pdffonts.Variant; "" when not given
 	fallback pdffonts.Category
@@ -50,7 +51,12 @@ func parsePdfFontConfig(raw map[string]any, root string) map[string]customFont {
 		if key == "" {
 			continue
 		}
+		// Without a fallback, a family falls back to the built-in font of
+		// its own kind (Courier New to mono), else to sans serif.
 		var cf customFont
+		if c, known := pdffonts.CategoryOf(key); known {
+			cf.fallback = c
+		}
 		switch v := value.(type) {
 		case string:
 			cf.files[pdffonts.Regular] = resolve(v)

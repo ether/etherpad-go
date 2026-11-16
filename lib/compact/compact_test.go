@@ -144,6 +144,9 @@ func TestCompactUsage(t *testing.T) {
 		{"--all", "--older-than", "3"},
 		{"pad", "--keep", "-1"},
 		{"--older-than", "-5"},
+		// More days than a time.Duration holds would wrap the cutoff into
+		// the future and select fresh pads.
+		{"--older-than", "200000"},
 	} {
 		code, _, errOut := run(t, f, args...)
 		assert.Equal(t, 2, code, "%v", args)

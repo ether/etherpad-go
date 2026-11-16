@@ -46,6 +46,11 @@ type Report struct {
 
 const day = 24 * time.Hour
 
+// MaxOlderThanDays is the most days --older-than takes: a time.Duration
+// holds about 106751 days, beyond that the cutoff would wrap into the
+// future and select freshly edited pads.
+const MaxOlderThanDays = 100_000
+
 // Run compacts the pads opts selects. A pad that fails is logged and
 // counted; the run goes on.
 func Run(api API, opts Options, out, errOut io.Writer, now func() time.Time) Report {
@@ -80,7 +85,8 @@ func Run(api API, opts Options, out, errOut io.Writer, now func() time.Time) Rep
 	}
 	fmt.Fprintf(out, "Found %d pad(s).%s Strategy: %s%s.\n", len(pads), filter, strategy, dry)
 
-	cutoff := now().Add(-time.Duration(opts.OlderThanDays) * day).UnixMilli()
+	days := min(opts.OlderThanDays, MaxOlderThanDays)
+	cutoff := now().Add(-time.Duration(days) * day).UnixMilli()
 	fresh := func(padID string) (bool, error) {
 		if opts.OlderThanDays <= 0 {
 			return false, nil
