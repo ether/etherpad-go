@@ -87,6 +87,7 @@ const (
 	Abiword                               = "abiword"
 	Soffice                               = "soffice"
 	AllowUnknownFileEnds                  = "allowUnknownFileEnds"
+	ExportPdfFonts                        = "exportPdfFonts"
 	RequireAuthentication                 = "requireAuthentication"
 	RequireAuthorization                  = "requireAuthorization"
 	TrustProxy                            = "trustProxy"

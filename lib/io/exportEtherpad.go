@@ -58,6 +58,7 @@ func NewExportEtherpad(hooks *hooks.Hook, padManager *pad.Manager, db db.DataSto
 		padManager:     padManager,
 		authorManager:  authorMgr,
 		Hooks:          hooks,
+		logger:         logger,
 	}
 
 	return exportEtherpad

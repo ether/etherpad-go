@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ether/etherpad-go/lib/author"
 	db2 "github.com/ether/etherpad-go/lib/db"
 	modelws "github.com/ether/etherpad-go/lib/models/ws"
-	"github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/sheet"
 	"github.com/ether/etherpad-go/lib/sheetdoc"
 	"go.uber.org/zap"

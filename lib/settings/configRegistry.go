@@ -143,6 +143,7 @@ var Registry = []ConfigKey{
 	{Key: Soffice, Default: nil, Description: "LibreOffice path"},
 	{Key: Minify, Default: true, Description: "Minify assets"},
 	{Key: AllowUnknownFileEnds, Default: true, Description: "Allow unknown file extensions"},
+	{Key: ExportPdfFonts, Default: map[string]any{}, Description: "Font files for font families in the PDF export"},
 	{Key: Loglevel, Default: "INFO", Description: "Log level"},
 	{
 		Key:         CustomLocaleStrings,

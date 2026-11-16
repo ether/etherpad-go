@@ -1,8 +1,6 @@
 package io
 
 import (
-	"bytes"
-	"os"
 	"strings"
 	"testing"
 
@@ -26,7 +24,7 @@ func TestParseLineSegmentsPluginAttributes(t *testing.T) {
 	require.Len(t, segs, 3)
 
 	assert.Equal(t, "code", segs[0].text)
-	assert.True(t, segs[0].mono)
+	assert.Equal(t, "courier", segs[0].family)
 
 	assert.Equal(t, "big", segs[1].text)
 	assert.InDelta(t, 18.0, segs[1].size, 0.01) // 24px = 18pt
@@ -34,7 +32,7 @@ func TestParseLineSegmentsPluginAttributes(t *testing.T) {
 	assert.Equal(t, [3]uint8{255, 0, 0}, *segs[1].color) // CSS red, as in the pad
 
 	assert.Equal(t, " plain", segs[2].text)
-	assert.False(t, segs[2].mono)
+	assert.Empty(t, segs[2].family)
 	assert.Zero(t, segs[2].size)
 	assert.Nil(t, segs[2].color)
 }
@@ -71,10 +69,7 @@ func testRenderer(t *testing.T) *pdfRenderer {
 	pdf := &gopdf.GoPdf{}
 	pdf.Start(gopdf.Config{PageSize: *gopdf.PageSizeA4})
 	pdf.AddPage()
-	b, err := os.ReadFile("../../assets/font/Roboto-Regular.ttf")
-	require.NoError(t, err)
-	require.NoError(t, pdf.AddTTFFontByReader("Roboto", bytes.NewReader(b)))
-	return &pdfRenderer{pdf: pdf}
+	return &pdfRenderer{pdf: pdf, fonts: newPdfFonts(pdf, nil, nil)}
 }
 
 // Fitting and alignment go by a line's width without its trailing spaces:

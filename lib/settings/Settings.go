@@ -365,6 +365,11 @@ type Settings struct {
 	Minify         bool `json:"minify" mapstructure:"minify"`
 
 	AllowUnknownFileEnds bool `json:"allowUnknownFileEnds" mapstructure:"allowUnknownFileEnds"`
+	// ExportPdfFonts gives font files for font families of the PDF export
+	// (etherpad-lite's setting): family -> file, or family -> {regular,
+	// bold, italic, boldItalic, fallback}. Relative paths are relative to
+	// the root. See lib/io/exportPDF_fonts.go.
+	ExportPdfFonts map[string]any `json:"exportPdfFonts" mapstructure:"exportPdfFonts"`
 
 	LogLevel string `json:"loglevel" mapstructure:"loglevel"`
 	// DisableIPLogging is the old switch; IPLogging replaces it (see
