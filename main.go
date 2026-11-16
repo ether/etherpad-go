@@ -8,6 +8,7 @@ import (
 
 	_ "github.com/ether/etherpad-go/docs"
 	"github.com/ether/etherpad-go/lib/cli"
+	"github.com/ether/etherpad-go/lib/compact"
 	"github.com/ether/etherpad-go/lib/loadtest"
 	"github.com/ether/etherpad-go/lib/locales"
 	"github.com/ether/etherpad-go/lib/migration"
@@ -54,6 +55,9 @@ func main() {
 		case "cli":
 			cli.RunFromCLI(setupLogger, os.Args[2:])
 			return
+		case "compact":
+			compact.RunFromCLI(os.Args[2:])
+			return
 		case "loadtest":
 			loadtest.RunFromCLI(setupLogger, os.Args[2:])
 			return
@@ -77,6 +81,7 @@ func main() {
 			fmt.Println("Usage: etherpad [command] [options]")
 			fmt.Println("Commands:")
 			fmt.Println("  cli        Interactive CLI for pads")
+			fmt.Println("  compact    Compact the revision history of pads (one, --all or --older-than <days>)")
 			fmt.Println("  loadtest   Run a load test on a single pad")
 			fmt.Println("  multiload  Run a multi-pad load test")
 			fmt.Println("  clusterbench  Edit one pad through several instances; measure latency and check for lost changes")

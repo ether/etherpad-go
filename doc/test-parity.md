@@ -7,8 +7,8 @@ behaviour, they are not line-by-line translations.
 
 | Status | Files | Test cases |
 |---|---|---|
-| Ported | 127 | 1283 |
-| Partly ported | 4 | 140 |
+| Ported | 129 | 1328 |
+| Partly ported | 2 | 95 |
 | Not applicable to Go | 44 | 361 |
 
 ## Ported
@@ -61,6 +61,8 @@ behaviour, they are not line-by-line translations.
 | `api/deletePad` | 7 | `lib/test/api/pad/pad_api_test.go` (`TestPadDeletionTokensAPI`), on the admin REST API; `lib/test/api/legacy/deletion_token_test.go` on `/api/{version}` |
 | `api/movePadDeletionToken` | 5 | `lib/test/api/pad/pad_api_test.go` (`TestPadDeletionTokensAPI`), `lib/test/api/legacy/deletion_token_test.go` |
 | `chat` | 4 | `lib/test/ws/pad_message_handler_test.go` (chatNewMessage hook: text, pad, padId, drop), `lib/hooks/hook_test.go` |
+| `compactPad` | 32 | API.compactPad on `/admin/api/pads/{id}/compact` in `lib/test/api/pad/compact_parity_test.go`, `pad_compact_diff_api_test.go`; the runCompactAll/runCompactStale cases (bin/compactAllPads, bin/compactStalePads) are `etherpad-go compact --all` and `--older-than <days>`: `lib/compact/compact_test.go` (per-pad failures, dry run, stale filter and its recheck, usage), `lib/test/api/legacy/compact_cli_test.go` (through the HTTP API) |
+| `api/api` | 13 | `lib/test/api/legacy/misc_test.go`, `openapi_test.go`: versions, GET and POST, the OpenAPI document (tags, summaries, POST only, apikey schemes). `rest_test.go`: `/rest/{version}/{resource}/{action}` (including pad/checkToken), `/rest/openapi.json`, `/api/2/...`, and `/api-docs.json` with its apikey/api_key/header schemes |
 | `messages` | 16 | `lib/test/ws/messages_parity_test.go`, `pad_message_handler_test.go` (handleMessageSecurity), `line_split_test.go` and `lib/changeset/linesplit_test.go` (multi-line keeps/deletes split at line boundaries) |
 | `authorNameCap` | 19 | `lib/author/name_test.go`, `lib/test/ws/author_name_cap_test.go`: names trimmed and cut to 128 code points when stored and when read (USER_NEWINFO, chat, every author read). Non-string names are refused by Go's message types; the admin search reads names through the same cap |
 | `crossPadMessageToctou` | 10 | `lib/test/ws/client_ready_staging_test.go`: a CLIENT_READY's session is stored only once access is granted, so a refused CLIENT_READY leaves the joined pad's session and room, and a refused socket gets none of the pad's messages. The interleavings themselves do not occur: Go handles a socket's messages one after the other |
@@ -149,8 +151,6 @@ behaviour, they are not line-by-line translations.
 |---|---|---|
 | `new/easysync-other` | 9 | moveOpsToNewPool, makeSplice, applyToAttribution and split/join are covered in `lib/changeset`; filterAttribNumbers, makeAttribsString, toSplices and opAttributeValue do not exist in the Go package (deprecated or client-only upstream) |
 | `export` | 86 | the HTTP cases (500 on error, DOCX/PDF/ODT signatures and content types) in `lib/test/api/io/importexport_parity_test.go`. sanitizeExportHtml, extractBody, wrapLooseLines, dropEmptyBlocks, collapseRedundantBrAfterBlocks, separateAdjacentHeadingBlocks, applyMonospaceToCode and htmlToPdfBuffer test etherpad-lite's HTML-to-DOCX/PDF converter, which etherpad-go does not have: it builds the documents from the pad and fetches no URLs. The PDF links URLs (link annotations), wraps long lines and honours ep_font_size and ep_font_color (`lib/test/api/io/export_pdf_layout_test.go`, `lib/io/exportPDF_segments_test.go`). Font families map to the embedded Liberation Sans, Serif and Mono with real bold and italic faces, by etherpad-lite's family lists (Helvetica, Times, Courier there), and the exportPdfFonts setting gives font files for a family (`lib/io/pdffonts`, `lib/io/exportPDF_fonts_test.go`) |
-| `compactPad` | 32 | API.compactPad on `/admin/api/pads/{id}/compact` in `lib/test/api/pad/compact_parity_test.go`, `pad_compact_diff_api_test.go`; the 23 runCompactAll/runCompactStale cases test etherpad-lite's bin/compactAllPads and bin/compactStalePads scripts, which etherpad-go does not have |
-| `api/api` | 13 | `lib/test/api/legacy/misc_test.go`, `openapi_test.go`: versions, GET and POST, the OpenAPI document (tags, summaries, POST only, apikey schemes). `rest_test.go`: `/rest/{version}/{resource}/{action}` (including pad/checkToken), `/rest/openapi.json`, `/api/2/...`, and `/api-docs.json` with its apikey/api_key/header schemes |
 
 ## `:` in pad ids
 
