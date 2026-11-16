@@ -14,10 +14,13 @@ import (
 	"github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/changeset"
 	"github.com/ether/etherpad-go/lib/hooks"
+	"github.com/ether/etherpad-go/lib/io/pdffonts"
 	padLib "github.com/ether/etherpad-go/lib/pad"
+	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/pdfcpu/pdfcpu/pkg/api"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/model"
 	"github.com/signintech/gopdf"
+	"go.uber.org/zap"
 )
 
 type ExportPDF struct {
@@ -27,6 +30,7 @@ type ExportPDF struct {
 	padManager     *padLib.Manager
 	authorManager  *author.Manager
 	Hooks          *hooks.Hook
+	logger         *zap.SugaredLogger
 }
 
 const (
@@ -67,9 +71,9 @@ type textSegment struct {
 	authorColor   string
 	// link is the target of a URL in the text (as the HTML export links it).
 	link string
-	// mono: ep_font_family's courier or monospace, set in RobotoMono. The
-	// other families are proprietary fonts the PDF cannot embed.
-	mono bool
+	// family is ep_font_family's family, normalised ("" for the default):
+	// set in the built-in font of its kind or an exportPdfFonts font.
+	family string
 	// size is ep_font_size's point size; 0 means the line's size.
 	size float64
 	// color is ep_font_color's text colour; nil means black.
@@ -102,12 +106,10 @@ func (e *ExportPDF) GetPadPdfDocument(padId string, optRevNum *int) ([]byte, err
 	pdf.Start(gopdf.Config{PageSize: *gopdf.PageSizeA4})
 	pdf.AddPage()
 
-	mono, err := e.loadFonts(&pdf)
-	if err != nil {
-		return nil, err
-	}
+	custom := parsePdfFontConfig(settings.Displayed.ExportPdfFonts, settings.Displayed.Root)
+	fonts := newPdfFonts(&pdf, custom, e.logger)
 
-	if err := e.renderFormattedText(&pdf, mono, retrievedPad, atext); err != nil {
+	if err := e.renderFormattedText(&pdf, fonts, retrievedPad, atext); err != nil {
 		return nil, err
 	}
 
@@ -176,62 +178,6 @@ func (e *ExportPDF) embedEtherpadData(pdfContent []byte, padId string, optRevNum
 	}
 
 	return outputPdf, nil
-}
-
-// loadFonts adds the fonts; mono reports whether RobotoMono is there.
-func (e *ExportPDF) loadFonts(pdf *gopdf.GoPdf) (mono bool, err error) {
-	regularPaths := []string{
-		"assets/font/Roboto-Regular.ttf",
-	}
-
-	var regularBytes []byte
-	for _, path := range regularPaths {
-		regularBytes, err = e.uiAssets.ReadFile(path)
-		if err == nil {
-			break
-		}
-	}
-	if err != nil {
-		return false, fmt.Errorf("failed to read regular font file: %w", err)
-	}
-	err = pdf.AddTTFFontByReader("Roboto", bytes.NewReader(regularBytes))
-	if err != nil {
-		return false, fmt.Errorf("failed to load regular font: %w", err)
-	}
-
-	boldPaths := []string{
-		"assets/font/Roboto-Bold.ttf",
-	}
-
-	var boldBytes []byte
-	for _, path := range boldPaths {
-		boldBytes, err = e.uiAssets.ReadFile(path)
-		if err == nil {
-			break
-		}
-	}
-	if err != nil {
-		return false, fmt.Errorf("failed to read bold font file: %w", err)
-	}
-	err = pdf.AddTTFFontByReader("Roboto-Bold", bytes.NewReader(boldBytes))
-	if err != nil {
-		return false, fmt.Errorf("failed to load bold font: %w", err)
-	}
-	loaded := 0
-	for name, path := range map[string]string{"RobotoMono": "assets/font/RobotoMono-Regular.ttf", "RobotoMono-Bold": "assets/font/RobotoMono-Bold.ttf"} {
-		b, err := e.uiAssets.ReadFile(path)
-		if err != nil {
-			// Not in every asset set (tests): monospace text falls back to
-			// Roboto.
-			continue
-		}
-		if err := pdf.AddTTFFontByReader(name, bytes.NewReader(b)); err != nil {
-			return false, fmt.Errorf("failed to load %s: %w", name, err)
-		}
-		loaded++
-	}
-
-	return loaded == 2, nil
 }
 
 func (e *ExportPDF) buildAuthorColorCache(padPool *apool.APool) map[string]string {
@@ -370,10 +316,7 @@ func (e *ExportPDF) parseLineSegments(text string, aline string, padPool *apool.
 			}
 		}
 		if family := attribs.Get("font-family"); family != nil {
-			switch strings.ToLower(*family) {
-			case "courier", "monospace":
-				seg.mono = true
-			}
+			seg.family = pdffonts.NormalizeFamily(*family)
 		}
 		if size := attribs.Get("font-size"); size != nil {
 			if px, err := strconv.ParseFloat(strings.TrimSuffix(*size, "px"), 64); err == nil && px >= 4 && px <= 96 {
