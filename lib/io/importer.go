@@ -76,7 +76,6 @@ func sanitizeImportedColorId(rawColorId any) string {
 	return utils.ColorPalette[rand.Intn(len(utils.ColorPalette))]
 }
 
-
 type EtherpadImport struct {
 	rawData map[string]json.RawMessage
 }
