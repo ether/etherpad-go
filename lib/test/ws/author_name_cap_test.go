@@ -59,8 +59,9 @@ func testNameCappedOnRead(t *testing.T, ds testutils.TestDataStore) {
 	padId := "nameCapRead"
 	authorId, err := setupPadAndAuthor(t, ds, padId, "x")
 	require.NoError(t, err)
-	// Stored as an older version did: in full.
-	require.NoError(t, ds.DS.SaveAuthorName(authorId, hugeName))
+	// Stored as an older version did: in full. 250 characters fit every
+	// datastore (MySQL's name column is a VARCHAR(255)).
+	require.NoError(t, ds.DS.SaveAuthorName(authorId, strings.Repeat("A", 250)))
 
 	a, err := ds.AuthorManager.GetAuthor(authorId)
 	require.NoError(t, err)
