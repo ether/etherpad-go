@@ -1,7 +1,6 @@
 package io
 
 import (
-	"errors"
 	stdio "io"
 	"path/filepath"
 	"strings"
@@ -257,10 +256,6 @@ func (h *ImportHandler) importEtherpad(padId string, authorId string, content []
 	err = h.importer.SetPadRaw(padId, content, authorId)
 	h.padManager.UnloadPad(padId)
 	if err != nil {
-		if errors.Is(err, io.ErrImportChangesCreator) {
-			h.logger.Warnf("Rejected .etherpad import into %s: %v", padId, err)
-			return false, &ImportError{Status: "permission", Message: err.Error()}
-		}
 		h.logger.Warnf("Import failed: could not import etherpad: %v", err)
 		return false, &ImportError{Status: "importFailed", Message: err.Error()}
 	}

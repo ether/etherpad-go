@@ -76,11 +76,6 @@ func sanitizeImportedColorId(rawColorId any) string {
 	return utils.ColorPalette[rand.Intn(len(utils.ColorPalette))]
 }
 
-// ErrImportChangesCreator is returned by SetPadRaw when someone other than
-// the pad's creator imports a .etherpad file whose revision 0 names a
-// different author. The rev-0 author is the creator, who may delete the pad,
-// so handing that role over is reserved to the creator (etherpad-lite #8420).
-var ErrImportChangesCreator = errors.New("only the pad creator can import a file with a different creator")
 
 type EtherpadImport struct {
 	rawData map[string]json.RawMessage
@@ -187,13 +182,30 @@ func (i *Importer) SetPadRaw(padId string, content []byte, authorId string) erro
 		settingsJSON = &s
 	}
 
+	// The rev 0 author is the pad's creator, who may delete the pad. When
+	// someone else imports a file naming another creator (a browser pad's
+	// export imported into a pad created through the HTTP API, whose
+	// creator is the system author, say), the target keeps its creator: the
+	// file's rev 0 author is rewritten to it (etherpad-lite #8470; it used
+	// to reject the import).
+	rewriteCreator := false
 	if rev0, ok := revisions[0]; ok && !importerIsCreator {
 		fileCreator := ""
 		if rev0.Meta.Author != nil {
 			fileCreator = *rev0.Meta.Author
 		}
 		if fileCreator != creatorId {
-			return ErrImportChangesCreator
+			if i.logger != nil {
+				i.logger.Infof("(pad %s) import names a different creator; keeping the pad's creator", padId)
+			}
+			if creatorId == "" {
+				rev0.Meta.Author = nil
+			} else {
+				c := creatorId
+				rev0.Meta.Author = &c
+				rewriteCreator = true
+			}
+			revisions[0] = rev0
 		}
 	}
 
@@ -217,6 +229,35 @@ func (i *Importer) SetPadRaw(padId string, content []byte, authorId string) erro
 		}
 	}
 	pool.NextNum = padData.Pool.NextNum
+	if rewriteCreator {
+		// The pool's authors must include every revision author. A pad is
+		// rebuilt from its revisions when it loads, so the revisions'
+		// pools get the creator too, under the same number.
+		creatorAttrib := apool.Attribute{Key: "author", Value: creatorId}
+		num := pool.PutAttrib(creatorAttrib, nil)
+		for n, rev := range revisions {
+			if rev.Meta.Pool == nil {
+				continue
+			}
+			rp := *rev.Meta.Pool
+			numToAttrib := make(map[string][]string, len(rp.NumToAttrib)+1)
+			for k, v := range rp.NumToAttrib {
+				numToAttrib[k] = v
+			}
+			attribToNum := make(map[string]int, len(rp.AttribToNum)+1)
+			for k, v := range rp.AttribToNum {
+				attribToNum[k] = v
+			}
+			numToAttrib[strconv.Itoa(num)] = creatorAttrib.ToStringSlice()
+			attribToNum[creatorAttrib.String()] = num
+			rp.NumToAttrib, rp.AttribToNum = numToAttrib, attribToNum
+			if rp.NextNum <= num {
+				rp.NextNum = num + 1
+			}
+			rev.Meta.Pool = &rp
+			revisions[n] = rev
+		}
+	}
 
 	imp := &parsedEtherpad{
 		pad: db2.PadDB{

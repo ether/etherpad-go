@@ -2,8 +2,8 @@ package io
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
+	"strconv"
 	"testing"
 
 	libio "github.com/ether/etherpad-go/lib/io"
@@ -20,7 +20,8 @@ func TestImportEtherpadSecurity(t *testing.T) {
 	testDb.AddTests(
 		testutils.TestRunConfig{Name: "publicStatus is taken from the target pad", Test: testImportKeepsTargetPublicStatus},
 		testutils.TestRunConfig{Name: "read-only link survives an import", Test: testImportKeepsReadOnlyId},
-		testutils.TestRunConfig{Name: "non-creator cannot import a file naming another creator", Test: testImportNonCreatorCannotChangeCreator},
+		testutils.TestRunConfig{Name: "a non-creator's import keeps the pad's creator", Test: testImportNonCreatorKeepsCreator},
+		testutils.TestRunConfig{Name: "a browser pad's export imports into a pad created through the API", Test: testImportIntoAPICreatedPad},
 		testutils.TestRunConfig{Name: "creator may import a file naming another creator", Test: testImportCreatorMayChangeCreator},
 		testutils.TestRunConfig{Name: "imports etherpad-lite and etherpad-go pad keys", Test: testImportAcceptsBothPadKeyFormats},
 	)
@@ -35,7 +36,8 @@ func etherpadFile(t *testing.T, padKey, text, rev0Author string, publicStatus bo
 	// Like a real export: rev 0 inserts the text before the initial "\n",
 	// attributed to its author, who is in the pool.
 	body := len(text) - 1
-	attribs := fmt.Sprintf("*0+%x|1+1", body)
+	n36 := strconv.FormatInt(int64(body), 36) // changeset numbers are base 36
+	attribs := fmt.Sprintf("*0+%s|1+1", n36)
 	data := map[string]any{
 		padKey: map[string]any{
 			"atext":          map[string]string{"text": text, "attribs": attribs},
@@ -46,7 +48,7 @@ func etherpadFile(t *testing.T, padKey, text, rev0Author string, publicStatus bo
 			"savedRevisions": []any{},
 		},
 		"pad:src:revs:0": libio.Revision{
-			Changeset: fmt.Sprintf("Z:1>%x*0+%x$%s", body, body, text[:body]),
+			Changeset: fmt.Sprintf("Z:1>%s*0+%s$%s", n36, n36, text[:body]),
 			Meta: libio.RevisionMeta{
 				Author:    &rev0Author,
 				Timestamp: &ts,
@@ -98,18 +100,52 @@ func testImportKeepsReadOnlyId(t *testing.T, ds testutils.TestDataStore) {
 	assert.Equal(t, before, ds.ReadOnlyManager.GetReadOnlyId(padId), "existing read-only links must keep working")
 }
 
-func testImportNonCreatorCannotChangeCreator(t *testing.T, ds testutils.TestDataStore) {
+func rev0Author(t *testing.T, ds testutils.TestDataStore, padId string) string {
+	t.Helper()
+	rev, err := ds.DS.GetRevision(padId, 0)
+	require.NoError(t, err)
+	if rev.AuthorId == nil {
+		return ""
+	}
+	return *rev.AuthorId
+}
+
+// etherpad-lite #8470: someone other than the creator imports a file naming
+// another creator. The import goes through; the pad keeps its creator (the
+// rev 0 author, who may delete the pad), the importer does not become it.
+func testImportNonCreatorKeepsCreator(t *testing.T, ds testutils.TestDataStore) {
 	padId := "importNonCreator"
-	createPadBy(t, ds, padId)
-	original, _ := reload(t, ds, padId)
+	creator := createPadBy(t, ds, padId)
 	intruder, err := ds.AuthorManager.CreateAuthor(nil)
 	require.NoError(t, err)
 
-	err = ds.Importer.SetPadRaw(padId, etherpadFile(t, "pad:src", "hijacked\n", intruder.Id, false), intruder.Id)
-	require.Error(t, err)
-	assert.True(t, errors.Is(err, libio.ErrImportChangesCreator))
+	require.NoError(t, ds.Importer.SetPadRaw(padId, etherpadFile(t, "pad:src", "imported\n", intruder.Id, false), intruder.Id))
 	text, _ := reload(t, ds, padId)
-	assert.Equal(t, original, text, "a rejected import must leave the pad untouched")
+	assert.Equal(t, "imported\n", text)
+	assert.Equal(t, creator, rev0Author(t, ds, padId), "the creator stays the creator")
+
+	p, err := ds.PadManager.GetPad(padId, nil, nil)
+	require.NoError(t, err)
+	assert.Contains(t, p.GetAllAuthors(), creator, "the pool names the creator, as every revision author")
+}
+
+// A pad created through the HTTP API has the system author as its creator;
+// the export of a pad a browser made names its browser author. Importing
+// it used to fail with a permission error.
+func testImportIntoAPICreatedPad(t *testing.T, ds testutils.TestDataStore) {
+	padId := "importIntoAPIPad"
+	text := "from the API\n"
+	_, err := ds.PadManager.GetPad(padId, &text, nil)
+	require.NoError(t, err)
+	apiCreator := rev0Author(t, ds, padId)
+	require.NotEmpty(t, apiCreator)
+
+	browser, err := ds.AuthorManager.CreateAuthor(nil)
+	require.NoError(t, err)
+	require.NoError(t, ds.Importer.SetPadRaw(padId, etherpadFile(t, "pad:src", "from the browser\n", browser.Id, false), browser.Id))
+	got, _ := reload(t, ds, padId)
+	assert.Equal(t, "from the browser\n", got)
+	assert.Equal(t, apiCreator, rev0Author(t, ds, padId), "the importer does not become the creator")
 }
 
 func testImportCreatorMayChangeCreator(t *testing.T, ds testutils.TestDataStore) {
