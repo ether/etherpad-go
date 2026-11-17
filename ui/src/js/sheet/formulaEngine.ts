@@ -14,15 +14,60 @@ export interface SetCellResult extends CellResult {
 // FormulaEngine wraps HyperFormula (GPLv3 — accepted in plan 1) behind a small
 // interface so the engine stays swappable. raw is the source of truth; this
 // derives the computed value/type, exactly the model in the design spec.
+export interface EngineSheet {
+  name: string;
+  cells: Array<{ row: number; col: number; raw: string }>;
+}
+
 export class FormulaEngine {
   private hf: HyperFormula;
   private sheetId: number;
+  // Workbook mirror: sheet names in order and the content last loaded per
+  // sheet, so an unchanged sheet is not loaded again.
+  private names: string[] = ['Sheet1'];
+  private loaded = new Map<string, string>();
 
   constructor() {
     registerExcelFunctions();
     this.hf = HyperFormula.buildEmpty({ licenseKey: 'gpl-v3' });
     const name = this.hf.addSheet('Sheet1');
     this.sheetId = this.hf.getSheetId(name) as number;
+  }
+
+  // setWorkbook loads every sheet, so formulas can reference other sheets
+  // (=Sheet2!A1, ='My Data'!B2), and makes `active` the sheet getValue reads.
+  setWorkbook(sheets: EngineSheet[], active: string): void {
+    const names = sheets.map((s) => s.name);
+    if (names.length === 0) return;
+    if (names.join('\u0000') !== this.names.join('\u0000')) {
+      // Sheets added, removed, renamed or moved: start over.
+      this.hf.destroy();
+      this.hf = HyperFormula.buildEmpty({ licenseKey: 'gpl-v3' });
+      this.loaded.clear();
+      for (const name of names) {
+        try {
+          this.hf.addSheet(name);
+        } catch {
+          // A name HyperFormula refuses (or a duplicate): the sheet is
+          // still computed, it just cannot be referenced by name.
+          this.hf.addSheet();
+        }
+      }
+      this.names = names;
+    }
+    const ids = this.hf.getSheetNames().map((n) => this.hf.getSheetId(n) as number);
+    this.hf.batch(() => {
+      sheets.forEach((s, i) => {
+        const grid = toGrid(s.cells);
+        const sig = JSON.stringify(grid);
+        const key = String(i);
+        if (this.loaded.get(key) === sig) return;
+        this.loaded.set(key, sig);
+        this.hf.setSheetContent(ids[i], grid);
+      });
+    });
+    const i = names.indexOf(active);
+    this.sheetId = ids[i >= 0 ? i : 0];
   }
 
   private mapType(row: number, col: number): CellResult['type'] {
@@ -50,20 +95,8 @@ export class FormulaEngine {
   // keeping the engine in sync with the collaborative workbook state (cells
   // removed by structural ops are dropped because the grid is rebuilt).
   setGrid(cells: Array<{ row: number; col: number; raw: string }>): void {
-    let maxRow = -1;
-    let maxCol = -1;
-    for (const c of cells) {
-      if (c.row > maxRow) maxRow = c.row;
-      if (c.col > maxCol) maxCol = c.col;
-    }
-    const grid: string[][] = [];
-    for (let r = 0; r <= maxRow; r++) {
-      grid.push(new Array<string>(maxCol + 1).fill(''));
-    }
-    for (const c of cells) {
-      grid[c.row][c.col] = c.raw;
-    }
-    this.hf.setSheetContent(this.sheetId, grid);
+    this.hf.setSheetContent(this.sheetId, toGrid(cells));
+    this.loaded.clear();
   }
 
   // setCell sets the raw content and returns its computed result plus the list
@@ -82,4 +115,21 @@ export class FormulaEngine {
   functionNames(): string[] {
     return HyperFormula.getRegisteredFunctionNames('enGB');
   }
+}
+
+function toGrid(cells: Array<{ row: number; col: number; raw: string }>): string[][] {
+  let maxRow = -1;
+  let maxCol = -1;
+  for (const c of cells) {
+    if (c.row > maxRow) maxRow = c.row;
+    if (c.col > maxCol) maxCol = c.col;
+  }
+  const grid: string[][] = [];
+  for (let r = 0; r <= maxRow; r++) {
+    grid.push(new Array<string>(maxCol + 1).fill(''));
+  }
+  for (const c of cells) {
+    grid[c.row][c.col] = c.raw;
+  }
+  return grid;
 }

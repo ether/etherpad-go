@@ -8,6 +8,7 @@ func Transform(in, applied Op) Op {
 	if in.Sheet != applied.Sheet || !applied.isStructural() {
 		return in
 	}
+	in = rebaseFormula(in, applied)
 	switch applied.Type {
 	case OpInsertRows:
 		return shiftRows(in, applied.Index, applied.Count)
@@ -17,6 +18,27 @@ func Transform(in, applied Op) Op {
 		return shiftCols(in, applied.Index, applied.Count)
 	case OpDeleteCols:
 		return shiftCols(in, applied.Index, -applied.Count)
+	}
+	return in
+}
+
+// rebaseFormula moves the references of a formula typed before a concurrent
+// row/column insert or delete on the same sheet, as Apply does for the
+// formulas already stored. Only references without a sheet name are moved:
+// Transform does not know sheet names.
+func rebaseFormula(in, applied Op) Op {
+	if in.Type != OpSetCell || in.Raw == nil {
+		return in
+	}
+	e := RefEdit{OnTarget: true, Index: applied.Index, Delta: applied.Count, Axis: "row"}
+	if applied.Type == OpInsertCols || applied.Type == OpDeleteCols {
+		e.Axis = "col"
+	}
+	if applied.Type == OpDeleteRows || applied.Type == OpDeleteCols {
+		e.Delta = -applied.Count
+	}
+	if raw := RewriteFormula(*in.Raw, e); raw != *in.Raw {
+		in.Raw = &raw
 	}
 	return in
 }

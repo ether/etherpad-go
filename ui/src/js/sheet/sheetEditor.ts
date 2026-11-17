@@ -154,8 +154,10 @@ export function startSheetEditor(root: HTMLElement): void {
     selTimer = setTimeout(() => sendPresence(row, col, false), 50);
   };
 
-  const cellsOfActive = (): Array<{ row: number; col: number; raw: string }> => {
-    const sheet = collab?.display.sheetById(activeSheetId);
+  const cellsOfActive = (): Array<{ row: number; col: number; raw: string }> => cellsOf(activeSheetId);
+
+  const cellsOf = (sheetId: string): Array<{ row: number; col: number; raw: string }> => {
+    const sheet = collab?.display.sheetById(sheetId);
     if (!sheet) return [];
     const out: Array<{ row: number; col: number; raw: string }> = [];
     for (const [k, cell] of sheet.cells) {
@@ -244,7 +246,19 @@ export function startSheetEditor(root: HTMLElement): void {
 
   const onChange = (): void => {
     const live = presence ? presence.liveEditsForSheet(activeSheetId) : [];
-    engine.setGrid(effectiveCells(cellsOfActive(), live));
+    // Every sheet goes to the engine, so formulas can reference other sheets.
+    const sheets = collab?.display.sheets ?? [];
+    if (sheets.length === 0) {
+      engine.setGrid(effectiveCells(cellsOfActive(), live));
+    } else {
+      engine.setWorkbook(
+        sheets.map((sh) => ({
+          name: sh.name,
+          cells: sh.id === activeSheetId ? effectiveCells(cellsOfActive(), live) : cellsOf(sh.id),
+        })),
+        collab?.display.sheetById(activeSheetId)?.name ?? '',
+      );
+    }
     if (view && presence) {
       view.setRemoteCursors(
         presence.cursorsForSheet(activeSheetId).map((c) => ({
@@ -627,6 +641,20 @@ export function startSheetEditor(root: HTMLElement): void {
         if (cell && cell.raw !== '' && !cell.raw.startsWith('=')) return undefined;
         const res = engine.getValue(r, c);
         return res.type === 'error' ? res.value : undefined;
+      },
+      defaultAlignOf: (r, c) => {
+        const raw = rawValue(r, c);
+        if (propsOf(r, c).numFmt === 'text') return undefined;
+        let type: string;
+        if (raw === '' || raw.startsWith('=')) {
+          type = engine.getValue(r, c).type;
+        } else {
+          const t = raw.trim();
+          type = /^(true|false)$/i.test(t) ? 'bool' : t !== '' && Number.isFinite(Number(t)) ? 'number' : 'text';
+        }
+        if (type === 'number') return 'right';
+        if (type === 'bool' || type === 'error') return 'center';
+        return undefined;
       },
       onEdit: (r, c, raw) => {
         if (!collab) return;

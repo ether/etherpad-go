@@ -32,6 +32,9 @@ export interface SheetViewOptions {
   readOnly?: boolean;
   styleOf?: (row: number, col: number) => Record<string, string>;
   errorOf?: (row: number, col: number) => string | undefined;
+  // Alignment of a cell without its own: Excel puts numbers on the right,
+  // booleans and errors in the middle.
+  defaultAlignOf?: (row: number, col: number) => 'right' | 'center' | undefined;
   // M4: sparse dimension overrides (px), freeze state, and resize commits.
   colWidth?: (col: number) => number | undefined;
   rowHeight?: (row: number) => number | undefined;
@@ -483,6 +486,7 @@ export class DomSheetView {
           if (css.fontSize) td.style.fontSize = css.fontSize;
           if (css.whiteSpace) td.style.whiteSpace = css.whiteSpace;
         }
+        if (!td.style.textAlign && !live) td.style.textAlign = this.opts.defaultAlignOf?.(r, c) ?? '';
         const err = this.opts.errorOf?.(r, c);
         td.classList.toggle('sheet-cell-error', !!err);
         if (err) td.title = err; else td.removeAttribute('title');

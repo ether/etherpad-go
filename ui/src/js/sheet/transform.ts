@@ -1,4 +1,16 @@
 import { isStructural, type Op } from './op';
+import { rewriteFormula, structuralEdit } from './formulaRefs';
+
+// rebaseFormula mirrors Go: a formula typed before a concurrent row/column
+// insert or delete on the same sheet gets its references (without a sheet
+// name) moved like the stored formulas.
+function rebaseFormula(inOp: Op, type: Op['type'], index: number, count: number): Op {
+  if (inOp.type !== 'setCell' || inOp.raw === undefined) return inOp;
+  const edit = structuralEdit(type, index, count);
+  if (!edit) return inOp;
+  const raw = rewriteFormula(inOp.raw, { target: '', onTarget: true, ...edit });
+  return raw === inOp.raw ? inOp : { ...inOp, raw };
+}
 
 // transform ports lib/sheet/transform.go exactly. It adjusts `inOp` so it applies
 // cleanly after `applied`, where both were composed against the same base
@@ -9,6 +21,7 @@ export function transform(inOp: Op, applied: Op): Op {
   if (inOp.sheet !== applied.sheet || !isStructural(applied)) return inOp;
   const index = applied.index ?? 0;
   const count = applied.count ?? 0;
+  inOp = rebaseFormula(inOp, applied.type, index, count);
   switch (applied.type) {
     case 'insertRows':
       return shiftRows(inOp, index, count);
