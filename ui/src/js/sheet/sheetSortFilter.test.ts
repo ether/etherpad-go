@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { sortRangeOps, distinctValues, hiddenRowsForFilter, compareVals } from './sheetSortFilter';
+import { sortRangeOps, distinctValues, compareVals } from './sheetSortFilter';
 import type { Selection } from './sheetSelection';
 
 const sel = (r0: number, c0: number, r1: number, c1: number): Selection => ({
@@ -61,9 +61,5 @@ describe('filter helpers', () => {
   const grid = [['x'], ['y'], ['x'], [''], ['z']];
   it('distinctValues sorted + deduped, blanks excluded', () => {
     expect(distinctValues(0, 5, gridRaw(grid))).toEqual(['x', 'y', 'z']);
-  });
-  it('hiddenRowsForFilter hides non-matching, keeps blanks visible', () => {
-    const hidden = hiddenRowsForFilter(0, 'x', 5, gridRaw(grid));
-    expect([...hidden].sort()).toEqual([1, 4]);
   });
 });

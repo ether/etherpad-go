@@ -2,6 +2,7 @@ package sheet
 
 import (
 	"maps"
+	"slices"
 	"sort"
 )
 
@@ -34,6 +35,9 @@ type SheetSnapshot struct {
 	FrozenRows int             `json:"frozenRows,omitempty"`
 	FrozenCols int             `json:"frozenCols,omitempty"`
 	Merges     []MergeSnapshot `json:"merges,omitempty"`
+	// Column filters; JSON object keys are stringified column indices.
+	Filters   map[int][]string `json:"filters,omitempty"`
+	FilterRow int              `json:"filterRow,omitempty"`
 }
 
 // WorkbookSnapshot is the JSON-serializable form of a Workbook for persistence.
@@ -65,6 +69,13 @@ func (w *Workbook) Snapshot() WorkbookSnapshot {
 		}
 		if len(s.RowHeights) > 0 {
 			ss.RowHeights = maps.Clone(s.RowHeights)
+		}
+		if len(s.Filters) > 0 {
+			ss.Filters = make(map[int][]string, len(s.Filters))
+			for c, v := range s.Filters {
+				ss.Filters[c] = slices.Clone(v)
+			}
+			ss.FilterRow = s.FilterRow
 		}
 		for a, sp := range s.Merges {
 			ss.Merges = append(ss.Merges, MergeSnapshot{a.Row, a.Col, sp.Rows, sp.Cols})
@@ -104,6 +115,13 @@ func WorkbookFromSnapshot(snap WorkbookSnapshot) *Workbook {
 		maps.Copy(sh.ColWidths, ss.ColWidths)
 		maps.Copy(sh.RowHeights, ss.RowHeights)
 		sh.FrozenRows, sh.FrozenCols = ss.FrozenRows, ss.FrozenCols
+		if len(ss.Filters) > 0 {
+			sh.Filters = make(map[int][]string, len(ss.Filters))
+			for c, v := range ss.Filters {
+				sh.Filters[c] = slices.Clone(v)
+			}
+			sh.FilterRow = ss.FilterRow
+		}
 		for _, m := range ss.Merges {
 			sh.Merges[CellRef{m.Row, m.Col}] = Span{Rows: m.Rows, Cols: m.Cols}
 		}

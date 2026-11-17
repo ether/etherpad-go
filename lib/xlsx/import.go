@@ -3,15 +3,16 @@ package xlsx
 import (
 	"io"
 	"math"
+	"strings"
 
 	"github.com/ether/etherpad-go/lib/sheet"
 	"github.com/xuri/excelize/v2"
 )
 
-// The client grid is fixed at 200x52; dimension scans stop there.
+// The client grid is 10000 rows by 104 columns (A..CZ); nothing beyond is read.
 const (
-	maxRows = 200
-	maxCols = 52
+	maxRows = 10000
+	maxCols = 104
 )
 
 // Import parses an .xlsx into a WorkbookSnapshot. Sheet id == sheet name. Cells
@@ -49,7 +50,13 @@ func Import(r io.Reader) (sheet.WorkbookSnapshot, error) {
 		if err != nil {
 			return sheet.WorkbookSnapshot{}, err
 		}
+		if len(rows) > maxRows {
+			rows = rows[:maxRows]
+		}
 		for rIdx, row := range rows {
+			if len(row) > maxCols {
+				row = row[:maxCols]
+			}
 			for cIdx, val := range row {
 				axis, err := excelize.CoordinatesToCellName(cIdx+1, rIdx+1)
 				if err != nil {
@@ -70,12 +77,29 @@ func Import(r io.Reader) (sheet.WorkbookSnapshot, error) {
 			}
 		}
 
-		// Styled-but-empty cells never show up in GetRows, and excelize does
-		// not maintain the sheet dimension attribute, so sweep the whole grid
-		// for styles on cells not yet seen. ponytail: 200x52 lookups per
-		// sheet, fine for an import endpoint.
-		for r := range maxRows {
-			for c := range maxCols {
+		// Styled-but-empty cells never show up in GetRows, so sweep for styles
+		// on cells not yet seen: inside the sheet's dimension when the file
+		// has one (Excel writes it; excelize does not keep it up to date),
+		// else the rows read plus a margin.
+		widest := 0
+		for _, row := range rows {
+			widest = max(widest, len(row))
+		}
+		dimRows, dimCols := 0, 0
+		if dim, derr := f.GetSheetDimension(name); derr == nil && dim != "" {
+			parts := strings.Split(dim, ":")
+			if c, r, err := excelize.CellNameToCoordinates(parts[len(parts)-1]); err == nil {
+				dimRows, dimCols = r, c
+			}
+		}
+		sweepRows := min(max(len(rows)+50, dimRows), maxRows)
+		sweepCols := maxCols
+		if sweepRows*maxCols > 200000 {
+			// Big sheets: stay near the data instead of probing every column.
+			sweepCols = min(max(widest+10, dimCols), maxCols)
+		}
+		for r := range sweepRows {
+			for c := range sweepCols {
 				ref := sheet.CellRef{Row: r, Col: c}
 				if _, seen := sh.Cells[ref]; seen {
 					continue
@@ -91,7 +115,7 @@ func Import(r io.Reader) (sheet.WorkbookSnapshot, error) {
 
 		// Dimensions: excelize returns the sheet default for untouched
 		// indices, so probe a far-away column/row as the baseline and store
-		// only deviations. ponytail: scans the fixed grid extent (52/200).
+		// only deviations.
 		baseW, _ := f.GetColWidth(name, "XFD")
 		for c := range maxCols {
 			cn, _ := excelize.ColumnNumberToName(c + 1)
@@ -100,7 +124,7 @@ func Import(r io.Reader) (sheet.WorkbookSnapshot, error) {
 			}
 		}
 		baseH, _ := f.GetRowHeight(name, excelize.TotalRows)
-		for r := range maxRows {
+		for r := range sweepRows {
 			if h, err := f.GetRowHeight(name, r+1); err == nil && math.Abs(h-baseH) > 0.01 {
 				sh.RowHeights[r] = rowHeightToPx(h)
 			}
@@ -119,14 +143,9 @@ func Import(r io.Reader) (sheet.WorkbookSnapshot, error) {
 
 		importCellMeta(f, wb, sh, name)
 
-		// Freeze panes: the model only supports freezing the first row/col.
 		if panes, err := f.GetPanes(name); err == nil && panes.Freeze {
-			if panes.YSplit > 0 {
-				sh.FrozenRows = 1
-			}
-			if panes.XSplit > 0 {
-				sh.FrozenCols = 1
-			}
+			sh.FrozenRows = min(max(panes.YSplit, 0), sheet.MaxFrozenRows)
+			sh.FrozenCols = min(max(panes.XSplit, 0), sheet.MaxFrozenCols)
 		}
 	}
 	return wb.Snapshot(), nil

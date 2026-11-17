@@ -87,6 +87,16 @@ const formulaRestores = (wb: WorkbookState, op: Op, edit: Omit<RefEdit, 'onTarge
   return out;
 };
 
+// filterRestore rebuilds a sheet's column filters (all, or one column).
+const filterRestore = (op: Op, sheet: SheetState, only?: number): Op[] => {
+  const out: Op[] = [];
+  for (const [c, values] of sheet.filters) {
+    if (only !== undefined && c !== only) continue;
+    out.push({ ...base(op), type: 'setFilter', row: sheet.filterRow, col: c, values: [...values] });
+  }
+  return out;
+};
+
 export function invertOp(wb: WorkbookState, op: Op): Op[] {
   switch (op.type) {
     case 'addSheet':
@@ -112,6 +122,7 @@ export function invertOp(wb: WorkbookState, op: Op): Op[] {
       if (sheet.frozenRows || sheet.frozenCols) {
         out.push({ ...base(op), type: 'setFreeze', frozenRows: sheet.frozenRows, frozenCols: sheet.frozenCols });
       }
+      out.push(...filterRestore(op, sheet));
       // References from the other sheets became #REF!.
       out.push(...formulaRestores(wb, op, { target: sheet.name, deleted: true }, () => true));
       return out;
@@ -157,6 +168,11 @@ export function invertOp(wb: WorkbookState, op: Op): Op[] {
     }
     case 'setFreeze':
       return [{ ...base(op), type: 'setFreeze', frozenRows: sheet.frozenRows, frozenCols: sheet.frozenCols }];
+    case 'setFilter': {
+      // Back to exactly the filters before: clear, then put each one back.
+      const restore = filterRestore(op, sheet);
+      return [{ ...base(op), type: 'setFilter', row: 0, col: 0, clear: true }, ...restore];
+    }
     case 'mergeCells': {
       const endRow = op.endRow ?? 0;
       const endCol = op.endCol ?? 0;
@@ -200,8 +216,12 @@ export function invertOp(wb: WorkbookState, op: Op): Op[] {
           return [{ ...base(op), type: 'deleteCols', index, count }, ...refs];
         case 'deleteRows':
           return [{ ...base(op), type: 'insertRows', index, count }, ...bandRestore(wb, op, sheet, 'row', index, count), ...refs];
-        default:
-          return [{ ...base(op), type: 'insertCols', index, count }, ...bandRestore(wb, op, sheet, 'col', index, count), ...refs];
+        default: {
+          // Filters of the deleted columns come back too.
+          const filters: Op[] = [];
+          for (let c = index; c < index + count; c++) filters.push(...filterRestore(op, sheet, c));
+          return [{ ...base(op), type: 'insertCols', index, count }, ...bandRestore(wb, op, sheet, 'col', index, count), ...refs, ...filters];
+        }
       }
     }
     default:

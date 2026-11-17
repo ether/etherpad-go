@@ -44,11 +44,19 @@ export interface SheetViewOptions {
   rowHeight?: (row: number) => number | undefined;
   frozen?: () => { rows: number; cols: number };
   onResize?: (axis: 'col' | 'row', index: number, sizePx: number) => void;
-  // Client-local row filter: hidden rows collapse via display:none.
+  // Rows hidden by the sheet's filters collapse via display:none.
   rowHidden?: (row: number) => boolean;
+  // Columns with a filter get a marker in their header.
+  colFiltered?: (col: number) => boolean;
   // Merged ranges (top-left anchor + span). The anchor td gets rowSpan/colSpan,
   // covered tds are display:none.
   merges?: () => Array<{ row: number; col: number; rows: number; cols: number }>;
+}
+
+interface RowEl {
+  tr: HTMLTableRowElement;
+  th: HTMLTableCellElement;
+  tds: HTMLTableCellElement[];
 }
 
 const STYLE_ID = 'sheet-grid-style';
@@ -70,10 +78,8 @@ const CSS = `
 .sheet-grid td { outline: none; position: relative; background: #fff; white-space: nowrap; overflow: hidden; }
 .sheet-resizer-col { position: absolute; top: 0; right: -3px; width: 6px; height: 100%; cursor: col-resize; z-index: 9; }
 .sheet-resizer-row { position: absolute; left: 0; bottom: -3px; height: 6px; width: 100%; cursor: row-resize; z-index: 9; }
-.sheet-grid.sheet-frozen-r thead th { position: sticky; top: 0; z-index: 8; }
-.sheet-grid.sheet-frozen-r tbody tr:first-child th, .sheet-grid.sheet-frozen-r tbody tr:first-child td { position: sticky; top: var(--fr-top, 24px); z-index: 7; }
-.sheet-grid.sheet-frozen-c tbody th, .sheet-grid.sheet-frozen-c thead th:first-child { position: sticky; left: 0; z-index: 8; }
-.sheet-grid.sheet-frozen-c thead th:nth-child(2), .sheet-grid.sheet-frozen-c tbody td:first-of-type { position: sticky; left: var(--fc-left, 40px); z-index: 6; }
+.sheet-grid thead th.sheet-head-filter::after { content: ' ▾'; color: #107c41; }
+.sheet-grid tr.sheet-spacer td { padding: 0; border: none; background: transparent; min-width: 0; height: auto; }
 .sheet-grid td:focus { box-shadow: inset 0 0 0 2px #107c41; overflow: visible; z-index: 3; }
 .sheet-remote-tag { position: absolute; top: -15px; left: -1px; font: 10px/14px system-ui, sans-serif; padding: 0 4px; color: #fff; border-radius: 3px 3px 3px 0; white-space: nowrap; z-index: 5; pointer-events: none; }
 .sheet-remote-tag::after { content: attr(data-label); }
@@ -94,7 +100,16 @@ const CSS = `
 
 export class DomSheetView {
   private opts: SheetViewOptions;
-  private cells: HTMLTableCellElement[][] = [];
+  // Only the rows near the viewport exist in the DOM (plus frozen rows, the
+  // row being edited and rows a merge needs); gaps are spacer rows.
+  private rowEls = new Map<number, RowEl>();
+  private tbody: HTMLTableSectionElement;
+  private rowTops: number[] = [];
+  private measured = new Map<number, number>();
+  private defaultRowH = 27;
+  private renderedRange = { start: 0, end: -1 };
+  private scrollQueued = false;
+  private stickyEls = new Set<HTMLElement>();
   private editing: { row: number; col: number } | null = null;
   private escaped = false;
   private activeEdit = false;
@@ -118,8 +133,7 @@ export class DomSheetView {
   private table: HTMLTableElement;
   private thead: HTMLTableSectionElement;
   private colHeads: HTMLTableCellElement[] = [];
-  private rowHeads: HTMLTableCellElement[] = [];
-  private rows: HTMLTableRowElement[] = [];
+
 
   constructor(root: HTMLElement, opts: SheetViewOptions) {
     this.opts = opts;
@@ -160,9 +174,6 @@ export class DomSheetView {
     root.appendChild(this.listBtn);
     this.root = root;
 
-    // ponytail: every cell is a DOM node (~200x52 = 10k contenteditables).
-    // Virtualization (render only the visible viewport) is the upgrade path
-    // when larger grids hurt; not built here.
     const thead = document.createElement('thead');
     this.thead = thead;
     const headRow = document.createElement('tr');
@@ -178,27 +189,7 @@ export class DomSheetView {
     table.appendChild(thead);
 
     const tbody = document.createElement('tbody');
-    for (let r = 0; r < opts.rows; r++) {
-      const tr = document.createElement('tr');
-      this.rows.push(tr);
-      const rowHead = document.createElement('th');
-      rowHead.textContent = String(r + 1);
-      this.attachResizer(rowHead, 'row', r);
-      this.rowHeads.push(rowHead);
-      tr.appendChild(rowHead);
-      const rowCells: HTMLTableCellElement[] = [];
-      for (let c = 0; c < opts.cols; c++) {
-        const td = document.createElement('td');
-        // Read-only viewers get non-editable cells: with no typing, no live-edit
-        // or commit frames originate from the client (the server strips them too).
-        td.contentEditable = opts.readOnly ? 'false' : 'true';
-        this.attach(td, r, c);
-        tr.appendChild(td);
-        rowCells.push(td);
-      }
-      this.cells.push(rowCells);
-      tbody.appendChild(tr);
-    }
+    this.tbody = tbody;
     table.appendChild(tbody);
     root.appendChild(table);
     document.addEventListener('mouseup', () => {
@@ -213,7 +204,171 @@ export class DomSheetView {
       this.fillTarget = null;
       this.render();
     });
+    root.addEventListener('scroll', () => {
+      if (this.scrollQueued) return;
+      this.scrollQueued = true;
+      requestAnimationFrame(() => {
+        this.scrollQueued = false;
+        const v = this.visibleRows();
+        if (v.start < this.renderedRange.start || v.end > this.renderedRange.end) this.render();
+      });
+    });
     this.render();
+  }
+
+  private cellEl(r: number, c: number): HTMLTableCellElement | undefined {
+    return this.rowEls.get(r)?.tds[c];
+  }
+
+  private buildRow(r: number): RowEl {
+    const tr = document.createElement('tr');
+    tr.dataset.row = String(r);
+    const th = document.createElement('th');
+    th.textContent = String(r + 1);
+    this.attachResizer(th, 'row', r);
+    tr.appendChild(th);
+    const tds: HTMLTableCellElement[] = [];
+    for (let c = 0; c < this.opts.cols; c++) {
+      const td = document.createElement('td');
+      // Read-only viewers get non-editable cells: with no typing, no live-edit
+      // or commit frames originate from the client (the server strips them too).
+      td.contentEditable = this.opts.readOnly ? 'false' : 'true';
+      this.attach(td, r, c);
+      const w = this.opts.colWidth?.(c);
+      if (w !== undefined) {
+        td.style.minWidth = `${w}px`;
+        td.style.maxWidth = `${w}px`;
+      }
+      tr.appendChild(td);
+      tds.push(td);
+    }
+    return { tr, th, tds };
+  }
+
+  private rowHeightOf(r: number): number {
+    if (this.opts.rowHidden?.(r)) return 0;
+    return this.measured.get(r) ?? this.opts.rowHeight?.(r) ?? this.defaultRowH;
+  }
+
+  // visibleRows is the range of rows inside the scrolled viewport.
+  private visibleRows(): { start: number; end: number } {
+    const head = this.thead.offsetHeight;
+    const top = Math.max(0, this.root.scrollTop - head);
+    const bottom = top + Math.max(this.root.clientHeight, 600);
+    return { start: this.rowAt(top), end: this.rowAt(bottom) };
+  }
+
+  private rowAt(y: number): number {
+    let lo = 0;
+    let hi = this.opts.rows - 1;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if (this.rowTops[mid] <= y) lo = mid;
+      else hi = mid - 1;
+    }
+    return lo;
+  }
+
+  // layoutRows puts the rows that should exist into the tbody, in order, with
+  // spacer rows standing in for the heights of the rows in between.
+  private layoutRows(): void {
+    const n = this.opts.rows;
+    this.rowTops = new Array(n + 1);
+    this.rowTops[0] = 0;
+    for (let r = 0; r < n; r++) this.rowTops[r + 1] = this.rowTops[r] + this.rowHeightOf(r);
+
+    const BUFFER = 20;
+    const v = this.visibleRows();
+    let start = Math.max(0, v.start - BUFFER);
+    let end = Math.min(n - 1, v.end + BUFFER);
+    // A merge crossing the window's edge needs all its rows (rowSpan counts
+    // the following <tr>s).
+    const merges = this.opts.merges?.() ?? [];
+    for (let changed = true; changed;) {
+      changed = false;
+      for (const m of merges) {
+        const last = m.row + m.rows - 1;
+        if (m.row > end || last < start) continue;
+        if (m.row < start) { start = m.row; changed = true; }
+        if (last > end && last < n) { end = last; changed = true; }
+      }
+    }
+    this.renderedRange = { start, end };
+    const want = new Set<number>();
+    for (let r = start; r <= end; r++) want.add(r);
+    const fz = this.opts.frozen?.() ?? { rows: 0, cols: 0 };
+    for (let r = 0; r < Math.min(fz.rows, n); r++) want.add(r);
+    if (this.editing) want.add(this.editing.row);
+
+    for (const [r, row] of this.rowEls) {
+      if (!want.has(r)) {
+        row.tr.remove();
+        this.rowEls.delete(r);
+      }
+    }
+    const order = [...want].sort((a, b) => a - b);
+    const children: HTMLTableRowElement[] = [];
+    let prev = -1;
+    for (const r of order) {
+      if (r > prev + 1) children.push(this.spacer(this.rowTops[r] - this.rowTops[prev + 1]));
+      let row = this.rowEls.get(r);
+      if (!row) {
+        row = this.buildRow(r);
+        this.rowEls.set(r, row);
+      }
+      children.push(row.tr);
+      prev = r;
+    }
+    if (prev < n - 1) children.push(this.spacer(this.rowTops[n] - this.rowTops[prev + 1]));
+    // Re-append in order; rows that are already in place are not moved.
+    let cursor: ChildNode | null = this.tbody.firstChild;
+    for (const el of children) {
+      if (el === cursor) {
+        cursor = cursor.nextSibling;
+        continue;
+      }
+      this.tbody.insertBefore(el, cursor);
+    }
+    while (cursor) {
+      const next: ChildNode | null = cursor.nextSibling;
+      cursor.remove();
+      cursor = next;
+    }
+  }
+
+  private spacerPool: HTMLTableRowElement[] = [];
+  private spacerUsed = 0;
+  private spacer(height: number): HTMLTableRowElement {
+    let tr = this.spacerPool[this.spacerUsed];
+    if (!tr) {
+      tr = document.createElement('tr');
+      tr.className = 'sheet-spacer';
+      tr.setAttribute('aria-hidden', 'true');
+      const td = document.createElement('td');
+      td.colSpan = this.opts.cols + 1;
+      tr.appendChild(td);
+      this.spacerPool.push(tr);
+    }
+    this.spacerUsed++;
+    (tr.firstChild as HTMLTableCellElement).style.height = `${Math.max(0, height)}px`;
+    return tr;
+  }
+
+  // ensureRowVisible scrolls a row into the viewport (rendering it first).
+  private ensureVisible(r: number, c: number): void {
+    const head = this.thead.offsetHeight;
+    const fz = this.opts.frozen?.() ?? { rows: 0, cols: 0 };
+    const frozenH = this.rowTops[Math.min(fz.rows, this.opts.rows)] ?? 0;
+    const top = this.rowTops[r] ?? 0;
+    const bottom = this.rowTops[r + 1] ?? top;
+    const viewTop = this.root.scrollTop + frozenH;
+    const viewBottom = this.root.scrollTop + this.root.clientHeight - head;
+    if (r >= fz.rows) {
+      if (top < viewTop) this.root.scrollTop = Math.max(0, top - frozenH);
+      else if (bottom > viewBottom) this.root.scrollTop = bottom - this.root.clientHeight + head;
+    }
+    this.render();
+    this.cellEl(r, c)?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }
 
   // attachResizer adds a drag strip to a header cell edge. Dragging previews
@@ -256,13 +411,13 @@ export class DomSheetView {
       th.style.width = px;
       th.style.minWidth = px;
       th.style.maxWidth = px;
-      for (let r = 0; r < this.opts.rows; r++) {
-        const td = this.cells[r][index];
+      for (const row of this.rowEls.values()) {
+        const td = row.tds[index];
         td.style.minWidth = px;
         td.style.maxWidth = px;
       }
     } else {
-      const th = this.rowHeads[index];
+      const th = this.rowEls.get(index)?.th;
       if (!th) return;
       th.style.height = px;
     }
@@ -353,7 +508,9 @@ export class DomSheetView {
           : selFromSingle(nr, nc);
         if (!extend) this.opts.onSelect?.(nr, nc);
         this.opts.onSelectionChange?.(this.selection);
-        this.render();
+        this.ensureVisible(nr, nc);
+        // The moved-to cell takes the keyboard, so typing goes into it.
+        if (!extend) this.cellEl(nr, nc)?.focus();
       };
       if (e.key === 'ArrowUp') return move(-1, 0, e.shiftKey);
       if (e.key === 'ArrowDown') return move(1, 0, e.shiftKey);
@@ -413,11 +570,8 @@ export class DomSheetView {
   setSelection(sel: Selection): void {
     this.selection = sel;
     this.opts.onSelectionChange?.(sel);
-    this.render();
-    const td = this.cells[sel.focus.row]?.[sel.focus.col];
-    if (!td) return;
-    td.focus();
-    td.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    this.ensureVisible(sel.focus.row, sel.focus.col);
+    this.cellEl(sel.focus.row, sel.focus.col)?.focus();
   }
 
   // isEditing reports whether the user is actively typing into a cell (as
@@ -451,7 +605,7 @@ export class DomSheetView {
   private toggleListMenu(): void {
     if (this.listMenu) return this.closeListMenu();
     const { row, col } = this.selection.focus;
-    const td = this.cells[row]?.[col];
+    const td = this.cellEl(row, col);
     const list = this.opts.metaOf?.(row, col).list ?? [];
     if (!td || list.length === 0) return;
     const menu = document.createElement('div');
@@ -486,6 +640,51 @@ export class DomSheetView {
     document.addEventListener('mousedown', outside, true);
   }
 
+  // applyFreeze keeps the first rows/columns in place while the grid scrolls
+  // (position: sticky, offset by the rows/columns before them).
+  private applyFreeze(): void {
+    for (const el of this.stickyEls) {
+      el.style.position = '';
+      el.style.top = '';
+      el.style.left = '';
+      el.style.zIndex = '';
+    }
+    this.stickyEls.clear();
+    const fz = this.opts.frozen?.() ?? { rows: 0, cols: 0 };
+    this.table.classList.toggle('sheet-frozen-r', fz.rows > 0);
+    this.table.classList.toggle('sheet-frozen-c', fz.cols > 0);
+    const stick = (el: HTMLElement, top: number | null, left: number | null, z: number): void => {
+      el.style.position = 'sticky';
+      if (top !== null) el.style.top = `${top}px`;
+      if (left !== null) el.style.left = `${left}px`;
+      el.style.zIndex = String(z);
+      this.stickyEls.add(el);
+    };
+    const head = this.thead.offsetHeight;
+    const rowHeadW = this.thead.rows[0]?.cells[0]?.offsetWidth ?? 40;
+    const lefts: number[] = [];
+    let x = rowHeadW;
+    for (let c = 0; c < Math.min(fz.cols, this.opts.cols); c++) {
+      lefts.push(x);
+      x += this.colHeads[c].offsetWidth;
+      stick(this.colHeads[c], null, lefts[c], 9);
+    }
+    let y = head;
+    for (let r = 0; r < Math.min(fz.rows, this.opts.rows); r++) {
+      const row = this.rowEls.get(r);
+      if (!row) continue;
+      stick(row.th, y, 0, 8);
+      row.tds.forEach((td, c) => stick(td, y, c < lefts.length ? lefts[c] : null, c < lefts.length ? 8 : 7));
+      y += row.tr.offsetHeight;
+    }
+    if (lefts.length > 0) {
+      for (const [r, row] of this.rowEls) {
+        if (r < fz.rows) continue;
+        for (let c = 0; c < lefts.length; c++) stick(row.tds[c], null, lefts[c], 6);
+      }
+    }
+  }
+
   // render refreshes every non-editing cell to its display value, then paints
   // remote live-edit text and cursor/live-edit decorations.
   render(): void {
@@ -499,10 +698,12 @@ export class DomSheetView {
     this.decorated.clear();
 
     // M4: dimension overrides, client-local row filter, freeze panes.
+    this.spacerUsed = 0;
+    this.layoutRows();
     for (let c = 0; c < this.opts.cols; c++) this.applyDim('col', c, this.opts.colWidth?.(c));
-    for (let r = 0; r < this.opts.rows; r++) {
+    for (const [r, row] of this.rowEls) {
       this.applyDim('row', r, this.opts.rowHeight?.(r));
-      this.rows[r].style.display = this.opts.rowHidden?.(r) ? 'none' : '';
+      row.tr.style.display = this.opts.rowHidden?.(r) ? 'none' : '';
     }
     // Merged ranges: reset last render's spans, then apply the current set.
     for (const td of this.mergedTds) {
@@ -512,7 +713,7 @@ export class DomSheetView {
     }
     this.mergedTds.clear();
     for (const m of this.opts.merges?.() ?? []) {
-      const anchor = this.cells[m.row]?.[m.col];
+      const anchor = this.cellEl(m.row, m.col);
       if (!anchor) continue;
       anchor.rowSpan = Math.min(m.rows, this.opts.rows - m.row);
       anchor.colSpan = Math.min(m.cols, this.opts.cols - m.col);
@@ -520,7 +721,7 @@ export class DomSheetView {
       for (let r = m.row; r < Math.min(m.row + m.rows, this.opts.rows); r++) {
         for (let c = m.col; c < Math.min(m.col + m.cols, this.opts.cols); c++) {
           if (r === m.row && c === m.col) continue;
-          const td = this.cells[r]?.[c];
+          const td = this.cellEl(r, c);
           if (td) {
             td.style.display = 'none';
             this.mergedTds.add(td);
@@ -529,16 +730,12 @@ export class DomSheetView {
       }
     }
 
-    const fz = this.opts.frozen?.() ?? { rows: 0, cols: 0 };
-    this.table.classList.toggle('sheet-frozen-r', fz.rows > 0);
-    this.table.classList.toggle('sheet-frozen-c', fz.cols > 0);
-    if (fz.rows > 0) this.table.style.setProperty('--fr-top', `${this.thead.offsetHeight}px`);
-    if (fz.cols > 0) this.table.style.setProperty('--fc-left', `${this.rowHeads[0]?.offsetWidth ?? 40}px`);
+    this.applyFreeze();
 
-    for (let r = 0; r < this.opts.rows; r++) {
+    for (const [r, row] of this.rowEls) {
       for (let c = 0; c < this.opts.cols; c++) {
         if (this.editing && this.editing.row === r && this.editing.col === c) continue;
-        const td = this.cells[r][c];
+        const td = row.tds[c];
         const k = `${r}:${c}`;
         const live = this.liveByKey.get(k);
         td.textContent = live ? live.raw : this.opts.displayValue(r, c);
@@ -601,9 +798,9 @@ export class DomSheetView {
     }
 
     // local selection
-    for (let r = 0; r < this.opts.rows; r++) {
+    for (const [r, row] of this.rowEls) {
       for (let c = 0; c < this.opts.cols; c++) {
-        const td = this.cells[r][c];
+        const td = row.tds[c];
         td.classList.toggle('sheet-sel', selContains(this.selection, r, c));
         td.classList.toggle(
           'sheet-sel-focus',
@@ -613,15 +810,18 @@ export class DomSheetView {
     }
     // Excel-style header highlight for the selected range.
     const selN = normalize(this.selection);
-    this.colHeads.forEach((th, c) => th.classList.toggle('sheet-head-hl', c >= selN.c0 && c <= selN.c1));
-    this.rowHeads.forEach((th, r) => th.classList.toggle('sheet-head-hl', r >= selN.r0 && r <= selN.r1));
+    this.colHeads.forEach((th, c) => {
+      th.classList.toggle('sheet-head-hl', c >= selN.c0 && c <= selN.c1);
+      th.classList.toggle('sheet-head-filter', this.opts.colFiltered?.(c) ?? false);
+    });
+    for (const [r, row] of this.rowEls) row.th.classList.toggle('sheet-head-hl', r >= selN.r0 && r <= selN.r1);
     // remote selections (outline only, multi-cell)
     for (const rs of this.remoteSel) {
       const { r0, c0, r1, c1 } = normalize(rs.sel);
       if (r1 - r0 === 0 && c1 - c0 === 0) continue; // single cell handled by cursor deco
-      for (let r = r0; r <= r1; r++) {
+      for (let r = Math.max(r0, this.renderedRange.start); r <= Math.min(r1, this.renderedRange.end); r++) {
         for (let c = c0; c <= c1; c++) {
-          const td = this.cells[r]?.[c];
+          const td = this.cellEl(r, c);
           if (!td) continue;
           td.style.setProperty('--rsel', rs.color);
           td.classList.add('sheet-remote-sel');
@@ -630,11 +830,21 @@ export class DomSheetView {
       }
     }
 
+    // Remember real row heights (wrapped text, fonts) for the spacers.
+    for (const [r, row] of this.rowEls) {
+      if (row.tr.style.display === 'none') continue;
+      const h = row.tr.offsetHeight;
+      if (h > 0) {
+        this.measured.set(r, h);
+        if (this.opts.rowHeight?.(r) === undefined) this.defaultRowH = h;
+      }
+    }
+
     // fill handle overlay at the bottom-right corner of the current selection.
     // Hidden while typing (Excel does the same); positioned relative to the
     // root, so it never touches the contenteditable td's content.
     const { r1, c1 } = normalize(this.selection);
-    const brCell = this.cells[r1]?.[c1];
+    const brCell = this.cellEl(r1, c1);
     const editingBr = this.activeEdit && this.editing?.row === r1 && this.editing?.col === c1;
     if (brCell && !this.opts.readOnly && !editingBr) {
       this.fillHandle.style.left = `${this.table.offsetLeft + brCell.offsetLeft + brCell.offsetWidth - 4}px`;
@@ -644,7 +854,7 @@ export class DomSheetView {
       this.fillHandle.style.display = 'none';
     }
     const f = this.selection.focus;
-    const focusTd = this.cells[f.row]?.[f.col];
+    const focusTd = this.cellEl(f.row, f.col);
     const list = this.opts.readOnly ? undefined : this.opts.metaOf?.(f.row, f.col).list;
     if (focusTd && list && list.length > 0 && focusTd.style.display !== 'none') {
       this.listBtn.style.left = `${this.table.offsetLeft + focusTd.offsetLeft + focusTd.offsetWidth + 1}px`;
@@ -656,9 +866,9 @@ export class DomSheetView {
     }
     if (this.fillTarget) {
       const t = normalize(this.fillTarget);
-      for (let r = t.r0; r <= t.r1; r++) {
+      for (let r = Math.max(t.r0, this.renderedRange.start); r <= Math.min(t.r1, this.renderedRange.end); r++) {
         for (let c = t.c0; c <= t.c1; c++) {
-          const td = this.cells[r]?.[c];
+          const td = this.cellEl(r, c);
           if (td) { td.classList.add('sheet-fill-target'); this.decorated.add(td); }
         }
       }

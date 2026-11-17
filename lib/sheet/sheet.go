@@ -1,6 +1,9 @@
 package sheet
 
-import "maps"
+import (
+	"maps"
+	"slices"
+)
 
 // Span is the extent of a merged-cell range, keyed by its top-left anchor.
 // Rows/Cols >= 1; a 1x1 span is never stored.
@@ -17,12 +20,16 @@ type Sheet struct {
 	// Sparse per-index pixel overrides; unset = view default.
 	ColWidths  map[int]int `json:"-"`
 	RowHeights map[int]int `json:"-"`
-	// 0 or 1 each: freeze the first row / first col (position: sticky in the view).
+	// Number of frozen top rows / left columns (position: sticky in the view).
 	FrozenRows int `json:"-"`
 	FrozenCols int `json:"-"`
 	// Merged-cell ranges keyed by top-left anchor. Non-anchor cells keep their
 	// content (hidden by the view); unmerge reveals it again.
 	Merges map[CellRef]Span `json:"-"`
+	// Filters: column -> the values whose rows are shown. Rows up to
+	// FilterRow (the header) always show.
+	Filters   map[int][]string `json:"-"`
+	FilterRow int              `json:"-"`
 }
 
 func NewSheet(id, name string) *Sheet {
@@ -48,7 +55,13 @@ func (s *Sheet) clone() *Sheet {
 		Id: s.Id, Name: s.Name, Cells: make(map[CellRef]Cell, len(s.Cells)),
 		ColWidths: maps.Clone(s.ColWidths), RowHeights: maps.Clone(s.RowHeights),
 		FrozenRows: s.FrozenRows, FrozenCols: s.FrozenCols,
-		Merges: maps.Clone(s.Merges),
+		Merges: maps.Clone(s.Merges), FilterRow: s.FilterRow,
+	}
+	if s.Filters != nil {
+		cp.Filters = make(map[int][]string, len(s.Filters))
+		for c, v := range s.Filters {
+			cp.Filters[c] = slices.Clone(v)
+		}
 	}
 	maps.Copy(cp.Cells, s.Cells)
 	return cp
@@ -172,4 +185,20 @@ func (w *Workbook) Clone() *Workbook {
 		cp.Sheets[i] = s.clone()
 	}
 	return cp
+}
+
+// shiftFilters moves column filters after a column insert (delta > 0) or the
+// delete of -delta columns at index; filters of deleted columns go.
+func shiftFilters(m map[int][]string, index, delta int) map[int][]string {
+	if len(m) == 0 {
+		return m
+	}
+	next := make(map[int][]string, len(m))
+	for c, v := range m {
+		if delta < 0 && c >= index && c < index-delta {
+			continue
+		}
+		next[shiftCoord(c, index, delta)] = v
+	}
+	return next
 }

@@ -158,7 +158,7 @@ func TestStructuralValidate(t *testing.T) {
 		{Type: OpSetDimension, Sheet: "s1", Axis: "diag", Index: 0, Size: 10}, // bad axis
 		{Type: OpSetDimension, Sheet: "s1", Axis: "col", Index: 0, Size: 0},   // zero size
 		{Type: OpSetDimension, Sheet: "s1", Axis: "col", Index: 0, Size: 1e6}, // huge size
-		{Type: OpSetFreeze, Sheet: "s1", FrozenRows: 2},                       // only 0/1
+		{Type: OpSetFreeze, Sheet: "s1", FrozenRows: MaxFrozenRows + 1},       // too many
 	}
 	for _, op := range bad {
 		if op.Validate() == nil {

@@ -27,6 +27,10 @@ const (
 	// Merged cells: both carry the Row/Col..EndRow/EndCol rectangle.
 	OpMergeCells   OpType = "mergeCells"
 	OpUnmergeCells OpType = "unmergeCells"
+	// setFilter shows only the rows whose value in column Col is one of
+	// Values (rows up to the header row Row always show). No Values removes
+	// the column's filter; Clear removes all filters of the sheet.
+	OpSetFilter OpType = "setFilter"
 )
 
 // Op is one cell-based operation. BaseRev is the workbook revision the client
@@ -71,11 +75,22 @@ type Op struct {
 	FrozenRows int `json:"frozenRows,omitempty"`
 	FrozenCols int `json:"frozenCols,omitempty"`
 
+	// setFilter.
+	Values []string `json:"values,omitempty"`
+	Clear  bool     `json:"clear,omitempty"`
+
 	// Cid is the sending client's id for the op. It is stored with the op,
 	// so a client that lost the acknowledgement in a reconnect finds its op
 	// in the missed ops, and a resent op is not applied twice.
 	Cid string `json:"cid,omitempty"`
 }
+
+// MaxFrozenRows and MaxFrozenCols bound setFreeze (the frozen part stays on
+// screen, so more would leave nothing to scroll).
+const (
+	MaxFrozenRows = 100
+	MaxFrozenCols = 26
+)
 
 // MaxCidLength bounds Op.Cid; clients send "<random>:<seq>".
 const MaxCidLength = 64
@@ -157,14 +172,31 @@ func (o Op) Validate() error {
 			return fmt.Errorf("setDimension size out of range")
 		}
 	case OpSetFreeze:
-		if o.FrozenRows < 0 || o.FrozenRows > 1 || o.FrozenCols < 0 || o.FrozenCols > 1 {
-			return fmt.Errorf("setFreeze supports only 0 or 1 frozen rows/cols")
+		if o.FrozenRows < 0 || o.FrozenRows > MaxFrozenRows || o.FrozenCols < 0 || o.FrozenCols > MaxFrozenCols {
+			return fmt.Errorf("setFreeze: at most %d rows and %d columns", MaxFrozenRows, MaxFrozenCols)
+		}
+	case OpSetFilter:
+		if o.Row < 0 || o.Col < 0 {
+			return fmt.Errorf("setFilter negative coord")
+		}
+		if len(o.Values) > MaxFilterValues {
+			return fmt.Errorf("setFilter: at most %d values", MaxFilterValues)
+		}
+		for _, v := range o.Values {
+			if len(v) > MaxFilterValueLength {
+				return fmt.Errorf("setFilter value too long")
+			}
 		}
 	default:
 		return fmt.Errorf("unknown op type %q", o.Type)
 	}
 	return nil
 }
+
+const (
+	MaxFilterValues      = 1000
+	MaxFilterValueLength = 1024
+)
 
 var (
 	hexColorRe = regexp.MustCompile(`^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$`)
