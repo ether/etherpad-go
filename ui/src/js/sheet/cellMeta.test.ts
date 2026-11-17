@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { condStyle, inList, listValues, normalizeLink, ruleMatches, validLink, type CondRule } from './cellMeta';
+import { byteLength, condStyle, inList, listValues, normalizeLink, ruleMatches, validLink, type CondRule } from './cellMeta';
 
 describe('conditional formatting rules', () => {
   const red: CondRule = { op: 'gt', v1: '10', bg: '#ffc7ce', color: '#9c0006' };
@@ -51,5 +51,16 @@ describe('links', () => {
     expect(normalizeLink('www.etherpad.org')).toBe('https://www.etherpad.org');
     expect(normalizeLink('a@b.de')).toBe('mailto:a@b.de');
     expect(normalizeLink('http://x.de')).toBe('http://x.de');
+    expect(normalizeLink('etherpad.org:8080/p')).toBe('https://etherpad.org:8080/p');
+    expect(normalizeLink('localhost:9001')).toBe('https://localhost:9001');
+    expect(validLink(normalizeLink('localhost:9001'))).toBe(true);
+    expect(validLink(normalizeLink('javascript:alert(1)'))).toBe(false);
+  });
+});
+
+describe('limits count bytes like the server', () => {
+  it('counts UTF-8 bytes', () => {
+    expect(byteLength('ä')).toBe(2);
+    expect(byteLength('€')).toBe(3);
   });
 });

@@ -26,7 +26,13 @@ export interface SheetState {
   // Column filters (column -> shown values); rows up to filterRow always show.
   filters: Map<number, string[]>;
   filterRow: number;
+  // Changes with every change of the cells (unique across all workbook
+  // copies), so the formula engine can skip unchanged sheets.
+  stamp: number;
 }
+
+let stampCounter = 0;
+const nextStamp = (): number => ++stampCounter;
 
 const key = (row: number, col: number): string => `${row}:${col}`;
 const parseKey = (k: string): [number, number] => {
@@ -39,7 +45,7 @@ const cellIsEmpty = (c: Cell): boolean =>
 
 const emptySheet = (id: string, name: string): SheetState => ({
   id, name, cells: new Map(), colWidths: new Map(), rowHeights: new Map(), frozenRows: 0, frozenCols: 0,
-  merges: new Map(), filters: new Map(), filterRow: 0,
+  merges: new Map(), filters: new Map(), filterRow: 0, stamp: nextStamp(),
 });
 
 // intersects mirrors Go: merge at (row,col) x span overlaps [r0..r1]x[c0..c1].
@@ -157,7 +163,7 @@ export class WorkbookState {
       id: s.id, name: s.name, cells: new Map(s.cells),
       colWidths: new Map(s.colWidths), rowHeights: new Map(s.rowHeights),
       frozenRows: s.frozenRows, frozenCols: s.frozenCols,
-      merges: new Map(s.merges),
+      merges: new Map(s.merges), stamp: s.stamp,
       filters: new Map([...s.filters].map(([c, v]) => [c, [...v]])), filterRow: s.filterRow,
     }));
     cp.styles = this.styles; // shared pool: interning is monotonic + content-deduped
@@ -285,9 +291,11 @@ export class WorkbookState {
       case 'clearRange': {
         const endRow = op.endRow ?? 0;
         const endCol = op.endCol ?? 0;
-        for (const k of [...sheet.cells.keys()]) {
+        for (const [k, cell] of [...sheet.cells]) {
           const [r, c] = parseKey(k);
-          if (r >= row && r <= endRow && c >= col && c <= endCol) sheet.cells.delete(k);
+          if (r < row || r > endRow || c < col || c > endCol) continue;
+          if (op.keepStyle && cell.styleId) sheet.cells.set(k, { raw: '', styleId: cell.styleId });
+          else sheet.cells.delete(k);
         }
         break;
       }
@@ -368,6 +376,7 @@ export class WorkbookState {
       default:
         throw new Error(`applyOp: unhandled op type ${(op as Op).type}`);
     }
+    sheet.stamp = nextStamp();
     // Formulas keep pointing at the same cells (mirrors Go Apply).
     const edit = structuralEdit(op.type, index, count);
     if (edit) this.rewriteRefs(sheet, { target: sheet.name, ...edit });
@@ -382,7 +391,10 @@ export class WorkbookState {
       for (const [k, cell] of s.cells) {
         if (!cell.raw.startsWith('=')) continue;
         const raw = rewriteFormula(cell.raw, edit);
-        if (raw !== cell.raw) s.cells.set(k, { ...cell, raw, value: undefined, valueType: undefined });
+        if (raw !== cell.raw) {
+          s.cells.set(k, { ...cell, raw, value: undefined, valueType: undefined });
+          s.stamp = nextStamp();
+        }
       }
     }
   }

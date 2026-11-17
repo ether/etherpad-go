@@ -63,8 +63,11 @@ type Op struct {
 	Index int `json:"index,omitempty"`
 	Count int `json:"count,omitempty"`
 
-	// Sheet-list ops.
+	// Sheet-list ops. The server also fills Name on row/column inserts and
+	// deletes and on deleteSheet with the sheet's name, and OldName on
+	// renameSheet, so Transform can move formulas that name the sheet.
 	Name    string `json:"name,omitempty"`    // addSheet, renameSheet
+	OldName string `json:"oldName,omitempty"` // renameSheet (server-filled)
 	ToIndex int    `json:"toIndex,omitempty"` // moveSheet
 
 	// setDimension.
@@ -78,6 +81,10 @@ type Op struct {
 	// setFilter.
 	Values []string `json:"values,omitempty"`
 	Clear  bool     `json:"clear,omitempty"`
+
+	// clearRange: empty the cells but keep their style props (Excel's
+	// Delete / Clear Contents).
+	KeepStyle bool `json:"keepStyle,omitempty"`
 
 	// Cid is the sending client's id for the op. It is stored with the op,
 	// so a client that lost the acknowledgement in a reconnect finds its op

@@ -3,6 +3,7 @@ package sheet
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"net/url"
 	"strings"
 	"unicode"
@@ -23,11 +24,16 @@ const (
 var MetaProps = []string{PropLink, PropNote, PropValidList}
 
 const (
+	// Limits count UTF-8 bytes, on the server (len) and in the browser
+	// (TextEncoder), so both accept the same values.
 	MaxLinkLength      = 2048
 	MaxNoteLength      = 4000
 	MaxValidListLength = 255 // Excel's limit for a list typed into the dialog
 	MaxCondRules       = 8
-	maxCondValue       = 255
+	MaxCondValue       = 255
+	// MaxCondJSON fits eight rules with two values of MaxCondValue bytes each,
+	// even when JSON escapes every character of them.
+	MaxCondJSON = 16384
 )
 
 // CondRule is one conditional-formatting rule of a cell. Op compares the
@@ -74,13 +80,17 @@ func validLink(v string) bool {
 
 // ParseCondRules decodes a cf prop; nil when it is invalid.
 func ParseCondRules(v string) []CondRule {
-	if v == "" || len(v) > 4096 {
+	if v == "" || len(v) > MaxCondJSON {
 		return nil
 	}
 	dec := json.NewDecoder(bytes.NewReader([]byte(v)))
 	dec.DisallowUnknownFields()
 	var rules []CondRule
-	if err := dec.Decode(&rules); err != nil || dec.More() {
+	if err := dec.Decode(&rules); err != nil {
+		return nil
+	}
+	// Nothing may follow the array: the browser's JSON.parse would refuse it.
+	if _, err := dec.Token(); err != io.EOF {
 		return nil
 	}
 	if len(rules) == 0 || len(rules) > MaxCondRules {
@@ -88,7 +98,7 @@ func ParseCondRules(v string) []CondRule {
 	}
 	for _, r := range rules {
 		n, ok := CondOps[r.Op]
-		if !ok || len(r.V1) > maxCondValue || len(r.V2) > maxCondValue {
+		if !ok || len(r.V1) > MaxCondValue || len(r.V2) > MaxCondValue {
 			return nil
 		}
 		if (n >= 1 && r.V1 == "") || (n == 2 && r.V2 == "") || (n < 2 && r.V2 != "") || (n == 0 && r.V1 != "") {

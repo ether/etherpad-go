@@ -89,3 +89,52 @@ func TestTransformMovesConcurrentFormula(t *testing.T) {
 		t.Error("Transform changed the caller's string")
 	}
 }
+
+func TestTransformMovesFormulasNamingTheSheet(t *testing.T) {
+	str := func(s string) *string { return &s }
+	// A formula on another sheet, typed before a row insert on Sheet1.
+	in := Op{Type: OpSetCell, Sheet: "s2", Row: 0, Col: 0, Raw: str("=Sheet1!A5+A5")}
+	got := Transform(in, Op{Type: OpInsertRows, Sheet: "s1", Name: "Sheet1", Index: 2, Count: 1})
+	if *got.Raw != "=Sheet1!A6+A5" || got.Row != 0 {
+		t.Errorf("other sheet: %+v %q", got, *got.Raw)
+	}
+	// On the same sheet, both kinds move.
+	in = Op{Type: OpSetCell, Sheet: "s1", Row: 7, Col: 0, Raw: str("=Sheet1!A5+A5")}
+	if got = Transform(in, Op{Type: OpInsertRows, Sheet: "s1", Name: "Sheet1", Index: 2, Count: 1}); *got.Raw != "=Sheet1!A6+A6" || got.Row != 8 {
+		t.Errorf("same sheet: row %d %q", got.Row, *got.Raw)
+	}
+	in = Op{Type: OpSetCell, Sheet: "s2", Raw: str("=Sheet1!A1*2")}
+	if got = Transform(in, Op{Type: OpRenameSheet, Sheet: "s1", OldName: "Sheet1", Name: "Daten 1"}); *got.Raw != "='Daten 1'!A1*2" {
+		t.Errorf("rename: %q", *got.Raw)
+	}
+	if got = Transform(in, Op{Type: OpDeleteSheet, Sheet: "s1", Name: "Sheet1"}); *got.Raw != "=#REF!*2" {
+		t.Errorf("delete: %q", *got.Raw)
+	}
+}
+
+func TestSubmitFillsSheetNames(t *testing.T) {
+	wb := NewWorkbook()
+	wb.AddSheet("s1", "Sheet1")
+	wb.AddSheet("s2", "Sheet2")
+	d := NewDocument(wb)
+	str := func(s string) *string { return &s }
+	// Both composed at revision 0: the formula arrives after the insert.
+	if _, err := d.Submit(Op{Type: OpInsertRows, Sheet: "s1", Index: 0, Count: 1, Name: "client lies"}); err != nil {
+		t.Fatal(err)
+	}
+	if d.Log()[0].Name != "Sheet1" {
+		t.Errorf("logged name = %q", d.Log()[0].Name)
+	}
+	if _, err := d.Submit(Op{Type: OpSetCell, Sheet: "s2", Raw: str("=Sheet1!A1")}); err != nil {
+		t.Fatal(err)
+	}
+	if got := wb.SheetByID("s2").GetCell(CellRef{0, 0}).Raw; got != "=Sheet1!A2" {
+		t.Errorf("stale formula = %q", got)
+	}
+	if _, err := d.Submit(Op{Type: OpRenameSheet, Sheet: "s1", Name: "Neu", BaseRev: 2}); err != nil {
+		t.Fatal(err)
+	}
+	if d.Log()[2].OldName != "Sheet1" {
+		t.Errorf("old name = %q", d.Log()[2].OldName)
+	}
+}

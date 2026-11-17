@@ -31,6 +31,11 @@ class FakeServer {
     let rebased: Op = { ...item.op };
     for (let i = item.op.baseRev; i < this.log.length; i++) rebased = transform(rebased, this.log[i]);
     rebased.baseRev = this.log.length;
+    // Go Workbook.FillSheetNames.
+    const sheet = this.wb.sheetById(rebased.sheet);
+    if (['insertRows', 'deleteRows', 'insertCols', 'deleteCols', 'deleteSheet'].includes(rebased.type)) rebased.name = sheet?.name;
+    delete rebased.oldName;
+    if (rebased.type === 'renameSheet') rebased.oldName = sheet?.name;
     this.wb.applyOp(rebased);
     this.log.push(rebased);
     const rev = this.log.length;
@@ -151,5 +156,51 @@ describe('SheetCollabClient randomized convergence', () => {
       expect(wbEqual(a.confirmedState(), s.wb)).toBe(true);
       expect(wbEqual(b.confirmedState(), s.wb)).toBe(true);
     }
+  });
+});
+
+describe('formula references under concurrency', () => {
+  const formulaOf = (c: SheetCollabClient, sheet: string, r: number, col: number) => c.display.getCell(sheet, r, col)?.raw;
+
+  it('a formula naming the sheet, typed during a row insert on that sheet, moves', () => {
+    const s = new FakeServer();
+    const a = makeClient(s, 'A');
+    const b = makeClient(s, 'B');
+    a.applyLocal({ type: 'addSheet', sheet: 's2', baseRev: 0, name: 'Sheet2', index: 1 });
+    s.drain();
+    a.applyLocal({ type: 'insertRows', sheet: 's1', baseRev: a.rev, index: 0, count: 1 });
+    b.applyLocal({ type: 'setCell', sheet: 's2', baseRev: b.rev, row: 0, col: 0, raw: '=Sheet1!A1' });
+    b.applyLocal({ type: 'renameSheet', sheet: 's1', baseRev: b.rev, name: 'Neu' });
+    a.applyLocal({ type: 'setCell', sheet: 's2', baseRev: a.rev, row: 1, col: 0, raw: '=Sheet1!B1' });
+    s.drain();
+    expect(s.wb.getCell('s2', 0, 0)?.raw).toBe('=Neu!A2');
+    expect(s.wb.getCell('s2', 1, 0)?.raw).toBe('=Neu!B1');
+    expect(wbEqual(a.confirmedState(), s.wb)).toBe(true);
+    expect(wbEqual(b.confirmedState(), s.wb)).toBe(true);
+    expect(wbEqual(a.display, s.wb)).toBe(true);
+  });
+
+  it('undo of a row delete restores #REF! formulas but keeps a later edit by someone else', async () => {
+    const s = new FakeServer();
+    const a = makeClient(s, 'A');
+    const b = makeClient(s, 'B');
+    a.applyLocal({ type: 'setCell', sheet: 's1', baseRev: 0, row: 0, col: 0, raw: '5' });
+    a.applyLocal({ type: 'setCell', sheet: 's1', baseRev: 0, row: 2, col: 1, raw: '=A1*2' });
+    a.applyLocal({ type: 'setCell', sheet: 's1', baseRev: 0, row: 3, col: 1, raw: '=A1*3' });
+    s.drain();
+    await Promise.resolve(); // undo groups close on a microtask
+    a.applyLocal({ type: 'deleteRows', sheet: 's1', baseRev: a.rev, index: 0, count: 1 });
+    s.drain();
+    await Promise.resolve();
+    expect(formulaOf(b, 's1', 1, 1)).toBe('=#REF!*2');
+    // B fixes one of the broken formulas by hand.
+    b.applyLocal({ type: 'setCell', sheet: 's1', baseRev: b.rev, row: 2, col: 1, raw: '=7' });
+    s.drain();
+    a.undo();
+    s.drain();
+    expect(s.wb.getCell('s1', 0, 0)?.raw).toBe('5');
+    expect(s.wb.getCell('s1', 2, 1)?.raw).toBe('=A1*2');
+    expect(s.wb.getCell('s1', 3, 1)?.raw).toBe('=7'); // B's edit stays
+    expect(wbEqual(a.confirmedState(), s.wb)).toBe(true);
   });
 });

@@ -1,6 +1,7 @@
 package xlsx
 
 import (
+	"bytes"
 	"io"
 	"math"
 	"strings"
@@ -20,11 +21,17 @@ const (
 // (allowlisted props only), column widths / row heights, merged ranges and
 // freeze panes are imported.
 func Import(r io.Reader) (sheet.WorkbookSnapshot, error) {
-	f, err := excelize.OpenReader(r)
+	data, err := io.ReadAll(r)
+	if err != nil {
+		return sheet.WorkbookSnapshot{}, err
+	}
+	f, err := excelize.OpenReader(bytes.NewReader(data))
 	if err != nil {
 		return sheet.WorkbookSnapshot{}, err
 	}
 	defer f.Close()
+	condFormats := condFormatsBySheet(data)
+	budget := &refBudget{left: maxMetaCells}
 
 	wb := sheet.NewWorkbook()
 	// excelize style idx -> pool id (0 = nothing representable), shared across
@@ -141,7 +148,7 @@ func Import(r io.Reader) (sheet.WorkbookSnapshot, error) {
 			}
 		}
 
-		importCellMeta(f, wb, sh, name)
+		importCellMeta(f, wb, sh, name, budget, condFormats[name])
 
 		if panes, err := f.GetPanes(name); err == nil && panes.Freeze {
 			sh.FrozenRows = min(max(panes.YSplit, 0), sheet.MaxFrozenRows)
