@@ -1,4 +1,31 @@
 import { isStructural, type Op } from './op';
+import { rewriteFormula, structuralEdit, type RefEdit } from './formulaRefs';
+
+// refEditOf mirrors Go refEditOf: the reference edit an op makes, with the
+// sheet names the server put into it.
+export function refEditOf(op: Op): Omit<RefEdit, 'onTarget'> | null {
+  const edit = structuralEdit(op.type, op.index ?? 0, op.count ?? 0);
+  if (edit) return { target: op.name ?? '', ...edit };
+  if (op.type === 'renameSheet') {
+    return op.oldName && op.oldName !== op.name ? { target: op.oldName, rename: op.name } : null;
+  }
+  if (op.type === 'deleteSheet') return op.name ? { target: op.name, deleted: true } : null;
+  return null;
+}
+
+// rebaseFormula mirrors Go: a formula typed before a concurrent op changes
+// the way the stored formulas did (moved, renamed, broken). `expect`, the
+// client-only guard of an undo restore, changes alike.
+function rebaseFormula(inOp: Op, applied: Op): Op {
+  if (inOp.type !== 'setCell' || inOp.raw === undefined || !inOp.raw.startsWith('=')) return inOp;
+  const e = refEditOf(applied);
+  if (!e) return inOp;
+  const edit: RefEdit = { ...e, onTarget: inOp.sheet === applied.sheet };
+  const raw = rewriteFormula(inOp.raw, edit);
+  const expect = inOp.expect === undefined ? undefined : rewriteFormula(inOp.expect, edit);
+  if (raw === inOp.raw && expect === inOp.expect) return inOp;
+  return { ...inOp, raw, ...(expect === undefined ? {} : { expect }) };
+}
 
 // transform ports lib/sheet/transform.go exactly. It adjusts `inOp` so it applies
 // cleanly after `applied`, where both were composed against the same base
@@ -6,6 +33,7 @@ import { isStructural, type Op } from './op';
 // bit-for-bit: the server transforms on Submit while the client transforms its
 // pending ops against incoming NEW_SHEET_OPs.
 export function transform(inOp: Op, applied: Op): Op {
+  inOp = rebaseFormula(inOp, applied);
   if (inOp.sheet !== applied.sheet || !isStructural(applied)) return inOp;
   const index = applied.index ?? 0;
   const count = applied.count ?? 0;

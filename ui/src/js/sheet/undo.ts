@@ -6,6 +6,7 @@
 // Inverses carry `props`, never `styleId`: style ids are a client-local pool
 // index, only props travel on the wire.
 import type { Op } from './op';
+import { rewriteFormula, structuralEdit, type RefEdit } from './formulaRefs';
 import type { SheetState, WorkbookState } from './workbookState';
 
 // Defaults the grid falls back to when a row/column has no explicit size. The
@@ -66,6 +67,34 @@ const bandRestore = (wb: WorkbookState, op: Op, sheet: SheetState, axis: 'row' |
   return out;
 };
 
+// formulaRestores puts back every formula, on any sheet, whose references the
+// op rewrites (moved, renamed or broken to #REF!). The inverse op alone cannot:
+// a reference turned into #REF! does not come back by itself. Positions are
+// those before the op, which the inverse structural op restores first.
+// Each restore carries `expect`: the formula as the op and then the inverse
+// op leave it. Undo only writes when the cell still says that, so a
+// collaborator's later edit of the cell is kept.
+const formulaRestores = (
+  wb: WorkbookState, op: Op, edit: Omit<RefEdit, 'onTarget'>,
+  inverse: Omit<RefEdit, 'onTarget'> | null, skip?: (r: number, c: number) => boolean,
+): Op[] => {
+  const out: Op[] = [];
+  for (const sheet of wb.sheets) {
+    const onTarget = sheet.id === op.sheet;
+    for (const [k, cell] of sheet.cells) {
+      if (!cell.raw.startsWith('=')) continue;
+      const [r, c] = parseKey(k);
+      if (onTarget && skip?.(r, c)) continue;
+      const after = rewriteFormula(cell.raw, { ...edit, onTarget });
+      if (after === cell.raw) continue;
+      const expect = inverse ? rewriteFormula(after, { ...inverse, onTarget }) : after;
+      if (expect === cell.raw) continue; // the inverse op alone puts it back
+      out.push({ ...cellRestore(wb, op, sheet, r, c), sheet: sheet.id, expect });
+    }
+  }
+  return out;
+};
+
 export function invertOp(wb: WorkbookState, op: Op): Op[] {
   switch (op.type) {
     case 'addSheet':
@@ -91,11 +120,16 @@ export function invertOp(wb: WorkbookState, op: Op): Op[] {
       if (sheet.frozenRows || sheet.frozenCols) {
         out.push({ ...base(op), type: 'setFreeze', frozenRows: sheet.frozenRows, frozenCols: sheet.frozenCols });
       }
+      // References from the other sheets became #REF!.
+      out.push(...formulaRestores(wb, op, { target: sheet.name, deleted: true }, null, () => true));
       return out;
     }
     case 'renameSheet': {
       const sheet = wb.sheetById(op.sheet);
-      return sheet ? [{ ...base(op), type: 'renameSheet', name: sheet.name }] : [];
+      if (!sheet) return [];
+      const out: Op[] = [{ ...base(op), type: 'renameSheet', name: sheet.name }];
+      if (op.name && op.name !== sheet.name) out.push(...formulaRestores(wb, op, { target: sheet.name, rename: op.name }, { target: op.name, rename: sheet.name }));
+      return out;
     }
     case 'moveSheet': {
       const i = wb.sheets.findIndex((s) => s.id === op.sheet);
@@ -158,13 +192,27 @@ export function invertOp(wb: WorkbookState, op: Op): Op[] {
       return out;
     }
     case 'insertRows':
-      return [{ ...base(op), type: 'deleteRows', index, count }];
     case 'insertCols':
-      return [{ ...base(op), type: 'deleteCols', index, count }];
     case 'deleteRows':
-      return [{ ...base(op), type: 'insertRows', index, count }, ...bandRestore(wb, op, sheet, 'row', index, count)];
-    case 'deleteCols':
-      return [{ ...base(op), type: 'insertCols', index, count }, ...bandRestore(wb, op, sheet, 'col', index, count)];
+    case 'deleteCols': {
+      const edit = structuralEdit(op.type, index, count);
+      if (!edit) return [];
+      const back = { target: sheet.name, ...edit, delta: -(edit.delta ?? 0) };
+      const refs = formulaRestores(wb, op, { target: sheet.name, ...edit }, back, (r, c) => {
+        const at = edit.axis === 'row' ? r : c;
+        return (edit.delta ?? 0) < 0 && at >= index && at < index + count; // bandRestore has them
+      });
+      switch (op.type) {
+        case 'insertRows':
+          return [{ ...base(op), type: 'deleteRows', index, count }, ...refs];
+        case 'insertCols':
+          return [{ ...base(op), type: 'deleteCols', index, count }, ...refs];
+        case 'deleteRows':
+          return [{ ...base(op), type: 'insertRows', index, count }, ...bandRestore(wb, op, sheet, 'row', index, count), ...refs];
+        default:
+          return [{ ...base(op), type: 'insertCols', index, count }, ...bandRestore(wb, op, sheet, 'col', index, count), ...refs];
+      }
+    }
     default:
       return [];
   }

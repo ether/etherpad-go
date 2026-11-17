@@ -40,7 +40,10 @@ export interface Op {
   index?: number;
   count?: number;
   // sheet-list ops
-  name?: string; // addSheet, renameSheet
+  // addSheet, renameSheet; the server also fills it on row/column inserts and
+  // deletes and on deleteSheet, and oldName on renameSheet (see Go Op).
+  name?: string;
+  oldName?: string;
   toIndex?: number; // moveSheet
   // setDimension
   axis?: 'col' | 'row';
@@ -52,6 +55,10 @@ export interface Op {
   // it, so a client that lost the acknowledgement in a reconnect finds its op
   // again, and a resent op is not applied twice.
   cid?: string;
+  // Client-only, never sent: an undo restore of a formula only writes when
+  // the cell still holds this (what the undone op left there), so undo
+  // does not overwrite a collaborator's later edit.
+  expect?: string;
 }
 
 // serializeOp produces the JSON the Go server unmarshals into sheet.Op.

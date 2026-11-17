@@ -138,7 +138,12 @@ export class SheetCollabClient {
   private replay(entry: Op[] | undefined, mode: 'undo' | 'redo'): void {
     if (!entry) return;
     this.mode = mode;
-    for (const op of entry) this.applyLocal({ ...op, baseRev: this.rev });
+    for (const op of entry) {
+      const { expect, ...rest } = op;
+      // A formula restore only writes over what the undone op left there.
+      if (expect !== undefined && (this.display.getCell(op.sheet, op.row ?? 0, op.col ?? 0)?.raw ?? '') !== expect) continue;
+      this.applyLocal({ ...rest, baseRev: this.rev });
+    }
     this.closeGroup(); // the entry is complete now; do not wait for the tick
   }
 

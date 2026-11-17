@@ -28,12 +28,18 @@ func (w *Workbook) Apply(op Op) error {
 		for i, s := range w.Sheets {
 			if s.Id == op.Sheet {
 				w.Sheets = slices.Delete(w.Sheets, i, i+1)
+				// References to it break, as in Excel.
+				w.rewriteRefs(nil, RefEdit{Target: s.Name, Deleted: true})
 				return nil
 			}
 		}
 		return nil
 	case OpRenameSheet:
 		if s := w.SheetByID(op.Sheet); s != nil {
+			if op.Name != s.Name && op.Name != "" {
+				// References follow the sheet to its new name.
+				w.rewriteRefs(s, RefEdit{Target: s.Name, Rename: op.Name})
+			}
 			s.Name = op.Name
 		}
 		return nil
@@ -159,6 +165,13 @@ func (w *Workbook) Apply(op Op) error {
 		s.Merges = shiftMerges(s.Merges, "col", op.Index, -op.Count)
 	default:
 		return fmt.Errorf("apply: unhandled op type %q", op.Type)
+	}
+	if op.isStructural() {
+		// Formulas keep pointing at the same cells: references behind the
+		// insert move, references into a deleted band become #REF!.
+		e, _ := refEditOf(op)
+		e.Target = s.Name
+		w.rewriteRefs(s, e)
 	}
 	return nil
 }

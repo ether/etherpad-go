@@ -154,8 +154,10 @@ export function startSheetEditor(root: HTMLElement): void {
     selTimer = setTimeout(() => sendPresence(row, col, false), 50);
   };
 
-  const cellsOfActive = (): Array<{ row: number; col: number; raw: string }> => {
-    const sheet = collab?.display.sheetById(activeSheetId);
+  const cellsOfActive = (): Array<{ row: number; col: number; raw: string }> => cellsOf(activeSheetId);
+
+  const cellsOf = (sheetId: string): Array<{ row: number; col: number; raw: string }> => {
+    const sheet = collab?.display.sheetById(sheetId);
     if (!sheet) return [];
     const out: Array<{ row: number; col: number; raw: string }> = [];
     for (const [k, cell] of sheet.cells) {
@@ -244,7 +246,25 @@ export function startSheetEditor(root: HTMLElement): void {
 
   const onChange = (): void => {
     const live = presence ? presence.liveEditsForSheet(activeSheetId) : [];
-    engine.setGrid(effectiveCells(cellsOfActive(), live));
+    // Every sheet goes to the engine, so formulas can reference other sheets,
+    // with what others are typing on it. A sheet whose cells and live edits
+    // did not change is skipped without being read (cursor moves).
+    const sheets = collab?.display.sheets ?? [];
+    if (sheets.length === 0) {
+      engine.setGrid(effectiveCells(cellsOfActive(), live));
+    } else {
+      engine.setWorkbook(
+        sheets.map((sh) => {
+          const sheetLive = sh.id === activeSheetId ? live : presence?.liveEditsForSheet(sh.id) ?? [];
+          return {
+            name: sh.name,
+            key: `${sh.stamp}|${sheetLive.length === 0 ? '' : JSON.stringify(sheetLive.map((e) => [e.row, e.col, e.raw]))}`,
+            cells: () => effectiveCells(cellsOf(sh.id), sheetLive),
+          };
+        }),
+        collab?.display.sheetById(activeSheetId)?.name ?? '',
+      );
+    }
     if (view && presence) {
       view.setRemoteCursors(
         presence.cursorsForSheet(activeSheetId).map((c) => ({
@@ -627,6 +647,15 @@ export function startSheetEditor(root: HTMLElement): void {
         if (cell && cell.raw !== '' && !cell.raw.startsWith('=')) return undefined;
         const res = engine.getValue(r, c);
         return res.type === 'error' ? res.value : undefined;
+      },
+      defaultAlignOf: (r, c) => {
+        if (propsOf(r, c).numFmt === 'text') return undefined;
+        // The engine holds the same raws, so it types literals the way it
+        // computes with them (5%, 1,000 and dates are numbers).
+        const type = engine.getValue(r, c).type;
+        if (type === 'number') return 'right';
+        if (type === 'bool' || type === 'error') return 'center';
+        return undefined;
       },
       onEdit: (r, c, raw) => {
         if (!collab) return;
