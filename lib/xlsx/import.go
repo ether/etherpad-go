@@ -9,10 +9,10 @@ import (
 	"github.com/xuri/excelize/v2"
 )
 
-// The client grid is fixed at 200x52; dimension scans stop there.
+// The client grid is 10000 rows by 104 columns (A..CZ); nothing beyond is read.
 const (
-	maxRows = 200
-	maxCols = 52
+	maxRows = 10000
+	maxCols = 104
 )
 
 // Import parses an .xlsx into a WorkbookSnapshot. Sheet id == sheet name. Cells
@@ -29,7 +29,7 @@ func Import(r io.Reader) (sheet.WorkbookSnapshot, error) {
 		return sheet.WorkbookSnapshot{}, err
 	}
 	defer f.Close()
-	condFormats := condFormatsBySheet(data)
+	sheets := sheetXMLByName(data)
 	budget := &refBudget{left: maxMetaCells}
 
 	wb := sheet.NewWorkbook()
@@ -56,7 +56,13 @@ func Import(r io.Reader) (sheet.WorkbookSnapshot, error) {
 		if err != nil {
 			return sheet.WorkbookSnapshot{}, err
 		}
+		if len(rows) > maxRows {
+			rows = rows[:maxRows]
+		}
 		for rIdx, row := range rows {
+			if len(row) > maxCols {
+				row = row[:maxCols]
+			}
 			for cIdx, val := range row {
 				axis, err := excelize.CoordinatesToCellName(cIdx+1, rIdx+1)
 				if err != nil {
@@ -77,28 +83,25 @@ func Import(r io.Reader) (sheet.WorkbookSnapshot, error) {
 			}
 		}
 
-		// Styled-but-empty cells never show up in GetRows, and excelize does
-		// not maintain the sheet dimension attribute, so sweep the whole grid
-		// for styles on cells not yet seen. ponytail: 200x52 lookups per
-		// sheet, fine for an import endpoint.
-		for r := range maxRows {
-			for c := range maxCols {
-				ref := sheet.CellRef{Row: r, Col: c}
-				if _, seen := sh.Cells[ref]; seen {
-					continue
-				}
-				axis, _ := excelize.CoordinatesToCellName(c+1, r+1)
-				if xid, serr := f.GetCellStyle(name, axis); serr == nil && xid != 0 {
-					if id := poolIdFor(xid); id != 0 {
-						sh.SetCell(ref, sheet.Cell{StyleId: id})
-					}
-				}
+		// Styled-but-empty cells never show up in GetRows: take them from
+		// the sheet XML.
+		sx := sheets[name]
+		if sx == nil {
+			sx = &sheetXML{}
+		}
+		for _, sc := range sx.styled {
+			ref := sheet.CellRef{Row: sc.ref[0], Col: sc.ref[1]}
+			if _, seen := sh.Cells[ref]; seen {
+				continue
+			}
+			if id := poolIdFor(sc.style); id != 0 {
+				sh.SetCell(ref, sheet.Cell{StyleId: id})
 			}
 		}
 
 		// Dimensions: excelize returns the sheet default for untouched
 		// indices, so probe a far-away column/row as the baseline and store
-		// only deviations. ponytail: scans the fixed grid extent (52/200).
+		// only deviations.
 		baseW, _ := f.GetColWidth(name, "XFD")
 		for c := range maxCols {
 			cn, _ := excelize.ColumnNumberToName(c + 1)
@@ -107,7 +110,7 @@ func Import(r io.Reader) (sheet.WorkbookSnapshot, error) {
 			}
 		}
 		baseH, _ := f.GetRowHeight(name, excelize.TotalRows)
-		for r := range maxRows {
+		for _, r := range sx.tallRows {
 			if h, err := f.GetRowHeight(name, r+1); err == nil && math.Abs(h-baseH) > 0.01 {
 				sh.RowHeights[r] = rowHeightToPx(h)
 			}
@@ -124,16 +127,11 @@ func Import(r io.Reader) (sheet.WorkbookSnapshot, error) {
 			}
 		}
 
-		importCellMeta(f, wb, sh, name, budget, condFormats[name])
+		importCellMeta(f, wb, sh, name, budget, sx.condFormats)
 
-		// Freeze panes: the model only supports freezing the first row/col.
 		if panes, err := f.GetPanes(name); err == nil && panes.Freeze {
-			if panes.YSplit > 0 {
-				sh.FrozenRows = 1
-			}
-			if panes.XSplit > 0 {
-				sh.FrozenCols = 1
-			}
+			sh.FrozenRows = min(max(panes.YSplit, 0), sheet.MaxFrozenRows)
+			sh.FrozenCols = min(max(panes.XSplit, 0), sheet.MaxFrozenCols)
 		}
 	}
 	return wb.Snapshot(), nil

@@ -8,14 +8,14 @@ import { rangeToTSV, rangeToCSV, parseTSV, parseCSV, pasteOps, fillOps } from '.
 import { normalize, selCells, selFromSingle, selIsSingle, type Selection } from './sheetSelection';
 import { createToolbar, type ToolbarCallbacks, type ToolbarElement } from './sheetToolbar';
 import { createSheetTabs } from './sheetTabs';
-import { sortRangeOps, distinctValues, hiddenRowsForFilter } from './sheetSortFilter';
+import { sortRangeOps, distinctValues } from './sheetSortFilter';
 import { createFormulaBar, type FormulaBarHandle } from './sheetFormulaBar';
 import { createFindDialog } from './sheetFindDialog';
 import { findAll, findNext, matches, replaceAll, replaceInRaw } from './findReplace';
 import { rangeRefA1 } from './a1';
 import { mergeProps } from './styleCss';
 import { createMetaActions } from './sheetMetaActions';
-import { META_PROPS, PROP_COND_FMT, PROP_LINK, PROP_NOTE, PROP_VALID_LIST, condStyle, inList, listValues, parseCondRules } from './cellMeta';
+import { byteLength, META_PROPS, PROP_COND_FMT, PROP_LINK, PROP_NOTE, PROP_VALID_LIST, condStyle, inList, listValues, parseCondRules } from './cellMeta';
 import { formatValue } from './format';
 import type { Op } from './op';
 import type { WorkbookSnapshot } from './workbookState';
@@ -75,9 +75,15 @@ export function startSheetEditor(root: HTMLElement): void {
   const engine = new FormulaEngine();
   let selection: Selection = { anchor: { row: 0, col: 0 }, focus: { row: 0, col: 0 } };
   let readOnly = false;
-  const GRID_ROWS = 200;
-  const GRID_COLS = 52;
+  const GRID_ROWS = 10000;
+  const GRID_COLS = 104; // A..CZ
+  const MAX_FROZEN_ROWS = 100; // lib/sheet/op.go
+  // Selections larger than this are cut down to the used part of the sheet.
+  const MAX_SEL_CELLS = 20000;
+  const MAX_FILTER_VALUE = 1024; // lib/sheet/op.go, UTF-8 bytes
+  const MAX_FROZEN_COLS = 26;
   // Client-local filter state (per active sheet, reset on switch — not collaborative).
+  // Rows hidden by the sheet's filters (shared: they are part of the sheet).
   let hiddenRows = new Set<number>();
   let tabs: { el: HTMLElement; refresh: () => void } | null = null;
   // Connection state, shown in the status bar. Edits made while the
@@ -171,6 +177,83 @@ export function startSheetEditor(root: HTMLElement): void {
     return out;
   };
 
+  // filterHeader: the first filled row of a column is its header.
+  const filterHeader = (col: number): number => {
+    let header = -1;
+    for (const [k, cell] of collab?.display.sheetById(activeSheetId)?.cells ?? []) {
+      const i = k.indexOf(':');
+      if (Number(k.slice(i + 1)) !== col || cell.raw === '') continue;
+      const r = Number(k.slice(0, i));
+      if (header < 0 || r < header) header = r;
+    }
+    return Math.max(header, 0);
+  };
+
+  // sheetFilterHeader: one header row for the whole sheet. Once a column is
+  // filtered, its header is the sheet's; the first filter takes the first
+  // filled row of its column.
+  const sheetFilterHeader = (col: number): number => {
+    const sheet = collab?.display.sheetById(activeSheetId);
+    return sheet && sheet.filters.size > 0 ? sheet.filterRow : filterHeader(col);
+  };
+
+  // filteredRows: rows below the header whose shown value in a filtered
+  // column is not one of the kept values; empty cells never hide a row.
+  // Shown values include what array formulas spill, so rows run to the
+  // engine's height of the sheet.
+  const filteredRows = (): Set<number> => {
+    const hidden = new Set<number>();
+    const sheet = collab?.display.sheetById(activeSheetId);
+    if (!sheet || sheet.filters.size === 0) return hidden;
+    const height = Math.min(engine.height(), GRID_ROWS);
+    for (const [c, shown] of sheet.filters) {
+      for (let r = sheet.filterRow + 1; r < height; r++) {
+        if (hidden.has(r)) continue;
+        const v = displayValue(r, c);
+        if (v !== '' && !shown.includes(v)) hidden.add(r);
+      }
+    }
+    return hidden;
+  };
+
+  // usedSel shrinks a very large selection (Ctrl+A, whole columns) to the
+  // part of the sheet that has cells, so styling, copying or summing it does
+  // not walk a million empty cells.
+  const usedSel = (sel: Selection): Selection => {
+    const { r0, c0, r1, c1 } = normalize(sel);
+    if ((r1 - r0 + 1) * (c1 - c0 + 1) <= MAX_SEL_CELLS) return sel;
+    const sheet = collab?.display.sheetById(activeSheetId);
+    let maxR = -1;
+    let maxC = -1;
+    for (const k of sheet?.cells.keys() ?? []) {
+      const i = k.indexOf(':');
+      maxR = Math.max(maxR, Number(k.slice(0, i)));
+      maxC = Math.max(maxC, Number(k.slice(i + 1)));
+    }
+    for (const [k, sp] of sheet?.merges ?? []) {
+      const i = k.indexOf(':');
+      maxR = Math.max(maxR, Number(k.slice(0, i)) + sp.rows - 1);
+      maxC = Math.max(maxC, Number(k.slice(i + 1)) + sp.cols - 1);
+    }
+    const nr1 = Math.min(r1, maxR);
+    const nc1 = Math.min(c1, maxC);
+    if (nr1 < r0 || nc1 < c0) return { anchor: { row: r0, col: c0 }, focus: { row: r0, col: c0 } };
+    return { anchor: { row: r0, col: c0 }, focus: { row: nr1, col: nc1 } };
+  };
+
+  // writeSel is the part of a selection that formatting, notes, validation or
+  // fill write to: all of it up to MAX_SEL_CELLS cells, else as many rows of
+  // it as fit, but at least down to the last row that has cells.
+  const writeSel = (sel: Selection): Selection => {
+    const { r0, c0, r1, c1 } = normalize(sel);
+    const width = c1 - c0 + 1;
+    if ((r1 - r0 + 1) * width <= MAX_SEL_CELLS) return sel;
+    const used = normalize(usedSel(sel));
+    const fit = r0 + Math.max(1, Math.floor(MAX_SEL_CELLS / width)) - 1;
+    const last = Math.min(r1, Math.max(fit, used.r1));
+    return { anchor: { row: r0, col: c0 }, focus: { row: last, col: c1 } };
+  };
+
   const rawValue = (r: number, c: number): string =>
     collab?.display.getCell(activeSheetId, r, c)?.raw ?? '';
 
@@ -188,7 +271,7 @@ export function startSheetEditor(root: HTMLElement): void {
     let count = 0;
     let min = Infinity;
     let max = -Infinity;
-    for (const { row, col } of selCells(selection)) {
+    for (const { row, col } of selCells(usedSel(selection))) {
       const raw = rawValue(row, col);
       if (raw === '') continue;
       count++;
@@ -291,7 +374,7 @@ export function startSheetEditor(root: HTMLElement): void {
     // clobber. Clearing `editing` lets the render() below repaint it too
     // (render() otherwise skips repainting the currently-focused cell).
     blurActiveCell();
-    for (const { row, col } of selCells(selection)) {
+    for (const { row, col } of selCells(writeSel(selection))) {
       const merged = mergeProps(propsOf(row, col), change);
       collab.applyLocal({ type: 'setStyle', sheet: activeSheetId, baseRev: collab.rev, row, col, props: merged });
     }
@@ -340,6 +423,7 @@ export function startSheetEditor(root: HTMLElement): void {
           })),
       );
     }
+    hiddenRows = filteredRows();
     view?.render();
     tabs?.refresh();
     toolbarEl?.refreshHistory();
@@ -394,25 +478,61 @@ export function startSheetEditor(root: HTMLElement): void {
       sortSelection: (asc) => {
         if (readOnly || !collab || selIsSingle(selection)) return;
         blurActiveCell();
-        for (const op of sortRangeOps(selection, selection.focus.col, asc, activeSheetId, collab.rev, rawValue)) {
+        for (const op of sortRangeOps(usedSel(selection), selection.focus.col, asc, activeSheetId, collab.rev, rawValue)) {
           collab.applyLocal(op);
         }
       },
       toggleFreeze: (kind) => {
         if (readOnly || !collab) return;
         const s = collab.display.sheetById(activeSheetId);
-        const rows = kind === 'row' ? ((s?.frozenRows ?? 0) > 0 ? 0 : 1) : (s?.frozenRows ?? 0);
-        const cols = kind === 'col' ? ((s?.frozenCols ?? 0) > 0 ? 0 : 1) : (s?.frozenCols ?? 0);
+        const fr = s?.frozenRows ?? 0;
+        const fc = s?.frozenCols ?? 0;
+        let rows: number;
+        let cols: number;
+        if (kind === 'panes') {
+          // Excel's "Freeze Panes": everything above and left of the selected
+          // cell; a second click unfreezes.
+          const unfreeze = fr > 0 || fc > 0;
+          rows = unfreeze ? 0 : Math.min(selection.focus.row, MAX_FROZEN_ROWS);
+          cols = unfreeze ? 0 : Math.min(selection.focus.col, MAX_FROZEN_COLS);
+        } else {
+          // "Freeze Top Row" / "Freeze First Column" replace any other freeze.
+          const on = kind === 'row' ? fr === 1 && fc === 0 : fc === 1 && fr === 0;
+          rows = on || kind === 'col' ? 0 : 1;
+          cols = on || kind === 'row' ? 0 : 1;
+        }
         collab.applyLocal({ type: 'setFreeze', sheet: activeSheetId, baseRev: collab.rev, frozenRows: rows, frozenCols: cols });
       },
       frozenState: () => {
         const s = collab?.display.sheetById(activeSheetId);
         return { rows: s?.frozenRows ?? 0, cols: s?.frozenCols ?? 0 };
       },
-      filterValues: () => distinctValues(selection.focus.col, GRID_ROWS, rawValue),
+      filterValues: () => {
+        const col = selection.focus.col;
+        const header = sheetFilterHeader(col);
+        return distinctValues(col, engine.height(), (r, c) => (r <= header ? '' : displayValue(r, c)));
+      },
+      filterState: () => {
+        const sheet = collab?.display.sheetById(activeSheetId);
+        const values = sheet?.filters.get(selection.focus.col);
+        return { value: values?.[0] ?? null, any: (sheet?.filters.size ?? 0) > 0 };
+      },
+      clearFilters: () => {
+        if (readOnly || !collab) return;
+        collab.applyLocal({ type: 'setFilter', sheet: activeSheetId, baseRev: collab.rev, row: 0, col: 0, clear: true });
+      },
       applyFilter: (value) => {
-        hiddenRows = value === null ? new Set() : hiddenRowsForFilter(selection.focus.col, value, GRID_ROWS, rawValue);
-        view?.render();
+        if (readOnly || !collab) return;
+        const col = selection.focus.col;
+        if (value !== null && byteLength(value) > MAX_FILTER_VALUE) {
+          flash('This value is too long to filter by.');
+          return;
+        }
+        const header = sheetFilterHeader(col);
+        collab.applyLocal({
+          type: 'setFilter', sheet: activeSheetId, baseRev: collab.rev, row: header, col,
+          values: value === null ? undefined : [value],
+        });
       },
       // Explicit param types: until the ToolbarCallbacks interface gains these
       // optional fields (built in parallel), there is no contextual type.
@@ -519,7 +639,7 @@ export function startSheetEditor(root: HTMLElement): void {
         }
         if (what === 'formats') {
           // Excel keeps notes, links and validation on Clear Formats.
-          for (const { row, col } of selCells(selection)) {
+          for (const { row, col } of selCells(usedSel(selection))) {
             const props = propsOf(row, col);
             if (Object.keys(props).length === 0) continue;
             const kept: Record<string, string> = {};
@@ -564,7 +684,7 @@ export function startSheetEditor(root: HTMLElement): void {
     const meta = createMetaActions({
       readOnly: () => readOnly || !collab,
       focus: () => selection.focus,
-      cells: () => selCells(selection),
+      cells: () => selCells(writeSel(selection)),
       propsOf,
       rawValue,
       setProps: (row, col, props) => {
@@ -648,7 +768,6 @@ export function startSheetEditor(root: HTMLElement): void {
     const setActiveSheet = (id: string): void => {
       if (id === activeSheetId) return;
       activeSheetId = id;
-      hiddenRows = new Set(); // the filter is per-sheet and client-local
       onChange();
     };
     tabs = createSheetTabs({
@@ -712,6 +831,7 @@ export function startSheetEditor(root: HTMLElement): void {
         collab.applyLocal({ type: 'setDimension', sheet: activeSheetId, baseRev: collab.rev, axis, index, size });
       },
       rowHidden: (r) => hiddenRows.has(r),
+      colFiltered: (c) => collab?.display.sheetById(activeSheetId)?.filters.has(c) ?? false,
       merges: () => {
         const s = collab?.display.sheetById(activeSheetId);
         if (!s) return [];
@@ -794,10 +914,10 @@ export function startSheetEditor(root: HTMLElement): void {
   const doCopy = (): void => {
     // ponytail: async Clipboard API only (requires secure context); a
     // hidden-textarea fallback is the upgrade path for plain-HTTP deploys.
-    void navigator.clipboard.writeText(rangeToTSV(selection, rawValue));
+    void navigator.clipboard.writeText(rangeToTSV(usedSel(selection), rawValue));
   };
   const doCut = (): void => {
-    void navigator.clipboard.writeText(rangeToTSV(selection, rawValue));
+    void navigator.clipboard.writeText(rangeToTSV(usedSel(selection), rawValue));
     if (readOnly || !collab) return;
     blurActiveCell();
     const { r0, c0, r1, c1 } = normalize(selection);
@@ -868,7 +988,7 @@ export function startSheetEditor(root: HTMLElement): void {
     blurActiveCell();
     const { r0, c0, r1, c1 } = normalize(selection);
     const src = { anchor: { row: r0, col: c0 }, focus: dir === 'down' ? { row: r0, col: c1 } : { row: r1, col: c0 } };
-    for (const op of fillOps(src, selection, activeSheetId, collab.rev, rawValue)) collab.applyLocal(op);
+    for (const op of fillOps(src, writeSel(selection), activeSheetId, collab.rev, rawValue)) collab.applyLocal(op);
   };
   document.addEventListener('keydown', (e) => {
     if (!collab) return;
@@ -1031,6 +1151,10 @@ export function startSheetEditor(root: HTMLElement): void {
     if (msg.type === 'COLLABROOM' && msg.data) {
       const d = msg.data;
       if (d.type === 'ACCEPT_SHEET_OP') collab?.onAccept(d.newRev, d.cid);
+      else if (d.type === 'REJECT_SHEET_OP') {
+        collab?.onReject(d.cid);
+        flash('The server refused a change; it was undone.');
+      }
       else if (d.type === 'SHEET_CAUGHT_UP') {
         connState = 'online';
         collab?.resume();

@@ -11,11 +11,17 @@ export interface ToolbarCallbacks {
   readOnly: boolean;
   // M4 structural actions.
   sortSelection?: (asc: boolean) => void;
-  toggleFreeze?: (kind: 'row' | 'col') => void;
+  toggleFreeze?: (kind: 'row' | 'col' | 'panes') => void;
   frozenState?: () => { rows: number; cols: number };
   // Filter on the focus column: values() fills the dropdown lazily, apply(null) clears.
   filterValues?: () => string[];
+  // The value the focus column is filtered to (null: not filtered) and
+  // whether the sheet has filters at all.
+  filterState?: () => { value: string | null; any: boolean };
+  // A value shows only its rows, null removes the column's filter;
+  // clearFilters removes all filters of the sheet. Filters apply to everyone.
   applyFilter?: (value: string | null) => void;
+  clearFilters?: () => void;
   // Ribbon: row/col structure relative to the selection.
   structural?: (action: 'insRowAbove' | 'insRowBelow' | 'insColLeft' | 'insColRight' | 'delRows' | 'delCols') => void;
   // Ribbon: workbook import/export (server round-trip).
@@ -556,26 +562,40 @@ export function createToolbar(cb: ToolbarCallbacks): ToolbarElement {
   filter.title = 'Filter rows by the focused column';
   const fill = () => {
     filter.innerHTML = '';
+    const state = cb.filterState?.() ?? { value: null, any: false };
     const all = document.createElement('option');
     all.value = '';
     all.textContent = '▼ Filter: (all)';
     filter.appendChild(all);
-    for (const v of cb.filterValues?.() ?? []) {
+    if (state.any) {
+      const clear = document.createElement('option');
+      clear.value = '*';
+      clear.textContent = '✕ Clear all filters';
+      filter.appendChild(clear);
+    }
+    const values = cb.filterValues?.() ?? [];
+    if (state.value !== null && !values.includes(state.value)) values.unshift(state.value);
+    for (const v of values) {
       const o = document.createElement('option');
-      o.value = v;
+      o.value = `=${v}`;
       o.textContent = v;
       filter.appendChild(o);
     }
+    filter.value = state.value === null ? '' : `=${state.value}`;
   };
   fill();
   filter.addEventListener('mousedown', fill); // repopulate lazily on open
   filter.addEventListener('focus', fill); // and for keyboard users
-  filter.addEventListener('change', () => cb.applyFilter?.(filter.value === '' ? null : filter.value));
+  filter.addEventListener('change', () => {
+    const v = filter.value;
+    if (v === '*') cb.clearFilters?.();
+    else cb.applyFilter?.(v === '' ? null : v.slice(1));
+  });
   filterRow.appendChild(filter);
 
   // --- View: Freeze panes ---
   const freeze = group('View', 'Freeze panes');
-  const mkFreeze = (label: string, kind: 'row' | 'col', title: string) => {
+  const mkFreeze = (label: string, kind: 'row' | 'col' | 'panes', title: string) => {
     const b = document.createElement('button');
     b.className = 'sheet-ribbon-big';
     // Glyph span on top + text node below; textContent stays exactly '❄ Row'.
@@ -586,7 +606,7 @@ export function createToolbar(cb: ToolbarCallbacks): ToolbarElement {
     b.title = title;
     const sync = () => {
       const fz = cb.frozenState?.() ?? { rows: 0, cols: 0 };
-      b.classList.toggle('on', kind === 'row' ? fz.rows > 0 : fz.cols > 0);
+      b.classList.toggle('on', kind === 'row' ? fz.rows === 1 && fz.cols === 0 : kind === 'col' ? fz.cols === 1 && fz.rows === 0 : fz.rows + fz.cols > 0 && !(fz.rows + fz.cols === 1));
     };
     b.addEventListener('click', () => {
       cb.toggleFreeze?.(kind);
@@ -595,6 +615,7 @@ export function createToolbar(cb: ToolbarCallbacks): ToolbarElement {
     sync();
     freeze.appendChild(b);
   };
+  mkFreeze('Panes', 'panes', 'Freeze the rows above and the columns left of the selected cell (again: unfreeze)');
   mkFreeze('Row', 'row', 'Freeze first row');
   mkFreeze('Col', 'col', 'Freeze first column');
 

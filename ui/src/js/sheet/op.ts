@@ -17,7 +17,8 @@ export type OpType =
   | 'setDimension'
   | 'setFreeze'
   | 'mergeCells'
-  | 'unmergeCells';
+  | 'unmergeCells'
+  | 'setFilter';
 
 export interface Op {
   type: OpType;
@@ -50,9 +51,17 @@ export interface Op {
   // setDimension
   axis?: 'col' | 'row';
   size?: number; // px
-  // setFreeze (0 or 1 each)
+  // setFreeze: number of frozen top rows / left columns
   frozenRows?: number;
   frozenCols?: number;
+  // setFilter: show the rows whose value in `col` is one of `values` (rows up
+  // to the header `row` always show); no values removes the column's filter,
+  // clear removes all filters of the sheet.
+  values?: string[];
+  clear?: boolean;
+  // Transform found nothing left to do (a filter on a column deleted
+  // meanwhile); applyOp skips the op (mirrors Go Op.Noop).
+  noop?: boolean;
   // The sending client's id for the op ("<client>:<seq>"). The server stores
   // it, so a client that lost the acknowledgement in a reconnect finds its op
   // again, and a resent op is not applied twice.

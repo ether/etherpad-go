@@ -89,8 +89,9 @@ test.describe('Sheet M4 structural', () => {
     await expect(cell(page, 2, 0)).toHaveText('3');
   });
 
-  test('filter hides non-matching rows client-side', async ({ page }) => {
-    await openSheet(page, `m4-filter-${Date.now()}`);
+  test('filter hides non-matching rows for everyone', async ({ page, browser }) => {
+    const pad = `m4-filter-${Date.now()}`;
+    await openSheet(page, pad);
     await typeInto(page, 0, 0, 'x');
     await typeInto(page, 1, 0, 'y');
     await typeInto(page, 2, 0, 'x');
@@ -101,12 +102,23 @@ test.describe('Sheet M4 structural', () => {
     // bypasses the native open, so trigger the repopulation explicitly first.
     const filter = page.locator('select[title="Filter rows by the focused column"]');
     await filter.dispatchEvent('mousedown');
-    await filter.selectOption('x');
+    // Option values carry a "=" prefix; row 1 (the first filled one) is the
+    // header and always shows.
+    await filter.selectOption('=x');
     await expect(page.locator('.sheet-grid tbody tr').nth(1)).toBeHidden();
     await expect(page.locator('.sheet-grid tbody tr').nth(0)).toBeVisible();
     await expect(page.locator('.sheet-grid tbody tr').nth(2)).toBeVisible();
+
+    // The filter is part of the sheet: a second user sees it too.
+    const other = await browser.newPage();
+    await openSheet(other, pad);
+    await expect(other.locator('.sheet-grid tbody tr').nth(1)).toBeHidden();
+
     // clear
+    await filter.dispatchEvent('mousedown');
     await filter.selectOption('');
     await expect(page.locator('.sheet-grid tbody tr').nth(1)).toBeVisible();
+    await expect(other.locator('.sheet-grid tbody tr').nth(1)).toBeVisible();
+    await other.close();
   });
 });

@@ -20,9 +20,12 @@ export interface SheetState {
   cells: Map<string, Cell>; // key "row:col"
   colWidths: Map<number, number>; // sparse px overrides
   rowHeights: Map<number, number>;
-  frozenRows: number; // 0 or 1
+  frozenRows: number;
   frozenCols: number;
   merges: Map<string, Span>; // key "row:col" = top-left anchor
+  // Column filters (column -> shown values); rows up to filterRow always show.
+  filters: Map<number, string[]>;
+  filterRow: number;
   // Changes with every change of the cells (unique across all workbook
   // copies), so the formula engine can skip unchanged sheets.
   stamp: number;
@@ -42,7 +45,7 @@ const cellIsEmpty = (c: Cell): boolean =>
 
 const emptySheet = (id: string, name: string): SheetState => ({
   id, name, cells: new Map(), colWidths: new Map(), rowHeights: new Map(), frozenRows: 0, frozenCols: 0,
-  merges: new Map(), stamp: nextStamp(),
+  merges: new Map(), filters: new Map(), filterRow: 0, stamp: nextStamp(),
 });
 
 // intersects mirrors Go: merge at (row,col) x span overlaps [r0..r1]x[c0..c1].
@@ -87,9 +90,9 @@ const shiftIdx2 = (coord: number, index: number, delta: number): number => {
 
 // shiftDims mirrors Go shiftDims: rebuild a sparse dimension map after an
 // insert (delta>0) / delete of -delta indices at index (in-band entries drop).
-const shiftDims = (m: Map<number, number>, index: number, delta: number): Map<number, number> => {
+const shiftDims = <V>(m: Map<number, V>, index: number, delta: number): Map<number, V> => {
   if (m.size === 0) return m;
-  const next = new Map<number, number>();
+  const next = new Map<number, V>();
   for (const [i, v] of m) {
     if (delta < 0 && i >= index && i < index - delta) continue;
     next.set(shiftIdx(i, index, delta), v);
@@ -126,6 +129,8 @@ export interface SheetSnapshot {
   frozenRows?: number;
   frozenCols?: number;
   merges?: MergeSnapshot[];
+  filters?: Record<string, string[]>;
+  filterRow?: number;
 }
 export interface WorkbookSnapshot {
   sheets: SheetSnapshot[];
@@ -159,6 +164,7 @@ export class WorkbookState {
       colWidths: new Map(s.colWidths), rowHeights: new Map(s.rowHeights),
       frozenRows: s.frozenRows, frozenCols: s.frozenCols,
       merges: new Map(s.merges), stamp: s.stamp,
+      filters: new Map([...s.filters].map(([c, v]) => [c, [...v]])), filterRow: s.filterRow,
     }));
     cp.styles = this.styles; // shared pool: interning is monotonic + content-deduped
     return cp;
@@ -180,6 +186,8 @@ export class WorkbookState {
       s.frozenRows = ss.frozenRows ?? 0;
       s.frozenCols = ss.frozenCols ?? 0;
       for (const m of ss.merges ?? []) s.merges.set(key(m.row, m.col), { rows: m.rows, cols: m.cols });
+      for (const [c, v] of Object.entries(ss.filters ?? {})) s.filters.set(Number(c), [...v]);
+      s.filterRow = s.filters.size > 0 ? ss.filterRow ?? 0 : 0;
       return s;
     });
     this.styles.seed(snap.styles);
@@ -213,6 +221,7 @@ export class WorkbookState {
   // applyOp mirrors Go Workbook.Apply. The op is assumed already rebased to the
   // current revision. Cell ops are last-writer-wins.
   applyOp(op: Op): void {
+    if (op.noop) return;
     // Sheet-list ops manage the sheet list itself (mirrors Go Apply).
     switch (op.type) {
       case 'addSheet': {
@@ -324,10 +333,20 @@ export class WorkbookState {
         }
         break;
       }
+      case 'setFilter':
+        if (op.clear) sheet.filters = new Map();
+        else if (!op.values || op.values.length === 0) sheet.filters.delete(col);
+        else {
+          sheet.filters.set(col, [...op.values]);
+          sheet.filterRow = row;
+        }
+        if (sheet.filters.size === 0) sheet.filterRow = 0;
+        break;
       case 'insertRows':
         this.remap(sheet, (r, c) => (r >= index ? [r + count, c, true] : [r, c, true]));
         sheet.rowHeights = shiftDims(sheet.rowHeights, index, count);
         sheet.merges = shiftMerges(sheet.merges, 'row', index, count);
+        sheet.filterRow = shiftIdx2(sheet.filterRow, index, count);
         break;
       case 'deleteRows':
         this.remap(sheet, (r, c) => {
@@ -337,11 +356,13 @@ export class WorkbookState {
         });
         sheet.rowHeights = shiftDims(sheet.rowHeights, index, -count);
         sheet.merges = shiftMerges(sheet.merges, 'row', index, -count);
+        sheet.filterRow = shiftIdx2(sheet.filterRow, index, -count);
         break;
       case 'insertCols':
         this.remap(sheet, (r, c) => (c >= index ? [r, c + count, true] : [r, c, true]));
         sheet.colWidths = shiftDims(sheet.colWidths, index, count);
         sheet.merges = shiftMerges(sheet.merges, 'col', index, count);
+        sheet.filters = shiftDims(sheet.filters, index, count);
         break;
       case 'deleteCols':
         this.remap(sheet, (r, c) => {
@@ -351,6 +372,7 @@ export class WorkbookState {
         });
         sheet.colWidths = shiftDims(sheet.colWidths, index, -count);
         sheet.merges = shiftMerges(sheet.merges, 'col', index, -count);
+        sheet.filters = shiftDims(sheet.filters, index, -count);
         break;
       default:
         throw new Error(`applyOp: unhandled op type ${(op as Op).type}`);

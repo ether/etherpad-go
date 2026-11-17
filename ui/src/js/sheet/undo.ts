@@ -95,6 +95,16 @@ const formulaRestores = (
   return out;
 };
 
+// filterRestore rebuilds a sheet's column filters (all, or one column).
+const filterRestore = (op: Op, sheet: SheetState, only?: number): Op[] => {
+  const out: Op[] = [];
+  for (const [c, values] of sheet.filters) {
+    if (only !== undefined && c !== only) continue;
+    out.push({ ...base(op), type: 'setFilter', row: sheet.filterRow, col: c, values: [...values] });
+  }
+  return out;
+};
+
 export function invertOp(wb: WorkbookState, op: Op): Op[] {
   switch (op.type) {
     case 'addSheet':
@@ -120,6 +130,7 @@ export function invertOp(wb: WorkbookState, op: Op): Op[] {
       if (sheet.frozenRows || sheet.frozenCols) {
         out.push({ ...base(op), type: 'setFreeze', frozenRows: sheet.frozenRows, frozenCols: sheet.frozenCols });
       }
+      out.push(...filterRestore(op, sheet));
       // References from the other sheets became #REF!.
       out.push(...formulaRestores(wb, op, { target: sheet.name, deleted: true }, null, () => true));
       return out;
@@ -165,6 +176,15 @@ export function invertOp(wb: WorkbookState, op: Op): Op[] {
     }
     case 'setFreeze':
       return [{ ...base(op), type: 'setFreeze', frozenRows: sheet.frozenRows, frozenCols: sheet.frozenCols }];
+    case 'setFilter': {
+      if (op.clear) {
+        // Back to exactly the filters before: clear, then put each one back.
+        return [{ ...base(op), type: 'setFilter', row: 0, col: 0, clear: true }, ...filterRestore(op, sheet)];
+      }
+      // Only this column: filters others set meanwhile stay.
+      const before = filterRestore(op, sheet, col);
+      return before.length > 0 ? before : [{ ...base(op), type: 'setFilter', row: 0, col }];
+    }
     case 'mergeCells': {
       const endRow = op.endRow ?? 0;
       const endCol = op.endCol ?? 0;
@@ -207,10 +227,21 @@ export function invertOp(wb: WorkbookState, op: Op): Op[] {
           return [{ ...base(op), type: 'deleteRows', index, count }, ...refs];
         case 'insertCols':
           return [{ ...base(op), type: 'deleteCols', index, count }, ...refs];
-        case 'deleteRows':
-          return [{ ...base(op), type: 'insertRows', index, count }, ...bandRestore(wb, op, sheet, 'row', index, count), ...refs];
-        default:
-          return [{ ...base(op), type: 'insertCols', index, count }, ...bandRestore(wb, op, sheet, 'col', index, count), ...refs];
+        case 'deleteRows': {
+          // A filter header inside the band was moved to its edge: put it back.
+          const header: Op[] = [];
+          const fr = sheet.filterRow;
+          if (sheet.filters.size > 0 && fr >= index && fr < index + count) {
+            header.push(...filterRestore(op, sheet, sheet.filters.keys().next().value as number));
+          }
+          return [{ ...base(op), type: 'insertRows', index, count }, ...bandRestore(wb, op, sheet, 'row', index, count), ...refs, ...header];
+        }
+        default: {
+          // Filters of the deleted columns come back too.
+          const filters: Op[] = [];
+          for (let c = index; c < index + count; c++) filters.push(...filterRestore(op, sheet, c));
+          return [{ ...base(op), type: 'insertCols', index, count }, ...bandRestore(wb, op, sheet, 'col', index, count), ...refs, ...filters];
+        }
       }
     }
     default:

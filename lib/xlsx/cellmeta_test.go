@@ -157,3 +157,29 @@ func TestCellsOfSqrefDedupesAndStops(t *testing.T) {
 		t.Fatal("spent budget still expands")
 	}
 }
+
+func TestImportStyledEmptyCellFarAway(t *testing.T) {
+	f := excelize.NewFile()
+	_ = f.SetCellValue("Sheet1", "A1", "x")
+	bold, _ := f.NewStyle(&excelize.Style{Font: &excelize.Font{Bold: true}})
+	if err := f.SetCellStyle("Sheet1", "C900", "C900", bold); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.SetRowHeight("Sheet1", 700, 40); err != nil {
+		t.Fatal(err)
+	}
+	buf, _ := f.WriteToBuffer()
+	snap, err := Import(bytes.NewReader(buf.Bytes()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	wb := sheet.WorkbookFromSnapshot(snap)
+	sh := wb.Sheets[0]
+	st, _ := wb.Styles.Get(sh.GetCell(sheet.CellRef{Row: 899, Col: 2}).StyleId)
+	if st.Props["bold"] != "1" {
+		t.Errorf("C900 style = %v", st.Props)
+	}
+	if sh.RowHeights[699] == 0 {
+		t.Errorf("row 700 height lost: %v", sh.RowHeights)
+	}
+}

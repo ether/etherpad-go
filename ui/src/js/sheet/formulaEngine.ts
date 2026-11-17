@@ -92,6 +92,12 @@ export class FormulaEngine {
     }
   }
 
+  // height is the number of rows the active sheet uses, spilled arrays
+  // included.
+  height(): number {
+    return this.hf.getSheetDimensions(this.sheetId).height;
+  }
+
   getValue(row: number, col: number): CellResult {
     const v = this.hf.getCellValue({ sheet: this.sheetId, row, col });
     const type = this.mapType(row, col);

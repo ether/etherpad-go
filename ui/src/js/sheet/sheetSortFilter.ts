@@ -72,19 +72,3 @@ export function distinctValues(
   }
   return [...seen].sort((a, b) => compareVals(a, b, true));
 }
-
-// hiddenRowsForFilter: rows whose column value is non-empty and differs from
-// `keep`. Blank rows stay visible (the empty grid must not collapse).
-export function hiddenRowsForFilter(
-  col: number,
-  keep: string,
-  rowCount: number,
-  rawAt: (r: number, c: number) => string,
-): Set<number> {
-  const hidden = new Set<number>();
-  for (let r = 0; r < rowCount; r++) {
-    const v = rawAt(r, col);
-    if (v !== '' && v !== keep) hidden.add(r);
-  }
-  return hidden;
-}

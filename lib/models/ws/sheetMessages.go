@@ -47,6 +47,19 @@ type AcceptSheetOpData struct {
 	Cid string `json:"cid,omitempty"`
 }
 
+// RejectSheetOp tells the sender that its op was refused as invalid, so it
+// drops the op instead of waiting for an acknowledgement for ever.
+type RejectSheetOp struct {
+	Type string            `json:"type"` // "COLLABROOM"
+	Data RejectSheetOpData `json:"data"`
+}
+
+type RejectSheetOpData struct {
+	Type  string `json:"type"` // "REJECT_SHEET_OP"
+	Cid   string `json:"cid,omitempty"`
+	Error string `json:"error"`
+}
+
 // SheetCaughtUp ends the missed ops a reconnecting client gets: everything up
 // to Head has been sent, ops the client still waits for were not stored and
 // have to be sent again. Sent as ["message", SheetCaughtUp].

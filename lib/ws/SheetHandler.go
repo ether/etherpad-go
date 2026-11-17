@@ -169,6 +169,12 @@ func (p *PadMessageHandler) handleSheetOp(task SheetTask) {
 		return
 	}
 	op.BaseRev = task.message.Data.Data.BaseRev
+	if err := op.Validate(); err != nil {
+		// Invalid as sent: no retry can help, so tell the sender to drop it.
+		p.Logger.Warn("invalid sheet op: ", err)
+		p.sendRejectSheetOp(task.socket, op.Cid, err.Error())
+		return
+	}
 
 	author := session.Author
 	_, newRev, duplicate, err := p.sheetManager.SubmitOnce(session.PadId, op, &author, time.Now().UnixMilli())
@@ -190,6 +196,19 @@ func (p *PadMessageHandler) handleSheetOp(task SheetTask) {
 	// Tell the other instances; they send their clients the op from the
 	// database.
 	p.publish(cluster.Event{Kind: cluster.KindRevision, Pad: session.PadId, Rev: newRev})
+}
+
+func (p *PadMessageHandler) sendRejectSheetOp(client *Client, cid, reason string) {
+	msg := ws.RejectSheetOp{Type: "COLLABROOM"}
+	msg.Data.Type = "REJECT_SHEET_OP"
+	msg.Data.Cid = cid
+	msg.Data.Error = reason
+	encoded, err := json.Marshal([]any{"message", msg})
+	if err != nil {
+		p.Logger.Warn("marshal REJECT_SHEET_OP: ", err)
+		return
+	}
+	client.SafeSend(encoded)
 }
 
 func (p *PadMessageHandler) sendAcceptSheetOp(client *Client, newRev int, cid string) {
