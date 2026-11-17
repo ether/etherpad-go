@@ -10,10 +10,16 @@ export const PROP_COND_FMT = 'cf';
 // Kept by "Clear Formats", as in Excel (conditional formatting goes).
 export const META_PROPS = [PROP_LINK, PROP_NOTE, PROP_VALID_LIST];
 
+// Limits count UTF-8 bytes, like the server (lib/sheet/cellmeta.go).
 export const MAX_LINK_LENGTH = 2048;
 export const MAX_NOTE_LENGTH = 4000;
 export const MAX_VALID_LIST_LENGTH = 255;
 export const MAX_COND_RULES = 8;
+export const MAX_COND_VALUE = 255;
+export const MAX_COND_JSON = 16384;
+
+const encoder = new TextEncoder();
+export const byteLength = (s: string): number => encoder.encode(s).length;
 
 export type CondOp =
   | 'gt' | 'lt' | 'ge' | 'le' | 'eq' | 'ne' | 'between' | 'notBetween'
@@ -38,7 +44,7 @@ const HEX = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 
 // validLink mirrors the server check: http(s) with a host, or mailto.
 export function validLink(v: string): boolean {
-  if (v === '' || v.length > MAX_LINK_LENGTH || /[\s\p{Cc}]/u.test(v)) return false;
+  if (v === '' || byteLength(v) > MAX_LINK_LENGTH || /[\s\p{Cc}]/u.test(v)) return false;
   try {
     const u = new URL(v);
     if (u.protocol === 'http:' || u.protocol === 'https:') return u.host !== '';
@@ -52,7 +58,8 @@ export function validLink(v: string): boolean {
 // normalizeLink adds https:// to a bare host, as Excel does for "www.x.de".
 export function normalizeLink(v: string): string {
   const t = v.trim();
-  if (t === '' || /^[a-z][a-z0-9+.-]*:/i.test(t)) return t;
+  // Keep what already has a scheme; "host:8080/p" has none.
+  if (t === '' || /^(https?:|mailto:)/i.test(t) || /^[a-z][a-z0-9+.-]*:\/\//i.test(t)) return t;
   if (/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(t)) return `mailto:${t}`;
   return `https://${t}`;
 }

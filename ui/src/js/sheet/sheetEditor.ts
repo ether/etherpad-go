@@ -235,40 +235,30 @@ export function startSheetEditor(root: HTMLElement): void {
   };
 
   // clearContents empties the cells of a range but keeps their formatting,
-  // notes, links and validation, like Excel's Delete key. One clearRange op
-  // when nothing in the range is formatted.
+  // notes, links and validation, like Excel's Delete key: one op.
   const clearContents = (r0: number, c0: number, r1: number, c1: number): void => {
     if (!collab) return;
-    const sheet = collab.display.sheetById(activeSheetId);
-    if (!sheet) return;
-    const styled: Array<[number, number]> = [];
     let any = false;
-    for (const [k, cell] of sheet.cells) {
+    for (const [k, cell] of collab.display.sheetById(activeSheetId)?.cells ?? []) {
       const i = k.indexOf(':');
       const r = Number(k.slice(0, i));
       const c = Number(k.slice(i + 1));
-      if (r < r0 || r > r1 || c < c0 || c > c1) continue;
-      any = true;
-      if (cell.styleId) styled.push([r, c]);
+      if (cell.raw !== '' && r >= r0 && r <= r1 && c >= c0 && c <= c1) {
+        any = true;
+        break;
+      }
     }
     if (!any) return;
-    if (styled.length === 0) {
-      collab.applyLocal({ type: 'clearRange', sheet: activeSheetId, baseRev: collab.rev, row: r0, col: c0, endRow: r1, endCol: c1 });
-      return;
-    }
-    for (const [k, cell] of [...sheet.cells]) {
-      if (cell.raw === '') continue;
-      const i = k.indexOf(':');
-      const r = Number(k.slice(0, i));
-      const c = Number(k.slice(i + 1));
-      if (r < r0 || r > r1 || c < c0 || c > c1) continue;
-      collab.applyLocal({ type: 'setCell', sheet: activeSheetId, baseRev: collab.rev, row: r, col: c, raw: '' });
-    }
+    collab.applyLocal({
+      type: 'clearRange', sheet: activeSheetId, baseRev: collab.rev,
+      row: r0, col: c0, endRow: r1, endCol: c1, keepStyle: true,
+    });
   };
 
   // commitRaw writes typed text into a cell. A cell with a list validation
   // only takes a value from its list, as in Excel ("Stop" style); the
-  // editor's own writes (e.g. a link's display text) skip the check.
+  // editor's own writes (e.g. a link's display text) skip the check. Paste,
+  // fill and Replace do not check either: Excel lets them through too.
   const commitRaw = (row: number, col: number, raw: string, trusted = false): void => {
     if (readOnly || !collab) return;
     const list = listValues(propsOf(row, col)[PROP_VALID_LIST]);

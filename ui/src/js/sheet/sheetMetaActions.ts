@@ -2,7 +2,7 @@
 // formatting. The editor supplies the selection and the op side effects.
 import { openDialog } from './sheetDialog';
 import {
-  COND_OPS, COND_PRESETS, MAX_COND_RULES, MAX_NOTE_LENGTH, MAX_VALID_LIST_LENGTH,
+  COND_OPS, COND_PRESETS, MAX_COND_JSON, MAX_COND_RULES, MAX_COND_VALUE, MAX_NOTE_LENGTH, MAX_VALID_LIST_LENGTH, byteLength,
   PROP_COND_FMT, PROP_LINK, PROP_NOTE, PROP_VALID_LIST,
   listValues, normalizeLink, parseCondRules, validLink, type CondOp, type CondRule,
 } from './cellMeta';
@@ -58,7 +58,8 @@ export function createMetaActions(ctx: MetaContext) {
         const url = normalizeLink(v.url ?? '');
         if (!validLink(url)) return 'Enter a web address (https://…) or an e-mail address.';
         update(PROP_LINK, url);
-        const text = (v.text ?? '').trim() === '' && raw === '' ? url : v.text;
+        // An empty display text shows the address, as in Excel.
+        const text = (v.text ?? '').trim() === '' ? url : v.text;
         if (!isFormula && text !== undefined && text !== raw) ctx.setRaw(f.row, f.col, text);
         return null;
       },
@@ -75,7 +76,7 @@ export function createMetaActions(ctx: MetaContext) {
       extra: note ? { label: 'Delete Note', run: () => update(PROP_NOTE, '', f) } : undefined,
       onOk: (v) => {
         const text = (v.note ?? '').replace(/\s+$/, '');
-        if (text.length > MAX_NOTE_LENGTH) return `A note can have at most ${MAX_NOTE_LENGTH} characters.`;
+        if (byteLength(text) > MAX_NOTE_LENGTH) return `The note is too long (at most ${MAX_NOTE_LENGTH} bytes).`;
         update(PROP_NOTE, text, f);
         return null;
       },
@@ -100,7 +101,7 @@ export function createMetaActions(ctx: MetaContext) {
         const values = listValues(v.source);
         if (values.length === 0) return 'Enter the allowed values, separated by commas.';
         const list = values.join(',');
-        if (list.length > MAX_VALID_LIST_LENGTH) return `The list can have at most ${MAX_VALID_LIST_LENGTH} characters.`;
+        if (byteLength(list) > MAX_VALID_LIST_LENGTH) return `The list is too long (at most ${MAX_VALID_LIST_LENGTH} bytes, as in Excel).`;
         update(PROP_VALID_LIST, list);
         return null;
       },
@@ -125,7 +126,7 @@ export function createMetaActions(ctx: MetaContext) {
         const v1 = (v.v1 ?? '').trim();
         const v2 = (v.v2 ?? '').trim();
         if ((n >= 1 && v1 === '') || (n === 2 && v2 === '')) return 'Enter a value.';
-        if (v1.length > 255 || v2.length > 255) return 'A value can have at most 255 characters.';
+        if (byteLength(v1) > MAX_COND_VALUE || byteLength(v2) > MAX_COND_VALUE) return `A value can have at most ${MAX_COND_VALUE} bytes.`;
         const p = COND_PRESETS[Number(v.style)] ?? COND_PRESETS[0];
         const rule: CondRule = { op };
         if (n >= 1) rule.v1 = v1;
@@ -136,7 +137,8 @@ export function createMetaActions(ctx: MetaContext) {
         // A cell that already has the most rules keeps them as they are.
         update(PROP_COND_FMT, (props) => {
           const rules = parseCondRules(props[PROP_COND_FMT]);
-          return rules.length >= MAX_COND_RULES ? props[PROP_COND_FMT] ?? '' : JSON.stringify([...rules, rule]);
+          const next = JSON.stringify([...rules, rule]);
+          return rules.length >= MAX_COND_RULES || byteLength(next) > MAX_COND_JSON ? props[PROP_COND_FMT] ?? '' : next;
         });
         return null;
       },

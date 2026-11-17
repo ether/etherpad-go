@@ -113,6 +113,7 @@ export class DomSheetView {
   private fillHandle: HTMLSpanElement;
   private listBtn: HTMLButtonElement;
   private listMenu: HTMLDivElement | null = null;
+  private listOutside: ((e: MouseEvent) => void) | null = null;
   private root: HTMLElement;
   private mergedTds = new Set<HTMLTableCellElement>();
   private table: HTMLTableElement;
@@ -444,6 +445,8 @@ export class DomSheetView {
   private closeListMenu(): void {
     this.listMenu?.remove();
     this.listMenu = null;
+    if (this.listOutside) document.removeEventListener('mousedown', this.listOutside, true);
+    this.listOutside = null;
   }
 
   // toggleListMenu opens the list of allowed values under the focused cell;
@@ -478,12 +481,11 @@ export class DomSheetView {
     menu.style.minWidth = `${td.offsetWidth}px`;
     this.root.appendChild(menu);
     this.listMenu = menu;
-    const outside = (e: MouseEvent): void => {
+    this.listOutside = (e: MouseEvent): void => {
       if (menu.contains(e.target as Node) || this.listBtn.contains(e.target as Node)) return;
-      document.removeEventListener('mousedown', outside, true);
       this.closeListMenu();
     };
-    document.addEventListener('mousedown', outside, true);
+    document.addEventListener('mousedown', this.listOutside, true);
   }
 
   // render refreshes every non-editing cell to its display value, then paints

@@ -74,6 +74,10 @@ type Op struct {
 	FrozenRows int `json:"frozenRows,omitempty"`
 	FrozenCols int `json:"frozenCols,omitempty"`
 
+	// clearRange: empty the cells but keep their style props (Excel's
+	// Delete / Clear Contents).
+	KeepStyle bool `json:"keepStyle,omitempty"`
+
 	// Cid is the sending client's id for the op. It is stored with the op,
 	// so a client that lost the acknowledgement in a reconnect finds its op
 	// in the missed ops, and a resent op is not applied twice.

@@ -2,10 +2,13 @@ package xlsx
 
 import (
 	"bytes"
+	"encoding/json"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/ether/etherpad-go/lib/sheet"
+	"github.com/xuri/excelize/v2"
 )
 
 func TestCellMetaRoundTrip(t *testing.T) {
@@ -87,5 +90,70 @@ func TestValidatePropsCellMeta(t *testing.T) {
 		if err := sheet.ValidateProps(p); err != nil {
 			t.Errorf("rejected %v: %v", p, err)
 		}
+	}
+}
+
+func TestCondRulesStrictJSON(t *testing.T) {
+	for _, v := range []string{
+		`[{"op":"gt","v1":"1","bg":"#fff"}],`,
+		`[{"op":"gt","v1":"1","bg":"#fff"}] x`,
+		`[{"op":"gt","v1":"1","bg":"#fff"}][]`,
+	} {
+		if sheet.ParseCondRules(v) != nil {
+			t.Errorf("accepted %q", v)
+		}
+	}
+	// Eight rules with long, escaped values still fit.
+	long := strings.Repeat(`"ä`, 85) // 255 bytes, every quote escaped in JSON
+	var rules []sheet.CondRule
+	for range sheet.MaxCondRules {
+		rules = append(rules, sheet.CondRule{Op: "between", V1: long, V2: long, Bg: "#ffc7ce", Color: "#9c0006", Bold: "1"})
+	}
+	b, _ := json.Marshal(rules)
+	if sheet.ParseCondRules(string(b)) == nil {
+		t.Errorf("eight maximal rules (%d bytes) refused", len(b))
+	}
+}
+
+func TestImportCondFormatPriority(t *testing.T) {
+	f := excelize.NewFile()
+	red, _ := f.NewConditionalStyle(&excelize.Style{Fill: excelize.Fill{Type: "pattern", Pattern: 1, Color: []string{"FFC7CE"}}})
+	green, _ := f.NewConditionalStyle(&excelize.Style{Fill: excelize.Fill{Type: "pattern", Pattern: 1, Color: []string{"C6EFCE"}}})
+	// Written first, so priority 1; its sqref sorts after "A1".
+	if err := f.SetConditionalFormat("Sheet1", "A1:A2", []excelize.ConditionalFormatOptions{{Type: "cell", Criteria: ">", Value: "1", Format: &red}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.SetConditionalFormat("Sheet1", "A1", []excelize.ConditionalFormatOptions{{Type: "cell", Criteria: ">", Value: "0", Format: &green}}); err != nil {
+		t.Fatal(err)
+	}
+	_ = f.SetCellValue("Sheet1", "A1", 5)
+	buf, err := f.WriteToBuffer()
+	if err != nil {
+		t.Fatal(err)
+	}
+	snap, err := Import(bytes.NewReader(buf.Bytes()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	wb := sheet.WorkbookFromSnapshot(snap)
+	st, _ := wb.Styles.Get(wb.Sheets[0].GetCell(sheet.CellRef{Row: 0, Col: 0}).StyleId)
+	rules := sheet.ParseCondRules(st.Props["cf"])
+	if len(rules) != 2 || rules[0].Bg != "#ffc7ce" || rules[1].Bg != "#c6efce" {
+		t.Fatalf("rules = %+v", rules)
+	}
+}
+
+func TestCellsOfSqrefDedupesAndStops(t *testing.T) {
+	b := &refBudget{left: 1000}
+	got := cellsOfSqref(strings.Repeat("A1:B10 ", 5000), b)
+	if len(got) != 20 || b.left != 980 {
+		t.Fatalf("got %d cells, budget left %d", len(got), b.left)
+	}
+	got = cellsOfSqref("A1:CZ200", b)
+	if len(got) != 980 || b.left != 0 {
+		t.Fatalf("got %d cells over the budget", len(got))
+	}
+	if got = cellsOfSqref("A1", b); len(got) != 0 {
+		t.Fatal("spent budget still expands")
 	}
 }

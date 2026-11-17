@@ -89,8 +89,12 @@ func (w *Workbook) Apply(op Op) error {
 		}
 		s.SetCell(CellRef{op.Row, op.Col}, cur)
 	case OpClearRange:
-		for ref := range s.Cells {
+		for ref, c := range s.Cells {
 			if ref.Row >= op.Row && ref.Row <= op.EndRow && ref.Col >= op.Col && ref.Col <= op.EndCol {
+				if op.KeepStyle && c.StyleId != 0 {
+					s.Cells[ref] = Cell{StyleId: c.StyleId}
+					continue
+				}
 				delete(s.Cells, ref)
 			}
 		}

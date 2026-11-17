@@ -29,6 +29,8 @@ export interface Op {
   // range end (inclusive) for clearRange / mergeCells / unmergeCells
   endRow?: number;
   endCol?: number;
+  // clearRange: empty the cells but keep their style props (Excel's Delete)
+  keepStyle?: boolean;
   // setCell / setStyle payload
   raw?: string;
   value?: string;

@@ -136,3 +136,20 @@ func TestApplySetCellWithPropsInterns(t *testing.T) {
 		t.Fatalf("setCell should set raw AND intern props: %+v", cell)
 	}
 }
+
+func TestClearRangeKeepStyle(t *testing.T) {
+	wb := NewWorkbook()
+	s := wb.AddSheet("s1", "Sheet1")
+	id := wb.Styles.Put(Style{Props: map[string]string{"note": "x"}})
+	s.SetCell(CellRef{0, 0}, Cell{Raw: "a", StyleId: id})
+	s.SetCell(CellRef{0, 1}, Cell{Raw: "b"})
+	if err := wb.Apply(Op{Type: OpClearRange, Sheet: "s1", EndRow: 0, EndCol: 1, KeepStyle: true}); err != nil {
+		t.Fatal(err)
+	}
+	if c, ok := s.Cells[CellRef{0, 0}]; !ok || c.Raw != "" || c.StyleId != id {
+		t.Errorf("styled cell = %+v, %v", c, ok)
+	}
+	if _, ok := s.Cells[CellRef{0, 1}]; ok {
+		t.Error("unstyled cell kept")
+	}
+}

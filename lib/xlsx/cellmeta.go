@@ -42,9 +42,19 @@ func sqrefOf(refs []sheet.CellRef) string {
 	return strings.Join(parts, " ")
 }
 
-// cellsOfSqref expands an sqref to cells inside the grid.
-func cellsOfSqref(sqref string) []sheet.CellRef {
+// maxMetaCells bounds how many cells one import expands from the ranges of
+// links, notes, validations and conditional formats together: a small file
+// can repeat a large range thousands of times.
+const maxMetaCells = 200000
+
+// refBudget counts down the cells an import may still expand.
+type refBudget struct{ left int }
+
+// cellsOfSqref expands an sqref to the distinct cells inside the grid,
+// stopping when the budget is spent.
+func cellsOfSqref(sqref string, b *refBudget) []sheet.CellRef {
 	var out []sheet.CellRef
+	seen := map[sheet.CellRef]bool{}
 	for _, part := range strings.Fields(strings.ReplaceAll(sqref, ",", " ")) {
 		ends := strings.SplitN(part, ":", 2)
 		c0, r0, err := excelize.CellNameToCoordinates(ends[0])
@@ -59,7 +69,16 @@ func cellsOfSqref(sqref string) []sheet.CellRef {
 		}
 		for r := r0; r <= min(r1, maxRows); r++ {
 			for c := c0; c <= min(c1, maxCols); c++ {
-				out = append(out, sheet.CellRef{Row: r - 1, Col: c - 1})
+				ref := sheet.CellRef{Row: r - 1, Col: c - 1}
+				if seen[ref] {
+					continue
+				}
+				if b.left <= 0 {
+					return out
+				}
+				b.left--
+				seen[ref] = true
+				out = append(out, ref)
 			}
 		}
 	}
@@ -219,14 +238,14 @@ func addProp(wb *sheet.Workbook, sh *sheet.Sheet, ref sheet.CellRef, key, value 
 // importCellMeta reads what exportCellMeta writes, from any xlsx. Whatever
 // the model cannot hold (links into the workbook, list sources that are
 // ranges, other rule types) is skipped.
-func importCellMeta(f *excelize.File, wb *sheet.Workbook, sh *sheet.Sheet, name string) {
+func importCellMeta(f *excelize.File, wb *sheet.Workbook, sh *sheet.Sheet, name string, b *refBudget, cfs []sheetCondFormat) {
 	if cells, err := f.GetHyperLinkCells(name, "External"); err == nil {
 		for _, axis := range cells {
 			ok, target, err := f.GetCellHyperLink(name, axis)
 			if err != nil || !ok {
 				continue
 			}
-			for _, ref := range cellsOfSqref(axis) {
+			for _, ref := range cellsOfSqref(axis, b) {
 				addProp(wb, sh, ref, sheet.PropLink, target)
 			}
 		}
@@ -254,7 +273,7 @@ func importCellMeta(f *excelize.File, wb *sheet.Workbook, sh *sheet.Sheet, name 
 			if len(note) > sheet.MaxNoteLength {
 				note = strings.ToValidUTF8(note[:sheet.MaxNoteLength], "")
 			}
-			for _, ref := range cellsOfSqref(cm.Cell) {
+			for _, ref := range cellsOfSqref(cm.Cell, b) {
 				addProp(wb, sh, ref, sheet.PropNote, note)
 			}
 		}
@@ -272,88 +291,93 @@ func importCellMeta(f *excelize.File, wb *sheet.Workbook, sh *sheet.Sheet, name 
 			if _, err := strconv.ParseFloat(dv.Formula1, 64); err == nil {
 				continue // a lone number is not a list
 			}
-			for _, ref := range cellsOfSqref(dv.Sqref) {
+			for _, ref := range cellsOfSqref(dv.Sqref, b) {
 				addProp(wb, sh, ref, sheet.PropValidList, list)
 			}
 		}
 	}
 
-	if cfs, err := f.GetConditionalFormats(name); err == nil {
-		perCell := map[sheet.CellRef][]sheet.CondRule{}
-		for _, sqref := range sortedKeys(cfs) {
-			for _, o := range cfs[sqref] {
-				r, ok := condRuleOf(f, o)
-				if !ok {
-					continue
-				}
-				for _, ref := range cellsOfSqref(sqref) {
-					if len(perCell[ref]) < sheet.MaxCondRules {
-						perCell[ref] = append(perCell[ref], r)
-					}
-				}
+	// Conditional formats, in the file's rule priority: on screen the first
+	// matching rule wins.
+	type prioRule struct {
+		prio, order int
+		rule        sheet.CondRule
+	}
+	perCell := map[sheet.CellRef][]prioRule{}
+	order := 0
+	for _, cf := range cfs {
+		for _, xr := range cf.Rules {
+			r, ok := condRuleOfXML(f, xr)
+			if !ok {
+				continue
+			}
+			order++
+			for _, ref := range cellsOfSqref(cf.Sqref, b) {
+				perCell[ref] = append(perCell[ref], prioRule{xr.Priority, order, r})
 			}
 		}
-		for ref, rules := range perCell {
-			if b, err := json.Marshal(rules); err == nil {
-				addProp(wb, sh, ref, sheet.PropCondFmt, string(b))
+	}
+	for ref, list := range perCell {
+		sort.SliceStable(list, func(i, j int) bool {
+			if list[i].prio != list[j].prio {
+				return list[i].prio < list[j].prio
 			}
+			return list[i].order < list[j].order
+		})
+		rules := make([]sheet.CondRule, 0, min(len(list), sheet.MaxCondRules))
+		for _, pr := range list[:min(len(list), sheet.MaxCondRules)] {
+			rules = append(rules, pr.rule)
+		}
+		if b, err := json.Marshal(rules); err == nil {
+			addProp(wb, sh, ref, sheet.PropCondFmt, string(b))
 		}
 	}
 }
 
-func condRuleOf(f *excelize.File, o excelize.ConditionalFormatOptions) (sheet.CondRule, bool) {
+var cellIsOps = map[string]string{
+	"greaterThan": "gt", "lessThan": "lt", "greaterThanOrEqual": "ge", "lessThanOrEqual": "le",
+	"equal": "eq", "notEqual": "ne", "between": "between", "notBetween": "notBetween",
+}
+
+var textRuleOps = map[string]string{
+	"containsText": "contains", "notContainsText": "notContains", "beginsWith": "beginsWith", "endsWith": "endsWith",
+}
+
+// condRuleOfXML maps one cfRule of the sheet XML to a model rule; false for
+// the kinds the model cannot hold (formulas, colour scales, top 10, ...).
+func condRuleOfXML(f *excelize.File, x xmlCfRule) (sheet.CondRule, bool) {
 	var r sheet.CondRule
-	switch o.Type {
-	case "blanks":
-		r.Op = "blank"
-	case "no_blanks":
-		r.Op = "notBlank"
-	case "text", "cell":
-		for op, crit := range condCriteria {
-			if crit == o.Criteria {
-				r.Op = op
-			}
-		}
-		switch o.Criteria {
-		case "greater than":
-			r.Op = "gt"
-		case "less than":
-			r.Op = "lt"
-		case "greater than or equal to":
-			r.Op = "ge"
-		case "less than or equal to":
-			r.Op = "le"
-		case "equal to":
-			r.Op = "eq"
-		case "not equal to":
-			r.Op = "ne"
-		}
-		if r.Op == "" {
+	switch {
+	case x.Type == "cellIs":
+		r.Op = cellIsOps[x.Operator]
+		if r.Op == "" || len(x.Formula) < sheet.CondOps[r.Op] {
 			return r, false
 		}
-		if o.Type == "text" {
-			r.V1 = o.Value
-		} else if sheet.CondOps[r.Op] == 2 {
-			v1, ok1 := valueOfCell(o.MinValue)
-			v2, ok2 := valueOfCell(o.MaxValue)
-			if !ok1 || !ok2 {
-				return r, false
-			}
-			r.V1, r.V2 = v1, v2
-		} else {
-			v, ok := valueOfCell(o.Value)
+		v1, ok := valueOfCell(x.Formula[0])
+		if !ok {
+			return r, false
+		}
+		r.V1 = v1
+		if sheet.CondOps[r.Op] == 2 {
+			v2, ok := valueOfCell(x.Formula[1])
 			if !ok {
 				return r, false
 			}
-			r.V1 = v
+			r.V2 = v2
 		}
+	case textRuleOps[x.Type] != "":
+		r.Op, r.V1 = textRuleOps[x.Type], x.Text
+	case x.Type == "containsBlanks":
+		r.Op = "blank"
+	case x.Type == "notContainsBlanks":
+		r.Op = "notBlank"
 	default:
 		return r, false
 	}
-	if o.Format == nil {
+	if x.DxfID == nil {
 		return r, false
 	}
-	st, err := f.GetConditionalStyle(*o.Format)
+	st, err := f.GetConditionalStyle(*x.DxfID)
 	if err != nil || st == nil {
 		return r, false
 	}
