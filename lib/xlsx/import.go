@@ -117,6 +117,8 @@ func Import(r io.Reader) (sheet.WorkbookSnapshot, error) {
 			}
 		}
 
+		importCellMeta(f, wb, sh, name)
+
 		// Freeze panes: the model only supports freezing the first row/col.
 		if panes, err := f.GetPanes(name); err == nil && panes.Freeze {
 			if panes.YSplit > 0 {

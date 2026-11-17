@@ -14,6 +14,8 @@ import { createFindDialog } from './sheetFindDialog';
 import { findAll, findNext, matches, replaceAll, replaceInRaw } from './findReplace';
 import { rangeRefA1 } from './a1';
 import { mergeProps } from './styleCss';
+import { createMetaActions } from './sheetMetaActions';
+import { META_PROPS, PROP_COND_FMT, PROP_LINK, PROP_NOTE, PROP_VALID_LIST, condStyle, inList, listValues, parseCondRules } from './cellMeta';
 import { formatValue } from './format';
 import type { Op } from './op';
 import type { WorkbookSnapshot } from './workbookState';
@@ -49,6 +51,7 @@ body { margin: 0; overflow: hidden; }
 .sheet-reconnect { font: inherit; padding: 0 6px; border: 1px solid #a4262c; border-radius: 3px; background: #fff; color: #a4262c; cursor: pointer; }
 .sheet-statusbar { display: flex; align-items: center; justify-content: space-between; height: 22px; padding: 0 10px; background: #f5f6f7; border-top: 1px solid #d4d8dd; font: 12px system-ui, sans-serif; color: #444; }
 .sheet-stats { display: flex; gap: 16px; }
+.sheet-flash { color: #a4262c; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 `;
 const TITLE_ICON_SVG =
   '<svg width="18" height="18" viewBox="0 0 16 16" aria-hidden="true">' +
@@ -109,6 +112,7 @@ export function startSheetEditor(root: HTMLElement): void {
     }
   };
   let toolbarEl: ToolbarElement | null = null;
+  let metaActions: ReturnType<typeof createMetaActions> | null = null;
 
   const transport = {
     send: (op: Op) =>
@@ -228,6 +232,65 @@ export function startSheetEditor(root: HTMLElement): void {
     }
     const raw = cell.raw.startsWith('=') ? engine.getValue(r, c).value : cell.raw;
     return formatValue(raw, '', propsOf(r, c).numFmt);
+  };
+
+  // clearContents empties the cells of a range but keeps their formatting,
+  // notes, links and validation, like Excel's Delete key. One clearRange op
+  // when nothing in the range is formatted.
+  const clearContents = (r0: number, c0: number, r1: number, c1: number): void => {
+    if (!collab) return;
+    const sheet = collab.display.sheetById(activeSheetId);
+    if (!sheet) return;
+    const styled: Array<[number, number]> = [];
+    let any = false;
+    for (const [k, cell] of sheet.cells) {
+      const i = k.indexOf(':');
+      const r = Number(k.slice(0, i));
+      const c = Number(k.slice(i + 1));
+      if (r < r0 || r > r1 || c < c0 || c > c1) continue;
+      any = true;
+      if (cell.styleId) styled.push([r, c]);
+    }
+    if (!any) return;
+    if (styled.length === 0) {
+      collab.applyLocal({ type: 'clearRange', sheet: activeSheetId, baseRev: collab.rev, row: r0, col: c0, endRow: r1, endCol: c1 });
+      return;
+    }
+    for (const [k, cell] of [...sheet.cells]) {
+      if (cell.raw === '') continue;
+      const i = k.indexOf(':');
+      const r = Number(k.slice(0, i));
+      const c = Number(k.slice(i + 1));
+      if (r < r0 || r > r1 || c < c0 || c > c1) continue;
+      collab.applyLocal({ type: 'setCell', sheet: activeSheetId, baseRev: collab.rev, row: r, col: c, raw: '' });
+    }
+  };
+
+  // commitRaw writes typed text into a cell. A cell with a list validation
+  // only takes a value from its list, as in Excel ("Stop" style); the
+  // editor's own writes (e.g. a link's display text) skip the check.
+  const commitRaw = (row: number, col: number, raw: string, trusted = false): void => {
+    if (readOnly || !collab) return;
+    const list = listValues(propsOf(row, col)[PROP_VALID_LIST]);
+    if (!trusted && list.length > 0 && !inList(list, raw)) {
+      flash(`"${raw}" is not in the list of allowed values: ${list.join(', ')}`);
+      onChange();
+      return;
+    }
+    // Use the list's spelling for a value typed in another case.
+    const exact = list.find((v) => v.toLowerCase() === raw.trim().toLowerCase());
+    collab.applyLocal({ type: 'setCell', sheet: activeSheetId, baseRev: collab.rev, row, col, raw: exact ?? raw });
+  };
+
+  // flash shows a short message in the status bar.
+  let flashTimer: ReturnType<typeof setTimeout> | null = null;
+  const flash = (msg: string): void => {
+    const el = document.querySelector<HTMLElement>('.sheet-flash');
+    if (!el) return;
+    el.textContent = msg;
+    el.hidden = false;
+    if (flashTimer) clearTimeout(flashTimer);
+    flashTimer = setTimeout(() => { el.hidden = true; }, 5000);
   };
 
   const applyStyleToSelection = (change: Record<string, string>): void => {
@@ -453,13 +516,20 @@ export function startSheetEditor(root: HTMLElement): void {
         if (readOnly || !collab) return;
         blurActiveCell();
         const { r0, c0, r1, c1 } = normalize(selection);
-        if (what !== 'formats') {
+        if (what === 'all') {
           collab.applyLocal({ type: 'clearRange', sheet: activeSheetId, baseRev: collab.rev, row: r0, col: c0, endRow: r1, endCol: c1 });
+        } else if (what === 'contents') {
+          clearContents(r0, c0, r1, c1);
         }
-        if (what !== 'contents') {
+        if (what === 'formats') {
+          // Excel keeps notes, links and validation on Clear Formats.
           for (const { row, col } of selCells(selection)) {
-            if (Object.keys(propsOf(row, col)).length === 0) continue;
-            collab.applyLocal({ type: 'setStyle', sheet: activeSheetId, baseRev: collab.rev, row, col, props: {} });
+            const props = propsOf(row, col);
+            if (Object.keys(props).length === 0) continue;
+            const kept: Record<string, string> = {};
+            for (const k of META_PROPS) if (props[k]) kept[k] = props[k];
+            if (Object.keys(kept).length === Object.keys(props).length) continue;
+            collab.applyLocal({ type: 'setStyle', sheet: activeSheetId, baseRev: collab.rev, row, col, props: kept });
           }
         }
       },
@@ -495,15 +565,28 @@ export function startSheetEditor(root: HTMLElement): void {
         });
       },
     };
+    const meta = createMetaActions({
+      readOnly: () => readOnly || !collab,
+      focus: () => selection.focus,
+      cells: () => selCells(selection),
+      propsOf,
+      rawValue,
+      setProps: (row, col, props) => {
+        collab?.applyLocal({ type: 'setStyle', sheet: activeSheetId, baseRev: collab.rev, row, col, props });
+      },
+      setRaw: (row, col, raw) => commitRaw(row, col, raw, true),
+      blur: () => blurActiveCell(),
+    });
+    Object.assign(actions, meta);
+    metaActions = meta;
     const toolbar = createToolbar(actions);
     toolbarEl = toolbar;
     formulaBar = createFormulaBar({
       readOnly: data.readonly,
       getFunctionNames: () => engine.functionNames(),
       onCommit: (raw) => {
-        if (readOnly || !collab) return;
         const { row, col } = selection.focus;
-        collab.applyLocal({ type: 'setCell', sheet: activeSheetId, baseRev: collab.rev, row, col, raw });
+        commitRaw(row, col, raw);
       },
     });
     const gridHost = document.createElement('div');
@@ -530,6 +613,11 @@ export function startSheetEditor(root: HTMLElement): void {
             null,
             ['Clear contents', () => actions.clear?.('contents')],
             ['Merge / unmerge', () => actions.mergeToggle?.()],
+            null,
+            [propsOf(selection.focus.row, selection.focus.col)[PROP_LINK] ? 'Edit link…' : 'Link…', () => actions.insertLink?.()],
+            ...(propsOf(selection.focus.row, selection.focus.col)[PROP_LINK] ? [['Remove link', () => actions.removeLink?.()] as [string, () => void]] : []),
+            [propsOf(selection.focus.row, selection.focus.col)[PROP_NOTE] ? 'Edit note…' : 'New note…', () => actions.editNote?.()],
+            ...(propsOf(selection.focus.row, selection.focus.col)[PROP_NOTE] ? [['Delete note', () => actions.deleteNote?.()] as [string, () => void]] : []),
           ];
       const close = () => {
         menu.remove();
@@ -603,7 +691,11 @@ export function startSheetEditor(root: HTMLElement): void {
     renderConn();
     statsEl = document.createElement('span');
     statsEl.className = 'sheet-stats';
-    statusbar.append(readyEl, statsEl);
+    const flashEl = document.createElement('span');
+    flashEl.className = 'sheet-flash';
+    flashEl.setAttribute('role', 'alert');
+    flashEl.hidden = true;
+    statusbar.append(readyEl, flashEl, statsEl);
     root.appendChild(statusbar);
 
     view = new DomSheetView(gridHost, {
@@ -656,9 +748,17 @@ export function startSheetEditor(root: HTMLElement): void {
         if (type === 'bool' || type === 'error') return 'center';
         return undefined;
       },
-      onEdit: (r, c, raw) => {
-        if (!collab) return;
-        collab.applyLocal({ type: 'setCell', sheet: activeSheetId, baseRev: collab.rev, row: r, col: c, raw });
+      onEdit: (r, c, raw) => commitRaw(r, c, raw),
+      metaOf: (r, c) => {
+        const p = propsOf(r, c);
+        return { link: p[PROP_LINK], note: p[PROP_NOTE], list: p[PROP_VALID_LIST] ? listValues(p[PROP_VALID_LIST]) : undefined };
+      },
+      condStyleOf: (r, c) => {
+        const cf = propsOf(r, c)[PROP_COND_FMT];
+        if (!cf) return {};
+        const raw = rawValue(r, c);
+        const value = raw.startsWith('=') ? engine.getValue(r, c).value : raw;
+        return condStyle(parseCondRules(cf), value);
       },
       onSelect: (r, c) => sendSelect(r, c),
       onSelectionChange: (sel) => {
@@ -818,6 +918,13 @@ export function startSheetEditor(root: HTMLElement): void {
         return;
       }
     }
+    // Ctrl+K inserts a link, Shift+F2 edits the note (Excel's shortcuts).
+    if (!readOnly && !editingNow() && ((mod && (e.key === 'k' || e.key === 'K')) || (e.shiftKey && e.key === 'F2'))) {
+      e.preventDefault();
+      if (e.key === 'F2') metaActions?.editNote();
+      else metaActions?.insertLink();
+      return;
+    }
     // Ctrl+D / Ctrl+R fill the selection from its first row / column, like Excel.
     if (mod && !editingNow() && !readOnly && (e.key === 'd' || e.key === 'D' || e.key === 'r' || e.key === 'R')) {
       e.preventDefault();
@@ -854,7 +961,7 @@ export function startSheetEditor(root: HTMLElement): void {
       e.preventDefault();
       blurActiveCell();
       const { r0, c0, r1, c1 } = normalize(selection);
-      collab.applyLocal({ type: 'clearRange', sheet: activeSheetId, baseRev: collab.rev, row: r0, col: c0, endRow: r1, endCol: c1 });
+      clearContents(r0, c0, r1, c1);
     }
   });
 

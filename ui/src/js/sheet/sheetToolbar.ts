@@ -42,6 +42,15 @@ export interface ToolbarCallbacks {
   openFind?: (mode: 'find' | 'replace') => void;
   // Merge/unmerge the current selection (the editor decides which).
   mergeToggle?: () => void;
+  // Insert > Link, Review > Notes, Data > Data Validation, Home > Conditional
+  // Formatting: each opens a dialog run by the editor.
+  insertLink?: () => void;
+  removeLink?: () => void;
+  editNote?: () => void;
+  deleteNote?: () => void;
+  dataValidation?: () => void;
+  condFormat?: (op: string) => void;
+  clearCondFormat?: () => void;
 }
 
 const CSS = `
@@ -76,7 +85,7 @@ const CSS = `
 .sheet-ribbon-row input[type=color]:hover { background: #e6f2ec; border-color: #bcd8c9; }
 `;
 
-type TabName = 'Home' | 'Data' | 'View';
+type TabName = 'Home' | 'Insert' | 'Data' | 'Review' | 'View';
 
 // Inline 16x16 SVG icons (stroke = currentColor); scaled up for big buttons.
 const svg = (inner: string, size = 16): string =>
@@ -110,6 +119,10 @@ const IC = {
   find: '<circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/>',
   undo: '<path d="M3 8h7a3.5 3.5 0 0 1 0 7H6"/><path d="M5.5 5 2.5 8l3 3"/>',
   redo: '<path d="M13 8H6a3.5 3.5 0 0 0 0 7h4"/><path d="M10.5 5l3 3-3 3"/>',
+  link: '<path d="M6.5 9.5a3 3 0 0 0 4.2 0l2.3-2.3a3 3 0 0 0-4.2-4.2L7.6 4.2"/><path d="M9.5 6.5a3 3 0 0 0-4.2 0L3 8.8A3 3 0 0 0 7.2 13l1.2-1.2"/>',
+  note: '<path d="M2.5 2.5h11v8h-5l-3 3v-3h-3z"/><path d="M5 5.5h6M5 8h4"/>',
+  validation: '<rect x="2.5" y="2.5" width="11" height="11" rx="1"/><path d="M5 8l2 2 4-4"/>',
+  condFmt: '<rect x="2.5" y="2.5" width="11" height="11"/><path d="M2.5 6.5h11M2.5 10h11M6.5 2.5v11"/><rect x="7" y="7" width="6" height="2.5" fill="currentColor" stroke="none"/>',
 };
 
 // The returned element carries refreshHistory(): the editor calls it after every
@@ -198,7 +211,7 @@ export function createToolbar(cb: ToolbarCallbacks): ToolbarElement {
     for (const [n, b] of tabBtns) b.classList.toggle('on', n === name);
     for (const g of groups) g.el.style.display = g.tab === name ? '' : 'none';
   };
-  for (const name of ['Home', 'Data', 'View'] as TabName[]) {
+  for (const name of ['Home', 'Insert', 'Data', 'Review', 'View'] as TabName[]) {
     const b = document.createElement('button');
     b.textContent = name;
     b.addEventListener('click', () => selectTab(name));
@@ -486,6 +499,36 @@ export function createToolbar(cb: ToolbarCallbacks): ToolbarElement {
     }
   }
 
+  // --- Home: Styles (conditional formatting) ---
+  if (cb.condFormat) {
+    const styles = group('Home', 'Styles');
+    const run = (op: string) => () => cb.condFormat?.(op);
+    menuBtn(styles, { icon: IC.condFmt }, 'Conditional Formatting', [
+      ['Greater Than…', run('gt')],
+      ['Less Than…', run('lt')],
+      ['Between…', run('between')],
+      ['Equal To…', run('eq')],
+      ['Text that Contains…', run('contains')],
+      ['Blank Cells…', run('blank')],
+      ['More Rules…', run('')],
+      ['Clear Rules from Selected Cells', () => cb.clearCondFormat?.()],
+    ]);
+  }
+
+  // --- Insert: Links ---
+  if (cb.insertLink) {
+    const links = group('Insert', 'Links');
+    bigBtn(links, IC.link, 'Link', 'Insert link (Ctrl+K)', () => cb.insertLink?.());
+    if (cb.removeLink) btn(col(links), { text: 'Remove' }, 'Remove link from the selected cells', () => cb.removeLink?.());
+  }
+
+  // --- Review: Notes ---
+  if (cb.editNote) {
+    const notes = group('Review', 'Notes');
+    bigBtn(notes, IC.note, 'Note', 'New or edit note (Shift+F2)', () => cb.editNote?.());
+    if (cb.deleteNote) btn(col(notes), { text: 'Delete' }, 'Delete notes of the selected cells', () => cb.deleteNote?.());
+  }
+
   // --- Data: Get & Transform ---
   if (cb.importXlsx || cb.exportXlsx) {
     const gt = group('Data', 'Get & Transform');
@@ -495,6 +538,12 @@ export function createToolbar(cb: ToolbarCallbacks): ToolbarElement {
     if (cb.exportXlsx) {
       bigBtn(gt, IC.exportFile, 'Export', 'Export as .xlsx', () => cb.exportXlsx?.());
     }
+  }
+
+  // --- Data: Data Tools ---
+  if (cb.dataValidation) {
+    const tools = group('Data', 'Data Tools');
+    bigBtn(tools, IC.validation, 'Validation', 'Data validation: a drop-down list of allowed values', () => cb.dataValidation?.());
   }
 
   // --- Data: Sort & Filter ---

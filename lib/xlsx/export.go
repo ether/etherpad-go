@@ -85,6 +85,10 @@ func Export(wb *sheet.Workbook) ([]byte, error) {
 			}
 		}
 
+		if err := exportCellMeta(f, wb, s, name); err != nil {
+			return nil, err
+		}
+
 		for col, px := range s.ColWidths {
 			cn, err := excelize.ColumnNumberToName(col + 1)
 			if err != nil {

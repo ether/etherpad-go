@@ -205,6 +205,14 @@ func ValidateProps(props map[string]string) error {
 			}
 		case "wrap":
 			ok = v == "1"
+		case PropLink:
+			ok = validLink(v)
+		case PropNote:
+			ok = v != "" && len(v) <= MaxNoteLength
+		case PropValidList:
+			ok = v != "" && len(v) <= MaxValidListLength
+		case PropCondFmt:
+			ok = validCondFmt(v)
 		default:
 			return fmt.Errorf("props: unknown key %q", k)
 		}
