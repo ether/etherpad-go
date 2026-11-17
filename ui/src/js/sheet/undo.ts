@@ -71,7 +71,13 @@ const bandRestore = (wb: WorkbookState, op: Op, sheet: SheetState, axis: 'row' |
 // op rewrites (moved, renamed or broken to #REF!). The inverse op alone cannot:
 // a reference turned into #REF! does not come back by itself. Positions are
 // those before the op, which the inverse structural op restores first.
-const formulaRestores = (wb: WorkbookState, op: Op, edit: Omit<RefEdit, 'onTarget'>, skip?: (r: number, c: number) => boolean): Op[] => {
+// Each restore carries `expect`: the formula as the op and then the inverse
+// op leave it. Undo only writes when the cell still says that, so a
+// collaborator's later edit of the cell is kept.
+const formulaRestores = (
+  wb: WorkbookState, op: Op, edit: Omit<RefEdit, 'onTarget'>,
+  inverse: Omit<RefEdit, 'onTarget'> | null, skip?: (r: number, c: number) => boolean,
+): Op[] => {
   const out: Op[] = [];
   for (const sheet of wb.sheets) {
     const onTarget = sheet.id === op.sheet;
@@ -79,9 +85,11 @@ const formulaRestores = (wb: WorkbookState, op: Op, edit: Omit<RefEdit, 'onTarge
       if (!cell.raw.startsWith('=')) continue;
       const [r, c] = parseKey(k);
       if (onTarget && skip?.(r, c)) continue;
-      if (rewriteFormula(cell.raw, { ...edit, onTarget }) !== cell.raw) {
-        out.push({ ...cellRestore(wb, op, sheet, r, c), sheet: sheet.id });
-      }
+      const after = rewriteFormula(cell.raw, { ...edit, onTarget });
+      if (after === cell.raw) continue;
+      const expect = inverse ? rewriteFormula(after, { ...inverse, onTarget }) : after;
+      if (expect === cell.raw) continue; // the inverse op alone puts it back
+      out.push({ ...cellRestore(wb, op, sheet, r, c), sheet: sheet.id, expect });
     }
   }
   return out;
@@ -113,14 +121,14 @@ export function invertOp(wb: WorkbookState, op: Op): Op[] {
         out.push({ ...base(op), type: 'setFreeze', frozenRows: sheet.frozenRows, frozenCols: sheet.frozenCols });
       }
       // References from the other sheets became #REF!.
-      out.push(...formulaRestores(wb, op, { target: sheet.name, deleted: true }, () => true));
+      out.push(...formulaRestores(wb, op, { target: sheet.name, deleted: true }, null, () => true));
       return out;
     }
     case 'renameSheet': {
       const sheet = wb.sheetById(op.sheet);
       if (!sheet) return [];
       const out: Op[] = [{ ...base(op), type: 'renameSheet', name: sheet.name }];
-      if (op.name && op.name !== sheet.name) out.push(...formulaRestores(wb, op, { target: sheet.name, rename: op.name }));
+      if (op.name && op.name !== sheet.name) out.push(...formulaRestores(wb, op, { target: sheet.name, rename: op.name }, { target: op.name, rename: sheet.name }));
       return out;
     }
     case 'moveSheet': {
@@ -189,7 +197,8 @@ export function invertOp(wb: WorkbookState, op: Op): Op[] {
     case 'deleteCols': {
       const edit = structuralEdit(op.type, index, count);
       if (!edit) return [];
-      const refs = formulaRestores(wb, op, { target: sheet.name, ...edit }, (r, c) => {
+      const back = { target: sheet.name, ...edit, delta: -(edit.delta ?? 0) };
+      const refs = formulaRestores(wb, op, { target: sheet.name, ...edit }, back, (r, c) => {
         const at = edit.axis === 'row' ? r : c;
         return (edit.delta ?? 0) < 0 && at >= index && at < index + count; // bandRestore has them
       });

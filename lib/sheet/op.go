@@ -59,8 +59,11 @@ type Op struct {
 	Index int `json:"index,omitempty"`
 	Count int `json:"count,omitempty"`
 
-	// Sheet-list ops.
+	// Sheet-list ops. The server also fills Name on row/column inserts and
+	// deletes and on deleteSheet with the sheet's name, and OldName on
+	// renameSheet, so Transform can move formulas that name the sheet.
 	Name    string `json:"name,omitempty"`    // addSheet, renameSheet
+	OldName string `json:"oldName,omitempty"` // renameSheet (server-filled)
 	ToIndex int    `json:"toIndex,omitempty"` // moveSheet
 
 	// setDimension.

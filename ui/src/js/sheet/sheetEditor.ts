@@ -246,16 +246,22 @@ export function startSheetEditor(root: HTMLElement): void {
 
   const onChange = (): void => {
     const live = presence ? presence.liveEditsForSheet(activeSheetId) : [];
-    // Every sheet goes to the engine, so formulas can reference other sheets.
+    // Every sheet goes to the engine, so formulas can reference other sheets,
+    // with what others are typing on it. A sheet whose cells and live edits
+    // did not change is skipped without being read (cursor moves).
     const sheets = collab?.display.sheets ?? [];
     if (sheets.length === 0) {
       engine.setGrid(effectiveCells(cellsOfActive(), live));
     } else {
       engine.setWorkbook(
-        sheets.map((sh) => ({
-          name: sh.name,
-          cells: sh.id === activeSheetId ? effectiveCells(cellsOfActive(), live) : cellsOf(sh.id),
-        })),
+        sheets.map((sh) => {
+          const sheetLive = sh.id === activeSheetId ? live : presence?.liveEditsForSheet(sh.id) ?? [];
+          return {
+            name: sh.name,
+            key: `${sh.stamp}|${sheetLive.length === 0 ? '' : JSON.stringify(sheetLive.map((e) => [e.row, e.col, e.raw]))}`,
+            cells: () => effectiveCells(cellsOf(sh.id), sheetLive),
+          };
+        }),
         collab?.display.sheetById(activeSheetId)?.name ?? '',
       );
     }
@@ -643,15 +649,10 @@ export function startSheetEditor(root: HTMLElement): void {
         return res.type === 'error' ? res.value : undefined;
       },
       defaultAlignOf: (r, c) => {
-        const raw = rawValue(r, c);
         if (propsOf(r, c).numFmt === 'text') return undefined;
-        let type: string;
-        if (raw === '' || raw.startsWith('=')) {
-          type = engine.getValue(r, c).type;
-        } else {
-          const t = raw.trim();
-          type = /^(true|false)$/i.test(t) ? 'bool' : t !== '' && Number.isFinite(Number(t)) ? 'number' : 'text';
-        }
+        // The engine holds the same raws, so it types literals the way it
+        // computes with them (5%, 1,000 and dates are numbers).
+        const type = engine.getValue(r, c).type;
         if (type === 'number') return 'right';
         if (type === 'bool' || type === 'error') return 'center';
         return undefined;

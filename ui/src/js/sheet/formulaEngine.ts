@@ -14,9 +14,15 @@ export interface SetCellResult extends CellResult {
 // FormulaEngine wraps HyperFormula (GPLv3 — accepted in plan 1) behind a small
 // interface so the engine stays swappable. raw is the source of truth; this
 // derives the computed value/type, exactly the model in the design spec.
+type EngineCells = Array<{ row: number; col: number; raw: string }>;
+
 export interface EngineSheet {
   name: string;
-  cells: Array<{ row: number; col: number; raw: string }>;
+  // A function is only called when the sheet has to be loaded.
+  cells: EngineCells | (() => EngineCells);
+  // Changes whenever the content does (e.g. a per-sheet stamp plus the live
+  // edits); an unchanged key skips the sheet without reading its cells.
+  key?: string;
 }
 
 export class FormulaEngine {
@@ -58,11 +64,12 @@ export class FormulaEngine {
     const ids = this.hf.getSheetNames().map((n) => this.hf.getSheetId(n) as number);
     this.hf.batch(() => {
       sheets.forEach((s, i) => {
-        const grid = toGrid(s.cells);
-        const sig = JSON.stringify(grid);
-        const key = String(i);
-        if (this.loaded.get(key) === sig) return;
-        this.loaded.set(key, sig);
+        const slot = String(i);
+        if (s.key !== undefined && this.loaded.get(slot) === `k:${s.key}`) return;
+        const grid = toGrid(typeof s.cells === 'function' ? s.cells() : s.cells);
+        const sig = s.key !== undefined ? `k:${s.key}` : JSON.stringify(grid);
+        if (this.loaded.get(slot) === sig) return;
+        this.loaded.set(slot, sig);
         this.hf.setSheetContent(ids[i], grid);
       });
     });

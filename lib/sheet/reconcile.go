@@ -45,6 +45,7 @@ func (d *Document) Submit(op Op) (int, error) {
 		rebased = Transform(rebased, d.log[i])
 	}
 	rebased.BaseRev = d.head
+	d.wb.FillSheetNames(&rebased)
 	if err := d.wb.Apply(rebased); err != nil {
 		return 0, err
 	}

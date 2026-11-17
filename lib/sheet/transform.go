@@ -5,10 +5,10 @@ package sheet
 // first by the server. Only structural ops (row/col insert/delete) on the same
 // sheet and axis move coordinates; everything else is returned unchanged.
 func Transform(in, applied Op) Op {
+	in = rebaseFormula(in, applied)
 	if in.Sheet != applied.Sheet || !applied.isStructural() {
 		return in
 	}
-	in = rebaseFormula(in, applied)
 	switch applied.Type {
 	case OpInsertRows:
 		return shiftRows(in, applied.Index, applied.Count)
@@ -22,25 +22,71 @@ func Transform(in, applied Op) Op {
 	return in
 }
 
-// rebaseFormula moves the references of a formula typed before a concurrent
-// row/column insert or delete on the same sheet, as Apply does for the
-// formulas already stored. Only references without a sheet name are moved:
-// Transform does not know sheet names.
+// rebaseFormula changes a formula typed before a concurrent op the way Apply
+// changed the formulas already stored: a row/column insert or delete moves
+// its references (those without a sheet name only on the same sheet), a
+// rename renames them, a sheet delete breaks them. The sheet names come from
+// the applied op (FillSheetNames); ops stored before it carry none and only
+// move references without a sheet name.
 func rebaseFormula(in, applied Op) Op {
-	if in.Type != OpSetCell || in.Raw == nil {
+	if in.Type != OpSetCell || in.Raw == nil || len(*in.Raw) == 0 || (*in.Raw)[0] != '=' {
 		return in
 	}
-	e := RefEdit{OnTarget: true, Index: applied.Index, Delta: applied.Count, Axis: "row"}
-	if applied.Type == OpInsertCols || applied.Type == OpDeleteCols {
-		e.Axis = "col"
+	e, ok := refEditOf(applied)
+	if !ok {
+		return in
 	}
-	if applied.Type == OpDeleteRows || applied.Type == OpDeleteCols {
-		e.Delta = -applied.Count
-	}
+	e.OnTarget = in.Sheet == applied.Sheet
 	if raw := RewriteFormula(*in.Raw, e); raw != *in.Raw {
 		in.Raw = &raw
 	}
 	return in
+}
+
+// refEditOf is the reference edit an op makes, if any.
+func refEditOf(op Op) (RefEdit, bool) {
+	switch op.Type {
+	case OpInsertRows, OpDeleteRows, OpInsertCols, OpDeleteCols:
+		e := RefEdit{Target: op.Name, Index: op.Index, Delta: op.Count, Axis: "row"}
+		if op.Type == OpInsertCols || op.Type == OpDeleteCols {
+			e.Axis = "col"
+		}
+		if op.Type == OpDeleteRows || op.Type == OpDeleteCols {
+			e.Delta = -op.Count
+		}
+		return e, true
+	case OpRenameSheet:
+		if op.OldName == "" || op.OldName == op.Name {
+			return RefEdit{}, false
+		}
+		return RefEdit{Target: op.OldName, Rename: op.Name}, true
+	case OpDeleteSheet:
+		if op.Name == "" {
+			return RefEdit{}, false
+		}
+		return RefEdit{Target: op.Name, Deleted: true}, true
+	}
+	return RefEdit{}, false
+}
+
+// FillSheetNames records in op the sheet names Transform needs to move
+// formulas typed concurrently: the sheet's name on row/column inserts and
+// deletes and on deleteSheet, the old name on renameSheet. Called on the
+// server before an op is applied and stored; what the client sent there is
+// replaced.
+func (w *Workbook) FillSheetNames(op *Op) {
+	s := w.SheetByID(op.Sheet)
+	switch op.Type {
+	case OpInsertRows, OpDeleteRows, OpInsertCols, OpDeleteCols, OpDeleteSheet:
+		op.Name = ""
+		if s != nil {
+			op.Name = s.Name
+		}
+	}
+	op.OldName = ""
+	if op.Type == OpRenameSheet && s != nil {
+		op.OldName = s.Name
+	}
 }
 
 // shiftRows moves row coordinates of `in` by delta for rows at/after index.

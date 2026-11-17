@@ -169,13 +169,8 @@ func (w *Workbook) Apply(op Op) error {
 	if op.isStructural() {
 		// Formulas keep pointing at the same cells: references behind the
 		// insert move, references into a deleted band become #REF!.
-		e := RefEdit{Target: s.Name, Index: op.Index, Delta: op.Count, Axis: "row"}
-		if op.Type == OpInsertCols || op.Type == OpDeleteCols {
-			e.Axis = "col"
-		}
-		if op.Type == OpDeleteRows || op.Type == OpDeleteCols {
-			e.Delta = -op.Count
-		}
+		e, _ := refEditOf(op)
+		e.Target = s.Name
 		w.rewriteRefs(s, e)
 	}
 	return nil
