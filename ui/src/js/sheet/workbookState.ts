@@ -23,7 +23,13 @@ export interface SheetState {
   frozenRows: number; // 0 or 1
   frozenCols: number;
   merges: Map<string, Span>; // key "row:col" = top-left anchor
+  // Changes with every change of the cells (unique across all workbook
+  // copies), so the formula engine can skip unchanged sheets.
+  stamp: number;
 }
+
+let stampCounter = 0;
+const nextStamp = (): number => ++stampCounter;
 
 const key = (row: number, col: number): string => `${row}:${col}`;
 const parseKey = (k: string): [number, number] => {
@@ -36,7 +42,7 @@ const cellIsEmpty = (c: Cell): boolean =>
 
 const emptySheet = (id: string, name: string): SheetState => ({
   id, name, cells: new Map(), colWidths: new Map(), rowHeights: new Map(), frozenRows: 0, frozenCols: 0,
-  merges: new Map(),
+  merges: new Map(), stamp: nextStamp(),
 });
 
 // intersects mirrors Go: merge at (row,col) x span overlaps [r0..r1]x[c0..c1].
@@ -152,7 +158,7 @@ export class WorkbookState {
       id: s.id, name: s.name, cells: new Map(s.cells),
       colWidths: new Map(s.colWidths), rowHeights: new Map(s.rowHeights),
       frozenRows: s.frozenRows, frozenCols: s.frozenCols,
-      merges: new Map(s.merges),
+      merges: new Map(s.merges), stamp: s.stamp,
     }));
     cp.styles = this.styles; // shared pool: interning is monotonic + content-deduped
     return cp;
@@ -347,6 +353,7 @@ export class WorkbookState {
       default:
         throw new Error(`applyOp: unhandled op type ${(op as Op).type}`);
     }
+    sheet.stamp = nextStamp();
     // Formulas keep pointing at the same cells (mirrors Go Apply).
     const edit = structuralEdit(op.type, index, count);
     if (edit) this.rewriteRefs(sheet, { target: sheet.name, ...edit });
@@ -361,7 +368,10 @@ export class WorkbookState {
       for (const [k, cell] of s.cells) {
         if (!cell.raw.startsWith('=')) continue;
         const raw = rewriteFormula(cell.raw, edit);
-        if (raw !== cell.raw) s.cells.set(k, { ...cell, raw, value: undefined, valueType: undefined });
+        if (raw !== cell.raw) {
+          s.cells.set(k, { ...cell, raw, value: undefined, valueType: undefined });
+          s.stamp = nextStamp();
+        }
       }
     }
   }
