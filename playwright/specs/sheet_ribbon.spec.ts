@@ -20,7 +20,7 @@ async function typeInto(page: Page, r: number, c: number, text: string): Promise
 
 // Ribbon groups of inactive tabs are display:none — activate the tab first.
 async function ribbonTab(page: Page, name: 'Home' | 'Data' | 'View'): Promise<void> {
-  await page.locator('.sheet-ribbon-tabs button', { hasText: name }).click();
+  await page.locator('.sheet-ribbon-tabs button', { hasText: new RegExp(`^${name}$`) }).click();
 }
 
 const toolbarButton = (page: Page, text: string | RegExp) =>

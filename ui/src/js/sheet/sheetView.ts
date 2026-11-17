@@ -35,6 +35,10 @@ export interface SheetViewOptions {
   // Alignment of a cell without its own: Excel puts numbers on the right,
   // booleans and errors in the middle.
   defaultAlignOf?: (row: number, col: number) => 'right' | 'center' | undefined;
+  // Hyperlink, note and list validation of a cell (cellMeta.ts).
+  metaOf?: (row: number, col: number) => { link?: string; note?: string; list?: string[] };
+  // Formatting from matching conditional-formatting rules; wins over the cell's own.
+  condStyleOf?: (row: number, col: number) => { bg?: string; color?: string; bold?: boolean };
   // M4: sparse dimension overrides (px), freeze state, and resize commits.
   colWidth?: (col: number) => number | undefined;
   rowHeight?: (row: number) => number | undefined;
@@ -79,6 +83,13 @@ const CSS = `
 .sheet-fill-handle { position: absolute; width: 8px; height: 8px; background: #107c41; border: 1px solid #fff; cursor: crosshair; z-index: 6; }
 .sheet-grid td.sheet-fill-target { box-shadow: inset 0 0 0 1px #107c41; }
 .sheet-grid td.sheet-cell-error { color: #c0392b; }
+.sheet-grid td.sheet-link { color: #0563c1; text-decoration: underline; }
+.sheet-grid td.sheet-has-note::after { content: ''; position: absolute; top: 0; right: 0; border-left: 7px solid transparent; border-top: 7px solid #d9342b; pointer-events: none; }
+.sheet-list-btn { position: absolute; z-index: 6; width: 18px; height: 18px; padding: 0; border: 1px solid #c8cdd3; background: #fff; border-radius: 2px; font: 10px/16px system-ui, sans-serif; color: #444; cursor: pointer; }
+.sheet-list-btn:hover { background: #e6f2ec; }
+.sheet-list-menu { position: absolute; z-index: 20; min-width: 120px; max-height: 220px; overflow-y: auto; background: #fff; border: 1px solid #c8cdd3; box-shadow: 0 4px 10px rgba(0,0,0,0.15); padding: 2px 0; font: 13px system-ui, sans-serif; }
+.sheet-list-menu button { display: block; width: 100%; text-align: left; border: none; background: none; padding: 4px 10px; cursor: pointer; font: inherit; }
+.sheet-list-menu button:hover, .sheet-list-menu button.on { background: #e6f2ec; }
 `;
 
 export class DomSheetView {
@@ -100,6 +111,10 @@ export class DomSheetView {
   // corner. It lives OUTSIDE the contenteditable tds: a decoration inside an
   // editable cell races the caret and re-renders can delete typed text.
   private fillHandle: HTMLSpanElement;
+  private listBtn: HTMLButtonElement;
+  private listMenu: HTMLDivElement | null = null;
+  private listOutside: ((e: MouseEvent) => void) | null = null;
+  private root: HTMLElement;
   private mergedTds = new Set<HTMLTableCellElement>();
   private table: HTMLTableElement;
   private thead: HTMLTableSectionElement;
@@ -129,6 +144,22 @@ export class DomSheetView {
       this.fillTarget = { anchor: { row: r0, col: c0 }, focus: { row: r1, col: c1 } };
     });
     root.appendChild(this.fillHandle);
+
+    // Data-validation drop-down arrow beside the focused cell, outside the
+    // contenteditable tds like the fill handle.
+    this.listBtn = document.createElement('button');
+    this.listBtn.type = 'button';
+    this.listBtn.className = 'sheet-list-btn';
+    this.listBtn.textContent = '▼';
+    this.listBtn.title = 'Pick from list';
+    this.listBtn.style.display = 'none';
+    this.listBtn.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    });
+    this.listBtn.addEventListener('click', () => this.toggleListMenu());
+    root.appendChild(this.listBtn);
+    this.root = root;
 
     // ponytail: every cell is a DOM node (~200x52 = 10k contenteditables).
     // Virtualization (render only the visible viewport) is the upgrade path
@@ -248,6 +279,15 @@ export class DomSheetView {
 
   private attach(td: HTMLTableCellElement, r: number, c: number): void {
     td.addEventListener('mousedown', (e: MouseEvent) => {
+      // Ctrl/Cmd+click follows a hyperlink, as in Excel.
+      if ((e.ctrlKey || e.metaKey) && e.button === 0) {
+        const link = this.opts.metaOf?.(r, c).link;
+        if (link) {
+          e.preventDefault();
+          window.open(link, '_blank', 'noopener,noreferrer');
+          return;
+        }
+      }
       // Right-click inside an existing selection keeps it (Excel behaviour), so
       // the context menu acts on the whole range instead of one cell.
       if (e.button === 2) {
@@ -402,6 +442,52 @@ export class DomSheetView {
     return null;
   }
 
+  private closeListMenu(): void {
+    this.listMenu?.remove();
+    this.listMenu = null;
+    if (this.listOutside) document.removeEventListener('mousedown', this.listOutside, true);
+    this.listOutside = null;
+  }
+
+  // toggleListMenu opens the list of allowed values under the focused cell;
+  // picking one writes it into the cell.
+  private toggleListMenu(): void {
+    if (this.listMenu) return this.closeListMenu();
+    const { row, col } = this.selection.focus;
+    const td = this.cells[row]?.[col];
+    const list = this.opts.metaOf?.(row, col).list ?? [];
+    if (!td || list.length === 0) return;
+    const menu = document.createElement('div');
+    menu.className = 'sheet-list-menu';
+    menu.setAttribute('role', 'listbox');
+    const current = this.opts.rawValue(row, col).trim().toLowerCase();
+    for (const v of list) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = v;
+      b.setAttribute('role', 'option');
+      if (v.toLowerCase() === current) b.classList.add('on');
+      b.addEventListener('mousedown', (e) => e.preventDefault());
+      b.addEventListener('click', () => {
+        this.closeListMenu();
+        if (this.editing) (document.activeElement as HTMLElement | null)?.blur();
+        if (this.opts.rawValue(row, col) !== v) this.opts.onEdit(row, col, v);
+        this.render();
+      });
+      menu.appendChild(b);
+    }
+    menu.style.left = `${this.table.offsetLeft + td.offsetLeft}px`;
+    menu.style.top = `${this.table.offsetTop + td.offsetTop + td.offsetHeight}px`;
+    menu.style.minWidth = `${td.offsetWidth}px`;
+    this.root.appendChild(menu);
+    this.listMenu = menu;
+    this.listOutside = (e: MouseEvent): void => {
+      if (menu.contains(e.target as Node) || this.listBtn.contains(e.target as Node)) return;
+      this.closeListMenu();
+    };
+    document.addEventListener('mousedown', this.listOutside, true);
+  }
+
   // render refreshes every non-editing cell to its display value, then paints
   // remote live-edit text and cursor/live-edit decorations.
   render(): void {
@@ -487,9 +573,17 @@ export class DomSheetView {
           if (css.whiteSpace) td.style.whiteSpace = css.whiteSpace;
         }
         if (!td.style.textAlign && !live) td.style.textAlign = this.opts.defaultAlignOf?.(r, c) ?? '';
+        const cond = live ? {} : this.opts.condStyleOf?.(r, c) ?? {};
+        if (cond.bg) td.style.background = cond.bg;
+        if (cond.color) td.style.color = cond.color;
+        if (cond.bold) td.style.fontWeight = 'bold';
+        const meta = this.opts.metaOf?.(r, c) ?? {};
+        td.classList.toggle('sheet-link', !!meta.link);
+        td.classList.toggle('sheet-has-note', !!meta.note);
         const err = this.opts.errorOf?.(r, c);
         td.classList.toggle('sheet-cell-error', !!err);
-        if (err) td.title = err; else td.removeAttribute('title');
+        const tip = [err, meta.note, meta.link ? `${meta.link}\nCtrl+click to follow the link` : ''].filter(Boolean).join('\n\n');
+        if (tip) td.title = tip; else td.removeAttribute('title');
         const deco: RemoteCursorDeco | undefined = live ?? this.cursorByKey.get(k);
         if (deco) {
           td.style.boxShadow = `inset 0 0 0 2px ${deco.color}`;
@@ -550,6 +644,17 @@ export class DomSheetView {
       this.fillHandle.style.display = '';
     } else {
       this.fillHandle.style.display = 'none';
+    }
+    const f = this.selection.focus;
+    const focusTd = this.cells[f.row]?.[f.col];
+    const list = this.opts.readOnly ? undefined : this.opts.metaOf?.(f.row, f.col).list;
+    if (focusTd && list && list.length > 0 && focusTd.style.display !== 'none') {
+      this.listBtn.style.left = `${this.table.offsetLeft + focusTd.offsetLeft + focusTd.offsetWidth + 1}px`;
+      this.listBtn.style.top = `${this.table.offsetTop + focusTd.offsetTop + Math.max(0, focusTd.offsetHeight - 19)}px`;
+      this.listBtn.style.display = '';
+    } else {
+      this.listBtn.style.display = 'none';
+      this.closeListMenu();
     }
     if (this.fillTarget) {
       const t = normalize(this.fillTarget);

@@ -283,9 +283,11 @@ export class WorkbookState {
       case 'clearRange': {
         const endRow = op.endRow ?? 0;
         const endCol = op.endCol ?? 0;
-        for (const k of [...sheet.cells.keys()]) {
+        for (const [k, cell] of [...sheet.cells]) {
           const [r, c] = parseKey(k);
-          if (r >= row && r <= endRow && c >= col && c <= endCol) sheet.cells.delete(k);
+          if (r < row || r > endRow || c < col || c > endCol) continue;
+          if (op.keepStyle && cell.styleId) sheet.cells.set(k, { raw: '', styleId: cell.styleId });
+          else sheet.cells.delete(k);
         }
         break;
       }
