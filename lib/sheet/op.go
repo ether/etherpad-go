@@ -82,6 +82,11 @@ type Op struct {
 	Values []string `json:"values,omitempty"`
 	Clear  bool     `json:"clear,omitempty"`
 
+	// Noop: Transform found nothing left to do (a filter on a column that
+	// was deleted meanwhile); Apply skips the op, it only keeps the
+	// revision numbering.
+	Noop bool `json:"noop,omitempty"`
+
 	// clearRange: empty the cells but keep their style props (Excel's
 	// Delete / Clear Contents).
 	KeepStyle bool `json:"keepStyle,omitempty"`

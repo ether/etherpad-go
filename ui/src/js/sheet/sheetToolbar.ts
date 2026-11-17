@@ -18,9 +18,10 @@ export interface ToolbarCallbacks {
   // The value the focus column is filtered to (null: not filtered) and
   // whether the sheet has filters at all.
   filterState?: () => { value: string | null; any: boolean };
-  // A value shows only its rows, null removes the column's filter, '*'
-  // removes all filters of the sheet. Filters apply to everyone.
+  // A value shows only its rows, null removes the column's filter;
+  // clearFilters removes all filters of the sheet. Filters apply to everyone.
   applyFilter?: (value: string | null) => void;
+  clearFilters?: () => void;
   // Ribbon: row/col structure relative to the selection.
   structural?: (action: 'insRowAbove' | 'insRowBelow' | 'insColLeft' | 'insColRight' | 'delRows' | 'delCols') => void;
   // Ribbon: workbook import/export (server round-trip).
@@ -587,7 +588,8 @@ export function createToolbar(cb: ToolbarCallbacks): ToolbarElement {
   filter.addEventListener('focus', fill); // and for keyboard users
   filter.addEventListener('change', () => {
     const v = filter.value;
-    cb.applyFilter?.(v === '' ? null : v === '*' ? '*' : v.slice(1));
+    if (v === '*') cb.clearFilters?.();
+    else cb.applyFilter?.(v === '' ? null : v.slice(1));
   });
   filterRow.appendChild(filter);
 

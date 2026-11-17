@@ -177,9 +177,13 @@ export function invertOp(wb: WorkbookState, op: Op): Op[] {
     case 'setFreeze':
       return [{ ...base(op), type: 'setFreeze', frozenRows: sheet.frozenRows, frozenCols: sheet.frozenCols }];
     case 'setFilter': {
-      // Back to exactly the filters before: clear, then put each one back.
-      const restore = filterRestore(op, sheet);
-      return [{ ...base(op), type: 'setFilter', row: 0, col: 0, clear: true }, ...restore];
+      if (op.clear) {
+        // Back to exactly the filters before: clear, then put each one back.
+        return [{ ...base(op), type: 'setFilter', row: 0, col: 0, clear: true }, ...filterRestore(op, sheet)];
+      }
+      // Only this column: filters others set meanwhile stay.
+      const before = filterRestore(op, sheet, col);
+      return before.length > 0 ? before : [{ ...base(op), type: 'setFilter', row: 0, col }];
     }
     case 'mergeCells': {
       const endRow = op.endRow ?? 0;
@@ -223,8 +227,15 @@ export function invertOp(wb: WorkbookState, op: Op): Op[] {
           return [{ ...base(op), type: 'deleteRows', index, count }, ...refs];
         case 'insertCols':
           return [{ ...base(op), type: 'deleteCols', index, count }, ...refs];
-        case 'deleteRows':
-          return [{ ...base(op), type: 'insertRows', index, count }, ...bandRestore(wb, op, sheet, 'row', index, count), ...refs];
+        case 'deleteRows': {
+          // A filter header inside the band was moved to its edge: put it back.
+          const header: Op[] = [];
+          const fr = sheet.filterRow;
+          if (sheet.filters.size > 0 && fr >= index && fr < index + count) {
+            header.push(...filterRestore(op, sheet, sheet.filters.keys().next().value as number));
+          }
+          return [{ ...base(op), type: 'insertRows', index, count }, ...bandRestore(wb, op, sheet, 'row', index, count), ...refs, ...header];
+        }
         default: {
           // Filters of the deleted columns come back too.
           const filters: Op[] = [];

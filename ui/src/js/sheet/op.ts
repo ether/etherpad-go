@@ -59,6 +59,9 @@ export interface Op {
   // clear removes all filters of the sheet.
   values?: string[];
   clear?: boolean;
+  // Transform found nothing left to do (a filter on a column deleted
+  // meanwhile); applyOp skips the op (mirrors Go Op.Noop).
+  noop?: boolean;
   // The sending client's id for the op ("<client>:<seq>"). The server stores
   // it, so a client that lost the acknowledgement in a reconnect finds its op
   // again, and a resent op is not applied twice.

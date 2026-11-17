@@ -107,6 +107,7 @@ export class DomSheetView {
   private rowTops: number[] = [];
   private measured = new Map<number, number>();
   private defaultRowH = 27;
+  private minRowH = 0;
   private renderedRange = { start: 0, end: -1 };
   private scrollQueued = false;
   private stickyEls = new Set<HTMLElement>();
@@ -248,7 +249,7 @@ export class DomSheetView {
 
   private rowHeightOf(r: number): number {
     if (this.opts.rowHidden?.(r)) return 0;
-    return this.measured.get(r) ?? this.opts.rowHeight?.(r) ?? this.defaultRowH;
+    return this.opts.rowHeight?.(r) ?? this.measured.get(r) ?? this.defaultRowH;
   }
 
   // visibleRows is the range of rows inside the scrolled viewport.
@@ -296,10 +297,25 @@ export class DomSheetView {
     }
     this.renderedRange = { start, end };
     const want = new Set<number>();
-    for (let r = start; r <= end; r++) want.add(r);
+    // Rows a filter hides take no space; leave them out, or a filter hiding
+    // most rows would build them all.
+    for (let r = start; r <= end; r++) if (!this.opts.rowHidden?.(r)) want.add(r);
     const fz = this.opts.frozen?.() ?? { rows: 0, cols: 0 };
     for (let r = 0; r < Math.min(fz.rows, n); r++) want.add(r);
     if (this.editing) want.add(this.editing.row);
+    // Every row a kept merge spans has to exist too (frozen or edited rows
+    // can hold a merge reaching outside the window).
+    for (let changed = true; changed;) {
+      changed = false;
+      for (const m of merges) {
+        let touched = false;
+        for (let r = m.row; r < Math.min(m.row + m.rows, n) && !touched; r++) touched = want.has(r);
+        if (!touched) continue;
+        for (let r = m.row; r < Math.min(m.row + m.rows, n); r++) {
+          if (!want.has(r)) { want.add(r); changed = true; }
+        }
+      }
+    }
 
     for (const [r, row] of this.rowEls) {
       if (!want.has(r)) {
@@ -821,7 +837,8 @@ export class DomSheetView {
     for (const rs of this.remoteSel) {
       const { r0, c0, r1, c1 } = normalize(rs.sel);
       if (r1 - r0 === 0 && c1 - c0 === 0) continue; // single cell handled by cursor deco
-      for (let r = Math.max(r0, this.renderedRange.start); r <= Math.min(r1, this.renderedRange.end); r++) {
+      for (const r of this.rowEls.keys()) {
+        if (r < r0 || r > r1) continue;
         for (let c = c0; c <= c1; c++) {
           const td = this.cellEl(r, c);
           if (!td) continue;
@@ -832,13 +849,19 @@ export class DomSheetView {
       }
     }
 
-    // Remember real row heights (wrapped text, fonts) for the spacers.
+    // Real heights (wrapped text, fonts) of the rows on screen; rows that
+    // are not use the plain row height, the smallest one seen, so one tall
+    // row does not stretch all others. Only rows on screen are kept: after
+    // an insert or delete an index may mean another row.
+    this.measured = new Map();
     for (const [r, row] of this.rowEls) {
       if (row.tr.style.display === 'none') continue;
       const h = row.tr.offsetHeight;
-      if (h > 0) {
-        this.measured.set(r, h);
-        if (this.opts.rowHeight?.(r) === undefined) this.defaultRowH = h;
+      if (h <= 0) continue;
+      this.measured.set(r, h);
+      if (this.opts.rowHeight?.(r) === undefined && (this.minRowH === 0 || h < this.minRowH)) {
+        this.minRowH = h;
+        this.defaultRowH = h;
       }
     }
 
@@ -868,7 +891,8 @@ export class DomSheetView {
     }
     if (this.fillTarget) {
       const t = normalize(this.fillTarget);
-      for (let r = Math.max(t.r0, this.renderedRange.start); r <= Math.min(t.r1, this.renderedRange.end); r++) {
+      for (const r of this.rowEls.keys()) {
+        if (r < t.r0 || r > t.r1) continue;
         for (let c = t.c0; c <= t.c1; c++) {
           const td = this.cellEl(r, c);
           if (td) { td.classList.add('sheet-fill-target'); this.decorated.add(td); }

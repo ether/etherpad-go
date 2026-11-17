@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"io"
 	"math"
-	"strings"
 
 	"github.com/ether/etherpad-go/lib/sheet"
 	"github.com/xuri/excelize/v2"
@@ -30,7 +29,7 @@ func Import(r io.Reader) (sheet.WorkbookSnapshot, error) {
 		return sheet.WorkbookSnapshot{}, err
 	}
 	defer f.Close()
-	condFormats := condFormatsBySheet(data)
+	sheets := sheetXMLByName(data)
 	budget := &refBudget{left: maxMetaCells}
 
 	wb := sheet.NewWorkbook()
@@ -84,39 +83,19 @@ func Import(r io.Reader) (sheet.WorkbookSnapshot, error) {
 			}
 		}
 
-		// Styled-but-empty cells never show up in GetRows, so sweep for styles
-		// on cells not yet seen: inside the sheet's dimension when the file
-		// has one (Excel writes it; excelize does not keep it up to date),
-		// else the rows read plus a margin.
-		widest := 0
-		for _, row := range rows {
-			widest = max(widest, len(row))
+		// Styled-but-empty cells never show up in GetRows: take them from
+		// the sheet XML.
+		sx := sheets[name]
+		if sx == nil {
+			sx = &sheetXML{}
 		}
-		dimRows, dimCols := 0, 0
-		if dim, derr := f.GetSheetDimension(name); derr == nil && dim != "" {
-			parts := strings.Split(dim, ":")
-			if c, r, err := excelize.CellNameToCoordinates(parts[len(parts)-1]); err == nil {
-				dimRows, dimCols = r, c
+		for _, sc := range sx.styled {
+			ref := sheet.CellRef{Row: sc.ref[0], Col: sc.ref[1]}
+			if _, seen := sh.Cells[ref]; seen {
+				continue
 			}
-		}
-		sweepRows := min(max(len(rows)+50, dimRows), maxRows)
-		sweepCols := maxCols
-		if sweepRows*maxCols > 200000 {
-			// Big sheets: stay near the data instead of probing every column.
-			sweepCols = min(max(widest+10, dimCols), maxCols)
-		}
-		for r := range sweepRows {
-			for c := range sweepCols {
-				ref := sheet.CellRef{Row: r, Col: c}
-				if _, seen := sh.Cells[ref]; seen {
-					continue
-				}
-				axis, _ := excelize.CoordinatesToCellName(c+1, r+1)
-				if xid, serr := f.GetCellStyle(name, axis); serr == nil && xid != 0 {
-					if id := poolIdFor(xid); id != 0 {
-						sh.SetCell(ref, sheet.Cell{StyleId: id})
-					}
-				}
+			if id := poolIdFor(sc.style); id != 0 {
+				sh.SetCell(ref, sheet.Cell{StyleId: id})
 			}
 		}
 
@@ -131,7 +110,7 @@ func Import(r io.Reader) (sheet.WorkbookSnapshot, error) {
 			}
 		}
 		baseH, _ := f.GetRowHeight(name, excelize.TotalRows)
-		for r := range sweepRows {
+		for _, r := range sx.tallRows {
 			if h, err := f.GetRowHeight(name, r+1); err == nil && math.Abs(h-baseH) > 0.01 {
 				sh.RowHeights[r] = rowHeightToPx(h)
 			}
@@ -148,7 +127,7 @@ func Import(r io.Reader) (sheet.WorkbookSnapshot, error) {
 			}
 		}
 
-		importCellMeta(f, wb, sh, name, budget, condFormats[name])
+		importCellMeta(f, wb, sh, name, budget, sx.condFormats)
 
 		if panes, err := f.GetPanes(name); err == nil && panes.Freeze {
 			sh.FrozenRows = min(max(panes.YSplit, 0), sheet.MaxFrozenRows)

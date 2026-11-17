@@ -124,6 +124,7 @@ export function fillOps(
       const sr = s.r0 + ((r - t.r0) % srcH);
       const sc = s.c0 + ((c - t.c0) % srcW);
       const raw = adjustFormula(rawAt(sr, sc), r - sr, c - sc);
+      if (raw === '' && rawAt(r, c) === '') continue; // empty onto empty: nothing to do
       ops.push({ type: 'setCell', sheet, baseRev, row: r, col: c, raw });
     }
   }

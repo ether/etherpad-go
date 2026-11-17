@@ -9,6 +9,13 @@ func Transform(in, applied Op) Op {
 	if in.Sheet != applied.Sheet || !applied.isStructural() {
 		return in
 	}
+	// A filter on a column deleted meanwhile has nothing left to filter;
+	// shifting it would put it on the column that moved into its place.
+	if in.Type == OpSetFilter && !in.Clear && applied.Type == OpDeleteCols &&
+		in.Col >= applied.Index && in.Col < applied.Index+applied.Count {
+		in.Noop = true
+		return in
+	}
 	switch applied.Type {
 	case OpInsertRows:
 		return shiftRows(in, applied.Index, applied.Count)

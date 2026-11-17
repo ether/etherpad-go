@@ -188,6 +188,18 @@ export class SheetCollabClient {
   // server's rebased op, so applying it to serverWb keeps serverWb == server.
   // An acknowledgement naming another op (a resent op the client already took
   // from the replayed ops) or no newer revision changes nothing.
+  // onReject drops the in-flight op the server refused as invalid, so the
+  // edits behind it are sent instead of waiting for ever.
+  onReject(cid?: string): void {
+    if (!this.committing || this.pending.length === 0) return;
+    if (cid !== undefined && cid !== this.pending[0].cid) return;
+    this.pending.shift();
+    this.committing = false;
+    this.rebuildDisplay();
+    this.onChange();
+    this.flush();
+  }
+
   onAccept(newRev: number, cid?: string): void {
     if (!this.committing || this.pending.length === 0) return;
     if (cid !== undefined && cid !== this.pending[0].cid) return;

@@ -221,6 +221,7 @@ export class WorkbookState {
   // applyOp mirrors Go Workbook.Apply. The op is assumed already rebased to the
   // current revision. Cell ops are last-writer-wins.
   applyOp(op: Op): void {
+    if (op.noop) return;
     // Sheet-list ops manage the sheet list itself (mirrors Go Apply).
     switch (op.type) {
       case 'addSheet': {

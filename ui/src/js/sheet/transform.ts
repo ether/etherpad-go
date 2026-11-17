@@ -37,6 +37,11 @@ export function transform(inOp: Op, applied: Op): Op {
   if (inOp.sheet !== applied.sheet || !isStructural(applied)) return inOp;
   const index = applied.index ?? 0;
   const count = applied.count ?? 0;
+  // A filter on a column deleted meanwhile has nothing left to filter.
+  const col = inOp.col ?? 0;
+  if (inOp.type === 'setFilter' && !inOp.clear && applied.type === 'deleteCols' && col >= index && col < index + count) {
+    return { ...inOp, noop: true };
+  }
   switch (applied.type) {
     case 'insertRows':
       return shiftRows(inOp, index, count);

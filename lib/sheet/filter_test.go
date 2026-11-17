@@ -57,3 +57,22 @@ func TestFilterApplyShiftAndSnapshot(t *testing.T) {
 		t.Fatal("negative column accepted")
 	}
 }
+
+func TestFilterOnConcurrentlyDeletedColumnIsDropped(t *testing.T) {
+	got := Transform(Op{Type: OpSetFilter, Sheet: "s1", Col: 2, Values: []string{"x"}},
+		Op{Type: OpDeleteCols, Sheet: "s1", Index: 2, Count: 1})
+	if !got.Noop {
+		t.Fatalf("got %+v", got)
+	}
+	wb := NewWorkbook()
+	s := wb.AddSheet("s1", "Sheet1")
+	s.Filters = map[int][]string{2: {"keep"}}
+	if err := wb.Apply(got); err != nil || len(s.Filters) != 1 || s.Filters[2][0] != "keep" {
+		t.Fatalf("noop applied: %v %v", err, s.Filters)
+	}
+	// A filter next to the deleted column just moves.
+	if got := Transform(Op{Type: OpSetFilter, Sheet: "s1", Col: 3, Values: []string{"x"}},
+		Op{Type: OpDeleteCols, Sheet: "s1", Index: 2, Count: 1}); got.Noop || got.Col != 2 {
+		t.Fatalf("neighbour: %+v", got)
+	}
+}

@@ -12,6 +12,9 @@ func (w *Workbook) Apply(op Op) error {
 	if err := op.Validate(); err != nil {
 		return err
 	}
+	if op.Noop {
+		return nil
+	}
 
 	// Sheet-list ops manage w.Sheets itself and never need an existing sheet.
 	switch op.Type {
