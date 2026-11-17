@@ -8,7 +8,7 @@ require (
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/a-h/templ v0.3.1118
-	github.com/brianvoe/gofakeit/v7 v7.18.2
+	github.com/brianvoe/gofakeit/v7 v7.18.3
 	github.com/evanw/esbuild v0.28.2
 	github.com/go-jose/go-jose/v4 v4.1.9
 	github.com/go-playground/validator/v10 v10.30.6
