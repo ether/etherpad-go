@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/ether/etherpad-go/lib/models/db"
 	"github.com/jackc/pgx/v5"
@@ -88,6 +89,10 @@ func (d PostgresDB) ResetSheet(padId string, snapshot string) error {
 		`INSERT INTO sheet (id, head, snapshot, epoch, created_at, updated_at) VALUES ($1, 0, $2, 1, NOW(), NOW())
 		 ON CONFLICT (id) DO UPDATE SET head = 0, snapshot = EXCLUDED.snapshot, epoch = sheet.epoch + 1, updated_at = NOW()`,
 		padId, snapshot); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO sheet_op (id, rev, op, author_id, timestamp) VALUES ($1, 0, $2, NULL, $3)`,
+		padId, snapshot, time.Now().UnixMilli()); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)

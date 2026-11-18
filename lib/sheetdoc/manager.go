@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/ether/etherpad-go/lib/db"
 	"github.com/ether/etherpad-go/lib/sheet"
@@ -101,6 +102,9 @@ func (m *Manager) sync(padId string, e *entry) error {
 		if err := m.store.SaveSheet(padId, 0, string(snapBytes)); err != nil {
 			return err
 		}
+		// The base the history starts from. Another instance creating the
+		// sheet at the same moment stores the same one.
+		_ = m.store.SaveSheetOp(padId, 0, string(snapBytes), nil, time.Now().UnixMilli())
 		// Another instance may have created it at the same moment; take
 		// what is stored now.
 		if v, err = m.store.GetSheetVersion(padId); err != nil {
@@ -148,6 +152,7 @@ func (m *Manager) loadStored(padId string, v *db.SheetVersion) (*sheet.Document,
 }
 
 func (m *Manager) storedOps(padId string, from, to int) ([]StoredOp, error) {
+	from = max(from, 1) // rev 0 is the base snapshot, not an op
 	if to < from {
 		return nil, nil
 	}
@@ -226,33 +231,46 @@ func (m *Manager) submitOnce(padId string, op sheet.Op, authorId *string, tsMill
 				}
 			}
 		}
-		newRev, err := e.doc.Submit(op)
+		applied, newRev, err := m.commit(padId, e, op, authorId, tsMillis)
 		if err != nil {
-			// A failed apply may have changed the workbook partly.
-			e.doc = nil
 			return err
 		}
-		applied := e.doc.Log()[newRev-1]
-		opBytes, err := json.Marshal(applied)
-		if err == nil {
-			// Storing the op is the commit point.
-			err = m.store.SaveSheetOp(padId, newRev, string(opBytes), authorId, tsMillis)
-		}
-		if err != nil {
-			// The cached document holds an op that is not stored: forget
-			// it, the next access loads the stored state.
-			e.doc = nil
-			return err
-		}
-		// The stored snapshot is a cache of the ops; if writing it fails,
-		// the next load applies the ops after it.
-		if snapBytes, err := json.Marshal(e.doc.Workbook().Snapshot()); err == nil {
-			_ = m.store.SaveSheet(padId, newRev, string(snapBytes))
-		}
+		m.saveSnapshot(padId, e)
 		rebased, rev = applied, newRev
 		return nil
 	})
 	return rebased, rev, duplicate, err
+}
+
+// commit applies op to e's document and stores it. The caller holds e.mu.
+func (m *Manager) commit(padId string, e *entry, op sheet.Op, authorId *string, tsMillis int64) (sheet.Op, int, error) {
+	newRev, err := e.doc.Submit(op)
+	if err != nil {
+		// A failed apply may have changed the workbook partly.
+		e.doc = nil
+		return sheet.Op{}, 0, err
+	}
+	applied := e.doc.Log()[newRev-1]
+	opBytes, err := json.Marshal(applied)
+	if err == nil {
+		// Storing the op is the commit point.
+		err = m.store.SaveSheetOp(padId, newRev, string(opBytes), authorId, tsMillis)
+	}
+	if err != nil {
+		// The cached document holds an op that is not stored: forget
+		// it, the next access loads the stored state.
+		e.doc = nil
+		return sheet.Op{}, 0, err
+	}
+	return applied, newRev, nil
+}
+
+// saveSnapshot stores e's workbook. The stored snapshot is a cache of the
+// ops; if writing it fails, the next load applies the ops after it.
+func (m *Manager) saveSnapshot(padId string, e *entry) {
+	if snapBytes, err := json.Marshal(e.doc.Workbook().Snapshot()); err == nil {
+		_ = m.store.SaveSheet(padId, e.doc.Head(), string(snapBytes))
+	}
 }
 
 // SetWorkbook replaces the document's workbook (e.g. from an xlsx import),

@@ -23,6 +23,8 @@ import { openDialog } from './sheetDialog';
 import { filterKeeps } from './cellFilter';
 import { byteLength, META_PROPS, PROP_COND_FMT, PROP_LINK, PROP_NOTE, PROP_VALID_LIST, condStyle, inList, listValues, parseCondRules } from './cellMeta';
 import { formatValue } from './format';
+import { printDocument, renderSheetHtml, workbookEngine } from './sheetRender';
+import { openHistoryPanel } from './sheetHistoryPanel';
 import type { Op } from './op';
 import type { WorkbookSnapshot } from './workbookState';
 
@@ -125,6 +127,8 @@ export function startSheetEditor(root: HTMLElement): void {
     }
   };
   let toolbarEl: ToolbarElement | null = null;
+  // View > Gridlines, also used for printing.
+  let gridlines = true;
   let metaActions: ReturnType<typeof createMetaActions> | null = null;
 
   const transport = {
@@ -735,7 +739,10 @@ export function startSheetEditor(root: HTMLElement): void {
           return;
         }
         gridHost.classList.toggle(`sheet-no-${opt}`, value === false);
+        if (opt === 'gridlines') gridlines = value !== false;
       },
+      print: () => openPrint(),
+      openHistory: () => openHistory(),
       mergeToggle: () => {
         if (readOnly || !collab) return;
         blurActiveCell();
@@ -1077,6 +1084,67 @@ export function startSheetEditor(root: HTMLElement): void {
   };
 
   // Fill the selection from its first row (down) or first column (right).
+  // printSheets renders what is printed into a hidden frame and opens the
+  // browser's print dialog for it (which also saves as PDF). The frame stays
+  // until the next print: closing the dialog does not tell us reliably.
+  const printSheets = (scope: 'sheet' | 'selection' | 'workbook', withGrid: boolean): void => {
+    if (!collab) return;
+    const wb = collab.display;
+    const engine = workbookEngine(wb);
+    const ids = scope === 'workbook' ? wb.sheets.map((s) => s.id) : [activeSheetId];
+    const range = scope === 'selection' ? normalize(usedSel(selection)) : undefined;
+    const bodies = ids.map((id) => renderSheetHtml(wb, id, engine, {
+      range,
+      gridlines: withGrid,
+      caption: scope === 'workbook' ? wb.sheetById(id)?.name : undefined,
+      chartSvg: (chart, data) => renderChart(chart, data, chart.width, chart.height).outerHTML,
+    }));
+    const name = scope === 'workbook' ? padId : wb.sheetById(activeSheetId)?.name ?? padId;
+    document.querySelector('iframe.sheet-print-frame')?.remove();
+    const frame = document.createElement('iframe');
+    frame.className = 'sheet-print-frame';
+    frame.setAttribute('aria-hidden', 'true');
+    frame.tabIndex = -1;
+    frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
+    frame.addEventListener('load', () => {
+      frame.contentWindow?.focus();
+      frame.contentWindow?.print();
+    }, { once: true });
+    frame.srcdoc = printDocument(name, bodies);
+    document.body.appendChild(frame);
+  };
+
+  const openPrint = (): void => {
+    if (!collab) return;
+    blurActiveCell();
+    openDialog({
+      title: 'Print',
+      fields: [
+        {
+          key: 'scope', label: 'Print', type: 'select', value: selIsSingle(selection) ? 'sheet' : 'selection',
+          options: [['sheet', 'Active sheet'], ['selection', 'Selection'], ['workbook', 'Entire workbook']],
+        },
+        { key: 'grid', label: 'Gridlines', type: 'select', value: gridlines ? 'yes' : 'no', options: [['yes', 'Print gridlines'], ['no', 'No gridlines']] },
+      ],
+      okLabel: 'Print',
+      onOk: (v) => {
+        const scope = v.scope === 'selection' || v.scope === 'workbook' ? v.scope : 'sheet';
+        printSheets(scope, v.grid !== 'no');
+        return null;
+      },
+    });
+  };
+
+  const openHistory = (): void => {
+    if (!collab) return;
+    blurActiveCell();
+    openHistoryPanel({
+      readOnly,
+      title: document.title || padId,
+      onRestored: (label) => flash(`Restored the version of ${label}.`),
+    });
+  };
+
   // fillOps adjusts relative references, so formulas fill like in Excel.
   const doFill = (dir: 'down' | 'right'): void => {
     if (readOnly || !collab || selIsSingle(selection)) return;
@@ -1101,6 +1169,12 @@ export function startSheetEditor(root: HTMLElement): void {
     if (mod && (e.key === 'v' || e.key === 'V') && !editingNow() && !readOnly) {
       e.preventDefault();
       doPaste();
+      return;
+    }
+    // Ctrl+P prints the sheet (our print, not the browser's of the grid).
+    if (mod && !e.altKey && (e.key === 'p' || e.key === 'P')) {
+      e.preventDefault();
+      openPrint();
       return;
     }
     // Ctrl+F / Ctrl+H open the dialog (Ctrl+H only when it can replace).

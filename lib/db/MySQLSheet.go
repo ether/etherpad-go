@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/ether/etherpad-go/lib/models/db"
@@ -112,6 +113,10 @@ func resetSheetTx(conn *sql.DB, padId, snapshot, upsert string) error {
 		return err
 	}
 	if _, err := tx.Exec(upsert, padId, snapshot); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`INSERT INTO sheet_op (id, rev, op, author_id, timestamp) VALUES (?, 0, ?, NULL, ?)`,
+		padId, snapshot, time.Now().UnixMilli()); err != nil {
 		return err
 	}
 	return tx.Commit()

@@ -71,7 +71,7 @@ func (m *MemoryDataStore) ResetSheet(padId string, snapshot string) error {
 	if existing, ok := m.sheetStore[padId]; ok {
 		created = existing.CreatedAt
 	}
-	delete(m.sheetOps, padId)
+	m.sheetOps[padId] = map[int]db.SheetOpDB{0: {PadId: padId, Rev: 0, Op: snapshot, Timestamp: now.UnixMilli()}}
 	m.sheetStore[padId] = db.SheetDB{ID: padId, Head: 0, Snapshot: snapshot, CreatedAt: created, UpdatedAt: &now}
 	if m.sheetEpoch == nil {
 		m.sheetEpoch = map[string]int{}

@@ -22,6 +22,37 @@ func checkGrant(c fiber.Ctx, store *lib.InitStore, padId string, write bool) (st
 	return granted.AuthorId, nil
 }
 
+// sheetId is the pad a request's id names: a read-only id stands for its
+// pad (read access only, which checkGrant enforces).
+func sheetId(store *lib.InitStore, id string) (string, error) {
+	rom := store.SecurityManager.ReadOnlyManager
+	if !rom.IsReadOnlyID(&id) {
+		return id, nil
+	}
+	padId, err := rom.GetPadId(id)
+	if err != nil || padId == nil {
+		return "", fiber.NewError(fiber.StatusNotFound, "sheet not found")
+	}
+	return *padId, nil
+}
+
+// existingSheet is sheetId for routes that only read: the pad must exist
+// and be a spreadsheet, so reading never creates a sheet.
+func existingSheet(store *lib.InitStore, id string) (string, error) {
+	padId, err := sheetId(store, id)
+	if err != nil {
+		return "", err
+	}
+	if ok, err := store.PadManager.DoesPadExist(padId); err != nil || ok == nil || !*ok {
+		return "", fiber.NewError(fiber.StatusNotFound, "sheet not found")
+	}
+	p, err := store.PadManager.GetTypedPad(padId, "sheet", nil)
+	if err != nil || p.DocumentType != "sheet" {
+		return "", fiber.NewError(fiber.StatusNotFound, "sheet not found")
+	}
+	return padId, nil
+}
+
 // ImportSheet handles POST /s/:pad/import (multipart "file"), replacing the
 // sheet's workbook and notifying connected clients to reload.
 func ImportSheet(store *lib.InitStore) fiber.Handler {
@@ -68,6 +99,10 @@ func ExportSheet(store *lib.InitStore) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		padId := c.Params("pad")
 		if _, err := checkGrant(c, store, padId, false); err != nil {
+			return err
+		}
+		padId, err := existingSheet(store, padId)
+		if err != nil {
 			return err
 		}
 
