@@ -46,6 +46,8 @@ export interface ToolbarCallbacks {
   // Insert > Link, Review > Notes, Data > Data Validation, Home > Conditional
   // Formatting: each opens a dialog run by the editor.
   insertLink?: () => void;
+  // Insert > Chart: a chart of the selection.
+  insertChart?: () => void;
   removeLink?: () => void;
   editNote?: () => void;
   deleteNote?: () => void;
@@ -120,6 +122,7 @@ const IC = {
   find: '<circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/>',
   undo: '<path d="M3 8h7a3.5 3.5 0 0 1 0 7H6"/><path d="M5.5 5 2.5 8l3 3"/>',
   redo: '<path d="M13 8H6a3.5 3.5 0 0 0 0 7h4"/><path d="M10.5 5l3 3-3 3"/>',
+  chart: '<path d="M2.5 13.5h11"/><rect x="3.5" y="8" width="2" height="5"/><rect x="7" y="4.5" width="2" height="8.5"/><rect x="10.5" y="6.5" width="2" height="6.5"/>',
   link: '<path d="M6.5 9.5a3 3 0 0 0 4.2 0l2.3-2.3a3 3 0 0 0-4.2-4.2L7.6 4.2"/><path d="M9.5 6.5a3 3 0 0 0-4.2 0L3 8.8A3 3 0 0 0 7.2 13l1.2-1.2"/>',
   note: '<path d="M2.5 2.5h11v8h-5l-3 3v-3h-3z"/><path d="M5 5.5h6M5 8h4"/>',
   validation: '<rect x="2.5" y="2.5" width="11" height="11" rx="1"/><path d="M5 8l2 2 4-4"/>',
@@ -518,6 +521,10 @@ export function createToolbar(cb: ToolbarCallbacks): ToolbarElement {
 
   // --- Insert: Links ---
   if (cb.insertLink) {
+    if (cb.insertChart) {
+      const charts = group('Insert', 'Charts');
+      bigBtn(charts, IC.chart, 'Chart', 'Insert a chart of the selected cells', () => cb.insertChart?.());
+    }
     const links = group('Insert', 'Links');
     bigBtn(links, IC.link, 'Link', 'Insert link (Ctrl+K)', () => cb.insertLink?.());
     if (cb.removeLink) btn(col(links), { text: 'Remove' }, 'Remove link from the selected cells', () => cb.removeLink?.());

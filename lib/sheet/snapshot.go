@@ -39,7 +39,8 @@ type SheetSnapshot struct {
 	Filters   map[int][]string `json:"filters,omitempty"`
 	FilterRow int              `json:"filterRow,omitempty"`
 	// Columns whose filter lists the hidden values.
-	FilterHide []int `json:"filterHide,omitempty"`
+	FilterHide []int   `json:"filterHide,omitempty"`
+	Charts     []Chart `json:"charts,omitempty"`
 }
 
 // WorkbookSnapshot is the JSON-serializable form of a Workbook for persistence.
@@ -72,6 +73,7 @@ func (w *Workbook) Snapshot() WorkbookSnapshot {
 		if len(s.RowHeights) > 0 {
 			ss.RowHeights = maps.Clone(s.RowHeights)
 		}
+		ss.Charts = slices.Clone(s.Charts)
 		if len(s.Filters) > 0 {
 			ss.Filters = make(map[int][]string, len(s.Filters))
 			for c, v := range s.Filters {
@@ -121,6 +123,7 @@ func WorkbookFromSnapshot(snap WorkbookSnapshot) *Workbook {
 		maps.Copy(sh.ColWidths, ss.ColWidths)
 		maps.Copy(sh.RowHeights, ss.RowHeights)
 		sh.FrozenRows, sh.FrozenCols = ss.FrozenRows, ss.FrozenCols
+		sh.Charts = slices.Clone(ss.Charts)
 		if len(ss.Filters) > 0 {
 			sh.Filters = make(map[int][]string, len(ss.Filters))
 			for c, v := range ss.Filters {

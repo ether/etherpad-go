@@ -139,9 +139,14 @@ export class SheetCollabClient {
     if (!entry) return;
     this.mode = mode;
     for (const op of entry) {
-      const { expect, ...rest } = op;
+      const { expect, expectChart, ...rest } = op;
       // A formula restore only writes over what the undone op left there.
       if (expect !== undefined && (this.display.getCell(op.sheet, op.row ?? 0, op.col ?? 0)?.raw ?? '') !== expect) continue;
+      // Likewise a chart restore over the chart the undone op left.
+      if (expectChart) {
+        const now = this.display.sheetById(op.sheet)?.charts.find((c) => c.id === expectChart.id);
+        if (!now || JSON.stringify(now) !== JSON.stringify(expectChart)) continue;
+      }
       this.applyLocal({ ...rest, baseRev: this.rev });
     }
     this.closeGroup(); // the entry is complete now; do not wait for the tick

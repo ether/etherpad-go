@@ -22,6 +22,9 @@ type ClientReadyData struct {
 	// PadSettingsDefaults are the creating user's own view settings; they
 	// become the pad-wide settings of a pad this message creates.
 	PadSettingsDefaults map[string]any `json:"padSettingsDefaults,omitempty"`
+	// SheetOps is the sheet op version a sheet client understands (absent:
+	// a client from before filters and charts).
+	SheetOps int `json:"sheetOps,omitempty"`
 }
 
 type ClientReadyUserInfo struct {

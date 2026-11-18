@@ -6,6 +6,12 @@ package sheet
 // sheet and axis move coordinates; everything else is returned unchanged.
 func Transform(in, applied Op) Op {
 	in = rebaseFormula(in, applied)
+	// Editing a chart someone deleted meanwhile must not bring it back.
+	if in.Type == OpSetChart && applied.Type == OpDeleteChart && in.Sheet == applied.Sheet &&
+		in.Chart != nil && applied.Chart != nil && in.Chart.Id == applied.Chart.Id {
+		in.Noop = true
+		return in
+	}
 	if in.Sheet != applied.Sheet || !applied.isStructural() {
 		return in
 	}
@@ -15,6 +21,14 @@ func Transform(in, applied Op) Op {
 		in.Col >= applied.Index && in.Col < applied.Index+applied.Count {
 		in.Noop = true
 		return in
+	}
+	if in.Type == OpSetChart && in.Chart != nil {
+		// The data range moves like a formula's reference.
+		if e, ok := refEditOf(applied); ok {
+			c := *in.Chart
+			c.Range = moveChartRange(c.Range, e)
+			in.Chart = &c
+		}
 	}
 	switch applied.Type {
 	case OpInsertRows:

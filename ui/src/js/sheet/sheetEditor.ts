@@ -16,6 +16,10 @@ import { colName, rangeRefA1 } from './a1';
 import { mergeProps } from './styleCss';
 import { createMetaActions } from './sheetMetaActions';
 import { openFilterMenu } from './sheetFilterMenu';
+import { SHEET_OPS_VERSION } from './op';
+import { chartRangeError, CHART_TYPES, MAX_CHARTS_PER_SHEET, MAX_CHART_TITLE, newChartId, type Chart, type ChartType } from './chart';
+import { chartData, renderChart } from './chartRender';
+import { openDialog } from './sheetDialog';
 import { filterKeeps } from './cellFilter';
 import { byteLength, META_PROPS, PROP_COND_FMT, PROP_LINK, PROP_NOTE, PROP_VALID_LIST, condStyle, inList, listValues, parseCondRules } from './cellMeta';
 import { formatValue } from './format';
@@ -337,6 +341,65 @@ export function startSheetEditor(root: HTMLElement): void {
     collab.applyLocal({
       type: 'clearRange', sheet: activeSheetId, baseRev: collab.rev,
       row: r0, col: c0, endRow: r1, endCol: c1, keepStyle: true,
+    });
+  };
+
+  const deleteChart = (id: string): void => {
+    if (readOnly || !collab) return;
+    collab.applyLocal({ type: 'deleteChart', sheet: activeSheetId, baseRev: collab.rev, chart: { id } as Chart });
+  };
+
+  const sendChart = (c: Chart): void => {
+    if (readOnly || !collab) return;
+    collab.applyLocal({ type: 'setChart', sheet: activeSheetId, baseRev: collab.rev, row: c.row, col: c.col, chart: c });
+  };
+
+  const updateChart = (id: string, change: (c: Chart) => Chart): void => {
+    const c = collab?.display.sheetById(activeSheetId)?.charts.find((x) => x.id === id);
+    if (c) sendChart(change({ ...c }));
+  };
+
+  // editChart opens the chart dialog: a new chart of the selection (id
+  // null) or the chart `id`.
+  const editChart = (id: string | null): void => {
+    if (readOnly || !collab) return;
+    const sheet = collab.display.sheetById(activeSheetId);
+    const current = id ? sheet?.charts.find((c) => c.id === id) : undefined;
+    if (!current && (sheet?.charts.length ?? 0) >= MAX_CHARTS_PER_SHEET) {
+      flash(`A sheet can have at most ${MAX_CHARTS_PER_SHEET} charts.`);
+      return;
+    }
+    const { r0, c0, r1, c1 } = normalize(selection);
+    openDialog({
+      title: current ? 'Edit Chart' : 'Insert Chart',
+      fields: [
+        { key: 'type', label: 'Type', type: 'select', value: current?.type ?? 'column', options: [['column', 'Column'], ['bar', 'Bar'], ['line', 'Line'], ['pie', 'Pie']] },
+        { key: 'range', label: 'Data', type: 'text', value: current?.range ?? rangeRefA1(r0, c0, r1, c1), placeholder: 'A1:C10' },
+        { key: 'title', label: 'Title', type: 'text', value: current?.title ?? '' },
+      ],
+      okLabel: current ? 'OK' : 'Insert',
+      extra: current ? { label: 'Delete Chart', run: () => deleteChart(current.id) } : undefined,
+      onOk: (v) => {
+        const range = (v.range ?? '').trim().toUpperCase().replace(/\$/g, '');
+        // A chart whose cells were deleted keeps #REF! when only its type or
+        // title changes.
+        const rangeErr = current && range === '#REF!' && current.range === '#REF!' ? null : chartRangeError(range);
+        if (rangeErr) return rangeErr;
+        const title = (v.title ?? '').trim();
+        if (byteLength(title) > MAX_CHART_TITLE) return 'The title is too long.';
+        sendChart({
+          id: current?.id ?? newChartId(),
+          type: (CHART_TYPES as string[]).includes(v.type ?? '') ? (v.type as ChartType) : 'column',
+          range,
+          ...(title ? { title } : {}),
+          // A new chart goes right of the selection, like Excel.
+          row: current?.row ?? r0,
+          col: current?.col ?? Math.min(c1 + 1, GRID_COLS - 1),
+          width: current?.width ?? 480,
+          height: current?.height ?? 288,
+        });
+        return null;
+      },
     });
   };
 
@@ -708,7 +771,7 @@ export function startSheetEditor(root: HTMLElement): void {
       setRaw: (row, col, raw) => commitRaw(row, col, raw, true),
       blur: () => blurActiveCell(),
     });
-    Object.assign(actions, meta);
+    Object.assign(actions, meta, { insertChart: () => editChart(null) });
     metaActions = meta;
     const toolbar = createToolbar(actions);
     toolbarEl = toolbar;
@@ -847,6 +910,23 @@ export function startSheetEditor(root: HTMLElement): void {
       },
       rowHidden: (r) => hiddenRows.has(r),
       colFiltered: (c) => collab?.display.sheetById(activeSheetId)?.filters.has(c) ?? false,
+      charts: () => collab?.display.sheetById(activeSheetId)?.charts ?? [],
+      chartContent: (chart) => ({
+        // Values change only with the engine, formats with the sheet: an
+        // unchanged key skips reading the range.
+        key: `${engine.version}|${collab?.display.sheetById(activeSheetId)?.stamp}|${JSON.stringify(chart)}`,
+        draw: () => {
+          const data = chartData(chart.range, (r, c) => {
+            const v = engine.getValue(r, c);
+            return { text: displayValue(r, c), num: v.type === 'number' && v.value !== '' ? Number(v.value) : null };
+          });
+          return renderChart(chart, data, chart.width, chart.height);
+        },
+      }),
+      onChartMove: (id, row, col) => updateChart(id, (c) => ({ ...c, row, col })),
+      onChartResize: (id, width, height) => updateChart(id, (c) => ({ ...c, width, height })),
+      onChartEdit: (id) => editChart(id),
+      onChartDelete: (id) => deleteChart(id),
       merges: () => {
         const s = collab?.display.sheetById(activeSheetId);
         if (!s) return [];
@@ -1100,6 +1180,7 @@ export function startSheetEditor(root: HTMLElement): void {
       component: 'sheet',
       type: 'CLIENT_READY',
       padId,
+      sheetOps: SHEET_OPS_VERSION,
       token,
       userInfo: { colorId: null, name: null },
     });
@@ -1124,6 +1205,7 @@ export function startSheetEditor(root: HTMLElement): void {
       component: 'sheet',
       type: 'CLIENT_READY',
       padId,
+      sheetOps: SHEET_OPS_VERSION,
       token: legacyToken != null && padutils.isValidAuthorToken(legacyToken) ? legacyToken : '',
       userInfo: { colorId: null, name: null },
       reconnect: true,
@@ -1176,7 +1258,15 @@ export function startSheetEditor(root: HTMLElement): void {
         renderConn();
       }
       else if (d.type === 'NEW_SHEET_OP') {
-        collab?.onRemote(d.op as Op, d.newRev);
+        try {
+          collab?.onRemote(d.op as Op, d.newRev);
+        } catch (err) {
+          // An op this code does not know (a newer server): start over with
+          // the server's code and state.
+          console.error('sheet op failed, reloading', err);
+          location.reload();
+          return;
+        }
         if (d.author) presence?.clearLiveEdit(d.author);
       } else if (d.type === 'SHEET_PRESENCE') presence?.applyPresence(d as PresenceFrame);
       else if (d.type === 'USER_LEAVE') presence?.drop(d.userInfo?.userId);

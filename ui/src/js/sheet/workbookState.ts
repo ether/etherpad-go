@@ -1,3 +1,4 @@
+import { MAX_CHARTS_PER_SHEET, moveCharts, type Chart } from './chart';
 import { rewriteFormula, structuralEdit, type RefEdit } from './formulaRefs';
 import type { Op } from './op';
 import { StylePoolMirror, type StyleProps } from './stylePool';
@@ -28,6 +29,8 @@ export interface SheetState {
   filterRow: number;
   // Columns whose filter lists the hidden values instead of the kept ones.
   filterHide: Set<number>;
+  // Charts in drawing order (later ones on top).
+  charts: Chart[];
   // Changes with every change of the cells (unique across all workbook
   // copies), so the formula engine can skip unchanged sheets.
   stamp: number;
@@ -47,7 +50,7 @@ const cellIsEmpty = (c: Cell): boolean =>
 
 const emptySheet = (id: string, name: string): SheetState => ({
   id, name, cells: new Map(), colWidths: new Map(), rowHeights: new Map(), frozenRows: 0, frozenCols: 0,
-  merges: new Map(), filters: new Map(), filterRow: 0, filterHide: new Set(), stamp: nextStamp(),
+  merges: new Map(), filters: new Map(), filterRow: 0, filterHide: new Set(), charts: [], stamp: nextStamp(),
 });
 
 // intersects mirrors Go: merge at (row,col) x span overlaps [r0..r1]x[c0..c1].
@@ -137,6 +140,7 @@ export interface SheetSnapshot {
   filters?: Record<string, string[]>;
   filterRow?: number;
   filterHide?: number[];
+  charts?: Chart[];
 }
 export interface WorkbookSnapshot {
   sheets: SheetSnapshot[];
@@ -170,7 +174,7 @@ export class WorkbookState {
       colWidths: new Map(s.colWidths), rowHeights: new Map(s.rowHeights),
       frozenRows: s.frozenRows, frozenCols: s.frozenCols,
       merges: new Map(s.merges), stamp: s.stamp,
-      filters: new Map([...s.filters].map(([c, v]) => [c, [...v]])), filterRow: s.filterRow, filterHide: new Set(s.filterHide),
+      filters: new Map([...s.filters].map(([c, v]) => [c, [...v]])), filterRow: s.filterRow, filterHide: new Set(s.filterHide), charts: s.charts.map((c) => ({ ...c })),
     }));
     cp.styles = this.styles; // shared pool: interning is monotonic + content-deduped
     return cp;
@@ -195,6 +199,7 @@ export class WorkbookState {
       for (const [c, v] of Object.entries(ss.filters ?? {})) s.filters.set(Number(c), [...v]);
       s.filterRow = s.filters.size > 0 ? ss.filterRow ?? 0 : 0;
       for (const c of ss.filterHide ?? []) if (s.filters.has(c)) s.filterHide.add(c);
+      s.charts = (ss.charts ?? []).map((c) => ({ ...c }));
       return s;
     });
     this.styles.seed(snap.styles);
@@ -340,6 +345,20 @@ export class WorkbookState {
         }
         break;
       }
+      case 'setChart': {
+        if (!op.chart) break;
+        const c: Chart = { ...op.chart, row, col };
+        const i = sheet.charts.findIndex((x) => x.id === c.id);
+        if (i >= 0) sheet.charts[i] = c;
+        else if (sheet.charts.length < MAX_CHARTS_PER_SHEET) {
+          const at = op.order && op.order > 0 ? Math.min(op.order - 1, sheet.charts.length) : sheet.charts.length;
+          sheet.charts.splice(at, 0, c);
+        }
+        break;
+      }
+      case 'deleteChart':
+        sheet.charts = sheet.charts.filter((c) => c.id !== op.chart?.id);
+        break;
       case 'setFilter':
         if (op.clear) {
           sheet.filters = new Map();
@@ -398,7 +417,10 @@ export class WorkbookState {
     sheet.stamp = nextStamp();
     // Formulas keep pointing at the same cells (mirrors Go Apply).
     const edit = structuralEdit(op.type, index, count);
-    if (edit) this.rewriteRefs(sheet, { target: sheet.name, ...edit });
+    if (edit) {
+      this.rewriteRefs(sheet, { target: sheet.name, ...edit });
+      sheet.charts = moveCharts(sheet.charts, { target: sheet.name, ...edit });
+    }
   }
 
   // rewriteRefs changes the formulas of every sheet by e (mirrors Go

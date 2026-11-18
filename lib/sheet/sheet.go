@@ -37,6 +37,8 @@ type Sheet struct {
 	// FilterHide marks the columns whose Filters list the hidden values
 	// instead of the shown ones.
 	FilterHide map[int]bool `json:"-"`
+	// Charts in drawing order (later ones on top).
+	Charts []Chart `json:"-"`
 }
 
 func NewSheet(id, name string) *Sheet {
@@ -63,6 +65,7 @@ func (s *Sheet) clone() *Sheet {
 		ColWidths: maps.Clone(s.ColWidths), RowHeights: maps.Clone(s.RowHeights),
 		FrozenRows: s.FrozenRows, FrozenCols: s.FrozenCols,
 		Merges: maps.Clone(s.Merges), FilterRow: s.FilterRow, FilterHide: maps.Clone(s.FilterHide),
+		Charts: slices.Clone(s.Charts),
 	}
 	if s.Filters != nil {
 		cp.Filters = make(map[int][]string, len(s.Filters))
