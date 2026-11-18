@@ -106,6 +106,8 @@ test.describe('Sheet M4 structural', () => {
     await menu.locator('button.primary').click();
     await expect(row(page, 2)).toBeHidden();
     await expect(row(page, 0)).toBeVisible();
+    // The keyboard is back in the grid.
+    expect(await page.evaluate(() => document.activeElement?.tagName)).toBe('TD');
     await expect(row(page, 3)).toBeVisible();
     await expect(page.locator('.sheet-grid thead th.sheet-head-filter')).toHaveText('A');
 
@@ -123,6 +125,16 @@ test.describe('Sheet M4 structural', () => {
     await expect(row(page, 3)).toBeHidden();
     await expect(row(other, 3)).toBeHidden();
     await expect(row(page, 1)).toBeVisible();
+
+    // Enter on Cancel cancels.
+    await filterBtn.click();
+    await menu.locator('label.sheet-filter-all input').uncheck();
+    await menu.locator('label', { hasText: /^x$/ }).locator('input').check();
+    await menu.locator('button', { hasText: 'Cancel' }).focus();
+    await page.keyboard.press('Enter');
+    await expect(menu).toHaveCount(0);
+    await expect(row(page, 4)).toBeVisible();
+    await expect(row(page, 2)).toBeHidden();
 
     await filterBtn.click();
     await menu.locator('button', { hasText: 'Clear filter from this column' }).click();

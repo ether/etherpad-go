@@ -131,18 +131,27 @@ func (w *Workbook) Apply(op Op) error {
 	case OpSetFilter:
 		switch {
 		case op.Clear:
-			s.Filters = nil
+			s.Filters, s.FilterHide = nil, nil
 		case len(op.Values) == 0:
 			delete(s.Filters, op.Col)
+			delete(s.FilterHide, op.Col)
 		default:
 			if s.Filters == nil {
 				s.Filters = map[int][]string{}
 			}
 			s.Filters[op.Col] = slices.Clone(op.Values)
 			s.FilterRow = op.Row
+			if op.Exclude {
+				if s.FilterHide == nil {
+					s.FilterHide = map[int]bool{}
+				}
+				s.FilterHide[op.Col] = true
+			} else {
+				delete(s.FilterHide, op.Col)
+			}
 		}
 		if len(s.Filters) == 0 {
-			s.Filters, s.FilterRow = nil, 0
+			s.Filters, s.FilterRow, s.FilterHide = nil, 0, nil
 		}
 	case OpInsertRows:
 		s.remap(func(r CellRef) (CellRef, bool) {
@@ -177,6 +186,7 @@ func (w *Workbook) Apply(op Op) error {
 		s.ColWidths = shiftDims(s.ColWidths, op.Index, op.Count)
 		s.Merges = shiftMerges(s.Merges, "col", op.Index, op.Count)
 		s.Filters = shiftFilters(s.Filters, op.Index, op.Count)
+		s.FilterHide = shiftFilters(s.FilterHide, op.Index, op.Count)
 	case OpDeleteCols:
 		s.remap(func(r CellRef) (CellRef, bool) {
 			if r.Col >= op.Index && r.Col < op.Index+op.Count {
@@ -190,6 +200,7 @@ func (w *Workbook) Apply(op Op) error {
 		s.ColWidths = shiftDims(s.ColWidths, op.Index, -op.Count)
 		s.Merges = shiftMerges(s.Merges, "col", op.Index, -op.Count)
 		s.Filters = shiftFilters(s.Filters, op.Index, -op.Count)
+		s.FilterHide = shiftFilters(s.FilterHide, op.Index, -op.Count)
 	default:
 		return fmt.Errorf("apply: unhandled op type %q", op.Type)
 	}

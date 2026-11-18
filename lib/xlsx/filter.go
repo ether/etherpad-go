@@ -6,7 +6,6 @@ import (
 	"encoding/xml"
 	"io"
 	"regexp"
-	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -28,9 +27,10 @@ type filterColumns struct {
 
 // exportFilter writes the AutoFilter range of a sheet with filters and hides
 // the rows it filters out (Excel shows the hidden rows of a file, it does
-// not filter again on open). Rows are judged by their stored text; formula
-// cells, whose results the server does not compute, never hide a row.
-func exportFilter(f *excelize.File, s *sheet.Sheet, name string) (*filterColumns, error) {
+// not filter again on open). Rows are judged by their stored text; cells the
+// server cannot show as the browser does (formulas, number formats) never
+// hide a row.
+func exportFilter(f *excelize.File, wb *sheet.Workbook, s *sheet.Sheet, name string) (*filterColumns, error) {
 	if len(s.Filters) == 0 {
 		return nil, nil
 	}
@@ -50,13 +50,18 @@ func exportFilter(f *excelize.File, s *sheet.Sheet, name string) (*filterColumns
 	if err := f.AutoFilter(name, from+":"+to, nil); err != nil {
 		return nil, err
 	}
+	judged := func(cell sheet.Cell) bool {
+		if cell.Raw == "" || cell.Kind() == sheet.KindFormula {
+			return false
+		}
+		st, _ := wb.Styles.Get(cell.StyleId)
+		f := st.Props["numFmt"]
+		return f == "" || f == "general" || f == "text"
+	}
 	for r := s.FilterRow + 1; r <= lastRow; r++ {
 		for _, c := range cols {
 			cell := s.GetCell(sheet.CellRef{Row: r, Col: c})
-			if cell.Raw == "" || cell.Kind() == sheet.KindFormula {
-				continue
-			}
-			if !slices.Contains(s.Filters[c], cell.Raw) {
+			if judged(cell) && !s.FilterKeeps(c, cell.Raw) {
 				if err := f.SetRowVisible(name, r+1, false); err != nil {
 					return nil, err
 				}
@@ -66,8 +71,23 @@ func exportFilter(f *excelize.File, s *sheet.Sheet, name string) (*filterColumns
 	}
 	var b strings.Builder
 	for _, c := range cols {
+		// xlsx lists the kept values; a filter that lists the hidden ones
+		// keeps the column's other values.
+		kept := s.Filters[c]
+		if s.FilterHide[c] {
+			kept = nil
+			seen := map[string]bool{}
+			for r := s.FilterRow + 1; r <= lastRow; r++ {
+				v := s.GetCell(sheet.CellRef{Row: r, Col: c}).Raw
+				if strings.TrimSpace(v) == "" || seen[v] || !s.FilterKeeps(c, v) {
+					continue
+				}
+				seen[v] = true
+				kept = append(kept, v)
+			}
+		}
 		b.WriteString(`<filterColumn colId="` + strconv.Itoa(c) + `"><filters>`)
-		for _, v := range s.Filters[c] {
+		for _, v := range kept {
 			b.WriteString(`<filter val="`)
 			_ = xml.EscapeText(&b, []byte(v))
 			b.WriteString(`"/>`)
@@ -139,7 +159,9 @@ func importFilter(sh *sheet.Sheet, af *xmlAutoFilter) {
 		return
 	}
 	for _, fc := range af.Columns {
-		if fc.Filters == nil || len(fc.Filters.Values) == 0 {
+		// Date groups ("all of 2024") are not read; with them missing, the
+		// remaining list would hide those rows.
+		if fc.Filters == nil || len(fc.Filters.Values) == 0 || len(fc.Filters.DateGroups) > 0 {
 			continue
 		}
 		col := c0 - 1 + fc.ColID

@@ -80,3 +80,29 @@ describe('filter review fixes', () => {
     expect(c.display.getCell('s1', 0, 0)).toBeUndefined();
   });
 });
+
+describe('filter keys and hide mode (mirrors lib/sheet/filter_test.go)', () => {
+  it('compares like the server', async () => {
+    const { filterKey, filterKeeps } = await import('./cellFilter');
+    expect(filterKey('Offen')).toBe(filterKey(' offen '));
+    expect(filterKey('1,234.5')).toBe(filterKey('1234.50'));
+    expect(filterKey('1,5')).not.toBe(filterKey('15'));
+    expect(filterKeeps(['y'], true, 'Y')).toBe(false);
+    expect(filterKeeps(['y'], true, 'x')).toBe(true);
+    expect(filterKeeps(['y'], false, '')).toBe(true);
+  });
+  it('hide mode survives undo and a snapshot', () => {
+    const wb = new WorkbookState();
+    wb.loadSnapshot({ sheets: [{ id: 's1', name: 'Sheet1', cells: [] }] });
+    wb.applyOp(op({ row: 0, col: 1, values: ['y'], exclude: true }));
+    const next = op({ row: 0, col: 1, values: ['x'] });
+    const inverse = invertOp(wb, next);
+    wb.applyOp(next);
+    expect(wb.sheetById('s1')!.filterHide.has(1)).toBe(false);
+    for (const inv of inverse) wb.applyOp(inv);
+    expect(wb.sheetById('s1')!.filterHide.has(1)).toBe(true);
+    const copy = new WorkbookState();
+    copy.loadSnapshot({ sheets: [{ id: 's1', name: 'Sheet1', cells: [], filters: { 1: ['y'] }, filterHide: [1] }] });
+    expect(copy.sheetById('s1')!.filterHide.has(1)).toBe(true);
+  });
+});

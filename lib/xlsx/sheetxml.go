@@ -48,7 +48,8 @@ type xmlAutoFilter struct {
 	Columns []struct {
 		ColID   int `xml:"colId,attr"`
 		Filters *struct {
-			Values []struct {
+			DateGroups []struct{} `xml:"dateGroupItem"`
+			Values     []struct {
 				Val string `xml:"val,attr"`
 			} `xml:"filter"`
 		} `xml:"filters"`

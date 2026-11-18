@@ -100,7 +100,10 @@ const filterRestore = (op: Op, sheet: SheetState, only?: number): Op[] => {
   const out: Op[] = [];
   for (const [c, values] of sheet.filters) {
     if (only !== undefined && c !== only) continue;
-    out.push({ ...base(op), type: 'setFilter', row: sheet.filterRow, col: c, values: [...values] });
+    out.push({
+      ...base(op), type: 'setFilter', row: sheet.filterRow, col: c, values: [...values],
+      ...(sheet.filterHide.has(c) ? { exclude: true } : {}),
+    });
   }
   return out;
 };

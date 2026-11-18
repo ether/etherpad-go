@@ -76,3 +76,31 @@ func TestFilterOnConcurrentlyDeletedColumnIsDropped(t *testing.T) {
 		t.Fatalf("neighbour: %+v", got)
 	}
 }
+
+func TestFilterKeysAndHideMode(t *testing.T) {
+	for _, c := range [][2]string{{"Offen", " offen "}, {"1,234.5", "1234.50"}, {"10", "1e1"}} {
+		if FilterKey(c[0]) != FilterKey(c[1]) {
+			t.Errorf("%q and %q differ", c[0], c[1])
+		}
+	}
+	if FilterKey("1,5") == FilterKey("15") {
+		t.Error("a German decimal comma read as a thousands separator")
+	}
+	wb := NewWorkbook()
+	s := wb.AddSheet("s1", "Sheet1")
+	if err := wb.Apply(Op{Type: OpSetFilter, Sheet: "s1", Col: 1, Values: []string{"y"}, Exclude: true}); err != nil {
+		t.Fatal(err)
+	}
+	if s.FilterKeeps(1, "Y") || !s.FilterKeeps(1, "x") || !s.FilterKeeps(1, "") {
+		t.Error("hide mode keeps the wrong rows")
+	}
+	b, _ := json.Marshal(wb.Snapshot())
+	var snap WorkbookSnapshot
+	_ = json.Unmarshal(b, &snap)
+	if got := WorkbookFromSnapshot(snap).Sheets[0]; !got.FilterHide[1] {
+		t.Error("hide mode lost in the snapshot")
+	}
+	if err := wb.Apply(Op{Type: OpSetFilter, Sheet: "s1", Col: 1, Values: []string{"x"}}); err != nil || s.FilterHide[1] {
+		t.Error("a keep list did not end hide mode")
+	}
+}

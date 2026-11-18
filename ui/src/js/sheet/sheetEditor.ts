@@ -16,6 +16,7 @@ import { colName, rangeRefA1 } from './a1';
 import { mergeProps } from './styleCss';
 import { createMetaActions } from './sheetMetaActions';
 import { openFilterMenu } from './sheetFilterMenu';
+import { filterKeeps } from './cellFilter';
 import { byteLength, META_PROPS, PROP_COND_FMT, PROP_LINK, PROP_NOTE, PROP_VALID_LIST, condStyle, inList, listValues, parseCondRules } from './cellMeta';
 import { formatValue } from './format';
 import type { Op } from './op';
@@ -208,11 +209,10 @@ export function startSheetEditor(root: HTMLElement): void {
     const sheet = collab?.display.sheetById(activeSheetId);
     if (!sheet || sheet.filters.size === 0) return hidden;
     const height = Math.min(engine.height(), GRID_ROWS);
-    for (const [c, shown] of sheet.filters) {
+    for (const [c, values] of sheet.filters) {
+      const hide = sheet.filterHide.has(c);
       for (let r = sheet.filterRow + 1; r < height; r++) {
-        if (hidden.has(r)) continue;
-        const v = displayValue(r, c);
-        if (v !== '' && !shown.includes(v)) hidden.add(r);
+        if (!hidden.has(r) && !filterKeeps(values, hide, displayValue(r, c))) hidden.add(r);
       }
     }
     return hidden;
@@ -513,30 +513,38 @@ export function startSheetEditor(root: HTMLElement): void {
         const col = selection.focus.col;
         const sheet = collab?.display.sheetById(activeSheetId);
         const header = sheetFilterHeader(col);
+        const values = distinctValues(col, engine.height(), (r, c) => (r <= header ? '' : displayValue(r, c)));
+        const listed = sheet?.filters.get(col);
+        const hide = sheet?.filterHide.has(col) ?? false;
         openFilterMenu(anchor, {
           title: `Filter column ${colName(col)}`,
-          values: distinctValues(col, engine.height(), (r, c) => (r <= header ? '' : displayValue(r, c))),
-          shown: sheet?.filters.get(col) ?? null,
+          values,
+          shown: listed === undefined ? null : hide ? values.filter((v) => filterKeeps(listed, true, v)) : listed,
+          onClose: () => view?.setSelection(selection),
           anyFilter: (sheet?.filters.size ?? 0) > 0,
           onClearAll: () => {
             if (readOnly || !collab) return;
             collab.applyLocal({ type: 'setFilter', sheet: activeSheetId, baseRev: collab.rev, row: 0, col: 0, clear: true });
           },
-          onApply: (values) => {
+          onApply: (kept, dropped) => {
             if (readOnly || !collab) return;
-            if (values !== null) {
-              if (values.length > MAX_FILTER_VALUES) {
-                flash(`A filter can keep at most ${MAX_FILTER_VALUES} values; uncheck the ones to hide instead of picking many.`);
+            // Send the shorter list: the kept values, or the hidden ones when
+            // only a few of many are unchecked.
+            const exclude = kept !== null && dropped.length < kept.length;
+            const list = kept === null ? null : exclude ? dropped : kept;
+            if (list !== null) {
+              if (list.length > MAX_FILTER_VALUES) {
+                flash(`A filter can list at most ${MAX_FILTER_VALUES} values.`);
                 return;
               }
-              if (values.some((v) => byteLength(v) > MAX_FILTER_VALUE)) {
-                flash('A checked value is too long to filter by.');
+              if (list.some((v) => byteLength(v) > MAX_FILTER_VALUE)) {
+                flash('A value is too long to filter by.');
                 return;
               }
             }
             collab.applyLocal({
               type: 'setFilter', sheet: activeSheetId, baseRev: collab.rev, row: header, col,
-              values: values ?? undefined,
+              values: list ?? undefined, ...(exclude ? { exclude: true } : {}),
             });
           },
         });

@@ -2,7 +2,11 @@ package sheet
 
 import (
 	"maps"
+	"math"
+	"regexp"
 	"slices"
+	"strconv"
+	"strings"
 )
 
 // Span is the extent of a merged-cell range, keyed by its top-left anchor.
@@ -30,6 +34,9 @@ type Sheet struct {
 	// FilterRow (the header) always show.
 	Filters   map[int][]string `json:"-"`
 	FilterRow int              `json:"-"`
+	// FilterHide marks the columns whose Filters list the hidden values
+	// instead of the shown ones.
+	FilterHide map[int]bool `json:"-"`
 }
 
 func NewSheet(id, name string) *Sheet {
@@ -55,7 +62,7 @@ func (s *Sheet) clone() *Sheet {
 		Id: s.Id, Name: s.Name, Cells: make(map[CellRef]Cell, len(s.Cells)),
 		ColWidths: maps.Clone(s.ColWidths), RowHeights: maps.Clone(s.RowHeights),
 		FrozenRows: s.FrozenRows, FrozenCols: s.FrozenCols,
-		Merges: maps.Clone(s.Merges), FilterRow: s.FilterRow,
+		Merges: maps.Clone(s.Merges), FilterRow: s.FilterRow, FilterHide: maps.Clone(s.FilterHide),
 	}
 	if s.Filters != nil {
 		cp.Filters = make(map[int][]string, len(s.Filters))
@@ -189,11 +196,11 @@ func (w *Workbook) Clone() *Workbook {
 
 // shiftFilters moves column filters after a column insert (delta > 0) or the
 // delete of -delta columns at index; filters of deleted columns go.
-func shiftFilters(m map[int][]string, index, delta int) map[int][]string {
+func shiftFilters[V any](m map[int]V, index, delta int) map[int]V {
 	if len(m) == 0 {
 		return m
 	}
-	next := make(map[int][]string, len(m))
+	next := make(map[int]V, len(m))
 	for c, v := range m {
 		if delta < 0 && c >= index && c < index-delta {
 			continue
@@ -201,4 +208,36 @@ func shiftFilters(m map[int][]string, index, delta int) map[int][]string {
 		next[shiftCoord(c, index, delta)] = v
 	}
 	return next
+}
+
+// FilterKey is how filter values compare, in the server and the browser
+// (cellFilter.ts): without case and surrounding space, and numbers by value,
+// so Excel's "1,234.5" in an imported filter matches a cell showing 1234.5.
+func FilterKey(v string) string {
+	t := strings.ToLower(strings.TrimSpace(v))
+	n := t
+	if thousandsRe.MatchString(n) {
+		n = strings.ReplaceAll(n, ",", "")
+	}
+	if f, err := strconv.ParseFloat(n, 64); err == nil && !math.IsInf(f, 0) && !math.IsNaN(f) && numberRe.MatchString(n) {
+		return "#" + strconv.FormatFloat(f, 'g', -1, 64)
+	}
+	return t
+}
+
+var (
+	thousandsRe = regexp.MustCompile(`^-?\d{1,3}(,\d{3})+(\.\d+)?$`)
+	numberRe    = regexp.MustCompile(`^-?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?$`)
+)
+
+// FilterKeeps reports whether a column filter keeps a row with this value.
+// Empty cells never hide a row.
+func (s *Sheet) FilterKeeps(col int, value string) bool {
+	values, ok := s.Filters[col]
+	if !ok || strings.TrimSpace(value) == "" {
+		return true
+	}
+	k := FilterKey(value)
+	listed := slices.ContainsFunc(values, func(v string) bool { return FilterKey(v) == k })
+	return listed != s.FilterHide[col]
 }

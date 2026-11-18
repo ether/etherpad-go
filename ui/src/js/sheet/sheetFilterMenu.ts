@@ -7,9 +7,12 @@ export interface FilterMenuOptions {
   // Values kept now; null: the column is not filtered.
   shown: string[] | null;
   anyFilter: boolean;
-  // null removes the column's filter (everything checked).
-  onApply: (values: string[] | null) => void;
+  // kept: the checked values, null when all are (no filter); dropped: the
+  // unchecked ones.
+  onApply: (kept: string[] | null, dropped: string[]) => void;
   onClearAll: () => void;
+  // Called whenever the menu closes, to give the keyboard back to the grid.
+  onClose?: () => void;
 }
 
 const CSS = `
@@ -133,6 +136,7 @@ export function openFilterMenu(anchor: HTMLElement, o: FilterMenuOptions): void 
     document.removeEventListener('mousedown', outside, true);
     document.removeEventListener('keydown', onKey, true);
     current = null;
+    o.onClose?.();
   };
   const outside = (e: MouseEvent): void => {
     if (!menu.contains(e.target as Node) && e.target !== anchor) close();
@@ -140,16 +144,18 @@ export function openFilterMenu(anchor: HTMLElement, o: FilterMenuOptions): void 
   const apply = (): void => {
     const checked = boxes.filter((b) => b.box.checked).map((b) => b.value);
     if (checked.length === 0) return; // like Excel: pick at least one value
+    const dropped = boxes.filter((b) => !b.box.checked).map((b) => b.value);
     close();
     // All of the column's values checked: no filter. (A search narrows only
     // what is shown in the list, not what OK keeps.)
-    o.onApply(checked.length === boxes.length ? null : checked);
+    o.onApply(checked.length === boxes.length ? null : checked, dropped);
   };
   const onKey = (e: KeyboardEvent): void => {
     if (!menu.contains(e.target as Node)) return;
     e.stopPropagation();
     if (e.key === 'Escape') close();
-    else if (e.key === 'Enter') {
+    // Enter on a button presses that button (Cancel, the clear links).
+    else if (e.key === 'Enter' && !(e.target instanceof HTMLButtonElement)) {
       e.preventDefault();
       apply();
     }
@@ -160,7 +166,7 @@ export function openFilterMenu(anchor: HTMLElement, o: FilterMenuOptions): void 
   ok.addEventListener('click', apply);
   clearCol.addEventListener('click', () => {
     close();
-    o.onApply(null);
+    o.onApply(null, []);
   });
   clearAll.addEventListener('click', () => {
     close();
