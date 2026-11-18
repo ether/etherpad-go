@@ -131,6 +131,10 @@ func (h *Hub) NumClients() int {
 // the pad clients reconnect at once. Behind a load balancer they reconnect
 // to another instance; changes this instance had not acknowledged are sent
 // again from there, acknowledged ones are already stored.
+// closeSettleTimeout bounds how long CloseAll waits for connections to
+// finish the message they are handling.
+const closeSettleTimeout = 5 * time.Second
+
 func (h *Hub) CloseAll() int {
 	h.ClientsRWMutex.RLock()
 	clients := make([]*Client, 0, len(h.Clients))
@@ -140,6 +144,22 @@ func (h *Hub) CloseAll() int {
 		}
 	}
 	h.ClientsRWMutex.RUnlock()
+	// First let every connection finish the change it is handling and send
+	// its acknowledgement. Closing first would let the client reconnect to
+	// another instance before the change is stored there, find it missing
+	// and send it again: stored twice.
+	settle := time.Now().Add(closeSettleTimeout)
+	var wg sync.WaitGroup
+	for _, c := range clients {
+		wg.Add(1)
+		go func(c *Client) {
+			defer wg.Done()
+			c.stopHandling(settle)
+		}(c)
+	}
+	wg.Wait()
+	// The last reply popped from Send may still be on its way out.
+	time.Sleep(20 * time.Millisecond)
 	deadline := time.Now().Add(time.Second)
 	for _, c := range clients {
 		_ = c.Conn.WriteControl(websocket.CloseMessage,
