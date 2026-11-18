@@ -122,7 +122,8 @@ test.describe('Sheet version history', () => {
     await other.close();
 
     // A form or fetch on another site carries the cookies, but is refused.
-    for (const headers of [{ 'Sec-Fetch-Site': 'cross-site' }, { Origin: 'https://evil.example' }]) {
+    const foreign: Array<Record<string, string>> = [{ 'Sec-Fetch-Site': 'cross-site' }, { Origin: 'https://evil.example' }];
+    for (const headers of foreign) {
       expect((await page.request.post(`/s/${pad}/history/0/restore`, { headers })).status()).toBe(403);
       expect((await page.request.post(`/s/${pad}/import`, { headers })).status()).toBe(403);
     }
