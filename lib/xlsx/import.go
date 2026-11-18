@@ -128,6 +128,7 @@ func Import(r io.Reader) (sheet.WorkbookSnapshot, error) {
 		}
 
 		importCellMeta(f, wb, sh, name, budget, sx.condFormats)
+		importFilter(sh, sx.autoFilter)
 
 		if panes, err := f.GetPanes(name); err == nil && panes.Freeze {
 			sh.FrozenRows = min(max(panes.YSplit, 0), sheet.MaxFrozenRows)

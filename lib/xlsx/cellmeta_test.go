@@ -183,3 +183,37 @@ func TestImportStyledEmptyCellFarAway(t *testing.T) {
 		t.Errorf("row 700 height lost: %v", sh.RowHeights)
 	}
 }
+
+func TestFilterRoundTrip(t *testing.T) {
+	wb := sheet.NewWorkbook()
+	s := wb.AddSheet("s1", "Daten")
+	rows := []string{"Status", "offen", "bezahlt", "storniert", "offen", `a"&<b`}
+	for r, v := range rows {
+		s.SetCell(sheet.CellRef{Row: r + 1, Col: 1}, sheet.Cell{Raw: v})
+	}
+	s.SetCell(sheet.CellRef{Row: 3, Col: 2}, sheet.Cell{Raw: "=1+1"})
+	s.Filters = map[int][]string{1: {"offen", `a"&<b`}}
+	s.FilterRow = 1
+
+	data, err := Export(wb)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f, err := excelize.OpenReader(bytes.NewReader(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for row, want := range map[int]bool{3: true, 4: false, 5: false, 6: true, 7: true} {
+		if vis, _ := f.GetRowVisible("Daten", row); vis != want {
+			t.Errorf("row %d visible = %v, want %v", row, vis, want)
+		}
+	}
+	snap, err := Import(bytes.NewReader(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := sheet.WorkbookFromSnapshot(snap).Sheets[0]
+	if got.FilterRow != 1 || !reflect.DeepEqual(got.Filters, s.Filters) {
+		t.Fatalf("filters = %v row %d", got.Filters, got.FilterRow)
+	}
+}

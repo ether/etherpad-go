@@ -14,14 +14,9 @@ export interface ToolbarCallbacks {
   toggleFreeze?: (kind: 'row' | 'col' | 'panes') => void;
   frozenState?: () => { rows: number; cols: number };
   // Filter on the focus column: values() fills the dropdown lazily, apply(null) clears.
-  filterValues?: () => string[];
-  // The value the focus column is filtered to (null: not filtered) and
-  // whether the sheet has filters at all.
-  filterState?: () => { value: string | null; any: boolean };
-  // A value shows only its rows, null removes the column's filter;
-  // clearFilters removes all filters of the sheet. Filters apply to everyone.
-  applyFilter?: (value: string | null) => void;
-  clearFilters?: () => void;
+  // Opens the filter list of the focused column under `anchor`. Filters are
+  // part of the sheet: they apply to everyone.
+  openFilter?: (anchor: HTMLElement) => void;
   // Ribbon: row/col structure relative to the selection.
   structural?: (action: 'insRowAbove' | 'insRowBelow' | 'insColLeft' | 'insColRight' | 'delRows' | 'delCols') => void;
   // Ribbon: workbook import/export (server round-trip).
@@ -558,40 +553,9 @@ export function createToolbar(cb: ToolbarCallbacks): ToolbarElement {
   btn(sortRow, { text: 'A→Z' }, 'Sort selection ascending by the focused column', () => cb.sortSelection?.(true));
   btn(sortRow, { text: 'Z→A' }, 'Sort selection descending by the focused column', () => cb.sortSelection?.(false));
   const filterRow = row(sf);
-  const filter = document.createElement('select');
-  filter.title = 'Filter rows by the focused column';
-  const fill = () => {
-    filter.innerHTML = '';
-    const state = cb.filterState?.() ?? { value: null, any: false };
-    const all = document.createElement('option');
-    all.value = '';
-    all.textContent = '▼ Filter: (all)';
-    filter.appendChild(all);
-    if (state.any) {
-      const clear = document.createElement('option');
-      clear.value = '*';
-      clear.textContent = '✕ Clear all filters';
-      filter.appendChild(clear);
-    }
-    const values = cb.filterValues?.() ?? [];
-    if (state.value !== null && !values.includes(state.value)) values.unshift(state.value);
-    for (const v of values) {
-      const o = document.createElement('option');
-      o.value = `=${v}`;
-      o.textContent = v;
-      filter.appendChild(o);
-    }
-    filter.value = state.value === null ? '' : `=${state.value}`;
-  };
-  fill();
-  filter.addEventListener('mousedown', fill); // repopulate lazily on open
-  filter.addEventListener('focus', fill); // and for keyboard users
-  filter.addEventListener('change', () => {
-    const v = filter.value;
-    if (v === '*') cb.clearFilters?.();
-    else cb.applyFilter?.(v === '' ? null : v.slice(1));
-  });
-  filterRow.appendChild(filter);
+  // The list of values with checkboxes is the editor's (sheetFilterMenu.ts).
+  const filter = btn(filterRow, { text: '▼ Filter' }, 'Filter rows by the values of the focused column', () => cb.openFilter?.(filter));
+  filter.classList.add('sheet-filter-btn');
 
   // --- View: Freeze panes ---
   const freeze = group('View', 'Freeze panes');

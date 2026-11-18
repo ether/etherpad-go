@@ -12,9 +12,10 @@ import { sortRangeOps, distinctValues } from './sheetSortFilter';
 import { createFormulaBar, type FormulaBarHandle } from './sheetFormulaBar';
 import { createFindDialog } from './sheetFindDialog';
 import { findAll, findNext, matches, replaceAll, replaceInRaw } from './findReplace';
-import { rangeRefA1 } from './a1';
+import { colName, rangeRefA1 } from './a1';
 import { mergeProps } from './styleCss';
 import { createMetaActions } from './sheetMetaActions';
+import { openFilterMenu } from './sheetFilterMenu';
 import { byteLength, META_PROPS, PROP_COND_FMT, PROP_LINK, PROP_NOTE, PROP_VALID_LIST, condStyle, inList, listValues, parseCondRules } from './cellMeta';
 import { formatValue } from './format';
 import type { Op } from './op';
@@ -81,6 +82,7 @@ export function startSheetEditor(root: HTMLElement): void {
   // Selections larger than this are cut down to the used part of the sheet.
   const MAX_SEL_CELLS = 20000;
   const MAX_FILTER_VALUE = 1024; // lib/sheet/op.go, UTF-8 bytes
+  const MAX_FILTER_VALUES = 1000;
   const MAX_FROZEN_COLS = 26;
   // Client-local filter state (per active sheet, reset on switch — not collaborative).
   // Rows hidden by the sheet's filters (shared: they are part of the sheet).
@@ -507,31 +509,36 @@ export function startSheetEditor(root: HTMLElement): void {
         const s = collab?.display.sheetById(activeSheetId);
         return { rows: s?.frozenRows ?? 0, cols: s?.frozenCols ?? 0 };
       },
-      filterValues: () => {
+      openFilter: (anchor) => {
         const col = selection.focus.col;
-        const header = sheetFilterHeader(col);
-        return distinctValues(col, engine.height(), (r, c) => (r <= header ? '' : displayValue(r, c)));
-      },
-      filterState: () => {
         const sheet = collab?.display.sheetById(activeSheetId);
-        const values = sheet?.filters.get(selection.focus.col);
-        return { value: values?.[0] ?? null, any: (sheet?.filters.size ?? 0) > 0 };
-      },
-      clearFilters: () => {
-        if (readOnly || !collab) return;
-        collab.applyLocal({ type: 'setFilter', sheet: activeSheetId, baseRev: collab.rev, row: 0, col: 0, clear: true });
-      },
-      applyFilter: (value) => {
-        if (readOnly || !collab) return;
-        const col = selection.focus.col;
-        if (value !== null && byteLength(value) > MAX_FILTER_VALUE) {
-          flash('This value is too long to filter by.');
-          return;
-        }
         const header = sheetFilterHeader(col);
-        collab.applyLocal({
-          type: 'setFilter', sheet: activeSheetId, baseRev: collab.rev, row: header, col,
-          values: value === null ? undefined : [value],
+        openFilterMenu(anchor, {
+          title: `Filter column ${colName(col)}`,
+          values: distinctValues(col, engine.height(), (r, c) => (r <= header ? '' : displayValue(r, c))),
+          shown: sheet?.filters.get(col) ?? null,
+          anyFilter: (sheet?.filters.size ?? 0) > 0,
+          onClearAll: () => {
+            if (readOnly || !collab) return;
+            collab.applyLocal({ type: 'setFilter', sheet: activeSheetId, baseRev: collab.rev, row: 0, col: 0, clear: true });
+          },
+          onApply: (values) => {
+            if (readOnly || !collab) return;
+            if (values !== null) {
+              if (values.length > MAX_FILTER_VALUES) {
+                flash(`A filter can keep at most ${MAX_FILTER_VALUES} values; uncheck the ones to hide instead of picking many.`);
+                return;
+              }
+              if (values.some((v) => byteLength(v) > MAX_FILTER_VALUE)) {
+                flash('A checked value is too long to filter by.');
+                return;
+              }
+            }
+            collab.applyLocal({
+              type: 'setFilter', sheet: activeSheetId, baseRev: collab.rev, row: header, col,
+              values: values ?? undefined,
+            });
+          },
         });
       },
       // Explicit param types: until the ToolbarCallbacks interface gains these

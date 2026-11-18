@@ -41,7 +41,22 @@ type styledCell struct {
 	style int
 }
 
+// xmlAutoFilter is a worksheet's <autoFilter>; only value lists
+// (<filters>) are read.
+type xmlAutoFilter struct {
+	Ref     string `xml:"ref,attr"`
+	Columns []struct {
+		ColID   int `xml:"colId,attr"`
+		Filters *struct {
+			Values []struct {
+				Val string `xml:"val,attr"`
+			} `xml:"filter"`
+		} `xml:"filters"`
+	} `xml:"filterColumn"`
+}
+
 type sheetXML struct {
+	autoFilter  *xmlAutoFilter
 	condFormats []sheetCondFormat
 	styled      []styledCell
 	tallRows    []int // zero-based rows with their own height
@@ -97,6 +112,11 @@ func parseSheetXML(data []byte) *sheetXML {
 				continue
 			}
 			out.styled = append(out.styled, styledCell{ref: [2]int{r - 1, c - 1}, style: style})
+		case "autoFilter":
+			var af xmlAutoFilter
+			if out.autoFilter == nil && dec.DecodeElement(&af, &se) == nil {
+				out.autoFilter = &af
+			}
 		case "conditionalFormatting":
 			var cf sheetCondFormat
 			if dec.DecodeElement(&cf, &se) == nil {
@@ -106,14 +126,10 @@ func parseSheetXML(data []byte) *sheetXML {
 	}
 }
 
-// sheetXMLByName reads every worksheet, by sheet name; nil when the file
-// cannot be read this way.
-func sheetXMLByName(data []byte) map[string]*sheetXML {
-	zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
-	if err != nil {
-		return nil
-	}
-	read := func(name string) []byte {
+// zipRead returns a reader of one part of an xlsx, nil when it is missing
+// or larger than maxSheetXML.
+func zipRead(zr *zip.Reader) func(name string) []byte {
+	return func(name string) []byte {
 		for _, zf := range zr.File {
 			if zf.Name != name {
 				continue
@@ -131,7 +147,10 @@ func sheetXMLByName(data []byte) map[string]*sheetXML {
 		}
 		return nil
 	}
+}
 
+// sheetPaths maps sheet names to their worksheet part (xl/worksheets/...).
+func sheetPaths(read func(string) []byte) map[string]string {
 	var wbx struct {
 		Sheets []struct {
 			Name string `xml:"name,attr"`
@@ -160,10 +179,27 @@ func sheetXMLByName(data []byte) map[string]*sheetXML {
 		}
 		targets[r.ID] = t
 	}
-	out := map[string]*sheetXML{}
+	out := map[string]string{}
 	for _, sh := range wbx.Sheets {
-		if data := read(targets[sh.RID]); data != nil {
-			out[sh.Name] = parseSheetXML(data)
+		if t := targets[sh.RID]; t != "" {
+			out[sh.Name] = t
+		}
+	}
+	return out
+}
+
+// sheetXMLByName reads every worksheet, by sheet name; nil when the file
+// cannot be read this way.
+func sheetXMLByName(data []byte) map[string]*sheetXML {
+	zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		return nil
+	}
+	read := zipRead(zr)
+	out := map[string]*sheetXML{}
+	for name, p := range sheetPaths(read) {
+		if data := read(p); data != nil {
+			out[name] = parseSheetXML(data)
 		}
 	}
 	return out
