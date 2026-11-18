@@ -117,6 +117,15 @@ test.describe('Sheet version history', () => {
 
 test.describe('Sheet printing', () => {
   test('prints the sheet, the selection or the workbook', async ({ page }) => {
+    // The real print dialog is modal (Firefox blocks the page under it):
+    // count the calls instead. Init scripts also run in the print frame.
+    await page.addInitScript(() => {
+      window.print = () => {
+        const top = window.top as unknown as { printed?: number };
+        top.printed = (top.printed ?? 0) + 1;
+      };
+    });
+    const printed = () => page.evaluate(() => (window as unknown as { printed?: number }).printed ?? 0);
     const pad = `print-${Date.now()}`;
     await openSheet(page, pad);
     await typeInto(page, 0, 0, 'Item');
@@ -136,6 +145,7 @@ test.describe('Sheet printing', () => {
     await expect(page.locator('#sheet-dlg-scope')).toHaveValue('sheet');
     await page.locator('.sheet-dialog button.primary').click();
     await expect.poll(frameDoc).toContain('Price');
+    await expect.poll(printed).toBe(1);
     let doc = await frameDoc();
     expect(doc).toContain('&lt;b&gt;Tea&lt;/b&gt;');
     expect(doc).toMatch(/<td style="text-align:right">6<\/td>/);
@@ -153,6 +163,7 @@ test.describe('Sheet printing', () => {
     await page.locator('#sheet-dlg-grid').selectOption('no');
     await page.locator('.sheet-dialog button.primary').click();
     await expect.poll(frameDoc).not.toContain('Price');
+    await expect.poll(printed).toBe(2);
     doc = await frameDoc();
     expect(doc).toContain('<div class="sheet-render sheet-render-nogrid"');
     await expect(page.locator('iframe.sheet-print-frame')).toHaveCount(1);
@@ -164,6 +175,7 @@ test.describe('Sheet printing', () => {
     await page.locator('#sheet-dlg-scope').selectOption('workbook');
     await page.locator('.sheet-dialog button.primary').click();
     await expect.poll(frameDoc).toContain('second');
+    await expect.poll(printed).toBe(3);
     doc = await frameDoc();
     expect(doc.match(/class="sheet-render-caption"/g)).toHaveLength(2);
     expect(doc).toContain('Price');
