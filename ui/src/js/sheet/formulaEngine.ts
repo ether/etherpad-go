@@ -32,6 +32,9 @@ export class FormulaEngine {
   // sheet, so an unchanged sheet is not loaded again.
   private names: string[] = ['Sheet1'];
   private loaded = new Map<string, string>();
+  // version changes whenever computed values may have: charts compare it
+  // instead of reading their cells again.
+  version = 0;
 
   constructor() {
     registerExcelFunctions();
@@ -60,6 +63,7 @@ export class FormulaEngine {
         }
       }
       this.names = names;
+      this.version++;
     }
     const ids = this.hf.getSheetNames().map((n) => this.hf.getSheetId(n) as number);
     this.hf.batch(() => {
@@ -71,10 +75,13 @@ export class FormulaEngine {
         if (this.loaded.get(slot) === sig) return;
         this.loaded.set(slot, sig);
         this.hf.setSheetContent(ids[i], grid);
+        this.version++;
       });
     });
     const i = names.indexOf(active);
-    this.sheetId = ids[i >= 0 ? i : 0];
+    const next = ids[i >= 0 ? i : 0];
+    if (next !== this.sheetId) this.version++;
+    this.sheetId = next;
   }
 
   private mapType(row: number, col: number): CellResult['type'] {
@@ -110,6 +117,7 @@ export class FormulaEngine {
   setGrid(cells: Array<{ row: number; col: number; raw: string }>): void {
     this.hf.setSheetContent(this.sheetId, toGrid(cells));
     this.loaded.clear();
+    this.version++;
   }
 
   // setCell sets the raw content and returns its computed result plus the list

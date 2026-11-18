@@ -20,6 +20,7 @@ import (
 func TestSheetReconnect(t *testing.T) {
 	testDb := testutils.NewTestDBHandler(t)
 	testDb.AddTests(testutils.TestRunConfig{Name: "sheet reconnect", Test: testSheetReconnect})
+	testDb.AddTests(testutils.TestRunConfig{Name: "sheet old client reloads", Test: testSheetOldClientReloads})
 	testDb.StartTestDBHandler()
 }
 
@@ -57,6 +58,8 @@ func reconnectFrames(client *libws.Client) []reconnectFrame {
 			out = append(out, reconnectFrame{Type: msg.Type})
 		case msg.Data.Type == "NEW_SHEET_OP":
 			out = append(out, reconnectFrame{Type: msg.Data.Type, Rev: msg.Data.NewRev, Cid: msg.Data.Op.Cid})
+		case msg.Data.Type == "SHEET_RELOAD":
+			out = append(out, reconnectFrame{Type: msg.Data.Type})
 		case msg.Data.Type == "ACCEPT_SHEET_OP" || msg.Data.Type == "SHEET_CAUGHT_UP":
 			out = append(out, reconnectFrame{Type: msg.Data.Type, Rev: msg.Data.NewRev, Head: msg.Data.Head, Cid: msg.Data.Cid})
 		}
@@ -145,4 +148,50 @@ func testSheetReconnect(t *testing.T, ds testutils.TestDataStore) {
 	_, frames = join("rc4", &rev9)
 	require.NotEmpty(t, frames)
 	assert.Equal(t, "SHEET_VARS", frames[0].Type)
+}
+
+// A browser loaded before charts does not know the ops; it gets a reload
+// (and with it the new code) instead of an op it would fail on.
+func testSheetOldClientReloads(t *testing.T, ds testutils.TestDataStore) {
+	h := ds.PadMessageHandler
+	const padID = "oldClientSheet"
+	join := func(sessionID string, version int) *libws.Client {
+		client := createTestClient(ds.Hub, sessionID, padID, libws.NewActualMockWebSocketconn())
+		client.Send = make(chan []byte, 1024)
+		t.Cleanup(func() { removeClient(ds.Hub, client) })
+		h.SessionStore.InitSessionForTest(sessionID)
+		data := ws.ClientReadyData{Component: "sheet", Type: "CLIENT_READY", PadID: padID, Token: "t." + sessionID, SheetOps: version}
+		h.HandleMessage(ws.ClientReady{Event: "message", Data: data}, client, ds.Settings, ds.Logger)
+		reconnectFrames(client) // SHEET_VARS
+		return client
+	}
+	author, current, old := join("new1", 2), join("new2", 2), join("old1", 0)
+	frames := func(c *libws.Client) []reconnectFrame {
+		var got []reconnectFrame
+		for _, f := range reconnectFrames(c) {
+			if f.Type == "NEW_SHEET_OP" || f.Type == "SHEET_RELOAD" || f.Type == "ACCEPT_SHEET_OP" {
+				got = append(got, f)
+			}
+		}
+		return got
+	}
+	send := func(op sheet.Op) {
+		b, err := json.Marshal(op)
+		require.NoError(t, err)
+		var m ws.SheetOpIncoming
+		m.Event, m.Data.Component, m.Data.Type = "message", "sheet", "COLLABROOM"
+		m.Data.Data.Type, m.Data.Data.Op = "SHEET_OP", b
+		h.EnqueueSheetOp(author, m)
+	}
+	// An op every version knows reaches the old client too.
+	send(sheet.Op{Type: sheet.OpInsertRows, Sheet: sheetdoc.DefaultSheetID, Count: 1, Cid: "c:1"})
+	require.Eventually(t, func() bool { return len(frames(author)) == 1 }, 5*time.Second, 10*time.Millisecond)
+	assert.Equal(t, []reconnectFrame{{Type: "NEW_SHEET_OP", Rev: 1, Cid: "c:1"}}, frames(old))
+	frames(current)
+
+	send(sheet.Op{Type: sheet.OpSetChart, Sheet: sheetdoc.DefaultSheetID, BaseRev: 1, Cid: "c:2",
+		Chart: &sheet.Chart{Id: "ch1", Type: "pie", Range: "A1:B3", Width: 300, Height: 200}})
+	require.Eventually(t, func() bool { return len(frames(author)) == 1 }, 5*time.Second, 10*time.Millisecond)
+	assert.Equal(t, []reconnectFrame{{Type: "NEW_SHEET_OP", Rev: 2, Cid: "c:2"}}, frames(current))
+	assert.Equal(t, []reconnectFrame{{Type: "SHEET_RELOAD"}}, frames(old))
 }

@@ -1,6 +1,7 @@
 package xlsx
 
 import (
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -8,10 +9,11 @@ import (
 	"github.com/xuri/excelize/v2"
 )
 
-// Charts are exported as native Excel charts of the same range. The
+// Charts are exported as native Excel charts of the same range, cut to what
+// the browser shows (MaxChartSeries series, MaxChartPoints points). The
 // browser decides categories and series names from the shown values; the
-// export judges by the stored text (formulas count as numbers), which is
-// the same for the usual table of a text column and number columns.
+// server does not compute formulas, so it takes a formula for text when it
+// builds text (a string literal, "&" or a text function), else for a number.
 
 var chartTypes = map[string]excelize.ChartType{
 	"column": excelize.Col, "bar": excelize.Bar, "line": excelize.Line, "pie": excelize.Pie,
@@ -36,16 +38,20 @@ func exportCharts(f *excelize.File, s *sheet.Sheet, name string) error {
 
 // excelChart builds the excelize chart; false when the range holds no data.
 func excelChart(s *sheet.Sheet, name string, c sheet.Chart) (*excelize.Chart, bool) {
-	r0, c0, r1, c1, ok := parseA1Range(c.Range)
+	r0, c0, r1, c1, ok := sheet.ParseChartRange(c.Range)
 	if !ok {
 		return nil, false
 	}
 	isText := func(r, col int) bool {
 		cell := s.GetCell(sheet.CellRef{Row: r, Col: col})
-		if strings.TrimSpace(cell.Raw) == "" || cell.Kind() == sheet.KindFormula {
+		raw := strings.TrimSpace(cell.Raw)
+		if raw == "" {
 			return false
 		}
-		_, err := strconv.ParseFloat(strings.TrimSpace(cell.Raw), 64)
+		if cell.Kind() == sheet.KindFormula {
+			return textFormulaRe.MatchString(raw)
+		}
+		_, err := strconv.ParseFloat(raw, 64)
 		return err != nil
 	}
 	empty := func(r, col int) bool { return strings.TrimSpace(s.GetCell(sheet.CellRef{Row: r, Col: col}).Raw) == "" }
@@ -71,6 +77,8 @@ func excelChart(s *sheet.Sheet, name string, c sheet.Chart) (*excelize.Chart, bo
 	if dataRow > r1 || first > c1 {
 		return nil, false
 	}
+	r1 = min(r1, dataRow+sheet.MaxChartPoints-1)
+	c1 = min(c1, first+sheet.MaxChartSeries-1)
 	ref := func(col, a, b int) string {
 		from, _ := excelize.CoordinatesToCellName(col+1, a+1, true)
 		to, _ := excelize.CoordinatesToCellName(col+1, b+1, true)
@@ -104,18 +112,5 @@ func excelChart(s *sheet.Sheet, name string, c sheet.Chart) (*excelize.Chart, bo
 	return ch, true
 }
 
-// parseA1Range reads "A1:C10" (or one cell) into zero-based bounds.
-func parseA1Range(r string) (r0, c0, r1, c1 int, ok bool) {
-	parts := strings.SplitN(strings.ReplaceAll(r, "$", ""), ":", 2)
-	ca, ra, err := excelize.CellNameToCoordinates(parts[0])
-	if err != nil {
-		return 0, 0, 0, 0, false
-	}
-	cb, rb := ca, ra
-	if len(parts) == 2 {
-		if cb, rb, err = excelize.CellNameToCoordinates(parts[1]); err != nil {
-			return 0, 0, 0, 0, false
-		}
-	}
-	return min(ra, rb) - 1, min(ca, cb) - 1, max(ra, rb) - 1, max(ca, cb) - 1, true
-}
+// textFormulaRe: formulas that build text.
+var textFormulaRe = regexp.MustCompile(`(?i)"|&|\b(TEXT|CONCAT|CONCATENATE|TEXTJOIN|LEFT|RIGHT|MID|UPPER|LOWER|PROPER|TRIM|SUBSTITUTE|REPLACE|REPT|CHAR|T)\s*\(`)

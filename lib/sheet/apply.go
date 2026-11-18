@@ -137,7 +137,11 @@ func (w *Workbook) Apply(op Op) error {
 			if len(s.Charts) >= MaxChartsPerSheet {
 				return fmt.Errorf("setChart: at most %d charts per sheet", MaxChartsPerSheet)
 			}
-			s.Charts = append(s.Charts, c)
+			at := len(s.Charts)
+			if op.Order > 0 {
+				at = min(op.Order-1, at)
+			}
+			s.Charts = slices.Insert(s.Charts, at, c)
 		}
 	case OpDeleteChart:
 		if i := s.chartIndex(op.Chart.Id); i >= 0 {

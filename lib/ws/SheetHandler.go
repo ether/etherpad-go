@@ -68,6 +68,29 @@ type sheetState struct {
 	sent map[string]sheetProgress
 }
 
+// SheetOpsVersion is the sheet op version this server's browser code
+// understands; sent in the sheet CLIENT_READY.
+const SheetOpsVersion = 2
+
+// sheetOpVersion is the version a client needs for an op: filters, charts
+// and the fields added with them came in version 2. An older client would
+// throw on them or apply them wrongly.
+func sheetOpVersion(op sheet.Op) int {
+	switch {
+	case op.Type == sheet.OpSetFilter, op.Type == sheet.OpSetChart, op.Type == sheet.OpDeleteChart,
+		op.Noop, op.Exclude, op.KeepStyle:
+		return 2
+	}
+	return 1
+}
+
+func (p *PadMessageHandler) clientSheetOps(sessionId string) int {
+	if v, ok := p.sheetOps.Load(sessionId); ok {
+		return v.(int)
+	}
+	return 1
+}
+
 func (p *PadMessageHandler) sendSheetReload(sockets []Client, except string) {
 	encoded, err := json.Marshal([]any{"message", map[string]any{
 		"type": "COLLABROOM",
@@ -121,14 +144,21 @@ func (p *PadMessageHandler) flushSheet(padId string, except string, sender *Clie
 			p.Logger.Warn("sheet ops unavailable: ", err)
 			return
 		}
+		// A client too old for an op reloads (and gets the new code)
+		// instead of failing on it.
+		reloaded := map[string]bool{}
 		for _, op := range ops {
 			encoded, ok := p.newSheetOpMessage(op.Op, op.Rev, op.Author)
 			if !ok {
 				continue
 			}
+			need := sheetOpVersion(op.Op)
 			for _, socket := range sockets {
 				switch {
-				case socket.SessionId == except:
+				case socket.SessionId == except || reloaded[socket.SessionId]:
+				case need > p.clientSheetOps(socket.SessionId):
+					reloaded[socket.SessionId] = true
+					p.sendSheetReload([]Client{socket}, "")
 				case sender != nil && socket.SessionId == sender.SessionId && op.Rev == acceptRev:
 					p.sendAcceptSheetOp(sender, acceptRev, op.Op.Cid)
 				default:
@@ -315,6 +345,8 @@ func (p *PadMessageHandler) HandleSheetClientReady(ready ws.ClientReady, client 
 	// starts from.
 	p.flushSheet(session.PadId, client.SessionId, nil, 0)
 
+	p.sheetOps.Store(client.SessionId, max(ready.Data.SheetOps, 1))
+
 	clientRev := -1
 	if ready.Data.Reconnect != nil && *ready.Data.Reconnect && ready.Data.ClientRev != nil {
 		clientRev = *ready.Data.ClientRev
@@ -335,6 +367,10 @@ func (p *PadMessageHandler) HandleSheetClientReady(ready ws.ClientReady, client 
 			return
 		}
 		for i, op := range ops {
+			if sheetOpVersion(op) > p.clientSheetOps(client.SessionId) {
+				p.sendSheetReload([]Client{*client}, "")
+				return
+			}
 			p.sendReconnectSheetOp(client, op, clientRev+i+1)
 		}
 		p.sendSheetCaughtUp(client, clientRev+len(ops))

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -285,5 +286,23 @@ func TestChartExport(t *testing.T) {
 		if !strings.Contains(charts[0], want) {
 			t.Errorf("chart XML lacks %q", want)
 		}
+	}
+}
+
+func TestChartExportLimitsAndTextFormulas(t *testing.T) {
+	wb := sheet.NewWorkbook()
+	s := wb.AddSheet("s1", "S")
+	s.SetCell(sheet.CellRef{Row: 0, Col: 1}, sheet.Cell{Raw: `="Umsatz "&2024`})
+	for r := 1; r <= 700; r++ {
+		s.SetCell(sheet.CellRef{Row: r, Col: 0}, sheet.Cell{Raw: `=TEXT(` + strconv.Itoa(r) + `,"0")`})
+		s.SetCell(sheet.CellRef{Row: r, Col: 1}, sheet.Cell{Raw: strconv.Itoa(r)})
+	}
+	ch, ok := excelChart(s, "S", sheet.Chart{Id: "c", Type: "line", Range: "A1:B701", Width: 400, Height: 300})
+	if !ok || len(ch.Series) != 1 {
+		t.Fatalf("chart = %+v", ch)
+	}
+	sr := ch.Series[0]
+	if sr.Name != "S!$B$1" || sr.Categories != "S!$A$2:$A$501" || sr.Values != "S!$B$2:$B$501" {
+		t.Errorf("series = %+v", sr)
 	}
 }

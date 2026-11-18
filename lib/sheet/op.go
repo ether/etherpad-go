@@ -88,8 +88,10 @@ type Op struct {
 	// listing what is kept when one value out of many is unchecked).
 	Exclude bool `json:"exclude,omitempty"`
 
-	// setChart / deleteChart (only Id).
+	// setChart / deleteChart (only Id). Order (1-based) puts a chart that is
+	// not there yet at that drawing position (undo of a delete); 0 appends.
 	Chart *Chart `json:"chart,omitempty"`
+	Order int    `json:"order,omitempty"`
 	Clear bool   `json:"clear,omitempty"`
 
 	// Noop: Transform found nothing left to do (a filter on a column that
@@ -203,6 +205,9 @@ func (o Op) Validate() error {
 		}
 		if err := o.Chart.validate(); err != nil {
 			return err
+		}
+		if o.Order < 0 || o.Order > MaxChartsPerSheet+1 {
+			return fmt.Errorf("setChart: bad order")
 		}
 	case OpDeleteChart:
 		if o.Chart == nil || !validChartId(o.Chart.Id) {

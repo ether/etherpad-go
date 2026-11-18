@@ -58,3 +58,44 @@ func TestChartValidateAndTransform(t *testing.T) {
 		t.Fatalf("transform: row %d range %q (input %q)", got.Row, got.Chart.Range, in.Chart.Range)
 	}
 }
+
+func TestChartReviewFixes(t *testing.T) {
+	base := Chart{Id: "c1", Type: "column", Width: 400, Height: 300}
+	for _, r := range []string{"A0", "A0:B5", "A1:ZZZ9999999", "A1:AZ5"} {
+		c := base
+		c.Range = r
+		if (Op{Type: OpSetChart, Sheet: "s1", Chart: &c}).Validate() == nil {
+			t.Errorf("accepted range %q", r)
+		}
+	}
+	c := base
+	c.Range = "A1:AY10000" // 51 columns: a category column and 50 series
+	if err := (Op{Type: OpSetChart, Sheet: "s1", Chart: &c}).Validate(); err != nil {
+		t.Errorf("refused the largest range: %v", err)
+	}
+
+	// A concurrent edit of a deleted chart does not bring it back.
+	in := Op{Type: OpSetChart, Sheet: "s1", Row: 1, Chart: &c}
+	if got := Transform(in, Op{Type: OpDeleteChart, Sheet: "s1", Chart: &Chart{Id: "c1"}}); !got.Noop {
+		t.Error("edit of a deleted chart not dropped")
+	}
+
+	// Undo of a delete puts the chart back at its drawing position.
+	wb := NewWorkbook()
+	s := wb.AddSheet("s1", "Sheet1")
+	for _, id := range []string{"a", "b", "c"} {
+		ch := base
+		ch.Id, ch.Range = id, "A1:B2"
+		if err := wb.Apply(Op{Type: OpSetChart, Sheet: "s1", Chart: &ch}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	b := s.Charts[1]
+	_ = wb.Apply(Op{Type: OpDeleteChart, Sheet: "s1", Chart: &Chart{Id: "b"}})
+	if err := wb.Apply(Op{Type: OpSetChart, Sheet: "s1", Order: 2, Chart: &b}); err != nil {
+		t.Fatal(err)
+	}
+	if s.Charts[1].Id != "b" {
+		t.Errorf("order = %v", s.Charts)
+	}
+}

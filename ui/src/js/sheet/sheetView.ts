@@ -813,9 +813,15 @@ export class DomSheetView {
       const h = box.offsetHeight;
       let moved = false;
       this.draggingChart = id;
-      const onMove = (ev: MouseEvent): void => {
-        const dx = ev.clientX - startX;
-        const dy = ev.clientY - startY;
+      // Positions are in the scrolled content: a scroll during the drag
+      // moves the chart with the pointer too.
+      const scrollX = this.root.scrollLeft;
+      const scrollY = this.root.scrollTop;
+      let lastX = startX;
+      let lastY = startY;
+      const place = (): void => {
+        const dx = lastX - startX + this.root.scrollLeft - scrollX;
+        const dy = lastY - startY + this.root.scrollTop - scrollY;
         if (!moved && Math.abs(dx) + Math.abs(dy) < 3) return;
         moved = true;
         if (resizing) {
@@ -826,9 +832,17 @@ export class DomSheetView {
           box.style.top = `${Math.max(0, top + dy)}px`;
         }
       };
+      const onMove = (ev: MouseEvent): void => {
+        lastX = ev.clientX;
+        lastY = ev.clientY;
+        place();
+      };
+      const onScroll = (): void => place();
+      this.root.addEventListener('scroll', onScroll);
       const onUp = (): void => {
         document.removeEventListener('mousemove', onMove);
         document.removeEventListener('mouseup', onUp);
+        this.root.removeEventListener('scroll', onScroll);
         this.draggingChart = null;
         if (!moved) return;
         if (resizing) {

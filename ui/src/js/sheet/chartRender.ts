@@ -1,6 +1,6 @@
 // Draws a chart as SVG from the values of its range. Built with DOM calls
 // (textContent), so cell text never becomes markup.
-import type { Chart } from './chart';
+import { MAX_CHART_POINTS, MAX_CHART_SERIES, type Chart } from './chart';
 
 export interface ChartSeries {
   name: string;
@@ -20,7 +20,6 @@ export interface CellValue {
 // Excel's default palette.
 export const CHART_COLORS = ['#4472c4', '#ed7d31', '#a5a5a5', '#ffc000', '#5b9bd5', '#70ad47', '#264478', '#9e480e'];
 
-const MAX_POINTS = 500;
 
 // parseRange reads "A1:C10" into zero-based bounds; null for #REF! and junk.
 export function parseRange(range: string): { r0: number; c0: number; r1: number; c1: number } | null {
@@ -38,22 +37,24 @@ export function parseRange(range: string): { r0: number; c0: number; r1: number;
 export function chartData(range: string, at: (r: number, c: number) => CellValue): ChartData | null {
   const b = parseRange(range);
   if (!b) return null;
-  const r1 = Math.min(b.r1, b.r0 + MAX_POINTS);
   const isText = (v: CellValue): boolean => v.text.trim() !== '' && v.num === null;
   const multiCol = b.c1 > b.c0;
   let catCol = false;
   if (multiCol) {
-    for (let r = b.r0 + 1; r <= r1; r++) if (isText(at(r, b.c0))) catCol = true;
+    for (let r = b.r0 + 1; r <= Math.min(b.r1, b.r0 + MAX_CHART_POINTS); r++) if (isText(at(r, b.c0))) catCol = true;
     if (at(b.r0, b.c0).text.trim() === '') catCol = true; // Excel: empty corner = labels both ways
   }
   const firstSeriesCol = catCol ? b.c0 + 1 : b.c0;
   let header = false;
-  for (let c = firstSeriesCol; c <= b.c1; c++) if (isText(at(b.r0, c))) header = true;
+  for (let c = firstSeriesCol; c <= Math.min(b.c1, firstSeriesCol + MAX_CHART_SERIES - 1); c++) if (isText(at(b.r0, c))) header = true;
   const firstRow = header ? b.r0 + 1 : b.r0;
+  // What a chart shows, also for one stored before these limits.
+  const r1 = Math.min(b.r1, firstRow + MAX_CHART_POINTS - 1);
+  const c1 = Math.min(b.c1, firstSeriesCol + MAX_CHART_SERIES - 1);
   const categories: string[] = [];
   for (let r = firstRow; r <= r1; r++) categories.push(catCol ? at(r, b.c0).text : String(r - firstRow + 1));
   const series: ChartSeries[] = [];
-  for (let c = firstSeriesCol; c <= b.c1; c++) {
+  for (let c = firstSeriesCol; c <= c1; c++) {
     const values: Array<number | null> = [];
     for (let r = firstRow; r <= r1; r++) values.push(at(r, c).num);
     series.push({ name: header ? at(b.r0, c).text : `Series ${series.length + 1}`, values });

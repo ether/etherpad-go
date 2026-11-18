@@ -16,7 +16,8 @@ import { colName, rangeRefA1 } from './a1';
 import { mergeProps } from './styleCss';
 import { createMetaActions } from './sheetMetaActions';
 import { openFilterMenu } from './sheetFilterMenu';
-import { CHART_RANGE, CHART_TYPES, MAX_CHARTS_PER_SHEET, MAX_CHART_TITLE, newChartId, type Chart, type ChartType } from './chart';
+import { SHEET_OPS_VERSION } from './op';
+import { chartRangeError, CHART_TYPES, MAX_CHARTS_PER_SHEET, MAX_CHART_TITLE, newChartId, type Chart, type ChartType } from './chart';
 import { chartData, renderChart } from './chartRender';
 import { openDialog } from './sheetDialog';
 import { filterKeeps } from './cellFilter';
@@ -380,7 +381,10 @@ export function startSheetEditor(root: HTMLElement): void {
       extra: current ? { label: 'Delete Chart', run: () => deleteChart(current.id) } : undefined,
       onOk: (v) => {
         const range = (v.range ?? '').trim().toUpperCase().replace(/\$/g, '');
-        if (!CHART_RANGE.test(range)) return 'Enter the data as a range like A1:C10.';
+        // A chart whose cells were deleted keeps #REF! when only its type or
+        // title changes.
+        const rangeErr = current && range === '#REF!' && current.range === '#REF!' ? null : chartRangeError(range);
+        if (rangeErr) return rangeErr;
         const title = (v.title ?? '').trim();
         if (byteLength(title) > MAX_CHART_TITLE) return 'The title is too long.';
         sendChart({
@@ -907,16 +911,18 @@ export function startSheetEditor(root: HTMLElement): void {
       rowHidden: (r) => hiddenRows.has(r),
       colFiltered: (c) => collab?.display.sheetById(activeSheetId)?.filters.has(c) ?? false,
       charts: () => collab?.display.sheetById(activeSheetId)?.charts ?? [],
-      chartContent: (chart) => {
-        const data = chartData(chart.range, (r, c) => {
-          const v = engine.getValue(r, c);
-          return { text: displayValue(r, c), num: v.type === 'number' && v.value !== '' ? Number(v.value) : null };
-        });
-        return {
-          key: JSON.stringify([chart.type, chart.title, chart.range, chart.width, chart.height, data]),
-          draw: () => renderChart(chart, data, chart.width, chart.height),
-        };
-      },
+      chartContent: (chart) => ({
+        // Values change only with the engine, formats with the sheet: an
+        // unchanged key skips reading the range.
+        key: `${engine.version}|${collab?.display.sheetById(activeSheetId)?.stamp}|${JSON.stringify(chart)}`,
+        draw: () => {
+          const data = chartData(chart.range, (r, c) => {
+            const v = engine.getValue(r, c);
+            return { text: displayValue(r, c), num: v.type === 'number' && v.value !== '' ? Number(v.value) : null };
+          });
+          return renderChart(chart, data, chart.width, chart.height);
+        },
+      }),
       onChartMove: (id, row, col) => updateChart(id, (c) => ({ ...c, row, col })),
       onChartResize: (id, width, height) => updateChart(id, (c) => ({ ...c, width, height })),
       onChartEdit: (id) => editChart(id),
@@ -1174,6 +1180,7 @@ export function startSheetEditor(root: HTMLElement): void {
       component: 'sheet',
       type: 'CLIENT_READY',
       padId,
+      sheetOps: SHEET_OPS_VERSION,
       token,
       userInfo: { colorId: null, name: null },
     });
@@ -1198,6 +1205,7 @@ export function startSheetEditor(root: HTMLElement): void {
       component: 'sheet',
       type: 'CLIENT_READY',
       padId,
+      sheetOps: SHEET_OPS_VERSION,
       token: legacyToken != null && padutils.isValidAuthorToken(legacyToken) ? legacyToken : '',
       userInfo: { colorId: null, name: null },
       reconnect: true,
@@ -1250,7 +1258,15 @@ export function startSheetEditor(root: HTMLElement): void {
         renderConn();
       }
       else if (d.type === 'NEW_SHEET_OP') {
-        collab?.onRemote(d.op as Op, d.newRev);
+        try {
+          collab?.onRemote(d.op as Op, d.newRev);
+        } catch (err) {
+          // An op this code does not know (a newer server): start over with
+          // the server's code and state.
+          console.error('sheet op failed, reloading', err);
+          location.reload();
+          return;
+        }
         if (d.author) presence?.clearLiveEdit(d.author);
       } else if (d.type === 'SHEET_PRESENCE') presence?.applyPresence(d as PresenceFrame);
       else if (d.type === 'USER_LEAVE') presence?.drop(d.userInfo?.userId);

@@ -6,6 +6,12 @@ package sheet
 // sheet and axis move coordinates; everything else is returned unchanged.
 func Transform(in, applied Op) Op {
 	in = rebaseFormula(in, applied)
+	// Editing a chart someone deleted meanwhile must not bring it back.
+	if in.Type == OpSetChart && applied.Type == OpDeleteChart && in.Sheet == applied.Sheet &&
+		in.Chart != nil && applied.Chart != nil && in.Chart.Id == applied.Chart.Id {
+		in.Noop = true
+		return in
+	}
 	if in.Sheet != applied.Sheet || !applied.isStructural() {
 		return in
 	}

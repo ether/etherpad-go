@@ -1,4 +1,4 @@
-import { moveChartRange } from './chart';
+import { moveChartRange, moveCharts } from './chart';
 import { isStructural, type Op } from './op';
 import { rewriteFormula, structuralEdit, type RefEdit } from './formulaRefs';
 
@@ -35,6 +35,10 @@ function rebaseFormula(inOp: Op, applied: Op): Op {
 // pending ops against incoming NEW_SHEET_OPs.
 export function transform(inOp: Op, applied: Op): Op {
   inOp = rebaseFormula(inOp, applied);
+  // Editing a chart someone deleted meanwhile must not bring it back.
+  if (inOp.type === 'setChart' && applied.type === 'deleteChart' && inOp.sheet === applied.sheet && inOp.chart?.id === applied.chart?.id) {
+    return { ...inOp, noop: true };
+  }
   if (inOp.sheet !== applied.sheet || !isStructural(applied)) return inOp;
   const index = applied.index ?? 0;
   const count = applied.count ?? 0;
@@ -47,6 +51,11 @@ export function transform(inOp: Op, applied: Op): Op {
     // The data range moves like a formula's reference.
     const e = refEditOf(applied);
     if (e) inOp = { ...inOp, chart: { ...inOp.chart, range: moveChartRange(inOp.chart.range, e) } };
+  }
+  // An undo restore's guard moves along (client-only).
+  if (inOp.expectChart) {
+    const e = refEditOf(applied);
+    if (e) inOp = { ...inOp, expectChart: moveCharts([inOp.expectChart], e)[0] };
   }
   switch (applied.type) {
     case 'insertRows':

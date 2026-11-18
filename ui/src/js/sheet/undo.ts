@@ -7,6 +7,7 @@
 // index, only props travel on the wire.
 import type { Op } from './op';
 import { rewriteFormula, structuralEdit, type RefEdit } from './formulaRefs';
+import { moveCharts } from './chart';
 import type { SheetState, WorkbookState } from './workbookState';
 
 // Defaults the grid falls back to when a row/column has no explicit size. The
@@ -108,10 +109,26 @@ const filterRestore = (op: Op, sheet: SheetState, only?: number): Op[] => {
   return out;
 };
 
-// chartRestore puts charts back as they were: a delete moves anchors to
-// the band's edge and can break their ranges.
-const chartRestore = (op: Op, sheet: SheetState): Op[] =>
-  sheet.charts.map((c) => ({ ...base(op), type: 'setChart', row: c.row, col: c.col, chart: { ...c } }) as Op);
+// chartRestore puts back the charts a row/column delete changed beyond
+// what the inverse insert repairs (an anchor moved to the band's edge, a
+// range shrunk or broken). Each restore only writes while the chart is still
+// as the delete and the inverse insert leave it (expectChart), so others'
+// later edits of it stay. Without an edit (deleteSheet) all charts return.
+const chartRestore = (op: Op, sheet: SheetState, edit?: Omit<RefEdit, 'onTarget'>): Op[] => {
+  const out: Op[] = [];
+  for (const c of sheet.charts) {
+    const restore = { ...base(op), type: 'setChart', row: c.row, col: c.col, chart: { ...c } } as Op;
+    if (!edit) {
+      out.push(restore);
+      continue;
+    }
+    const after = moveCharts([c], edit)[0];
+    const back = moveCharts([after], { ...edit, delta: -(edit.delta ?? 0) })[0];
+    if (JSON.stringify(back) === JSON.stringify(c)) continue;
+    out.push({ ...restore, expectChart: back });
+  }
+  return out;
+};
 
 export function invertOp(wb: WorkbookState, op: Op): Op[] {
   switch (op.type) {
@@ -191,8 +208,11 @@ export function invertOp(wb: WorkbookState, op: Op): Op[] {
         : [{ ...base(op), type: 'deleteChart', chart: op.chart ? { ...op.chart } : undefined }];
     }
     case 'deleteChart': {
-      const before = sheet.charts.find((c) => c.id === op.chart?.id);
-      return before ? [{ ...base(op), type: 'setChart', row: before.row, col: before.col, chart: { ...before } }] : [];
+      // Back at its drawing position, not on top of the others.
+      const i = sheet.charts.findIndex((c) => c.id === op.chart?.id);
+      if (i < 0) return [];
+      const before = sheet.charts[i];
+      return [{ ...base(op), type: 'setChart', row: before.row, col: before.col, order: i + 1, chart: { ...before } }];
     }
     case 'setFilter': {
       if (op.clear) {
@@ -252,13 +272,13 @@ export function invertOp(wb: WorkbookState, op: Op): Op[] {
           if (sheet.filters.size > 0 && fr >= index && fr < index + count) {
             header.push(...filterRestore(op, sheet, sheet.filters.keys().next().value as number));
           }
-          return [{ ...base(op), type: 'insertRows', index, count }, ...bandRestore(wb, op, sheet, 'row', index, count), ...refs, ...header, ...chartRestore(op, sheet)];
+          return [{ ...base(op), type: 'insertRows', index, count }, ...bandRestore(wb, op, sheet, 'row', index, count), ...refs, ...header, ...chartRestore(op, sheet, { target: sheet.name, ...edit })];
         }
         default: {
           // Filters of the deleted columns come back too.
           const filters: Op[] = [];
           for (let c = index; c < index + count; c++) filters.push(...filterRestore(op, sheet, c));
-          filters.push(...chartRestore(op, sheet));
+          filters.push(...chartRestore(op, sheet, { target: sheet.name, ...edit }));
           return [{ ...base(op), type: 'insertCols', index, count }, ...bandRestore(wb, op, sheet, 'col', index, count), ...refs, ...filters];
         }
       }

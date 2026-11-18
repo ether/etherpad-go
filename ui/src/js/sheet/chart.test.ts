@@ -66,3 +66,43 @@ describe('charts in the workbook (mirrors lib/sheet/chart_test.go)', () => {
     expect(got.chart?.range).toBe('A2:B11');
   });
 });
+
+describe('chart review fixes', () => {
+  const chart: Chart = { id: 'c1', type: 'column', range: 'A1:C10', row: 2, col: 4, width: 400, height: 300 };
+  it('limits ranges like the server', async () => {
+    const { chartRangeError } = await import('./chart');
+    expect(chartRangeError('A0:B5')).not.toBeNull();
+    expect(chartRangeError('A1:ZZZ9999999')).not.toBeNull();
+    expect(chartRangeError('A1:AY10000')).toBeNull();
+  });
+  it('reads at most 500 points and 50 series', () => {
+    const d = chartData('A1:ZZ900', (r, c) => ({ text: String(r + c), num: r + c }))!;
+    expect(d.categories).toHaveLength(500);
+    expect(d.series).toHaveLength(50);
+  });
+  it('a concurrent edit of a deleted chart is dropped', () => {
+    const got = transform({ type: 'setChart', sheet: 's1', baseRev: 0, row: 1, col: 1, chart }, { type: 'deleteChart', sheet: 's1', baseRev: 0, chart: { id: 'c1' } as Chart });
+    expect(got.noop).toBe(true);
+  });
+  it('undo of a delete keeps the drawing order', () => {
+    const wb = new WorkbookState();
+    wb.loadSnapshot({ sheets: [{ id: 's1', name: 'Sheet1', cells: [] }] });
+    for (const id of ['a', 'b', 'c']) wb.applyOp({ type: 'setChart', sheet: 's1', baseRev: 0, row: 0, col: 0, chart: { ...chart, id } });
+    const del: Op = { type: 'deleteChart', sheet: 's1', baseRev: 0, chart: { id: 'b' } as Chart };
+    const inverse = invertOp(wb, del);
+    wb.applyOp(del);
+    for (const inv of inverse) wb.applyOp(inv);
+    expect(wb.sheetById('s1')!.charts.map((c) => c.id)).toEqual(['a', 'b', 'c']);
+  });
+  it('undo of a row delete restores only the charts it broke, guarded', () => {
+    const wb = new WorkbookState();
+    wb.loadSnapshot({ sheets: [{ id: 's1', name: 'Sheet1', cells: [], charts: [
+      { ...chart, id: 'far', range: 'A20:B30', row: 40 },
+      { ...chart, id: 'hit', range: 'A1:B3', row: 1 },
+    ] }] });
+    const inverse = invertOp(wb, { type: 'deleteRows', sheet: 's1', baseRev: 0, index: 0, count: 5 });
+    const restores = inverse.filter((o) => o.type === 'setChart');
+    expect(restores.map((o) => o.chart?.id)).toEqual(['hit']);
+    expect(restores[0].expectChart).toBeDefined();
+  });
+});

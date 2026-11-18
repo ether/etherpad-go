@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -94,7 +95,9 @@ type PadMessageHandler struct {
 	sheetManager    *sheetdoc.Manager
 	sheetChannels   SheetChannelOperator
 	// sheets tracks what this instance's clients of each sheet were sent.
-	sheets    sheetState
+	sheets sheetState
+	// sheetOps: session id -> the sheet op version its client understands.
+	sheetOps  sync.Map
 	retention *pad.Retention
 	cluster   *clusterState
 	// deletionTokens are the pads' deletion tokens.
@@ -1397,6 +1400,7 @@ func (p *PadMessageHandler) correctMarkersInPad(atext apool.AText, apool apool.A
 }
 
 func (p *PadMessageHandler) HandleDisconnectOfPadClient(client *Client, settings *settings.Settings, logger *zap.SugaredLogger) {
+	p.sheetOps.Delete(client.SessionId)
 	var thisSession = p.SessionStore.getSession(client.SessionId)
 	if thisSession == nil || thisSession.PadId == "" {
 		p.SessionStore.removeSession(client.SessionId)

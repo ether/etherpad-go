@@ -350,7 +350,10 @@ export class WorkbookState {
         const c: Chart = { ...op.chart, row, col };
         const i = sheet.charts.findIndex((x) => x.id === c.id);
         if (i >= 0) sheet.charts[i] = c;
-        else if (sheet.charts.length < MAX_CHARTS_PER_SHEET) sheet.charts.push(c);
+        else if (sheet.charts.length < MAX_CHARTS_PER_SHEET) {
+          const at = op.order && op.order > 0 ? Math.min(op.order - 1, sheet.charts.length) : sheet.charts.length;
+          sheet.charts.splice(at, 0, c);
+        }
         break;
       }
       case 'deleteChart':
