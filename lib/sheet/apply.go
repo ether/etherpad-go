@@ -128,6 +128,21 @@ func (w *Workbook) Apply(op Op) error {
 				delete(s.Merges, a)
 			}
 		}
+	case OpSetChart:
+		c := *op.Chart
+		c.Row, c.Col = op.Row, op.Col
+		if i := s.chartIndex(c.Id); i >= 0 {
+			s.Charts[i] = c
+		} else {
+			if len(s.Charts) >= MaxChartsPerSheet {
+				return fmt.Errorf("setChart: at most %d charts per sheet", MaxChartsPerSheet)
+			}
+			s.Charts = append(s.Charts, c)
+		}
+	case OpDeleteChart:
+		if i := s.chartIndex(op.Chart.Id); i >= 0 {
+			s.Charts = slices.Delete(s.Charts, i, i+1)
+		}
 	case OpSetFilter:
 		switch {
 		case op.Clear:
@@ -210,6 +225,7 @@ func (w *Workbook) Apply(op Op) error {
 		e, _ := refEditOf(op)
 		e.Target = s.Name
 		w.rewriteRefs(s, e)
+		s.moveCharts(e)
 	}
 	return nil
 }

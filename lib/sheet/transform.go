@@ -16,6 +16,14 @@ func Transform(in, applied Op) Op {
 		in.Noop = true
 		return in
 	}
+	if in.Type == OpSetChart && in.Chart != nil {
+		// The data range moves like a formula's reference.
+		if e, ok := refEditOf(applied); ok {
+			c := *in.Chart
+			c.Range = moveChartRange(c.Range, e)
+			in.Chart = &c
+		}
+	}
 	switch applied.Type {
 	case OpInsertRows:
 		return shiftRows(in, applied.Index, applied.Count)

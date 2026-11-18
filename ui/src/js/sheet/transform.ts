@@ -1,3 +1,4 @@
+import { moveChartRange } from './chart';
 import { isStructural, type Op } from './op';
 import { rewriteFormula, structuralEdit, type RefEdit } from './formulaRefs';
 
@@ -41,6 +42,11 @@ export function transform(inOp: Op, applied: Op): Op {
   const col = inOp.col ?? 0;
   if (inOp.type === 'setFilter' && !inOp.clear && applied.type === 'deleteCols' && col >= index && col < index + count) {
     return { ...inOp, noop: true };
+  }
+  if (inOp.type === 'setChart' && inOp.chart) {
+    // The data range moves like a formula's reference.
+    const e = refEditOf(applied);
+    if (e) inOp = { ...inOp, chart: { ...inOp.chart, range: moveChartRange(inOp.chart.range, e) } };
   }
   switch (applied.type) {
     case 'insertRows':

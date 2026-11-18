@@ -108,6 +108,11 @@ const filterRestore = (op: Op, sheet: SheetState, only?: number): Op[] => {
   return out;
 };
 
+// chartRestore puts charts back as they were: a delete moves anchors to
+// the band's edge and can break their ranges.
+const chartRestore = (op: Op, sheet: SheetState): Op[] =>
+  sheet.charts.map((c) => ({ ...base(op), type: 'setChart', row: c.row, col: c.col, chart: { ...c } }) as Op);
+
 export function invertOp(wb: WorkbookState, op: Op): Op[] {
   switch (op.type) {
     case 'addSheet':
@@ -133,7 +138,7 @@ export function invertOp(wb: WorkbookState, op: Op): Op[] {
       if (sheet.frozenRows || sheet.frozenCols) {
         out.push({ ...base(op), type: 'setFreeze', frozenRows: sheet.frozenRows, frozenCols: sheet.frozenCols });
       }
-      out.push(...filterRestore(op, sheet));
+      out.push(...filterRestore(op, sheet), ...chartRestore(op, sheet));
       // References from the other sheets became #REF!.
       out.push(...formulaRestores(wb, op, { target: sheet.name, deleted: true }, null, () => true));
       return out;
@@ -179,6 +184,16 @@ export function invertOp(wb: WorkbookState, op: Op): Op[] {
     }
     case 'setFreeze':
       return [{ ...base(op), type: 'setFreeze', frozenRows: sheet.frozenRows, frozenCols: sheet.frozenCols }];
+    case 'setChart': {
+      const before = sheet.charts.find((c) => c.id === op.chart?.id);
+      return before
+        ? [{ ...base(op), type: 'setChart', row: before.row, col: before.col, chart: { ...before } }]
+        : [{ ...base(op), type: 'deleteChart', chart: op.chart ? { ...op.chart } : undefined }];
+    }
+    case 'deleteChart': {
+      const before = sheet.charts.find((c) => c.id === op.chart?.id);
+      return before ? [{ ...base(op), type: 'setChart', row: before.row, col: before.col, chart: { ...before } }] : [];
+    }
     case 'setFilter': {
       if (op.clear) {
         // Back to exactly the filters before: clear, then put each one back.
@@ -237,12 +252,13 @@ export function invertOp(wb: WorkbookState, op: Op): Op[] {
           if (sheet.filters.size > 0 && fr >= index && fr < index + count) {
             header.push(...filterRestore(op, sheet, sheet.filters.keys().next().value as number));
           }
-          return [{ ...base(op), type: 'insertRows', index, count }, ...bandRestore(wb, op, sheet, 'row', index, count), ...refs, ...header];
+          return [{ ...base(op), type: 'insertRows', index, count }, ...bandRestore(wb, op, sheet, 'row', index, count), ...refs, ...header, ...chartRestore(op, sheet)];
         }
         default: {
           // Filters of the deleted columns come back too.
           const filters: Op[] = [];
           for (let c = index; c < index + count; c++) filters.push(...filterRestore(op, sheet, c));
+          filters.push(...chartRestore(op, sheet));
           return [{ ...base(op), type: 'insertCols', index, count }, ...bandRestore(wb, op, sheet, 'col', index, count), ...refs, ...filters];
         }
       }

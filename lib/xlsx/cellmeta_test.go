@@ -1,8 +1,10 @@
 package xlsx
 
 import (
+	"archive/zip"
 	"bytes"
 	"encoding/json"
+	"io"
 	"reflect"
 	"strings"
 	"testing"
@@ -244,5 +246,44 @@ func TestFilterExportHideModeAndFormats(t *testing.T) {
 	got := sheet.WorkbookFromSnapshot(snap).Sheets[0]
 	if !reflect.DeepEqual(got.Filters[0], []string{"offen"}) {
 		t.Errorf("hide mode exported as %v", got.Filters[0])
+	}
+}
+
+func TestChartExport(t *testing.T) {
+	wb := sheet.NewWorkbook()
+	s := wb.AddSheet("s1", "Daten 1")
+	for r, row := range [][]string{{"Monat", "Umsatz", "Kosten"}, {"Jan", "120", "80"}, {"Feb", "=B2*2", "95"}} {
+		for c, v := range row {
+			s.SetCell(sheet.CellRef{Row: r, Col: c}, sheet.Cell{Raw: v})
+		}
+	}
+	s.Charts = []sheet.Chart{
+		{Id: "c1", Type: "column", Range: "A1:C3", Title: "Umsatz", Row: 0, Col: 4, Width: 480, Height: 288},
+		{Id: "c2", Type: "pie", Range: "#REF!", Row: 10, Col: 4, Width: 300, Height: 300},
+	}
+	data, err := Export(wb)
+	if err != nil {
+		t.Fatal(err)
+	}
+	zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var charts []string
+	for _, zf := range zr.File {
+		if strings.HasPrefix(zf.Name, "xl/charts/chart") {
+			rc, _ := zf.Open()
+			b, _ := io.ReadAll(rc)
+			rc.Close()
+			charts = append(charts, string(b))
+		}
+	}
+	if len(charts) != 1 {
+		t.Fatalf("%d charts written, want 1 (the #REF! one is skipped)", len(charts))
+	}
+	for _, want := range []string{"<barChart>", `<varyColors val="0">`, "&#39;Daten 1&#39;!$B$2:$B$3", "&#39;Daten 1&#39;!$A$2:$A$3", "&#39;Daten 1&#39;!$C$1", "Umsatz"} {
+		if !strings.Contains(charts[0], want) {
+			t.Errorf("chart XML lacks %q", want)
+		}
 	}
 }

@@ -89,6 +89,9 @@ func Export(wb *sheet.Workbook) ([]byte, error) {
 		if err := exportCellMeta(f, wb, s, name); err != nil {
 			return nil, err
 		}
+		if err := exportCharts(f, s, name); err != nil {
+			return nil, err
+		}
 		if fc, err := exportFilter(f, wb, s, name); err != nil {
 			return nil, err
 		} else if fc != nil {

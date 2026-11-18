@@ -1,3 +1,4 @@
+import type { Chart } from './chart';
 // DomSheetView is a minimal, framework-agnostic spreadsheet grid rendered as an
 // HTML table with contenteditable cells. The SheetView contract lets a canvas
 // grid replace it later without touching the collaboration layer.
@@ -48,6 +49,14 @@ export interface SheetViewOptions {
   rowHidden?: (row: number) => boolean;
   // Columns with a filter get a marker in their header.
   colFiltered?: (col: number) => boolean;
+  // Charts over the grid. chartContent gives a key that changes with what
+  // the chart shows and draws it only when the key changed.
+  charts?: () => Chart[];
+  chartContent?: (chart: Chart) => { key: string; draw: () => SVGSVGElement };
+  onChartMove?: (id: string, row: number, col: number) => void;
+  onChartResize?: (id: string, width: number, height: number) => void;
+  onChartEdit?: (id: string) => void;
+  onChartDelete?: (id: string) => void;
   // Merged ranges (top-left anchor + span). The anchor td gets rowSpan/colSpan,
   // covered tds are display:none.
   merges?: () => Array<{ row: number; col: number; rows: number; cols: number }>;
@@ -91,6 +100,11 @@ const CSS = `
 .sheet-grid td.sheet-cell-error { color: #c0392b; }
 .sheet-grid td.sheet-link { color: #0563c1; text-decoration: underline; }
 .sheet-grid td.sheet-has-note::after { content: ''; position: absolute; top: 0; right: 0; border-left: 7px solid transparent; border-top: 7px solid #d9342b; pointer-events: none; }
+.sheet-chart { position: absolute; z-index: 5; box-sizing: border-box; border: 1px solid #c8cdd3; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.12); cursor: move; outline: none; }
+.sheet-chart.sel { border: 2px solid #107c41; }
+.sheet-chart svg { display: block; width: 100%; height: 100%; pointer-events: none; }
+.sheet-chart-resize { position: absolute; right: -5px; bottom: -5px; width: 10px; height: 10px; background: #fff; border: 1px solid #107c41; cursor: nwse-resize; display: none; }
+.sheet-chart.sel .sheet-chart-resize { display: block; }
 .sheet-list-btn { position: absolute; z-index: 6; width: 18px; height: 18px; padding: 0; border: 1px solid #c8cdd3; background: #fff; border-radius: 2px; font: 10px/16px system-ui, sans-serif; color: #444; cursor: pointer; }
 .sheet-list-btn:hover { background: #e6f2ec; }
 .sheet-list-menu { position: absolute; z-index: 20; min-width: 120px; max-height: 220px; overflow-y: auto; background: #fff; border: 1px solid #c8cdd3; box-shadow: 0 4px 10px rgba(0,0,0,0.15); padding: 2px 0; font: 13px system-ui, sans-serif; }
@@ -130,6 +144,9 @@ export class DomSheetView {
   private listBtn: HTMLButtonElement;
   private listMenu: HTMLDivElement | null = null;
   private listOutside: ((e: MouseEvent) => void) | null = null;
+  private chartEls = new Map<string, { box: HTMLDivElement; key: string }>();
+  private selectedChart: string | null = null;
+  private draggingChart: string | null = null;
   private root: HTMLElement;
   private mergedTds = new Set<HTMLTableCellElement>();
   private table: HTMLTableElement;
@@ -175,6 +192,13 @@ export class DomSheetView {
     this.listBtn.addEventListener('click', () => this.toggleListMenu());
     root.appendChild(this.listBtn);
     this.root = root;
+    // A click anywhere outside a chart deselects it.
+    root.addEventListener('mousedown', (e) => {
+      if (this.selectedChart && !(e.target as Element).closest?.('.sheet-chart')) {
+        this.selectedChart = null;
+        this.renderCharts();
+      }
+    });
 
     const thead = document.createElement('thead');
     this.thead = thead;
@@ -703,6 +727,144 @@ export class DomSheetView {
     }
   }
 
+  // cellOrigin is the top-left of a cell in the scrolled content.
+  private cellOrigin(row: number, col: number): { x: number; y: number } {
+    const head = this.colHeads[Math.min(col, this.colHeads.length - 1)];
+    return {
+      x: this.table.offsetLeft + (head?.offsetLeft ?? 0),
+      y: this.table.offsetTop + this.thead.offsetHeight + (this.rowTops[Math.min(row, this.opts.rows - 1)] ?? 0),
+    };
+  }
+
+  // cellAtPoint is the cell under a point of the scrolled content.
+  private cellAtPoint(x: number, y: number): { row: number; col: number } {
+    let col = 0;
+    for (let c = 0; c < this.colHeads.length; c++) {
+      if (this.table.offsetLeft + this.colHeads[c].offsetLeft <= x) col = c;
+      else break;
+    }
+    const row = this.rowAt(Math.max(0, y - this.table.offsetTop - this.thead.offsetHeight));
+    return { row, col };
+  }
+
+  // renderCharts keeps one box per chart over the grid, drawn anew only when
+  // what it shows changed.
+  private renderCharts(): void {
+    const charts = this.opts.charts?.() ?? [];
+    const seen = new Set<string>();
+    for (const chart of charts) {
+      seen.add(chart.id);
+      let entry = this.chartEls.get(chart.id);
+      if (!entry) {
+        entry = { box: this.buildChartBox(chart.id), key: '' };
+        this.chartEls.set(chart.id, entry);
+        this.root.appendChild(entry.box);
+      }
+      const { box } = entry;
+      if (this.draggingChart !== chart.id) {
+        const o = this.cellOrigin(chart.row, chart.col);
+        box.style.left = `${o.x}px`;
+        box.style.top = `${o.y}px`;
+        box.style.width = `${chart.width}px`;
+        box.style.height = `${chart.height}px`;
+      }
+      box.classList.toggle('sel', this.selectedChart === chart.id);
+      const content = this.opts.chartContent?.(chart);
+      if (content && content.key !== entry.key) {
+        entry.key = content.key;
+        box.querySelector('svg')?.remove();
+        box.insertBefore(content.draw(), box.firstChild);
+      }
+    }
+    for (const [id, entry] of this.chartEls) {
+      if (!seen.has(id)) {
+        entry.box.remove();
+        this.chartEls.delete(id);
+        if (this.selectedChart === id) this.selectedChart = null;
+      }
+    }
+  }
+
+  private buildChartBox(id: string): HTMLDivElement {
+    const box = document.createElement('div');
+    box.className = 'sheet-chart';
+    box.tabIndex = 0;
+    box.dataset.chart = id;
+    const handle = document.createElement('div');
+    handle.className = 'sheet-chart-resize';
+    box.appendChild(handle);
+    const readOnly = !!this.opts.readOnly;
+
+    box.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (this.editing) (document.activeElement as HTMLElement | null)?.blur();
+      this.selectedChart = id;
+      box.focus();
+      this.renderCharts();
+      if (readOnly) return;
+      const resizing = e.target === handle;
+      const startX = e.clientX;
+      const startY = e.clientY;
+      const left = box.offsetLeft;
+      const top = box.offsetTop;
+      const w = box.offsetWidth;
+      const h = box.offsetHeight;
+      let moved = false;
+      this.draggingChart = id;
+      const onMove = (ev: MouseEvent): void => {
+        const dx = ev.clientX - startX;
+        const dy = ev.clientY - startY;
+        if (!moved && Math.abs(dx) + Math.abs(dy) < 3) return;
+        moved = true;
+        if (resizing) {
+          box.style.width = `${Math.max(120, w + dx)}px`;
+          box.style.height = `${Math.max(100, h + dy)}px`;
+        } else {
+          box.style.left = `${Math.max(0, left + dx)}px`;
+          box.style.top = `${Math.max(0, top + dy)}px`;
+        }
+      };
+      const onUp = (): void => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        this.draggingChart = null;
+        if (!moved) return;
+        if (resizing) {
+          this.opts.onChartResize?.(id, Math.min(3000, box.offsetWidth), Math.min(3000, box.offsetHeight));
+        } else {
+          // Snap to the cell under the top-left corner, like Excel's anchor.
+          const cell = this.cellAtPoint(box.offsetLeft + 2, box.offsetTop + 2);
+          this.opts.onChartMove?.(id, cell.row, cell.col);
+        }
+        this.renderCharts();
+      };
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+    box.addEventListener('dblclick', (e) => {
+      e.preventDefault();
+      if (!readOnly) this.opts.onChartEdit?.(id);
+    });
+    box.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if (readOnly) return;
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault();
+        this.opts.onChartDelete?.(id);
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        this.opts.onChartEdit?.(id);
+      } else if (e.key === 'Escape') {
+        this.selectedChart = null;
+        this.renderCharts();
+        this.cellEl(this.selection.focus.row, this.selection.focus.col)?.focus();
+      }
+    });
+    return box;
+  }
+
   // render refreshes every non-editing cell to its display value, then paints
   // remote live-edit text and cursor/live-edit decorations.
   render(): void {
@@ -864,6 +1026,8 @@ export class DomSheetView {
         this.defaultRowH = h;
       }
     }
+
+    this.renderCharts();
 
     // fill handle overlay at the bottom-right corner of the current selection.
     // Hidden while typing (Excel does the same); positioned relative to the

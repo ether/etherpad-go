@@ -1,3 +1,4 @@
+import type { Chart } from './chart';
 // Op mirrors the Go lib/sheet.Op type exactly (same JSON field names) so the
 // same wire payload is understood by both the TS client and the Go server.
 // All payload fields are optional per op type; type/sheet/baseRev are always set.
@@ -18,7 +19,9 @@ export type OpType =
   | 'setFreeze'
   | 'mergeCells'
   | 'unmergeCells'
-  | 'setFilter';
+  | 'setFilter'
+  | 'setChart'
+  | 'deleteChart';
 
 export interface Op {
   type: OpType;
@@ -58,6 +61,8 @@ export interface Op {
   // to the header `row` always show); no values removes the column's filter,
   // clear removes all filters of the sheet.
   values?: string[];
+  // setChart (anchored at row/col) / deleteChart (only chart.id)
+  chart?: Chart;
   // values are the hidden ones (mirrors Go Op.Exclude)
   exclude?: boolean;
   clear?: boolean;
