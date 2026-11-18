@@ -58,6 +58,8 @@ export interface Op {
   // to the header `row` always show); no values removes the column's filter,
   // clear removes all filters of the sheet.
   values?: string[];
+  // values are the hidden ones (mirrors Go Op.Exclude)
+  exclude?: boolean;
   clear?: boolean;
   // Transform found nothing left to do (a filter on a column deleted
   // meanwhile); applyOp skips the op (mirrors Go Op.Noop).

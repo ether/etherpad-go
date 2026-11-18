@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"log"
 	"runtime/debug"
+	"sync"
 	"time"
 
 	"github.com/ether/etherpad-go/lib/models/ws/admin"
@@ -43,7 +44,10 @@ type Client struct {
 	WebAccessUser         any
 	// CookieToken is the author token from the HttpOnly cookie of the
 	// websocket handshake; it wins over the token in CLIENT_READY.
-	CookieToken  string
+	CookieToken string
+	// drain is shared by copies of the client (the handler copies Client
+	// values); set by readPump.
+	drain        *clientDrain
 	Handler      *PadMessageHandler
 	adminHandler *AdminMessageHandler
 }
@@ -129,6 +133,9 @@ func (c *Client) writePump() {
 
 // readPump pumps messages from the websocket connection to the Hub.
 func (c *Client) readPump(retrievedSettings *settings.Settings, logger *zap.SugaredLogger) {
+	if c.drain == nil {
+		c.drain = &clientDrain{}
+	}
 	c.Hub.Register <- c
 	defer func() {
 		c.Hub.Unregister <- c
@@ -150,7 +157,59 @@ func (c *Client) readPump(retrievedSettings *settings.Settings, logger *zap.Suga
 			break
 		}
 		message = bytes.TrimSpace(bytes.Replace(message, newline, space, -1))
+		if !c.beginHandling() {
+			// Shutting down: a change not acknowledged is sent again by the
+			// client after it reconnected elsewhere.
+			continue
+		}
 		c.dispatchMessage(message, retrievedSettings, logger)
+		c.drain.handling.Done()
+	}
+}
+
+// clientDrain lets shutdown stop a connection between two messages: once
+// closing, messages are no longer handled, and handling counts the one
+// being handled, so CloseAll can let it finish (and its acknowledgement go
+// out) before it closes the connection.
+type clientDrain struct {
+	mu       sync.Mutex
+	closing  bool
+	handling sync.WaitGroup
+}
+
+// beginHandling registers a message about to be handled; false once the
+// connection is closing.
+func (c *Client) beginHandling() bool {
+	c.drain.mu.Lock()
+	defer c.drain.mu.Unlock()
+	if c.drain.closing {
+		return false
+	}
+	c.drain.handling.Add(1)
+	return true
+}
+
+// stopHandling makes the client take no further messages and waits (until
+// deadline) for the one it is handling and for its queued replies to go out.
+func (c *Client) stopHandling(deadline time.Time) {
+	if c.drain == nil {
+		return
+	}
+	c.drain.mu.Lock()
+	c.drain.closing = true
+	c.drain.mu.Unlock()
+	done := make(chan struct{})
+	go func() {
+		c.drain.handling.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(time.Until(deadline)):
+		return
+	}
+	for len(c.Send) > 0 && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
 	}
 }
 
@@ -187,7 +246,7 @@ func (c *Client) SendPadDelete() {
 func ServeWs(conn *websocket.Conn, sessionID string, integratorSessionID string, clientIP string, webAccessUser any,
 	configSettings *settings.Settings,
 	logger *zap.SugaredLogger, handler *PadMessageHandler, cookieToken string) {
-	client := &Client{Hub: handler.hub, Conn: conn, Send: make(chan []byte, 256), SessionId: sessionID, IntegratorSessionID: integratorSessionID, ClientIP: clientIP, WebAccessUser: webAccessUser, Handler: handler, CookieToken: cookieToken}
+	client := &Client{Hub: handler.hub, Conn: conn, Send: make(chan []byte, 256), drain: &clientDrain{}, SessionId: sessionID, IntegratorSessionID: integratorSessionID, ClientIP: clientIP, WebAccessUser: webAccessUser, Handler: handler, CookieToken: cookieToken}
 	handler.SessionStore.initSession(sessionID)
 	client.Hub.Register <- client
 	go client.writePump()

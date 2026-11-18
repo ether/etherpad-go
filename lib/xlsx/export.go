@@ -37,6 +37,7 @@ func Export(wb *sheet.Workbook) ([]byte, error) {
 		return xid, nil
 	}
 
+	var filters []*filterColumns
 	for i, s := range wb.Sheets {
 		name := s.Name
 		if name == "" {
@@ -88,6 +89,11 @@ func Export(wb *sheet.Workbook) ([]byte, error) {
 		if err := exportCellMeta(f, wb, s, name); err != nil {
 			return nil, err
 		}
+		if fc, err := exportFilter(f, wb, s, name); err != nil {
+			return nil, err
+		} else if fc != nil {
+			filters = append(filters, fc)
+		}
 
 		for col, px := range s.ColWidths {
 			cn, err := excelize.ColumnNumberToName(col + 1)
@@ -136,5 +142,5 @@ func Export(wb *sheet.Workbook) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return buf.Bytes(), nil
+	return injectFilterColumns(buf.Bytes(), filters)
 }

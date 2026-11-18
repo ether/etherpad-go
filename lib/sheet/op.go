@@ -80,7 +80,10 @@ type Op struct {
 
 	// setFilter.
 	Values []string `json:"values,omitempty"`
-	Clear  bool     `json:"clear,omitempty"`
+	// Exclude: Values are the values whose rows are hidden (shorter than
+	// listing what is kept when one value out of many is unchecked).
+	Exclude bool `json:"exclude,omitempty"`
+	Clear   bool `json:"clear,omitempty"`
 
 	// Noop: Transform found nothing left to do (a filter on a column that
 	// was deleted meanwhile); Apply skips the op, it only keeps the

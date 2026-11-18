@@ -89,36 +89,57 @@ test.describe('Sheet M4 structural', () => {
     await expect(cell(page, 2, 0)).toHaveText('3');
   });
 
-  test('filter hides non-matching rows for everyone', async ({ page, browser }) => {
+  test('filter by a checklist of values, for everyone', async ({ page, browser }) => {
     const pad = `m4-filter-${Date.now()}`;
     await openSheet(page, pad);
-    await typeInto(page, 0, 0, 'x');
-    await typeInto(page, 1, 0, 'y');
-    await typeInto(page, 2, 0, 'x');
-    await cell(page, 0, 0).click();
+    for (const [r, v] of ['Name', 'x', 'y', 'z', 'x'].entries()) await typeInto(page, r, 0, v);
+    const row = (p: typeof page, r: number) => p.locator(`.sheet-grid tbody tr[data-row="${r}"]`);
+    const menu = page.locator('.sheet-filter-menu');
+    await cell(page, 1, 0).click();
     await ribbonTab(page, 'Data');
-    // Toolbar selects are only unique by title (the Excel ribbon reordered
-    // them). The dropdown fills its options lazily on open; selectOption()
-    // bypasses the native open, so trigger the repopulation explicitly first.
-    const filter = page.locator('select[title="Filter rows by the focused column"]');
-    await filter.dispatchEvent('mousedown');
-    // Option values carry a "=" prefix; row 1 (the first filled one) is the
-    // header and always shows.
-    await filter.selectOption('=x');
-    await expect(page.locator('.sheet-grid tbody tr').nth(1)).toBeHidden();
-    await expect(page.locator('.sheet-grid tbody tr').nth(0)).toBeVisible();
-    await expect(page.locator('.sheet-grid tbody tr').nth(2)).toBeVisible();
+    const filterBtn = page.locator('.sheet-filter-btn');
+
+    // Uncheck y: its row goes, the header (first filled row) stays.
+    await filterBtn.click();
+    await expect(menu.locator('label')).toHaveText(['(Select all)', 'x', 'y', 'z']);
+    await menu.locator('label', { hasText: /^y$/ }).locator('input').uncheck();
+    await menu.locator('button.primary').click();
+    await expect(row(page, 2)).toBeHidden();
+    await expect(row(page, 0)).toBeVisible();
+    // The keyboard is back in the grid.
+    expect(await page.evaluate(() => document.activeElement?.tagName)).toBe('TD');
+    await expect(row(page, 3)).toBeVisible();
+    await expect(page.locator('.sheet-grid thead th.sheet-head-filter')).toHaveText('A');
 
     // The filter is part of the sheet: a second user sees it too.
     const other = await browser.newPage();
     await openSheet(other, pad);
-    await expect(other.locator('.sheet-grid tbody tr').nth(1)).toBeHidden();
+    await expect(row(other, 2)).toBeHidden();
+    await expect(row(other, 4)).toBeVisible();
 
-    // clear
-    await filter.dispatchEvent('mousedown');
-    await filter.selectOption('');
-    await expect(page.locator('.sheet-grid tbody tr').nth(1)).toBeVisible();
-    await expect(other.locator('.sheet-grid tbody tr').nth(1)).toBeVisible();
+    // Search narrows the list; "(Select all)" then acts on what is shown.
+    await filterBtn.click();
+    await menu.locator('input[type=search]').fill('z');
+    await menu.locator('label.sheet-filter-all input').uncheck();
+    await menu.locator('button.primary').click();
+    await expect(row(page, 3)).toBeHidden();
+    await expect(row(other, 3)).toBeHidden();
+    await expect(row(page, 1)).toBeVisible();
+
+    // Enter on Cancel cancels.
+    await filterBtn.click();
+    await menu.locator('label.sheet-filter-all input').uncheck();
+    await menu.locator('label', { hasText: /^x$/ }).locator('input').check();
+    await menu.locator('button', { hasText: 'Cancel' }).focus();
+    await page.keyboard.press('Enter');
+    await expect(menu).toHaveCount(0);
+    await expect(row(page, 4)).toBeVisible();
+    await expect(row(page, 2)).toBeHidden();
+
+    await filterBtn.click();
+    await menu.locator('button', { hasText: 'Clear filter from this column' }).click();
+    await expect(row(page, 2)).toBeVisible();
+    await expect(row(other, 3)).toBeVisible();
     await other.close();
   });
 });

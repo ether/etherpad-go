@@ -38,6 +38,8 @@ type SheetSnapshot struct {
 	// Column filters; JSON object keys are stringified column indices.
 	Filters   map[int][]string `json:"filters,omitempty"`
 	FilterRow int              `json:"filterRow,omitempty"`
+	// Columns whose filter lists the hidden values.
+	FilterHide []int `json:"filterHide,omitempty"`
 }
 
 // WorkbookSnapshot is the JSON-serializable form of a Workbook for persistence.
@@ -76,6 +78,10 @@ func (w *Workbook) Snapshot() WorkbookSnapshot {
 				ss.Filters[c] = slices.Clone(v)
 			}
 			ss.FilterRow = s.FilterRow
+			for c := range s.FilterHide {
+				ss.FilterHide = append(ss.FilterHide, c)
+			}
+			sort.Ints(ss.FilterHide)
 		}
 		for a, sp := range s.Merges {
 			ss.Merges = append(ss.Merges, MergeSnapshot{a.Row, a.Col, sp.Rows, sp.Cols})
@@ -121,6 +127,14 @@ func WorkbookFromSnapshot(snap WorkbookSnapshot) *Workbook {
 				sh.Filters[c] = slices.Clone(v)
 			}
 			sh.FilterRow = ss.FilterRow
+			for _, c := range ss.FilterHide {
+				if _, ok := sh.Filters[c]; ok {
+					if sh.FilterHide == nil {
+						sh.FilterHide = map[int]bool{}
+					}
+					sh.FilterHide[c] = true
+				}
+			}
 		}
 		for _, m := range ss.Merges {
 			sh.Merges[CellRef{m.Row, m.Col}] = Span{Rows: m.Rows, Cols: m.Cols}
