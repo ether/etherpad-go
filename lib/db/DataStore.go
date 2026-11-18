@@ -156,9 +156,13 @@ type SheetMethods interface {
 	// snapshot.
 	GetSheetVersion(padId string) (*SheetVersion, error)
 	// ResetSheet replaces the workbook: it removes the ops, stores snapshot
-	// at head 0 and starts a new epoch, all or nothing.
+	// at head 0 and starts a new epoch, all or nothing. snapshot is also
+	// kept as the op row at rev 0, the base the history starts from.
 	ResetSheet(padId string, snapshot string) error
 	GetSheetOps(padId string, startRev int, endRev int) (*[]db.SheetOpDB, error)
+	// GetSheetOpInfo is GetSheetOps without the ops themselves (Op is
+	// empty): revision, author and time, for the version history.
+	GetSheetOpInfo(padId string, startRev int, endRev int) (*[]db.SheetOpDB, error)
 	RemoveSheetOps(padId string) error
 }
 

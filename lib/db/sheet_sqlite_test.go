@@ -55,3 +55,48 @@ func TestSQLiteSheetCascadeOnPadDelete(t *testing.T) {
 		t.Fatal("sheet should be cascade-deleted with its pad")
 	}
 }
+
+func TestSQLiteResetSheetKeepsTheBase(t *testing.T) {
+	store := newTestSQLiteStore(t)
+	if err := store.CreatePad("p1", dbmodelPadDB("p1", "sheet")); err != nil {
+		t.Fatalf("CreatePad: %v", err)
+	}
+	if err := store.SaveSheetOp("p1", 1, `{"type":"setCell"}`, nil, 1); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.ResetSheet("p1", `{"sheets":[{"id":"x"}]}`); err != nil {
+		t.Fatalf("ResetSheet: %v", err)
+	}
+	ops, err := store.GetSheetOps("p1", 0, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(*ops) != 1 || (*ops)[0].Rev != 0 || (*ops)[0].Op != `{"sheets":[{"id":"x"}]}` || (*ops)[0].Timestamp == 0 {
+		t.Fatalf("base not kept at rev 0: %+v", *ops)
+	}
+	v, err := store.GetSheetVersion("p1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.Latest() != 0 || v.Epoch != 1 {
+		t.Fatalf("version after reset: %+v", v)
+	}
+	// The next op is rev 1, and a second reset replaces the base.
+	if err := store.SaveSheetOp("p1", 1, `{"type":"setCell"}`, nil, 2); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.ResetSheet("p1", `{"sheets":[]}`); err != nil {
+		t.Fatal(err)
+	}
+	ops, _ = store.GetSheetOps("p1", 0, 10)
+	if len(*ops) != 1 || (*ops)[0].Op != `{"sheets":[]}` {
+		t.Fatalf("after second reset: %+v", *ops)
+	}
+	_ = store.SaveSheetOp("p1", 1, `{"type":"setCell"}`, strPtr("a.1"), 7)
+	info, err := store.GetSheetOpInfo("p1", 1, 10)
+	if err != nil || len(*info) != 1 || (*info)[0].Op != "" || (*info)[0].Timestamp != 7 || *(*info)[0].AuthorId != "a.1" {
+		t.Fatalf("GetSheetOpInfo = %+v, %v", info, err)
+	}
+}
+
+func strPtr(s string) *string { return &s }

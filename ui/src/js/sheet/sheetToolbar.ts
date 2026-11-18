@@ -25,6 +25,10 @@ export interface ToolbarCallbacks {
   // Ribbon: client-side CSV export/import of the active sheet (no server round-trip).
   exportCsv?: () => void;
   importCsv?: (file: File) => void;
+  // File > Print: the browser's print dialog (also "Save as PDF").
+  print?: () => void;
+  // File > Version history: earlier versions of the workbook.
+  openHistory?: () => void;
   // Ribbon: clipboard + quick aggregation (wired by the editor).
   clipboardAction?: (a: 'cut' | 'copy' | 'paste') => void;
   autoSum?: (fn?: 'SUM' | 'AVERAGE' | 'COUNT' | 'MAX' | 'MIN') => void;
@@ -58,7 +62,9 @@ export interface ToolbarCallbacks {
 
 const CSS = `
 .sheet-toolbar { border-bottom: 1px solid #d4d8dd; background: #fff; font: 13px system-ui, sans-serif; user-select: none; }
-.sheet-toolbar[aria-disabled=true] { opacity: 0.5; pointer-events: none; }
+/* Read-only: what changes the sheet is greyed out; the tabs, the File menu
+   and the groups that only read (history, print, view) stay usable. */
+.sheet-ribbon-group[aria-disabled=true] { opacity: 0.5; pointer-events: none; }
 .sheet-ribbon-tabs { display: flex; align-items: flex-end; gap: 2px; padding: 4px 8px 0; background: #fff; border-bottom: 1px solid #d4d8dd; position: relative; }
 .sheet-ribbon-tabs button { border: 1px solid transparent; border-bottom: none; background: none; padding: 5px 16px 6px; font: 13px system-ui, sans-serif; color: #5a5f66; cursor: pointer; border-radius: 4px 4px 0 0; margin-bottom: -1px; }
 .sheet-ribbon-tabs button:hover { color: #107c41; background: #e6f2ec; }
@@ -113,6 +119,8 @@ const IC = {
   delCols: '<rect x="6.5" y="2.5" width="3" height="11"/><path d="M11.5 6.5l3 3M14.5 6.5l-3 3"/>',
   importFile: '<path d="M2.5 10.5v3h11v-3"/><path d="M8 2v7.5M4.5 6 8 9.5 11.5 6"/>',
   exportFile: '<path d="M2.5 10.5v3h11v-3"/><path d="M8 9.5V2M4.5 5.5 8 2l3.5 3.5"/>',
+  print: '<path d="M4.5 6V2.5h7V6"/><rect x="2" y="6" width="12" height="5.5" rx="1"/><path d="M4.5 9.5h7v4h-7z"/>',
+  history: '<circle cx="8.5" cy="8" r="5.5"/><path d="M8.5 5v3.2l2.2 1.4"/><path d="M1.5 6.5 3 8.5l2-1.6"/>',
   alignTop: '<path d="M2.5 2.5h11M5 13V5.5M5 5.5 3 7.5M5 5.5l2 2"/><path d="M11 13V5.5"/>',
   alignMiddle: '<path d="M2.5 8h11M5 3v2.5M5 13v-2.5M11 3v2.5M11 13v-2.5"/>',
   alignBottom: '<path d="M2.5 13.5h11M5 3v7.5M5 10.5 3 8.5M5 10.5l2-2"/><path d="M11 3v7.5"/>',
@@ -142,7 +150,7 @@ export function createToolbar(cb: ToolbarCallbacks): ToolbarElement {
   }
   const bar = document.createElement('div');
   bar.className = 'sheet-toolbar';
-  if (cb.readOnly) bar.setAttribute('aria-disabled', 'true');
+  if (cb.readOnly) bar.classList.add('sheet-toolbar-readonly');
 
   const tabsEl = document.createElement('div');
   tabsEl.className = 'sheet-ribbon-tabs';
@@ -202,10 +210,12 @@ export function createToolbar(cb: ToolbarCallbacks): ToolbarElement {
     b.addEventListener('click', () => { closeMenu(); onClick(); });
     fileMenu.appendChild(b);
   };
-  if (cb.importXlsx) fileMenuItem('Import (.xlsx)', () => fileInput.click());
+  if (cb.importXlsx && !cb.readOnly) fileMenuItem('Import (.xlsx)', () => fileInput.click());
   if (cb.exportXlsx) fileMenuItem('Export (.xlsx)', () => cb.exportXlsx?.());
   if (cb.exportCsv) fileMenuItem('Export (.csv)', () => cb.exportCsv?.());
-  if (cb.importCsv) fileMenuItem('Import (.csv)', () => csvInput.click());
+  if (cb.importCsv && !cb.readOnly) fileMenuItem('Import (.csv)', () => csvInput.click());
+  if (cb.print) fileMenuItem('Print… (Ctrl+P)', () => cb.print?.());
+  if (cb.openHistory) fileMenuItem('Version history', () => cb.openHistory?.());
   fileWrap.append(fileBtn, fileMenu);
   tabsEl.appendChild(fileWrap);
 
@@ -224,9 +234,11 @@ export function createToolbar(cb: ToolbarCallbacks): ToolbarElement {
   }
 
   // Creates a group under a tab; returns its content container.
-  const group = (tab: TabName, label: string): HTMLElement => {
+  // readOnlyOk: the group only reads, it stays usable for read-only viewers.
+  const group = (tab: TabName, label: string, readOnlyOk = false): HTMLElement => {
     const g = document.createElement('div');
     g.className = 'sheet-ribbon-group';
+    if (cb.readOnly && !readOnlyOk) g.setAttribute('aria-disabled', 'true');
     const content = document.createElement('div');
     content.className = 'sheet-ribbon-content';
     const lbl = document.createElement('div');
@@ -590,9 +602,16 @@ export function createToolbar(cb: ToolbarCallbacks): ToolbarElement {
   mkFreeze('Row', 'row', 'Freeze first row');
   mkFreeze('Col', 'col', 'Freeze first column');
 
+  // --- View: Workbook (version history, print) ---
+  if (cb.openHistory || cb.print) {
+    const wbGroup = group('View', 'Workbook', true);
+    if (cb.openHistory) bigBtn(wbGroup, IC.history, 'History', 'Version history: see and restore earlier versions', () => cb.openHistory?.());
+    if (cb.print) bigBtn(wbGroup, IC.print, 'Print', 'Print or save as PDF (Ctrl+P)', () => cb.print?.());
+  }
+
   // --- View: Show / Zoom (local to this client, nothing goes on the wire) ---
   if (cb.viewOption) {
-    const show = col(group('View', 'Show'));
+    const show = col(group('View', 'Show', true));
     for (const [opt, label] of [['gridlines', 'Gridlines'], ['headings', 'Headings']] as const) {
       const wrap = document.createElement('label');
       wrap.style.cssText = 'display:flex;align-items:center;gap:4px;font-size:12px;color:#333;cursor:pointer';
@@ -603,7 +622,7 @@ export function createToolbar(cb: ToolbarCallbacks): ToolbarElement {
       wrap.append(box, label);
       row(show).appendChild(wrap);
     }
-    const zoomRow = row(col(group('View', 'Zoom')));
+    const zoomRow = row(col(group('View', 'Zoom', true)));
     const zoom = document.createElement('select');
     zoom.title = 'Zoom';
     for (const z of [50, 75, 90, 100, 125, 150, 200]) {

@@ -1,6 +1,8 @@
 package sheetio
 
 import (
+	"net/url"
+
 	"github.com/ether/etherpad-go/lib"
 	"github.com/ether/etherpad-go/lib/sheet"
 	"github.com/ether/etherpad-go/lib/xlsx"
@@ -22,11 +24,69 @@ func checkGrant(c fiber.Ctx, store *lib.InitStore, padId string, write bool) (st
 	return granted.AuthorId, nil
 }
 
+// fromThisSite refuses a changing request a browser sent for another site
+// (a form or fetch on a foreign page, which carries this site's cookies).
+// The browser says where it came from in Sec-Fetch-Site; older browsers
+// send at least Origin on a POST. Requests without either (not from a
+// browser) pass: they hold no visitor's cookies.
+func fromThisSite(c fiber.Ctx) error {
+	switch c.Get("Sec-Fetch-Site") {
+	case "same-origin", "none":
+		return nil
+	case "":
+	default:
+		return fiber.NewError(fiber.StatusForbidden, "cross-site request")
+	}
+	origin := c.Get(fiber.HeaderOrigin)
+	if origin == "" {
+		return nil
+	}
+	u, err := url.Parse(origin)
+	if err != nil || u.Host != c.Host() {
+		return fiber.NewError(fiber.StatusForbidden, "cross-site request")
+	}
+	return nil
+}
+
+// sheetId is the pad a request's id names: a read-only id stands for its
+// pad (read access only, which checkGrant enforces).
+func sheetId(store *lib.InitStore, id string) (string, error) {
+	rom := store.SecurityManager.ReadOnlyManager
+	if !rom.IsReadOnlyID(&id) {
+		return id, nil
+	}
+	padId, err := rom.GetPadId(id)
+	if err != nil || padId == nil {
+		return "", fiber.NewError(fiber.StatusNotFound, "sheet not found")
+	}
+	return *padId, nil
+}
+
+// existingSheet is sheetId for routes that only read: the pad must exist
+// and be a spreadsheet, so reading never creates a sheet.
+func existingSheet(store *lib.InitStore, id string) (string, error) {
+	padId, err := sheetId(store, id)
+	if err != nil {
+		return "", err
+	}
+	if ok, err := store.PadManager.DoesPadExist(padId); err != nil || ok == nil || !*ok {
+		return "", fiber.NewError(fiber.StatusNotFound, "sheet not found")
+	}
+	p, err := store.PadManager.GetTypedPad(padId, "sheet", nil)
+	if err != nil || p.DocumentType != "sheet" {
+		return "", fiber.NewError(fiber.StatusNotFound, "sheet not found")
+	}
+	return padId, nil
+}
+
 // ImportSheet handles POST /s/:pad/import (multipart "file"), replacing the
 // sheet's workbook and notifying connected clients to reload.
 func ImportSheet(store *lib.InitStore) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		padId := c.Params("pad")
+		if err := fromThisSite(c); err != nil {
+			return err
+		}
 		// Same lock as SHEET_OPs, so an import can't interleave with an op.
 		unlock, err := store.PadManager.LockPad(padId)
 		if err != nil {
@@ -68,6 +128,10 @@ func ExportSheet(store *lib.InitStore) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		padId := c.Params("pad")
 		if _, err := checkGrant(c, store, padId, false); err != nil {
+			return err
+		}
+		padId, err := existingSheet(store, padId)
+		if err != nil {
 			return err
 		}
 

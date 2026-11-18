@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/ether/etherpad-go/lib/models/db"
 	"github.com/jackc/pgx/v5"
@@ -90,6 +91,10 @@ func (d PostgresDB) ResetSheet(padId string, snapshot string) error {
 		padId, snapshot); err != nil {
 		return err
 	}
+	if _, err := tx.Exec(ctx, `INSERT INTO sheet_op (id, rev, op, author_id, timestamp) VALUES ($1, 0, $2, NULL, $3)`,
+		padId, snapshot, time.Now().UnixMilli()); err != nil {
+		return err
+	}
 	return tx.Commit(ctx)
 }
 
@@ -111,6 +116,26 @@ func (d PostgresDB) GetSheetOps(padId string, startRev int, endRev int) (*[]db.S
 	for rows.Next() {
 		var o db.SheetOpDB
 		if err := rows.Scan(&o.PadId, &o.Rev, &o.Op, &o.AuthorId, &o.Timestamp); err != nil {
+			return nil, err
+		}
+		out = append(out, o)
+	}
+	return &out, rows.Err()
+}
+
+func (d PostgresDB) GetSheetOpInfo(padId string, startRev int, endRev int) (*[]db.SheetOpDB, error) {
+	rows, err := d.pool.Query(context.Background(),
+		`SELECT id, rev, author_id, timestamp FROM sheet_op
+         WHERE id = $1 AND rev >= $2 AND rev <= $3 ORDER BY rev ASC`,
+		padId, startRev, endRev)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]db.SheetOpDB, 0)
+	for rows.Next() {
+		var o db.SheetOpDB
+		if err := rows.Scan(&o.PadId, &o.Rev, &o.AuthorId, &o.Timestamp); err != nil {
 			return nil, err
 		}
 		out = append(out, o)
