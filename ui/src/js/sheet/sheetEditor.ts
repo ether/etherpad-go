@@ -24,7 +24,7 @@ import { filterKeeps } from './cellFilter';
 import { byteLength, META_PROPS, PROP_COND_FMT, PROP_LINK, PROP_NOTE, PROP_VALID_LIST, condStyle, inList, listValues, parseCondRules } from './cellMeta';
 import { formatValue } from './format';
 import { printDocument, renderSheetHtml, workbookEngine } from './sheetRender';
-import { openHistoryPanel } from './sheetHistoryPanel';
+import { openHistoryPanel, type HistoryPanel } from './sheetHistoryPanel';
 import type { Op } from './op';
 import type { WorkbookSnapshot } from './workbookState';
 
@@ -449,7 +449,20 @@ export function startSheetEditor(root: HTMLElement): void {
     }
   };
 
+  // The open history panel follows the sheet: new changes make a new
+  // current version (read again a moment after the changes stop).
+  let historyPanel: HistoryPanel | null = null;
+  let historyRev = -1;
+  let historyTimer: ReturnType<typeof setTimeout> | null = null;
+  const historyFollow = (): void => {
+    if (!historyPanel?.isOpen() || !collab || collab.rev === historyRev) return;
+    historyRev = collab.rev;
+    if (historyTimer) clearTimeout(historyTimer);
+    historyTimer = setTimeout(() => historyPanel?.isOpen() && historyPanel.refresh(), 1000);
+  };
+
   const onChange = (): void => {
+    historyFollow();
     const live = presence ? presence.liveEditsForSheet(activeSheetId) : [];
     // Every sheet goes to the engine, so formulas can reference other sheets,
     // with what others are typing on it. A sheet whose cells and live edits
@@ -1138,7 +1151,8 @@ export function startSheetEditor(root: HTMLElement): void {
   const openHistory = (): void => {
     if (!collab) return;
     blurActiveCell();
-    openHistoryPanel({
+    historyRev = collab.rev;
+    historyPanel = openHistoryPanel({
       readOnly,
       title: document.title || padId,
       onRestored: (label) => flash(`Restored the version of ${label}.`),

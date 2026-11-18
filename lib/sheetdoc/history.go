@@ -3,6 +3,7 @@ package sheetdoc
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 
 	"github.com/ether/etherpad-go/lib/db"
 	"github.com/ether/etherpad-go/lib/sheet"
@@ -34,22 +35,24 @@ func (m *Manager) History(padId string) (revs []Revision, head int, available bo
 	if err != nil {
 		return nil, 0, false, err
 	}
-	rows, err := m.store.GetSheetOps(padId, 0, head)
+	rows, err := m.store.GetSheetOpInfo(padId, 1, head)
 	if err != nil {
 		return nil, 0, false, err
 	}
 	revs = make([]Revision, 0, len(*rows))
-	available = epoch == 0
 	for _, r := range *rows {
-		if r.Rev == 0 {
-			available = true
-			continue
-		}
 		rv := Revision{Rev: r.Rev, Timestamp: r.Timestamp}
 		if r.AuthorId != nil {
 			rv.Author = *r.AuthorId
 		}
 		revs = append(revs, rv)
+	}
+	switch _, err := m.base(padId, epoch); {
+	case errors.Is(err, ErrNoHistory):
+	case err != nil:
+		return nil, 0, false, err
+	default:
+		available = true
 	}
 	if err := m.sameEpoch(padId, epoch); err != nil {
 		return nil, 0, false, err
@@ -59,47 +62,113 @@ func (m *Manager) History(padId string) (revs []Revision, head int, available bo
 
 // WorkbookAt rebuilds the workbook as it was at rev.
 func (m *Manager) WorkbookAt(padId string, rev int) (*sheet.Workbook, error) {
-	epoch, head, err := m.State(padId)
+	epoch, _, err := m.State(padId)
 	if err != nil {
 		return nil, err
 	}
-	if rev < 0 || rev > head {
+	return m.workbookAt(padId, epoch, rev)
+}
+
+// workbookAt is WorkbookAt in epoch: ErrHistoryChanged if the workbook was
+// replaced meanwhile. The result belongs to the caller.
+func (m *Manager) workbookAt(padId string, epoch, rev int) (*sheet.Workbook, error) {
+	v, err := m.store.GetSheetVersion(padId)
+	if err != nil {
+		return nil, err
+	}
+	if v.Epoch != epoch {
+		return nil, ErrHistoryChanged
+	}
+	if rev < 0 || rev > v.Latest() {
 		return nil, ErrNoRevision
 	}
-	doc, err := m.base(padId, epoch)
-	if err != nil {
+	if _, err := m.base(padId, epoch); err != nil {
 		return nil, err
 	}
-	if err := m.applyStored(padId, doc, 1, rev); err != nil {
+	from, start := m.history.nearest(padId, epoch, rev)
+	if start == nil {
+		return nil, ErrHistoryChanged
+	}
+	wb, err := m.replay(padId, epoch, start, from, rev)
+	if err != nil {
 		return nil, err
 	}
 	if err := m.sameEpoch(padId, epoch); err != nil {
 		return nil, err
 	}
-	return doc.Workbook(), nil
+	return wb, nil
 }
 
-// base is the document the stored ops of epoch start from.
-func (m *Manager) base(padId string, epoch int) (*sheet.Document, error) {
+// replay applies the stored ops from+1..to to wb (the workbook at from),
+// keeping checkpoints on the way.
+func (m *Manager) replay(padId string, epoch int, wb *sheet.Workbook, from, to int) (*sheet.Workbook, error) {
+	for at := from; at < to; {
+		end := min(at+replayBatch, to)
+		ops, err := m.storedOps(padId, at+1, end)
+		if err != nil {
+			return nil, err
+		}
+		if len(ops) != end-at {
+			return nil, fmt.Errorf("sheet %s: expected ops %d..%d, got %d", padId, at+1, end, len(ops))
+		}
+		for _, o := range ops {
+			if err := wb.Apply(o.Op); err != nil {
+				return nil, fmt.Errorf("sheet %s: replaying op %d: %w", padId, o.Rev, err)
+			}
+			if o.Rev%checkpointEvery == 0 {
+				m.history.keep(padId, epoch, o.Rev, wb)
+			}
+		}
+		at = end
+	}
+	return wb, nil
+}
+
+// base makes sure the workbook the ops of epoch start from is known and
+// cached as checkpoint 0; ErrNoHistory if it is not known.
+func (m *Manager) base(padId string, epoch int) (*sheet.Workbook, error) {
+	if wb, known, ok := m.history.base(padId, epoch); ok {
+		if !known {
+			return nil, ErrNoHistory
+		}
+		return wb, nil
+	}
 	rows, err := m.store.GetSheetOps(padId, 0, 0)
 	if err != nil {
 		return nil, err
 	}
-	if len(*rows) == 0 {
-		if epoch != 0 {
-			return nil, ErrNoHistory
+	if len(*rows) > 0 {
+		var snap sheet.WorkbookSnapshot
+		if err := json.Unmarshal([]byte((*rows)[0].Op), &snap); err != nil {
+			return nil, err
 		}
-		// Never replaced and created before the base was kept: the fresh
-		// workbook.
-		wb := sheet.NewWorkbook()
-		wb.AddSheet(DefaultSheetID, "Sheet1")
-		return sheet.NewDocument(wb), nil
+		wb := sheet.WorkbookFromSnapshot(snap)
+		m.history.setBase(padId, epoch, wb)
+		return wb, nil
 	}
-	var snap sheet.WorkbookSnapshot
-	if err := json.Unmarshal([]byte((*rows)[0].Op), &snap); err != nil {
+	if epoch != 0 {
+		m.history.setBase(padId, epoch, nil)
+		return nil, ErrNoHistory
+	}
+	// Never replaced, but stored before the base was kept. That is the
+	// fresh workbook only if all ops replayed on it give the current
+	// state: an import from before the epochs also has epoch 0.
+	fresh := sheet.NewWorkbook()
+	fresh.AddSheet(DefaultSheetID, "Sheet1")
+	snap, head, err := m.Snapshot(padId)
+	if err != nil {
 		return nil, err
 	}
-	return sheet.NewDocument(sheet.WorkbookFromSnapshot(snap)), nil
+	m.history.reset(padId, epoch)
+	replayed, err := m.replay(padId, epoch, fresh.Clone(), 0, head)
+	if err != nil || len(sheet.RestoreOps(replayed, sheet.WorkbookFromSnapshot(snap))) > 0 {
+		// Not ours to show: forget the checkpoints made on the way.
+		m.history.reset(padId, epoch)
+		m.history.setBase(padId, epoch, nil)
+		return nil, ErrNoHistory
+	}
+	m.history.setBase(padId, epoch, fresh)
+	return fresh, nil
 }
 
 func (m *Manager) sameEpoch(padId string, epoch int) error {
@@ -118,11 +187,13 @@ func (m *Manager) sameEpoch(padId string, epoch int) error {
 // and the restore itself can be undone by restoring the revision before it.
 // It returns the number of ops stored.
 func (m *Manager) Restore(padId string, rev int, authorId *string, tsMillis int64) (int, error) {
-	target, err := m.WorkbookAt(padId, rev)
+	// The epoch comes first: a workbook imported while the old version is
+	// rebuilt must not be overwritten with a version of the one before.
+	epoch, _, err := m.State(padId)
 	if err != nil {
 		return 0, err
 	}
-	epoch, _, err := m.State(padId)
+	target, err := m.workbookAt(padId, epoch, rev)
 	if err != nil {
 		return 0, err
 	}

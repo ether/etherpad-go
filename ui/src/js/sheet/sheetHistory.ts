@@ -57,13 +57,13 @@ const asError = async (res: Response): Promise<Error> => {
 };
 
 export async function fetchHistory(): Promise<HistoryResponse> {
-  const res = await fetch(`${base()}/history`, { credentials: 'same-origin' });
+  const res = await fetch(`${base()}/history`, { credentials: 'same-origin', cache: 'no-store' });
   if (!res.ok) throw await asError(res);
   return res.json() as Promise<HistoryResponse>;
 }
 
 export async function fetchVersion<T>(rev: number): Promise<T> {
-  const res = await fetch(`${base()}/history/${rev}`, { credentials: 'same-origin' });
+  const res = await fetch(`${base()}/history/${rev}`, { credentials: 'same-origin', cache: 'no-store' });
   if (!res.ok) throw await asError(res);
   return ((await res.json()) as { snapshot: T }).snapshot;
 }

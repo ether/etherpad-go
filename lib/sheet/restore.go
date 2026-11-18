@@ -109,11 +109,22 @@ func restoreSheetOps(cw *Workbook, c *Sheet, tw *Workbook, t *Sheet) []Op {
 		for _, ref := range sortedRefs(t.Cells) {
 			tc := t.Cells[ref]
 			tp := propsOf(tw, tc.StyleId)
-			if cc, ok := c.Cells[ref]; ok && cc.Raw == tc.Raw && maps.Equal(propsOf(cw, cc.StyleId), tp) {
+			if cc, ok := c.Cells[ref]; ok && cc.Raw == tc.Raw && cc.Value == tc.Value && cc.ValueType == tc.ValueType &&
+				maps.Equal(propsOf(cw, cc.StyleId), tp) {
 				continue
 			}
 			raw := tc.Raw
 			op := Op{Type: OpSetCell, Sheet: id, Row: ref.Row, Col: ref.Col, Raw: &raw}
+			// The saved result of a formula (from an xlsx import) comes
+			// back with it.
+			if tc.Value != "" {
+				v := tc.Value
+				op.Value = &v
+			}
+			if tc.ValueType != "" {
+				vt := tc.ValueType
+				op.ValueType = &vt
+			}
 			if tp != nil {
 				op.Props = maps.Clone(tp)
 			} else {
@@ -174,17 +185,33 @@ func restoreSheetOps(cw *Workbook, c *Sheet, tw *Workbook, t *Sheet) []Op {
 		}
 	}
 
+	// Charts, in the old drawing order: a chart at another position is
+	// taken out and put back at its place (setChart only places charts that
+	// are not there).
+	var order []string
 	for _, ch := range c.Charts {
 		if t.chartIndex(ch.Id) < 0 {
 			ops = append(ops, Op{Type: OpDeleteChart, Sheet: id, Chart: &Chart{Id: ch.Id}})
+		} else {
+			order = append(order, ch.Id)
 		}
 	}
 	for i, ch := range t.Charts {
-		if j := c.chartIndex(ch.Id); j >= 0 && c.Charts[j] == ch {
-			continue
-		}
 		cp := ch
-		ops = append(ops, Op{Type: OpSetChart, Sheet: id, Row: ch.Row, Col: ch.Col, Order: i + 1, Chart: &cp})
+		set := Op{Type: OpSetChart, Sheet: id, Row: ch.Row, Col: ch.Col, Order: i + 1, Chart: &cp}
+		switch j := slices.Index(order, ch.Id); {
+		case j == i:
+			if c.Charts[c.chartIndex(ch.Id)] != ch {
+				ops = append(ops, set)
+			}
+		case j >= 0:
+			ops = append(ops, Op{Type: OpDeleteChart, Sheet: id, Chart: &Chart{Id: ch.Id}}, set)
+			order = slices.Delete(order, j, j+1)
+			order = slices.Insert(order, i, ch.Id)
+		default:
+			ops = append(ops, set)
+			order = slices.Insert(order, i, ch.Id)
+		}
 	}
 	return ops
 }

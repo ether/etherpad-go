@@ -96,3 +96,53 @@ func TestRestoreOpsReachTheOldVersion(t *testing.T) {
 		t.Errorf("restoring the same version again yields %d ops", len(again))
 	}
 }
+
+func TestRestoreOpsKeepChartOrderAndSavedResults(t *testing.T) {
+	str := func(s string) *string { return &s }
+	chart := func(id string, w int) *Chart {
+		return &Chart{Id: id, Type: "column", Range: "A1:A2", Width: w, Height: 100}
+	}
+	doc := NewDocument(func() *Workbook { w := NewWorkbook(); w.AddSheet("s1", "Sheet1"); return w }())
+	apply := func(ops ...Op) {
+		t.Helper()
+		for _, op := range ops {
+			op.BaseRev = doc.Head()
+			if _, err := doc.Submit(op); err != nil {
+				t.Fatalf("%+v: %v", op, err)
+			}
+		}
+	}
+	apply(
+		Op{Type: OpSetCell, Sheet: "s1", Row: 0, Col: 0, Raw: str("=1+1"), Value: str("2"), ValueType: str("number")},
+		Op{Type: OpSetChart, Sheet: "s1", Chart: chart("a", 200)},
+		Op{Type: OpSetChart, Sheet: "s1", Chart: chart("b", 200)},
+		Op{Type: OpSetChart, Sheet: "s1", Chart: chart("c", 200)},
+	)
+	old := doc.Workbook().Clone()
+	// Reorder (c, a, b), change one, add one at the front, recompute A1.
+	apply(
+		Op{Type: OpDeleteChart, Sheet: "s1", Chart: &Chart{Id: "c"}},
+		Op{Type: OpSetChart, Sheet: "s1", Order: 1, Chart: chart("c", 200)},
+		Op{Type: OpSetChart, Sheet: "s1", Chart: chart("a", 300)},
+		Op{Type: OpSetChart, Sheet: "s1", Order: 1, Chart: chart("d", 200)},
+		Op{Type: OpSetCell, Sheet: "s1", Row: 0, Col: 0, Raw: str("=1+1")},
+	)
+	apply(RestoreOps(doc.Workbook(), old)...)
+	got := doc.Workbook().SheetByID("s1")
+	var ids []string
+	for _, ch := range got.Charts {
+		ids = append(ids, fmt.Sprint(ch.Id, ch.Width))
+	}
+	if fmt.Sprint(ids) != "[a200 b200 c200]" {
+		t.Errorf("charts = %v", ids)
+	}
+	if c := got.GetCell(CellRef{0, 0}); c.Value != "2" || c.ValueType != "number" {
+		t.Errorf("A1 = %+v", c)
+	}
+	if view(doc.Workbook()) != view(old) {
+		t.Error("not the old version")
+	}
+	if again := RestoreOps(doc.Workbook(), old); len(again) != 0 {
+		t.Errorf("again: %d ops", len(again))
+	}
+}

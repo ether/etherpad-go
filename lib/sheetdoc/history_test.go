@@ -1,7 +1,9 @@
 package sheetdoc
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/ether/etherpad-go/lib/db"
@@ -134,5 +136,72 @@ func TestRestoreStoresOpsAndKeepsHistory(t *testing.T) {
 	// Restoring the current state stores nothing.
 	if n, err := m.Restore("p", head, nil, 5); err != nil || n != 0 {
 		t.Errorf("no-op restore = %d, %v", n, err)
+	}
+}
+
+func TestHistoryOfAnOldImportIsUnavailable(t *testing.T) {
+	// Imported before the epochs: epoch 0, no base row, and the ops do not
+	// lead from the fresh workbook to the stored state.
+	store := db.NewMemoryDataStore()
+	wb := sheet.NewWorkbook()
+	wb.AddSheet(DefaultSheetID, "Sheet1").SetCell(sheet.CellRef{Row: 5, Col: 5}, sheet.Cell{Raw: "imported"})
+	snap, _ := json.Marshal(sheet.NewDocument(wb).Workbook().Snapshot())
+	if err := store.SaveSheet("p", 0, string(snap)); err != nil {
+		t.Fatal(err)
+	}
+	m := NewManager(store)
+	set(t, m, "p", DefaultSheetID, 0, 0, "edit", "a.1", 1)
+	if _, _, ok, err := m.History("p"); err != nil || ok {
+		t.Fatalf("History available = %v, %v", ok, err)
+	}
+	if _, err := m.WorkbookAt("p", 0); !errors.Is(err, ErrNoHistory) {
+		t.Errorf("WorkbookAt = %v", err)
+	}
+	if _, err := m.Restore("p", 0, nil, 2); !errors.Is(err, ErrNoHistory) {
+		t.Errorf("Restore = %v", err)
+	}
+	snap2, _, _ := m.Snapshot("p")
+	if raw(t, sheet.WorkbookFromSnapshot(snap2), DefaultSheetID, 5, 5) != "imported" {
+		t.Error("the import was touched")
+	}
+}
+
+func TestRestoreRefusesAVersionOfAnEarlierImport(t *testing.T) {
+	m := NewManager(db.NewMemoryDataStore())
+	set(t, m, "p", DefaultSheetID, 0, 0, "old", "a.1", 1)
+	epoch, _, _ := m.State("p")
+	wb := sheet.NewWorkbook()
+	wb.AddSheet("imp", "Import")
+	if err := m.SetWorkbook("p", wb); err != nil {
+		t.Fatal(err)
+	}
+	// A restore that read the epoch before the import must not apply.
+	if _, err := m.workbookAt("p", epoch, 1); !errors.Is(err, ErrHistoryChanged) {
+		t.Errorf("workbookAt old epoch = %v", err)
+	}
+}
+
+func TestHistoryCheckpoints(t *testing.T) {
+	m := NewManager(db.NewMemoryDataStore())
+	const n = checkpointEvery*2 + 37
+	for i := 1; i <= n; i++ {
+		set(t, m, "p", DefaultSheetID, i%7, 0, fmt.Sprint(i), "a.1", int64(i))
+	}
+	for _, rev := range []int{n, checkpointEvery - 1, checkpointEvery, checkpointEvery*2 + 1, 3, n} {
+		wb, err := m.WorkbookAt("p", rev)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := raw(t, wb, DefaultSheetID, rev%7, 0); got != fmt.Sprint(rev) {
+			t.Errorf("at %d: %q", rev, got)
+		}
+		// The caller owns the result.
+		wb.SheetByID(DefaultSheetID).SetCell(sheet.CellRef{Row: 0, Col: 0}, sheet.Cell{Raw: "scribble"})
+	}
+	m.history.mu.Lock()
+	points := len(m.history.sheets["p"].points)
+	m.history.mu.Unlock()
+	if points != 3 {
+		t.Errorf("%d checkpoints, want base + 2", points)
 	}
 }

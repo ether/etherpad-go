@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { printDocument, renderSheetHtml, usedRange, workbookEngine, MAX_RENDER_CELLS } from './sheetRender';
+import { printDocument, renderSheetHtml, usedRange, workbookEngine, MAX_RENDER_CELLS, MAX_RENDER_COLS } from './sheetRender';
 import { WorkbookState } from './workbookState';
 import type { Op } from './op';
 
@@ -101,6 +101,14 @@ describe('sheet render', () => {
     const big = render(one, { range: { r0: 0, c0: 0, r1: MAX_RENDER_CELLS, c1: 1 } });
     expect(big.match(/<tr /g)).toHaveLength(MAX_RENDER_CELLS / 2);
     expect(big).toContain(`Only the first ${MAX_RENDER_CELLS / 2} rows are shown.`);
+    // A sheet 16384 columns wide: the columns are cut, not the rows to one.
+    const wide = book([set(0, 0, 'a'), set(2, 16383, 'far'), set(1, MAX_RENDER_COLS - 1, 'last')]);
+    const html = render(wide);
+    expect(html.match(/<col /g)).toHaveLength(MAX_RENDER_COLS);
+    expect(html.match(/<tr /g)).toHaveLength(3);
+    expect(html).toContain('last');
+    expect(html).not.toContain('far');
+    expect(html).toContain(`Only the first ${MAX_RENDER_COLS} columns are shown.`);
   });
 
   it('wraps sheets into a printable page', () => {

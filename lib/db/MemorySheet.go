@@ -114,3 +114,14 @@ func (m *MemoryDataStore) GetSheetOps(padId string, startRev int, endRev int) (*
 	}
 	return &out, nil
 }
+
+func (m *MemoryDataStore) GetSheetOpInfo(padId string, startRev int, endRev int) (*[]db.SheetOpDB, error) {
+	ops, err := m.GetSheetOps(padId, startRev, endRev)
+	if err != nil {
+		return nil, err
+	}
+	for i := range *ops {
+		(*ops)[i].Op = ""
+	}
+	return ops, nil
+}

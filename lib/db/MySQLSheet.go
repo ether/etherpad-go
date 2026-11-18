@@ -157,3 +157,22 @@ func (d MysqlDB) GetSheetOps(padId string, startRev int, endRev int) (*[]db.Shee
 	}
 	return &out, rows.Err()
 }
+
+func (d MysqlDB) GetSheetOpInfo(padId string, startRev int, endRev int) (*[]db.SheetOpDB, error) {
+	rows, err := d.sqlDB.Query(
+		`SELECT id, rev, author_id, timestamp FROM sheet_op WHERE id = ? AND rev >= ? AND rev <= ? ORDER BY rev ASC`,
+		padId, startRev, endRev)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]db.SheetOpDB, 0)
+	for rows.Next() {
+		var o db.SheetOpDB
+		if err := rows.Scan(&o.PadId, &o.Rev, &o.AuthorId, &o.Timestamp); err != nil {
+			return nil, fmt.Errorf("scan sheet_op: %w", err)
+		}
+		out = append(out, o)
+	}
+	return &out, rows.Err()
+}

@@ -92,4 +92,11 @@ func TestSQLiteResetSheetKeepsTheBase(t *testing.T) {
 	if len(*ops) != 1 || (*ops)[0].Op != `{"sheets":[]}` {
 		t.Fatalf("after second reset: %+v", *ops)
 	}
+	_ = store.SaveSheetOp("p1", 1, `{"type":"setCell"}`, strPtr("a.1"), 7)
+	info, err := store.GetSheetOpInfo("p1", 1, 10)
+	if err != nil || len(*info) != 1 || (*info)[0].Op != "" || (*info)[0].Timestamp != 7 || *(*info)[0].AuthorId != "a.1" {
+		t.Fatalf("GetSheetOpInfo = %+v, %v", info, err)
+	}
 }
+
+func strPtr(s string) *string { return &s }

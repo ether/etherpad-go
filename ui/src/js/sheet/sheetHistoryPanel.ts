@@ -41,7 +41,15 @@ export interface HistoryPanelOptions {
 const when = (ts: number): string =>
   new Date(ts).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 
-export function openHistoryPanel(opts: HistoryPanelOptions): () => void {
+export interface HistoryPanel {
+  close: () => void;
+  // Reads the versions again (the sheet changed): the newest becomes the
+  // current one, and if it was shown, the new current one is shown.
+  refresh: () => void;
+  isOpen: () => boolean;
+}
+
+export function openHistoryPanel(opts: HistoryPanelOptions): HistoryPanel {
   if (!document.getElementById('sheet-history-style')) {
     const s = document.createElement('style');
     s.id = 'sheet-history-style';
@@ -95,6 +103,7 @@ export function openHistoryPanel(opts: HistoryPanelOptions): () => void {
   };
 
   const close = (): void => {
+    open = false;
     panel.remove();
     document.removeEventListener('keydown', onKey, true);
   };
@@ -109,11 +118,18 @@ export function openHistoryPanel(opts: HistoryPanelOptions): () => void {
   closeBtn.addEventListener('click', close);
 
   let shown = 0; // the load that counts, against late answers
-  let chosen: { rev: number; label: string } | null = null;
+  let chosen: { rev: number; label: string; current: boolean } | null = null;
+  let open = true;
 
   const showVersion = (rev: number, label: string, current: boolean): void => {
+    if (chosen && chosen.rev === rev && sheetEl.querySelector('.sheet-render')) {
+      // Already shown; only whether it is the current one may change.
+      chosen = { rev, label, current };
+      restoreBtn.hidden = opts.readOnly || current;
+      return;
+    }
     const load = ++shown;
-    chosen = { rev, label };
+    chosen = { rev, label, current };
     restoreBtn.hidden = true;
     tabs.textContent = '';
     note(sheetEl, 'Loading…');
@@ -209,10 +225,22 @@ export function openHistoryPanel(opts: HistoryPanelOptions): () => void {
       buttons.push(b);
       list.appendChild(b);
     });
-    buttons[0]?.click();
+    // Keep showing what was chosen; the current version stays chosen as
+    // the current one, also when it moved on.
+    const keep = chosen && !chosen.current ? buttons.find((b) => b.dataset.rev === String(chosen?.rev)) : undefined;
+    (keep ?? buttons[0])?.click();
   };
 
+  let loads = 0;
+  const load = (): void => {
+    const n = ++loads;
+    void fetchHistory().then((h) => {
+      if (n === loads && open) fill(h);
+    }).catch((err: Error) => {
+      if (n === loads && open) note(list, `The history could not be loaded: ${err.message}`);
+    });
+  };
   note(list, 'Loading…');
-  void fetchHistory().then(fill).catch((err: Error) => note(list, `The history could not be loaded: ${err.message}`));
-  return close;
+  load();
+  return { close, refresh: load, isOpen: () => open };
 }

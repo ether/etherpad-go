@@ -88,6 +88,47 @@ test.describe('Sheet version history', () => {
     await other.close();
   });
 
+  test('the open panel follows new changes; other sites cannot restore', async ({ page, browser }) => {
+    const pad = `history-live-${Date.now()}`;
+    await openSheet(page, pad);
+    await typeInto(page, 0, 0, 'first');
+    await waitForHead(page, pad, 1);
+    await page.locator('.sheet-ribbon-tabs button', { hasText: /^View$/ }).click();
+    await page.locator('[title^="Version history"]').click();
+    const panel = page.locator('.sheet-history');
+    const preview = panel.locator('.sheet-history-sheet');
+    await expect(preview.locator('td').first()).toHaveText('first');
+
+    // Someone else edits: the current version shown moves on.
+    const other = await browser.newPage();
+    await openSheet(other, pad);
+    await typeInto(other, 0, 1, 'second');
+    await waitForHead(page, pad, 2);
+    // Back in front: background tabs get their timers throttled.
+    await page.bringToFront();
+    // The panel reads the versions again a moment after the changes stop.
+    await expect(preview.locator('td').nth(1)).toHaveText('second', { timeout: 15000 });
+    await expect(panel.locator('.sheet-history-list button').first()).toContainText('Current version');
+    await expect(panel.locator('.sheet-history-restore')).toBeHidden();
+
+    // An older version stays chosen while the sheet changes, and can be
+    // restored.
+    await panel.locator('.sheet-history-list button').last().click();
+    await expect(preview).toContainText('This sheet is empty.');
+    await typeInto(other, 1, 0, 'third');
+    await expect(panel.locator('.sheet-history-list button').first().locator('.sheet-history-who span')).toHaveCount(2, { timeout: 15000 });
+    await expect(panel.locator('.sheet-history-list button.on')).toContainText('Original version');
+    await expect(panel.locator('.sheet-history-restore')).toBeVisible();
+    await other.close();
+
+    // A form or fetch on another site carries the cookies, but is refused.
+    for (const headers of [{ 'Sec-Fetch-Site': 'cross-site' }, { Origin: 'https://evil.example' }]) {
+      expect((await page.request.post(`/s/${pad}/history/0/restore`, { headers })).status()).toBe(403);
+      expect((await page.request.post(`/s/${pad}/import`, { headers })).status()).toBe(403);
+    }
+    await expect(cellAt(page, 1, 0)).toHaveText('third');
+  });
+
   test('read-only viewers see the history but cannot restore', async ({ page, browser }) => {
     const pad = `history-ro-${Date.now()}`;
     await openSheet(page, pad);

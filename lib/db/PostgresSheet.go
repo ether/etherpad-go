@@ -122,3 +122,23 @@ func (d PostgresDB) GetSheetOps(padId string, startRev int, endRev int) (*[]db.S
 	}
 	return &out, rows.Err()
 }
+
+func (d PostgresDB) GetSheetOpInfo(padId string, startRev int, endRev int) (*[]db.SheetOpDB, error) {
+	rows, err := d.pool.Query(context.Background(),
+		`SELECT id, rev, author_id, timestamp FROM sheet_op
+         WHERE id = $1 AND rev >= $2 AND rev <= $3 ORDER BY rev ASC`,
+		padId, startRev, endRev)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]db.SheetOpDB, 0)
+	for rows.Next() {
+		var o db.SheetOpDB
+		if err := rows.Scan(&o.PadId, &o.Rev, &o.AuthorId, &o.Timestamp); err != nil {
+			return nil, err
+		}
+		out = append(out, o)
+	}
+	return &out, rows.Err()
+}

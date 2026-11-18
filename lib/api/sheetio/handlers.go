@@ -1,6 +1,8 @@
 package sheetio
 
 import (
+	"net/url"
+
 	"github.com/ether/etherpad-go/lib"
 	"github.com/ether/etherpad-go/lib/sheet"
 	"github.com/ether/etherpad-go/lib/xlsx"
@@ -20,6 +22,30 @@ func checkGrant(c fiber.Ctx, store *lib.InitStore, padId string, write bool) (st
 		return "", fiber.NewError(fiber.StatusForbidden, "accessDenied")
 	}
 	return granted.AuthorId, nil
+}
+
+// fromThisSite refuses a changing request a browser sent for another site
+// (a form or fetch on a foreign page, which carries this site's cookies).
+// The browser says where it came from in Sec-Fetch-Site; older browsers
+// send at least Origin on a POST. Requests without either (not from a
+// browser) pass: they hold no visitor's cookies.
+func fromThisSite(c fiber.Ctx) error {
+	switch c.Get("Sec-Fetch-Site") {
+	case "same-origin", "none":
+		return nil
+	case "":
+	default:
+		return fiber.NewError(fiber.StatusForbidden, "cross-site request")
+	}
+	origin := c.Get(fiber.HeaderOrigin)
+	if origin == "" {
+		return nil
+	}
+	u, err := url.Parse(origin)
+	if err != nil || u.Host != c.Host() {
+		return fiber.NewError(fiber.StatusForbidden, "cross-site request")
+	}
+	return nil
 }
 
 // sheetId is the pad a request's id names: a read-only id stands for its
@@ -58,6 +84,9 @@ func existingSheet(store *lib.InitStore, id string) (string, error) {
 func ImportSheet(store *lib.InitStore) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		padId := c.Params("pad")
+		if err := fromThisSite(c); err != nil {
+			return err
+		}
 		// Same lock as SHEET_OPs, so an import can't interleave with an op.
 		unlock, err := store.PadManager.LockPad(padId)
 		if err != nil {

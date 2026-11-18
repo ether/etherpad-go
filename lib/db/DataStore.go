@@ -160,6 +160,9 @@ type SheetMethods interface {
 	// kept as the op row at rev 0, the base the history starts from.
 	ResetSheet(padId string, snapshot string) error
 	GetSheetOps(padId string, startRev int, endRev int) (*[]db.SheetOpDB, error)
+	// GetSheetOpInfo is GetSheetOps without the ops themselves (Op is
+	// empty): revision, author and time, for the version history.
+	GetSheetOpInfo(padId string, startRev int, endRev int) (*[]db.SheetOpDB, error)
 	RemoveSheetOps(padId string) error
 }
 

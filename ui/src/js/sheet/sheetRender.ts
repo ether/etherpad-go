@@ -15,6 +15,8 @@ export const DEFAULT_COL_WIDTH = 80; // lib/sheet/restore.go, undo.ts
 export const DEFAULT_ROW_HEIGHT = 22;
 // Printing more cells than this would hang the browser.
 export const MAX_RENDER_CELLS = 200000;
+// An imported sheet can be 16384 columns wide; more than this is cut off.
+export const MAX_RENDER_COLS = 256;
 
 export interface RenderRange {
   r0: number;
@@ -103,10 +105,11 @@ export function renderSheetHtml(wb: WorkbookState, sheetId: string, engine: Form
   const range = opts.range ?? usedRange(sheet);
   if (!range) return `<div class="sheet-render" data-sheet="${escapeHtml(sheetId)}">${caption}<p class="sheet-render-empty">This sheet is empty.</p></div>`;
   const { r0, c0 } = range;
-  // Never more than MAX_RENDER_CELLS: rows are cut off at the end.
-  const width = range.c1 - c0 + 1;
+  // Never more than MAX_RENDER_COLS columns and MAX_RENDER_CELLS cells:
+  // the rest is cut off at the right and the bottom.
+  const c1 = Math.min(range.c1, c0 + MAX_RENDER_COLS - 1);
+  const width = c1 - c0 + 1;
   const r1 = Math.min(range.r1, r0 + Math.max(1, Math.floor(MAX_RENDER_CELLS / width)) - 1);
-  const c1 = range.c1;
 
   // Rows the sheet's filters hide (as in the editor).
   const hidden = new Set<number>();
@@ -218,7 +221,10 @@ export function renderSheetHtml(wb: WorkbookState, sheetId: string, engine: Form
     }
   }
   const cls = `sheet-render${opts.gridlines === false ? ' sheet-render-nogrid' : ''}`;
-  const cut = r1 < range.r1 ? `<p class="sheet-render-cut">Only the first ${r1 - r0 + 1} rows are shown.</p>` : '';
+  const cut = [
+    r1 < range.r1 ? `Only the first ${r1 - r0 + 1} rows are shown.` : '',
+    c1 < range.c1 ? `Only the first ${width} columns are shown.` : '',
+  ].filter(Boolean).map((t) => `<p class="sheet-render-cut">${t}</p>`).join('');
   return `<div class="${cls}" data-sheet="${escapeHtml(sheetId)}">${caption}` +
     `<div class="sheet-render-box" style="width:${boxW}px;height:${boxH}px">` +
     `<table style="width:${tableW}px"><colgroup>${cols.join('')}</colgroup><tbody>${rows.join('')}</tbody></table>` +

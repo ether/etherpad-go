@@ -33,6 +33,8 @@ type Manager struct {
 	store db.DataStore
 	mu    sync.Mutex
 	docs  map[string]*entry
+	// history keeps workbooks of earlier revisions (history.go).
+	history checkpoints
 }
 
 func NewManager(store db.DataStore) *Manager {

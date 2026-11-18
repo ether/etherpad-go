@@ -45,6 +45,7 @@ func SheetHistory(store *lib.InitStore) fiber.Handler {
 			}
 			authors[r.Author] = a
 		}
+		c.Set(fiber.HeaderCacheControl, "no-store")
 		return c.JSON(fiber.Map{"head": head, "available": available, "revisions": revs, "authors": authors})
 	}
 }
@@ -79,6 +80,9 @@ func SheetAtRevision(store *lib.InitStore) fiber.Handler {
 func RestoreSheet(store *lib.InitStore) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		padId := c.Params("pad")
+		if err := fromThisSite(c); err != nil {
+			return err
+		}
 		rev, err := strconv.Atoi(c.Params("rev"))
 		if err != nil {
 			return fiber.NewError(fiber.StatusBadRequest, "invalid revision")
