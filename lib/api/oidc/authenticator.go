@@ -241,6 +241,12 @@ func (a *Authenticator) LoginHandler(rw http.ResponseWriter, req *http.Request) 
 		return
 	}
 
+	if ar.IsDone {
+		// Logged in already: the request takes no further credentials or
+		// passwords.
+		http.Error(rw, "The login request is invalid or has expired. Please start the login again.", http.StatusBadRequest)
+		return
+	}
 	// The second step of a login with a password that must be changed.
 	if ar.PasswordChangeFor != "" {
 		a.changePassword(rw, req, ar)
@@ -259,11 +265,12 @@ func (a *Authenticator) LoginHandler(rw http.ResponseWriter, req *http.Request) 
 		return
 	}
 	if account.MustChangePassword {
-		if err := a.storage.awaitPasswordChange(ar.ID, account.ID); err != nil {
+		token, err := a.storage.awaitPasswordChange(ar.ID, account.ID)
+		if err != nil {
 			http.Error(rw, "The login request is invalid or has expired. Please start the login again.", http.StatusBadRequest)
 			return
 		}
-		a.renderChangePassword(rw, req, ar, account.Username, nil)
+		a.renderChangePassword(rw, req, ar, account.Username, token, nil)
 		return
 	}
 	a.complete(rw, req, ar, account.ID)
@@ -280,20 +287,23 @@ func (a *Authenticator) complete(rw http.ResponseWriter, req *http.Request, ar *
 // changePassword takes the new password of an account that must change
 // it, then completes the login.
 func (a *Authenticator) changePassword(rw http.ResponseWriter, req *http.Request, ar *authRequest) {
+	token := req.PostForm.Get("change_token")
 	account := a.storage.activePerson(ar.PasswordChangeFor)
-	if account == nil {
+	if account == nil || !passwordChangeAllowed(ar, token) {
 		http.Error(rw, "The login request is invalid or has expired. Please start the login again.", http.StatusBadRequest)
 		return
 	}
 	newPassword := req.PostForm.Get("new_password")
 	if newPassword != req.PostForm.Get("new_password_repeat") {
 		msg := "The passwords do not match"
-		a.renderChangePassword(rw, req, ar, account.Username, &msg)
+		a.renderChangePassword(rw, req, ar, account.Username, token, &msg)
 		return
 	}
-	if a.storage.checkPassword(account.Username, newPassword) {
+	// Compared with the hash directly: not a login attempt, so it never
+	// counts as a failed one.
+	if a.storage.accounts.PasswordMatches(account, newPassword) {
 		msg := "Choose a password different from the current one"
-		a.renderChangePassword(rw, req, ar, account.Username, &msg)
+		a.renderChangePassword(rw, req, ar, account.Username, token, &msg)
 		return
 	}
 	self := accounts.Actor{ID: account.ID}
@@ -302,18 +312,18 @@ func (a *Authenticator) changePassword(rw http.ResponseWriter, req *http.Request
 		if errors.Is(err, accounts.ErrPasswordTooShort) {
 			msg = fmt.Sprintf("The password needs at least %d characters", accounts.MinPasswordLength)
 		}
-		a.renderChangePassword(rw, req, ar, account.Username, &msg)
+		a.renderChangePassword(rw, req, ar, account.Username, token, &msg)
 		return
 	}
 	a.complete(rw, req, ar, account.ID)
 }
 
-func (a *Authenticator) renderChangePassword(rw http.ResponseWriter, req *http.Request, ar *authRequest, username string, errorMessage *string) {
+func (a *Authenticator) renderChangePassword(rw http.ResponseWriter, req *http.Request, ar *authRequest, username, token string, errorMessage *string) {
 	var client settings.SSOClient
 	if c, ok := a.storage.clients[ar.ClientID]; ok {
 		client = c.settings
 	}
-	params := url.Values{"authRequestID": {ar.ID}}
+	params := url.Values{"authRequestID": {ar.ID}, "change_token": {token}}
 	rw.Header().Set("Content-Type", constants.ContentTypeHTML)
 	if err := login.ChangePassword(client, username, params, errorMessage).Render(req.Context(), rw); err != nil {
 		http.Error(rw, "rendering the login page failed", http.StatusInternalServerError)

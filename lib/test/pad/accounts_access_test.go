@@ -132,3 +132,27 @@ func TestPluginAuthenticatedPeople(t *testing.T) {
 	resp, _ = do(t, app, "/admin-auth/", creds("mod:any"))
 	assert.Equal(t, 200, resp.StatusCode)
 }
+
+func TestDisabledAccountsAndPendingPasswordChanges(t *testing.T) {
+	hookSystem := hooks.NewHook()
+	hookSystem.EnqueueAuthenticateHook(func(ctx *events.AuthenticateContext) {
+		if ctx.InputUsername == "plugin-anna" {
+			ctx.Authenticate("anna")
+		}
+	})
+	cfg := &settings.Settings{RequireAuthentication: true}
+	app, m, _, _ := accountsApp(t, cfg, &hookSystem)
+	require.NoError(t, m.ApplyTemplate(accounts.System, accounts.TemplateClosed))
+	anna, err := m.CreateAccount(accounts.System, accounts.NewAccount{Username: "anna", Kind: accounts.KindHuman, Password: "anna-password"})
+	require.NoError(t, err)
+	resp, _ := do(t, app, "/p/x", creds("plugin-anna:x"))
+	assert.Equal(t, 200, resp.StatusCode)
+	require.NoError(t, m.SetDisabled(accounts.System, anna.ID, true))
+	resp, _ = do(t, app, "/p/x", creds("plugin-anna:x"))
+	assert.Equal(t, 401, resp.StatusCode, "a plugin login does not get around a disabled account")
+
+	_, err = m.CreateAccount(accounts.System, accounts.NewAccount{Username: "boss", Kind: accounts.KindHuman, Password: "bootstrap-pw", MustChangePassword: true})
+	require.NoError(t, err)
+	resp, _ = do(t, app, "/p/x", creds("boss:bootstrap-pw"))
+	assert.Equal(t, 401, resp.StatusCode, "the one-time password only opens the login page")
+}

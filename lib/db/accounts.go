@@ -105,9 +105,15 @@ type AccountMethods interface {
 	// all accounts for "".
 	ListRoleAssignments(accountID string) ([]RoleAssignment, error)
 
+	// TouchLogin sets only the last login time of an account.
+	TouchLogin(id string, at time.Time) error
+
+	// AppendAudit stores e; an id that exists is ErrConflict.
 	AppendAudit(e AuditEntry) error
 	// ListAudit returns the newest entries first, at most limit.
 	ListAudit(limit int) ([]AuditEntry, error)
+	// HasAuditEntry reports whether an entry with this id exists.
+	HasAuditEntry(id string) (bool, error)
 }
 
 func timeOrNil(ms sql.NullInt64) *time.Time {
@@ -436,10 +442,21 @@ func (s sqlAccounts) ListRoleAssignments(accountID string) ([]RoleAssignment, er
 	return out, rows.Err()
 }
 
+func (s sqlAccounts) TouchLogin(id string, at time.Time) error {
+	_, err := s.db.Exec(`UPDATE accounts SET last_login_at = ? WHERE id = ?`, at.UnixMilli(), id)
+	return err
+}
+
 func (s sqlAccounts) AppendAudit(e AuditEntry) error {
 	_, err := s.db.Exec(`INSERT INTO audit_log (`+auditColumns+`) VALUES (?, ?, ?, ?, ?, ?)`,
 		e.ID, e.At.UnixMilli(), e.ActorID, e.Action, e.Target, e.Details)
-	return err
+	return s.conflict(err)
+}
+
+func (s sqlAccounts) HasAuditEntry(id string) (bool, error) {
+	var n int
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM audit_log WHERE id = ?`, id).Scan(&n)
+	return n > 0, err
 }
 
 func (s sqlAccounts) ListAudit(limit int) ([]AuditEntry, error) {
@@ -664,10 +681,21 @@ func (p pgAccounts) ListRoleAssignments(accountID string) ([]RoleAssignment, err
 	return out, rows.Err()
 }
 
+func (p pgAccounts) TouchLogin(id string, at time.Time) error {
+	_, err := p.d.pool.Exec(context.Background(), `UPDATE accounts SET last_login_at = $1 WHERE id = $2`, at.UnixMilli(), id)
+	return err
+}
+
 func (p pgAccounts) AppendAudit(e AuditEntry) error {
 	_, err := p.d.pool.Exec(context.Background(), `INSERT INTO audit_log (`+auditColumns+`) VALUES ($1, $2, $3, $4, $5, $6)`,
 		e.ID, e.At.UnixMilli(), e.ActorID, e.Action, e.Target, e.Details)
-	return err
+	return pgConflict(err)
+}
+
+func (p pgAccounts) HasAuditEntry(id string) (bool, error) {
+	var n int
+	err := p.d.pool.QueryRow(context.Background(), `SELECT COUNT(*) FROM audit_log WHERE id = $1`, id).Scan(&n)
+	return n > 0, err
 }
 
 func (p pgAccounts) ListAudit(limit int) ([]AuditEntry, error) {
@@ -920,11 +948,37 @@ func (m *MemoryDataStore) ListRoleAssignments(accountID string) ([]RoleAssignmen
 	return out, nil
 }
 
+func (m *MemoryDataStore) TouchLogin(id string, at time.Time) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if a, ok := m.acc.accounts[id]; ok {
+		a.LastLoginAt = &at
+		m.acc.accounts[id] = a
+	}
+	return nil
+}
+
 func (m *MemoryDataStore) AppendAudit(e AuditEntry) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	for _, x := range m.acc.audit {
+		if x.ID == e.ID {
+			return ErrConflict
+		}
+	}
 	m.acc.audit = append(m.acc.audit, e)
 	return nil
+}
+
+func (m *MemoryDataStore) HasAuditEntry(id string) (bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, x := range m.acc.audit {
+		if x.ID == id {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (m *MemoryDataStore) ListAudit(limit int) ([]AuditEntry, error) {
@@ -965,6 +1019,8 @@ func (d MysqlDB) ListRoleAssignments(accountID string) ([]RoleAssignment, error)
 }
 func (d MysqlDB) AppendAudit(e AuditEntry) error            { return d.accounts().AppendAudit(e) }
 func (d MysqlDB) ListAudit(limit int) ([]AuditEntry, error) { return d.accounts().ListAudit(limit) }
+func (d MysqlDB) TouchLogin(id string, at time.Time) error  { return d.accounts().TouchLogin(id, at) }
+func (d MysqlDB) HasAuditEntry(id string) (bool, error)     { return d.accounts().HasAuditEntry(id) }
 
 func (d SQLiteDB) CreateAccount(a Account) error          { return d.accounts().CreateAccount(a) }
 func (d SQLiteDB) GetAccount(id string) (*Account, error) { return d.accounts().GetAccount(id) }
@@ -988,6 +1044,8 @@ func (d SQLiteDB) ListRoleAssignments(accountID string) ([]RoleAssignment, error
 }
 func (d SQLiteDB) AppendAudit(e AuditEntry) error            { return d.accounts().AppendAudit(e) }
 func (d SQLiteDB) ListAudit(limit int) ([]AuditEntry, error) { return d.accounts().ListAudit(limit) }
+func (d SQLiteDB) TouchLogin(id string, at time.Time) error  { return d.accounts().TouchLogin(id, at) }
+func (d SQLiteDB) HasAuditEntry(id string) (bool, error)     { return d.accounts().HasAuditEntry(id) }
 
 func (d PostgresDB) CreateAccount(a Account) error          { return d.accounts().CreateAccount(a) }
 func (d PostgresDB) GetAccount(id string) (*Account, error) { return d.accounts().GetAccount(id) }
@@ -1013,3 +1071,5 @@ func (d PostgresDB) ListRoleAssignments(accountID string) ([]RoleAssignment, err
 }
 func (d PostgresDB) AppendAudit(e AuditEntry) error            { return d.accounts().AppendAudit(e) }
 func (d PostgresDB) ListAudit(limit int) ([]AuditEntry, error) { return d.accounts().ListAudit(limit) }
+func (d PostgresDB) TouchLogin(id string, at time.Time) error  { return d.accounts().TouchLogin(id, at) }
+func (d PostgresDB) HasAuditEntry(id string) (bool, error)     { return d.accounts().HasAuditEntry(id) }

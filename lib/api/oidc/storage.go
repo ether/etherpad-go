@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/ether/etherpad-go/lib/accounts"
 	"github.com/ether/etherpad-go/lib/db"
+	"github.com/ether/etherpad-go/lib/utils"
 	jose "github.com/go-jose/go-jose/v4"
 	"github.com/google/uuid"
 	"github.com/zitadel/oidc/v3/pkg/oidc"
@@ -69,10 +71,11 @@ type authRequest struct {
 	UserID        string            `json:"userId"`
 	// PasswordChangeFor is the account that logged in with a password it
 	// must change before the request completes.
-	PasswordChangeFor string    `json:"passwordChangeFor,omitempty"`
-	IsDone            bool      `json:"done"`
-	AuthTime          time.Time `json:"authTime"`
-	ExpiresAt         time.Time `json:"expiresAt"`
+	PasswordChangeFor   string    `json:"passwordChangeFor,omitempty"`
+	PasswordChangeToken string    `json:"passwordChangeToken,omitempty"`
+	IsDone              bool      `json:"done"`
+	AuthTime            time.Time `json:"authTime"`
+	ExpiresAt           time.Time `json:"expiresAt"`
 }
 
 func (a *authRequest) GetID() string          { return a.ID }
@@ -210,20 +213,32 @@ func (s *Storage) completeAuthRequest(id, accountID string) error {
 		return err
 	}
 	ar.UserID = accountID
+	// A finished login allows no further password change.
+	ar.PasswordChangeFor, ar.PasswordChangeToken = "", ""
 	ar.IsDone = true
 	ar.AuthTime = s.now()
 	return s.putAuthRequest(ar)
 }
 
 // awaitPasswordChange remembers that the account logged in but must set a
-// new password first.
-func (s *Storage) awaitPasswordChange(id, accountID string) error {
+// new password first. It returns the secret the form must send back: the
+// request id alone (it is in URLs) does not allow setting a password.
+func (s *Storage) awaitPasswordChange(id, accountID string) (string, error) {
 	ar, err := s.getAuthRequest(id)
 	if err != nil {
-		return err
+		return "", err
 	}
+	token := utils.RandomString(32)
 	ar.PasswordChangeFor = accountID
-	return s.putAuthRequest(ar)
+	ar.PasswordChangeToken = hashToken(token)
+	return token, s.putAuthRequest(ar)
+}
+
+// passwordChangeAllowed reports whether token is the secret of the pending
+// password change of ar.
+func passwordChangeAllowed(ar *authRequest, token string) bool {
+	return !ar.IsDone && ar.PasswordChangeFor != "" && ar.PasswordChangeToken != "" &&
+		subtle.ConstantTimeCompare([]byte(ar.PasswordChangeToken), []byte(hashToken(token))) == 1
 }
 
 // login checks a username and password against the accounts.

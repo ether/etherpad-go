@@ -673,3 +673,48 @@ func TestValidateServiceToken(t *testing.T) {
 	require.Equal(t, http.StatusOK, r.StatusCode)
 	assert.False(t, ts.auth.ValidateServiceToken(service), "revoked")
 }
+
+func TestForcedPasswordChange(t *testing.T) {
+	ts := newTestServer(t, db.NewMemoryDataStore())
+	acc := ts.auth.storage.accounts
+	boss, err := acc.CreateAccount(accounts.System, accounts.NewAccount{Username: "boss", Kind: accounts.KindHuman, Password: "one-time-pw", MustChangePassword: true})
+	require.NoError(t, err)
+	require.NoError(t, acc.Assign(accounts.System, boss.ID, accounts.RoleAdmin, ""))
+
+	loginURL := ts.startAuth(t, "openid")
+	form := formInputs(t, ts.get(t, loginURL).Body)
+	form.Set("username", "boss")
+	form.Set("password", "one-time-pw")
+	resp := ts.post(t, loginPath, form, "", "")
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	change := formInputs(t, resp.Body)
+	require.NotEmpty(t, change.Get("change_token"), "the change form carries its secret")
+	authRequestID := change.Get("authRequestID")
+
+	// The request id alone does not allow setting a password.
+	steal := url.Values{"authRequestID": {authRequestID}, "new_password": {"attacker-pw"}, "new_password_repeat": {"attacker-pw"}}
+	assert.Equal(t, http.StatusBadRequest, ts.post(t, loginPath, steal, "", "").StatusCode)
+	steal.Set("change_token", "guessed")
+	assert.Equal(t, http.StatusBadRequest, ts.post(t, loginPath, steal, "", "").StatusCode)
+
+	// Mismatches and short passwords are no failed logins.
+	for _, pw := range [][2]string{{"aaaaaaaa", "bbbbbbbb"}, {"short", "short"}, {"one-time-pw", "one-time-pw"}, {"x1", "x1"}, {"y1", "y1"}, {"z1", "z1"}} {
+		change.Set("new_password", pw[0])
+		change.Set("new_password_repeat", pw[1])
+		r := ts.post(t, loginPath, change, "", "")
+		require.Equal(t, http.StatusOK, r.StatusCode)
+		assert.Contains(t, body(t, r), "login-error-message")
+	}
+	change.Set("new_password", "my-new-password")
+	change.Set("new_password_repeat", "my-new-password")
+	done := ts.post(t, loginPath, change, "", "")
+	require.Equal(t, http.StatusFound, done.StatusCode, body(t, done))
+
+	// Used once: the same form cannot set another password.
+	change.Set("new_password", "attacker-pw")
+	change.Set("new_password_repeat", "attacker-pw")
+	assert.Equal(t, http.StatusBadRequest, ts.post(t, loginPath, change, "", "").StatusCode)
+	a, err := acc.Authenticate("boss", "my-new-password")
+	require.NoError(t, err)
+	assert.False(t, a.MustChangePassword)
+}

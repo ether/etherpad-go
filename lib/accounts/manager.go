@@ -8,11 +8,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"runtime"
 	"slices"
-	"strings"
 	"sync"
 	"time"
-	"unicode/utf8"
 
 	"github.com/ether/etherpad-go/lib/db"
 	"github.com/ether/etherpad-go/lib/utils"
@@ -89,8 +88,12 @@ type Manager struct {
 	rolesAt  time.Time
 	grants   map[string]cachedGrants
 	verified map[string]verified
-	failures map[string][]time.Time
+	throttle map[string]*throttle
 	authKey  []byte
+
+	// wmu serializes the changes of this process, so the checks of a
+	// change (the last admin, no escalation) see the state it changes.
+	wmu sync.Mutex
 
 	seedMu sync.Mutex
 	seeded bool
@@ -105,7 +108,7 @@ func NewManager(store db.AccountMethods) *Manager {
 		now:      time.Now,
 		grants:   map[string]cachedGrants{},
 		verified: map[string]verified{},
-		failures: map[string][]time.Time{},
+		throttle: map[string]*throttle{},
 		authKey:  key,
 	}
 }
@@ -245,8 +248,9 @@ func (m *Manager) verifiedKey(username, password string) string {
 }
 
 // Authenticate checks a username and password. Disabled accounts, service
-// accounts and the anonymous account cannot log in. After repeated
-// failures the username is locked for a while (ErrLocked).
+// accounts and the built-in accounts cannot log in. After repeated failures
+// the username is locked for a while (ErrLocked); attempts running at the
+// same time count against the limit before they are checked.
 func (m *Manager) Authenticate(username, password string) (*db.Account, error) {
 	now := m.now()
 	key := m.verifiedKey(username, password)
@@ -262,588 +266,130 @@ func (m *Manager) Authenticate(username, password string) (*db.Account, error) {
 		}
 		return nil, ErrInvalidCredentials
 	}
-	recent := m.failures[username][:0]
-	for _, t := range m.failures[username] {
-		if now.Sub(t) < failureWindow {
-			recent = append(recent, t)
-		}
-	}
-	m.failures[username] = recent
-	locked := len(recent) >= maxFailures
-	m.mu.Unlock()
-	if locked {
+	t := m.throttleLocked(username, now)
+	if len(t.failures)+t.inFlight >= maxFailures {
+		m.mu.Unlock()
 		return nil, ErrLocked
 	}
+	t.inFlight++
+	m.mu.Unlock()
 
-	a, err := m.store.GetAccountByUsername(username)
+	ok, a, err := m.checkCredentials(username, password)
+
+	m.mu.Lock()
+	t.inFlight--
+	if err == nil && !ok {
+		t.failures = append(t.failures, now)
+	}
+	if ok {
+		delete(m.throttle, username)
+		m.verified[key] = verified{accountID: a.ID, hash: a.PasswordHash, until: now.Add(verifiedFor)}
+	}
+	m.mu.Unlock()
 	if err != nil {
 		return nil, err
 	}
-	ok := a != nil && a.Kind == KindHuman && a.DisabledAt == nil && a.PasswordHash != "" && CheckPassword(a.PasswordHash, password)
 	if !ok {
-		if a == nil {
-			// Take as long as a real check, so usernames cannot be told
-			// apart by timing.
-			CheckPassword(dummyHash, password)
-		}
-		m.mu.Lock()
-		m.failures[username] = append(m.failures[username], now)
-		m.mu.Unlock()
 		return nil, ErrInvalidCredentials
 	}
-	m.mu.Lock()
-	delete(m.failures, username)
-	m.verified[key] = verified{accountID: a.ID, hash: a.PasswordHash, until: now.Add(verifiedFor)}
-	m.mu.Unlock()
 	login := now
 	a.LastLoginAt = &login
-	_ = m.store.UpdateAccount(*a)
+	// Only the login time: writing the whole row read before the check
+	// could undo a change made meanwhile (a disable, a new password).
+	_ = m.store.TouchLogin(a.ID, login)
 	return a, nil
+}
+
+// throttle is the login state of a username.
+type throttle struct {
+	failures []time.Time
+	inFlight int
+}
+
+// maxThrottled bounds the usernames whose failures are remembered: logins
+// with ever new usernames cannot fill the memory.
+const maxThrottled = 10000
+
+// throttleLocked returns the throttle state of username with old failures
+// dropped. The caller holds m.mu.
+func (m *Manager) throttleLocked(username string, now time.Time) *throttle {
+	if len(m.throttle) >= maxThrottled {
+		for name, t := range m.throttle {
+			t.failures = recentFailures(t.failures, now)
+			if len(t.failures) == 0 && t.inFlight == 0 {
+				delete(m.throttle, name)
+			}
+		}
+		if len(m.throttle) >= maxThrottled {
+			// Under a flood: forget the locks rather than the memory.
+			m.throttle = map[string]*throttle{}
+		}
+	}
+	t := m.throttle[username]
+	if t == nil {
+		t = &throttle{}
+		m.throttle[username] = t
+	}
+	t.failures = recentFailures(t.failures, now)
+	return t
+}
+
+func recentFailures(failures []time.Time, now time.Time) []time.Time {
+	kept := failures[:0]
+	for _, f := range failures {
+		if now.Sub(f) < failureWindow {
+			kept = append(kept, f)
+		}
+	}
+	return kept
+}
+
+// hashSlots bounds the password checks running at once: each takes 19 MiB.
+var hashSlots = make(chan struct{}, max(2, min(8, runtime.NumCPU())))
+
+// checkCredentials checks the password of a person who may log in.
+func (m *Manager) checkCredentials(username, password string) (bool, *db.Account, error) {
+	a, err := m.store.GetAccountByUsername(username)
+	if err != nil {
+		return false, nil, err
+	}
+	hashSlots <- struct{}{}
+	defer func() { <-hashSlots }()
+	if a == nil || a.Kind != KindHuman || a.DisabledAt != nil || a.PasswordHash == "" {
+		// Take as long as a real check, so usernames cannot be told
+		// apart by timing.
+		CheckPassword(dummyHash, password)
+		return false, nil, nil
+	}
+	return CheckPassword(a.PasswordHash, password), a, nil
+}
+
+// PasswordMatches reports whether password is the account's current one,
+// without counting as a login attempt.
+func (m *Manager) PasswordMatches(a *db.Account, password string) bool {
+	if a == nil || a.PasswordHash == "" {
+		return false
+	}
+	hashSlots <- struct{}{}
+	defer func() { <-hashSlots }()
+	return CheckPassword(a.PasswordHash, password)
 }
 
 var dummyHash, _ = HashPassword("not a password of anyone")
 
-func (m *Manager) audit(actor Actor, action, target string, details any) {
+// ErrAuditFailed is returned when a change was saved but its audit entry
+// could not be written.
+var ErrAuditFailed = errors.New("the change was saved, but the audit log could not be written")
+
+func (m *Manager) audit(actor Actor, action, target string, details any) error {
 	b, _ := json.Marshal(details)
-	_ = m.store.AppendAudit(db.AuditEntry{
+	if err := m.store.AppendAudit(db.AuditEntry{
 		ID: utils.RandomString(16), At: m.now(), ActorID: actor.ID, Action: action, Target: target, Details: string(b),
-	})
+	}); err != nil {
+		return fmt.Errorf("%w: %v", ErrAuditFailed, err)
+	}
+	return nil
 }
 
 // Audit returns the newest audit entries first.
 func (m *Manager) Audit(limit int) ([]db.AuditEntry, error) { return m.store.ListAudit(limit) }
-
-func validUsername(u string) bool {
-	if u == "" || utf8.RuneCountInString(u) > MaxUsernameLength || strings.TrimSpace(u) != u {
-		return false
-	}
-	return !strings.ContainsAny(u, ":\x00\n\r\t")
-}
-
-// NewAccount describes an account to create.
-type NewAccount struct {
-	Username    string
-	DisplayName string
-	Email       string
-	Kind        string
-	// Password, only for people; "" leaves the account without one.
-	Password string
-	// PasswordHash takes over an existing hash instead of Password.
-	PasswordHash       string
-	MustChangePassword bool
-}
-
-// CreateAccount creates a person's or a service account.
-func (m *Manager) CreateAccount(actor Actor, n NewAccount) (*db.Account, error) {
-	if !actor.Grants.HasGlobal(ScopeAdminUsers) {
-		return nil, ErrForbidden
-	}
-	if !validUsername(n.Username) {
-		return nil, ErrInvalidUsername
-	}
-	if n.Kind != KindHuman && n.Kind != KindService {
-		return nil, fmt.Errorf("unknown account kind %q", n.Kind)
-	}
-	hash := n.PasswordHash
-	if n.Password != "" {
-		if utf8.RuneCountInString(n.Password) < MinPasswordLength {
-			return nil, ErrPasswordTooShort
-		}
-		var err error
-		if hash, err = HashPassword(n.Password); err != nil {
-			return nil, err
-		}
-	}
-	if n.Kind == KindService && hash != "" {
-		return nil, ErrNoPassword
-	}
-	display := n.DisplayName
-	if display == "" {
-		display = n.Username
-	}
-	a := db.Account{
-		ID: "acc." + utils.RandomString(16), Username: n.Username, DisplayName: display, Email: n.Email,
-		Kind: n.Kind, PasswordHash: hash, MustChangePassword: n.MustChangePassword, CreatedAt: m.now(),
-	}
-	if err := m.store.CreateAccount(a); err != nil {
-		return nil, err
-	}
-	m.audit(actor, "account.create", a.ID, map[string]string{"username": a.Username, "kind": a.Kind})
-	return &a, nil
-}
-
-// SetPassword sets a person's password; actor is the person or an admin.
-func (m *Manager) SetPassword(actor Actor, accountID, password string, mustChange bool) error {
-	if actor.ID != accountID && !actor.Grants.HasGlobal(ScopeAdminUsers) {
-		return ErrForbidden
-	}
-	a, err := m.store.GetAccount(accountID)
-	if err != nil {
-		return err
-	}
-	if a == nil {
-		return db.ErrAccountNotFound
-	}
-	if a.Kind != KindHuman {
-		return ErrNoPassword
-	}
-	if utf8.RuneCountInString(password) < MinPasswordLength {
-		return ErrPasswordTooShort
-	}
-	if a.PasswordHash, err = HashPassword(password); err != nil {
-		return err
-	}
-	a.MustChangePassword = mustChange
-	if err := m.store.UpdateAccount(*a); err != nil {
-		return err
-	}
-	m.Invalidate()
-	m.audit(actor, "account.password", a.ID, nil)
-	return nil
-}
-
-// RandomPassword returns a password for a one-time login.
-func RandomPassword() string { return utils.RandomString(20) }
-
-// ResetPassword gives a person a new one-time password that must be
-// changed at the next login, enables the account and lifts a login lock of
-// this process. It returns the password.
-func (m *Manager) ResetPassword(actor Actor, accountID string) (string, error) {
-	if !actor.Grants.HasGlobal(ScopeAdminUsers) {
-		return "", ErrForbidden
-	}
-	a, err := m.store.GetAccount(accountID)
-	if err != nil {
-		return "", err
-	}
-	if a == nil {
-		return "", db.ErrAccountNotFound
-	}
-	if a.Kind != KindHuman {
-		return "", ErrNoPassword
-	}
-	password := RandomPassword()
-	if a.PasswordHash, err = HashPassword(password); err != nil {
-		return "", err
-	}
-	a.MustChangePassword = true
-	a.DisabledAt = nil
-	if err := m.store.UpdateAccount(*a); err != nil {
-		return "", err
-	}
-	m.mu.Lock()
-	delete(m.failures, a.Username)
-	m.mu.Unlock()
-	m.Invalidate()
-	m.audit(actor, "account.reset-password", a.ID, nil)
-	return password, nil
-}
-
-// IsAdmin reports whether the account holds the admin role for all pads.
-func (m *Manager) IsAdmin(accountID string) (bool, error) {
-	roles, err := m.Roles()
-	if err != nil {
-		return false, err
-	}
-	return m.isAdminAccount(roles, accountID, nil)
-}
-
-// isAdminAccount reports whether the account holds the admin role's rights
-// for all pads.
-func (m *Manager) isAdminAccount(roles map[string]db.Role, accountID string, without *db.RoleAssignment) (bool, error) {
-	as, err := m.store.ListRoleAssignments(accountID)
-	if err != nil {
-		return false, err
-	}
-	for _, a := range as {
-		if a.PadPattern != "" || (without != nil && *without == a) {
-			continue
-		}
-		if _, all := closureScopes(roles, a.RoleID); all {
-			return true, nil
-		}
-	}
-	return false, nil
-}
-
-// otherActiveAdmin reports whether an active person other than accountID
-// is an admin.
-func (m *Manager) otherActiveAdmin(roles map[string]db.Role, accountID string) (bool, error) {
-	accounts, err := m.store.ListAccounts()
-	if err != nil {
-		return false, err
-	}
-	for _, a := range accounts {
-		if a.ID == accountID || a.Kind != KindHuman || a.DisabledAt != nil {
-			continue
-		}
-		if ok, err := m.isAdminAccount(roles, a.ID, nil); err != nil || ok {
-			return ok, err
-		}
-	}
-	return false, nil
-}
-
-// guardLastAdmin refuses a change that would leave no active admin: the
-// account would stop being an admin (without, when only an assignment is
-// removed).
-func (m *Manager) guardLastAdmin(accountID string, without *db.RoleAssignment) error {
-	roles, err := m.Roles()
-	if err != nil {
-		return err
-	}
-	admin, err := m.isAdminAccount(roles, accountID, nil)
-	if err != nil || !admin {
-		return err
-	}
-	if without != nil {
-		if still, err := m.isAdminAccount(roles, accountID, without); err != nil || still {
-			return err
-		}
-	}
-	other, err := m.otherActiveAdmin(roles, accountID)
-	if err != nil {
-		return err
-	}
-	if !other {
-		return ErrLastAdmin
-	}
-	return nil
-}
-
-// SetDisabled disables or enables an account.
-func (m *Manager) SetDisabled(actor Actor, accountID string, disabled bool) error {
-	if !actor.Grants.HasGlobal(ScopeAdminUsers) {
-		return ErrForbidden
-	}
-	if isPseudo(accountID) {
-		return ErrAnonymousAccount
-	}
-	a, err := m.store.GetAccount(accountID)
-	if err != nil {
-		return err
-	}
-	if a == nil {
-		return db.ErrAccountNotFound
-	}
-	if disabled {
-		if err := m.guardLastAdmin(accountID, nil); err != nil {
-			return err
-		}
-		now := m.now()
-		a.DisabledAt = &now
-	} else {
-		a.DisabledAt = nil
-	}
-	if err := m.store.UpdateAccount(*a); err != nil {
-		return err
-	}
-	m.Invalidate()
-	m.audit(actor, map[bool]string{true: "account.disable", false: "account.enable"}[disabled], a.ID, nil)
-	return nil
-}
-
-// DeleteAccount removes an account and its assignments.
-func (m *Manager) DeleteAccount(actor Actor, accountID string) error {
-	if !actor.Grants.HasGlobal(ScopeAdminUsers) {
-		return ErrForbidden
-	}
-	if isPseudo(accountID) {
-		return ErrAnonymousAccount
-	}
-	if err := m.guardLastAdmin(accountID, nil); err != nil {
-		return err
-	}
-	if err := m.store.DeleteAccount(accountID); err != nil {
-		return err
-	}
-	m.Invalidate()
-	m.audit(actor, "account.delete", accountID, nil)
-	return nil
-}
-
-// allows reports whether the actor has every scope in set (for all pads):
-// nobody grants what they do not have.
-func allows(actor Grants, set map[string]bool, all bool) bool {
-	if all {
-		return actor.isAll()
-	}
-	for s := range set {
-		if !actor.HasGlobal(s) {
-			return false
-		}
-	}
-	return true
-}
-
-func (g Grants) isAll() bool {
-	for _, gr := range g.grants {
-		if gr.all && gr.pattern == "" {
-			return true
-		}
-	}
-	return false
-}
-
-// pseudoOK reports whether the anonymous and authenticated accounts keep
-// within what they may have, with roles as the role definitions and extra
-// as an assignment about to be added.
-func (m *Manager) pseudoOK(roles map[string]db.Role, extra *db.RoleAssignment) (bool, error) {
-	for _, id := range []string{AnonymousID, AuthenticatedID} {
-		as, err := m.store.ListRoleAssignments(id)
-		if err != nil {
-			return false, err
-		}
-		if extra != nil && extra.AccountID == id {
-			as = append(as, *extra)
-		}
-		forbidden := anonymousForbidden
-		if id == AuthenticatedID {
-			forbidden = IsAdminScope
-		}
-		for _, a := range as {
-			set, all := closureScopes(roles, a.RoleID)
-			if all {
-				return false, nil
-			}
-			for s := range set {
-				if forbidden(s) {
-					return false, nil
-				}
-			}
-		}
-	}
-	return true, nil
-}
-
-func hasCycle(roles map[string]db.Role, start string) bool {
-	seen := map[string]bool{}
-	var walk func(string) bool
-	walk = func(id string) bool {
-		for _, inc := range roles[id].Includes {
-			if inc == start {
-				return true
-			}
-			if seen[inc] {
-				continue
-			}
-			seen[inc] = true
-			if walk(inc) {
-				return true
-			}
-		}
-		return false
-	}
-	return walk(start)
-}
-
-// SaveRole creates the role (no ID yet, or an unknown one) or changes it.
-func (m *Manager) SaveRole(actor Actor, r db.Role) (*db.Role, error) {
-	if !actor.Grants.HasGlobal(ScopeAdminRoles) {
-		return nil, ErrForbidden
-	}
-	r.Name = strings.TrimSpace(r.Name)
-	if r.Name == "" || utf8.RuneCountInString(r.Name) > MaxUsernameLength {
-		return nil, ErrInvalidRole
-	}
-	if r.ID == RoleAdmin {
-		return nil, ErrAdminRoleFixed
-	}
-	roles, err := m.Roles()
-	if err != nil {
-		return nil, err
-	}
-	existing, known := roles[r.ID]
-	if r.ID == "" {
-		r.ID = "role." + utils.RandomString(12)
-	}
-	r.Builtin = known && existing.Builtin
-	r.Scopes = uniqueSorted(r.Scopes)
-	r.Includes = uniqueSorted(r.Includes)
-	for _, inc := range r.Includes {
-		if _, ok := roles[inc]; !ok || inc == r.ID {
-			return nil, ErrRoleCycle
-		}
-	}
-	next := make(map[string]db.Role, len(roles)+1)
-	for k, v := range roles {
-		next[k] = v
-	}
-	next[r.ID] = r
-	if hasCycle(next, r.ID) {
-		return nil, ErrRoleCycle
-	}
-	// What the role gives after the change must be the actor's to give;
-	// so must what it gave before (nobody takes rights from a role they
-	// could not have handed out).
-	set, all := closureScopes(next, r.ID)
-	if !allows(actor.Grants, set, all) {
-		return nil, ErrEscalation
-	}
-	if known {
-		oldSet, oldAll := closureScopes(roles, r.ID)
-		if !allows(actor.Grants, oldSet, oldAll) {
-			return nil, ErrEscalation
-		}
-	}
-	if ok, err := m.pseudoOK(next, nil); err != nil || !ok {
-		if err == nil {
-			err = ErrAnonymousScope
-		}
-		return nil, err
-	}
-	if known {
-		err = m.store.UpdateRole(r)
-	} else {
-		err = m.store.CreateRole(r)
-	}
-	if err != nil {
-		return nil, err
-	}
-	m.Invalidate()
-	m.audit(actor, map[bool]string{true: "role.update", false: "role.create"}[known], r.ID,
-		map[string]any{"name": r.Name, "scopes": r.Scopes, "includes": r.Includes, "limits": r.Limits})
-	return &r, nil
-}
-
-func uniqueSorted(s []string) []string {
-	set := map[string]bool{}
-	for _, x := range s {
-		if x = strings.TrimSpace(x); x != "" {
-			set[x] = true
-		}
-	}
-	return sortedKeys(set)
-}
-
-// DeleteRole removes a role that is not built in.
-func (m *Manager) DeleteRole(actor Actor, id string) error {
-	if !actor.Grants.HasGlobal(ScopeAdminRoles) {
-		return ErrForbidden
-	}
-	if id == RoleAdmin {
-		return ErrAdminRoleFixed
-	}
-	roles, err := m.Roles()
-	if err != nil {
-		return err
-	}
-	r, ok := roles[id]
-	if !ok {
-		return db.ErrRoleNotFound
-	}
-	if r.Builtin {
-		return ErrBuiltinRole
-	}
-	set, all := closureScopes(roles, id)
-	if !allows(actor.Grants, set, all) {
-		return ErrEscalation
-	}
-	// A role that makes someone an admin (by including admin) cannot take
-	// the last admin with it.
-	if all {
-		accounts, err := m.store.ListAccounts()
-		if err != nil {
-			return err
-		}
-		for _, a := range accounts {
-			as, _ := m.store.ListRoleAssignments(a.ID)
-			for _, as := range as {
-				if as.RoleID == id && as.PadPattern == "" {
-					if err := m.guardLastAdmin(a.ID, &as); err != nil {
-						return err
-					}
-				}
-			}
-		}
-	}
-	if err := m.store.DeleteRole(id); err != nil {
-		return err
-	}
-	m.Invalidate()
-	m.audit(actor, "role.delete", id, map[string]string{"name": r.Name})
-	return nil
-}
-
-// Assign gives an account a role for the pads matching padPattern ("" or
-// "*": all pads).
-func (m *Manager) Assign(actor Actor, accountID, roleID, padPattern string) error {
-	if !actor.Grants.HasGlobal(ScopeAdminUsers) {
-		return ErrForbidden
-	}
-	if padPattern == "*" {
-		padPattern = ""
-	}
-	if err := ValidatePattern(padPattern); err != nil {
-		return err
-	}
-	a, err := m.store.GetAccount(accountID)
-	if err != nil {
-		return err
-	}
-	if a == nil {
-		return db.ErrAccountNotFound
-	}
-	roles, err := m.Roles()
-	if err != nil {
-		return err
-	}
-	if _, ok := roles[roleID]; !ok {
-		return db.ErrRoleNotFound
-	}
-	set, all := closureScopes(roles, roleID)
-	if !allows(actor.Grants, set, all) {
-		return ErrEscalation
-	}
-	as := db.RoleAssignment{AccountID: accountID, RoleID: roleID, PadPattern: padPattern, CreatedBy: actor.ID, CreatedAt: m.now()}
-	if isPseudo(accountID) {
-		if ok, err := m.pseudoOK(roles, &as); err != nil || !ok {
-			if err == nil {
-				err = ErrAnonymousScope
-			}
-			return err
-		}
-	}
-	if err := m.store.AddRoleAssignment(as); err != nil {
-		return err
-	}
-	m.Invalidate()
-	m.audit(actor, "assignment.add", accountID, map[string]string{"role": roleID, "pads": padPattern})
-	return nil
-}
-
-// Unassign takes a role assignment away.
-func (m *Manager) Unassign(actor Actor, accountID, roleID, padPattern string) error {
-	if !actor.Grants.HasGlobal(ScopeAdminUsers) {
-		return ErrForbidden
-	}
-	if padPattern == "*" {
-		padPattern = ""
-	}
-	roles, err := m.Roles()
-	if err != nil {
-		return err
-	}
-	set, all := closureScopes(roles, roleID)
-	if !allows(actor.Grants, set, all) {
-		return ErrEscalation
-	}
-	as, err := m.store.ListRoleAssignments(accountID)
-	if err != nil {
-		return err
-	}
-	for _, x := range as {
-		if x.RoleID == roleID && x.PadPattern == padPattern {
-			if err := m.guardLastAdmin(accountID, &x); err != nil {
-				return err
-			}
-			break
-		}
-	}
-	if err := m.store.RemoveRoleAssignment(accountID, roleID, padPattern); err != nil {
-		return err
-	}
-	m.Invalidate()
-	m.audit(actor, "assignment.remove", accountID, map[string]string{"role": roleID, "pads": padPattern})
-	return nil
-}

@@ -50,6 +50,13 @@ func testAccountStore(t *testing.T, ds testutils.TestDataStore) {
 	assert.Equal(t, a, *got)
 	assert.ErrorIs(t, s.UpdateAccount(db.Account{ID: "nope", Username: "x", CreatedAt: created}), db.ErrAccountNotFound)
 
+	touched := created.Add(time.Hour)
+	require.NoError(t, s.TouchLogin("acc.1", touched))
+	got, _ = s.GetAccount("acc.1")
+	assert.Equal(t, touched, *got.LastLoginAt)
+	assert.NotNil(t, got.DisabledAt, "only the login time changes")
+	a.LastLoginAt = &touched
+
 	require.NoError(t, s.CreateAccount(db.Account{ID: "acc.2", Username: "Ben", Kind: "service", CreatedAt: created.Add(time.Millisecond)}))
 	list, err := s.ListAccounts()
 	require.NoError(t, err)
@@ -107,6 +114,12 @@ func testAccountStore(t *testing.T, ds testutils.TestDataStore) {
 	for i, action := range []string{"a", "b", "c"} {
 		require.NoError(t, s.AppendAudit(db.AuditEntry{ID: action, At: created.Add(time.Duration(i) * time.Second), ActorID: "x", Action: action, Target: "t", Details: "{}"}))
 	}
+	assert.ErrorIs(t, s.AppendAudit(db.AuditEntry{ID: "a", At: created, Details: "{}"}), db.ErrConflict)
+	has, err := s.HasAuditEntry("b")
+	require.NoError(t, err)
+	assert.True(t, has)
+	has, _ = s.HasAuditEntry("zzz")
+	assert.False(t, has)
 	entries, err := s.ListAudit(2)
 	require.NoError(t, err)
 	require.Len(t, entries, 2)

@@ -260,7 +260,12 @@ func CheckAccessWithHooks(ctx fiber.Ctx, logger *zap.SugaredLogger, retrievedSet
 			// account when there is one by that name, else those of
 			// everyone logged in.
 			username := authCtx.Username()
-			a, _ := acc.AccountByUsername(username)
+			a, err := acc.AccountByUsername(username)
+			if err != nil || (a != nil && (a.DisabledAt != nil || a.Kind != accounts.KindHuman)) {
+				// A disabled account (or a name taken by a service or
+				// built-in account) gets in neither way.
+				return sendAuthnFailure()
+			}
 			ctx.Locals(clientVars.WebAccessStore, sessionUserOf(acc, username, a))
 			pluginAuthenticated = true
 		}
@@ -275,6 +280,12 @@ func CheckAccessWithHooks(ctx fiber.Ctx, logger *zap.SugaredLogger, retrievedSet
 			if errors.Is(err, accounts.ErrLocked) {
 				logger.Warnf("Login of %q locked after repeated failures (IP %s)", *webAccessCtx.Username, retrievedSettings.LogIP(ctx.IP()))
 			}
+			return sendAuthnFailure()
+		}
+		if a.MustChangePassword {
+			// The password from the bootstrap or a reset only opens the
+			// login page, where it must be replaced.
+			logger.Infof("Login of %q refused: the password must be changed at the login page first", a.Username)
 			return sendAuthnFailure()
 		}
 		// The session user carries no password, so it cannot leak into logs.
