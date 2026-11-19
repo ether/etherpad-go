@@ -173,7 +173,9 @@
   /*
    * The first admin, created while there is no admin who can log in. The
    * password must be changed at the first login. EP_BOOTSTRAP_ADMIN_USER and
-   * EP_BOOTSTRAP_ADMIN_PASSWORD take precedence.
+   * EP_BOOTSTRAP_ADMIN_PASSWORD take precedence. Without them, create admins
+   * with "etherpad-go admin create <username>", which prints a one-time
+   * password; "etherpad-go admin reset-password <username>" gets you back in.
    */
   "bootstrapAdmin": {
     "username": null,

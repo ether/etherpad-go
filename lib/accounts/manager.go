@@ -61,6 +61,10 @@ type Actor struct {
 // System acts for the server: it may do everything.
 var System = Actor{ID: "system", Grants: Grants{grants: []grant{{all: true}}}}
 
+// CLI acts for the command line (etherpad-go admin): it may do everything;
+// the audit log names it.
+var CLI = Actor{ID: "cli", Grants: Grants{grants: []grant{{all: true}}}}
+
 type cachedGrants struct {
 	grants Grants
 	at     time.Time
@@ -68,7 +72,10 @@ type cachedGrants struct {
 
 type verified struct {
 	accountID string
-	until     time.Time
+	// hash is the password hash checked: a new password (also set by
+	// another process) ends the remembered login.
+	hash  string
+	until time.Time
 }
 
 // Manager reads and changes accounts, roles and assignments and enforces
@@ -250,7 +257,7 @@ func (m *Manager) Authenticate(username, password string) (*db.Account, error) {
 		if err != nil {
 			return nil, err
 		}
-		if a != nil && a.DisabledAt == nil && a.Username == username {
+		if a != nil && a.DisabledAt == nil && a.Username == username && a.PasswordHash == v.hash {
 			return a, nil
 		}
 		return nil, ErrInvalidCredentials
@@ -286,7 +293,7 @@ func (m *Manager) Authenticate(username, password string) (*db.Account, error) {
 	}
 	m.mu.Lock()
 	delete(m.failures, username)
-	m.verified[key] = verified{accountID: a.ID, until: now.Add(verifiedFor)}
+	m.verified[key] = verified{accountID: a.ID, hash: a.PasswordHash, until: now.Add(verifiedFor)}
 	m.mu.Unlock()
 	login := now
 	a.LastLoginAt = &login
@@ -393,6 +400,52 @@ func (m *Manager) SetPassword(actor Actor, accountID, password string, mustChang
 	m.Invalidate()
 	m.audit(actor, "account.password", a.ID, nil)
 	return nil
+}
+
+// RandomPassword returns a password for a one-time login.
+func RandomPassword() string { return utils.RandomString(20) }
+
+// ResetPassword gives a person a new one-time password that must be
+// changed at the next login, enables the account and lifts a login lock of
+// this process. It returns the password.
+func (m *Manager) ResetPassword(actor Actor, accountID string) (string, error) {
+	if !actor.Grants.HasGlobal(ScopeAdminUsers) {
+		return "", ErrForbidden
+	}
+	a, err := m.store.GetAccount(accountID)
+	if err != nil {
+		return "", err
+	}
+	if a == nil {
+		return "", db.ErrAccountNotFound
+	}
+	if a.Kind != KindHuman {
+		return "", ErrNoPassword
+	}
+	password := RandomPassword()
+	if a.PasswordHash, err = HashPassword(password); err != nil {
+		return "", err
+	}
+	a.MustChangePassword = true
+	a.DisabledAt = nil
+	if err := m.store.UpdateAccount(*a); err != nil {
+		return "", err
+	}
+	m.mu.Lock()
+	delete(m.failures, a.Username)
+	m.mu.Unlock()
+	m.Invalidate()
+	m.audit(actor, "account.reset-password", a.ID, nil)
+	return password, nil
+}
+
+// IsAdmin reports whether the account holds the admin role for all pads.
+func (m *Manager) IsAdmin(accountID string) (bool, error) {
+	roles, err := m.Roles()
+	if err != nil {
+		return false, err
+	}
+	return m.isAdminAccount(roles, accountID, nil)
 }
 
 // isAdminAccount reports whether the account holds the admin role's rights

@@ -231,7 +231,7 @@ func (m *Manager) ensureAdmin(cfg SeedConfig, logger *zap.SugaredLogger) error {
 	}
 	if cfg.BootstrapUser == "" || cfg.BootstrapPassword == "" {
 		if logger != nil {
-			logger.Warn("There is no admin who can log in with a password: set EP_BOOTSTRAP_ADMIN_USER and EP_BOOTSTRAP_ADMIN_PASSWORD (or bootstrapAdmin in settings.json) to create one")
+			logger.Warn("There is no admin who can log in. Create one with \"etherpad-go admin create <username>\" (it prints a one-time password), or set EP_BOOTSTRAP_ADMIN_USER and EP_BOOTSTRAP_ADMIN_PASSWORD")
 		}
 		return nil
 	}
