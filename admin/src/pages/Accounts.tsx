@@ -6,14 +6,14 @@ import {
   ErrorBanner, OneTimePassword, PageHeader, RoleChips, formatTime, inputClass, primaryButton, smallButton,
 } from '@/components/AccountParts'
 
-function EditProfile({ account, onDone }: { account: Account; onDone: () => void }) {
+function EditProfile({ account, onSave, onDone }: { account: Account; onSave: () => void; onDone: () => void }) {
   const actions = useAdminActions()
   const [username, setUsername] = useState(account.username)
   const [displayName, setDisplayName] = useState(account.displayName)
   const [email, setEmail] = useState(account.email)
   const save = () => {
+    onSave()
     actions.updateAccount({ id: account.id, username: username.trim(), displayName, email })
-    onDone()
   }
   return (
     <div className="mt-2 flex flex-col gap-2 sm:flex-row" data-testid="account-edit">
@@ -40,7 +40,9 @@ export function AccountsPage() {
   const [filter, setFilter] = useState('')
   const [editing, setEditing] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
-  const [shown, setShown] = useState<{ username: string; password: string } | null>(null)
+  // pending is the request whose answer decides whether a form closes:
+  // on an error it stays as typed.
+  const [pending, setPending] = useState<'create' | 'edit' | null>(null)
 
   useEffect(() => {
     if (store.connected) actions.loadAccounts()
@@ -49,15 +51,23 @@ export function AccountsPage() {
 
   const result = store.accounts
   useEffect(() => {
-    if (result?.password) {
-      setShown(result.password)
-      if (!result.error) {
-        setUsername('')
-        setDisplayName('')
-        setPads('')
-      }
+    if (!pending || !result) return
+    setPending(null)
+    if (result.error) return
+    if (pending === 'create') {
+      setUsername('')
+      setDisplayName('')
+      setPads('')
+    } else {
+      setEditing(null)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [result])
+
+  // A one-time password is shown once: gone when the page is left.
+  const shown = store.accountPassword
+  const clearPassword = () => store.dispatch({ type: 'CLEAR_ACCOUNT_PASSWORD' })
+  useEffect(() => clearPassword, [])  // eslint-disable-line react-hooks/exhaustive-deps
 
   const roles = result?.roles ?? []
   const people = useMemo(() => {
@@ -71,6 +81,7 @@ export function AccountsPage() {
   const create = () => {
     const u = username.trim()
     if (!u) return
+    setPending('create')
     actions.createAccount({ username: u, displayName: displayName.trim(), kind, role: role || undefined, pads: pads.trim() })
   }
 
@@ -81,7 +92,7 @@ export function AccountsPage() {
       </PageHeader>
 
       <ErrorBanner error={result?.error} testId="accounts-error" />
-      {shown && <OneTimePassword shown={shown} onClose={() => setShown(null)} />}
+      {shown && <OneTimePassword shown={shown} onClose={clearPassword} />}
 
       <div className="mb-8 rounded-lg border border-gray-200 dark:border-gray-800 p-4">
         <h3 className="mb-3 text-sm font-medium text-black dark:text-white">New account</h3>
@@ -143,7 +154,7 @@ export function AccountsPage() {
                       {a.displayName !== a.username && a.displayName}{a.email && ` · ${a.email}`}
                     </div>
                   )}
-                  {editing === a.id && <EditProfile account={a} onDone={() => setEditing(null)} />}
+                  {editing === a.id && <EditProfile account={a} onSave={() => setPending('edit')} onDone={() => setEditing(null)} />}
                 </td>
                 <td className="px-4 py-3 align-top"><RoleChips account={a} roles={roles} /></td>
                 <td className="whitespace-nowrap px-4 py-3 align-top text-gray-500">

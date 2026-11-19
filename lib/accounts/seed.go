@@ -340,7 +340,7 @@ func (m *Manager) ensureAdmin(cfg SeedConfig, logger *zap.SugaredLogger) error {
 // accounts with those of a template: open lets visitors edit, read lets
 // them read, closed lets only logged-in people in (and lets them edit).
 func (m *Manager) ApplyTemplate(actor Actor, t Template) error {
-	unlock, err := m.lockWrites()
+	unlock, actor, err := m.lockFor(actor)
 	if err != nil {
 		return err
 	}

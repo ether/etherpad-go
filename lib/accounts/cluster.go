@@ -39,6 +39,7 @@ func (m *Manager) lockWrites() (func(), error) {
 			// and its notice not be here yet: decide on what is stored.
 			m.mu.Lock()
 			m.roles = nil
+			m.grants = map[string]cachedGrants{}
 			m.mu.Unlock()
 			return func() {
 				lease.Release()
@@ -70,4 +71,41 @@ func (m *Manager) changed() {
 	if fn != nil {
 		fn()
 	}
+}
+
+// lockFor takes the write lock for a change by actor and returns the actor
+// as it is now: its account still active, its rights read from what is
+// stored. A change that waited for the lock thus cannot use rights taken
+// away in the meantime.
+func (m *Manager) lockFor(actor Actor) (func(), Actor, error) {
+	unlock, err := m.lockWrites()
+	if err != nil {
+		return nil, Actor{}, err
+	}
+	if actor.server {
+		return unlock, actor, nil
+	}
+	fresh, err := m.CurrentActor(actor.ID)
+	if err != nil {
+		unlock()
+		return nil, Actor{}, err
+	}
+	return unlock, fresh, nil
+}
+
+// CurrentActor returns the actor of an account with its rights as they are
+// now; ErrForbidden for an unknown, disabled or built-in account.
+func (m *Manager) CurrentActor(accountID string) (Actor, error) {
+	a, err := m.store.GetAccount(accountID)
+	if err != nil && !errors.Is(err, db.ErrAccountNotFound) {
+		return Actor{}, err
+	}
+	if a == nil || a.DisabledAt != nil || (a.Kind != KindHuman && a.Kind != KindService) {
+		return Actor{}, ErrForbidden
+	}
+	g, err := m.GrantsFor(a.ID)
+	if err != nil {
+		return Actor{}, err
+	}
+	return Actor{ID: a.ID, Grants: g}, nil
 }

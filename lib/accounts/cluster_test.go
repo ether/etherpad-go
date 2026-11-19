@@ -122,3 +122,35 @@ func TestUpdateProfile(t *testing.T) {
 	_, err = m.UpdateProfile(System, anna.ID, Profile{Username: &bad})
 	assert.ErrorIs(t, err, ErrInvalidUsername)
 }
+
+// A change that waited for the lock uses the rights of now, not those
+// read before.
+func TestStaleActorIsCheckedAgain(t *testing.T) {
+	m, _ := newSeeded(t, SeedConfig{Template: TemplateOpen})
+	var ids []string
+	for _, name := range []string{"root1", "root2"} {
+		acc, err := m.CreateAccount(System, NewAccount{Username: name, Kind: KindHuman, Password: "long enough password"})
+		require.NoError(t, err)
+		require.NoError(t, m.Assign(System, acc.ID, RoleAdmin, ""))
+		ids = append(ids, acc.ID)
+	}
+	stale, err := m.CurrentActor(ids[1])
+	require.NoError(t, err)
+	require.True(t, stale.Grants.IsAdmin())
+
+	require.NoError(t, m.SetDisabled(System, ids[1], true))
+	_, err = m.CreateAccount(stale, NewAccount{Username: "late", Kind: KindService})
+	assert.ErrorIs(t, err, ErrForbidden, "disabled meanwhile")
+
+	require.NoError(t, m.SetDisabled(System, ids[1], false))
+	stale, err = m.CurrentActor(ids[1])
+	require.NoError(t, err)
+	require.NoError(t, m.Unassign(System, ids[1], RoleAdmin, ""))
+	_, err = m.CreateAccount(stale, NewAccount{Username: "late", Kind: KindService})
+	assert.ErrorIs(t, err, ErrForbidden, "rights taken away meanwhile")
+
+	_, err = m.CurrentActor(AnonymousID)
+	assert.ErrorIs(t, err, ErrForbidden)
+	_, err = m.CurrentActor("acc.nope")
+	assert.ErrorIs(t, err, ErrForbidden)
+}

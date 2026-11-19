@@ -275,6 +275,24 @@ func uniqueSorted(s []string) []string {
 	return sortedKeys(set)
 }
 
+// AdminIDs returns the accounts that hold the admin role for all pads, as
+// IsAdmin decides it, loading the state once.
+func (m *Manager) AdminIDs() (map[string]bool, error) {
+	st, err := m.currentState()
+	if err != nil {
+		return nil, err
+	}
+	ids := map[string]bool{}
+	for _, as := range st.assignments {
+		if as.PadPattern == "" {
+			if _, all := closureScopes(st.roles, as.RoleID); all {
+				ids[as.AccountID] = true
+			}
+		}
+	}
+	return ids, nil
+}
+
 // IsAdmin reports whether the account holds the admin role for all pads.
 func (m *Manager) IsAdmin(accountID string) (bool, error) {
 	st, err := m.currentState()
@@ -293,7 +311,7 @@ func (m *Manager) IsAdmin(accountID string) (bool, error) {
 
 // CreateAccount creates a person's or a service account.
 func (m *Manager) CreateAccount(actor Actor, n NewAccount) (*db.Account, error) {
-	unlock, err := m.lockWrites()
+	unlock, actor, err := m.lockFor(actor)
 	if err != nil {
 		return nil, err
 	}
@@ -345,7 +363,7 @@ func (m *Manager) createAccount(actor Actor, n NewAccount) (*db.Account, error) 
 // SetPassword sets a person's password; actor is the person or someone
 // with all its rights and admin:users.
 func (m *Manager) SetPassword(actor Actor, accountID, password string, mustChange bool) error {
-	unlock, err := m.lockWrites()
+	unlock, actor, err := m.lockFor(actor)
 	if err != nil {
 		return err
 	}
@@ -388,7 +406,7 @@ func (m *Manager) SetPassword(actor Actor, accountID, password string, mustChang
 // changed at the next login, enables the account and lifts a login lock of
 // this process. It returns the password.
 func (m *Manager) ResetPassword(actor Actor, accountID string) (string, error) {
-	unlock, err := m.lockWrites()
+	unlock, actor, err := m.lockFor(actor)
 	if err != nil {
 		return "", err
 	}
@@ -431,7 +449,7 @@ func (m *Manager) ResetPassword(actor Actor, accountID string) (string, error) {
 
 // SetDisabled disables or enables an account.
 func (m *Manager) SetDisabled(actor Actor, accountID string, disabled bool) error {
-	unlock, err := m.lockWrites()
+	unlock, actor, err := m.lockFor(actor)
 	if err != nil {
 		return err
 	}
@@ -474,7 +492,7 @@ func (m *Manager) SetDisabled(actor Actor, accountID string, disabled bool) erro
 
 // DeleteAccount removes an account and its assignments.
 func (m *Manager) DeleteAccount(actor Actor, accountID string) error {
-	unlock, err := m.lockWrites()
+	unlock, actor, err := m.lockFor(actor)
 	if err != nil {
 		return err
 	}
@@ -511,7 +529,7 @@ func (m *Manager) DeleteAccount(actor Actor, accountID string) error {
 
 // SaveRole creates the role (no ID yet, or an unknown one) or changes it.
 func (m *Manager) SaveRole(actor Actor, r db.Role) (*db.Role, error) {
-	unlock, err := m.lockWrites()
+	unlock, actor, err := m.lockFor(actor)
 	if err != nil {
 		return nil, err
 	}
@@ -591,7 +609,7 @@ func (m *Manager) saveRole(actor Actor, r db.Role) (*db.Role, error) {
 
 // DeleteRole removes a role that is not built in.
 func (m *Manager) DeleteRole(actor Actor, id string) error {
-	unlock, err := m.lockWrites()
+	unlock, actor, err := m.lockFor(actor)
 	if err != nil {
 		return err
 	}
@@ -631,7 +649,7 @@ func (m *Manager) DeleteRole(actor Actor, id string) error {
 // Assign gives an account a role for the pads matching padPattern ("" or
 // "*": all pads).
 func (m *Manager) Assign(actor Actor, accountID, roleID, padPattern string) error {
-	unlock, err := m.lockWrites()
+	unlock, actor, err := m.lockFor(actor)
 	if err != nil {
 		return err
 	}
@@ -685,7 +703,7 @@ func (m *Manager) assign(actor Actor, accountID, roleID, padPattern string) erro
 
 // Unassign takes a role assignment away.
 func (m *Manager) Unassign(actor Actor, accountID, roleID, padPattern string) error {
-	unlock, err := m.lockWrites()
+	unlock, actor, err := m.lockFor(actor)
 	if err != nil {
 		return err
 	}
@@ -730,7 +748,7 @@ const MaxProfileLength = 200
 // The account's person may change the display name and e-mail; a username
 // and the profile of others need admin:users and all the account's rights.
 func (m *Manager) UpdateProfile(actor Actor, accountID string, p Profile) (*db.Account, error) {
-	unlock, err := m.lockWrites()
+	unlock, actor, err := m.lockFor(actor)
 	if err != nil {
 		return nil, err
 	}
@@ -800,7 +818,7 @@ func (m *Manager) UpdateProfile(actor Actor, accountID string, p Profile) (*db.A
 
 // ResetRole sets a built-in role back to how it was shipped.
 func (m *Manager) ResetRole(actor Actor, id string) (*db.Role, error) {
-	unlock, err := m.lockWrites()
+	unlock, actor, err := m.lockFor(actor)
 	if err != nil {
 		return nil, err
 	}

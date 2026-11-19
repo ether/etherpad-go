@@ -164,6 +164,9 @@ export interface AdminState {
   apiKeys: ApiKeysResult | null
   // accounts is the last answer about accounts and roles; null before one.
   accounts: AccountsResult | null
+  // accountPassword is a new one-time password until the page showing it
+  // is left or closes it; accounts never holds it.
+  accountPassword: AccountsResult['password'] | null
   audit: AuditResult | null
   // updateLog is the end of the update log; null before it was loaded.
   updateLog: string[] | null
@@ -208,6 +211,7 @@ type Action =
   | { type: 'SET_AUTH_ERROR'; payload: string | null }
   | { type: 'SET_API_KEYS'; payload: ApiKeysResult | null }
   | { type: 'SET_ACCOUNTS'; payload: AccountsResult | null }
+  | { type: 'CLEAR_ACCOUNT_PASSWORD' }
   | { type: 'SET_AUDIT'; payload: AuditResult | null }
   | { type: 'SET_UPDATE_LOG'; payload: string[] }
   | { type: 'SET_AUTHORS'; payload: AuthorLoadResult }
@@ -246,6 +250,7 @@ const initialState: AdminState = {
   authError: null,
   apiKeys: null,
   accounts: null,
+  accountPassword: null,
   audit: null,
   updateLog: null,
   authors: null,
@@ -289,8 +294,13 @@ function adminReducer(state: AdminState, action: Action): AdminState {
       return { ...state, authError: action.payload }
     case 'SET_API_KEYS':
       return { ...state, apiKeys: action.payload }
-    case 'SET_ACCOUNTS':
-      return { ...state, accounts: action.payload }
+    case 'SET_ACCOUNTS': {
+      if (!action.payload) return { ...state, accounts: null }
+      const { password, ...accounts } = action.payload
+      return { ...state, accounts, accountPassword: password ?? state.accountPassword }
+    }
+    case 'CLEAR_ACCOUNT_PASSWORD':
+      return { ...state, accountPassword: null }
     case 'SET_AUDIT':
       return { ...state, audit: action.payload }
     case 'SET_UPDATE_LOG':

@@ -27,6 +27,12 @@ test.describe('admin accounts', () => {
         await expect(row.getByTestId('role-chip')).toHaveText(/editor.*team\/\*/)
         await expect(row).toContainText('must change password')
 
+        // shown once: gone after leaving the page
+        await page.getByRole('link', {name: 'Pads'}).click()
+        await page.getByRole('link', {name: 'Accounts'}).click()
+        await expect(row).toBeVisible()
+        await expect(page.getByTestId('account-password')).toHaveCount(0)
+
         // the one-time password must be changed at the first login
         const other = await browser.newContext()
         const login = await other.newPage()
@@ -44,17 +50,34 @@ test.describe('admin accounts', () => {
         await expect(row.getByTestId('role-chip')).toHaveText(/ai-user.*all pads/)
 
         await row.getByRole('button', {name: `Edit ${anna}`}).click()
+        // a refused change keeps what was typed
+        await row.getByLabel('Username').fill('no:colons')
+        await row.getByRole('button', {name: 'Save'}).click()
+        await expect(page.getByTestId('accounts-error')).toContainText('invalid username')
+        await expect(row.getByLabel('Username')).toHaveValue('no:colons')
+        await row.getByLabel('Username').fill(anna)
         await row.getByLabel('E-mail').fill('anna@example.org')
         await row.getByRole('button', {name: 'Save'}).click()
         await expect(row).toContainText('anna@example.org')
 
-        await page.getByRole('button', {name: 'Close'}).click()
         await row.getByRole('button', {name: 'Reset password'}).click()
         await expect(password).toBeVisible()
         expect((await password.textContent())!.trim()).not.toBe(oneTime)
 
         await row.getByRole('button', {name: /Active – disable/}).click()
         await expect(row.getByRole('button', {name: /Disabled – enable/})).toBeVisible()
+
+        // a service account has no password; the form is ready for the next
+        await page.getByRole('button', {name: 'Close'}).click()
+        const service = `pw-svc-${Date.now().toString(36)}`
+        await page.getByLabel('Kind').selectOption('service')
+        await page.getByLabel('New username').fill(service)
+        await page.getByLabel('New role').selectOption('')
+        await page.getByRole('button', {name: 'Create', exact: true}).click()
+        await expect(accountRow(page, service)).toBeVisible()
+        await expect(page.getByLabel('New username')).toHaveValue('')
+        await expect(page.getByTestId('account-password')).toHaveCount(0)
+        await expect(accountRow(page, service).getByRole('button', {name: 'Reset password'})).toHaveCount(0)
 
         // the last admin stays an admin
         const admin = accountRow(page, 'admin')

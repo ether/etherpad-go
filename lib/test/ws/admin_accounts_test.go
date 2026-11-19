@@ -252,6 +252,19 @@ func testAdminAccountsRights(t *testing.T, ds testutils.TestDataStore) {
 	require.Empty(t, res.Error)
 	res = accountsCall(t, ds, eve, "accountCreate", map[string]any{"username": "y", "kind": "service"})
 	assert.Equal(t, accounts.ErrForbidden.Error(), res.Error)
+	res = accountsCall(t, ds, eve, "accountsLoad", nil)
+	assert.Equal(t, accounts.ErrForbidden.Error(), res.Error)
+	assert.Empty(t, res.Accounts, "nothing about the accounts for who may not see them")
+	assert.Empty(t, res.Roles)
+
+	// neither may who has other admin scopes only
+	keys, err := m.SaveRole(accounts.System, db.Role{Name: "key keeper", Scopes: []string{accounts.ScopeAdminAPIKeys}})
+	require.NoError(t, err)
+	res = accountsCall(t, ds, me, "accountCreate", map[string]any{"username": "kim", "kind": "human", "role": keys.ID})
+	require.Empty(t, res.Error)
+	res = accountsCall(t, ds, findAccount(res, "kim").ID, "accountsLoad", nil)
+	assert.Equal(t, accounts.ErrForbidden.Error(), res.Error)
+	assert.Empty(t, res.Accounts)
 	name, raw := accountRequest(t, ds, eve, "auditLoad", nil)
 	require.Equal(t, "results:audit", name)
 	var audit libws.AuditResult

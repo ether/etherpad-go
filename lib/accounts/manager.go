@@ -57,14 +57,16 @@ var (
 type Actor struct {
 	ID     string
 	Grants Grants
+	// server marks System and CLI, which are not accounts.
+	server bool
 }
 
 // System acts for the server: it may do everything.
-var System = Actor{ID: "system", Grants: Grants{grants: []grant{{all: true}}}}
+var System = Actor{ID: "system", Grants: Grants{grants: []grant{{all: true}}}, server: true}
 
 // CLI acts for the command line (etherpad-go admin): it may do everything;
 // the audit log names it.
-var CLI = Actor{ID: "cli", Grants: Grants{grants: []grant{{all: true}}}}
+var CLI = Actor{ID: "cli", Grants: Grants{grants: []grant{{all: true}}}, server: true}
 
 type cachedGrants struct {
 	grants Grants

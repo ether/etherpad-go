@@ -111,23 +111,18 @@ var accountErrors = []error{
 
 // actor is the admin of the connection with its rights as they are now,
 // not as they were at login: a disabled admin or one who lost rights
-// cannot change anything more.
+// cannot change or see anything more. Every change checks again under the
+// write lock.
 func (h AdminMessageHandler) actor(m *accounts.Manager, c *Client) (accounts.Actor, error) {
 	if c.AdminAccount == "" {
 		return accounts.Actor{}, accounts.ErrForbidden
 	}
-	a, err := m.Account(c.AdminAccount)
-	if err != nil {
-		return accounts.Actor{}, err
-	}
-	if a == nil || a.Kind != accounts.KindHuman || a.DisabledAt != nil {
-		return accounts.Actor{}, accounts.ErrForbidden
-	}
-	g, err := m.GrantsFor(a.ID)
-	if err != nil {
-		return accounts.Actor{}, err
-	}
-	return accounts.Actor{ID: a.ID, Grants: g}, nil
+	return m.CurrentActor(c.AdminAccount)
+}
+
+// mayManage: who may see the accounts and roles.
+func mayManage(actor accounts.Actor) bool {
+	return actor.Grants.HasGlobal(accounts.ScopeAdminUsers) || actor.Grants.HasGlobal(accounts.ScopeAdminRoles)
 }
 
 // handleAccountEvent manages accounts, roles and the audit log. Account
@@ -140,10 +135,17 @@ func (h AdminMessageHandler) handleAccountEvent(event string, data json.RawMessa
 		h.sendAudit(m, actor, err, data, c)
 		return
 	}
-	result := AccountsResult{Me: c.AdminAccount}
-	if err == nil {
-		result.Password, err = h.applyAccountEvent(m, actor, event, data)
+	result := AccountsResult{Me: c.AdminAccount, Accounts: []AccountView{}, Roles: []RoleView{}, Scopes: []ScopeView{}}
+	if err == nil && !mayManage(actor) {
+		err = accounts.ErrForbidden
 	}
+	if err != nil {
+		// Nothing about the accounts for who may not see them.
+		result.Error = h.accountError(event, err)
+		h.sendResult(c, "results:accounts", result)
+		return
+	}
+	result.Password, err = h.applyAccountEvent(m, actor, event, data)
 	if err != nil {
 		result.Error = h.accountError(event, err)
 	}
@@ -223,23 +225,34 @@ func (h AdminMessageHandler) applyAccountEvent(m *accounts.Manager, actor accoun
 			}
 		}
 		a, err := m.CreateAccount(actor, n)
-		if err != nil {
+		if a == nil {
 			return nil, err
 		}
+		// Saved, even when the audit log failed (err is then
+		// ErrAuditFailed): the account is there, so is its password.
+		auditErr := err
 		h.Logger.Infof("admin: account %s created by %s", a.Username, actor.ID)
-		if req.Role != "" {
-			if err := m.Assign(actor, a.ID, req.Role, req.Pads); err != nil {
-				// Not left behind without the role it was made for.
-				if delErr := m.DeleteAccount(actor, a.ID); delErr != nil {
-					h.Logger.Errorf("admin: removing account %s after a failed assignment: %v", a.ID, delErr)
-				}
-				return nil, err
-			}
-		}
+		otp := &OneTimePassword{AccountID: a.ID, Username: a.Username, Password: password}
 		if password == "" {
-			return nil, nil
+			otp = nil
 		}
-		return &OneTimePassword{AccountID: a.ID, Username: a.Username, Password: password}, nil
+		if req.Role == "" {
+			return otp, auditErr
+		}
+		err = m.Assign(actor, a.ID, req.Role, req.Pads)
+		switch {
+		case err == nil:
+			return otp, auditErr
+		case errors.Is(err, accounts.ErrAuditFailed):
+			return otp, err
+		}
+		// Not left behind without the role it was made for; if it cannot
+		// be removed, it stays, and so must its password.
+		if delErr := m.DeleteAccount(actor, a.ID); delErr != nil && !errors.Is(delErr, accounts.ErrAuditFailed) {
+			h.Logger.Errorf("admin: removing account %s after a failed assignment: %v", a.ID, delErr)
+			return otp, err
+		}
+		return nil, err
 	case "accountUpdate":
 		_, err := m.UpdateProfile(actor, req.ID, accounts.Profile{Username: req.Username, DisplayName: req.DisplayName, Email: req.Email})
 		return nil, err
@@ -295,6 +308,10 @@ func (h AdminMessageHandler) fillAccounts(m *accounts.Manager, result *AccountsR
 	if err != nil {
 		return err
 	}
+	admins, err := m.AdminIDs()
+	if err != nil {
+		return err
+	}
 	byAccount := map[string][]AssignmentView{}
 	for _, as := range assignments {
 		byAccount[as.AccountID] = append(byAccount[as.AccountID], AssignmentView{
@@ -312,9 +329,7 @@ func (h AdminMessageHandler) fillAccounts(m *accounts.Manager, result *AccountsR
 			ms := a.LastLoginAt.UnixMilli()
 			v.LastLoginAt = &ms
 		}
-		if a.Kind == accounts.KindHuman {
-			v.Admin, _ = m.IsAdmin(a.ID)
-		}
+		v.Admin = a.Kind == accounts.KindHuman && admins[a.ID]
 		result.Accounts = append(result.Accounts, v)
 	}
 	builtin := map[string]db.Role{}
@@ -369,7 +384,7 @@ const auditLimit = 1000
 
 func (h AdminMessageHandler) sendAudit(m *accounts.Manager, actor accounts.Actor, err error, data json.RawMessage, c *Client) {
 	result := AuditResult{Entries: []AuditView{}, Names: map[string]string{}}
-	if err == nil && !actor.Grants.HasGlobal(accounts.ScopeAdminUsers) && !actor.Grants.HasGlobal(accounts.ScopeAdminRoles) {
+	if err == nil && !mayManage(actor) {
 		err = accounts.ErrForbidden
 	}
 	var req struct {
