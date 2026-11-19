@@ -495,11 +495,18 @@ func (m *Manager) DeleteAccount(actor Actor, accountID string) error {
 	if err := keepsAnAdmin(st, st.withoutAccount(accountID)); err != nil {
 		return err
 	}
+	var details map[string]string
+	for _, a := range st.accounts {
+		if a.ID == accountID {
+			// The log keeps who it was after the account is gone.
+			details = map[string]string{"username": a.Username}
+		}
+	}
 	if err := m.store.DeleteAccount(accountID); err != nil {
 		return err
 	}
 	m.changed()
-	return m.audit(actor, "account.delete", accountID, nil)
+	return m.audit(actor, "account.delete", accountID, details)
 }
 
 // SaveRole creates the role (no ID yet, or an unknown one) or changes it.

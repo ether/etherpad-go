@@ -396,6 +396,17 @@ func (h AdminMessageHandler) sendAudit(m *accounts.Manager, actor accounts.Actor
 		}
 	}
 	for _, e := range entries {
+		// Deleted accounts keep the name they were created or deleted with.
+		if _, known := result.Names[e.Target]; !known && (e.Action == "account.create" || e.Action == "account.delete") {
+			var d struct {
+				Username string `json:"username"`
+			}
+			if json.Unmarshal([]byte(e.Details), &d) == nil && d.Username != "" {
+				result.Names[e.Target] = d.Username
+			}
+		}
+	}
+	for _, e := range entries {
 		v := AuditView{ID: e.ID, At: e.At.UnixMilli(), Actor: e.ActorID, Action: e.Action, Target: e.Target}
 		if e.Details != "" && json.Valid([]byte(e.Details)) {
 			v.Details = json.RawMessage(e.Details)
