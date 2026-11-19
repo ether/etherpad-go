@@ -10,7 +10,7 @@ const Redacted = "[REDACTED]"
 
 // RedactSettings returns a deep copy of settings (as decoded JSON) with the
 // secrets replaced (etherpad-lite AdminSettingsRedact): users.*.password,
-// passwordHash and hash, dbSettings.password and user, mail.auth.pass, sso.clients[*]
+// passwordHash and hash, bootstrapAdmin.password, dbSettings.password and user, mail.auth.pass, sso.clients[*]
 // client_secret and secret, and sessionKey. Only those exact paths are
 // matched; keys compare case-insensitively since Go's settings struct does
 // not use JSON names everywhere.
@@ -46,6 +46,8 @@ func secretPath(path []string) bool {
 	case len(p) == 1 && p[0] == "sessionkey":
 		return true
 	case len(p) == 3 && p[0] == "users" && (p[2] == "password" || p[2] == "passwordhash" || p[2] == "hash"):
+		return true
+	case len(p) == 2 && p[0] == "bootstrapadmin" && p[1] == "password":
 		return true
 	case len(p) == 2 && p[0] == "dbsettings" && (p[1] == "password" || p[1] == "user"):
 		return true

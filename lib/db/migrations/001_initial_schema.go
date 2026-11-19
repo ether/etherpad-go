@@ -24,6 +24,7 @@ func GetMigrations() []Migration {
 		migration015AuthorPrivacy(),
 		migration016UniqueAuthorMapper(),
 		migration017ClusterNodeUsers(),
+		migration018Accounts(),
 	}
 }
 

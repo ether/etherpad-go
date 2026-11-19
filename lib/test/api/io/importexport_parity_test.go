@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"github.com/ether/etherpad-go/lib/accounts"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -57,6 +58,9 @@ func ieApp(t *testing.T, ds testutils.TestDataStore, authn bool) *fiber.App {
 	ds.Settings.LoadTest = false
 	ds.Settings.RequireAuthentication = authn
 	ds.Settings.Users = map[string]settings.User{"user": {Password: &password}}
+	// The store is shared by the subtests: set the visitors' rights for
+	// this one, as requireAuthentication did.
+	require.NoError(t, pad.AccountsOf(ds.DS, ds.Settings).ApplyTemplate(accounts.System, accounts.TemplateOf(authn)))
 	app := fiber.New(server.FiberConfig())
 	app.Use(server.RecoverMiddleware(ds.Logger))
 	app.Use(func(c fiber.Ctx) error {

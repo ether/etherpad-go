@@ -106,6 +106,12 @@
    * },
    */
   "exportPdfFonts": {},
+  /*
+   * Who may do what is set in the admin UI (accounts and roles). On the first
+   * start with account management, requireAuthentication decides what visitors
+   * who are not logged in may do: false lets them edit and create pads, true
+   * lets only logged-in people in. Later changes here have no effect.
+   */
   "requireAuthentication": false,
   "requireAuthorization": false,
   "trustProxy": false,
@@ -164,6 +170,22 @@
     "scrollWhenCaretIsInTheLastLineOfViewport": false,
     "percentageToScrollWhenUserPressesArrowUp": 0
   },
+  /*
+   * The first admin, created while there is no admin who can log in. The
+   * password must be changed at the first login. EP_BOOTSTRAP_ADMIN_USER and
+   * EP_BOOTSTRAP_ADMIN_PASSWORD take precedence. Without them, create admins
+   * with "etherpad-go admin create <username>", which prints a one-time
+   * password; "etherpad-go admin reset-password <username>" gets you back in.
+   */
+  "bootstrapAdmin": {
+    "username": null,
+    "password": null
+  },
+  /*
+   * etherpad-lite's users. They are taken over into the account management once
+   * (passwords hashed, is_admin → admin, readOnly → viewer) and not read
+   * afterwards; manage accounts in the admin UI.
+   */
   "users": {
     "admin": {
       "password": null,

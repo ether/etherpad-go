@@ -14,7 +14,9 @@ import (
 	"slices"
 	"time"
 
+	"github.com/ether/etherpad-go/lib/accounts"
 	"github.com/ether/etherpad-go/lib/db"
+	"github.com/ether/etherpad-go/lib/utils"
 	jose "github.com/go-jose/go-jose/v4"
 	"github.com/google/uuid"
 	"github.com/zitadel/oidc/v3/pkg/oidc"
@@ -28,26 +30,22 @@ import (
 type Storage struct {
 	db      db.DataStore
 	clients map[string]*Client
-	users   map[string]user
-	key     *signingKey
-	now     func() time.Time
-}
-
-type user struct {
-	Username string
-	Password string
-	Admin    bool
+	// accounts are the people who log in (lib/accounts); a token's
+	// subject is the account id.
+	accounts *accounts.Manager
+	key      *signingKey
+	now      func() time.Time
 }
 
 var errNotFound = errors.New("not found")
 
-func newStorage(store db.DataStore, clients map[string]*Client, users map[string]user, key *rsa.PrivateKey) *Storage {
+func newStorage(store db.DataStore, clients map[string]*Client, acc *accounts.Manager, key *rsa.PrivateKey) *Storage {
 	return &Storage{
-		db:      store,
-		clients: clients,
-		users:   users,
-		key:     newSigningKey(key),
-		now:     time.Now,
+		db:       store,
+		clients:  clients,
+		accounts: acc,
+		key:      newSigningKey(key),
+		now:      time.Now,
 	}
 }
 
@@ -71,9 +69,13 @@ type authRequest struct {
 	ResponseMode  oidc.ResponseMode `json:"responseMode"`
 	CodeChallenge *codeChallenge    `json:"codeChallenge,omitempty"`
 	UserID        string            `json:"userId"`
-	IsDone        bool              `json:"done"`
-	AuthTime      time.Time         `json:"authTime"`
-	ExpiresAt     time.Time         `json:"expiresAt"`
+	// PasswordChangeFor is the account that logged in with a password it
+	// must change before the request completes.
+	PasswordChangeFor   string    `json:"passwordChangeFor,omitempty"`
+	PasswordChangeToken string    `json:"passwordChangeToken,omitempty"`
+	IsDone              bool      `json:"done"`
+	AuthTime            time.Time `json:"authTime"`
+	ExpiresAt           time.Time `json:"expiresAt"`
 }
 
 func (a *authRequest) GetID() string          { return a.ID }
@@ -203,25 +205,62 @@ func (s *Storage) DeleteAuthRequest(_ context.Context, id string) error {
 	return s.db.DeleteOIDCSession(id)
 }
 
-// completeAuthRequest marks the auth request as authenticated by username.
-func (s *Storage) completeAuthRequest(id, username string) error {
+// completeAuthRequest marks the auth request as authenticated by the
+// account accountID.
+func (s *Storage) completeAuthRequest(id, accountID string) error {
 	ar, err := s.getAuthRequest(id)
 	if err != nil {
 		return err
 	}
-	ar.UserID = username
+	ar.UserID = accountID
+	// A finished login allows no further password change.
+	ar.PasswordChangeFor, ar.PasswordChangeToken = "", ""
 	ar.IsDone = true
 	ar.AuthTime = s.now()
 	return s.putAuthRequest(ar)
 }
 
-// checkPassword reports whether username/password match a configured user.
-func (s *Storage) checkPassword(username, password string) bool {
-	u, ok := s.users[username]
-	if !ok || u.Password == "" {
-		return false
+// awaitPasswordChange remembers that the account logged in but must set a
+// new password first. It returns the secret the form must send back: the
+// request id alone (it is in URLs) does not allow setting a password.
+func (s *Storage) awaitPasswordChange(id, accountID string) (string, error) {
+	ar, err := s.getAuthRequest(id)
+	if err != nil {
+		return "", err
 	}
-	return subtle.ConstantTimeCompare([]byte(u.Password), []byte(password)) == 1
+	token := utils.RandomString(32)
+	ar.PasswordChangeFor = accountID
+	ar.PasswordChangeToken = hashToken(token)
+	return token, s.putAuthRequest(ar)
+}
+
+// passwordChangeAllowed reports whether token is the secret of the pending
+// password change of ar.
+func passwordChangeAllowed(ar *authRequest, token string) bool {
+	return !ar.IsDone && ar.PasswordChangeFor != "" && ar.PasswordChangeToken != "" &&
+		subtle.ConstantTimeCompare([]byte(ar.PasswordChangeToken), []byte(hashToken(token))) == 1
+}
+
+// login checks a username and password against the accounts.
+func (s *Storage) login(username, password string) (*db.Account, error) {
+	return s.accounts.Authenticate(username, password)
+}
+
+// checkPassword reports whether username/password belong to an account
+// that may log in.
+func (s *Storage) checkPassword(username, password string) bool {
+	_, err := s.login(username, password)
+	return err == nil
+}
+
+// activePerson returns the account of a token's subject while it may log
+// in, else nil.
+func (s *Storage) activePerson(subject string) *db.Account {
+	a, err := s.accounts.Account(subject)
+	if err != nil || a == nil || a.Kind != accounts.KindHuman || a.DisabledAt != nil {
+		return nil
+	}
+	return a
 }
 
 // --- tokens ----------------------------------------------------------------
@@ -418,6 +457,11 @@ func (s *Storage) TokenRequestByRefreshToken(_ context.Context, token string) (o
 	if err != nil {
 		return nil, op.ErrInvalidRefreshToken
 	}
+	// A disabled or deleted account gets no new tokens; a refresh brings
+	// the account's current roles into the new ones.
+	if _, isClient := s.clients[rt.Subject]; !isClient && s.activePerson(rt.Subject) == nil {
+		return nil, op.ErrInvalidRefreshToken
+	}
 	return &refreshTokenRequest{rt}, nil
 }
 
@@ -524,12 +568,25 @@ func (s *Storage) ClientCredentialsTokenRequest(_ context.Context, clientID stri
 
 func (s *Storage) setUserinfo(info *oidc.UserInfo, subject string, scopes []string) {
 	info.Subject = subject
-	// ValidateAdminToken checks this claim in the ID token.
-	u, known := s.users[subject]
-	info.AppendClaims("admin", known && u.Admin)
-	if known && slices.Contains(scopes, oidc.ScopeProfile) {
-		info.PreferredUsername = u.Username
-		info.Name = u.Username
+	a := s.activePerson(subject)
+	// "roles" are the account's role assignments, from which
+	// ValidateAdminToken and the pads take the rights; "admin" says
+	// whether they make the account an admin, for clients.
+	refs := []accounts.RoleRef{}
+	admin := false
+	if a != nil {
+		if r, err := s.accounts.Refs(a.ID); err == nil {
+			refs = r
+		}
+		if g, err := s.accounts.GrantsFromRefs(refs); err == nil {
+			admin = g.IsAdmin()
+		}
+	}
+	info.AppendClaims("roles", refs)
+	info.AppendClaims("admin", admin)
+	if a != nil && slices.Contains(scopes, oidc.ScopeProfile) {
+		info.PreferredUsername = a.Username
+		info.Name = a.DisplayName
 	}
 }
 
@@ -559,8 +616,8 @@ func (s *Storage) SetIntrospectionFromToken(_ context.Context, resp *oidc.Intros
 	resp.Expiration = oidc.FromTime(t.ExpiresAt)
 	resp.IssuedAt = oidc.FromTime(t.IssuedAt)
 	resp.TokenType = oidc.BearerToken
-	if u, ok := s.users[t.Subject]; ok {
-		resp.Username = u.Username
+	if a := s.activePerson(t.Subject); a != nil {
+		resp.Username = a.Username
 	}
 	return nil
 }

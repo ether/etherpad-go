@@ -179,6 +179,7 @@ type DataStore interface {
 	ConsistencyMethods
 	ClusterMethods
 	APIKeyMethods
+	AccountMethods
 	AuthorPrivacyMethods
 	PadHeadMethods
 	LeaderMethods

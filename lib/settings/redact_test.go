@@ -25,6 +25,12 @@ func TestRedactSettings(t *testing.T) {
 		assert.Equal(t, Redacted, out["bob"].(map[string]any)["passwordHash"])
 		assert.Equal(t, Redacted, out["alice"].(map[string]any)["hash"])
 	})
+	t.Run("bootstrap admin password", func(t *testing.T) {
+		out := RedactSettings(map[string]any{"bootstrapAdmin": map[string]any{"username": "boss", "password": "secret"}}).(map[string]any)
+		assert.Equal(t, Redacted, out["bootstrapAdmin"].(map[string]any)["password"])
+		assert.Equal(t, "boss", out["bootstrapAdmin"].(map[string]any)["username"])
+	})
+
 	t.Run("dbSettings password and user", func(t *testing.T) {
 		out := RedactSettings(map[string]any{"dbSettings": map[string]any{
 			"host": "localhost", "user": "etherpad", "password": "secret", "filename": "/data/etherpad.db",

@@ -80,47 +80,36 @@ func (s *SecurityManager) CheckAccess(padId *string, sessionCookie *string, toke
 			return nil, errors.New("access denied: invalid author token" + err.Error())
 		}
 		return &GrantedAccess{AccessStatus: "grant", AuthorId: authorId}, nil
-	} else if s.settings.RequireAuthentication {
+	} else {
+		// The account management decides (lib/accounts): a visitor who is
+		// not logged in has the anonymous account's rights.
+		var level string
 		if userSettings == nil {
-			return nil, errors.New("userSettings is nil")
-		}
-		if userSettings.CanCreate != nil && !*userSettings.CanCreate {
-			canCreate = false
-		}
-
-		if userSettings.ReadOnly != nil && *userSettings.ReadOnly == true {
-			canCreate = false
-		}
-
-		var padAuthzs *map[string]string
-		if userSettings.PadAuthorizations == nil {
-			var padAuthzMap = make(map[string]string)
-			padAuthzs = &padAuthzMap
+			level = ResolvePadAuthorization(s.ReadOnlyManager.Store, nil, *padId, s.settings, s.hooks)
 		} else {
-			padAuthzs = userSettings.PadAuthorizations
+			if userSettings.PadAuthorizations == nil {
+				padAuthzMap := make(map[string]string)
+				userSettings.PadAuthorizations = &padAuthzMap
+			}
+			entry, known := (*userSettings.PadAuthorizations)[*padId]
+			if !known {
+				// etherpad-lite remembers the level from loading /p/<pad>
+				// in the express session. etherpad-go has no server-side
+				// session: the websocket request authenticates on its own
+				// and never visited /p/<pad>, so the level for this pad is
+				// decided here, the same way webaccess decides it for the
+				// page.
+				entry = ResolvePadAuthorization(s.ReadOnlyManager.Store, userSettings, *padId, s.settings, s.hooks)
+				(*userSettings.PadAuthorizations)[*padId] = entry
+			}
+			level = capByFlags(entry, userSettings)
 		}
-		var unwrappedMap = *padAuthzs
-		var entry, known = unwrappedMap[*padId]
-		if !known {
-			// etherpad-lite remembers the level from loading /p/<pad> in the
-			// express session. etherpad-go has no server-side session: the
-			// websocket request authenticates on its own and never visited
-			// /p/<pad>, so the level for this pad is decided here, the same
-			// way webaccess decides it for the page.
-			entry = ResolvePadAuthorization(userSettings, *padId, s.settings, s.hooks)
-			unwrappedMap[*padId] = entry
-			userSettings.PadAuthorizations = padAuthzs
-		}
-		var level, err = NormalizeAuthzLevel(entry)
-
+		normalized, err := NormalizeAuthzLevel(level)
 		if err != nil {
 			return nil, fmt.Errorf("access denied: unauthorized: %w", err)
 		}
-
-		if level != nil {
-			if *level != "create" {
-				canCreate = false
-			}
+		if *normalized != "create" {
+			canCreate = false
 		}
 	}
 
