@@ -48,6 +48,8 @@ var (
 	ErrInvalidRole        = errors.New("invalid role")
 	ErrNoPassword         = errors.New("service and anonymous accounts have no password")
 	ErrAnonymousAccount   = errors.New("the anonymous account cannot be changed this way")
+	ErrInvalidProfile     = errors.New("invalid display name or e-mail")
+	ErrNotBuiltin         = errors.New("only built-in roles can be reset")
 )
 
 // Actor is who makes a change: an account id and its grants. System is the
@@ -91,9 +93,10 @@ type Manager struct {
 	throttle map[string]*throttle
 	authKey  []byte
 
-	// wmu serializes the changes of this process, so the checks of a
-	// change (the last admin, no escalation) see the state it changes.
-	wmu sync.Mutex
+	// wmu serializes the changes of this process; with the database lock
+	// of lockWrites the changes of all instances.
+	wmu      sync.Mutex
+	onChange func()
 
 	seedMu sync.Mutex
 	seeded bool
@@ -393,3 +396,6 @@ func (m *Manager) audit(actor Actor, action, target string, details any) error {
 
 // Audit returns the newest audit entries first.
 func (m *Manager) Audit(limit int) ([]db.AuditEntry, error) { return m.store.ListAudit(limit) }
+
+// Assignments returns all role assignments.
+func (m *Manager) Assignments() ([]db.RoleAssignment, error) { return m.store.ListRoleAssignments("") }

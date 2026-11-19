@@ -119,6 +119,15 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 		}
 	}
 	padMessageHandler.SetCluster(clusterBus)
+	// A change of rights on one instance holds on all at once, not only
+	// when the cached rights of the others expire.
+	accountManager := accounts.For(dataStore)
+	accountManager.OnChange(func() { clusterBus.Publish(cluster.Event{Kind: cluster.KindAccounts}) })
+	clusterBus.Subscribe(func(e cluster.Event) {
+		if e.Kind == cluster.KindAccounts {
+			accountManager.Invalidate()
+		}
+	})
 	// Whether this instance should get traffic (readiness probe).
 	lifecycleState := &lifecycle.State{}
 	adminMessageHandler := ws.NewAdminMessageHandler(dataStore, &retrievedHooks, padManager, padMessageHandler, setupLogger, globalHub, app, upd)
@@ -270,18 +279,20 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 					setupLogger.Warn("No token provided for websocket connection")
 					return c.Status(http.StatusUnauthorized).Send([]byte("No token provided"))
 				}
-				ok, err := authenticator.ValidateAdminToken(token, ssoAdminClient)
-				if err != nil || !ok {
+				accountID, err := authenticator.AdminAccount(token, ssoAdminClient)
+				if err != nil {
 					setupLogger.Warn("Invalid token provided for websocket connection")
 					return c.Status(http.StatusUnauthorized).Send([]byte("No token provided"))
 				}
 				c.Locals("fiberCtx", c)
+				c.Locals("adminAccount", accountID)
 				return c.Next()
 			}
 			return fiber.ErrUpgradeRequired
 		})
 		app.Get("/admin/ws", fiberws.New(func(conn *fiberws.Conn) {
-			ws.ServeAdminWs(conn, &settings, setupLogger, adminMessageHandler)
+			accountID, _ := conn.Locals("adminAccount").(string)
+			ws.ServeAdminWs(conn, &settings, setupLogger, adminMessageHandler, accountID)
 		}, fiberws.Config{
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,

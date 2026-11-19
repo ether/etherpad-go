@@ -86,6 +86,73 @@ export interface ApiKeysResult {
   error?: string
 }
 
+export interface Assignment {
+  role: string
+  // pads is the pad pattern ("" or "*": all pads).
+  pads: string
+  createdBy: string
+  createdAt: number
+}
+
+export interface Account {
+  id: string
+  username: string
+  displayName: string
+  email: string
+  // kind is "human", "service" or "builtin" (visitors, everyone logged in).
+  kind: 'human' | 'service' | 'builtin'
+  disabled: boolean
+  mustChangePassword: boolean
+  hasPassword: boolean
+  createdAt: number
+  lastLoginAt: number | null
+  roles: Assignment[]
+  admin: boolean
+}
+
+export interface Role {
+  id: string
+  name: string
+  description: string
+  builtin: boolean
+  scopes: string[]
+  includes: string[]
+  limits: Record<string, number>
+  modified: boolean
+  fixed: boolean
+}
+
+export interface ScopeInfo {
+  name: string
+  description: string
+  padScoped: boolean
+}
+
+export interface AccountsResult {
+  accounts: Account[]
+  roles: Role[]
+  scopes: ScopeInfo[]
+  me: string
+  // password is a new one-time password; it is shown once.
+  password?: { accountId: string; username: string; password: string }
+  error?: string
+}
+
+export interface AuditEntry {
+  id: string
+  at: number
+  actor: string
+  action: string
+  target: string
+  details?: Record<string, unknown>
+}
+
+export interface AuditResult {
+  entries: AuditEntry[]
+  names: Record<string, string>
+  error?: string
+}
+
 export interface AdminState {
   currentPage: string
   connected: boolean
@@ -95,6 +162,9 @@ export interface AdminState {
   authError: string | null
   // apiKeys is the last answer about the HTTP API keys; null before one.
   apiKeys: ApiKeysResult | null
+  // accounts is the last answer about accounts and roles; null before one.
+  accounts: AccountsResult | null
+  audit: AuditResult | null
   // updateLog is the end of the update log; null before it was loaded.
   updateLog: string[] | null
   authors: AuthorLoadResult | null
@@ -137,6 +207,8 @@ type Action =
   | { type: 'SET_TOAST'; payload: Toast | null }
   | { type: 'SET_AUTH_ERROR'; payload: string | null }
   | { type: 'SET_API_KEYS'; payload: ApiKeysResult | null }
+  | { type: 'SET_ACCOUNTS'; payload: AccountsResult | null }
+  | { type: 'SET_AUDIT'; payload: AuditResult | null }
   | { type: 'SET_UPDATE_LOG'; payload: string[] }
   | { type: 'SET_AUTHORS'; payload: AuthorLoadResult }
   | { type: 'SET_ERASURE_PREVIEW'; payload: ErasureCounts | null }
@@ -173,6 +245,8 @@ const initialState: AdminState = {
   toast: null,
   authError: null,
   apiKeys: null,
+  accounts: null,
+  audit: null,
   updateLog: null,
   authors: null,
   erasurePreview: null,
@@ -215,6 +289,10 @@ function adminReducer(state: AdminState, action: Action): AdminState {
       return { ...state, authError: action.payload }
     case 'SET_API_KEYS':
       return { ...state, apiKeys: action.payload }
+    case 'SET_ACCOUNTS':
+      return { ...state, accounts: action.payload }
+    case 'SET_AUDIT':
+      return { ...state, audit: action.payload }
     case 'SET_UPDATE_LOG':
       return { ...state, updateLog: action.payload }
     case 'SET_AUTHORS':
@@ -440,6 +518,12 @@ export function AdminProvider({ children }: { children: ReactNode }) {
         break
       case 'results:apiKeys':
         dispatch({ type: 'SET_API_KEYS', payload: payload as ApiKeysResult })
+        break
+      case 'results:accounts':
+        dispatch({ type: 'SET_ACCOUNTS', payload: payload as AccountsResult })
+        break
+      case 'results:audit':
+        dispatch({ type: 'SET_AUDIT', payload: payload as AuditResult })
         break
       case 'results:padLoad':
         dispatch({

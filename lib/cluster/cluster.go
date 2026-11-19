@@ -37,6 +37,9 @@ const (
 	KindAll Kind = "all"
 	// KindErased: author Author was erased; close its sessions.
 	KindErased Kind = "erased"
+	// KindAccounts: accounts, roles or assignments changed; forget the
+	// cached rights (lib/accounts).
+	KindAccounts Kind = "accounts"
 )
 
 // Event is one message between instances.
