@@ -80,3 +80,17 @@ func TestFadeInactiveAuthorColorsDefault(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, cfg.PadOptions.FadeInactiveAuthorColors)
 }
+
+func TestBootstrapAdminCredentials(t *testing.T) {
+	s := &Settings{BootstrapAdmin: BootstrapAdmin{Username: "from-file", Password: "file-pass"}}
+	u, p := s.BootstrapAdminCredentials()
+	if u != "from-file" || p != "file-pass" {
+		t.Fatalf("got %q %q", u, p)
+	}
+	t.Setenv("EP_BOOTSTRAP_ADMIN_USER", "from-env")
+	t.Setenv("EP_BOOTSTRAP_ADMIN_PASSWORD", "env-pass")
+	u, p = s.BootstrapAdminCredentials()
+	if u != "from-env" || p != "env-pass" {
+		t.Fatalf("got %q %q", u, p)
+	}
+}

@@ -1,6 +1,7 @@
 package oidc
 
 import (
+	"github.com/ether/etherpad-go/lib/accounts"
 	"sync"
 	"testing"
 
@@ -117,9 +118,17 @@ func TestNonAdminTokenWhoseSubjectIsAClientIDIsRejected(t *testing.T) {
 		a.storage.setUserinfo(info, subject, nil)
 		assert.Equal(t, false, info.Claims["admin"], subject)
 	}
+	admin, err := a.storage.accounts.AccountByUsername("admin")
+	require.NoError(t, err)
 	info := newUserInfo()
-	a.storage.setUserinfo(info, "admin", nil)
-	assert.Equal(t, true, info.Claims["admin"])
+	a.storage.setUserinfo(info, admin.ID, nil)
+	assert.Equal(t, true, info.Claims["admin"], "the subject is the account id")
+	assert.Equal(t, []accounts.RoleRef{{Role: accounts.RoleAdmin}}, info.Claims["roles"])
+	named, err := a.storage.accounts.AccountByUsername(serviceClientID)
+	require.NoError(t, err)
+	info = newUserInfo()
+	a.storage.setUserinfo(info, named.ID, nil)
+	assert.Equal(t, false, info.Claims["admin"])
 }
 
 func newUserInfo() *oidc.UserInfo { return &oidc.UserInfo{Claims: map[string]any{}} }

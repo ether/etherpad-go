@@ -3,6 +3,7 @@ package server
 import (
 	"embed"
 	"fmt"
+	"github.com/ether/etherpad-go/lib/accounts"
 	"github.com/ether/etherpad-go/lib/api/tokentransfer"
 	"github.com/ether/etherpad-go/lib/cluster"
 	"github.com/ether/etherpad-go/lib/lifecycle"
@@ -97,6 +98,11 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 		}
 		globalHub.BroadcastShout(fmt.Sprintf("This server is updating and will restart in %d seconds. Your changes are saved.", secsLeft), true)
 	})
+	// Accounts and roles (lib/accounts): set up before the first request,
+	// taking over settings.users and creating the bootstrap admin.
+	if err := accounts.For(dataStore).Ensure(&settings, setupLogger); err != nil {
+		setupLogger.Fatalf("Error setting up the accounts: %v", err)
+	}
 	sessionStore := ws.NewSessionStore()
 	padMessageHandler := ws.NewPadMessageHandler(dataStore, &retrievedHooks, padManager, &sessionStore, globalHub, setupLogger, uiAssets, &settings)
 	// Instances on one database pass live updates to each other.

@@ -42,3 +42,37 @@ templ Login(client settings.SSOClient, scopes []string, authParams url.Values, r
     </body>
     </html>
 }
+
+templ ChangePassword(client settings.SSOClient, username string, authParams url.Values, errorMessage *string) {
+    <html lang="de">
+    <head>
+        <title>Login Etherpad</title>
+        <link rel="stylesheet" href="/css/login/index.css">
+    </head>
+    <body>
+        <div class="login-background login-page">
+            <div class="login-box login-form">
+                <h1 class="login-title">Neues Passwort für {username}</h1>
+                <form class="login-inner-box" method="post">
+                    <p>Bitte wähle vor der ersten Anmeldung bei {client.DisplayName} ein neues Passwort.</p>
+                    <label for="new_password">Neues Passwort</label>
+                    <input id="new_password" required minlength="8" autocomplete="new-password" class="login-textinput input-control" type="password" name="new_password" />
+                    <label for="new_password_repeat">Neues Passwort wiederholen</label>
+                    <input id="new_password_repeat" required minlength="8" autocomplete="new-password" class="login-textinput input-control" type="password" name="new_password_repeat" />
+                    <input class="login-button" type="submit" value="Passwort setzen und anmelden"/>
+                    <ul hidden="hidden">
+                    for key, values := range authParams {
+                        for _, value := range values {
+                            <li><input name={key} type="hidden" value={value}></li>
+                        }
+                    }
+                    </ul>
+                    if errorMessage != nil {
+                        <div class="login-error-message">{*errorMessage}</div>
+                    }
+                </form>
+            </div>
+        </div>
+    </body>
+    </html>
+}

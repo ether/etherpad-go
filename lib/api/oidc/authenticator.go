@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/ether/etherpad-go/assets/login"
+	"github.com/ether/etherpad-go/lib/accounts"
 	"github.com/ether/etherpad-go/lib/api/constants"
 	"github.com/ether/etherpad-go/lib/db"
 	"github.com/ether/etherpad-go/lib/settings"
@@ -37,7 +38,7 @@ const (
 
 // Authenticator is Etherpad's OpenID Connect provider, built on
 // github.com/zitadel/oidc. Users log in on Etherpad's own login page with
-// the users from the settings.
+// their accounts (lib/accounts).
 type Authenticator struct {
 	provider          *op.Provider
 	storage           *Storage
@@ -73,16 +74,9 @@ func newAuthenticator(retrievedSettings *settings.Settings, persistence db.DataS
 		}
 	}
 
-	users := make(map[string]user)
-	for username, u := range retrievedSettings.Users {
-		if u.Password == nil || *u.Password == "" {
-			continue
-		}
-		users[username] = user{
-			Username: username,
-			Password: *u.Password,
-			Admin:    u.IsAdmin != nil && *u.IsAdmin,
-		}
+	acc := accounts.For(persistence)
+	if err := acc.Ensure(retrievedSettings, nil); err != nil {
+		return nil, fmt.Errorf("setting up the accounts: %w", err)
 	}
 
 	privateKey, err := loadOrCreateSigningKey(persistence)
@@ -96,7 +90,7 @@ func newAuthenticator(retrievedSettings *settings.Settings, persistence db.DataS
 	// State of the former fosite provider; its tokens are no longer valid.
 	_ = persistence.DeleteOIDCStorageValue(legacyStateStorageKey)
 
-	storage := newStorage(persistence, clients, users, privateKey)
+	storage := newStorage(persistence, clients, acc, privateKey)
 	issuer := issuerOf(retrievedSettings)
 
 	config := &op.Config{
@@ -192,7 +186,7 @@ func (a *Authenticator) ValidateAdminToken(tokenString string, adminClient *sett
 	}
 	var claims jwt.Claims
 	var extra struct {
-		Admin *bool `json:"admin"`
+		Roles []accounts.RoleRef `json:"roles"`
 	}
 	if err := token.Claims(&a.privateKey.PublicKey, &claims, &extra); err != nil {
 		return false, fmt.Errorf("token validation failed: %w", err)
@@ -212,7 +206,16 @@ func (a *Authenticator) ValidateAdminToken(tokenString string, adminClient *sett
 	if claims.Issuer != a.issuer {
 		return false, errors.New("invalid issuer")
 	}
-	if extra.Admin == nil || !*extra.Admin {
+	// The rights come from the roles in the token; that the account is
+	// still active is checked here, so disabling it takes effect at once.
+	if a.storage.activePerson(claims.Subject) == nil {
+		return false, errors.New("the account is disabled or gone")
+	}
+	g, err := a.storage.accounts.GrantsFromRefs(extra.Roles)
+	if err != nil {
+		return false, err
+	}
+	if !g.IsAdmin() {
 		return false, errors.New("missing admin role")
 	}
 	return true, nil
@@ -238,18 +241,83 @@ func (a *Authenticator) LoginHandler(rw http.ResponseWriter, req *http.Request) 
 		return
 	}
 
+	// The second step of a login with a password that must be changed.
+	if ar.PasswordChangeFor != "" {
+		a.changePassword(rw, req, ar)
+		return
+	}
+
 	username := req.PostForm.Get("username")
-	if !a.storage.checkPassword(username, req.PostForm.Get("password")) {
+	account, err := a.storage.login(username, req.PostForm.Get("password"))
+	if err != nil {
 		time.Sleep(500 * time.Millisecond)
 		msg := "Username or password invalid"
+		if errors.Is(err, accounts.ErrLocked) {
+			msg = "Too many failed logins. Please try again in 15 minutes."
+		}
 		a.renderLogin(rw, req, ar, true, &msg)
 		return
 	}
-	if err := a.storage.completeAuthRequest(ar.ID, username); err != nil {
+	if account.MustChangePassword {
+		if err := a.storage.awaitPasswordChange(ar.ID, account.ID); err != nil {
+			http.Error(rw, "The login request is invalid or has expired. Please start the login again.", http.StatusBadRequest)
+			return
+		}
+		a.renderChangePassword(rw, req, ar, account.Username, nil)
+		return
+	}
+	a.complete(rw, req, ar, account.ID)
+}
+
+func (a *Authenticator) complete(rw http.ResponseWriter, req *http.Request, ar *authRequest, accountID string) {
+	if err := a.storage.completeAuthRequest(ar.ID, accountID); err != nil {
 		http.Error(rw, "The login request is invalid or has expired. Please start the login again.", http.StatusBadRequest)
 		return
 	}
 	http.Redirect(rw, req, callbackPath+"?id="+url.QueryEscape(ar.ID), http.StatusFound)
+}
+
+// changePassword takes the new password of an account that must change
+// it, then completes the login.
+func (a *Authenticator) changePassword(rw http.ResponseWriter, req *http.Request, ar *authRequest) {
+	account := a.storage.activePerson(ar.PasswordChangeFor)
+	if account == nil {
+		http.Error(rw, "The login request is invalid or has expired. Please start the login again.", http.StatusBadRequest)
+		return
+	}
+	newPassword := req.PostForm.Get("new_password")
+	if newPassword != req.PostForm.Get("new_password_repeat") {
+		msg := "The passwords do not match"
+		a.renderChangePassword(rw, req, ar, account.Username, &msg)
+		return
+	}
+	if a.storage.checkPassword(account.Username, newPassword) {
+		msg := "Choose a password different from the current one"
+		a.renderChangePassword(rw, req, ar, account.Username, &msg)
+		return
+	}
+	self := accounts.Actor{ID: account.ID}
+	if err := a.storage.accounts.SetPassword(self, account.ID, newPassword, false); err != nil {
+		msg := "The password could not be changed"
+		if errors.Is(err, accounts.ErrPasswordTooShort) {
+			msg = fmt.Sprintf("The password needs at least %d characters", accounts.MinPasswordLength)
+		}
+		a.renderChangePassword(rw, req, ar, account.Username, &msg)
+		return
+	}
+	a.complete(rw, req, ar, account.ID)
+}
+
+func (a *Authenticator) renderChangePassword(rw http.ResponseWriter, req *http.Request, ar *authRequest, username string, errorMessage *string) {
+	var client settings.SSOClient
+	if c, ok := a.storage.clients[ar.ClientID]; ok {
+		client = c.settings
+	}
+	params := url.Values{"authRequestID": {ar.ID}}
+	rw.Header().Set("Content-Type", constants.ContentTypeHTML)
+	if err := login.ChangePassword(client, username, params, errorMessage).Render(req.Context(), rw); err != nil {
+		http.Error(rw, "rendering the login page failed", http.StatusInternalServerError)
+	}
 }
 
 func (a *Authenticator) renderLogin(rw http.ResponseWriter, req *http.Request, ar *authRequest, resetPKCE bool, errorMessage *string) {
@@ -291,7 +359,7 @@ func (a *Authenticator) ValidateServiceToken(token string) bool {
 	if !ok || !c.confidential {
 		return false
 	}
-	if _, isUser := a.storage.users[t.Subject]; isUser {
+	if acc, err := a.storage.accounts.Account(t.Subject); err != nil || acc != nil {
 		return false
 	}
 	return t.Subject == t.ClientID && t.RefreshTokenID == ""

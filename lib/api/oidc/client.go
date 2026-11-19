@@ -17,8 +17,9 @@ const (
 	// auth request; see LoginHandler.
 	loginPath = "/oauth2/login"
 
-	idTokenLifetime      = time.Hour
-	accessTokenLifetime  = 30 * time.Minute
+	// Short-lived: the roles they carry are renewed with each refresh.
+	idTokenLifetime      = 15 * time.Minute
+	accessTokenLifetime  = 15 * time.Minute
 	refreshTokenLifetime = 30 * 24 * time.Hour
 	authRequestLifetime  = 10 * time.Minute
 

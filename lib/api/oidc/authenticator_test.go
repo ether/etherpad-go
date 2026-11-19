@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"github.com/ether/etherpad-go/lib/accounts"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -578,7 +579,12 @@ func TestValidateAdminToken(t *testing.T) {
 	hsSigner, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.HS256, Key: []byte("0123456789abcdef0123456789abcdef")}, nil)
 	require.NoError(t, err)
 
-	valid := map[string]any{"exp": now.Add(time.Hour).Unix(), "aud": []string{"admin-client"}, "iss": auth.issuer, "admin": true}
+	admin, err := auth.storage.accounts.AccountByUsername("admin")
+	require.NoError(t, err)
+	require.NotNil(t, admin)
+	adminRoles := []map[string]any{{"role": "admin"}}
+	valid := map[string]any{"exp": now.Add(time.Hour).Unix(), "aud": []string{"admin-client"}, "iss": auth.issuer,
+		"sub": admin.ID, "roles": adminRoles}
 	with := func(k string, v any) map[string]any {
 		c := map[string]any{}
 		for key, val := range valid {
@@ -605,12 +611,28 @@ func TestValidateAdminToken(t *testing.T) {
 		{"missing aud", sign(with("aud", nil)), false},
 		{"other audience", sign(with("aud", []string{"other-client"})), false},
 		{"other issuer", sign(with("iss", "https://wrong-issuer")), false},
-		{"missing admin", sign(with("admin", nil)), false},
-		{"admin false", sign(with("admin", false)), false},
+		{"missing roles", sign(with("roles", nil)), false},
+		{"roles without admin", sign(with("roles", []map[string]any{{"role": "editor"}})), false},
+		{"admin only for some pads", sign(with("roles", []map[string]any{{"role": "admin", "pads": "x/*"}})), false},
+		{"unknown account", sign(with("sub", "acc.nobody")), false},
 		{"other key", foreign, false},
 		{"HS256", hmac, false},
 		{"valid", sign(valid), true},
 	}
+	// Signed while the account was an admin, used after it was disabled.
+	second, err := auth.storage.accounts.CreateAccount(accounts.System, accounts.NewAccount{Username: "second", Kind: accounts.KindHuman})
+	require.NoError(t, err)
+	require.NoError(t, auth.storage.accounts.Assign(accounts.System, second.ID, accounts.RoleAdmin, ""))
+	disabledToken := sign(with("sub", second.ID))
+	ok, err := auth.ValidateAdminToken(disabledToken, adminClient)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.NoError(t, auth.storage.accounts.SetDisabled(accounts.System, second.ID, true))
+	tests = append(tests, struct {
+		name  string
+		token string
+		ok    bool
+	}{"disabled account", disabledToken, false})
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ok, err := auth.ValidateAdminToken(tt.token, adminClient)

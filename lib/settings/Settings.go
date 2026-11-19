@@ -117,6 +117,26 @@ type User struct {
 	CanCreate *bool `json:"canCreate,omitempty" mapstructure:"canCreate"`
 }
 
+// BootstrapAdmin is the first admin of an instance; see Settings.BootstrapAdmin.
+type BootstrapAdmin struct {
+	Username string `json:"username" mapstructure:"username"`
+	Password string `json:"password" mapstructure:"password"`
+}
+
+// BootstrapAdminCredentials returns the bootstrap admin, the environment
+// variables EP_BOOTSTRAP_ADMIN_USER and EP_BOOTSTRAP_ADMIN_PASSWORD before
+// the settings.
+func (s *Settings) BootstrapAdminCredentials() (string, string) {
+	user, password := s.BootstrapAdmin.Username, s.BootstrapAdmin.Password
+	if v := os.Getenv("EP_BOOTSTRAP_ADMIN_USER"); v != "" {
+		user = v
+	}
+	if v := os.Getenv("EP_BOOTSTRAP_ADMIN_PASSWORD"); v != "" {
+		password = v
+	}
+	return user, password
+}
+
 type Cookie struct {
 	KeyRotationInterval    int64  `json:"keyRotationInterval" mapstructure:"keyRotationInterval"`
 	Prefix                 string `json:"prefix" mapstructure:"prefix"`
@@ -401,7 +421,14 @@ type Settings struct {
 	RequireAuthentication bool `json:"requireAuthentication" mapstructure:"requireAuthentication"`
 	RequireAuthorization  bool `json:"requireAuthorization" mapstructure:"requireAuthorization"`
 
+	// Users is etherpad-lite's user list. It is taken over into the
+	// account management (lib/accounts) once, on the first start with it,
+	// and not read afterwards.
 	Users map[string]User `json:"users" mapstructure:"users"`
+
+	// BootstrapAdmin creates the first admin account while there is none
+	// (also EP_BOOTSTRAP_ADMIN_USER and EP_BOOTSTRAP_ADMIN_PASSWORD).
+	BootstrapAdmin BootstrapAdmin `json:"bootstrapAdmin" mapstructure:"bootstrapAdmin"`
 
 	ShowSettingsInAdminPage bool `json:"showSettingsInAdminPage" mapstructure:"showSettingsInAdminPage"`
 
