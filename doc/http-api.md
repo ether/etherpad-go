@@ -66,8 +66,10 @@ Tokens live in the database, so all instances of a cluster know them, and a revo
 refused on every instance at once. The API keys of earlier releases became tokens of the
 service account `legacy-api` with every right, never expiring, under the same hash: they keep
 working. A key from an `APIKEY.txt` (etherpad-lite, or an earlier etherpad-go release) is taken
-over the same way once at start-up, named "APIKEY.txt"; the file is then no longer needed.
-`EP_APIKEY_FILE` names another path for it. etherpad-go no longer creates the file.
+over the same way, named "APIKEY.txt", on the first start with tokens only: the database remembers
+that this was done (for all instances of a cluster), and from then on the file is ignored, with a
+warning in the log that it can be deleted. A file put there later is not read; issue a token
+instead. `EP_APIKEY_FILE` names another path for it. etherpad-go no longer creates the file.
 
 ## Path styles
 

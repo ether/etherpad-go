@@ -84,26 +84,34 @@ func TestServerOrigin(t *testing.T) {
 	}
 }
 
-func TestImportAPIKeyFile(t *testing.T) {
+func newFileKeys(t *testing.T) *tokens.Manager {
+	t.Helper()
 	store := db.NewMemoryDataStore()
 	acc := accounts.NewManager(store)
 	if err := acc.EnsureDefaults(accounts.SeedConfig{Template: accounts.TemplateOpen}, nil); err != nil {
 		t.Fatal(err)
 	}
-	keys := tokens.NewManager(store, acc, nil)
-	path := filepath.Join(t.TempDir(), "APIKEY.txt")
-	if stored, err := ImportAPIKeyFile(keys, path); err != nil || stored {
-		t.Fatalf("no file: %v, %v", stored, err)
+	return tokens.NewManager(store, acc, nil)
+}
+
+func importFile(t *testing.T, keys *tokens.Manager, path string, want FileResult) {
+	t.Helper()
+	got, err := ImportAPIKeyFile(keys, path)
+	if err != nil || got != want {
+		t.Fatalf("ImportAPIKeyFile = %v, %v; want %v", got, err, want)
 	}
+}
+
+// The key of an APIKEY.txt becomes a token on the first start with
+// tokens; afterwards the file is ignored, and the database remembers it.
+func TestImportAPIKeyFileOnce(t *testing.T) {
+	keys := newFileKeys(t)
+	path := filepath.Join(t.TempDir(), "APIKEY.txt")
 	if err := os.WriteFile(path, []byte("old-key\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if stored, err := ImportAPIKeyFile(keys, path); err != nil || !stored {
-		t.Fatalf("first start: %v, %v", stored, err)
-	}
-	if stored, err := ImportAPIKeyFile(keys, path); err != nil || stored {
-		t.Fatalf("second start takes it over again: %v, %v", stored, err)
-	}
+	importFile(t, keys, path, FileStored)
+	importFile(t, keys, path, FileIgnored)
 	list, _ := keys.List(accounts.System, "")
 	if len(list) != 1 || list[0].Name != "APIKEY.txt" {
 		t.Fatalf("listed as APIKEY.txt: %+v", list)
@@ -114,4 +122,70 @@ func TestImportAPIKeyFile(t *testing.T) {
 	if _, err := os.Stat(path); err != nil {
 		t.Fatal("the file is left alone")
 	}
+	// Revoked in the admin UI, it stays revoked; a new key in the file is
+	// not taken over either.
+	if err := keys.Revoke(accounts.System, list[0].ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("another-key"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	importFile(t, keys, path, FileIgnored)
+	for _, k := range []string{"old-key", "another-key"} {
+		if _, err := keys.Authenticate(k, ""); err == nil {
+			t.Fatalf("%s works", k)
+		}
+	}
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	importFile(t, keys, path, FileNone)
+}
+
+// Without a file on the first start, a file found later is ignored.
+func TestImportAPIKeyFileLater(t *testing.T) {
+	keys := newFileKeys(t)
+	path := filepath.Join(t.TempDir(), "APIKEY.txt")
+	importFile(t, keys, path, FileNone)
+	if err := os.WriteFile(path, []byte("late-key"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	importFile(t, keys, path, FileIgnored)
+	if _, err := keys.Authenticate("late-key", ""); err == nil {
+		t.Fatal("a file found later became a token")
+	}
+}
+
+// A key that already is a token (taken over by an earlier release on
+// every start) is only marked as done.
+func TestImportAPIKeyFileKnown(t *testing.T) {
+	keys := newFileKeys(t)
+	if _, err := keys.ImportKey("old-key", "APIKEY.txt"); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "APIKEY.txt")
+	if err := os.WriteFile(path, []byte("old-key"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	importFile(t, keys, path, FileKnown)
+	importFile(t, keys, path, FileIgnored)
+}
+
+// A file that cannot be read is tried again on the next start.
+func TestImportAPIKeyFileRetried(t *testing.T) {
+	keys := newFileKeys(t)
+	path := filepath.Join(t.TempDir(), "APIKEY.txt")
+	if err := os.Mkdir(path, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ImportAPIKeyFile(keys, path); err == nil {
+		t.Fatal("an unreadable file is no error")
+	}
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("old-key"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	importFile(t, keys, path, FileStored)
 }

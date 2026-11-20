@@ -11,6 +11,7 @@ package legacy
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"net/url"
@@ -18,6 +19,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/ether/etherpad-go/lib"
 	"github.com/ether/etherpad-go/lib/accounts"
@@ -84,14 +86,63 @@ func ReadAPIKeyFile(path string) (string, error) {
 	return strings.TrimSpace(string(b)), nil
 }
 
+// apiKeyFileFlag marks, in the database, that the APIKEY.txt was looked at
+// once; from then on the file is ignored.
+const apiKeyFileFlag = "apikey-file-taken-over"
+
+// FileResult is what ImportAPIKeyFile did.
+type FileResult int
+
+const (
+	// FileNone: no file, or nothing to do.
+	FileNone FileResult = iota
+	// FileStored: the file's key is now a token.
+	FileStored
+	// FileKnown: the file's key already was a token.
+	FileKnown
+	// FileIgnored: the file is there, but the one take-over is done.
+	FileIgnored
+)
+
 // ImportAPIKeyFile takes over the key of an APIKEY.txt as a token named
-// "APIKEY.txt", once. It reports whether it stored the key.
-func ImportAPIKeyFile(keys *tokens.Manager, path string) (bool, error) {
-	key, err := ReadAPIKeyFile(path)
-	if err != nil || key == "" {
-		return false, err
+// "APIKEY.txt", on the first start with tokens only: the database then
+// remembers that it was done (for every instance of a cluster), and a file
+// found later is ignored. A failure leaves it to the next start.
+func ImportAPIKeyFile(keys *tokens.Manager, path string) (FileResult, error) {
+	store := keys.Store()
+	if store == nil {
+		return FileNone, errors.New("the tokens have no database")
 	}
-	return keys.ImportKey(key, "APIKEY.txt")
+	done, err := store.GetInstanceFlag(apiKeyFileFlag)
+	if err != nil {
+		return FileNone, err
+	}
+	if done != nil {
+		if _, err := os.Stat(path); err == nil {
+			return FileIgnored, nil
+		}
+		return FileNone, nil
+	}
+	key, err := ReadAPIKeyFile(path)
+	if err != nil {
+		return FileNone, err
+	}
+	result := FileNone
+	if key != "" {
+		stored, err := keys.ImportKey(key, "APIKEY.txt")
+		if err != nil {
+			return FileNone, err
+		}
+		result = FileKnown
+		if stored {
+			result = FileStored
+		}
+	}
+	// Only after the key is a token: a failure before is tried again.
+	if _, err := store.SetInstanceFlag(apiKeyFileFlag, time.Now().UTC().Format(time.RFC3339)); err != nil {
+		return result, err
+	}
+	return result, nil
 }
 
 // New builds the API. Calls need a token (apikey, api_key or authorization
