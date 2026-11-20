@@ -4,7 +4,18 @@ import {goToNewPad} from "../helper/padHelper";
 // The optional login on pads: "Log in" in the toolbar, the provider's
 // login page, back to the same pad with the profile menu, "Log out".
 test.describe('pad login', () => {
-    test('log in from a pad and out again', async ({page}) => {
+    test('without a login client the toolbar has no account entry', async ({page, request}) => {
+        const me = await (await request.get('/auth/me')).json()
+        test.skip(me.loginAvailable, 'this server has a login client')
+        expect(me.loggedIn).toBe(false)
+        await goToNewPad(page)
+        await expect(page.locator('#editbar li[data-key="showusers"]')).toBeVisible()
+        await expect(page.locator('#editbar li[data-key="account"]')).toHaveCount(0)
+    })
+
+    test('log in from a pad and out again', async ({page, request}) => {
+        const available = (await (await request.get('/auth/me')).json()).loginAvailable
+        test.skip(!available, 'no SSO client of type "user" on this server')
         const padId = await goToNewPad(page)
         const account = page.locator('#editbar li[data-key="account"]')
         const login = account.getByTestId('account-login')
