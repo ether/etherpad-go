@@ -10,9 +10,11 @@ import (
 
 	"github.com/ether/etherpad-go/lib/accounts"
 	"github.com/ether/etherpad-go/lib/api/mcp"
+	"github.com/ether/etherpad-go/lib/models/ws"
 	"github.com/ether/etherpad-go/lib/test/testutils"
 	"github.com/ether/etherpad-go/lib/tokens"
 	"github.com/ether/etherpad-go/lib/utils"
+	wsh "github.com/ether/etherpad-go/lib/ws"
 	"github.com/gofiber/fiber/v3/middleware/adaptor"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
@@ -298,4 +300,54 @@ func testMCPChat(t *testing.T, ds testutils.TestDataStore) {
 	reader := e.connect(e.token(svc, []string{accounts.ScopePadRead}, ""))
 	_, errText = call(t, reader, "send_chat", map[string]any{"pad": "talk", "text": "x"})
 	assert.Contains(t, errText, "forbidden")
+}
+
+func TestMCPListingAndLimits(t *testing.T) {
+	testDb := testutils.NewTestDBHandler(t)
+	testDb.AddTests(testutils.TestRunConfig{Name: "listing", Test: testMCPListing})
+	testDb.StartTestDBHandler()
+}
+
+func testMCPListing(t *testing.T, ds testutils.TestDataStore) {
+	e := newEnv(t, ds)
+	for _, id := range []string{"team-1", "team-2", "team-3", "other"} {
+		e.makePad(id, id)
+	}
+	_, err := ds.PadManager.GetTypedPad("team-sheet", "sheet", nil)
+	require.NoError(t, err)
+	svc := e.account(accounts.KindService, accounts.RoleEditor, "")
+	cs := e.connect(e.token(svc, []string{accounts.ScopePadRead, accounts.ScopePadCreate}, "team-*"))
+
+	// Sheets are not listed: these tools cannot read them.
+	out := mustCall(t, cs, "list_pads", map[string]any{"limit": 2})
+	ids := func(out map[string]any) []string {
+		var r []string
+		for _, p := range out["pads"].([]any) {
+			r = append(r, p.(map[string]any)["id"].(string))
+		}
+		return r
+	}
+	assert.Equal(t, []string{"team-1", "team-2"}, ids(out))
+	require.NotEmpty(t, out["nextCursor"])
+	out = mustCall(t, cs, "list_pads", map[string]any{"limit": 2, "cursor": out["nextCursor"]})
+	assert.Equal(t, []string{"team-3"}, ids(out))
+	assert.Nil(t, out["nextCursor"])
+	_, errText := call(t, cs, "read_pad", map[string]any{"pad": "team-sheet"})
+	assert.Contains(t, errText, "not a text pad")
+
+	// Group pads belong to their group.
+	creator := e.connect(e.token(svc, []string{accounts.ScopePadCreate}, ""))
+	_, errText = call(t, creator, "create_pad", map[string]any{"pad": "g.abcdefghijklmnop$x"})
+	assert.Contains(t, errText, "group pads")
+
+	// A chat message for a pad deleted meanwhile does not bring it back.
+	e.makePad("gone", "x")
+	require.NoError(t, ds.PadMessageHandler.DeletePad("gone"))
+	now := int64(1)
+	author := "a.test"
+	err = ds.PadMessageHandler.AppendChat("gone", ws.ChatMessageData{Text: "hi", Time: &now, AuthorId: &author})
+	assert.ErrorIs(t, err, wsh.ErrNoPad)
+	exists, err := ds.PadManager.DoesPadExist("gone")
+	require.NoError(t, err)
+	assert.False(t, *exists)
 }

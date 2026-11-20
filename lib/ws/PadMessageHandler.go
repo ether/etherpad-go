@@ -1088,8 +1088,24 @@ func (p *PadMessageHandler) AppendChat(padID string, chatMessage ws.ChatMessageD
 		PadId:    session.PadId,
 		AuthorId: chatAuthorId,
 	}
-	if hookPad, err := p.padManager.GetPad(session.PadId, nil, nil); err == nil {
-		cmCtx.Pad = hookPad
+	// The pad for the hooks, loaded only if it exists, under its read
+	// lock: GetPad would create a pad that was deleted meanwhile.
+	runlock, err := p.padManager.RLockPad(session.PadId)
+	if err != nil {
+		return err
+	}
+	exists, err := p.padManager.DoesPadExist(session.PadId)
+	if err == nil && *exists {
+		if hookPad, err := p.padManager.GetPad(session.PadId, nil, nil); err == nil {
+			cmCtx.Pad = hookPad
+		}
+	}
+	runlock()
+	if err != nil {
+		return err
+	}
+	if !*exists {
+		return ErrNoPad
 	}
 	p.hooks.ExecuteChatNewMessageHooks(cmCtx)
 	if cmCtx.Dropped() {

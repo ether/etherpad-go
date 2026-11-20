@@ -29,9 +29,9 @@ moment, limited to the token's scopes and pad pattern.
 
 | Tool | Scope | What it does |
 |------|-------|--------------|
-| `list_pads` | `pad:read` | Lists the pads the token may read (optional `query`, `limit`). |
+| `list_pads` | `pad:read` | Lists the text pads the token may read, page by page (`query`, `limit`, `cursor`). |
 | `read_pad` | `pad:read` | Returns a pad's text and revision. |
-| `create_pad` | `pad:create` | Creates a pad, failing if it exists. |
+| `create_pad` | `pad:create` | Creates a pad, failing if it exists. Group pads (`g.…$name`) belong to the group API. |
 | `append_text` | `pad:write` | Adds text at the end of the pad. |
 | `replace_text` | `pad:write` | Replaces text that occurs exactly once, or every occurrence (`all`, at most 100). |
 | `set_text` | `pad:write` | Replaces the whole text. |

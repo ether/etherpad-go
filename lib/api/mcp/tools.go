@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
 	"strings"
 	"time"
 	"unicode/utf8"
 
 	"github.com/ether/etherpad-go/lib/accounts"
+	"github.com/ether/etherpad-go/lib/db"
 	pad "github.com/ether/etherpad-go/lib/models/pad"
 	"github.com/ether/etherpad-go/lib/models/ws"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -29,7 +29,8 @@ func no() *bool  { b := false; return &b }
 
 func (s *Server) addTools() {
 	sdk.AddTool(s.mcp, &sdk.Tool{Name: "list_pads", Title: "List pads",
-		Description: "Lists the pads this token may read, by id. query narrows them to ids that contain it.",
+		Description: "Lists the text pads this token may read, by id, in order. query narrows them to ids that contain it; " +
+			"when nextCursor is returned, pass it as cursor for the next page.",
 		Annotations: &sdk.ToolAnnotations{ReadOnlyHint: true, OpenWorldHint: no()}}, s.listPads)
 	sdk.AddTool(s.mcp, &sdk.Tool{Name: "read_pad", Title: "Read a pad",
 		Description: "Returns the text of a pad and its revision.",
@@ -60,8 +61,9 @@ func (s *Server) addTools() {
 // ── list_pads ──
 
 type listPadsIn struct {
-	Query string `json:"query,omitempty" jsonschema:"only pads whose id contains this text"`
-	Limit int    `json:"limit,omitempty" jsonschema:"most pads to return (default 100, at most 500)"`
+	Query  string `json:"query,omitempty" jsonschema:"only pads whose id contains this text"`
+	Limit  int    `json:"limit,omitempty" jsonschema:"most pads to return (default 100, at most 500)"`
+	Cursor string `json:"cursor,omitempty" jsonschema:"nextCursor of the call before, for the next page"`
 }
 
 type listedPad struct {
@@ -71,8 +73,24 @@ type listedPad struct {
 
 type listPadsOut struct {
 	Pads []listedPad `json:"pads"`
-	// More: there were more pads than the limit.
-	More bool `json:"more"`
+	// NextCursor: there may be more; pass it as cursor for the next page.
+	NextCursor string `json:"nextCursor,omitempty"`
+}
+
+const (
+	// listBatch is how many ids one database query reads.
+	listBatch = 500
+	// maxScanned bounds the ids one call looks at: a token that may read
+	// few pads of many gets a cursor instead of a scan of everything.
+	maxScanned = 5000
+)
+
+// literalPrefix is the part of a pad pattern before its first "*".
+func literalPrefix(pattern string) string {
+	if i := strings.IndexByte(pattern, '*'); i >= 0 {
+		return pattern[:i]
+	}
+	return pattern
 }
 
 func (s *Server) listPads(_ context.Context, req *sdk.CallToolRequest, in listPadsIn) (*sdk.CallToolResult, listPadsOut, error) {
@@ -86,29 +104,33 @@ func (s *Server) listPads(_ context.Context, req *sdk.CallToolRequest, in listPa
 		limit = 100
 	}
 	limit = min(limit, maxListedPads)
-	ids, err := s.store.Store.GetPadIds()
-	if err != nil {
-		return nil, out, err
-	}
-	all := []string{}
-	if ids != nil {
-		all = append(all, *ids...)
-	}
-	sort.Strings(all)
-	q := strings.ToLower(strings.TrimSpace(in.Query))
-	for _, id := range all {
-		if q != "" && !strings.Contains(strings.ToLower(id), q) {
-			continue
+	// The token's pattern narrows the query in the database; the rights
+	// of its account are checked per pad below.
+	prefix := literalPrefix(use.Token.PadPattern)
+	after := in.Cursor
+	for scanned := 0; scanned < maxScanned; {
+		ids, err := s.store.Store.ListPadIDs(db.PadListing{After: after, Prefix: prefix, Contains: strings.TrimSpace(in.Query),
+			DocumentType: "text", Limit: listBatch})
+		if err != nil {
+			return nil, out, err
 		}
-		if !use.Grants.Has(accounts.ScopePadRead, id) {
-			continue
+		for _, id := range ids {
+			after = id
+			scanned++
+			if !use.Grants.Has(accounts.ScopePadRead, id) {
+				continue
+			}
+			out.Pads = append(out.Pads, listedPad{ID: id, Writable: use.Grants.Has(accounts.ScopePadWrite, id)})
+			if len(out.Pads) == limit {
+				out.NextCursor = id
+				return nil, out, nil
+			}
 		}
-		if len(out.Pads) == limit {
-			out.More = true
-			break
+		if len(ids) < listBatch {
+			return nil, out, nil
 		}
-		out.Pads = append(out.Pads, listedPad{ID: id, Writable: use.Grants.Has(accounts.ScopePadWrite, id)})
 	}
+	out.NextCursor = after
 	return nil, out, nil
 }
 
@@ -328,6 +350,11 @@ func (s *Server) createPad(_ context.Context, req *sdk.CallToolRequest, in creat
 	id, err := s.padID(use, in.Pad, accounts.ScopePadCreate)
 	if err != nil {
 		return nil, out, err
+	}
+	// Group pads ("g.…$name") belong to their group: the group API makes
+	// them, as in the HTTP API's createPad.
+	if strings.Contains(id, "$") {
+		return nil, out, errors.New("create_pad cannot create group pads")
 	}
 	if !s.store.PadManager.IsValidPadId(id) {
 		return nil, out, fmt.Errorf("invalid pad id %q", in.Pad)
