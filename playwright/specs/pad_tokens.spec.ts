@@ -58,6 +58,8 @@ test.describe('my tokens', () => {
             await tk.getByTestId('token-revoke').click()
             await expect(dialog.getByTestId('token').filter({hasText: name})).toHaveCount(1 - i)
         }
+        // the key of a revoked token leaves the screen
+        await expect(dialog.getByTestId('tokens-key')).toBeHidden()
         const gone = await request.get(`/api/1/getText?padID=${encodeURIComponent(padId)}`,
             {headers: {Authorization: `Bearer ${value}`}})
         expect((await gone.json()).code).not.toBe(0)

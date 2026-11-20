@@ -28,6 +28,9 @@ export interface OwnTokens {
   maxLifetimeDays: number
   key?: string
   keyName?: string
+  keyId?: string
+  // reload: the change was made but the list could not be read.
+  reload?: boolean
 }
 
 export interface Answer {
@@ -100,7 +103,9 @@ export const openTokensDialog = async (d: TokensDeps): Promise<HTMLDialogElement
   head.appendChild(el(doc, 'h2', {id: 'account-tokens-title'}, t('pad.tokens.title', 'My tokens')))
   const close = el(doc, 'button', {type: 'button', class: 'account-tokens-close', 'data-testid': 'tokens-close',
     'aria-label': t('pad.tokens.close', 'Close')}, '×')
-  close.addEventListener('click', () => dialog.close())
+  // Without <dialog> support (old browsers) close() is missing.
+  const shut = () => (typeof dialog.close === 'function' ? dialog.close() : dialog.remove())
+  close.addEventListener('click', shut)
   head.appendChild(close)
   dialog.appendChild(head)
   dialog.appendChild(el(doc, 'p', {class: 'account-tokens-intro'},
@@ -116,23 +121,49 @@ export const openTokensDialog = async (d: TokensDeps): Promise<HTMLDialogElement
   else dialog.setAttribute('open', '')
 
   const fail = (msg: string) => { error.textContent = msg; error.hidden = false }
+  // One request at a time: a second click on "Create" would make a second
+  // token whose key replaces the first before it is copied.
+  let busy = false
+  const setBusy = (b: boolean) => {
+    busy = b
+    for (const c of dialog.querySelectorAll<HTMLButtonElement | HTMLSelectElement>('.account-tokens-list button, .account-tokens-list select, .account-tokens-form button')) {
+      c.disabled = b
+    }
+  }
   const call = async (url: string, body?: unknown): Promise<void> => {
+    if (busy) return
     error.hidden = true
-    let a: Answer
+    setBusy(true)
     try {
-      a = await d.request(url, body === undefined ? undefined : {method: 'POST', body: JSON.stringify(body)})
-    } catch {
-      fail(t('pad.tokens.offline', 'The server could not be reached.'))
-      return
+      let a: Answer
+      try {
+        a = await d.request(url, body === undefined ? undefined : {method: 'POST', body: JSON.stringify(body)})
+      } catch {
+        fail(t('pad.tokens.offline', 'The server could not be reached.'))
+        return
+      }
+      if (!a.ok) {
+        fail(await errorOf(a, t('pad.tokens.failed', 'That did not work.')))
+        return
+      }
+      const st = (await a.json()) as OwnTokens
+      if (st.reload) {
+        // Keep what is on screen, show the key, then read the list again.
+        if (st.key) showKey(st.key, st.keyName || '', st.keyId || '')
+        setBusy(false)
+        await call(tokensUrl(d.href()))
+        return
+      }
+      show(st)
+    } finally {
+      setBusy(false)
     }
-    if (!a.ok) {
-      fail(await errorOf(a, t('pad.tokens.failed', 'That did not work.')))
-      return
-    }
-    show((await a.json()) as OwnTokens)
   }
 
-  const showKey = (key: string, name: string) => {
+  // shownId is the token whose key is on screen.
+  let shownId = ''
+  const showKey = (key: string, name: string, id: string) => {
+    shownId = id
     shown.replaceChildren()
     shown.appendChild(el(doc, 'strong', {}, t('pad.tokens.newKey', 'Your new key for "{{name}}"').replace('{{name}}', name)))
     shown.appendChild(el(doc, 'p', {}, t('pad.tokens.keyOnce', 'Copy it now: it is not shown again.')))
@@ -156,7 +187,13 @@ export const openTokensDialog = async (d: TokensDeps): Promise<HTMLDialogElement
   }
 
   const show = (st: OwnTokens) => {
-    if (st.key) showKey(st.key, st.keyName || '')
+    if (st.key) showKey(st.key, st.keyName || '', st.keyId || '')
+    else if (shownId && !st.tokens.some((tk) => tk.id === shownId)) {
+      // Its token was revoked: the key is of no use any more.
+      shownId = ''
+      shown.replaceChildren()
+      shown.hidden = true
+    }
     renderList(st)
     renderForm(st)
   }
@@ -198,8 +235,8 @@ export const openTokensDialog = async (d: TokensDeps): Promise<HTMLDialogElement
         }
         const rotate = el(doc, 'button', {type: 'button', 'data-testid': 'token-rotate'}, t('pad.tokens.rotate', 'New key'))
         rotate.addEventListener('click', () => {
-          const n = Number(grace.value)
-          void call(tokensUrl(d.href(), tk.id, 'rotate'), {oldUntil: n > 0 ? now() + n * DAY : null})
+          // Counted on the server's clock: the browser's may be off.
+          void call(tokensUrl(d.href(), tk.id, 'rotate'), {oldDays: Number(grace.value)})
         })
         actions.append(grace, rotate)
       }

@@ -48,6 +48,28 @@ type OwnTokens struct {
 	MaxLifetimeDays int        `json:"maxLifetimeDays"`
 	Key             string     `json:"key,omitempty"`
 	KeyName         string     `json:"keyName,omitempty"`
+	// KeyID is the token of Key: the dialog hides the key once it is gone.
+	KeyID string `json:"keyId,omitempty"`
+	// Reload: the change was made, but the list could not be read; the key
+	// is still here, the dialog reads the list again.
+	Reload bool `json:"reload,omitempty"`
+}
+
+// maxDays bounds lifetimes and grace periods sent in days: 100 years, far
+// below what a time.Duration holds.
+const maxDays = 36500
+
+// daysOf turns a count of days, from the server's clock, into a time:
+// nil for none or 0, an error for negative or absurd counts.
+func daysOf(days *int) (*time.Time, bool) {
+	if days == nil || *days == 0 {
+		return nil, true
+	}
+	if *days < 0 || *days > maxDays {
+		return nil, false
+	}
+	t := time.Now().Add(time.Duration(*days) * 24 * time.Hour)
+	return &t, true
 }
 
 // tokenErrors are told to the person as they are.
@@ -153,13 +175,27 @@ func (l *Login) state(actor accounts.Actor) (OwnTokens, error) {
 	return out, nil
 }
 
-func (l *Login) reply(c fiber.Ctx, actor accounts.Actor, key, keyName string) error {
+func (l *Login) reply(c fiber.Ctx, actor accounts.Actor, key, keyName, keyID string) error {
 	st, err := l.state(actor)
 	if err != nil {
-		return l.fail(c, err)
+		if key == "" {
+			return l.fail(c, err)
+		}
+		// The token exists: its key must reach the person all the same.
+		l.logger.Errorf("my tokens: listing after a change: %v", err)
+		st = OwnTokens{Tokens: []OwnToken{}, Scopes: []OwnScope{}, Reload: true}
 	}
-	st.Key, st.KeyName = key, keyName
+	st.Key, st.KeyName, st.KeyID = key, keyName, keyID
 	return c.JSON(st)
+}
+
+// saved logs a change that was made but not audited; other errors stay.
+func (l *Login) saved(err error) error {
+	if errors.Is(err, accounts.ErrAuditFailed) {
+		l.logger.Errorf("my tokens: %v", err)
+		return nil
+	}
+	return err
 }
 
 func (l *Login) ownTokens(c fiber.Ctx) error {
@@ -167,7 +203,7 @@ func (l *Login) ownTokens(c fiber.Ctx) error {
 	if !ok {
 		return err
 	}
-	return l.reply(c, actor, "", "")
+	return l.reply(c, actor, "", "", "")
 }
 
 func (l *Login) issueOwnToken(c fiber.Ctx) error {
@@ -187,11 +223,11 @@ func (l *Login) issueOwnToken(c fiber.Ctx) error {
 	if err := json.Unmarshal(c.Body(), &req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request"})
 	}
-	var expires *time.Time
-	if req.Days != nil && *req.Days > 0 {
-		t := time.Now().Add(time.Duration(*req.Days) * 24 * time.Hour)
-		expires = &t
-	} else if req.ExpiresAt != nil {
+	expires, ok := daysOf(req.Days)
+	if !ok {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid lifetime"})
+	}
+	if req.Days == nil && req.ExpiresAt != nil {
 		t := time.UnixMilli(*req.ExpiresAt)
 		expires = &t
 	}
@@ -201,8 +237,11 @@ func (l *Login) issueOwnToken(c fiber.Ctx) error {
 		return l.fail(c, err)
 	}
 	l.logger.Infof("my tokens: %s issued token %s (%s)", actor.ID, t.Prefix, t.Name)
+	if err := l.saved(err); err != nil {
+		l.logger.Errorf("my tokens: issued %s: %v", t.Prefix, err)
+	}
 	// Issued even when only the audit failed: the key must be shown.
-	return l.reply(c, actor, key, t.Name)
+	return l.reply(c, actor, key, t.Name, t.ID)
 }
 
 func (l *Login) rotateOwnToken(c fiber.Ctx) error {
@@ -212,14 +251,19 @@ func (l *Login) rotateOwnToken(c fiber.Ctx) error {
 	}
 	var req struct {
 		OldUntil *int64 `json:"oldUntil"`
+		// OldDays counts from the server's clock (see issueOwnToken).
+		OldDays *int `json:"oldDays"`
 	}
 	if len(c.Body()) > 0 {
 		if err := json.Unmarshal(c.Body(), &req); err != nil {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request"})
 		}
 	}
-	var until *time.Time
-	if req.OldUntil != nil {
+	until, ok := daysOf(req.OldDays)
+	if !ok {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid grace period"})
+	}
+	if req.OldDays == nil && req.OldUntil != nil {
 		t := time.UnixMilli(*req.OldUntil)
 		until = &t
 	}
@@ -230,7 +274,10 @@ func (l *Login) rotateOwnToken(c fiber.Ctx) error {
 	if t == nil {
 		return l.fail(c, err)
 	}
-	return l.reply(c, actor, key, t.Name)
+	if err := l.saved(err); err != nil {
+		l.logger.Errorf("my tokens: rotated %s: %v", t.Prefix, err)
+	}
+	return l.reply(c, actor, key, t.Name, t.ID)
 }
 
 func (l *Login) revokeOwnToken(c fiber.Ctx) error {
@@ -241,10 +288,11 @@ func (l *Login) revokeOwnToken(c fiber.Ctx) error {
 	if err := l.mine(actor, c.Params("id")); err != nil {
 		return l.fail(c, err)
 	}
-	if err := l.tokens.Revoke(actor, c.Params("id")); err != nil {
+	// Revoked even when only the audit failed: the list shows it gone.
+	if err := l.saved(l.tokens.Revoke(actor, c.Params("id"))); err != nil {
 		return l.fail(c, err)
 	}
-	return l.reply(c, actor, "", "")
+	return l.reply(c, actor, "", "", "")
 }
 
 // mine checks that the token is the actor's own: here nobody manages

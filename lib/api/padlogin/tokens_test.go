@@ -109,10 +109,18 @@ func TestOwnTokens(t *testing.T) {
 	resp, _ = a.call(t, http.MethodPost, padlogin.TokensPath, map[string]any{"name": "x", "scopes": []string{accounts.ScopePadRead}, "expiresAt": in(40 * 24 * time.Hour)}, nil)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 
+	// Lifetimes in days: negative or absurd counts are refused, not read
+	// as "never" or wrapped around.
+	for _, days := range []int{-1, 40000, 1 << 40} {
+		resp, _ = a.call(t, http.MethodPost, padlogin.TokensPath, map[string]any{"name": "x", "scopes": []string{accounts.ScopePadRead}, "days": days}, nil)
+		assert.Equal(t, http.StatusBadRequest, resp.StatusCode, days)
+	}
+
 	resp, st = a.call(t, http.MethodPost, padlogin.TokensPath, issue, nil)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 	require.NotEmpty(t, st.Key)
 	assert.Equal(t, "laptop", st.KeyName)
+	assert.Equal(t, st.Tokens[0].ID, st.KeyID)
 	require.Len(t, st.Tokens, 1)
 	first := st.Tokens[0]
 	assert.Equal(t, "notes/*", first.Pads)
@@ -133,7 +141,9 @@ func TestOwnTokens(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 
 	// Rotating keeps the old key for a while.
-	resp, st = a.call(t, http.MethodPost, padlogin.TokensPath+"/"+first.ID+"/rotate", map[string]any{"oldUntil": in(time.Hour)}, nil)
+	resp, _ = a.call(t, http.MethodPost, padlogin.TokensPath+"/"+first.ID+"/rotate", map[string]any{"oldDays": -3}, nil)
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	resp, st = a.call(t, http.MethodPost, padlogin.TokensPath+"/"+first.ID+"/rotate", map[string]any{"oldDays": 1}, nil)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 	require.NotEmpty(t, st.Key)
 	require.Len(t, st.Tokens, 2)
@@ -142,6 +152,12 @@ func TestOwnTokens(t *testing.T) {
 		statuses[tk.ID] = tk.Status
 	}
 	assert.Equal(t, "grace", statuses[first.ID])
+	for _, tk := range st.Tokens {
+		if tk.ID == first.ID {
+			require.NotNil(t, tk.ExpiresAt)
+			assert.InDelta(t, time.Now().Add(24*time.Hour).UnixMilli(), *tk.ExpiresAt, float64(time.Minute.Milliseconds()))
+		}
+	}
 
 	// Revoking takes both off the list.
 	for id := range statuses {
