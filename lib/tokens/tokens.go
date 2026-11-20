@@ -110,7 +110,12 @@ func For(store db.DataStore, cfg *settings.Settings) *Manager {
 	if m, ok := registry[store]; ok {
 		return m
 	}
-	m := NewManager(store, accounts.For(store), func() settings.Tokens { return cfg.Tokens })
+	m := NewManager(store, accounts.For(store), func() settings.Tokens {
+		if cfg == nil {
+			return settings.Tokens{}
+		}
+		return cfg.Tokens
+	})
 	registry[store] = m
 	return m
 }

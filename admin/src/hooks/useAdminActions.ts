@@ -31,10 +31,12 @@ export function useAdminActions() {
     deletePad: (padName: string) => emit('deletePad', padName),
     cleanupPadRevisions: (padName: string) => emit('cleanupPadRevisions', padName),
     sendBroadcast: (message: string, sticky: boolean) => emit('shout', { message, sticky }),
-    loadApiKeys: () => emit('apiKeysLoad'),
-    createApiKey: (description: string) => emit('apiKeyCreate', { description }),
-    setApiKeyDisabled: (id: string, disabled: boolean) => emit('apiKeySetDisabled', { id, disabled }),
-    deleteApiKey: (id: string) => emit('apiKeyDelete', { id }),
+    loadTokens: () => emit('tokensLoad'),
+    issueToken: (t: { accountId: string; name: string; scopes: string[]; pads: string; expiresAt: number | null; limits?: Record<string, number> }) =>
+      emit('tokenIssue', t),
+    rotateToken: (id: string, oldUntil: number | null) => emit('tokenRotate', { id, oldUntil }),
+    setTokenExpiry: (id: string, expiresAt: number | null) => emit('tokenSetExpiry', { id, expiresAt }),
+    revokeToken: (id: string) => emit('tokenRevoke', { id }),
     loadAccounts: () => emit('accountsLoad'),
     createAccount: (a: { username: string; displayName?: string; email?: string; kind: 'human' | 'service'; role?: string; pads?: string }) =>
       emit('accountCreate', a),

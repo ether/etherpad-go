@@ -1,6 +1,6 @@
 import {expect, test} from "@playwright/test";
 import {randomUUID} from "node:crypto";
-import {createApiKey, loginToAdmin} from "../helper/adminhelper";
+import {issueToken, loginToAdmin} from "../helper/adminhelper";
 
 // The flow of Moodle and other integrations: with an HTTP API key from the
 // admin page they create a group, an author and a session, set the
@@ -9,7 +9,7 @@ test.describe('HTTP API group pads', () => {
     test('a session from the API opens the group pad, no session does not', async ({page, request, context, browser}) => {
         const admin = await browser.newPage()
         await loginToAdmin(admin, 'admin', 'changeme1')
-        const apiKey = await createApiKey(admin, 'Group pad test')
+        const apiKey = await issueToken(admin, 'Group pad test')
         await admin.close()
 
         const call = async (fn: string, params: Record<string, string>) => {

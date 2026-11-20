@@ -4,7 +4,7 @@ import { Sidebar } from '@/components/Sidebar'
 import { Toast } from '@/components/Toast'
 import { OverviewPage } from '@/pages/Overview'
 import { PadsPage } from '@/pages/Pads'
-import { ApiKeysPage } from '@/pages/ApiKeys'
+import { TokensPage } from '@/pages/Tokens'
 import { AccountsPage } from '@/pages/Accounts'
 import { RolesPage } from '@/pages/Roles'
 import { VisitorsPage } from '@/pages/Visitors'
@@ -47,7 +47,9 @@ function AuthenticatedApp({ token }: { token: string }) {
             <Route path="/monitoring" element={<MonitoringPage />} />
             <Route path="/pads" element={<PadsPage />} />
             <Route path="/broadcast" element={<BroadcastPage />} />
-            <Route path="/keys" element={<ApiKeysPage />} />
+            <Route path="/tokens" element={<TokensPage />} />
+            {/* The former page of the API keys, which are tokens now. */}
+            <Route path="/keys" element={<Navigate to="/tokens" replace />} />
             <Route path="/accounts" element={<AccountsPage />} />
             <Route path="/roles" element={<RolesPage />} />
             <Route path="/visitors" element={<VisitorsPage />} />
