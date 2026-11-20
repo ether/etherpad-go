@@ -2,6 +2,7 @@ package static
 
 import (
 	"io/fs"
+	"mime"
 	"net/url"
 	"os"
 	"path"
@@ -30,7 +31,16 @@ func serveFavicon(store *lib.InitStore) fiber.Handler {
 				p = filepath.Join(s.Root, p)
 			}
 			if info, err := os.Stat(p); err == nil && info.Mode().IsRegular() {
-				return c.SendFile(p)
+				// Read, not SendFile: fasthttp 1.79 refuses an absolute
+				// path with a drive letter on Windows. A favicon is small.
+				if b, err := os.ReadFile(p); err == nil {
+					typ := mime.TypeByExtension(filepath.Ext(p))
+					if typ == "" {
+						typ = "image/x-icon"
+					}
+					c.Set(fiber.HeaderContentType, typ)
+					return c.Send(b)
+				}
 			}
 		}
 		if s.SkinName != "" && !strings.ContainsAny(s.SkinName, `/\`) && s.SkinName != ".." {

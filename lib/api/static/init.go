@@ -71,11 +71,16 @@ func servePluginStatic(c fiber.Ctx) error {
 	if !ok {
 		return c.SendStatus(fiber.StatusNotFound)
 	}
-	if err := c.SendFile(filePath); err != nil {
+	// Served from an fs.FS, not by absolute path: fasthttp 1.79 refuses a
+	// path with a drive letter ("D:/...") on Windows as an NTFS stream.
+	if err := c.SendFile(filePath, fiber.SendFile{FS: pluginFiles}); err != nil {
 		return c.SendStatus(fiber.StatusNotFound)
 	}
 	return nil
 }
+
+// pluginFiles is ./plugins, where the plugins' static files are.
+var pluginFiles = os.DirFS("plugins")
 
 var pluginNamePattern = regexp.MustCompile(`^ep_[A-Za-z0-9_-]+$`)
 
@@ -85,8 +90,8 @@ var pluginNamePattern = regexp.MustCompile(`^ep_[A-Za-z0-9_-]+$`)
 // pass (etherpad-lite's sanitizePathname guards the same).
 var adminLocaleName = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]*\.json$`)
 
-// pluginStaticFile maps "<plugin>/static/<file>" to its path below
-// ./plugins, or reports false for anything else (other folders of the
+// pluginStaticFile maps "<plugin>/static/<file>" to its path in
+// pluginFiles (./plugins), or reports false for anything else (other folders of the
 // plugin, "..", absolute or empty paths).
 func pluginStaticFile(rel string) (string, bool) {
 	plugin, rest, ok := strings.Cut(rel, "/")
@@ -102,7 +107,7 @@ func pluginStaticFile(rel string) (string, bool) {
 			return "", false
 		}
 	}
-	return "./plugins/" + plugin + "/static/" + rest, true
+	return plugin + "/static/" + rest, true
 }
 
 func registerEmbeddedStatic(app *fiber.App, route string, subPath string, uiAssets embed.FS) {
