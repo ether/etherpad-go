@@ -13,9 +13,8 @@ func ReadConfig() (*Settings, error) {
 	viper.Reset()
 	ignoreServiceLinkPort()
 
-	viper.SetEnvPrefix("etherpad")
-	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
-	viper.AutomaticEnv()
+	// The environment is read by applyEnv (env.go), typed by the settings'
+	// fields; viper's AutomaticEnv would hand every value over as text.
 
 	ApplyRegistryDefaults()
 
@@ -59,7 +58,11 @@ func ReadConfig() (*Settings, error) {
 		}
 	}
 
-	applyNestedEnv(os.Environ())
+	report, err := applyEnv(os.Environ())
+	if err != nil {
+		return nil, fmt.Errorf("settings from the environment: %w", err)
+	}
+	reportEnv(report)
 
 	// --- Unmarshal ---
 	var s Settings
@@ -80,35 +83,6 @@ func ReadConfig() (*Settings, error) {
 	}
 	s.SettingsFile, s.SettingsSaveFile = file, saveFile
 	return &s, nil
-}
-
-// applyNestedEnv sets settings from variables of the form EP__a__b=value,
-// etherpad-lite's way to set nested (and plugin) settings without editing
-// settings.json: EP__padOptions__showChat=false sets padOptions.showChat.
-// Values are typed like ${VAR} values (true, false, null, numbers). Unlike
-// etherpad-lite, only the named setting changes, not its whole section.
-func applyNestedEnv(environ []string) {
-	for _, kv := range environ {
-		name, value, ok := strings.Cut(kv, "=")
-		if !ok || !strings.HasPrefix(name, "EP__") {
-			continue
-		}
-		parts := strings.Split(strings.TrimPrefix(name, "EP__"), "__")
-		empty := false
-		for _, p := range parts {
-			if p == "" {
-				empty = true
-			}
-		}
-		if empty {
-			continue
-		}
-		v, keep := coerceEnvValue(value)
-		if !keep {
-			continue
-		}
-		viper.Set(strings.Join(parts, "."), v)
-	}
 }
 
 // ignoreServiceLinkPort drops ETHERPAD_PORT when Kubernetes set it, not the

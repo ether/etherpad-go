@@ -84,6 +84,46 @@ settings.json.template → settings.json
 
 and adjust it to your needs.
 
+### Settings from the environment
+
+Every setting can also come from an environment variable, which is handy for containers and
+Kubernetes secrets. The name is `ETHERPAD_` plus the setting's path, matched without regard to
+case or underscores, so `ETHERPAD_PADOPTIONS_SHOWCHAT` and `ETHERPAD_PAD_OPTIONS_SHOW_CHAT` both set
+`padOptions.showChat`. A number is a place in a list, counted from 0:
+
+```bash
+ETHERPAD_SSO_ISSUER=https://pads.example.com
+ETHERPAD_SSO_CLIENTS_0_CLIENT_ID=admin_client
+ETHERPAD_SSO_CLIENTS_0_CLIENT_SECRET=...        # from a secret
+ETHERPAD_SSO_CLIENTS_0_TYPE=admin
+ETHERPAD_SSO_CLIENTS_0_REDIRECT_URIS=https://pads.example.com/admin/,https://pads.example.com/admin
+ETHERPAD_SSO_CLIENTS_1_CLIENT_ID=user_client
+ETHERPAD_SSO_CLIENTS_1_TYPE=user
+```
+
+- **Lists merge with the settings file, place by place.** If `settings.json` has client 0,
+  `ETHERPAD_SSO_CLIENTS_0_CLIENT_SECRET` replaces only its secret and the rest stays. The place
+  after the last one adds an element. Places have no gaps: client 0 and 2 without 1 stops the
+  start with an error. Spring Boot would replace the whole list instead.
+- **Lists of plain values** can also be given whole, comma separated:
+  `ETHERPAD_AVAILABLEEXPORTS=pdf,html`, or place by place: `…_GRANT_TYPES_0=authorization_code`.
+- **Values are typed by their setting.** A text setting keeps the text as it is, so a secret
+  `0123` stays `0123`. A switch takes `true` or `false`, and a number setting takes a number.
+  Anything else stops the start with the variable's name.
+- **Maps with free keys** need their parts spelled out with `EP__` and double underscores
+  (etherpad-lite's form), because a free key may itself contain underscores. This covers
+  `users`, `plugins` and the sections of plugins:
+  `EP__users__alice__password=...`, `EP__ep_comments_page__highlightSelectedText=true`.
+  Places in lists work here too: `EP__sso__clients__0__display_name=Admin`.
+- **A variable that matches no setting** is reported at start-up:
+  `warning: ETHERPAD_PADOPTIONS_SHOWCHATT matches no setting and is ignored`. The variables of
+  the command line (`ETHERPAD_SETTINGS_FILE`, `ETHERPAD_URL`, `ETHERPAD_API_KEY`, …) and the
+  ones Kubernetes sets for a Service named `etherpad` (`ETHERPAD_SERVICE_HOST`,
+  `ETHERPAD_PORT_9001_TCP…`) are not reported.
+
+The environment wins over `settings.json`, and `${VAR}` / `${VAR:default}` inside
+`settings.json` keeps working.
+
 ### Behind a reverse proxy under a path
 
 Etherpad can be served under a path such as `https://example.org/pads/`. The proxy

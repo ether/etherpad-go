@@ -240,7 +240,7 @@ var Registry = []ConfigKey{
 	{Key: SsoIssuer, Default: "http://localhost:3000", Description: "SSO issuer"},
 	{
 		Key:         SsoClients,
-		Default:     map[string]SSOClient{},
+		Default:     []any{},
 		Description: "SSO clients",
 	},
 
