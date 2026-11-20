@@ -183,6 +183,7 @@ type DataStore interface {
 	ClusterMethods
 	APIKeyMethods
 	AccountMethods
+	TokenMethods
 	AuthorPrivacyMethods
 	PadHeadMethods
 	LeaderMethods
