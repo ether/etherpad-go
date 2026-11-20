@@ -69,6 +69,8 @@ working. A key from an `APIKEY.txt` (etherpad-lite, or an earlier etherpad-go re
 over the same way once at start-up, named "APIKEY.txt"; the file is then no longer needed.
 `EP_APIKEY_FILE` names another path for it. etherpad-go no longer creates the file.
 
+AI clients use the same tokens at `/mcp`, the MCP server (see [mcp.md](mcp.md)).
+
 ## Path styles
 
 The functions answer under three path styles, as in etherpad-lite, with the same tokens and
