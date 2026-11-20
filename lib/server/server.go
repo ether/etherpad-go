@@ -17,6 +17,7 @@ import (
 
 	"github.com/ether/etherpad-go/lib"
 	api2 "github.com/ether/etherpad-go/lib/api"
+	"github.com/ether/etherpad-go/lib/api/padlogin"
 	"github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/hooks"
 	"github.com/ether/etherpad-go/lib/hooks/events"
@@ -47,6 +48,8 @@ type wsUpgradeData struct {
 	WebAccessUser       any
 	// AuthorToken is the HttpOnly author token cookie of the handshake.
 	AuthorToken string
+	// LoginSession is the key of the pad login session (ws.LoginSessionKey).
+	LoginSession string
 }
 
 func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets embed.FS) {
@@ -80,9 +83,14 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 		Level: compress.LevelBestSpeed,
 	}))
 
+	// A person logged in on the pads is the request's user before the
+	// access check decides.
+	padLogin := padlogin.New(dataStore, nil, &settings, setupLogger)
+	app.Use(padLogin.Middleware())
 	app.Use(func(c fiber.Ctx) error {
 		return pad.CheckAccessWithHooks(c, setupLogger, &settings, readOnlyManager, &retrievedHooks)
 	})
+	padLogin.Register(app)
 
 	padManager := pad.NewManager(dataStore, &retrievedHooks)
 	padManager.SetLowerCasePadIds(func() bool { return settings.LowerCasePadIDs })
@@ -122,10 +130,22 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 	// A change of rights on one instance holds on all at once, not only
 	// when the cached rights of the others expire.
 	accountManager := accounts.For(dataStore)
-	accountManager.OnChange(func() { clusterBus.Publish(cluster.Event{Kind: cluster.KindAccounts}) })
+	// Open pads of an account that was disabled or deleted stop writing
+	// at once, on every instance.
+	dropInactive := func() {
+		go padMessageHandler.DisconnectInactiveAccounts(func(id string) bool {
+			a, err := accountManager.Person(id)
+			return err != nil || a != nil
+		})
+	}
+	accountManager.OnChange(func() {
+		clusterBus.Publish(cluster.Event{Kind: cluster.KindAccounts})
+		dropInactive()
+	})
 	clusterBus.Subscribe(func(e cluster.Event) {
 		if e.Kind == cluster.KindAccounts {
 			accountManager.Invalidate()
+			dropInactive()
 		}
 	})
 	// Whether this instance should get traffic (readiness probe).
@@ -188,6 +208,13 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 		RetentionLeader:   retentionLeader,
 		Lifecycle:         lifecycleState,
 	})
+	padLogin.SetAuthenticator(authenticator)
+	padLogin.OnLogout(func(sessionID string) { padMessageHandler.DisconnectLogout(ws.LoginSessionKey(sessionID)) })
+	if padLogin.Available() {
+		pad.SetLoginPage(padlogin.LoginURL)
+	} else {
+		setupLogger.Info("Logging in on pads is off: no SSO client of type \"user\" with the authorization_code grant is configured")
+	}
 
 	// Pre-upgrade data is stored in a sync.Map keyed by a unique connection token,
 	// because gofiber/contrib/v3/websocket does not propagate Locals from the
@@ -222,6 +249,7 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 				ClientIP:            c.IP(),
 				WebAccessUser:       c.Locals("sessionUser"),
 				AuthorToken:         pad.AuthorTokenFromCookies(c.Cookies, &settings),
+				LoginSession:        ws.LoginSessionKey(c.Cookies(padlogin.CookieName(&settings))),
 			})
 			c.Locals("wsConnID", connID)
 			return c.Next()
@@ -244,7 +272,7 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 		// Enforce a hard per-message ceiling matching the configured buffer size.
 		conn.SetReadLimit(int64(wsBufSize))
 		setupLogger.Debugf("[WS] New connection sessionID=%s clientIP=%s", data.SessionID, settings.LogIP(data.ClientIP))
-		ws.ServeWs(conn, data.SessionID, data.IntegratorSessionID, data.ClientIP, data.WebAccessUser, &settings, setupLogger, padMessageHandler, data.AuthorToken)
+		ws.ServeWs(conn, data.SessionID, data.IntegratorSessionID, data.ClientIP, data.WebAccessUser, &settings, setupLogger, padMessageHandler, data.AuthorToken, data.LoginSession)
 	}, fiberws.Config{
 		ReadBufferSize:  wsBufSize,
 		WriteBufferSize: wsBufSize,

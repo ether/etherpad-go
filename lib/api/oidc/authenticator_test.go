@@ -55,6 +55,12 @@ func testSettings(issuer string) *settings.Settings {
 					DisplayName:  "Admin",
 				},
 				{
+					Type:         "user",
+					ClientId:     "user_client",
+					RedirectUris: []string{"https://pads.example/"},
+					GrantTypes:   []string{"authorization_code"},
+				},
+				{
 					ClientId:     serviceClientID,
 					ClientSecret: strPtr(serviceSecret),
 					RedirectUris: []string{"https://service.example/callback"},

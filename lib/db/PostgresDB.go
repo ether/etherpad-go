@@ -1076,6 +1076,14 @@ func (d PostgresDB) GetAuthCode(signature string) (*OAuthTokenRow, error) {
 	return &t, nil
 }
 
+func (d PostgresDB) ConsumeAuthCode(signature string) (bool, error) {
+	tag, err := d.pool.Exec(context.Background(), "UPDATE oauth_auth_codes SET active = false WHERE signature = $1 AND active = true", signature)
+	if err != nil {
+		return false, err
+	}
+	return tag.RowsAffected() == 1, nil
+}
+
 func (d PostgresDB) InvalidateAuthCode(signature string) error {
 	ctx := context.Background()
 	_, err := d.pool.Exec(ctx, "UPDATE oauth_auth_codes SET active = false WHERE signature = $1", signature)

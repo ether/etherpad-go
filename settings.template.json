@@ -216,6 +216,14 @@
   "customLocaleStrings": {},
   "enableAdminUITests": false,
   "lowerCasePadIds": false,
+  /*
+   * The built-in OpenID Connect provider. The client of type "admin" is the
+   * admin UI; the client of type "user" lets people log in on the pads
+   * ("Log in" in the toolbar, and pads visitors may not open lead to the
+   * login). Its callback, <issuer origin>/auth/callback, is allowed without
+   * listing it; the issuer must be the address people open the pads at.
+   * Without a "user" client, nobody logs in on the pads.
+   */
   "sso": {
     "issuer": "http://localhost:9001",
     "clients": [

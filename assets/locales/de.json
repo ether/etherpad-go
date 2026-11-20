@@ -233,5 +233,9 @@
 	"pad.impexp.exportdisabled": "Der Export im {{type}}-Format ist deaktiviert. Für Einzelheiten kontaktiere bitte deinen Systemadministrator.",
 	"pad.impexp.maxFileSize": "Die Datei ist zu groß. Kontaktiere bitte deinen Administrator, um das Limit für den Dateiimport zu erhöhen.",
 	"pad.outdatedNotice.title": "Etherpad-Update verfügbar",
-	"pad.outdatedNotice.text": "Eine neuere Version von Etherpad ist erschienen. Dieser Server sollte aktualisiert werden."
+	"pad.outdatedNotice.text": "Eine neuere Version von Etherpad ist erschienen. Dieser Server sollte aktualisiert werden.",
+	"pad.account.login": "Anmelden",
+	"pad.account.logout": "Abmelden",
+	"pad.account.menu": "Konto",
+	"pad.account.admin": "Administration"
 }

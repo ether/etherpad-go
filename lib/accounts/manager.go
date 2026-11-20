@@ -87,10 +87,14 @@ type Manager struct {
 	store db.AccountMethods
 	now   func() time.Time
 
-	mu       sync.Mutex
-	roles    map[string]db.Role
-	rolesAt  time.Time
-	grants   map[string]cachedGrants
+	mu      sync.Mutex
+	roles   map[string]db.Role
+	rolesAt time.Time
+	grants  map[string]cachedGrants
+	people  map[string]cachedPerson
+	// gen counts the times the caches were forgotten, so a read that
+	// began before does not cache what it found (Person).
+	gen      uint64
 	verified map[string]verified
 	throttle map[string]*throttle
 	authKey  []byte
@@ -112,6 +116,7 @@ func NewManager(store db.AccountMethods) *Manager {
 		store:    store,
 		now:      time.Now,
 		grants:   map[string]cachedGrants{},
+		people:   map[string]cachedPerson{},
 		verified: map[string]verified{},
 		throttle: map[string]*throttle{},
 		authKey:  key,
@@ -125,6 +130,8 @@ func (m *Manager) Invalidate() {
 	defer m.mu.Unlock()
 	m.roles = nil
 	m.grants = map[string]cachedGrants{}
+	m.people = map[string]cachedPerson{}
+	m.gen++
 	m.verified = map[string]verified{}
 }
 

@@ -40,6 +40,9 @@ const (
 	// KindAccounts: accounts, roles or assignments changed; forget the
 	// cached rights (lib/accounts).
 	KindAccounts Kind = "accounts"
+	// KindLogout: a pad login session ended (Session: its key); its
+	// connections are closed (lib/ws).
+	KindLogout Kind = "logout"
 )
 
 // Event is one message between instances.

@@ -234,14 +234,14 @@ func (b *Memberlist) enqueue(to *memberlist.Node, e Event) {
 	// UDP is enough; everything with a payload goes over TCP, and so do the
 	// notices that take rights away (changed accounts, erased authors),
 	// which nothing repeats.
-	reliable := len(e.Payload) > 0 || len(data) > maxBestEffort || e.Kind == KindAccounts || e.Kind == KindErased
+	reliable := len(e.Payload) > 0 || len(data) > maxBestEffort || e.Kind == KindAccounts || e.Kind == KindErased || e.Kind == KindLogout
 	o := outgoing{to: to, data: data, reliable: reliable}
 	select {
 	case b.outbox <- o:
 		return
 	default:
 	}
-	if e.Kind == KindAccounts || e.Kind == KindErased {
+	if e.Kind == KindAccounts || e.Kind == KindErased || e.Kind == KindLogout {
 		// Worth a short wait: otherwise the others keep the old rights
 		// until their caches expire.
 		select {

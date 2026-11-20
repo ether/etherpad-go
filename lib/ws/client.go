@@ -52,6 +52,9 @@ type Client struct {
 	adminHandler *AdminMessageHandler
 	// AdminAccount is the account of an admin connection, from its token.
 	AdminAccount string
+	// LoginSession is the key of the pad login session the connection was
+	// opened with (LoginSessionKey), "" without one.
+	LoginSession string
 }
 
 func (c *Client) readPumpAdmin(retrievedSettings *settings.Settings, logger *zap.SugaredLogger) {
@@ -247,8 +250,8 @@ func (c *Client) SendPadDelete() {
 // ServeWs handles websocket requests from the peer using Fiber's websocket middleware.
 func ServeWs(conn *websocket.Conn, sessionID string, integratorSessionID string, clientIP string, webAccessUser any,
 	configSettings *settings.Settings,
-	logger *zap.SugaredLogger, handler *PadMessageHandler, cookieToken string) {
-	client := &Client{Hub: handler.hub, Conn: conn, Send: make(chan []byte, 256), drain: &clientDrain{}, SessionId: sessionID, IntegratorSessionID: integratorSessionID, ClientIP: clientIP, WebAccessUser: webAccessUser, Handler: handler, CookieToken: cookieToken}
+	logger *zap.SugaredLogger, handler *PadMessageHandler, cookieToken string, loginSession string) {
+	client := &Client{Hub: handler.hub, Conn: conn, Send: make(chan []byte, 256), drain: &clientDrain{}, SessionId: sessionID, IntegratorSessionID: integratorSessionID, ClientIP: clientIP, WebAccessUser: webAccessUser, Handler: handler, CookieToken: cookieToken, LoginSession: loginSession}
 	handler.SessionStore.initSession(sessionID)
 	client.Hub.Register <- client
 	go client.writePump()
