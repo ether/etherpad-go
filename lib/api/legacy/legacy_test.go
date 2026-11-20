@@ -3,7 +3,8 @@ package legacy
 import (
 	"os"
 
-	"github.com/ether/etherpad-go/lib/apikeys"
+	"github.com/ether/etherpad-go/lib/accounts"
+	"github.com/ether/etherpad-go/lib/tokens"
 	"github.com/ether/etherpad-go/lib/db"
 	"path/filepath"
 	"testing"
@@ -84,7 +85,12 @@ func TestServerOrigin(t *testing.T) {
 }
 
 func TestImportAPIKeyFile(t *testing.T) {
-	keys := apikeys.NewManager(db.NewMemoryDataStore())
+	store := db.NewMemoryDataStore()
+	acc := accounts.NewManager(store)
+	if err := acc.EnsureDefaults(accounts.SeedConfig{Template: accounts.TemplateOpen}, nil); err != nil {
+		t.Fatal(err)
+	}
+	keys := tokens.NewManager(store, acc, nil)
 	path := filepath.Join(t.TempDir(), "APIKEY.txt")
 	if stored, err := ImportAPIKeyFile(keys, path); err != nil || stored {
 		t.Fatalf("no file: %v, %v", stored, err)
@@ -98,11 +104,11 @@ func TestImportAPIKeyFile(t *testing.T) {
 	if stored, err := ImportAPIKeyFile(keys, path); err != nil || stored {
 		t.Fatalf("second start takes it over again: %v, %v", stored, err)
 	}
-	list, _ := keys.List()
-	if len(list) != 1 || list[0].Description != "APIKEY.txt" {
+	list, _ := keys.List(accounts.System, "")
+	if len(list) != 1 || list[0].Name != "APIKEY.txt" {
 		t.Fatalf("listed as APIKEY.txt: %+v", list)
 	}
-	if _, ok := keys.Check("old-key"); !ok {
+	if _, err := keys.Authenticate("old-key", ""); err != nil {
 		t.Fatal("the old key still works")
 	}
 	if _, err := os.Stat(path); err != nil {

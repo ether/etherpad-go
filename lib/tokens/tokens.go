@@ -567,3 +567,9 @@ func (m *Manager) touch(t *db.Token, now time.Time, ip string) {
 		_ = m.store.TouchToken(t.ID, now, ip)
 	}
 }
+
+// Store returns the data store of the tokens (for tests and tools).
+func (m *Manager) Store() db.DataStore {
+	ds, _ := m.store.(db.DataStore)
+	return ds
+}

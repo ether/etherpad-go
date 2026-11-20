@@ -2,10 +2,10 @@ package legacy
 
 import (
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/ether/etherpad-go/lib/api/legacy"
-	"github.com/ether/etherpad-go/lib/apikeys"
 	"github.com/ether/etherpad-go/lib/test/testutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,7 +21,7 @@ func TestLegacyBearerAuth(t *testing.T) {
 
 func testLegacyBearer(t *testing.T, ds testutils.TestDataStore) {
 	store := ds.ToInitStore()
-	legacy.New(store, apikeys.NewManager(ds.DS), func(token string) bool { return token == "good" }).Register(store.C)
+	legacy.New(store, newKeys(t, ds), func(token string) bool { return token == "good" }).Register(store.C)
 	c := &client{t: t, app: store.C, version: legacy.LatestVersion}
 
 	call := func(header string) (int, legacy.Response) {
@@ -50,7 +50,8 @@ func testLegacyBearer(t *testing.T, ds testutils.TestDataStore) {
 	assert.Equal(t, 401, status)
 
 	// keys and bearer tokens work side by side
-	key, _, err := apikeys.NewManager(ds.DS).Create("script")
+	key := "ep_script" + strings.Repeat("1", 32)
+	_, err := newKeys(t, ds).ImportKey(key, "script")
 	require.NoError(t, err)
 	status, _, _ = c.getStatus("listAllPads", map[string]string{"apikey": key})
 	assert.Equal(t, 200, status)
