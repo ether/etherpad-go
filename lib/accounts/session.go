@@ -2,6 +2,7 @@ package accounts
 
 import (
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/ether/etherpad-go/lib/db"
@@ -100,4 +101,147 @@ func (m *Manager) AuthorOf(accountID string, create func(name string) (string, e
 	}
 	m.changed()
 	return authorID, nil
+}
+
+// Holder returns the account a token may act for: a person or a service
+// account, existing and not disabled; else nil. Cached like Person.
+func (m *Manager) Holder(accountID string) (*db.Account, error) {
+	if accountID == "" || isPseudo(accountID) {
+		return nil, nil
+	}
+	m.mu.Lock()
+	if c, ok := m.holders[accountID]; ok && m.now().Sub(c.at) < CacheTTL {
+		m.mu.Unlock()
+		return c.account, nil
+	}
+	gen := m.gen
+	m.mu.Unlock()
+	a, err := m.store.GetAccount(accountID)
+	if err != nil && !errors.Is(err, db.ErrAccountNotFound) {
+		return nil, err
+	}
+	if a != nil && ((a.Kind != KindHuman && a.Kind != KindService) || a.DisabledAt != nil) {
+		a = nil
+	}
+	m.mu.Lock()
+	if m.gen == gen {
+		if len(m.holders) >= maxCachedPeople {
+			m.holders = map[string]cachedPerson{}
+		}
+		m.holders[accountID] = cachedPerson{account: a, at: m.now()}
+	}
+	m.mu.Unlock()
+	return a, nil
+}
+
+// Generation counts the times the caches were forgotten (every change, and
+// every notice of another instance): what is cached with an older one is
+// stale.
+func (m *Manager) Generation() uint64 {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.gen
+}
+
+// Changed tells this and the other instances that something the rights
+// depend on changed outside the manager (e.g. a token was revoked).
+func (m *Manager) Changed() { m.changed() }
+
+// Record writes an audit entry for a change made outside the manager.
+func (m *Manager) Record(actor Actor, action, target string, details any) error {
+	return m.audit(actor, action, target, details)
+}
+
+// MayManage reports whether actor may act on the account: itself, or an
+// account whose rights the actor all has (no take-over of more rights).
+func (m *Manager) MayManage(actor Actor, accountID string) (bool, error) {
+	if actor.server {
+		return true, nil
+	}
+	st, err := m.currentState()
+	if err != nil {
+		return false, err
+	}
+	return m.canManage(actor, st, accountID), nil
+}
+
+// IsServer reports whether the actor is the server itself (System or the
+// CLI), not an account.
+func (a Actor) IsServer() bool { return a.server }
+
+// MayGive reports whether grants may pass scope on for pads matching
+// pattern ("" or "*": all pads): nobody gives what they do not have. "*"
+// (all scopes) needs every right.
+func (g Grants) MayGive(scope, pattern string) bool {
+	if scope == AllScopes {
+		return g.isAll()
+	}
+	if pattern == "*" {
+		pattern = ""
+	}
+	if g.HasGlobal(scope) {
+		return true
+	}
+	if pattern == "" || !padScoped(scope) {
+		return false
+	}
+	return g.hasForPattern(scope, pattern)
+}
+
+// within reports whether every pad matching pattern also matches outer:
+// the same pattern, or outer is a fixed beginning followed by "*" that
+// pattern starts with.
+func within(pattern, outer string) bool {
+	if pattern == outer {
+		return true
+	}
+	prefix, ok := strings.CutSuffix(outer, "*")
+	return ok && !strings.Contains(prefix, "*") && strings.HasPrefix(pattern, prefix)
+}
+
+// hasForPattern reports whether an assignment whose pattern covers this
+// pattern gives scope.
+func (g Grants) hasForPattern(scope, pattern string) bool {
+	for _, a := range g.alts {
+		if a.hasForPattern(scope, pattern) {
+			return true
+		}
+	}
+	if g.inner != nil {
+		return g.restrict.scope(scope) && (g.restrict.pattern == "" || within(pattern, g.restrict.pattern)) &&
+			g.inner.hasForPattern(scope, pattern)
+	}
+	for _, gr := range g.grants {
+		if within(pattern, gr.pattern) && gr.has(scope) {
+			return true
+		}
+	}
+	return false
+}
+
+// KnownScope reports whether name is a registered scope.
+func KnownScope(name string) bool {
+	for _, s := range scopeNames() {
+		if s == name {
+			return true
+		}
+	}
+	return false
+}
+
+// MayGiveLimits reports whether grants may give these limits: none above
+// their own, unless they have every right.
+func (g Grants) MayGiveLimits(limits map[string]int64) bool { return limitsAllowed(g, limits) }
+
+// Locked runs fn under the write lock of the accounts: the process's and,
+// where the store has one, the database's, so the changes of all instances
+// of a cluster happen one after the other. fn must not change accounts or
+// roles through the manager (that takes the lock again).
+func (m *Manager) Locked(fn func() error) error {
+	unlock, err := m.lockWrites()
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	return fn()
 }

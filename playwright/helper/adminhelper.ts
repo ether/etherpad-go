@@ -31,12 +31,16 @@ export const restartEtherpad = async (page: Page) => {
     await page.waitForSelector('.settings')
 }
 
-// createApiKey creates an HTTP API key on the admin page and returns it.
-export const createApiKey = async (page: Page, description: string): Promise<string> => {
-    await page.getByRole('link', {name: 'API keys'}).click()
-    await page.getByLabel('Description of the new key').fill(description)
-    await page.getByRole('button', {name: 'Create key'}).click()
-    const value = page.getByTestId('apikey-value')
+// issueToken issues a token on the admin page, for account with every
+// scope the account has (the form's preselection), and returns its key.
+export const issueToken = async (page: Page, name: string, account = 'admin', pads = ''): Promise<string> => {
+    await page.getByRole('link', {name: 'Tokens'}).click()
+    const form = page.getByTestId('token-issue')
+    await form.getByLabel('Account').selectOption({label: account})
+    await form.getByLabel('Token name').fill(name)
+    if (pads) await form.getByLabel('Token pads').fill(pads)
+    await form.getByRole('button', {name: 'Issue'}).click()
+    const value = page.getByTestId('token-key-value')
     await expect(value).toBeVisible()
     return (await value.textContent())!.trim()
 }

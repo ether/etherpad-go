@@ -7,7 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ether/etherpad-go/lib/accounts"
 	"github.com/ether/etherpad-go/lib/test/testutils"
+	"github.com/ether/etherpad-go/lib/tokens"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -95,23 +97,17 @@ func testLegacyVersionsAndAuth(t *testing.T, ds testutils.TestDataStore) {
 	status, _, _ = c.do(req)
 	assert.Equal(t, 200, status)
 
-	// several keys: disabling or deleting one leaves the others working
-	other, otherKey, err := c.keys.Create("Moodle")
+	// several keys: revoking one leaves the others working
+	other, otherTok, err := c.keys.Issue(accounts.System, tokens.Spec{AccountID: c.holder, Name: "Moodle", Scopes: []string{accounts.AllScopes}})
 	require.NoError(t, err)
 	c.key = other
 	assert.Equal(t, 0, c.get("listAllPads", nil).Code)
-	require.NoError(t, c.keys.SetDisabled(otherKey.ID, true))
+	require.NoError(t, c.keys.Revoke(accounts.System, otherTok.ID))
 	status, r, _ = c.getStatus("listAllPads", nil)
-	assert.Equal(t, 401, status, "a disabled key")
+	assert.Equal(t, 401, status, "a revoked key")
 	assert.Equal(t, 4, r.Code)
 	c.key = testAPIKey
 	assert.Equal(t, 0, c.get("listAllPads", nil).Code, "the other key still works")
-	require.NoError(t, c.keys.SetDisabled(otherKey.ID, false))
-	c.key = other
-	assert.Equal(t, 0, c.get("listAllPads", nil).Code, "enabled again")
-	require.NoError(t, c.keys.Delete(otherKey.ID))
-	status, _, _ = c.getStatus("listAllPads", nil)
-	assert.Equal(t, 401, status, "a deleted key")
 
 	// checkToken answers null
 	c.key = testAPIKey

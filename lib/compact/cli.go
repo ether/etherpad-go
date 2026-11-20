@@ -44,7 +44,7 @@ func mainWithClock(args []string, out, errOut io.Writer, api API, now func() tim
 	fs.Var(&keep, "keep", "keep the last `N` revisions (default: collapse all history)")
 	dryRun := fs.Bool("dry-run", false, "list the pads and their revisions, change nothing")
 	baseURL := fs.String("url", "", "the server's `URL` (default: ETHERPAD_URL, else from the settings: http://<ip>:<port>; a reverse proxy's https address works too)")
-	apiKey := fs.String("apikey", "", "an API `key` of the admin page (default: ETHERPAD_API_KEY)")
+	apiKey := fs.String("apikey", "", "a token (admin page: Tokens) that may compact the pads (default: ETHERPAD_API_KEY)")
 	fs.Usage = func() {
 		fmt.Fprint(errOut, usage)
 		fs.PrintDefaults()
@@ -86,7 +86,7 @@ func mainWithClock(args []string, out, errOut io.Writer, api API, now func() tim
 			key = os.Getenv("ETHERPAD_API_KEY")
 		}
 		if key == "" {
-			fmt.Fprintln(errOut, "An API key is needed: --apikey or ETHERPAD_API_KEY (create one on the admin page).")
+			fmt.Fprintln(errOut, "A token is needed: --apikey or ETHERPAD_API_KEY (issue one on the admin page, Tokens).")
 			return 2
 		}
 		u := *baseURL

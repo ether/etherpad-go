@@ -11,9 +11,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ether/etherpad-go/lib/accounts"
 	"github.com/ether/etherpad-go/lib/api/legacy"
-	"github.com/ether/etherpad-go/lib/apikeys"
 	"github.com/ether/etherpad-go/lib/test/testutils"
+	"github.com/ether/etherpad-go/lib/tokens"
+	"github.com/ether/etherpad-go/lib/utils"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/require"
 )
@@ -24,18 +26,45 @@ type client struct {
 	app     *fiber.App
 	version string
 	key     string
-	keys    *apikeys.Manager
+	keys    *tokens.Manager
+	// holder is the service account of the tests' tokens.
+	holder string
 }
 
-// newClient serves the API with one key, created as in the admin UI.
+// newKeys returns the tokens of a test store, with the built-in roles.
+func newKeys(t *testing.T, ds testutils.TestDataStore) *tokens.Manager {
+	t.Helper()
+	require.NoError(t, accounts.For(ds.DS).EnsureDefaults(accounts.SeedConfig{Template: accounts.TemplateOpen}, nil))
+	return tokens.NewManager(ds.DS, accounts.For(ds.DS), nil)
+}
+
+// newClient serves the API with one key that may do everything, as the
+// API keys of before the tokens could.
 func newClient(t *testing.T, ds testutils.TestDataStore) *client {
 	t.Helper()
 	store := ds.ToInitStore()
-	keys := apikeys.NewManager(ds.DS)
-	key, _, err := keys.Create("tests")
+	keys := newKeys(t, ds)
+	key := "ep_tests" + strings.Repeat("0", 32)
+	_, err := keys.ImportKey(key, "tests")
+	require.NoError(t, err)
+	use, err := keys.Authenticate(key, "")
 	require.NoError(t, err)
 	legacy.New(store, keys, nil).Register(store.C)
-	return &client{t: t, app: store.C, version: legacy.LatestVersion, key: key, keys: keys}
+	return &client{t: t, app: store.C, version: legacy.LatestVersion, key: key, keys: keys, holder: use.Account.ID}
+}
+
+// issue makes a token for a new service account with role on pads.
+func (c *client) issue(role, pads string, scopes []string, tokenPads string) string {
+	c.t.Helper()
+	m := accounts.For(c.keys.Store())
+	a, err := m.CreateAccount(accounts.System, accounts.NewAccount{Username: "svc-" + utils.RandomString(8), Kind: accounts.KindService})
+	require.NoError(c.t, err)
+	if role != "" {
+		require.NoError(c.t, m.Assign(accounts.System, a.ID, role, pads))
+	}
+	key, _, err := c.keys.Issue(accounts.System, tokens.Spec{AccountID: a.ID, Name: "scoped", Scopes: scopes, PadPattern: tokenPads})
+	require.NoError(c.t, err)
+	return key
 }
 
 func (c *client) do(req *http.Request) (int, legacy.Response, string) {

@@ -35,26 +35,43 @@ Every answer is `{"code": …, "message": …, "data": …}`:
 
 Calls need one of these:
 
-- **An API key.** Keys are created on the admin page under *API keys*: one per service
-  (Moodle, a backup script, …), each with a description. The key is shown once, when it is
-  created; Etherpad stores only its SHA-256 hash and, to tell keys apart, its first ten
-  characters. A key can be disabled, enabled again and deleted without touching the others;
-  the list shows when each key was last used. The key goes in the `apikey` or `api_key`
-  parameter, or in the `Authorization` or `apikey` header.
+- **A token.** Tokens are issued on the admin page under *Tokens*, for an account: a person
+  or a service account (Moodle, a backup script, Claude, …). A token has its own scopes, an
+  optional pad pattern and an expiry ("never" where `tokens` in the settings allows it). It
+  can never do more than its account: on every call it gets the account's rights of the moment,
+  cut down to its scopes and pattern; take a role from the account and its tokens lose it at
+  once. The key (`ep_` and 40 characters) is shown once; Etherpad stores only its SHA-256 hash
+  and its first ten characters. A token can be rotated (a new key with the same rights; the old
+  one keeps working for a grace period: not at all, 10 or 20 days, or until a date), its expiry
+  changed, and revoked; the list shows when each was last used, and from which IP. The key goes
+  in the `apikey` or `api_key` parameter, or in the `Authorization` or `apikey` header.
 - **A bearer token** (`Authorization: Bearer <token>`): an administrator's token, as for
   `/admin/api`, or an access token that an SSO client with the `client_credentials` grant got
   from Etherpad's OpenID provider.
 
 Both work whatever `authenticationMethod` says.
 
-Keys live in the database, so all instances of a cluster know them. A key from an
-`APIKEY.txt` (etherpad-lite, or an earlier etherpad-go release) is taken over once at start-up
-and listed as "APIKEY.txt"; the file is then no longer needed. `EP_APIKEY_FILE` names another
-path for it. etherpad-go no longer creates the file.
+What a token may call: the functions on one pad need a scope on that pad (`padID`): reading
+(`getText`, `getHTML`, `getChatHistory`, …) `pad:read`; writing (`setText`, `appendText`,
+`restoreRevision`, …) `pad:write`; `appendChatMessage` `chat:write`; `setPublicStatus`
+`pad:settings`; `createPad` `pad:create` and `pad:write`; `deletePad` and `compactPad`
+`pad:delete`. `copyPad` and `copyPadWithoutHistory` need `pad:read` on the source and
+`pad:create` and `pad:write` on the destination (`movePad` also `pad:delete` on the source,
+`force=true` also on the destination). Everything else (groups, authors, sessions,
+`listAllPads`, statistics, calls with a read-only id) needs `admin:pads` for all pads, and
+`checkToken` any valid token. A token without the right gets code 4 with status 403.
+`/admin/api` takes tokens with `admin:pads` for all pads.
+
+Tokens live in the database, so all instances of a cluster know them, and a revoked token is
+refused on every instance at once. The API keys of earlier releases became tokens of the
+service account `legacy-api` with every right, never expiring, under the same hash: they keep
+working. A key from an `APIKEY.txt` (etherpad-lite, or an earlier etherpad-go release) is taken
+over the same way once at start-up, named "APIKEY.txt"; the file is then no longer needed.
+`EP_APIKEY_FILE` names another path for it. etherpad-go no longer creates the file.
 
 ## Path styles
 
-The functions answer under three path styles, as in etherpad-lite, with the same API keys and
+The functions answer under three path styles, as in etherpad-lite, with the same tokens and
 response format:
 
 - `/api/{version}/{function}`, GET or POST, e.g. `/api/1.3.1/createGroup`. Documented at

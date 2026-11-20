@@ -70,19 +70,51 @@ export interface Toast {
   message: string
 }
 
-export interface ApiKey {
+export interface TokenView {
   id: string
-  description: string
+  accountId: string
+  name: string
   prefix: string
+  // scopes the token may use; "*" means all of them.
+  scopes: string[]
+  // pads is the token's pad pattern; "" means all pads.
+  pads: string
+  expiresAt: number | null
+  revokedAt: number | null
+  replacedBy?: string
+  predecessor?: string
+  createdBy: string
   createdAt: number
-  lastUsed: number | null
-  disabled: boolean
+  lastUsedAt: number | null
+  lastUsedIp?: string
+  limits: Record<string, number>
+  // grace: replaced by a rotation, still working until it expires.
+  status: 'active' | 'grace' | 'expired' | 'revoked'
 }
 
-export interface ApiKeysResult {
-  keys: ApiKey[]
-  // created is the new key; it is shown once.
-  created?: { id: string; key: string }
+export interface TokenAccount {
+  id: string
+  username: string
+  kind: 'human' | 'service'
+  disabled: boolean
+  // scopes the account has somewhere: what the issue form offers.
+  scopes: string[]
+}
+
+export interface TokenPolicy {
+  requireExpiry: boolean
+  maxLifetimeDays: number
+}
+
+export interface TokensResult {
+  tokens: TokenView[]
+  accounts: TokenAccount[]
+  scopes: ScopeInfo[]
+  personal: TokenPolicy
+  service: TokenPolicy
+  names: Record<string, string>
+  // created is a new key (issue, rotate); it is shown once.
+  created?: { id: string; name: string; key: string }
   error?: string
 }
 
@@ -160,8 +192,11 @@ export interface AdminState {
   toast: Toast | null
   // authError is set when the server refused the admin connection.
   authError: string | null
-  // apiKeys is the last answer about the HTTP API keys; null before one.
-  apiKeys: ApiKeysResult | null
+  // tokens is the last answer about the tokens; null before one.
+  tokens: TokensResult | null
+  // tokenKey is a new key until the page showing it is left or closes it;
+  // tokens never holds it.
+  tokenKey: TokensResult['created'] | null
   // accounts is the last answer about accounts and roles; null before one.
   accounts: AccountsResult | null
   // accountPassword is a new one-time password until the page showing it
@@ -209,7 +244,8 @@ type Action =
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'SET_TOAST'; payload: Toast | null }
   | { type: 'SET_AUTH_ERROR'; payload: string | null }
-  | { type: 'SET_API_KEYS'; payload: ApiKeysResult | null }
+  | { type: 'SET_TOKENS'; payload: TokensResult | null }
+  | { type: 'CLEAR_TOKEN_KEY' }
   | { type: 'SET_ACCOUNTS'; payload: AccountsResult | null }
   | { type: 'CLEAR_ACCOUNT_PASSWORD' }
   | { type: 'SET_AUDIT'; payload: AuditResult | null }
@@ -248,7 +284,8 @@ const initialState: AdminState = {
   loading: false,
   toast: null,
   authError: null,
-  apiKeys: null,
+  tokens: null,
+  tokenKey: null,
   accounts: null,
   accountPassword: null,
   audit: null,
@@ -292,8 +329,13 @@ function adminReducer(state: AdminState, action: Action): AdminState {
       return { ...state, toast: action.payload }
     case 'SET_AUTH_ERROR':
       return { ...state, authError: action.payload }
-    case 'SET_API_KEYS':
-      return { ...state, apiKeys: action.payload }
+    case 'SET_TOKENS': {
+      if (!action.payload) return { ...state, tokens: null }
+      const { created, ...tokens } = action.payload
+      return { ...state, tokens, tokenKey: created ?? state.tokenKey }
+    }
+    case 'CLEAR_TOKEN_KEY':
+      return { ...state, tokenKey: null }
     case 'SET_ACCOUNTS': {
       if (!action.payload) return { ...state, accounts: null }
       const { password, ...accounts } = action.payload
@@ -526,8 +568,8 @@ export function AdminProvider({ children }: { children: ReactNode }) {
             : { kind: 'error', message: payload?.error ?? 'Failed to acknowledge' },
         })
         break
-      case 'results:apiKeys':
-        dispatch({ type: 'SET_API_KEYS', payload: payload as ApiKeysResult })
+      case 'results:tokens':
+        dispatch({ type: 'SET_TOKENS', payload: payload as TokensResult })
         break
       case 'results:accounts':
         dispatch({ type: 'SET_ACCOUNTS', payload: payload as AccountsResult })

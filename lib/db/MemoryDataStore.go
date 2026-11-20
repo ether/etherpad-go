@@ -24,6 +24,8 @@ type MemoryDataStore struct {
 	apiKeys map[string]APIKey
 	// acc backs AccountMethods (guarded by mu).
 	acc *memAccounts
+	// tokens backs TokenMethods (guarded by mu).
+	tokens map[string]Token
 
 	// mu guards every map below. The store is shared by all request and
 	// websocket goroutines (and is the default datastore), so unguarded map
@@ -1145,6 +1147,7 @@ func NewMemoryDataStore() *MemoryDataStore {
 		clusterNodes:       map[string]ClusterNode{},
 		apiKeys:            map[string]APIKey{},
 		acc:                newMemAccounts(),
+		tokens:             map[string]Token{},
 		padStore:           make(map[string]db.PadDB),
 		padRevisions:       make(map[string]map[int]db.PadSingleRevision),
 		authorStore:        make(map[string]db.AuthorDB),

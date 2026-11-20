@@ -117,6 +117,22 @@ type User struct {
 	CanCreate *bool `json:"canCreate,omitempty" mapstructure:"canCreate"`
 }
 
+// TokenPolicy is how long tokens of one kind of account may live.
+type TokenPolicy struct {
+	// RequireExpiry: no token lives for ever ("never" is refused).
+	RequireExpiry bool `json:"requireExpiry" mapstructure:"requireExpiry"`
+	// MaxLifetimeDays is the longest a token may live, from its issue or
+	// its last change of expiry; 0 means no maximum.
+	MaxLifetimeDays int `json:"maxLifetimeDays" mapstructure:"maxLifetimeDays"`
+}
+
+// Tokens are the rules for the accounts' tokens (lib/tokens): for the
+// personal tokens of people and for those of service accounts.
+type Tokens struct {
+	Personal TokenPolicy `json:"personal" mapstructure:"personal"`
+	Service  TokenPolicy `json:"service" mapstructure:"service"`
+}
+
 // BootstrapAdmin is the first admin of an instance; see Settings.BootstrapAdmin.
 type BootstrapAdmin struct {
 	Username string `json:"username" mapstructure:"username"`
@@ -429,6 +445,9 @@ type Settings struct {
 	// BootstrapAdmin creates the first admin account while there is none
 	// (also EP_BOOTSTRAP_ADMIN_USER and EP_BOOTSTRAP_ADMIN_PASSWORD).
 	BootstrapAdmin BootstrapAdmin `json:"bootstrapAdmin" mapstructure:"bootstrapAdmin"`
+	// Tokens are the rules for tokens: whether they must expire and how
+	// long they may live, for people and for service accounts.
+	Tokens Tokens `json:"tokens" mapstructure:"tokens"`
 
 	ShowSettingsInAdminPage bool `json:"showSettingsInAdminPage" mapstructure:"showSettingsInAdminPage"`
 

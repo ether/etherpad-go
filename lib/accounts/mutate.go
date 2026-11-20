@@ -171,6 +171,15 @@ func allows(actor Grants, set map[string]bool, all bool) bool {
 }
 
 func (g Grants) isAll() bool {
+	for _, a := range g.alts {
+		if a.isAll() {
+			return true
+		}
+	}
+	if g.inner != nil {
+		// A token has every right only with "*" for all pads.
+		return g.restrict.all && g.restrict.pattern == "" && g.inner.isAll()
+	}
 	for _, gr := range g.grants {
 		if gr.all && gr.pattern == "" {
 			return true

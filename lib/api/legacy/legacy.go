@@ -20,12 +20,13 @@ import (
 	"strings"
 
 	"github.com/ether/etherpad-go/lib"
+	"github.com/ether/etherpad-go/lib/accounts"
 	"github.com/ether/etherpad-go/lib/api/author"
 	"github.com/ether/etherpad-go/lib/api/groups"
 	"github.com/ether/etherpad-go/lib/api/pad"
 	"github.com/ether/etherpad-go/lib/api/session"
 	"github.com/ether/etherpad-go/lib/api/stats"
-	"github.com/ether/etherpad-go/lib/apikeys"
+	"github.com/ether/etherpad-go/lib/tokens"
 	"github.com/gofiber/fiber/v3"
 	"github.com/valyala/fasthttp"
 )
@@ -58,7 +59,7 @@ type API struct {
 	store *lib.InitStore
 	inner fasthttp.RequestHandler
 	// keys are the API keys created in the admin UI.
-	keys   *apikeys.Manager
+	keys   *tokens.Manager
 	bearer Authenticator
 }
 
@@ -83,20 +84,21 @@ func ReadAPIKeyFile(path string) (string, error) {
 	return strings.TrimSpace(string(b)), nil
 }
 
-// ImportAPIKeyFile takes over the key of an APIKEY.txt into keys, as
+// ImportAPIKeyFile takes over the key of an APIKEY.txt as a token named
 // "APIKEY.txt", once. It reports whether it stored the key.
-func ImportAPIKeyFile(keys *apikeys.Manager, path string) (bool, error) {
+func ImportAPIKeyFile(keys *tokens.Manager, path string) (bool, error) {
 	key, err := ReadAPIKeyFile(path)
 	if err != nil || key == "" {
 		return false, err
 	}
-	return keys.Import(key, "APIKEY.txt")
+	return keys.ImportKey(key, "APIKEY.txt")
 }
 
-// New builds the API. Calls need one of the API keys created in the admin
-// UI (apikey, api_key or authorization parameter, or the Authorization
-// header), or a bearer token accepted by bearer, as for /admin/api.
-func New(store *lib.InitStore, keys *apikeys.Manager, bearer Authenticator) *API {
+// New builds the API. Calls need a token (apikey, api_key or authorization
+// parameter, or the Authorization header) that may do what the call does
+// (scopes.go), or a bearer token accepted by bearer, as for /admin/api,
+// which may do everything.
+func New(store *lib.InitStore, keys *tokens.Manager, bearer Authenticator) *API {
 	inner := fiber.New(fiber.Config{Immutable: true})
 	routes := *store
 	routes.PrivateAPI = inner
@@ -150,7 +152,8 @@ func (a *API) handleCall(c fiber.Ctx, version, function string) (Response, int) 
 	if err != nil {
 		return reply(wrongParam("%s", err.Error()))
 	}
-	if e := a.authorise(c, fields); e != nil {
+	grants, e := a.authorise(c, fields)
+	if e != nil {
 		return reply(e)
 	}
 	// Only the parameters of the called version count.
@@ -158,6 +161,17 @@ func (a *API) handleCall(c fiber.Ctx, version, function string) (Response, int) 
 	for _, n := range names {
 		if v, ok := fields[n]; ok {
 			args[n] = v
+		}
+	}
+	if grants != nil {
+		// The handlers may use the id as given or as SanitizePadId turns
+		// it: the token needs its rights on both.
+		ok := allowed(*grants, needsOf(function, args))
+		if clean, changed := sanitizedArgs(args, a.store.PadManager.SanitizePadId); ok && changed {
+			ok = allowed(*grants, needsOf(function, clean))
+		}
+		if !ok {
+			return Response{Code: 4, Message: "this token may not call " + function + " here"}, fiber.StatusForbidden
 		}
 	}
 	data, e := a.call(function, args)
@@ -180,7 +194,9 @@ func reply(e *apiError) (Response, int) {
 	return Response{Code: e.code, Message: e.message, Data: nil}, status
 }
 
-func (a *API) authorise(c fiber.Ctx, fields map[string]string) *apiError {
+// authorise finds who calls: a token, with what it may do, or a bearer
+// token of the provider, which may do everything (nil grants).
+func (a *API) authorise(c fiber.Ctx, fields map[string]string) (*accounts.Grants, *apiError) {
 	header := strings.TrimSpace(c.Get(fiber.HeaderAuthorization))
 	candidates := []string{fields["apikey"], fields["api_key"], fields["authorization"], c.Get("apikey"), header}
 	given := false
@@ -191,18 +207,18 @@ func (a *API) authorise(c fiber.Ctx, fields map[string]string) *apiError {
 		}
 		given = true
 		if a.keys != nil {
-			if _, ok := a.keys.Check(k); ok {
-				return nil
+			if use, err := a.keys.Authenticate(k, c.IP()); err == nil {
+				return &use.Grants, nil
 			}
 		}
 	}
 	if header != "" && a.bearer != nil && a.bearer(strings.TrimSpace(strings.TrimPrefix(header, "Bearer "))) {
-		return nil
+		return nil, nil
 	}
 	if given && strings.HasPrefix(header, "Bearer ") {
-		return &apiError{code: 4, message: "no or wrong OAuth token"}
+		return nil, &apiError{code: 4, message: "no or wrong OAuth token"}
 	}
-	return &apiError{code: 4, message: "no or wrong API Key"}
+	return nil, &apiError{code: 4, message: "no or wrong API Key"}
 }
 
 // requestFields merges the parameters: body before query.
