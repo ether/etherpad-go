@@ -9,6 +9,8 @@ export interface Me {
   username?: string
   displayName?: string
   admin?: boolean
+  // tokens: may manage own API tokens ("My tokens").
+  tokens?: boolean
 }
 
 export interface AccountMenuDeps {
@@ -19,6 +21,8 @@ export interface AccountMenuDeps {
   // The toolbar list the menu goes into, before the users button.
   toolbar: () => HTMLElement | null
   document: Document
+  // openTokens shows "My tokens" (account_tokens.ts).
+  openTokens?: () => void
 }
 
 export const authUrl = (href: string, page: 'login' | 'logout' | 'me'): string =>
@@ -77,6 +81,13 @@ export const render = (me: Me, d: AccountMenuDeps): HTMLLIElement | null => {
   if (me.admin) {
     menu.appendChild(el(doc, 'a', {href: new URL('../admin/', href).href, role: 'menuitem', class: 'account-admin'},
       d.t('pad.account.admin', 'Admin')))
+  }
+  if (me.tokens && d.openTokens) {
+    const openTokens = d.openTokens
+    const item = el(doc, 'button', {type: 'button', role: 'menuitem', class: 'account-tokens-open', 'data-testid': 'account-tokens-open'},
+      d.t('pad.account.tokens', 'My tokens'))
+    item.addEventListener('click', () => { setOpen(false); openTokens() })
+    menu.appendChild(item)
   }
   // A form, so logging out works without script errors and with the
   // site's own Origin, which the server checks.

@@ -416,6 +416,10 @@ func isLoginFlow(path string) bool {
 	if loginFlowPages[path] {
 		return true
 	}
+	// The person's own tokens: their handlers need the login themselves.
+	if path == "/auth/tokens" || strings.HasPrefix(path, "/auth/tokens/") {
+		return true
+	}
 	for _, prefix := range loginFlowPrefixes {
 		if strings.HasPrefix(path, prefix) {
 			return true
