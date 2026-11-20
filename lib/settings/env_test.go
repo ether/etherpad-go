@@ -182,3 +182,47 @@ func TestEnvWithPlaceholdersInFile(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "From env", cfg.Title, "ETHERPAD_ wins over a filled placeholder")
 }
+
+// A plugin's list made from the environment alone is a list; a number
+// below an existing section stays a key there.
+func TestEnvPluginListFromEnvOnly(t *testing.T) {
+	withFile(t, `{"ep_example": {"byCode": {"404": "missing"}}}`)
+	t.Setenv("EP__ep_other__servers__0__url", "a")
+	t.Setenv("EP__ep_other__servers__1__url", "b")
+	t.Setenv("EP__ep_example__byCode__500", "broken")
+	_, err := ReadConfig()
+	require.NoError(t, err)
+	servers, ok := getPath("ep_other.servers").([]any)
+	require.True(t, ok, "%T", getPath("ep_other.servers"))
+	require.Len(t, servers, 2)
+	assert.Equal(t, "b", servers[1].(map[string]any)["url"])
+	assert.Equal(t, "missing", getPath("ep_example.bycode.404"))
+	assert.Equal(t, "broken", getPath("ep_example.bycode.500"))
+
+	t.Setenv("EP__ep_third__items__1", "gap")
+	_, err = ReadConfig()
+	require.Error(t, err, "places without gaps here too")
+}
+
+// "undefined" leaves a setting as it is and "null" is null, whatever its
+// type, as before (etherpad-lite's markers).
+func TestEnvMarkers(t *testing.T) {
+	withFile(t, `{"title": "From file", "users": {"alice": {"password": "pw", "is_admin": true}}}`)
+	t.Setenv("EP__title", "undefined")
+	t.Setenv("EP__users__alice__is_admin", "undefined")
+	t.Setenv("ETHERPAD_PADOPTIONS_SHOWCHAT", "undefined")
+	cfg, err := ReadConfig()
+	require.NoError(t, err)
+	assert.Equal(t, "From file", cfg.Title)
+	require.NotNil(t, cfg.Users["alice"].IsAdmin)
+	assert.True(t, *cfg.Users["alice"].IsAdmin)
+	assert.True(t, cfg.PadOptions.ShowChat)
+
+	// "null" is no error for a typed setting either.
+	t.Setenv("EP__users__bob__is_admin", "null")
+	t.Setenv("ETHERPAD_PADOPTIONS_USERNAME", "null")
+	cfg, err = ReadConfig()
+	require.NoError(t, err)
+	assert.Nil(t, cfg.Users["bob"].IsAdmin)
+	assert.Nil(t, cfg.PadOptions.UserName)
+}

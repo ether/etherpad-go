@@ -13,9 +13,8 @@ func ReadConfig() (*Settings, error) {
 	viper.Reset()
 	ignoreServiceLinkPort()
 
-	viper.SetEnvPrefix("etherpad")
-	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
-	viper.AutomaticEnv()
+	// The environment is read by applyEnv (env.go), typed by the settings'
+	// fields; viper's AutomaticEnv would hand every value over as text.
 
 	ApplyRegistryDefaults()
 

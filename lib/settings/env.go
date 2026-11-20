@@ -75,9 +75,9 @@ var settingsType = reflect.TypeOf(Settings{})
 // viper has read, and reports the names it could not use.
 func applyEnv(environ []string) (EnvReport, error) {
 	var report EnvReport
-	registered := map[string]bool{}
+	registered := map[string]string{}
 	for _, c := range Registry {
-		registered[EnvVar(c.Key)] = true
+		registered[EnvVar(c.Key)] = c.Key
 	}
 	var overrides []envOverride
 	for _, kv := range environ {
@@ -105,10 +105,13 @@ func applyEnv(environ []string) (EnvReport, error) {
 			} else {
 				path, leaf, ok = resolveRelaxed(settingsType, tokens)
 			}
-			if !ok && registered[name] {
-				// A registered key viper reads itself (AutomaticEnv), such
-				// as a plugin's enabled flag.
-				continue
+			if key, isRegistered := registered[name]; !ok && isRegistered {
+				// A registered key that is no field of Settings, such as a
+				// plugin's enabled flag (plugins is a map).
+				path, leaf, ok = nil, nil, true
+				for _, k := range strings.Split(key, ".") {
+					path = append(path, envSeg{key: k})
+				}
 			}
 		default:
 			continue
@@ -325,6 +328,15 @@ func resolveSpelled(t reflect.Type, parts []string, top bool) ([]envSeg, reflect
 // envValue types raw for a field of type t (nil: unknown, typed like
 // ${VAR} values). keep is false for "undefined" (leave the setting).
 func envValue(raw string, t reflect.Type) (any, bool, error) {
+	// etherpad-lite's markers mean the same for every setting, whatever its
+	// type: "undefined" leaves it as it is, "null" is null (as before: a
+	// value from settings.json stays, viper falls back to it).
+	switch raw {
+	case "undefined":
+		return nil, false, nil
+	case "null":
+		return nil, true, nil
+	}
 	if t == nil {
 		v, keep := coerceEnvValue(raw)
 		return v, keep, nil
@@ -386,7 +398,12 @@ func setEnvOverride(o envOverride) error {
 	for i, s := range o.path {
 		isList := s.list
 		if s.maybeList {
-			_, isList = viper.Get(joinKeys(o.path[:i])).([]any)
+			// A number below a value of any type: a place in a list if
+			// there is a list or nothing yet, a key in a section.
+			switch viper.Get(joinKeys(o.path[:i])).(type) {
+			case []any, nil:
+				isList = true
+			}
 		}
 		if !isList {
 			continue
@@ -421,7 +438,8 @@ func applyAt(node any, path []envSeg, value any) (any, error) {
 	isList := s.list
 	index := s.index
 	if s.maybeList {
-		if _, ok := node.([]any); ok {
+		switch node.(type) {
+		case []any, nil:
 			isList, index = true, mustAtoi(s.key)
 		}
 	}
