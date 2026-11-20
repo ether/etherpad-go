@@ -139,3 +139,37 @@ func TestTakeOverAcrossInstances(t *testing.T) {
 	}
 	assert.Equal(t, 5, n, "one audit entry per key")
 }
+
+// Two instances starting at once with different APIKEY.txt files: only
+// one key becomes a token, the other instance finds the step done.
+func TestImportKeyOnceAcrossInstances(t *testing.T) {
+	e, other := twoInstances(t)
+	var wg sync.WaitGroup
+	results := make([]OnceResult, 2)
+	for i, m := range []*Manager{e.tok, other} {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			r, err := m.ImportKeyOnce("apikey-file-test", "APIKEY.txt", func() (string, error) {
+				return []string{"key-of-one", "key-of-two"}[i], nil
+			})
+			assert.NoError(t, err)
+			results[i] = r
+		}()
+	}
+	wg.Wait()
+	assert.ElementsMatch(t, []OnceResult{OnceStored, OnceDone}, results)
+	list, err := e.tok.List(accounts.System, "")
+	require.NoError(t, err)
+	n := 0
+	for _, tk := range list {
+		if tk.Name == "APIKEY.txt" {
+			n++
+		}
+	}
+	assert.Equal(t, 1, n, "one key taken over")
+	// Later starts take nothing over, whatever the file says.
+	r, err := other.ImportKeyOnce("apikey-file-test", "APIKEY.txt", func() (string, error) { return "key-of-three", nil })
+	require.NoError(t, err)
+	assert.Equal(t, OnceDone, r)
+}

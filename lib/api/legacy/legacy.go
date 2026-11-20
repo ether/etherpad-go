@@ -11,7 +11,6 @@ package legacy
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"math"
 	"net/url"
@@ -19,7 +18,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/ether/etherpad-go/lib"
 	"github.com/ether/etherpad-go/lib/accounts"
@@ -109,40 +107,19 @@ const (
 // remembers that it was done (for every instance of a cluster), and a file
 // found later is ignored. A failure leaves it to the next start.
 func ImportAPIKeyFile(keys *tokens.Manager, path string) (FileResult, error) {
-	store := keys.Store()
-	if store == nil {
-		return FileNone, errors.New("the tokens have no database")
-	}
-	done, err := store.GetInstanceFlag(apiKeyFileFlag)
-	if err != nil {
+	result, err := keys.ImportKeyOnce(apiKeyFileFlag, "APIKEY.txt", func() (string, error) { return ReadAPIKeyFile(path) })
+	switch {
+	case result == tokens.OnceDone:
+		if _, statErr := os.Stat(path); statErr == nil {
+			return FileIgnored, err
+		}
 		return FileNone, err
+	case result == tokens.OnceStored:
+		return FileStored, err
+	case result == tokens.OnceKnown:
+		return FileKnown, err
 	}
-	if done != nil {
-		if _, err := os.Stat(path); err == nil {
-			return FileIgnored, nil
-		}
-		return FileNone, nil
-	}
-	key, err := ReadAPIKeyFile(path)
-	if err != nil {
-		return FileNone, err
-	}
-	result := FileNone
-	if key != "" {
-		stored, err := keys.ImportKey(key, "APIKEY.txt")
-		if err != nil {
-			return FileNone, err
-		}
-		result = FileKnown
-		if stored {
-			result = FileStored
-		}
-	}
-	// Only after the key is a token: a failure before is tried again.
-	if _, err := store.SetInstanceFlag(apiKeyFileFlag, time.Now().UTC().Format(time.RFC3339)); err != nil {
-		return result, err
-	}
-	return result, nil
+	return FileNone, err
 }
 
 // New builds the API. Calls need a token (apikey, api_key or authorization
