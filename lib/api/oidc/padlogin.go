@@ -117,17 +117,24 @@ func (a *Authenticator) RedeemPadCode(code, verifier string) (*db.Account, error
 	if !ok || code == "" || verifier == "" {
 		return nil, ErrLoginFailed
 	}
-	row, err := a.storage.db.GetAuthCode(hashToken(code))
-	if err != nil || row == nil {
+	signature := hashToken(code)
+	row, err := a.storage.db.GetAuthCode(signature)
+	if err != nil || row == nil || !row.Active || a.storage.now().After(row.ExpiresAt) {
+		return nil, ErrLoginFailed
+	}
+	// Used up whatever follows: a code is tried once. Only the one call
+	// that deactivates it goes on, also when two race.
+	if consumed, err := a.storage.db.ConsumeAuthCode(signature); err != nil || !consumed {
 		return nil, ErrLoginFailed
 	}
 	ar, err := a.storage.getAuthRequest(row.RequestID)
 	if err != nil {
 		return nil, ErrLoginFailed
 	}
-	// Used up whatever follows: a code is tried once.
-	_ = a.storage.db.InvalidateAuthCode(hashToken(code))
-	_ = a.storage.db.DeleteOIDCSession(ar.ID)
+	// Nor at the token endpoint, which finds the code by its request.
+	if err := a.storage.db.DeleteOIDCSession(ar.ID); err != nil {
+		return nil, ErrLoginFailed
+	}
 	if ar.ClientID != c.id || ar.RedirectURI != a.PadCallbackURL() || !ar.IsDone || ar.UserID == "" {
 		return nil, ErrLoginFailed
 	}

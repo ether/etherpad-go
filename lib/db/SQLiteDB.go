@@ -1286,6 +1286,15 @@ func (d SQLiteDB) GetAuthCode(signature string) (*OAuthTokenRow, error) {
 	return &t, nil
 }
 
+func (d SQLiteDB) ConsumeAuthCode(signature string) (bool, error) {
+	res, err := d.sqlDB.Exec("UPDATE oauth_auth_codes SET active = false WHERE signature = ? AND active = true", signature)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n == 1, err
+}
+
 func (d SQLiteDB) InvalidateAuthCode(signature string) error {
 	_, err := d.sqlDB.Exec("UPDATE oauth_auth_codes SET active = false WHERE signature = ?", signature)
 	return err

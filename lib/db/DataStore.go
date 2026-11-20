@@ -117,6 +117,9 @@ type OIDCMethods interface {
 	CreateAuthCode(signature, clientID, requestID, scopes, grantedScopes, formData, sessionData string, requestedAt, expiresAt time.Time) error
 	GetAuthCode(signature string) (*OAuthTokenRow, error)
 	InvalidateAuthCode(signature string) error
+	// ConsumeAuthCode deactivates an active code; true only for the one
+	// call that did, so a code is used once also when callers race.
+	ConsumeAuthCode(signature string) (bool, error)
 
 	// PKCE
 	CreatePKCE(signature, clientID, requestID, scopes, grantedScopes, formData, sessionData string, requestedAt, expiresAt time.Time) error

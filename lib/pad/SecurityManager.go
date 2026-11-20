@@ -202,7 +202,11 @@ func (s *SecurityManager) resolveAuthorId(token *string, userSettings *webaccess
 			}
 			return created.Id, nil
 		})
-		if err == nil && !s.AuthorManager.IsErased(authorID) {
+		if err != nil {
+			// Never silently someone else: no author, no access.
+			return "", fmt.Errorf("the account's author: %w", err)
+		}
+		if !s.AuthorManager.IsErased(authorID) {
 			return authorID, nil
 		}
 		// An erased author (GDPR) is not brought back; the browser's

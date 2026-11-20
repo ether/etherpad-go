@@ -24,26 +24,38 @@ func (m *Manager) Person(accountID string) (*db.Account, error) {
 	if accountID == "" || isPseudo(accountID) {
 		return nil, nil
 	}
-	m.mu.Lock()
-	if c, ok := m.people[accountID]; ok && m.now().Sub(c.at) < CacheTTL {
+	for attempt := 0; ; attempt++ {
+		m.mu.Lock()
+		if c, ok := m.people[accountID]; ok && m.now().Sub(c.at) < CacheTTL {
+			m.mu.Unlock()
+			return c.account, nil
+		}
+		gen := m.gen
 		m.mu.Unlock()
-		return c.account, nil
+		a, err := m.store.GetAccount(accountID)
+		if err != nil && !errors.Is(err, db.ErrAccountNotFound) {
+			return nil, err
+		}
+		if a != nil && (a.Kind != KindHuman || a.DisabledAt != nil) {
+			a = nil
+		}
+		m.mu.Lock()
+		if m.gen != gen {
+			// Changed while reading: what was read may be stale (an
+			// account disabled meanwhile). Read again; never cache it.
+			m.mu.Unlock()
+			if attempt < 2 {
+				continue
+			}
+			return a, nil
+		}
+		if len(m.people) >= maxCachedPeople {
+			m.people = map[string]cachedPerson{}
+		}
+		m.people[accountID] = cachedPerson{account: a, at: m.now()}
+		m.mu.Unlock()
+		return a, nil
 	}
-	m.mu.Unlock()
-	a, err := m.store.GetAccount(accountID)
-	if err != nil && !errors.Is(err, db.ErrAccountNotFound) {
-		return nil, err
-	}
-	if a != nil && (a.Kind != KindHuman || a.DisabledAt != nil) {
-		a = nil
-	}
-	m.mu.Lock()
-	if len(m.people) >= maxCachedPeople {
-		m.people = map[string]cachedPerson{}
-	}
-	m.people[accountID] = cachedPerson{account: a, at: m.now()}
-	m.mu.Unlock()
-	return a, nil
 }
 
 // AuthorOf returns the pad author of a person, creating and linking one on
@@ -64,10 +76,11 @@ func (m *Manager) AuthorOf(accountID string, create func(name string) (string, e
 	}
 	defer unlock()
 	a, err := m.store.GetAccount(accountID)
-	if err != nil {
+	if err != nil && !errors.Is(err, db.ErrAccountNotFound) {
 		return "", err
 	}
-	if a == nil {
+	// Checked again under the lock: disabled meanwhile, it gets nothing.
+	if a == nil || a.Kind != KindHuman || a.DisabledAt != nil {
 		return "", ErrForbidden
 	}
 	if a.AuthorID != "" {

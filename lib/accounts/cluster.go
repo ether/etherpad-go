@@ -41,6 +41,7 @@ func (m *Manager) lockWrites() (func(), error) {
 			m.roles = nil
 			m.grants = map[string]cachedGrants{}
 			m.people = map[string]cachedPerson{}
+			m.gen++
 			m.mu.Unlock()
 			return func() {
 				lease.Release()

@@ -196,6 +196,10 @@ func TestPadLogin(t *testing.T) {
 	resp := b.get(t, "/p/team%2Fnotes?x=1")
 	require.Equal(t, http.StatusFound, resp.StatusCode)
 	assert.Equal(t, padlogin.LoginURL("/p/team%2Fnotes?x=1"), resp.Header.Get("Location"))
+	// behind a proxy that serves Etherpad under a prefix, under it
+	resp = b.do(t, http.MethodGet, "/p/team%2Fnotes", nil, map[string]string{"Accept": "text/html", "X-Proxy-Path": "/sub"})
+	require.Equal(t, http.StatusFound, resp.StatusCode)
+	assert.Equal(t, "/sub"+padlogin.LoginURL("/sub/p/team%2Fnotes"), resp.Header.Get("Location"))
 	// …and tools to basic auth
 	resp = b.do(t, http.MethodGet, "/p/team%2Fnotes", nil, map[string]string{"Accept": "application/json"})
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)

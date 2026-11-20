@@ -17,6 +17,7 @@ import (
 	"github.com/ether/etherpad-go/lib/models/clientVars"
 	"github.com/ether/etherpad-go/lib/models/webaccess"
 	"github.com/ether/etherpad-go/lib/settings"
+	"github.com/ether/etherpad-go/lib/utils"
 	"github.com/gofiber/fiber/v3"
 	"go.uber.org/zap"
 )
@@ -203,6 +204,8 @@ func CheckAccessWithHooks(ctx fiber.Ctx, logger *zap.SugaredLogger, retrievedSet
 	if ok {
 		webAccessCtx.Username = user.Username
 	}
+	// loggedIn: the request came with a user, e.g. of a pad login session.
+	loggedIn := ok && user != nil
 
 	username, password, httpBasicAuth := parseBasicAuth(ctx.Get("authorization"))
 	if httpBasicAuth {
@@ -247,8 +250,8 @@ func CheckAccessWithHooks(ctx fiber.Ctx, logger *zap.SugaredLogger, retrievedSet
 		if !requireAdmin {
 			// A browser that opens a pad goes to the login page instead
 			// of the browser's password dialog; tools keep basic auth.
-			if !httpBasicAuth {
-				if target, ok := loginRedirectFor(ctx); ok {
+			if !httpBasicAuth && !loggedIn {
+				if target, ok := loginRedirectFor(ctx, retrievedSettings.TrustProxy); ok {
 					return ctx.Redirect().Status(fiber.StatusFound).To(target)
 				}
 			}
@@ -257,12 +260,6 @@ func CheckAccessWithHooks(ctx fiber.Ctx, logger *zap.SugaredLogger, retrievedSet
 		}
 		time.Sleep(1 * time.Second)
 		return ctx.Status(401).SendString("Authentication Required")
-	}
-
-	// Already logged in (the pads' login session) and still not allowed:
-	// logging in again would not help, and would loop.
-	if ok && user != nil && !httpBasicAuth {
-		return sendAuthzFailure()
 	}
 
 	pluginAuthenticated := false
@@ -303,6 +300,12 @@ func CheckAccessWithHooks(ctx fiber.Ctx, logger *zap.SugaredLogger, retrievedSet
 	}
 
 	if !pluginAuthenticated {
+		// Already logged in (the pads' login session), no plugin knew
+		// better and still not allowed: logging in again would not help,
+		// and would loop.
+		if loggedIn && !httpBasicAuth {
+			return sendAuthzFailure()
+		}
 		if !httpBasicAuth || webAccessCtx.Username == nil || webAccessCtx.Password == nil {
 			return sendAuthnFailure()
 		}
@@ -399,6 +402,13 @@ var loginFlowPrefixes = []string{"/oauth2/", "/.well-known/"}
 // loginFlowPages are the pads' login (lib/api/padlogin).
 var loginFlowPages = map[string]bool{"/auth/login": true, "/auth/callback": true, "/auth/logout": true, "/auth/me": true}
 
+// NeedsUser reports whether the access check of path looks at who is
+// logged in; health probes, public assets and the login's own pages do
+// not, so a login session need not be read for them.
+func NeedsUser(path string) bool {
+	return !(path == "/health" || path == "/health/live" || path == "/health/ready" || isPublicAsset(path) || isLoginFlow(path))
+}
+
 func isLoginFlow(path string) bool {
 	if strings.Contains(path, "..") || strings.Contains(path, "//") {
 		return false
@@ -431,7 +441,7 @@ func SetLoginPage(fn func(redirect string) string) {
 // loginRedirectFor returns where a browser that may not open a page goes
 // to log in: only for pages people open (a pad, a sheet, its history),
 // read with GET and asking for HTML.
-func loginRedirectFor(ctx fiber.Ctx) (string, bool) {
+func loginRedirectFor(ctx fiber.Ctx, trustProxy bool) (string, bool) {
 	fn := loginPage.Load()
 	if fn == nil || ctx.Method() != fiber.MethodGet || extractEncodedPadId(ctx.Path()) == "" {
 		return "", false
@@ -441,11 +451,14 @@ func loginRedirectFor(ctx fiber.Ctx) (string, bool) {
 	}
 	// The path as sent (fasthttp's request URI is normalized and would turn
 	// "team%2Fnotes" into another pad), with its query.
-	back := ctx.Path()
+	// Behind a proxy that serves Etherpad under a prefix, both the login
+	// page and the way back are under it.
+	prefix := utils.RequestProxyPath(ctx, trustProxy)
+	back := prefix + ctx.Path()
 	if q := ctx.Request().URI().QueryString(); len(q) > 0 {
 		back += "?" + string(q)
 	}
-	return (*fn)(back), true
+	return prefix + (*fn)(back), true
 }
 
 // publicAssetPrefixes are served without authentication, like

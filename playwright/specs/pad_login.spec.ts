@@ -46,8 +46,17 @@ test.describe('pad login', () => {
         // the pad's author is the account's, also in another browser tab
         await expect(page.locator('#myusernameedit')).toHaveValue('admin')
 
+        // the same pad open in a second tab of this browser
+        const other = await page.context().newPage()
+        await other.goto(page.url())
+        await other.waitForSelector('#editorcontainer.initialized')
+        await expect(other.locator('#editbar').getByTestId('account-button')).toBeVisible()
+
         await button.click()
         await menu.getByTestId('account-logout').click()
+        // the logout ends that tab's connection too: it does not keep
+        // writing with the account's rights
+        await expect(other.locator('#connectivity .kicked')).toBeVisible()
         await page.waitForURL((u) => u.pathname === `/p/${padId}`)
         await page.waitForSelector('#editorcontainer.initialized')
         await expect(account.getByTestId('account-login')).toBeVisible()

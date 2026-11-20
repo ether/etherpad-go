@@ -133,6 +133,8 @@ func (p *PadMessageHandler) onClusterEvent(e cluster.Event) {
 		p.sendToAllLocal(e.Payload)
 	case cluster.KindErased:
 		p.disconnectAuthorLocal(e.Author)
+	case cluster.KindLogout:
+		p.disconnectLoginLocal(e.Session)
 	}
 }
 

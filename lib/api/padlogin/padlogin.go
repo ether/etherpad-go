@@ -17,6 +17,7 @@ import (
 	"github.com/ether/etherpad-go/lib/db"
 	"github.com/ether/etherpad-go/lib/models/clientVars"
 	"github.com/ether/etherpad-go/lib/models/webaccess"
+	"github.com/ether/etherpad-go/lib/pad"
 	epsession "github.com/ether/etherpad-go/lib/session"
 	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/gofiber/fiber/v3"
@@ -35,6 +36,12 @@ const (
 	// keyPending holds a login in progress: state, PKCE verifier and where
 	// to go back to.
 	keyPending = "login"
+	// keySeen is when the session was last pushed forward (Unix seconds).
+	keySeen = "seen"
+
+	// refreshEvery is how often a used session is saved again, which
+	// pushes its idle timeout forward.
+	refreshEvery = time.Hour
 
 	// pendingTTL is how long a started login may take.
 	pendingTTL = 15 * time.Minute
@@ -52,6 +59,7 @@ type Login struct {
 	accounts *accounts.Manager
 	settings *settings.Settings
 	logger   *zap.SugaredLogger
+	onLogout func(sessionID string)
 }
 
 // pending is a login in progress, kept in the session.
@@ -71,6 +79,10 @@ func init() {
 // the routes are mounted.
 func (l *Login) SetAuthenticator(a *oidc.Authenticator) { l.authn = a }
 
+// OnLogout sets what runs when a session logs out, e.g. closing the pad
+// connections opened with it.
+func (l *Login) OnLogout(fn func(sessionID string)) { l.onLogout = fn }
+
 // CookieName is the name of the login session cookie.
 func CookieName(s *settings.Settings) string { return s.Cookie.Prefix + "ep_login" }
 
@@ -81,6 +93,7 @@ func New(store db.DataStore, authn *oidc.Authenticator, cfg *settings.Settings, 
 	if lifetime <= 0 {
 		lifetime = defaultLifetime
 	}
+	lifetime = min(lifetime, absoluteLifetime)
 	sameSite := cfg.Cookie.SameSite
 	if sameSite == "" {
 		sameSite = fiber.CookieSameSiteLaxMode
@@ -99,7 +112,7 @@ func New(store db.DataStore, authn *oidc.Authenticator, cfg *settings.Settings, 
 			CookieSameSite:  sameSite,
 			CookiePath:      "/",
 			IdleTimeout:     lifetime,
-			AbsoluteTimeout: max(lifetime, absoluteLifetime),
+			AbsoluteTimeout: absoluteLifetime,
 		}),
 		authn:    authn,
 		accounts: accounts.For(store),
@@ -117,7 +130,7 @@ func (l *Login) Available() bool { return l != nil && l.authn != nil && l.authn.
 // a user (e.g. set by a plugin) keeps it.
 func (l *Login) Middleware() fiber.Handler {
 	return func(c fiber.Ctx) error {
-		if c.Cookies(CookieName(l.settings)) == "" {
+		if c.Cookies(CookieName(l.settings)) == "" || !pad.NeedsUser(c.Path()) {
 			return c.Next()
 		}
 		if _, set := c.Locals(clientVars.WebAccessStore).(*webaccess.SocketClientRequest); set {
@@ -161,6 +174,17 @@ func (l *Login) personOf(c fiber.Ctx) *db.Account {
 	if err != nil {
 		l.logger.Warnf("pad login: loading account %s: %v", id, err)
 		return nil
+	}
+	if a == nil {
+		return nil
+	}
+	// In use: the idle timeout starts again (saved at most hourly).
+	seen, _ := sess.Get(keySeen).(int64)
+	if now := time.Now().Unix(); now-seen >= int64(refreshEvery/time.Second) {
+		sess.Set(keySeen, now)
+		if err := sess.Save(); err != nil {
+			l.logger.Warnf("pad login: refreshing a session: %v", err)
+		}
 	}
 	return a
 }
@@ -267,6 +291,7 @@ func (l *Login) callback(c fiber.Ctx) error {
 		return err
 	}
 	sess.Set(keyAccount, a.ID)
+	sess.Set(keySeen, time.Now().Unix())
 	if err := sess.Save(); err != nil {
 		return err
 	}
@@ -306,10 +331,14 @@ func (l *Login) logout(c fiber.Ctx) error {
 		if err != nil {
 			return err
 		}
+		id := sess.ID()
 		err = sess.Destroy()
 		sess.Release()
 		if err != nil {
 			return err
+		}
+		if l.onLogout != nil {
+			l.onLogout(id)
 		}
 	}
 	if strings.Contains(c.Get(fiber.HeaderAccept), fiber.MIMEApplicationJSON) {

@@ -1026,6 +1026,18 @@ func (m *MemoryDataStore) GetAuthCode(signature string) (*OAuthTokenRow, error) 
 	return &row, nil
 }
 
+func (m *MemoryDataStore) ConsumeAuthCode(signature string) (bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	row, ok := m.oauthAuthCodes[signature]
+	if !ok || !row.Active {
+		return false, nil
+	}
+	row.Active = false
+	m.oauthAuthCodes[signature] = row
+	return true, nil
+}
+
 func (m *MemoryDataStore) InvalidateAuthCode(signature string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
