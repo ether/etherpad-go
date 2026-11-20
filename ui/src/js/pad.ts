@@ -52,6 +52,7 @@ import {createPadDeletion} from './pad_deletion';
 import {getHomeUrl} from './getHomeUrl';
 import {maybeShowOutdatedNotice} from './pad_outdated_notice';
 import {initAccountMenu} from './account_menu';
+import {openTokensDialog} from './account_tokens';
 
 const showPadRetentionNotice = (info: any) => {
     if (!info) return;
@@ -695,6 +696,18 @@ const pad = {
                 },
                 toolbar: () => document.querySelector('#editbar ul.menu_right'),
                 document,
+                openTokens: () => void openTokensDialog({
+                    href: () => window.location.href,
+                    request: (url, init) => fetch(url, {
+                        credentials: 'same-origin',
+                        ...(init ? {method: init.method, body: init.body, headers: {'Content-Type': 'application/json'}} : {}),
+                    }),
+                    t: (key, fallback) => {
+                        const text = html10n.get(key);
+                        return text && text !== key ? text : fallback;
+                    },
+                    document,
+                }),
             });
 
             void maybeShowOutdatedNotice({
