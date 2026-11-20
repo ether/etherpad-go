@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/ether/etherpad-go/lib"
+	"github.com/ether/etherpad-go/lib/accounts"
 	"github.com/ether/etherpad-go/lib/api/author"
 	"github.com/ether/etherpad-go/lib/api/groups"
 	"github.com/ether/etherpad-go/lib/api/io"
@@ -16,10 +17,9 @@ import (
 	"github.com/ether/etherpad-go/lib/api/static"
 	"github.com/ether/etherpad-go/lib/api/stats"
 	swagger2 "github.com/ether/etherpad-go/lib/api/swagger"
-	"github.com/ether/etherpad-go/lib/accounts"
-	"github.com/ether/etherpad-go/lib/tokens"
 	"github.com/ether/etherpad-go/lib/locales"
 	"github.com/ether/etherpad-go/lib/settings"
+	"github.com/ether/etherpad-go/lib/tokens"
 	"github.com/gofiber/fiber/v3"
 )
 

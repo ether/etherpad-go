@@ -20,12 +20,12 @@ import (
 	"strings"
 
 	"github.com/ether/etherpad-go/lib"
+	"github.com/ether/etherpad-go/lib/accounts"
 	"github.com/ether/etherpad-go/lib/api/author"
 	"github.com/ether/etherpad-go/lib/api/groups"
 	"github.com/ether/etherpad-go/lib/api/pad"
 	"github.com/ether/etherpad-go/lib/api/session"
 	"github.com/ether/etherpad-go/lib/api/stats"
-	"github.com/ether/etherpad-go/lib/accounts"
 	"github.com/ether/etherpad-go/lib/tokens"
 	"github.com/gofiber/fiber/v3"
 	"github.com/valyala/fasthttp"

@@ -4,8 +4,8 @@ import (
 	"os"
 
 	"github.com/ether/etherpad-go/lib/accounts"
-	"github.com/ether/etherpad-go/lib/tokens"
 	"github.com/ether/etherpad-go/lib/db"
+	"github.com/ether/etherpad-go/lib/tokens"
 	"path/filepath"
 	"testing"
 )

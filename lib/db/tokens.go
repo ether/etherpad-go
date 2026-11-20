@@ -266,29 +266,35 @@ func (d MysqlDB) tokens() sqlTokens   { return sqlTokens{db: d.sqlDB} }
 func (d SQLiteDB) tokens() sqlTokens  { return sqlTokens{db: d.sqlDB} }
 func (d PostgresDB) tokens() pgTokens { return pgTokens{d: d} }
 
-func (d MysqlDB) CreateToken(t Token) error                    { return d.tokens().CreateToken(t) }
-func (d MysqlDB) GetToken(id string) (*Token, error)           { return d.tokens().GetToken(id) }
-func (d MysqlDB) GetTokenByHash(h string) (*Token, error)      { return d.tokens().GetTokenByHash(h) }
-func (d MysqlDB) ListTokens(accountID string) ([]Token, error) { return d.tokens().ListTokens(accountID) }
-func (d MysqlDB) UpdateToken(t Token) error                    { return d.tokens().UpdateToken(t) }
+func (d MysqlDB) CreateToken(t Token) error               { return d.tokens().CreateToken(t) }
+func (d MysqlDB) GetToken(id string) (*Token, error)      { return d.tokens().GetToken(id) }
+func (d MysqlDB) GetTokenByHash(h string) (*Token, error) { return d.tokens().GetTokenByHash(h) }
+func (d MysqlDB) ListTokens(accountID string) ([]Token, error) {
+	return d.tokens().ListTokens(accountID)
+}
+func (d MysqlDB) UpdateToken(t Token) error { return d.tokens().UpdateToken(t) }
 func (d MysqlDB) TouchToken(id string, at time.Time, ip string) error {
 	return d.tokens().TouchToken(id, at, ip)
 }
 
-func (d SQLiteDB) CreateToken(t Token) error                    { return d.tokens().CreateToken(t) }
-func (d SQLiteDB) GetToken(id string) (*Token, error)           { return d.tokens().GetToken(id) }
-func (d SQLiteDB) GetTokenByHash(h string) (*Token, error)      { return d.tokens().GetTokenByHash(h) }
-func (d SQLiteDB) ListTokens(accountID string) ([]Token, error) { return d.tokens().ListTokens(accountID) }
-func (d SQLiteDB) UpdateToken(t Token) error                    { return d.tokens().UpdateToken(t) }
+func (d SQLiteDB) CreateToken(t Token) error               { return d.tokens().CreateToken(t) }
+func (d SQLiteDB) GetToken(id string) (*Token, error)      { return d.tokens().GetToken(id) }
+func (d SQLiteDB) GetTokenByHash(h string) (*Token, error) { return d.tokens().GetTokenByHash(h) }
+func (d SQLiteDB) ListTokens(accountID string) ([]Token, error) {
+	return d.tokens().ListTokens(accountID)
+}
+func (d SQLiteDB) UpdateToken(t Token) error { return d.tokens().UpdateToken(t) }
 func (d SQLiteDB) TouchToken(id string, at time.Time, ip string) error {
 	return d.tokens().TouchToken(id, at, ip)
 }
 
-func (d PostgresDB) CreateToken(t Token) error                    { return d.tokens().CreateToken(t) }
-func (d PostgresDB) GetToken(id string) (*Token, error)           { return d.tokens().GetToken(id) }
-func (d PostgresDB) GetTokenByHash(h string) (*Token, error)      { return d.tokens().GetTokenByHash(h) }
-func (d PostgresDB) ListTokens(accountID string) ([]Token, error) { return d.tokens().ListTokens(accountID) }
-func (d PostgresDB) UpdateToken(t Token) error                    { return d.tokens().UpdateToken(t) }
+func (d PostgresDB) CreateToken(t Token) error               { return d.tokens().CreateToken(t) }
+func (d PostgresDB) GetToken(id string) (*Token, error)      { return d.tokens().GetToken(id) }
+func (d PostgresDB) GetTokenByHash(h string) (*Token, error) { return d.tokens().GetTokenByHash(h) }
+func (d PostgresDB) ListTokens(accountID string) ([]Token, error) {
+	return d.tokens().ListTokens(accountID)
+}
+func (d PostgresDB) UpdateToken(t Token) error { return d.tokens().UpdateToken(t) }
 func (d PostgresDB) TouchToken(id string, at time.Time, ip string) error {
 	return d.tokens().TouchToken(id, at, ip)
 }

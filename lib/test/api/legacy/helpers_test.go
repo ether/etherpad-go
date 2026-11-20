@@ -11,11 +11,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ether/etherpad-go/lib/api/legacy"
 	"github.com/ether/etherpad-go/lib/accounts"
+	"github.com/ether/etherpad-go/lib/api/legacy"
+	"github.com/ether/etherpad-go/lib/test/testutils"
 	"github.com/ether/etherpad-go/lib/tokens"
 	"github.com/ether/etherpad-go/lib/utils"
-	"github.com/ether/etherpad-go/lib/test/testutils"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/require"
 )

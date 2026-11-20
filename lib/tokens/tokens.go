@@ -33,7 +33,7 @@ const (
 	touchEvery = time.Minute
 	// cacheTTL is how long a looked-up token is trusted without reading it
 	// again; every change forgets it at once, also on the other instances.
-	cacheTTL = 30 * time.Second
+	cacheTTL  = 30 * time.Second
 	maxCached = 10000
 )
 
