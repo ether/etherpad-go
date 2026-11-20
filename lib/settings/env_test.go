@@ -155,3 +155,30 @@ func TestEnvPluginSectionWithList(t *testing.T) {
 }
 
 func getPath(key string) any { return viperGet(key) }
+
+// ${VAR} in settings.json and ETHERPAD_ variables together: the file's
+// placeholders are filled first, the variables win over both.
+func TestEnvWithPlaceholdersInFile(t *testing.T) {
+	withFile(t, `{
+	  "title": "${PAD_TITLE:Default title}",
+	  "sso": {"clients": [
+	    {"client_id": "admin", "client_secret": "${ADMIN_SECRET}", "type": "admin"},
+	    {"client_id": "${USER_CLIENT_ID:user}", "type": "user"}
+	  ]}
+	}`)
+	t.Setenv("ADMIN_SECRET", "from-placeholder")
+	t.Setenv("ETHERPAD_SSO_CLIENTS_1_CLIENT_ID", "from-env")
+	cfg, err := ReadConfig()
+	require.NoError(t, err)
+	assert.Equal(t, "Default title", cfg.Title, "the placeholder's default")
+	require.Len(t, cfg.SSO.Clients, 2)
+	require.NotNil(t, cfg.SSO.Clients[0].ClientSecret)
+	assert.Equal(t, "from-placeholder", *cfg.SSO.Clients[0].ClientSecret)
+	assert.Equal(t, "from-env", cfg.SSO.Clients[1].ClientId, "the variable wins over the placeholder's default")
+
+	t.Setenv("PAD_TITLE", "From placeholder")
+	t.Setenv("ETHERPAD_TITLE", "From env")
+	cfg, err = ReadConfig()
+	require.NoError(t, err)
+	assert.Equal(t, "From env", cfg.Title, "ETHERPAD_ wins over a filled placeholder")
+}
