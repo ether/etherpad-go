@@ -54,6 +54,7 @@
   margin: 0;
 }
 .account-menu .account-admin,
+.account-menu .account-tokens-open,
 .account-menu .account-logout {
   display: block;
   box-sizing: border-box;
@@ -72,6 +73,166 @@
   text-decoration: none;
 }
 .account-menu .account-admin:hover,
+.account-menu .account-tokens-open:hover,
 .account-menu .account-logout:hover {
   background: #f2f2f2;
+}
+
+/* "My tokens" (ui/src/js/account_tokens.ts). */
+dialog.account-tokens {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  height: fit-content;
+  width: min(640px, calc(100vw - 24px));
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+  box-sizing: border-box;
+  padding: 16px 20px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #222;
+  background: #fff;
+}
+dialog.account-tokens::backdrop {
+  background: rgba(0, 0, 0, .3);
+}
+.account-tokens-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.account-tokens h2 {
+  margin: 0;
+  font-size: 18px;
+}
+.account-tokens h3 {
+  margin: 12px 0 6px;
+  font-size: 15px;
+}
+.account-tokens-close {
+  border: none;
+  background: none;
+  font-size: 22px;
+  cursor: pointer;
+  line-height: 1;
+}
+.account-tokens-intro,
+.account-tokens-empty,
+.account-tokens-desc {
+  color: #666;
+}
+.account-tokens-error {
+  color: #b91c1c;
+}
+.account-tokens-key {
+  padding: 10px;
+  margin: 8px 0;
+  border: 1px solid #86efac;
+  border-radius: 6px;
+  background: #f0fdf4;
+}
+.account-tokens-key p {
+  margin: 4px 0;
+}
+.account-tokens-keyrow {
+  display: flex;
+  gap: 6px;
+}
+.account-tokens-keyrow input {
+  flex: 1;
+  font-family: monospace;
+}
+.account-token {
+  padding: 8px 0;
+  border-bottom: 1px solid #eee;
+}
+.account-token-title {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+.account-token-grace {
+  font-size: 12px;
+  color: #92400e;
+  background: #fef3c7;
+  border-radius: 4px;
+  padding: 0 6px;
+}
+.account-token dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 2px 10px;
+  margin: 6px 0;
+}
+.account-token dt {
+  color: #666;
+}
+.account-token dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.account-token-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.account-tokens button,
+.account-tokens select,
+.account-tokens input[type=text] {
+  font: inherit;
+  padding: 3px 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #fff;
+}
+.account-tokens button,
+.account-tokens select {
+  text-transform: none;
+  letter-spacing: normal;
+}
+.account-tokens button:not(.account-tokens-close) {
+  cursor: pointer;
+}
+/* the skin hides checkboxes behind their labels; these sit inside theirs */
+.account-tokens [type="checkbox"]:not(:checked),
+.account-tokens [type="checkbox"]:checked {
+  position: static;
+  opacity: 1;
+  pointer-events: auto;
+  margin: 0 4px 0 0;
+}
+.account-tokens button:not(.account-tokens-close):hover {
+  background: #f2f2f2;
+}
+.account-token-revoke {
+  color: #b91c1c;
+}
+.account-tokens-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.account-tokens-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.account-tokens-form fieldset {
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  margin: 0;
+  padding: 6px 10px;
+}
+.account-tokens-form fieldset label {
+  display: block;
+}
+.account-tokens-form fieldset .account-tokens-desc {
+  margin-left: 6px;
+  font-size: 12px;
+}
+.account-tokens-form button[type=submit] {
+  align-self: flex-start;
 }

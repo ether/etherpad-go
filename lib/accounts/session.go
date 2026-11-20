@@ -64,7 +64,19 @@ func (m *Manager) Person(accountID string) (*db.Account, error) {
 // under the write lock, so two instances do not give one account two
 // authors.
 func (m *Manager) AuthorOf(accountID string, create func(name string) (string, error)) (string, error) {
-	if a, err := m.Person(accountID); err != nil {
+	return m.authorOf(accountID, m.Person, false, create)
+}
+
+// HolderAuthorOf is AuthorOf for the holder of a token: a person or a
+// service account. A service account writes under its own name, so text
+// it adds stays apart from any person's.
+func (m *Manager) HolderAuthorOf(accountID string, create func(name string) (string, error)) (string, error) {
+	return m.authorOf(accountID, m.Holder, true, create)
+}
+
+func (m *Manager) authorOf(accountID string, find func(string) (*db.Account, error), services bool,
+	create func(name string) (string, error)) (string, error) {
+	if a, err := find(accountID); err != nil {
 		return "", err
 	} else if a == nil {
 		return "", ErrForbidden
@@ -81,7 +93,7 @@ func (m *Manager) AuthorOf(accountID string, create func(name string) (string, e
 		return "", err
 	}
 	// Checked again under the lock: disabled meanwhile, it gets nothing.
-	if a == nil || a.Kind != KindHuman || a.DisabledAt != nil {
+	if a == nil || a.DisabledAt != nil || !(a.Kind == KindHuman || (services && a.Kind == KindService)) {
 		return "", ErrForbidden
 	}
 	if a.AuthorID != "" {

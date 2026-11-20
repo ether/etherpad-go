@@ -185,6 +185,7 @@ type DataStore interface {
 	AccountMethods
 	TokenMethods
 	InstanceFlagMethods
+	PadListingMethods
 	AuthorPrivacyMethods
 	PadHeadMethods
 	LeaderMethods

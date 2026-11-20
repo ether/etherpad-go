@@ -45,6 +45,9 @@ Calls need one of these:
   one keeps working for a grace period: not at all, 10 or 20 days, or until a date), its expiry
   changed, and revoked; the list shows when each was last used, and from which IP. The key goes
   in the `apikey` or `api_key` parameter, or in the `Authorization` or `apikey` header.
+  People logged in on the pads with the scope `tokens:own` manage their own tokens under
+  *My tokens* in the pad's profile menu (`/auth/tokens`), with at most their own scopes and
+  within `tokens.personal` of the settings.
 - **A bearer token** (`Authorization: Bearer <token>`): an administrator's token, as for
   `/admin/api`, or an access token that an SSO client with the `client_credentials` grant got
   from Etherpad's OpenID provider.
@@ -70,6 +73,8 @@ over the same way, named "APIKEY.txt", on the first start with tokens only: the 
 that this was done (for all instances of a cluster), and from then on the file is ignored, with a
 warning in the log that it can be deleted. A file put there later is not read; issue a token
 instead. `EP_APIKEY_FILE` names another path for it. etherpad-go no longer creates the file.
+
+AI clients use the same tokens at `/mcp`, the MCP server (see [mcp.md](mcp.md)).
 
 ## Path styles
 

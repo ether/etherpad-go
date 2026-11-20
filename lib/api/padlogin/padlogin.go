@@ -20,6 +20,7 @@ import (
 	"github.com/ether/etherpad-go/lib/pad"
 	epsession "github.com/ether/etherpad-go/lib/session"
 	"github.com/ether/etherpad-go/lib/settings"
+	"github.com/ether/etherpad-go/lib/tokens"
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/extractors"
 	"github.com/gofiber/fiber/v3/middleware/session"
@@ -60,6 +61,7 @@ type Login struct {
 	settings *settings.Settings
 	logger   *zap.SugaredLogger
 	onLogout func(sessionID string)
+	tokens   *tokens.Manager
 }
 
 // pending is a login in progress, kept in the session.
@@ -116,6 +118,7 @@ func New(store db.DataStore, authn *oidc.Authenticator, cfg *settings.Settings, 
 		}),
 		authn:    authn,
 		accounts: accounts.For(store),
+		tokens:   tokens.For(store, cfg),
 		settings: cfg,
 		logger:   logger,
 	}
@@ -195,6 +198,7 @@ func (l *Login) Register(app fiber.Router) {
 	app.Get(oidc.PadCallbackPath, l.callback)
 	app.Post(LogoutPath, l.logout)
 	app.Get(MePath, l.me)
+	l.registerTokens(app)
 }
 
 // LoginURL is the page that logs in and comes back to redirect.
@@ -354,6 +358,8 @@ type Me struct {
 	Username       string `json:"username,omitempty"`
 	DisplayName    string `json:"displayName,omitempty"`
 	Admin          bool   `json:"admin,omitempty"`
+	// Tokens: may manage own tokens (tokens:own), "My tokens" in the menu.
+	Tokens bool `json:"tokens,omitempty"`
 }
 
 func (l *Login) me(c fiber.Ctx) error {
@@ -367,6 +373,7 @@ func (l *Login) me(c fiber.Ctx) error {
 			}
 			if g, err := l.accounts.GrantsFor(a.ID); err == nil {
 				me.Admin = g.IsAdmin()
+				me.Tokens = g.HasGlobal(accounts.ScopeTokensOwn)
 			}
 		}
 	}

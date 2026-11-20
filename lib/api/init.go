@@ -1,6 +1,7 @@
 package api
 
 import (
+	"github.com/ether/etherpad-go/lib/api/mcp"
 	"net/http"
 	"strings"
 
@@ -72,6 +73,8 @@ func InitAPI(store *lib.InitStore) *oidc.Authenticator {
 	sheetio.Init(store)
 	stats.Init(store)
 	initLegacyAPI(store, authenticator, ssoAdminClient)
+	// The MCP server (AI clients) with the same tokens.
+	mcp.New(store, keys).Register(store.C)
 	return authenticator
 }
 
