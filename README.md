@@ -194,7 +194,8 @@ sudo chown -R 65532:65532 ./etherpad-data
 
 A `settings.json` mounted at `/settings.json` is still read, as long as `/data/settings.json` does
 not exist. Settings saved in the admin UI go to `/data/settings.json`, which is then the one read.
-`/APIKEY.txt` and relative favicon paths are still looked up in `/`. If a settings file exists
+Relative favicon paths are still looked up in `/`, and so is `/APIKEY.txt`, whose key becomes a
+token on the first start with tokens; after that the file is ignored (see doc/http-api.md). If a settings file exists
 but cannot be read (no permission), the server does not start rather than fall back to the
 defaults.
 

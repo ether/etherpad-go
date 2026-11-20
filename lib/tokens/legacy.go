@@ -3,6 +3,7 @@ package tokens
 import (
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/ether/etherpad-go/lib/accounts"
 	"github.com/ether/etherpad-go/lib/db"
@@ -162,6 +163,77 @@ func (m *Manager) ImportKey(key, name string) (bool, error) {
 		m.changed()
 	}
 	return stored, err
+}
+
+// OnceResult is what ImportKeyOnce did.
+type OnceResult int
+
+const (
+	// OnceNothing: no key, the step is now marked as done.
+	OnceNothing OnceResult = iota
+	// OnceStored: the key is now a token.
+	OnceStored
+	// OnceKnown: the key already was a token.
+	OnceKnown
+	// OnceDone: the step was done before (maybe by another instance a
+	// moment ago); nothing was taken over.
+	OnceDone
+)
+
+// ImportKeyOnce takes over the key read returns as a token named name, if
+// the instance flag is not set yet, and sets it. The check, the take-over
+// and the flag run under the accounts' write lock, which every instance of
+// a cluster shares: of instances starting at once, only the first takes a
+// key over; the others find the flag. A failure sets no flag, so the next
+// start tries again. read is called only while the flag is not set.
+func (m *Manager) ImportKeyOnce(flag, name string, read func() (string, error)) (OnceResult, error) {
+	store := m.Store()
+	if store == nil {
+		return OnceNothing, errors.New("the tokens have no database")
+	}
+	if done, err := store.GetInstanceFlag(flag); err != nil {
+		return OnceNothing, err
+	} else if done != nil {
+		return OnceDone, nil
+	}
+	key, err := read()
+	if err != nil {
+		return OnceNothing, err
+	}
+	key = strings.TrimSpace(key)
+	var holder *db.Account
+	if key != "" {
+		// Before the lock: making the account takes it itself.
+		if holder, err = m.legacyHolder(); err != nil {
+			return OnceNothing, err
+		}
+	}
+	result := OnceNothing
+	err = m.accounts.Locked(func() error {
+		if done, err := store.GetInstanceFlag(flag); err != nil {
+			return err
+		} else if done != nil {
+			result = OnceDone
+			return nil
+		}
+		if key != "" {
+			stored, err := m.importKey(holder, key, name)
+			if stored {
+				result = OnceStored
+			} else if err == nil {
+				result = OnceKnown
+			}
+			if err != nil && !errors.Is(err, accounts.ErrAuditFailed) {
+				return err
+			}
+		}
+		_, err := store.SetInstanceFlag(flag, m.now().UTC().Format(time.RFC3339))
+		return err
+	})
+	if result == OnceStored {
+		m.changed()
+	}
+	return result, err
 }
 
 func (m *Manager) importKey(holder *db.Account, key, name string) (bool, error) {

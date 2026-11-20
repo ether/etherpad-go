@@ -26,6 +26,7 @@ func GetMigrations() []Migration {
 		migration017ClusterNodeUsers(),
 		migration018Accounts(),
 		migration019Tokens(),
+		migration020InstanceFlags(),
 	}
 }
 

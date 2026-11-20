@@ -84,14 +84,42 @@ func ReadAPIKeyFile(path string) (string, error) {
 	return strings.TrimSpace(string(b)), nil
 }
 
+// apiKeyFileFlag marks, in the database, that the APIKEY.txt was looked at
+// once; from then on the file is ignored.
+const apiKeyFileFlag = "apikey-file-taken-over"
+
+// FileResult is what ImportAPIKeyFile did.
+type FileResult int
+
+const (
+	// FileNone: no file, or nothing to do.
+	FileNone FileResult = iota
+	// FileStored: the file's key is now a token.
+	FileStored
+	// FileKnown: the file's key already was a token.
+	FileKnown
+	// FileIgnored: the file is there, but the one take-over is done.
+	FileIgnored
+)
+
 // ImportAPIKeyFile takes over the key of an APIKEY.txt as a token named
-// "APIKEY.txt", once. It reports whether it stored the key.
-func ImportAPIKeyFile(keys *tokens.Manager, path string) (bool, error) {
-	key, err := ReadAPIKeyFile(path)
-	if err != nil || key == "" {
-		return false, err
+// "APIKEY.txt", on the first start with tokens only: the database then
+// remembers that it was done (for every instance of a cluster), and a file
+// found later is ignored. A failure leaves it to the next start.
+func ImportAPIKeyFile(keys *tokens.Manager, path string) (FileResult, error) {
+	result, err := keys.ImportKeyOnce(apiKeyFileFlag, "APIKEY.txt", func() (string, error) { return ReadAPIKeyFile(path) })
+	switch {
+	case result == tokens.OnceDone:
+		if _, statErr := os.Stat(path); statErr == nil {
+			return FileIgnored, err
+		}
+		return FileNone, err
+	case result == tokens.OnceStored:
+		return FileStored, err
+	case result == tokens.OnceKnown:
+		return FileKnown, err
 	}
-	return keys.ImportKey(key, "APIKEY.txt")
+	return FileNone, err
 }
 
 // New builds the API. Calls need a token (apikey, api_key or authorization

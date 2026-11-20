@@ -112,11 +112,18 @@ func initLegacyAPI(store *lib.InitStore, authenticator *oidc.Authenticator, admi
 	} else if n > 0 {
 		store.Logger.Infof("%d API keys are now tokens of the service account %q (admin UI: Tokens); they keep working", n, tokens.LegacyAccount)
 	}
+	// A key in APIKEY.txt becomes a token on the first start with tokens;
+	// later the file is ignored.
 	path := legacy.APIKeyFile(store.RetrievedSettings.Root)
-	if stored, err := legacy.ImportAPIKeyFile(keys, path); err != nil {
-		store.Logger.Errorf("cannot take over the API key of %s: %v", path, err)
-	} else if stored {
-		store.Logger.Infof("The API key of %s is now a token named \"APIKEY.txt\" (admin UI: Tokens); the file is no longer needed", path)
+	switch result, err := legacy.ImportAPIKeyFile(keys, path); {
+	case err != nil:
+		store.Logger.Errorf("cannot take over the API key of %s (tried again on the next start): %v", path, err)
+	case result == legacy.FileStored:
+		store.Logger.Infof("The API key of %s is now a token named \"APIKEY.txt\" (admin UI: Tokens); the file is no longer read, you can delete it", path)
+	case result == legacy.FileKnown:
+		store.Logger.Infof("The API key of %s already is a token (admin UI: Tokens); the file is no longer read, you can delete it", path)
+	case result == legacy.FileIgnored:
+		store.Logger.Warnf("%s is no longer read: its key was taken over as a token once (admin UI: Tokens). You can delete the file; issue new keys as tokens", path)
 	}
 	// An admin's token, as for /admin/api, or a client_credentials token
 	// of a configured client (etherpad-lite accepts both).
