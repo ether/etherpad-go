@@ -70,7 +70,7 @@ func needsOf(function string, args map[string]string) []need {
 		if function == "movePad" {
 			out = append(out, need{accounts.ScopePadDelete, src})
 		}
-		if args["force"] == "true" {
+		if boolArg(args["force"]) {
 			// Overwriting the destination deletes what was there.
 			out = append(out, need{accounts.ScopePadDelete, dst})
 		}
@@ -96,4 +96,33 @@ func allowed(g accounts.Grants, needs []need) bool {
 		}
 	}
 	return true
+}
+
+// padParams are the parameters that name a pad.
+var padParams = []string{"padID", "sourceID", "destinationID"}
+
+// sanitizedArgs returns args with each pad id as the handlers turn it
+// (SanitizePadId: whitespace and ":" replaced, lower-cased with
+// lowerCasePadIds) for an id that names no pad; "" where that fails, so
+// the call needs admin:pads. ok is false when nothing changed.
+func sanitizedArgs(args map[string]string, sanitize func(string) (string, error)) (map[string]string, bool) {
+	out := make(map[string]string, len(args))
+	for k, v := range args {
+		out[k] = v
+	}
+	changed := false
+	for _, k := range padParams {
+		v, ok := args[k]
+		if !ok || v == "" {
+			continue
+		}
+		id, err := sanitize(v)
+		if err != nil {
+			id = ""
+		}
+		if id != v {
+			out[k], changed = id, true
+		}
+	}
+	return out, changed
 }

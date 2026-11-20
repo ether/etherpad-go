@@ -54,6 +54,7 @@ func testTokenStore(t *testing.T, ds testutils.TestDataStore) {
 
 	revoked := created.Add(time.Minute)
 	got.RevokedAt, got.ReplacedBy, got.Name = &revoked, "tok3", "renamed"
+	got.MaxExpiresAt = &expires
 	got.ExpiresAt = nil
 	require.NoError(t, s.UpdateToken(*got))
 	require.NoError(t, s.UpdateToken(*got), "an update that changes nothing is no error")
@@ -63,6 +64,8 @@ func testTokenStore(t *testing.T, ds testutils.TestDataStore) {
 	assert.Equal(t, "tok3", again.ReplacedBy)
 	assert.Equal(t, "renamed", again.Name)
 	assert.Nil(t, again.ExpiresAt)
+	require.NotNil(t, again.MaxExpiresAt)
+	assert.True(t, expires.Equal(*again.MaxExpiresAt))
 	assert.Equal(t, "h1", again.Hash, "the hash never changes")
 	assert.ErrorIs(t, s.UpdateToken(db.Token{ID: "nope"}), db.ErrTokenNotFound)
 

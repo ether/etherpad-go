@@ -30,6 +30,13 @@ func (m *Manager) legacyHolder() (*db.Account, error) {
 	if a == nil {
 		a, err = m.accounts.CreateAccount(accounts.System, accounts.NewAccount{
 			Username: LegacyAccount, DisplayName: "API keys of before the tokens", Kind: accounts.KindService})
+		if errors.Is(err, db.ErrConflict) {
+			// Another instance starting at the same time made it.
+			a, err = m.accounts.AccountByUsername(LegacyAccount)
+			if err == nil && a == nil {
+				err = errors.New("the account " + LegacyAccount + " vanished")
+			}
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -46,7 +53,11 @@ func (m *Manager) legacyHolder() (*db.Account, error) {
 			return a, nil
 		}
 	}
-	return a, m.accounts.Assign(accounts.System, a.ID, accounts.RoleAdmin, "")
+	err = m.accounts.Assign(accounts.System, a.ID, accounts.RoleAdmin, "")
+	if errors.Is(err, db.ErrConflict) {
+		err = nil // assigned by another instance meanwhile
+	}
+	return a, err
 }
 
 // TakeOverAPIKeys makes every former API key a token of the legacy-api
@@ -60,9 +71,38 @@ func (m *Manager) TakeOverAPIKeys(store LegacyStore) (int, error) {
 	if err != nil || len(keys) == 0 {
 		return 0, err
 	}
-	m.wmu.Lock()
-	defer m.wmu.Unlock()
-	var holder *db.Account
+	var missing []db.APIKey
+	for _, k := range keys {
+		existing, err := m.store.GetTokenByHash(k.Hash)
+		if err != nil {
+			return 0, err
+		}
+		if existing == nil {
+			missing = append(missing, k)
+		}
+	}
+	if len(missing) == 0 {
+		return 0, nil
+	}
+	// The account first: making it takes the accounts' lock itself.
+	holder, err := m.legacyHolder()
+	if err != nil {
+		return 0, err
+	}
+	taken := 0
+	err = m.accounts.Locked(func() error {
+		taken, err = m.takeOver(holder, missing)
+		return err
+	})
+	if taken > 0 {
+		m.changed()
+	}
+	return taken, err
+}
+
+// takeOver stores the keys as tokens of holder, under the lock: a key
+// another instance took over meanwhile is skipped, not counted twice.
+func (m *Manager) takeOver(holder *db.Account, keys []db.APIKey) (int, error) {
 	taken := 0
 	for _, k := range keys {
 		existing, err := m.store.GetTokenByHash(k.Hash)
@@ -71,11 +111,6 @@ func (m *Manager) TakeOverAPIKeys(store LegacyStore) (int, error) {
 		}
 		if existing != nil {
 			continue
-		}
-		if holder == nil {
-			if holder, err = m.legacyHolder(); err != nil {
-				return taken, err
-			}
 		}
 		name := strings.TrimSpace(k.Description)
 		if name == "" {
@@ -87,16 +122,17 @@ func (m *Manager) TakeOverAPIKeys(store LegacyStore) (int, error) {
 			now := m.now()
 			t.RevokedAt = &now
 		}
-		if err := m.store.CreateToken(t); err != nil && !errors.Is(err, db.ErrConflict) {
+		if err := m.store.CreateToken(t); err != nil {
+			if errors.Is(err, db.ErrConflict) {
+				// Taken over by another instance (no shared lock).
+				continue
+			}
 			return taken, err
 		}
 		taken++
 		if err := m.accounts.Record(accounts.System, "token.take-over", t.ID, map[string]any{"name": name, "prefix": k.Prefix}); err != nil {
 			return taken, err
 		}
-	}
-	if taken > 0 {
-		m.changed()
 	}
 	return taken, nil
 }
@@ -109,8 +145,6 @@ func (m *Manager) ImportKey(key, name string) (bool, error) {
 	if key == "" {
 		return false, errors.New("empty key")
 	}
-	m.wmu.Lock()
-	defer m.wmu.Unlock()
 	existing, err := m.store.GetTokenByHash(Hash(key))
 	if err != nil || existing != nil {
 		return false, err
@@ -119,11 +153,29 @@ func (m *Manager) ImportKey(key, name string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+	stored := false
+	err = m.accounts.Locked(func() error {
+		stored, err = m.importKey(holder, key, name)
+		return err
+	})
+	if stored {
+		m.changed()
+	}
+	return stored, err
+}
+
+func (m *Manager) importKey(holder *db.Account, key, name string) (bool, error) {
+	existing, err := m.store.GetTokenByHash(Hash(key))
+	if err != nil || existing != nil {
+		return false, err
+	}
 	t := db.Token{ID: utils.RandomString(16), AccountID: holder.ID, Name: name, Hash: Hash(key), Prefix: shown(key),
 		Scopes: []string{accounts.AllScopes}, CreatedBy: accounts.System.ID, CreatedAt: m.now()}
 	if err := m.store.CreateToken(t); err != nil {
+		if errors.Is(err, db.ErrConflict) {
+			return false, nil
+		}
 		return false, err
 	}
-	m.changed()
 	return true, m.accounts.Record(accounts.System, "token.take-over", t.ID, map[string]any{"name": name, "prefix": t.Prefix})
 }

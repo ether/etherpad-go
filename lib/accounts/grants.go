@@ -102,7 +102,9 @@ func (g Grants) Restrict(scopes []string, pattern string, limits map[string]int6
 		out.Limits[k] = v
 	}
 	for k, v := range limits {
-		if cur, ok := out.Limits[k]; !ok || v < cur {
+		// Only lower what the account has: a limit the account lacks is
+		// not given by its token.
+		if cur, ok := out.Limits[k]; ok && v < cur {
 			out.Limits[k] = v
 		}
 	}

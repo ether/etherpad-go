@@ -25,6 +25,7 @@ func migration019Tokens() Migration {
 					scopes ` + text + ` NOT NULL,
 					pad_pattern ` + name + ` NOT NULL,
 					expires_at BIGINT NULL,
+					max_expires_at BIGINT NULL,
 					revoked_at BIGINT NULL,
 					replaced_by ` + id + ` NOT NULL,
 					predecessor ` + id + ` NOT NULL,

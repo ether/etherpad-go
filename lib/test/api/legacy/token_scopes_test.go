@@ -55,6 +55,24 @@ func testLegacyTokenScopes(t *testing.T, ds testutils.TestDataStore) {
 	assert.Equal(t, 403, status, "moving deletes the source")
 	status, code = call("checkToken", nil)
 	assert.Equal(t, 0, code, "any valid token")
+	// overwriting a pad deletes what was there, however "true" is written
+	status, _ = call("copyPad", map[string]string{"sourceID": "claude-notes", "destinationID": "claude-old", "force": " TRUE"})
+	assert.Equal(t, 403, status, "force needs delete on the destination")
+	c.key = admin
+	assert.Contains(t, c.get("getText", map[string]string{"padID": "claude-old"}).Data.(map[string]any)["text"], "hello claude-old",
+		"the destination is untouched")
+
+	// the pad the handler reaches counts: "secret:notes" becomes
+	// "secret_notes", which a grant for secret:* does not cover
+	c.key = admin
+	require.Equal(t, 0, c.get("createPad", map[string]string{"padID": "secret_notes", "text": "top secret"}).Code)
+	c.key = c.issue(accounts.RoleEditor, "secret:*", []string{accounts.ScopePadRead, accounts.ScopePadWrite}, "")
+	status, _ = call("getText", map[string]string{"padID": "secret:notes"})
+	assert.Equal(t, 403, status)
+	status, _ = call("setText", map[string]string{"padID": "secret:notes", "text": "overwritten"})
+	assert.Equal(t, 403, status)
+	c.key = admin
+	assert.Contains(t, c.get("getText", map[string]string{"padID": "secret_notes"}).Data.(map[string]any)["text"], "top secret")
 
 	// a read-only token on a narrower pattern
 	c.key = c.issue(accounts.RoleEditor, "claude-*", []string{accounts.ScopePadRead}, "claude-notes")

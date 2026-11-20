@@ -51,6 +51,8 @@ var (
 	ErrNotActive      = errors.New("the token is revoked or expired")
 	ErrInvalidLimit   = errors.New("a limit cannot be negative")
 	ErrInvalidPattern = errors.New("invalid pad pattern")
+	ErrLimitTooHigh   = errors.New("you cannot give a token limits above your own")
+	ErrGraceTooLong   = errors.New("a replaced key cannot work longer than it would have, nor for ever")
 	ErrTokenNotFound  = db.ErrTokenNotFound
 	// ErrInvalid is any failure to use a key; the reason is not told.
 	ErrInvalid = errors.New("invalid token")
@@ -78,8 +80,6 @@ type Manager struct {
 	mu      sync.Mutex
 	cache   map[string]cachedToken
 	touched map[string]time.Time
-	// wmu serializes the changes of this process.
-	wmu sync.Mutex
 }
 
 type cachedToken struct {
@@ -188,6 +188,22 @@ func (m *Manager) mayManage(actor accounts.Actor, a *db.Account) error {
 	return ErrForbidden
 }
 
+// checkLimits checks that what a token of account would get as limits is
+// within the actor's own: nobody gives more than they have.
+func (m *Manager) checkLimits(actor accounts.Actor, accountID string, scopes []string, pattern string, limits map[string]int64) error {
+	if actor.IsServer() {
+		return nil
+	}
+	g, err := m.accounts.GrantsFor(accountID)
+	if err != nil {
+		return err
+	}
+	if !actor.Grants.MayGiveLimits(g.Restrict(scopes, pattern, limits).Limits) {
+		return ErrLimitTooHigh
+	}
+	return nil
+}
+
 // checkRights checks a token's scopes, pattern and limits against what the
 // actor may give.
 func checkRights(actor accounts.Actor, scopes []string, pattern string, limits map[string]int64) error {
@@ -255,9 +271,15 @@ func shown(key string) string {
 }
 
 // Issue makes a token and returns its key, which cannot be recovered later.
-func (m *Manager) Issue(actor accounts.Actor, spec Spec) (string, *db.Token, error) {
-	m.wmu.Lock()
-	defer m.wmu.Unlock()
+func (m *Manager) Issue(actor accounts.Actor, spec Spec) (key string, tok *db.Token, err error) {
+	err = m.accounts.Locked(func() error {
+		key, tok, err = m.issue(actor, spec)
+		return err
+	})
+	return key, tok, err
+}
+
+func (m *Manager) issue(actor accounts.Actor, spec Spec) (string, *db.Token, error) {
 	actor, err := m.current(actor)
 	if err != nil {
 		return "", nil, err
@@ -279,6 +301,9 @@ func (m *Manager) Issue(actor accounts.Actor, spec Spec) (string, *db.Token, err
 		pattern = ""
 	}
 	if err := checkRights(actor, scopes, pattern, spec.Limits); err != nil {
+		return "", nil, err
+	}
+	if err := m.checkLimits(actor, a.ID, scopes, pattern, spec.Limits); err != nil {
 		return "", nil, err
 	}
 	if err := m.checkExpiry(a, spec.ExpiresAt); err != nil {
@@ -337,10 +362,17 @@ func active(t *db.Token, now time.Time) bool {
 // Rotate makes a new key with the same rights. The old one keeps working
 // until oldUntil (nil or past: not at all from now), at most as long as it
 // would have. The new key lives as long as the old one was issued for,
-// within the policy.
-func (m *Manager) Rotate(actor accounts.Actor, id string, oldUntil *time.Time) (string, *db.Token, error) {
-	m.wmu.Lock()
-	defer m.wmu.Unlock()
+// within the policy. Under the accounts' write lock, so two instances
+// rotating the same key make one new key, not two.
+func (m *Manager) Rotate(actor accounts.Actor, id string, oldUntil *time.Time) (key string, tok *db.Token, err error) {
+	err = m.accounts.Locked(func() error {
+		key, tok, err = m.rotate(actor, id, oldUntil)
+		return err
+	})
+	return key, tok, err
+}
+
+func (m *Manager) rotate(actor accounts.Actor, id string, oldUntil *time.Time) (string, *db.Token, error) {
 	actor, err := m.current(actor)
 	if err != nil {
 		return "", nil, err
@@ -359,6 +391,9 @@ func (m *Manager) Rotate(actor accounts.Actor, id string, oldUntil *time.Time) (
 	if err := checkRights(actor, old.Scopes, old.PadPattern, old.Limits); err != nil {
 		return "", nil, err
 	}
+	if err := m.checkLimits(actor, a.ID, old.Scopes, old.PadPattern, old.Limits); err != nil {
+		return "", nil, err
+	}
 	var expires *time.Time
 	if old.ExpiresAt != nil {
 		e := now.Add(old.ExpiresAt.Sub(old.CreatedAt))
@@ -369,9 +404,6 @@ func (m *Manager) Rotate(actor accounts.Actor, id string, oldUntil *time.Time) (
 	t := db.Token{ID: utils.RandomString(16), AccountID: old.AccountID, Name: old.Name, Hash: Hash(key), Prefix: shown(key),
 		Scopes: old.Scopes, PadPattern: old.PadPattern, ExpiresAt: expires, Predecessor: old.ID, ClientID: old.ClientID,
 		CreatedBy: actor.ID, CreatedAt: now, Limits: old.Limits}
-	if err := m.store.CreateToken(t); err != nil {
-		return "", nil, err
-	}
 	until := now
 	if oldUntil != nil && oldUntil.After(now) {
 		until = *oldUntil
@@ -379,8 +411,17 @@ func (m *Manager) Rotate(actor accounts.Actor, id string, oldUntil *time.Time) (
 	if old.ExpiresAt != nil && old.ExpiresAt.Before(until) {
 		until = *old.ExpiresAt
 	}
-	old.ExpiresAt, old.ReplacedBy = &until, t.ID
+	// The old key first: it records its successor and its cap before the
+	// successor exists, so a failure leaves no second active key.
+	before := *old
+	old.MaxExpiresAt, old.ExpiresAt, old.ReplacedBy = old.ExpiresAt, &until, t.ID
 	if err := m.store.UpdateToken(*old); err != nil {
+		return "", nil, err
+	}
+	if err := m.store.CreateToken(t); err != nil {
+		if restoreErr := m.store.UpdateToken(before); restoreErr != nil {
+			return "", nil, errors.Join(err, restoreErr)
+		}
 		return "", nil, err
 	}
 	m.changed()
@@ -410,10 +451,17 @@ func (m *Manager) withinPolicy(a *db.Account, expires *time.Time) *time.Time {
 
 // SetExpiry changes when an active token stops working (nil: never), e.g.
 // to shorten or lengthen the grace period of a rotated key, within the
-// policy.
-func (m *Manager) SetExpiry(actor accounts.Actor, id string, expires *time.Time) (*db.Token, error) {
-	m.wmu.Lock()
-	defer m.wmu.Unlock()
+// policy. A replaced key never works longer than it would have before its
+// rotation, and never for ever.
+func (m *Manager) SetExpiry(actor accounts.Actor, id string, expires *time.Time) (tok *db.Token, err error) {
+	err = m.accounts.Locked(func() error {
+		tok, err = m.setExpiry(actor, id, expires)
+		return err
+	})
+	return tok, err
+}
+
+func (m *Manager) setExpiry(actor accounts.Actor, id string, expires *time.Time) (*db.Token, error) {
 	actor, err := m.current(actor)
 	if err != nil {
 		return nil, err
@@ -424,6 +472,9 @@ func (m *Manager) SetExpiry(actor accounts.Actor, id string, expires *time.Time)
 	}
 	if !active(t, m.now()) {
 		return nil, ErrNotActive
+	}
+	if t.ReplacedBy != "" && (expires == nil || (t.MaxExpiresAt != nil && expires.After(*t.MaxExpiresAt))) {
+		return nil, ErrGraceTooLong
 	}
 	if err := m.checkExpiry(a, expires); err != nil {
 		return nil, err
@@ -438,8 +489,10 @@ func (m *Manager) SetExpiry(actor accounts.Actor, id string, expires *time.Time)
 
 // Revoke ends a token at once.
 func (m *Manager) Revoke(actor accounts.Actor, id string) error {
-	m.wmu.Lock()
-	defer m.wmu.Unlock()
+	return m.accounts.Locked(func() error { return m.revoke(actor, id) })
+}
+
+func (m *Manager) revoke(actor accounts.Actor, id string) error {
 	actor, err := m.current(actor)
 	if err != nil {
 		return err

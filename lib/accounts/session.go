@@ -228,3 +228,20 @@ func KnownScope(name string) bool {
 	}
 	return false
 }
+
+// MayGiveLimits reports whether grants may give these limits: none above
+// their own, unless they have every right.
+func (g Grants) MayGiveLimits(limits map[string]int64) bool { return limitsAllowed(g, limits) }
+
+// Locked runs fn under the write lock of the accounts: the process's and,
+// where the store has one, the database's, so the changes of all instances
+// of a cluster happen one after the other. fn must not change accounts or
+// roles through the manager (that takes the lock again).
+func (m *Manager) Locked(fn func() error) error {
+	unlock, err := m.lockWrites()
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	return fn()
+}

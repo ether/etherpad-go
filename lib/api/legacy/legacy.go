@@ -163,8 +163,16 @@ func (a *API) handleCall(c fiber.Ctx, version, function string) (Response, int) 
 			args[n] = v
 		}
 	}
-	if grants != nil && !allowed(*grants, needsOf(function, args)) {
-		return Response{Code: 4, Message: "this token may not call " + function + " here"}, fiber.StatusForbidden
+	if grants != nil {
+		// The handlers may use the id as given or as SanitizePadId turns
+		// it: the token needs its rights on both.
+		ok := allowed(*grants, needsOf(function, args))
+		if clean, changed := sanitizedArgs(args, a.store.PadManager.SanitizePadId); ok && changed {
+			ok = allowed(*grants, needsOf(function, clean))
+		}
+		if !ok {
+			return Response{Code: 4, Message: "this token may not call " + function + " here"}, fiber.StatusForbidden
+		}
 	}
 	data, e := a.call(function, args)
 	if e != nil {

@@ -28,7 +28,11 @@ type Token struct {
 	PadPattern string
 	// ExpiresAt nil: never.
 	ExpiresAt *time.Time
-	RevokedAt *time.Time
+	// MaxExpiresAt is the latest a replaced token may work: its expiry
+	// before the rotation (nil: it had none). A grace period never goes
+	// past it.
+	MaxExpiresAt *time.Time
+	RevokedAt    *time.Time
 	// ReplacedBy is the token a rotation made from this one; Predecessor
 	// the one it was made from.
 	ReplacedBy  string
@@ -55,14 +59,14 @@ type TokenMethods interface {
 	// first.
 	ListTokens(accountID string) ([]Token, error)
 	// UpdateToken writes the changeable fields: name, scopes, pad pattern,
-	// expiry, revocation, rotation and limits.
+	// expiry and its cap, revocation, rotation and limits.
 	UpdateToken(t Token) error
 	// TouchToken records a use.
 	TouchToken(id string, at time.Time, ip string) error
 }
 
 const tokenColumns = `id, account_id, name, hash, prefix, scopes, pad_pattern, expires_at, revoked_at, replaced_by, predecessor,
-	client_id, created_by, created_at, last_used_at, last_used_ip, limits`
+	client_id, created_by, created_at, last_used_at, last_used_ip, limits, max_expires_at`
 
 func tokenArgs(t Token) ([]any, error) {
 	scopes, err := json.Marshal(nonNil(t.Scopes))
@@ -79,16 +83,16 @@ func tokenArgs(t Token) ([]any, error) {
 	}
 	return []any{t.ID, t.AccountID, t.Name, t.Hash, t.Prefix, string(scopes), t.PadPattern, millis(t.ExpiresAt),
 		millis(t.RevokedAt), t.ReplacedBy, t.Predecessor, t.ClientID, t.CreatedBy, t.CreatedAt.UnixMilli(),
-		millis(t.LastUsedAt), t.LastUsedIP, string(l)}, nil
+		millis(t.LastUsedAt), t.LastUsedIP, string(l), millis(t.MaxExpiresAt)}, nil
 }
 
 func scanToken(scan func(...any) error) (*Token, error) {
 	var t Token
 	var scopes, limits string
-	var expires, revoked, lastUsed sql.NullInt64
+	var expires, revoked, lastUsed, maxExpires sql.NullInt64
 	var created int64
 	if err := scan(&t.ID, &t.AccountID, &t.Name, &t.Hash, &t.Prefix, &scopes, &t.PadPattern, &expires, &revoked,
-		&t.ReplacedBy, &t.Predecessor, &t.ClientID, &t.CreatedBy, &created, &lastUsed, &t.LastUsedIP, &limits); err != nil {
+		&t.ReplacedBy, &t.Predecessor, &t.ClientID, &t.CreatedBy, &created, &lastUsed, &t.LastUsedIP, &limits, &maxExpires); err != nil {
 		return nil, err
 	}
 	if err := json.Unmarshal([]byte(scopes), &t.Scopes); err != nil {
@@ -98,6 +102,7 @@ func scanToken(scan func(...any) error) (*Token, error) {
 		return nil, err
 	}
 	t.ExpiresAt, t.RevokedAt, t.LastUsedAt = timeOrNil(expires), timeOrNil(revoked), timeOrNil(lastUsed)
+	t.MaxExpiresAt = timeOrNil(maxExpires)
 	t.CreatedAt = time.UnixMilli(created)
 	return &t, nil
 }
@@ -111,7 +116,7 @@ func (s sqlTokens) CreateToken(t Token) error {
 	if err != nil {
 		return err
 	}
-	_, err = s.db.Exec(`INSERT INTO tokens (`+tokenColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, args...)
+	_, err = s.db.Exec(`INSERT INTO tokens (`+tokenColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, args...)
 	if err != nil && isUniqueViolation(err) {
 		return ErrConflict
 	}
@@ -156,8 +161,8 @@ func (s sqlTokens) UpdateToken(t Token) error {
 		return err
 	}
 	res, err := s.db.Exec(`UPDATE tokens SET name = ?, scopes = ?, pad_pattern = ?, expires_at = ?, revoked_at = ?,
-		replaced_by = ?, predecessor = ?, limits = ? WHERE id = ?`,
-		args[2], args[5], args[6], args[7], args[8], args[9], args[10], args[16], t.ID)
+		replaced_by = ?, predecessor = ?, limits = ?, max_expires_at = ? WHERE id = ?`,
+		args[2], args[5], args[6], args[7], args[8], args[9], args[10], args[16], args[17], t.ID)
 	return changedOneOrExists(res, err, ErrTokenNotFound, func() (bool, error) {
 		x, err := s.GetToken(t.ID)
 		return x != nil, err
@@ -202,7 +207,7 @@ func (p pgTokens) CreateToken(t Token) error {
 		return err
 	}
 	_, err = p.d.pool.Exec(context.Background(), `INSERT INTO tokens (`+tokenColumns+`)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`, args...)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)`, args...)
 	return pgConflict(err)
 }
 
@@ -245,8 +250,8 @@ func (p pgTokens) UpdateToken(t Token) error {
 		return err
 	}
 	tag, err := p.d.pool.Exec(context.Background(), `UPDATE tokens SET name = $1, scopes = $2, pad_pattern = $3,
-		expires_at = $4, revoked_at = $5, replaced_by = $6, predecessor = $7, limits = $8 WHERE id = $9`,
-		args[2], args[5], args[6], args[7], args[8], args[9], args[10], args[16], t.ID)
+		expires_at = $4, revoked_at = $5, replaced_by = $6, predecessor = $7, limits = $8, max_expires_at = $9 WHERE id = $10`,
+		args[2], args[5], args[6], args[7], args[8], args[9], args[10], args[16], args[17], t.ID)
 	if err != nil {
 		return err
 	}
@@ -308,7 +313,7 @@ func cloneToken(t Token) Token {
 		limits[k] = v
 	}
 	t.Limits = limits
-	for _, p := range []**time.Time{&t.ExpiresAt, &t.RevokedAt, &t.LastUsedAt} {
+	for _, p := range []**time.Time{&t.ExpiresAt, &t.RevokedAt, &t.LastUsedAt, &t.MaxExpiresAt} {
 		if *p != nil {
 			v := **p
 			*p = &v
@@ -382,7 +387,7 @@ func (m *MemoryDataStore) UpdateToken(t Token) error {
 	}
 	n := cloneToken(t)
 	cur.Name, cur.Scopes, cur.PadPattern, cur.ExpiresAt, cur.RevokedAt = n.Name, n.Scopes, n.PadPattern, n.ExpiresAt, n.RevokedAt
-	cur.ReplacedBy, cur.Predecessor, cur.Limits = n.ReplacedBy, n.Predecessor, n.Limits
+	cur.ReplacedBy, cur.Predecessor, cur.Limits, cur.MaxExpiresAt = n.ReplacedBy, n.Predecessor, n.Limits, n.MaxExpiresAt
 	m.tokens[t.ID] = cur
 	return nil
 }

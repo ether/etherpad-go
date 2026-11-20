@@ -31,37 +31,60 @@ function toDateValue(ms: number): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
+// expiryOptions are the durations the policy allows, in days.
+function expiryOptions(policy: TokenPolicy): number[] {
+  return [1, 7, 30, 90, 365].filter((d) => !policy.maxLifetimeDays || d <= policy.maxLifetimeDays)
+}
+
+// initialMode is what ExpiryChoice shows first: the current expiry (a
+// date), "never", or the first duration the policy allows.
+function initialMode(policy: TokenPolicy, initial: number | null): string {
+  if (initial !== null) return 'date'
+  if (mayNever(policy)) return 'never'
+  const options = expiryOptions(policy)
+  return options.includes(30) ? '30' : options.length ? String(options[0]) : 'date'
+}
+
 // ExpiryChoice picks never, a number of days or a date, within the policy.
-function ExpiryChoice({ policy, value, onChange, label }: {
-  policy: TokenPolicy; value: number | null; onChange: (v: number | null) => void; label: string
+// It starts at initial; with announce it reports that start at once (a new
+// token), else only what the person changes (an existing token keeps its
+// expiry until then).
+function ExpiryChoice({ policy, initial, announce, onChange, label }: {
+  policy: TokenPolicy; initial: number | null; announce: boolean; onChange: (v: number | null) => void; label: string
 }) {
-  const [mode, setMode] = useState<string>(mayNever(policy) ? 'never' : '30')
-  const [date, setDate] = useState('')
+  const [mode, setMode] = useState<string>(() => initialMode(policy, initial))
+  const [date, setDate] = useState(() => (initial !== null ? toDateValue(initial) : ''))
+  const [touched, setTouched] = useState(announce)
   const max = policy.maxLifetimeDays > 0 ? Date.now() + policy.maxLifetimeDays * DAY : undefined
-  const options = [30, 90, 365].filter((d) => !policy.maxLifetimeDays || d <= policy.maxLifetimeDays)
+  const options = expiryOptions(policy)
   useEffect(() => {
+    if (!touched) return
     if (mode === 'never') onChange(null)
-    else if (mode === 'date') onChange(dateInput(date))
-    else onChange(Date.now() + Number(mode) * DAY)
+    else if (mode === 'date') {
+      const v = dateInput(date)
+      // The end of the last allowed day may lie past the maximum.
+      onChange(v !== null && max !== undefined ? Math.min(v, max) : v)
+    } else onChange(Date.now() + Number(mode) * DAY)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, date])
+  }, [mode, date, touched])
   useEffect(() => {
     // The policy of another account may not allow what was picked.
-    if (mode === 'never' && !mayNever(policy)) setMode(options[0] ? String(options[0]) : 'date')
+    if (mode === 'never' && !mayNever(policy)) setMode(initialMode(policy, null))
+    else if (mode !== 'never' && mode !== 'date' && !options.includes(Number(mode))) setMode(initialMode(policy, null))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [policy])
+  const pick = (m: string) => { setTouched(true); setMode(m) }
   return (
     <span className="inline-flex items-center gap-2">
-      <select aria-label={label} value={mode} onChange={(e) => setMode(e.target.value)} className={inputClass}>
+      <select aria-label={label} value={mode} onChange={(e) => pick(e.target.value)} className={inputClass}>
         {mayNever(policy) && <option value="never">Never expires</option>}
-        {options.map((d) => <option key={d} value={String(d)}>{d} days</option>)}
+        {options.map((d) => <option key={d} value={String(d)}>{d === 1 ? '1 day' : `${d} days`}</option>)}
         <option value="date">Until a date…</option>
       </select>
       {mode === 'date' && (
-        <input aria-label={`${label} date`} type="date" value={date} min={toDateValue(Date.now() + DAY)}
-               max={max ? toDateValue(max) : undefined} onChange={(e) => setDate(e.target.value)} className={inputClass} />
+        <input aria-label={`${label} date`} type="date" value={date} min={toDateValue(Date.now())}
+               max={max ? toDateValue(max) : undefined} onChange={(e) => { setTouched(true); setDate(e.target.value) }} className={inputClass} />
       )}
-      {value === null && mode === 'date' && <span className="text-xs text-gray-400">pick a date</span>}
     </span>
   )
 }
@@ -122,7 +145,7 @@ function IssueForm({ accounts, scopes, policyFor, onIssue }: {
                className={`${inputClass} flex-1`} />
         <input aria-label="Token pads" placeholder="all pads, or e.g. claude/*" value={pads} onChange={(e) => setPads(e.target.value)}
                className={`${inputClass} lg:w-48`} />
-        <ExpiryChoice policy={policy} value={expiresAt} onChange={setExpiresAt} label="Token expiry" />
+        <ExpiryChoice key={account?.kind ?? 'none'} policy={policy} initial={null} announce onChange={setExpiresAt} label="Token expiry" />
       </div>
       {account && (
         <div className="mb-3 flex flex-wrap gap-x-4 gap-y-1" data-testid="token-scopes">
@@ -173,11 +196,15 @@ function RotateDialog({ token, onRotate, onCancel }: { token: TokenView; onRotat
 
 function ExpiryEditor({ token, policy, onSave, onCancel }: { token: TokenView; policy: TokenPolicy; onSave: (v: number | null) => void; onCancel: () => void }) {
   const [value, setValue] = useState<number | null>(token.expiresAt)
+  // A replaced key keeps a date: it never works for ever.
+  const editPolicy = token.status === 'grace' ? { ...policy, requireExpiry: true } : policy
+  const unchanged = value === token.expiresAt
   return (
     <div className="mt-2 flex flex-wrap items-center gap-2 rounded border border-gray-200 dark:border-gray-700 p-2" data-testid="token-expiry">
       <span className="text-xs text-gray-600 dark:text-gray-300">Ends</span>
-      <ExpiryChoice policy={policy} value={value} onChange={setValue} label="New expiry" />
-      <button type="button" className={smallButton} disabled={value === null && !mayNever(policy)} onClick={() => onSave(value)}>Save</button>
+      <ExpiryChoice policy={editPolicy} initial={token.expiresAt} announce={false} onChange={setValue} label="New expiry" />
+      <button type="button" className={smallButton} disabled={unchanged || (value === null && !mayNever(editPolicy))}
+              onClick={() => onSave(value)}>Save</button>
       <button type="button" className="text-xs text-gray-500" onClick={onCancel}>Cancel</button>
     </div>
   )

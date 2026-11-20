@@ -91,6 +91,21 @@ test.describe('admin tokens', () => {
         const name = `pw-never-${Date.now().toString(36)}`
         await issueToken(page, name)
         await expect(tokenRow(page, name).getByTestId('token-never')).toBeVisible()
+
+        // the expiry editor changes nothing until something is picked
+        await tokenRow(page, name).getByRole('button', {name: 'Expiry'}).click()
+        const editor = tokenRow(page, name).getByTestId('token-expiry')
+        await expect(editor.getByRole('button', {name: 'Save'})).toBeDisabled()
+        await editor.getByLabel('New expiry', {exact: true}).selectOption('7')
+        await editor.getByRole('button', {name: 'Save'}).click()
+        await expect(tokenRow(page, name).getByTestId('token-never')).toHaveCount(0)
+        await expect(tokenRow(page, name).getByTestId('token-soon')).toBeVisible()
+        // and keeps that date when opened again and left
+        await tokenRow(page, name).getByRole('button', {name: 'Expiry'}).click()
+        await expect(editor.getByLabel('New expiry', {exact: true})).toHaveValue('date')
+        await expect(editor.getByRole('button', {name: 'Save'})).toBeDisabled()
+        await editor.getByRole('button', {name: 'Cancel'}).click()
+
         await page.goto('/admin/keys')
         await expect(page).toHaveURL(/\/admin\/tokens$/)
         await tokenRow(page, name).getByRole('button', {name: 'Revoke'}).click()

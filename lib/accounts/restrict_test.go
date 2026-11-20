@@ -59,7 +59,8 @@ func TestRestrict(t *testing.T) {
 	lim := acc.Restrict([]string{ScopeAIUse}, "", map[string]int64{"ai.requestsPerDay": 5, "import.maxBytes": 100, "own": 1})
 	assert.Equal(t, int64(5), lim.Limits["ai.requestsPerDay"])
 	assert.Equal(t, int64(10), lim.Limits["import.maxBytes"])
-	assert.Equal(t, int64(1), lim.Limits["own"])
+	_, has := lim.Limits["own"]
+	assert.False(t, has, "a limit the account lacks is not the token's")
 
 	// a union keeps each part's cut
 	both := ro.Union(acc)
