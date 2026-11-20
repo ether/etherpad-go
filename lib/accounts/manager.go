@@ -92,6 +92,7 @@ type Manager struct {
 	rolesAt time.Time
 	grants  map[string]cachedGrants
 	people  map[string]cachedPerson
+	holders map[string]cachedPerson
 	// gen counts the times the caches were forgotten, so a read that
 	// began before does not cache what it found (Person).
 	gen      uint64
@@ -117,6 +118,7 @@ func NewManager(store db.AccountMethods) *Manager {
 		now:      time.Now,
 		grants:   map[string]cachedGrants{},
 		people:   map[string]cachedPerson{},
+		holders:  map[string]cachedPerson{},
 		verified: map[string]verified{},
 		throttle: map[string]*throttle{},
 		authKey:  key,
@@ -131,6 +133,7 @@ func (m *Manager) Invalidate() {
 	m.roles = nil
 	m.grants = map[string]cachedGrants{}
 	m.people = map[string]cachedPerson{}
+	m.holders = map[string]cachedPerson{}
 	m.gen++
 	m.verified = map[string]verified{}
 }
@@ -172,8 +175,9 @@ func (m *Manager) Refs(accountID string) ([]RoleRef, error) {
 }
 
 // GrantsFor returns what the account may do: its own assignments, those of
-// the authenticated account for people and those of the anonymous account
-// (logged in, nobody has less than a visitor).
+// the authenticated account for people (not for service accounts, which
+// never log in) and those of the anonymous account (nobody has less than a
+// visitor).
 func (m *Manager) GrantsFor(accountID string) (Grants, error) {
 	m.mu.Lock()
 	if c, ok := m.grants[accountID]; ok && m.now().Sub(c.at) < CacheTTL {
@@ -185,7 +189,19 @@ func (m *Manager) GrantsFor(accountID string) (Grants, error) {
 	if err != nil {
 		return Grants{}, err
 	}
-	for _, pseudo := range pseudoAccountsOf(accountID) {
+	pseudos := pseudoAccountsOf(accountID)
+	if !isPseudo(accountID) {
+		// A service account never logs in: it is not one of everyone
+		// logged in, only what its own roles say (and what visitors may).
+		a, err := m.store.GetAccount(accountID)
+		if err != nil && !errors.Is(err, db.ErrAccountNotFound) {
+			return Grants{}, err
+		}
+		if a != nil && a.Kind == KindService {
+			pseudos = []string{AnonymousID}
+		}
+	}
+	for _, pseudo := range pseudos {
 		more, err := m.Refs(pseudo)
 		if err != nil {
 			return Grants{}, err
