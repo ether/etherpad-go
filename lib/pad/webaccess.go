@@ -399,8 +399,9 @@ func isAdminPath(path string) bool {
 // provider's endpoints check their tokens themselves.
 var loginFlowPrefixes = []string{"/oauth2/", "/.well-known/"}
 
-// loginFlowPages are the pads' login (lib/api/padlogin).
-var loginFlowPages = map[string]bool{"/auth/login": true, "/auth/callback": true, "/auth/logout": true, "/auth/me": true}
+// loginFlowPages are the pads' login (lib/api/padlogin), and the MCP
+// server (lib/api/mcp), which checks its bearer tokens itself.
+var loginFlowPages = map[string]bool{"/auth/login": true, "/auth/callback": true, "/auth/logout": true, "/auth/me": true, "/mcp": true, "/mcp/": true}
 
 // NeedsUser reports whether the access check of path looks at who is
 // logged in; health probes, public assets and the login's own pages do

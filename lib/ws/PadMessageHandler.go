@@ -1061,6 +1061,22 @@ func (p *PadMessageHandler) getChangesetInfo(retrievedPad pad2.Pad, startNum int
 }
 
 func (p *PadMessageHandler) SendChatMessageToPadClients(session *ws.Session, chatMessage ws.ChatMessageData) {
+	if err := p.AppendChat(session.PadId, chatMessage); err != nil {
+		p.Logger.Warn("Chat message not stored: ", err)
+	}
+}
+
+// ErrChatDropped: a chatNewMessage hook dropped the message.
+var ErrChatDropped = errors.New("the message was dropped by a plugin")
+
+// ErrNoPad: the pad of a chat message does not exist (any more).
+var ErrNoPad = errors.New("the pad does not exist")
+
+// AppendChat stores a chat message of padID and sends it to the pad's
+// clients on every instance, as one written in the pad. It runs the
+// chatNewMessage hooks and takes the pad's lock itself.
+func (p *PadMessageHandler) AppendChat(padID string, chatMessage ws.ChatMessageData) error {
+	session := &ws.Session{PadId: padID}
 	var chatAuthorId string
 	if chatMessage.AuthorId != nil {
 		chatAuthorId = *chatMessage.AuthorId
@@ -1072,12 +1088,28 @@ func (p *PadMessageHandler) SendChatMessageToPadClients(session *ws.Session, cha
 		PadId:    session.PadId,
 		AuthorId: chatAuthorId,
 	}
-	if hookPad, err := p.padManager.GetPad(session.PadId, nil, nil); err == nil {
-		cmCtx.Pad = hookPad
+	// The pad for the hooks, loaded only if it exists, under its read
+	// lock: GetPad would create a pad that was deleted meanwhile.
+	runlock, err := p.padManager.RLockPad(session.PadId)
+	if err != nil {
+		return err
+	}
+	exists, err := p.padManager.DoesPadExist(session.PadId)
+	if err == nil && *exists {
+		if hookPad, err := p.padManager.GetPad(session.PadId, nil, nil); err == nil {
+			cmCtx.Pad = hookPad
+		}
+	}
+	runlock()
+	if err != nil {
+		return err
+	}
+	if !*exists {
+		return ErrNoPad
 	}
 	p.hooks.ExecuteChatNewMessageHooks(cmCtx)
 	if cmCtx.Dropped() {
-		return
+		return ErrChatDropped
 	}
 	// A hook may reassign ctx.Text; guard against a plugin setting it to nil
 	// (the documented way to suppress is DropMessage()). Keep the original text.
@@ -1089,8 +1121,7 @@ func (p *PadMessageHandler) SendChatMessageToPadClients(session *ws.Session, cha
 
 	unlock, err := p.padManager.LockPad(session.PadId)
 	if err != nil {
-		p.Logger.Warn("Chat message not stored: ", err)
-		return
+		return err
 	}
 	defer unlock()
 	// An erased author's session that was still connected must not tie new
@@ -1098,19 +1129,23 @@ func (p *PadMessageHandler) SendChatMessageToPadClients(session *ws.Session, cha
 	// the author's chat also takes per pad.
 	if chatMessage.AuthorId != nil && p.authorManager.IsErased(*chatMessage.AuthorId) {
 		p.disconnectAuthorLocal(*chatMessage.AuthorId)
-		return
+		return errors.New("the author was erased")
+	}
+	// Never a chat message that brings a deleted pad back.
+	if exists, err := p.padManager.DoesPadExist(session.PadId); err != nil {
+		return err
+	} else if !*exists {
+		return ErrNoPad
 	}
 	retrievedPad, err := p.padManager.GetPad(session.PadId, nil, chatMessage.AuthorId)
 	if err != nil {
-		p.Logger.Warn("Error retrieving pad for chat message", err)
-		return
+		return fmt.Errorf("retrieving the pad: %w", err)
 	}
 	// pad.appendChatMessage() ignores the displayName property so we don't need to wait for
 	// authorManager.getAuthorName() to resolve before saving the message to the database.
 	_, err = retrievedPad.AppendChatMessage(chatMessage.AuthorId, *chatMessage.Time, chatMessage.Text)
 	if err != nil {
-		p.Logger.Warn("Error appending chat message to pad", err)
-		return
+		return fmt.Errorf("appending the message: %w", err)
 	}
 	authorName, err := p.authorManager.GetAuthorName(*chatMessage.AuthorId)
 	if err != nil {
@@ -1138,6 +1173,7 @@ func (p *PadMessageHandler) SendChatMessageToPadClients(session *ws.Session, cha
 	var marshalledMessage, _ = json.Marshal(arr)
 	p.broadcastToRoom(session.PadId, marshalledMessage, "")
 	metrics.RecordSocketEmit("CHAT_MESSAGE")
+	return nil
 }
 
 // BroadcastSystemChatToRoom sends a chat message to all clients in a pad room without saving to the database.
