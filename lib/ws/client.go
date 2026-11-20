@@ -50,6 +50,8 @@ type Client struct {
 	drain        *clientDrain
 	Handler      *PadMessageHandler
 	adminHandler *AdminMessageHandler
+	// AdminAccount is the account of an admin connection, from its token.
+	AdminAccount string
 }
 
 func (c *Client) readPumpAdmin(retrievedSettings *settings.Settings, logger *zap.SugaredLogger) {

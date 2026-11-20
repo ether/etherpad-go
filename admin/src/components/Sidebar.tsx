@@ -8,6 +8,10 @@ import {
   KeyRound,
   CloudDownload,
   Users,
+  UserCog,
+  ShieldCheck,
+  Globe,
+  ScrollText,
 } from 'lucide-react'
 import { useAdminStore } from '@/store'
 
@@ -17,6 +21,10 @@ const navItems = [
   { to: '/pads', label: 'Pads', icon: FileText },
   { to: '/authors', label: 'Authors', icon: Users },
   { to: '/broadcast', label: 'Broadcast', icon: Megaphone },
+  { to: '/accounts', label: 'Accounts', icon: UserCog },
+  { to: '/roles', label: 'Roles', icon: ShieldCheck },
+  { to: '/visitors', label: 'Visitors', icon: Globe },
+  { to: '/audit', label: 'Audit log', icon: ScrollText },
   { to: '/keys', label: 'API keys', icon: KeyRound },
   { to: '/updates', label: 'Updates', icon: CloudDownload },
   { to: '/settings', label: 'Settings', icon: Settings },

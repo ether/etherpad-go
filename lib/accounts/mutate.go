@@ -275,6 +275,24 @@ func uniqueSorted(s []string) []string {
 	return sortedKeys(set)
 }
 
+// AdminIDs returns the accounts that hold the admin role for all pads, as
+// IsAdmin decides it, loading the state once.
+func (m *Manager) AdminIDs() (map[string]bool, error) {
+	st, err := m.currentState()
+	if err != nil {
+		return nil, err
+	}
+	ids := map[string]bool{}
+	for _, as := range st.assignments {
+		if as.PadPattern == "" {
+			if _, all := closureScopes(st.roles, as.RoleID); all {
+				ids[as.AccountID] = true
+			}
+		}
+	}
+	return ids, nil
+}
+
 // IsAdmin reports whether the account holds the admin role for all pads.
 func (m *Manager) IsAdmin(accountID string) (bool, error) {
 	st, err := m.currentState()
@@ -293,9 +311,16 @@ func (m *Manager) IsAdmin(accountID string) (bool, error) {
 
 // CreateAccount creates a person's or a service account.
 func (m *Manager) CreateAccount(actor Actor, n NewAccount) (*db.Account, error) {
-	m.wmu.Lock()
-	defer m.wmu.Unlock()
-	return m.createAccount(actor, n)
+	unlock, actor, err := m.lockFor(actor)
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
+	a, err := m.createAccount(actor, n)
+	if a != nil {
+		m.changed()
+	}
+	return a, err
 }
 
 func (m *Manager) createAccount(actor Actor, n NewAccount) (*db.Account, error) {
@@ -338,8 +363,11 @@ func (m *Manager) createAccount(actor Actor, n NewAccount) (*db.Account, error) 
 // SetPassword sets a person's password; actor is the person or someone
 // with all its rights and admin:users.
 func (m *Manager) SetPassword(actor Actor, accountID, password string, mustChange bool) error {
-	m.wmu.Lock()
-	defer m.wmu.Unlock()
+	unlock, actor, err := m.lockFor(actor)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	if actor.ID != accountID && !actor.Grants.HasGlobal(ScopeAdminUsers) {
 		return ErrForbidden
 	}
@@ -370,7 +398,7 @@ func (m *Manager) SetPassword(actor Actor, accountID, password string, mustChang
 	if err := m.store.UpdateAccount(*a); err != nil {
 		return err
 	}
-	m.Invalidate()
+	m.changed()
 	return m.audit(actor, "account.password", a.ID, nil)
 }
 
@@ -378,8 +406,11 @@ func (m *Manager) SetPassword(actor Actor, accountID, password string, mustChang
 // changed at the next login, enables the account and lifts a login lock of
 // this process. It returns the password.
 func (m *Manager) ResetPassword(actor Actor, accountID string) (string, error) {
-	m.wmu.Lock()
-	defer m.wmu.Unlock()
+	unlock, actor, err := m.lockFor(actor)
+	if err != nil {
+		return "", err
+	}
+	defer unlock()
 	if !actor.Grants.HasGlobal(ScopeAdminUsers) {
 		return "", ErrForbidden
 	}
@@ -412,14 +443,17 @@ func (m *Manager) ResetPassword(actor Actor, accountID string) (string, error) {
 	m.mu.Lock()
 	delete(m.throttle, a.Username)
 	m.mu.Unlock()
-	m.Invalidate()
+	m.changed()
 	return password, m.audit(actor, "account.reset-password", a.ID, nil)
 }
 
 // SetDisabled disables or enables an account.
 func (m *Manager) SetDisabled(actor Actor, accountID string, disabled bool) error {
-	m.wmu.Lock()
-	defer m.wmu.Unlock()
+	unlock, actor, err := m.lockFor(actor)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	if !actor.Grants.HasGlobal(ScopeAdminUsers) {
 		return ErrForbidden
 	}
@@ -452,14 +486,17 @@ func (m *Manager) SetDisabled(actor Actor, accountID string, disabled bool) erro
 	if err := m.store.UpdateAccount(*a); err != nil {
 		return err
 	}
-	m.Invalidate()
+	m.changed()
 	return m.audit(actor, map[bool]string{true: "account.disable", false: "account.enable"}[disabled], a.ID, nil)
 }
 
 // DeleteAccount removes an account and its assignments.
 func (m *Manager) DeleteAccount(actor Actor, accountID string) error {
-	m.wmu.Lock()
-	defer m.wmu.Unlock()
+	unlock, actor, err := m.lockFor(actor)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	if !actor.Grants.HasGlobal(ScopeAdminUsers) {
 		return ErrForbidden
 	}
@@ -476,17 +513,27 @@ func (m *Manager) DeleteAccount(actor Actor, accountID string) error {
 	if err := keepsAnAdmin(st, st.withoutAccount(accountID)); err != nil {
 		return err
 	}
+	var details map[string]string
+	for _, a := range st.accounts {
+		if a.ID == accountID {
+			// The log keeps who it was after the account is gone.
+			details = map[string]string{"username": a.Username}
+		}
+	}
 	if err := m.store.DeleteAccount(accountID); err != nil {
 		return err
 	}
-	m.Invalidate()
-	return m.audit(actor, "account.delete", accountID, nil)
+	m.changed()
+	return m.audit(actor, "account.delete", accountID, details)
 }
 
 // SaveRole creates the role (no ID yet, or an unknown one) or changes it.
 func (m *Manager) SaveRole(actor Actor, r db.Role) (*db.Role, error) {
-	m.wmu.Lock()
-	defer m.wmu.Unlock()
+	unlock, actor, err := m.lockFor(actor)
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
 	return m.saveRole(actor, r)
 }
 
@@ -555,15 +602,18 @@ func (m *Manager) saveRole(actor Actor, r db.Role) (*db.Role, error) {
 	if err != nil {
 		return nil, err
 	}
-	m.Invalidate()
+	m.changed()
 	return &r, m.audit(actor, map[bool]string{true: "role.update", false: "role.create"}[known], r.ID,
 		map[string]any{"name": r.Name, "scopes": r.Scopes, "includes": r.Includes, "limits": r.Limits})
 }
 
 // DeleteRole removes a role that is not built in.
 func (m *Manager) DeleteRole(actor Actor, id string) error {
-	m.wmu.Lock()
-	defer m.wmu.Unlock()
+	unlock, actor, err := m.lockFor(actor)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	if !actor.Grants.HasGlobal(ScopeAdminRoles) {
 		return ErrForbidden
 	}
@@ -592,15 +642,18 @@ func (m *Manager) DeleteRole(actor Actor, id string) error {
 	if err := m.store.DeleteRole(id); err != nil {
 		return err
 	}
-	m.Invalidate()
+	m.changed()
 	return m.audit(actor, "role.delete", id, map[string]string{"name": r.Name})
 }
 
 // Assign gives an account a role for the pads matching padPattern ("" or
 // "*": all pads).
 func (m *Manager) Assign(actor Actor, accountID, roleID, padPattern string) error {
-	m.wmu.Lock()
-	defer m.wmu.Unlock()
+	unlock, actor, err := m.lockFor(actor)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	return m.assign(actor, accountID, roleID, padPattern)
 }
 
@@ -644,14 +697,17 @@ func (m *Manager) assign(actor Actor, accountID, roleID, padPattern string) erro
 	if err := m.store.AddRoleAssignment(as); err != nil {
 		return err
 	}
-	m.Invalidate()
+	m.changed()
 	return m.audit(actor, "assignment.add", accountID, map[string]string{"role": roleID, "pads": padPattern})
 }
 
 // Unassign takes a role assignment away.
 func (m *Manager) Unassign(actor Actor, accountID, roleID, padPattern string) error {
-	m.wmu.Lock()
-	defer m.wmu.Unlock()
+	unlock, actor, err := m.lockFor(actor)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	if !actor.Grants.HasGlobal(ScopeAdminUsers) {
 		return ErrForbidden
 	}
@@ -672,8 +728,105 @@ func (m *Manager) Unassign(actor Actor, accountID, roleID, padPattern string) er
 	if err := m.store.RemoveRoleAssignment(accountID, roleID, padPattern); err != nil {
 		return err
 	}
-	m.Invalidate()
+	m.changed()
 	return m.audit(actor, "assignment.remove", accountID, map[string]string{"role": roleID, "pads": padPattern})
 }
 
 var errUnknownTemplate = errors.New("unknown template")
+
+// Profile is what UpdateProfile changes; nil fields stay as they are.
+type Profile struct {
+	Username    *string
+	DisplayName *string
+	Email       *string
+}
+
+// MaxProfileLength caps the display name and e-mail.
+const MaxProfileLength = 200
+
+// UpdateProfile changes an account's username, display name or e-mail.
+// The account's person may change the display name and e-mail; a username
+// and the profile of others need admin:users and all the account's rights.
+func (m *Manager) UpdateProfile(actor Actor, accountID string, p Profile) (*db.Account, error) {
+	unlock, actor, err := m.lockFor(actor)
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
+	self := actor.ID == accountID
+	if (!self || p.Username != nil) && !actor.Grants.HasGlobal(ScopeAdminUsers) {
+		return nil, ErrForbidden
+	}
+	if isPseudo(accountID) {
+		return nil, ErrAnonymousAccount
+	}
+	st, err := m.currentState()
+	if err != nil {
+		return nil, err
+	}
+	if !m.canManage(actor, st, accountID) {
+		return nil, ErrEscalation
+	}
+	a, err := m.store.GetAccount(accountID)
+	if err != nil {
+		return nil, err
+	}
+	if a == nil {
+		return nil, db.ErrAccountNotFound
+	}
+	details := map[string]string{}
+	if p.Username != nil && *p.Username != a.Username {
+		if !validUsername(*p.Username) {
+			return nil, ErrInvalidUsername
+		}
+		details["username"] = *p.Username
+		details["previousUsername"] = a.Username
+		a.Username = *p.Username
+	}
+	if p.DisplayName != nil {
+		d := strings.TrimSpace(*p.DisplayName)
+		if d == "" {
+			d = a.Username
+		}
+		if utf8.RuneCountInString(d) > MaxProfileLength {
+			return nil, ErrInvalidProfile
+		}
+		if d != a.DisplayName {
+			details["displayName"] = d
+			a.DisplayName = d
+		}
+	}
+	if p.Email != nil {
+		e := strings.TrimSpace(*p.Email)
+		if utf8.RuneCountInString(e) > MaxProfileLength || (e != "" && !strings.Contains(e, "@")) {
+			return nil, ErrInvalidProfile
+		}
+		if e != a.Email {
+			details["email"] = e
+			a.Email = e
+		}
+	}
+	if len(details) == 0 {
+		return a, nil
+	}
+	if err := m.store.UpdateAccount(*a); err != nil {
+		return nil, err
+	}
+	m.changed()
+	return a, m.audit(actor, "account.profile", a.ID, details)
+}
+
+// ResetRole sets a built-in role back to how it was shipped.
+func (m *Manager) ResetRole(actor Actor, id string) (*db.Role, error) {
+	unlock, actor, err := m.lockFor(actor)
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
+	for _, r := range BuiltinRoles() {
+		if r.ID == id {
+			return m.saveRole(actor, r)
+		}
+	}
+	return nil, ErrNotBuiltin
+}

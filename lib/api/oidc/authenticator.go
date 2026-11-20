@@ -180,45 +180,55 @@ func (a *Authenticator) Stop() {}
 // ValidateAdminToken checks an ID token issued by this provider for the
 // admin client and reports whether it belongs to an admin.
 func (a *Authenticator) ValidateAdminToken(tokenString string, adminClient *settings.SSOClient) (bool, error) {
+	if _, err := a.AdminAccount(tokenString, adminClient); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// AdminAccount checks an admin token like ValidateAdminToken and returns
+// the id of the account it was issued to.
+func (a *Authenticator) AdminAccount(tokenString string, adminClient *settings.SSOClient) (string, error) {
+	fail := func(err error) (string, error) { return "", err }
 	token, err := jwt.ParseSigned(tokenString, []jose.SignatureAlgorithm{jose.RS256})
 	if err != nil {
-		return false, fmt.Errorf("token validation failed: %w", err)
+		return fail(fmt.Errorf("token validation failed: %w", err))
 	}
 	var claims jwt.Claims
 	var extra struct {
 		Roles []accounts.RoleRef `json:"roles"`
 	}
 	if err := token.Claims(&a.privateKey.PublicKey, &claims, &extra); err != nil {
-		return false, fmt.Errorf("token validation failed: %w", err)
+		return fail(fmt.Errorf("token validation failed: %w", err))
 	}
 	if claims.Expiry == nil {
-		return false, errors.New("missing exp claim")
+		return fail(errors.New("missing exp claim"))
 	}
 	if claims.Expiry.Time().Before(time.Now()) {
-		return false, errors.New("token expired")
+		return fail(errors.New("token expired"))
 	}
 	if len(claims.Audience) == 0 {
-		return false, errors.New("missing aud claim")
+		return fail(errors.New("missing aud claim"))
 	}
 	if !slices.Contains([]string(claims.Audience), adminClient.ClientId) {
-		return false, errors.New("invalid audience")
+		return fail(errors.New("invalid audience"))
 	}
 	if claims.Issuer != a.issuer {
-		return false, errors.New("invalid issuer")
+		return fail(errors.New("invalid issuer"))
 	}
 	// The rights come from the roles in the token; that the account is
 	// still active is checked here, so disabling it takes effect at once.
 	if a.storage.activePerson(claims.Subject) == nil {
-		return false, errors.New("the account is disabled or gone")
+		return fail(errors.New("the account is disabled or gone"))
 	}
 	g, err := a.storage.accounts.GrantsFromRefs(extra.Roles)
 	if err != nil {
-		return false, err
+		return "", err
 	}
 	if !g.IsAdmin() {
-		return false, errors.New("missing admin role")
+		return fail(errors.New("missing admin role"))
 	}
-	return true, nil
+	return claims.Subject, nil
 }
 
 // LoginHandler is the login page the provider redirects auth requests to.

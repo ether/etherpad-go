@@ -231,13 +231,26 @@ func (b *Memberlist) enqueue(to *memberlist.Node, e Event) {
 		return
 	}
 	// Revision hints are small and repeated by the periodic catch-up, so
-	// UDP is enough; everything with a payload goes over TCP.
-	reliable := len(e.Payload) > 0 || len(data) > maxBestEffort
+	// UDP is enough; everything with a payload goes over TCP, and so do the
+	// notices that take rights away (changed accounts, erased authors),
+	// which nothing repeats.
+	reliable := len(e.Payload) > 0 || len(data) > maxBestEffort || e.Kind == KindAccounts || e.Kind == KindErased
+	o := outgoing{to: to, data: data, reliable: reliable}
 	select {
-	case b.outbox <- outgoing{to: to, data: data, reliable: reliable}:
+	case b.outbox <- o:
+		return
 	default:
-		b.logger.Warnw("cluster send queue full, dropping event", "kind", e.Kind, "pad", e.Pad)
 	}
+	if e.Kind == KindAccounts || e.Kind == KindErased {
+		// Worth a short wait: otherwise the others keep the old rights
+		// until their caches expire.
+		select {
+		case b.outbox <- o:
+			return
+		case <-time.After(time.Second):
+		}
+	}
+	b.logger.Warnw("cluster send queue full, dropping event", "kind", e.Kind, "pad", e.Pad)
 }
 
 func (b *Memberlist) sendLoop() {

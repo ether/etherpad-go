@@ -57,6 +57,10 @@ func (h AdminMessageHandler) HandleMessage(message admin.EventMessage, retrieved
 		h.handleAuthorEvent(message.Event, message.Data, retrievedSettings, c)
 		return
 	}
+	if isAccountEvent(message.Event) {
+		h.handleAccountEvent(message.Event, message.Data, c)
+		return
+	}
 	if isAPIKeyEvent(message.Event) {
 		h.handleAPIKeyEvent(message.Event, message.Data, c)
 		return

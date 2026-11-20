@@ -7,8 +7,9 @@ import (
 )
 
 // ServeAdminWs handles admin websocket requests using Fiber's websocket middleware.
-func ServeAdminWs(conn *websocket.Conn, configSettings *settings.Settings, logger *zap.SugaredLogger, handler AdminMessageHandler) {
-	client := &Client{Hub: handler.hub, Conn: conn, Send: make(chan []byte, 256), adminHandler: &handler}
+// accountID is the account the admin token was issued to.
+func ServeAdminWs(conn *websocket.Conn, configSettings *settings.Settings, logger *zap.SugaredLogger, handler AdminMessageHandler, accountID string) {
+	client := &Client{Hub: handler.hub, Conn: conn, Send: make(chan []byte, 256), adminHandler: &handler, AdminAccount: accountID}
 	client.Hub.Register <- client
 	go client.writePump()
 	client.readPumpAdmin(configSettings, logger)

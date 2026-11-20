@@ -91,14 +91,17 @@ const legacyMarker = "migration.settings-users"
 //     completed on the next start;
 //   - without an admin who can log in, the bootstrap admin is created.
 func (m *Manager) EnsureDefaults(cfg SeedConfig, logger *zap.SugaredLogger) error {
-	m.wmu.Lock()
-	defer m.wmu.Unlock()
+	unlock, err := m.lockWrites()
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	for _, r := range BuiltinRoles() {
 		if err := ignoreConflict(m.store.CreateRole(r)); err != nil {
 			return err
 		}
 	}
-	m.Invalidate()
+	m.changed()
 
 	createdAnon, err := m.ensurePseudo(AnonymousID, "Visitors (not logged in)")
 	if err != nil {
@@ -211,7 +214,7 @@ func (m *Manager) importLegacy(users map[string]LegacyUser, logger *zap.SugaredL
 			})); err != nil {
 				return err
 			}
-			m.Invalidate()
+			m.changed()
 		}
 		a, err := m.store.GetAccountByUsername(name)
 		if err != nil {
@@ -314,7 +317,7 @@ func (m *Manager) ensureAdmin(cfg SeedConfig, logger *zap.SugaredLogger) error {
 		if err := m.store.UpdateAccount(*a); err != nil {
 			return err
 		}
-		m.Invalidate()
+		m.changed()
 	case a.MustChangePassword && CheckPassword(a.PasswordHash, cfg.BootstrapPassword):
 		// The bootstrap admin of an earlier start that stopped before it
 		// got its role: finish it.
@@ -337,8 +340,11 @@ func (m *Manager) ensureAdmin(cfg SeedConfig, logger *zap.SugaredLogger) error {
 // accounts with those of a template: open lets visitors edit, read lets
 // them read, closed lets only logged-in people in (and lets them edit).
 func (m *Manager) ApplyTemplate(actor Actor, t Template) error {
-	m.wmu.Lock()
-	defer m.wmu.Unlock()
+	unlock, actor, err := m.lockFor(actor)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	if !actor.Grants.HasGlobal(ScopeAdminUsers) {
 		return ErrForbidden
 	}
@@ -372,7 +378,7 @@ func (m *Manager) ApplyTemplate(actor Actor, t Template) error {
 			}
 		}
 	}
-	m.Invalidate()
+	m.changed()
 	if err := m.assign(actor, target, role, ""); err != nil {
 		return err
 	}
