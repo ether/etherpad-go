@@ -17,6 +17,7 @@ import (
 
 	"github.com/ether/etherpad-go/lib"
 	api2 "github.com/ether/etherpad-go/lib/api"
+	"github.com/ether/etherpad-go/lib/api/padlogin"
 	"github.com/ether/etherpad-go/lib/author"
 	"github.com/ether/etherpad-go/lib/hooks"
 	"github.com/ether/etherpad-go/lib/hooks/events"
@@ -80,9 +81,14 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 		Level: compress.LevelBestSpeed,
 	}))
 
+	// A person logged in on the pads is the request's user before the
+	// access check decides.
+	padLogin := padlogin.New(dataStore, nil, &settings, setupLogger)
+	app.Use(padLogin.Middleware())
 	app.Use(func(c fiber.Ctx) error {
 		return pad.CheckAccessWithHooks(c, setupLogger, &settings, readOnlyManager, &retrievedHooks)
 	})
+	padLogin.Register(app)
 
 	padManager := pad.NewManager(dataStore, &retrievedHooks)
 	padManager.SetLowerCasePadIds(func() bool { return settings.LowerCasePadIDs })
@@ -188,6 +194,12 @@ func InitServer(setupLogger *zap.SugaredLogger, uiAssets embed.FS, pluginAssets 
 		RetentionLeader:   retentionLeader,
 		Lifecycle:         lifecycleState,
 	})
+	padLogin.SetAuthenticator(authenticator)
+	if padLogin.Available() {
+		pad.SetLoginPage(padlogin.LoginURL)
+	} else {
+		setupLogger.Info("Logging in on pads is off: no SSO client of type \"user\" with the authorization_code grant is configured")
+	}
 
 	// Pre-upgrade data is stored in a sync.Map keyed by a unique connection token,
 	// because gofiber/contrib/v3/websocket does not propagate Locals from the

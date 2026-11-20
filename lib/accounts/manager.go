@@ -91,6 +91,7 @@ type Manager struct {
 	roles    map[string]db.Role
 	rolesAt  time.Time
 	grants   map[string]cachedGrants
+	people   map[string]cachedPerson
 	verified map[string]verified
 	throttle map[string]*throttle
 	authKey  []byte
@@ -112,6 +113,7 @@ func NewManager(store db.AccountMethods) *Manager {
 		store:    store,
 		now:      time.Now,
 		grants:   map[string]cachedGrants{},
+		people:   map[string]cachedPerson{},
 		verified: map[string]verified{},
 		throttle: map[string]*throttle{},
 		authKey:  key,
@@ -125,6 +127,7 @@ func (m *Manager) Invalidate() {
 	defer m.mu.Unlock()
 	m.roles = nil
 	m.grants = map[string]cachedGrants{}
+	m.people = map[string]cachedPerson{}
 	m.verified = map[string]verified{}
 }
 

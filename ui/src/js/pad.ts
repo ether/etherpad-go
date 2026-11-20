@@ -51,6 +51,7 @@ import {createPadSettings, creatorDefaults, myViewOverrides} from './pad_setting
 import {createPadDeletion} from './pad_deletion';
 import {getHomeUrl} from './getHomeUrl';
 import {maybeShowOutdatedNotice} from './pad_outdated_notice';
+import {initAccountMenu} from './account_menu';
 
 const showPadRetentionNotice = (info: any) => {
     if (!info) return;
@@ -684,6 +685,17 @@ const pad = {
                 storage: () => { try { return window.localStorage; } catch (_e) { return null; } },
             });
             pad.padDeletion.init();
+
+            void initAccountMenu({
+                href: () => window.location.href,
+                fetch: (url) => fetch(url, {credentials: 'same-origin'}),
+                t: (key, fallback) => {
+                    const text = html10n.get(key);
+                    return text && text !== key ? text : fallback;
+                },
+                toolbar: () => document.querySelector('#editbar ul.menu_right'),
+                document,
+            });
 
             void maybeShowOutdatedNotice({
                 padId: () => window.clientVars?.padId || null,

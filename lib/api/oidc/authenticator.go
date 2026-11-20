@@ -90,8 +90,9 @@ func newAuthenticator(retrievedSettings *settings.Settings, persistence db.DataS
 	// State of the former fosite provider; its tokens are no longer valid.
 	_ = persistence.DeleteOIDCStorageValue(legacyStateStorageKey)
 
-	storage := newStorage(persistence, clients, acc, privateKey)
 	issuer := issuerOf(retrievedSettings)
+	allowPadCallback(clients, retrievedSettings, issuer)
+	storage := newStorage(persistence, clients, acc, privateKey)
 
 	config := &op.Config{
 		CryptoKey:                cryptoKey,

@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"sync/atomic"
 	"time"
 	"unicode/utf8"
 
@@ -73,7 +74,7 @@ func CheckAccess(ctx fiber.Ctx, logger *zap.SugaredLogger, retrievedSettings *se
 func CheckAccessWithHooks(ctx fiber.Ctx, logger *zap.SugaredLogger, retrievedSettings *settings.Settings, readOnlyManager *ReadOnlyManager, hookSystem *hooks.Hook) error {
 	// Liveness and readiness probes carry no data and must work for the
 	// orchestrator even when the pads require a login.
-	if p := ctx.Path(); p == "/health" || p == "/health/live" || p == "/health/ready" || isPublicAsset(p) {
+	if p := ctx.Path(); p == "/health" || p == "/health/live" || p == "/health/ready" || isPublicAsset(p) || isLoginFlow(p) {
 		return ctx.Next()
 	}
 	var requireAdmin = isAdminPath(ctx.Path())
@@ -209,6 +210,23 @@ func CheckAccessWithHooks(ctx fiber.Ctx, logger *zap.SugaredLogger, retrievedSet
 		webAccessCtx.Password = &password
 	}
 
+	sendAuthzFailure := func() error {
+		if hookSystem != nil {
+			failCtx := &events.AuthzFailureContext{Path: ctx.Path(), RequireAdmin: requireAdmin}
+			hookSystem.ExecuteAuthzFailureHooks(failCtx)
+			if failCtx.Handled() {
+				for k, v := range failCtx.Headers() {
+					ctx.Set(k, v)
+				}
+				return ctx.Status(failCtx.Status()).SendString(failCtx.Body())
+			}
+			if handled, err := sendAuthFailure(ctx, hookSystem, requireAdmin, false); handled {
+				return err
+			}
+		}
+		return ctx.Status(403).SendString("Forbidden")
+	}
+
 	// sendAuthnFailure fires the authnFailure hook then falls back to the
 	// default 401 response. It REPLACES all inline 401 logic below.
 	sendAuthnFailure := func() error {
@@ -227,11 +245,24 @@ func CheckAccessWithHooks(ctx fiber.Ctx, logger *zap.SugaredLogger, retrievedSet
 			}
 		}
 		if !requireAdmin {
+			// A browser that opens a pad goes to the login page instead
+			// of the browser's password dialog; tools keep basic auth.
+			if !httpBasicAuth {
+				if target, ok := loginRedirectFor(ctx); ok {
+					return ctx.Redirect().Status(fiber.StatusFound).To(target)
+				}
+			}
 			ctx.Set("WWW-Authenticate", `Basic realm="Restricted area"`)
 			return ctx.SendStatus(fiber.StatusUnauthorized)
 		}
 		time.Sleep(1 * time.Second)
 		return ctx.Status(401).SendString("Authentication Required")
+	}
+
+	// Already logged in (the pads' login session) and still not allowed:
+	// logging in again would not help, and would loop.
+	if ok && user != nil && !httpBasicAuth {
+		return sendAuthzFailure()
 	}
 
 	pluginAuthenticated := false
@@ -298,23 +329,6 @@ func CheckAccessWithHooks(ctx fiber.Ctx, logger *zap.SugaredLogger, retrievedSet
 	// a login page).
 	// ///////////////////////////////////////////////////////////////////////////////////////////////
 
-	sendAuthzFailure := func() error {
-		if hookSystem != nil {
-			failCtx := &events.AuthzFailureContext{Path: ctx.Path(), RequireAdmin: requireAdmin}
-			hookSystem.ExecuteAuthzFailureHooks(failCtx)
-			if failCtx.Handled() {
-				for k, v := range failCtx.Headers() {
-					ctx.Set(k, v)
-				}
-				return ctx.Status(failCtx.Status()).SendString(failCtx.Body())
-			}
-			if handled, err := sendAuthFailure(ctx, hookSystem, requireAdmin, false); handled {
-				return err
-			}
-		}
-		return ctx.Status(403).SendString("Forbidden")
-	}
-
 	var auth = authorize()
 	if auth && !requireAdmin {
 		return ctx.Next()
@@ -374,6 +388,64 @@ func isAdminPath(path string) bool {
 		path = strings.ReplaceAll(path, "//", "/")
 	}
 	return strings.HasPrefix(strings.ToLower(path), "/admin-auth")
+}
+
+// loginFlowPrefixes are the login's own pages (the OpenID Connect
+// provider and the pads' login): they hold no pad data and must be
+// reachable to log in at all, also when visitors may do nothing. The
+// provider's endpoints check their tokens themselves.
+var loginFlowPrefixes = []string{"/oauth2/", "/.well-known/"}
+
+// loginFlowPages are the pads' login (lib/api/padlogin).
+var loginFlowPages = map[string]bool{"/auth/login": true, "/auth/callback": true, "/auth/logout": true, "/auth/me": true}
+
+func isLoginFlow(path string) bool {
+	if strings.Contains(path, "..") || strings.Contains(path, "//") {
+		return false
+	}
+	if loginFlowPages[path] {
+		return true
+	}
+	for _, prefix := range loginFlowPrefixes {
+		if strings.HasPrefix(path, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+// loginPage builds the URL of the pads' login page that comes back to
+// redirect; nil while nobody can log in on the pads.
+var loginPage atomic.Pointer[func(redirect string) string]
+
+// SetLoginPage sets the pads' login page (lib/api/padlogin); nil turns
+// the redirect to it off.
+func SetLoginPage(fn func(redirect string) string) {
+	if fn == nil {
+		loginPage.Store(nil)
+		return
+	}
+	loginPage.Store(&fn)
+}
+
+// loginRedirectFor returns where a browser that may not open a page goes
+// to log in: only for pages people open (a pad, a sheet, its history),
+// read with GET and asking for HTML.
+func loginRedirectFor(ctx fiber.Ctx) (string, bool) {
+	fn := loginPage.Load()
+	if fn == nil || ctx.Method() != fiber.MethodGet || extractEncodedPadId(ctx.Path()) == "" {
+		return "", false
+	}
+	if !strings.Contains(ctx.Get(fiber.HeaderAccept), fiber.MIMETextHTML) {
+		return "", false
+	}
+	// The path as sent (fasthttp's request URI is normalized and would turn
+	// "team%2Fnotes" into another pad), with its query.
+	back := ctx.Path()
+	if q := ctx.Request().URI().QueryString(); len(q) > 0 {
+		back += "?" + string(q)
+	}
+	return (*fn)(back), true
 }
 
 // publicAssetPrefixes are served without authentication, like

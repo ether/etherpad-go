@@ -192,6 +192,22 @@ func (s *SecurityManager) resolveAuthorId(token *string, userSettings *webaccess
 			return idCtx.AuthorId(), nil
 		}
 	}
+	// A person logged in with an account writes as the account's author,
+	// in every browser; the token's author stays that browser's.
+	if userSettings != nil && userSettings.AccountID != "" {
+		authorID, err := AccountsOf(s.ReadOnlyManager.Store, s.settings).AuthorOf(userSettings.AccountID, func(name string) (string, error) {
+			created, err := s.AuthorManager.CreateAuthor(&name)
+			if err != nil {
+				return "", err
+			}
+			return created.Id, nil
+		})
+		if err == nil && !s.AuthorManager.IsErased(authorID) {
+			return authorID, nil
+		}
+		// An erased author (GDPR) is not brought back; the browser's
+		// author is used instead.
+	}
 	if tok == "" {
 		tok = utils.GenerateAuthorToken()
 	}
