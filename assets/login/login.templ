@@ -76,3 +76,81 @@ templ ChangePassword(client settings.SSOClient, username string, authParams url.
     </body>
     </html>
 }
+
+// ConsentScope is a right an MCP client asks for, as the consent page
+// shows it.
+type ConsentScope struct {
+	Name        string
+	Description string
+	Checked     bool
+}
+
+// Consent asks a person whether an MCP client (an AI client such as a
+// claude.ai connector) may act for them, with which rights and on which
+// pads.
+templ Consent(clientName, redirectHost, person string, scopes []ConsentScope, pads string, authParams url.Values, errorMessage *string) {
+    <html lang="de">
+    <head>
+        <title>Zugriff erlauben – Etherpad</title>
+        <link rel="stylesheet" href="/css/login/index.css">
+        <style>
+            .consent-app { font-weight: 600; }
+            .consent-note { font-size: 0.85em; opacity: 0.8; margin: 0.2em 0 1em; }
+            .consent-scopes { border: 0; margin: 0 0 1em; padding: 0; }
+            .consent-scopes label { display: flex; gap: 0.5em; align-items: baseline; margin: 0.4em 0; font-weight: normal; }
+            .consent-scopes small { display: block; opacity: 0.75; }
+            .consent-actions { display: flex; gap: 0.75em; margin-top: 1em; }
+            .consent-actions .login-button { flex: 1; margin: 0; }
+            .consent-deny { background: transparent; color: inherit; border: 1px solid currentColor; }
+        </style>
+    </head>
+    <body>
+        <div class="login-background login-page">
+            <div class="login-box login-form">
+                <h1 class="login-title">Zugriff erlauben?</h1>
+                <form class="login-inner-box" method="post">
+                    <p>
+                        <span class="consent-app">
+                            if clientName != "" {
+                                {clientName}
+                            } else {
+                                Eine Anwendung
+                            }
+                        </span>
+                        möchte als <strong>{person}</strong> auf Etherpad zugreifen.
+                    </p>
+                    <p class="consent-note">
+                        Sie hat sich selbst angemeldet; ihr Name ist nicht geprüft. Nach der Zustimmung geht es zurück zu <strong>{redirectHost}</strong>.
+                        Sie darf nie mehr als du selbst, und du kannst den Zugriff jederzeit unter „Meine Tokens“ beenden.
+                    </p>
+                    <fieldset class="consent-scopes">
+                        <legend>Erlauben:</legend>
+                        for _, s := range scopes {
+                            <label>
+                                <input type="checkbox" name="scope" value={s.Name} checked?={s.Checked}/>
+                                <span>{s.Name}<small>{s.Description}</small></span>
+                            </label>
+                        }
+                    </fieldset>
+                    <label for="pads">Nur diese Pads (leer: alle, die du nutzen darfst)</label>
+                    <input id="pads" class="login-textinput input-control" type="text" name="pads" value={pads} placeholder="z. B. notizen-*" autocomplete="off"/>
+                    <div class="consent-actions">
+                        <button class="login-button consent-deny" type="submit" name="decision" value="deny">Ablehnen</button>
+                        <button class="login-button" type="submit" name="decision" value="allow">Erlauben</button>
+                    </div>
+                    <ul hidden="hidden">
+                    for key, values := range authParams {
+                        for _, value := range values {
+                            <li><input name={key} type="hidden" value={value}></li>
+                        }
+                    }
+                    </ul>
+                    if errorMessage != nil {
+                        <div class="login-error-message">{*errorMessage}</div>
+                    }
+                </form>
+            </div>
+        </div>
+    </body>
+    </html>
+}

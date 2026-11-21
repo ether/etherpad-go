@@ -161,8 +161,12 @@ func (a *Authenticator) discoveryPaths() []string {
 // Handler serves the OpenID Connect endpoints.
 func (a *Authenticator) Handler() http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-		if req.URL.Path != discoveryPath && strings.HasSuffix(req.URL.Path, discoveryPath) {
-			req.URL.Path = discoveryPath
+		if strings.HasPrefix(req.URL.Path, asMetadataPath) || strings.HasSuffix(req.URL.Path, discoveryPath) {
+			a.serveMetadata(rw, req)
+			return
+		}
+		if req.URL.Path == authPath && !a.checkMCPAuthRequest(rw, req) {
+			return
 		}
 		a.provider.ServeHTTP(rw, req)
 	})
@@ -170,8 +174,12 @@ func (a *Authenticator) Handler() http.Handler {
 
 // Paths lists every path Handler serves.
 func (a *Authenticator) Paths() []string {
-	return append(a.discoveryPaths(), jwksPath, authPath, callbackPath, tokenPath,
-		introspectPath, revokePath, userinfoPath, logoutPath)
+	return append(append(a.discoveryPaths(), a.asMetadataPaths()...), a.endpointPaths()...)
+}
+
+// endpointPaths are the provider's own endpoints.
+func (a *Authenticator) endpointPaths() []string {
+	return []string{jwksPath, authPath, callbackPath, tokenPath, introspectPath, revokePath, userinfoPath, logoutPath}
 }
 
 // Stop is kept for the server's shutdown sequence; nothing runs in the
@@ -251,6 +259,11 @@ func (a *Authenticator) LoginHandler(rw http.ResponseWriter, req *http.Request) 
 		a.renderLogin(rw, req, ar, false, nil)
 		return
 	}
+	// The consent of a person who logged in for an MCP client.
+	if req.PostForm.Get("consent_token") != "" {
+		a.consent(rw, req, ar)
+		return
+	}
 
 	if ar.IsDone {
 		// Logged in already: the request takes no further credentials or
@@ -284,7 +297,7 @@ func (a *Authenticator) LoginHandler(rw http.ResponseWriter, req *http.Request) 
 		a.renderChangePassword(rw, req, ar, account.Username, token, nil)
 		return
 	}
-	a.complete(rw, req, ar, account.ID)
+	a.finish(rw, req, ar, account.ID)
 }
 
 func (a *Authenticator) complete(rw http.ResponseWriter, req *http.Request, ar *authRequest, accountID string) {
@@ -326,12 +339,12 @@ func (a *Authenticator) changePassword(rw http.ResponseWriter, req *http.Request
 		a.renderChangePassword(rw, req, ar, account.Username, token, &msg)
 		return
 	}
-	a.complete(rw, req, ar, account.ID)
+	a.finish(rw, req, ar, account.ID)
 }
 
 func (a *Authenticator) renderChangePassword(rw http.ResponseWriter, req *http.Request, ar *authRequest, username, token string, errorMessage *string) {
 	var client settings.SSOClient
-	if c, ok := a.storage.clients[ar.ClientID]; ok {
+	if c, ok := a.storage.client(ar.ClientID); ok {
 		client = c.settings
 	}
 	params := url.Values{"authRequestID": {ar.ID}, "change_token": {token}}
@@ -343,7 +356,7 @@ func (a *Authenticator) renderChangePassword(rw http.ResponseWriter, req *http.R
 
 func (a *Authenticator) renderLogin(rw http.ResponseWriter, req *http.Request, ar *authRequest, resetPKCE bool, errorMessage *string) {
 	var client settings.SSOClient
-	if c, ok := a.storage.clients[ar.ClientID]; ok {
+	if c, ok := a.storage.client(ar.ClientID); ok {
 		client = c.settings
 	}
 	params := url.Values{"authRequestID": {ar.ID}}

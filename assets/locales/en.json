@@ -302,5 +302,10 @@
   "pad.tokens.days": "{{n}} days",
   "pad.tokens.create": "Create token",
   "pad.tokens.needName": "Give the token a name.",
-  "pad.tokens.needScope": "Choose at least one right."
+  "pad.tokens.needScope": "Choose at least one right.",
+  "pad.tokens.apps": "Connected apps",
+  "pad.tokens.unnamedApp": "An app",
+  "pad.tokens.connected": "Connected",
+  "pad.tokens.disconnect": "Disconnect",
+  "pad.tokens.disconnectSure": "Really disconnect?"
 }

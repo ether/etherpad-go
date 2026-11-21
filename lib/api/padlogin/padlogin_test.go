@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ether/etherpad-go/lib/accounts"
 	"github.com/ether/etherpad-go/lib/api/oidc"
@@ -29,6 +30,7 @@ const issuer = "http://pads.test"
 
 type env struct {
 	app      *fiber.App
+	store    db.DataStore
 	accounts *accounts.Manager
 	cfg      *settings.Settings
 	// seen is the request user the last pad page saw.
@@ -46,7 +48,7 @@ func newEnv(t *testing.T) *env {
 	}
 	store := db.NewMemoryDataStore()
 	logger := zap.NewNop().Sugar()
-	e := &env{cfg: cfg, accounts: pad.AccountsOf(store, cfg)}
+	e := &env{cfg: cfg, accounts: pad.AccountsOf(store, cfg), store: store}
 	// Closed: visitors may do nothing.
 	require.NoError(t, e.accounts.ApplyTemplate(accounts.System, accounts.TemplateClosed))
 
@@ -100,7 +102,7 @@ func (b *browser) do(t *testing.T, method, target string, form url.Values, heade
 	for k, v := range b.cookies {
 		req.AddCookie(&http.Cookie{Name: k, Value: v})
 	}
-	resp, err := b.e.app.Test(req)
+	resp, err := b.e.app.Test(req, slowRunners)
 	require.NoError(t, err)
 	for _, c := range resp.Cookies() {
 		if c.MaxAge < 0 || c.Value == "" {
@@ -324,3 +326,7 @@ func TestLoginOffWithoutUserClient(t *testing.T) {
 }
 
 func jsonDecode(r io.Reader, v any) error { return json.NewDecoder(r).Decode(v) }
+
+// slowRunners: logins hash passwords (bcrypt), which takes longer than
+// fiber's default second on slow CI machines (arm64).
+var slowRunners = fiber.TestConfig{Timeout: 15 * time.Second}

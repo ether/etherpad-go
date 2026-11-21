@@ -41,7 +41,7 @@ func (b *browser) call(t *testing.T, method, target string, body any, headers ma
 	for k, v := range b.cookies {
 		req.AddCookie(&http.Cookie{Name: k, Value: v})
 	}
-	resp, err := b.e.app.Test(req)
+	resp, err := b.e.app.Test(req, slowRunners)
 	require.NoError(t, err)
 	var out padlogin.OwnTokens
 	if resp.StatusCode == http.StatusOK {
@@ -165,4 +165,43 @@ func TestOwnTokens(t *testing.T) {
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 	}
 	assert.Empty(t, st.Tokens)
+}
+
+// Apps a person connected with OAuth (MCP) are listed and can be
+// disconnected, by that person only.
+func TestOwnApps(t *testing.T) {
+	e := newEnv(t)
+	role, err := e.accounts.SaveRole(accounts.System, db.Role{Name: "token-user",
+		Scopes: []string{accounts.ScopeTokensOwn, accounts.ScopePadRead}})
+	require.NoError(t, err)
+	people := map[string]string{}
+	for _, name := range []string{"anna", "bob"} {
+		a, err := e.accounts.CreateAccount(accounts.System, accounts.NewAccount{Username: name, Kind: accounts.KindHuman, Password: name + "-password"})
+		require.NoError(t, err)
+		require.NoError(t, e.accounts.Assign(accounts.System, a.ID, role.ID, ""))
+		people[name] = a.ID
+	}
+	grant := `[{"id":"g1","clientId":"mcp-1","clientName":"Claude","scopes":["pad:read"],"padPattern":"team-*","createdAt":"2026-11-21T10:00:00Z"}]`
+	require.NoError(t, e.store.SetOIDCStorageValue("mcp-grants:"+people["anna"], grant))
+
+	a := e.browser()
+	a.logIn(t, "/p/x", "anna", "anna-password")
+	resp, st := a.call(t, http.MethodGet, padlogin.TokensPath, nil, nil)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Len(t, st.Apps, 1)
+	assert.Equal(t, "Claude", st.Apps[0].Name)
+	assert.Equal(t, "team-*", st.Apps[0].Pads)
+
+	b := e.browser()
+	b.logIn(t, "/p/x", "bob", "bob-password")
+	resp, _ = b.call(t, http.MethodPost, padlogin.TokensPath+"/apps/g1/revoke", map[string]any{}, nil)
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode, "not bob's")
+	resp, _ = a.call(t, http.MethodPost, padlogin.TokensPath+"/apps/g1/revoke", map[string]any{}, map[string]string{"Origin": "http://evil.test"})
+	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+
+	resp, st = a.call(t, http.MethodPost, padlogin.TokensPath+"/apps/g1/revoke", map[string]any{}, nil)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Empty(t, st.Apps)
+	resp, _ = a.call(t, http.MethodPost, padlogin.TokensPath+"/apps/g1/revoke", map[string]any{}, nil)
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 }

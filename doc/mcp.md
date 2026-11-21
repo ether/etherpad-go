@@ -19,8 +19,35 @@ claude mcp add --transport http etherpad https://pads.example.com/mcp \
   --header "Authorization: Bearer ep_…"
 ```
 
-OAuth, so that clients such as claude.ai connectors can connect without a pasted token, comes in a
-later release.
+### With OAuth (claude.ai connectors and other clients)
+
+Clients that speak MCP's authorization (OAuth 2.1) need no pasted token. Give them the address
+`https://pads.example.com/mcp`, and they find the rest themselves:
+
+1. `/mcp` answers `401` and points to the protected resource metadata (RFC 9728) at
+   `/.well-known/oauth-protected-resource/mcp`. That metadata names Etherpad's own OpenID Connect
+   provider (the `sso.issuer`) as the authorization server.
+2. The client reads `/.well-known/oauth-authorization-server` (RFC 8414) and registers itself at
+   `/oauth2/register` (dynamic client registration, RFC 7591). It gets a public client and must
+   use PKCE with S256. Its redirect URIs must be `https`, or `http` to localhost. An address may
+   register 10 clients an hour (an instance 200), and a registration nobody connects with within
+   a day is removed.
+3. The person logs in and sees a consent page with the app's name, where it sends them back to,
+   the rights it asked for and a field for the pads. They can untick rights and limit the pads
+   (`notes-*`), but never add rights the client did not ask for. A client can never get more
+   than the person's own rights.
+4. The client gets an access token (15 minutes) and a refresh token. At `/mcp` the token works
+   with the person's rights of the moment, limited to what they allowed.
+
+The person sees connected apps under *My tokens* in the pad's profile menu. "Disconnect" stops
+the app at once, its refresh token included. Connecting an app needs the scope `tokens:own`, the
+same as issuing a token; when it is taken away, the person's apps stop as well. Allowing the same
+app again replaces the earlier consent. Connecting and disconnecting are written to the audit
+log (`app.connect`, `app.disconnect`).
+
+The issuer of `sso` must be the address people reach Etherpad at (or set `publicURL`). Turn
+self-registering clients off with `"mcp": {"oauth": false}` (or `ETHERPAD_MCP_OAUTH=false`);
+tokens pasted by hand keep working.
 
 ## What a token may do
 

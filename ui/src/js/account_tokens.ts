@@ -21,7 +21,16 @@ export interface OwnScope {
   padScoped: boolean
 }
 
+export interface OwnApp {
+  id: string
+  name: string
+  scopes: string[]
+  pads: string
+  createdAt: number
+}
+
 export interface OwnTokens {
+  apps?: OwnApp[]
   tokens: OwnToken[]
   scopes: OwnScope[]
   requireExpiry: boolean
@@ -112,9 +121,10 @@ export const openTokensDialog = async (d: TokensDeps): Promise<HTMLDialogElement
     t('pad.tokens.intro', 'Tokens let programs use the HTTP API in your name, with at most your rights.')))
   const error = el(doc, 'p', {class: 'account-tokens-error', role: 'alert', 'data-testid': 'tokens-error', hidden: ''})
   const shown = el(doc, 'div', {class: 'account-tokens-key', 'data-testid': 'tokens-key', hidden: ''})
+  const apps = el(doc, 'div', {class: 'account-tokens-apps', 'data-testid': 'tokens-apps', hidden: ''})
   const list = el(doc, 'div', {class: 'account-tokens-list', 'data-testid': 'tokens-list'})
   const form = el(doc, 'form', {class: 'account-tokens-form', 'data-testid': 'tokens-form'})
-  dialog.append(error, shown, list, form)
+  dialog.append(error, shown, apps, list, form)
   dialog.addEventListener('close', () => dialog.remove())
   doc.body.appendChild(dialog)
   if (typeof dialog.showModal === 'function') dialog.showModal()
@@ -126,7 +136,7 @@ export const openTokensDialog = async (d: TokensDeps): Promise<HTMLDialogElement
   let busy = false
   const setBusy = (b: boolean) => {
     busy = b
-    for (const c of dialog.querySelectorAll<HTMLButtonElement | HTMLSelectElement>('.account-tokens-list button, .account-tokens-list select, .account-tokens-form button')) {
+    for (const c of dialog.querySelectorAll<HTMLButtonElement | HTMLSelectElement>('.account-tokens-apps button, .account-tokens-list button, .account-tokens-list select, .account-tokens-form button')) {
       c.disabled = b
     }
   }
@@ -186,7 +196,46 @@ export const openTokensDialog = async (d: TokensDeps): Promise<HTMLDialogElement
     input.select()
   }
 
+  // Apps (AI clients) the person connected with a login and consent.
+  const renderApps = (st: OwnTokens) => {
+    apps.replaceChildren()
+    const items = st.apps ?? []
+    apps.hidden = items.length === 0
+    if (items.length === 0) return
+    apps.appendChild(el(doc, 'h3', {}, t('pad.tokens.apps', 'Connected apps')))
+    for (const app of items) {
+      const item = el(doc, 'div', {class: 'account-token', 'data-testid': 'app', 'data-app-id': app.id})
+      const title = el(doc, 'div', {class: 'account-token-title'})
+      title.appendChild(el(doc, 'strong', {}, app.name || t('pad.tokens.unnamedApp', 'An app')))
+      item.appendChild(title)
+      const dl = el(doc, 'dl')
+      const facts: [string, string][] = [
+        [t('pad.tokens.scopes', 'Rights'), app.scopes.join(', ')],
+        [t('pad.tokens.pads', 'Pads'), app.pads || t('pad.tokens.allPads', 'all pads')],
+        [t('pad.tokens.connected', 'Connected'), formatDate(app.createdAt, '')],
+      ]
+      for (const [k, v] of facts) dl.append(el(doc, 'dt', {}, k), el(doc, 'dd', {}, v))
+      item.appendChild(dl)
+      const actions = el(doc, 'div', {class: 'account-token-actions'})
+      const revoke = el(doc, 'button', {type: 'button', class: 'account-token-revoke', 'data-testid': 'app-revoke'},
+        t('pad.tokens.disconnect', 'Disconnect'))
+      let armed = false
+      revoke.addEventListener('click', () => {
+        if (!armed) {
+          armed = true
+          revoke.textContent = t('pad.tokens.disconnectSure', 'Really disconnect?')
+          return
+        }
+        void call(tokensUrl(d.href(), 'apps', app.id, 'revoke'), {})
+      })
+      actions.appendChild(revoke)
+      item.appendChild(actions)
+      apps.appendChild(item)
+    }
+  }
+
   const show = (st: OwnTokens) => {
+    renderApps(st)
     if (st.key) showKey(st.key, st.keyName || '', st.keyId || '')
     else if (shownId && !st.tokens.some((tk) => tk.id === shownId)) {
       // Its token was revoked: the key is of no use any more.

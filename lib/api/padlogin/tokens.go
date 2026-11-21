@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ether/etherpad-go/lib/accounts"
+	"github.com/ether/etherpad-go/lib/api/oidc"
 	"github.com/ether/etherpad-go/lib/db"
 	"github.com/ether/etherpad-go/lib/tokens"
 	"github.com/gofiber/fiber/v3"
@@ -53,6 +54,17 @@ type OwnTokens struct {
 	// Reload: the change was made, but the list could not be read; the key
 	// is still here, the dialog reads the list again.
 	Reload bool `json:"reload,omitempty"`
+	// Apps are the AI clients the person allowed with OAuth (MCP).
+	Apps []OwnApp `json:"apps"`
+}
+
+// OwnApp is an MCP client a person allowed (their consent, a grant).
+type OwnApp struct {
+	ID        string   `json:"id"`
+	Name      string   `json:"name"`
+	Scopes    []string `json:"scopes"`
+	Pads      string   `json:"pads"`
+	CreatedAt int64    `json:"createdAt"`
 }
 
 // maxDays bounds lifetimes and grace periods sent in days: 100 years, far
@@ -85,6 +97,7 @@ func (l *Login) registerTokens(app fiber.Router) {
 	app.Post(TokensPath, l.issueOwnToken)
 	app.Post(TokensPath+"/:id/rotate", l.rotateOwnToken)
 	app.Post(TokensPath+"/:id/revoke", l.revokeOwnToken)
+	app.Post(TokensPath+"/apps/:id/revoke", l.revokeOwnApp)
 }
 
 // owner is the logged-in person of the request as a token actor, or an
@@ -172,7 +185,38 @@ func (l *Login) state(actor accounts.Actor) (OwnTokens, error) {
 	}
 	p := l.settings.Tokens.Personal
 	out.RequireExpiry, out.MaxLifetimeDays = p.RequireExpiry, p.MaxLifetimeDays
+	out.Apps = []OwnApp{}
+	if l.authn != nil {
+		grants, err := l.authn.MCPGrants(actor.ID)
+		if err != nil {
+			return out, err
+		}
+		for _, g := range grants {
+			out.Apps = append(out.Apps, OwnApp{ID: g.ID, Name: g.ClientName, Scopes: g.Scopes, Pads: g.PadPattern,
+				CreatedAt: g.CreatedAt.UnixMilli()})
+		}
+	}
 	return out, nil
+}
+
+// revokeOwnApp ends a person's consent for an MCP client: its tokens stop
+// at once.
+func (l *Login) revokeOwnApp(c fiber.Ctx) error {
+	actor, ok, err := l.owner(c, true)
+	if !ok {
+		return err
+	}
+	if l.authn == nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": tokens.ErrTokenNotFound.Error()})
+	}
+	if err := l.authn.RevokeMCPGrant(actor, actor.ID, c.Params("id")); err != nil {
+		if errors.Is(err, oidc.ErrGrantNotFound) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": tokens.ErrTokenNotFound.Error()})
+		}
+		return l.fail(c, err)
+	}
+	l.logger.Infof("my tokens: %s ended the access of app %s", actor.ID, c.Params("id"))
+	return l.reply(c, actor, "", "", "")
 }
 
 func (l *Login) reply(c fiber.Ctx, actor accounts.Actor, key, keyName, keyID string) error {
