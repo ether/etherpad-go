@@ -35,8 +35,10 @@ test.describe('dark OS', () => {
         expect(metas[0].content).not.toBe('#ffffff');
 
         await showSettings(page);
-        await page.locator('#theme-switcher').click();
+        await expect(page.locator('#theme-switcher [data-theme="dark"]')).toHaveAttribute('aria-pressed', 'true');
+        await page.locator('#theme-switcher [data-theme="light"]').click();
         await expect.poll(() => toolbarIsDark(page)).toBe(false);
+        await expect(page.locator('#theme-switcher [data-theme="light"]')).toHaveAttribute('aria-pressed', 'true');
         expect(await themeColors(page)).toEqual([{content: '#ffffff', media: null}]);
     });
 });
@@ -48,16 +50,35 @@ test.describe('light OS', () => {
         await goToNewPad(page);
         expect(await toolbarIsDark(page)).toBe(false);
         await showSettings(page);
-        await page.locator('#theme-switcher').click();
+        await page.locator('#theme-switcher [data-theme="dark"]').click();
         await expect.poll(() => toolbarIsDark(page)).toBe(true);
         const metas = await themeColors(page);
         expect(metas).toHaveLength(1);
         expect(metas[0].media).toBeNull();
         expect(metas[0].content).not.toBe('#ffffff');
 
+        // The choice survives a reload (also the one after a language change).
+        await page.reload();
+        await page.waitForSelector('#editorcontainer.initialized');
+        expect(await toolbarIsDark(page)).toBe(true);
+
         await showSettings(page);
-        await page.locator('#theme-switcher').click();
+        await page.locator('#theme-switcher [data-theme="light"]').click();
         await expect.poll(() => toolbarIsDark(page)).toBe(false);
         expect(await themeColors(page)).toEqual([{content: '#ffffff', media: null}]);
     });
+});
+
+// Without storage (blocked, some embedded frames) the pad still starts and
+// the theme switch still works, it is only not kept.
+test('no storage: the pad starts and the switch works', async ({page}) => {
+    await page.addInitScript(() => {
+        const fail = () => { throw new DOMException('denied', 'SecurityError'); };
+        Storage.prototype.getItem = fail;
+        Storage.prototype.setItem = fail;
+    });
+    await goToNewPad(page);
+    await showSettings(page);
+    await page.locator('#theme-switcher [data-theme="dark"]').click();
+    await expect.poll(() => toolbarIsDark(page)).toBe(true);
 });

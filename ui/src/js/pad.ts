@@ -666,7 +666,12 @@ const pad = {
                 showById('theme-switcher', 'flex');
             }
 
-            if (window.location.hash.toLowerCase() !== '#skinvariantsbuilder' && window.clientVars.enableDarkMode && (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) && !skinVariants.isWhiteModeEnabledInLocalStorage()) {
+            // Dark when the person chose it, or when the system prefers it and
+            // they did not choose light (the choice survives a reload, such as
+            // the one after changing the language).
+            const prefersDark = !!window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+            if (window.location.hash.toLowerCase() !== '#skinvariantsbuilder' && window.clientVars.enableDarkMode &&
+                (skinVariants.isDarkModeEnabledInLocalStorage() || (prefersDark && !skinVariants.isWhiteModeEnabledInLocalStorage()))) {
                 skinVariants.updateSkinVariantsClasses(['super-dark-editor', 'dark-background', 'super-dark-toolbar']);
             }
 

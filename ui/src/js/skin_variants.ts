@@ -87,16 +87,28 @@ export const isDarkMode = ()=>{
 };
 
 
+// The choice of light or dark; storage may be unavailable (blocked cookies,
+// some embedded frames): then there is no choice, and nothing is kept.
+const storedTheme = (): string | null => {
+  try {
+    return window.localStorage.getItem('ep_darkMode');
+  } catch {
+    return null;
+  }
+};
+
 export const setDarkModeInLocalStorage = (isDark)=>{
-  localStorage.setItem('ep_darkMode', isDark?'true':'false');
+  try {
+    window.localStorage.setItem('ep_darkMode', isDark?'true':'false');
+  } catch { /* not kept */ }
 };
 
 export const isDarkModeEnabledInLocalStorage = ()=>{
-  return localStorage.getItem('ep_darkMode')==='true';
+  return storedTheme()==='true';
 };
 
 export const isWhiteModeEnabledInLocalStorage = ()=>{
-  return localStorage.getItem('ep_darkMode')==='false';
+  return storedTheme()==='false';
 };
 
 // Specific hash to display the skin variants builder popup
