@@ -24,19 +24,34 @@
 .toolbar ul li[data-key=account] > a.account-button[aria-expanded=true] {
   background: #475569;
 }
+/* On the dark toolbars the slate circle would vanish: lighter, dark letter. */
+.super-dark-toolbar .toolbar ul li[data-key=account] > a.account-button,
+.dark-toolbar .toolbar ul li[data-key=account] > a.account-button {
+  background: #94a3b8;
+  border-color: #94a3b8;
+  color: #1b2733;
+}
+.super-dark-toolbar .toolbar ul li[data-key=account] > a.account-button:hover,
+.super-dark-toolbar .toolbar ul li[data-key=account] > a.account-button[aria-expanded=true],
+.dark-toolbar .toolbar ul li[data-key=account] > a.account-button:hover,
+.dark-toolbar .toolbar ul li[data-key=account] > a.account-button[aria-expanded=true] {
+  background: #cbd5e1;
+}
+/* In the toolbar, so it takes the toolbar's colours (light and dark). */
 .account-menu {
   /* placed at the button by account_menu.ts */
   position: fixed;
   z-index: 1000;
-  min-width: 180px;
-  padding: 10px;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  background: #fff;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, .15);
+  min-width: 200px;
+  padding: 6px;
+  border: 1px solid var(--border-color, #e4e6e9);
+  border-radius: 8px;
+  background: var(--bg-color, #fff);
+  color: var(--text-color, #485365);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, .18);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 2px;
 }
 .account-menu[hidden] {
   display: none;
@@ -44,38 +59,55 @@
 .account-menu .account-who {
   display: flex;
   flex-direction: column;
+  padding: 6px 10px 8px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--border-color, #e4e6e9);
   overflow-wrap: anywhere;
+  font-weight: 600;
 }
 .account-menu .account-username {
-  color: #777;
+  color: var(--text-soft-color, #777);
   font-size: 12px;
+  font-weight: normal;
 }
 .account-menu form {
   margin: 0;
 }
+/* Menu entries, not form fields: full width, no frame, a hover. */
 .account-menu .account-admin,
 .account-menu .account-tokens-open,
 .account-menu .account-logout {
   display: block;
   box-sizing: border-box;
   width: 100%;
+  margin: 0;
+  padding: 7px 10px;
+  border: none;
+  border-radius: 5px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.3;
   text-align: left;
   text-transform: none;
   letter-spacing: normal;
-  font-size: 14px;
-  font: inherit;
-  color: inherit;
-  background: none;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  padding: 4px 8px;
-  cursor: pointer;
   text-decoration: none;
+  cursor: pointer;
 }
 .account-menu .account-admin:hover,
 .account-menu .account-tokens-open:hover,
-.account-menu .account-logout:hover {
-  background: #f2f2f2;
+.account-menu .account-logout:hover,
+.account-menu .account-admin:focus-visible,
+.account-menu .account-tokens-open:focus-visible,
+.account-menu .account-logout:focus-visible {
+  background: var(--bg-soft-color, #f2f2f2);
+  outline: none;
+}
+.account-menu .account-logout {
+  margin-top: 4px;
+  border-top: 1px solid var(--border-color, #e4e6e9);
+  border-radius: 0 0 5px 5px;
 }
 
 /* "My tokens" (ui/src/js/account_tokens.ts). */
