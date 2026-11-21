@@ -181,13 +181,21 @@
 #settings .theme-choice button + button {
   border-left: 1px solid var(--middle-color, #d2d2d2);
 }
+/* Dark text on the green: white on it is too faint (about 1.8:1). */
 #settings .theme-choice button[aria-pressed="true"] {
   background: var(--primary-color, #64d29b);
-  color: #fff;
+  color: #1b2733;
+  font-weight: 600;
+}
+/* Focus in the text colour, so it shows on the green as on the ground. */
+#settings .theme-choice:focus-within {
+  overflow: visible;
 }
 #settings .theme-choice button:focus-visible {
-  outline: 2px solid var(--primary-color, #64d29b);
-  outline-offset: -2px;
+  outline: 2px solid var(--text-color, #485365);
+  outline-offset: 2px;
+  position: relative;
+  z-index: 1;
 }
 /* Deleting the pad: apart from the rest, gone when nothing in it is shown. */
 #settings .settings-danger {

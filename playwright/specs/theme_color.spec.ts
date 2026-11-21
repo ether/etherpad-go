@@ -68,3 +68,17 @@ test.describe('light OS', () => {
         expect(await themeColors(page)).toEqual([{content: '#ffffff', media: null}]);
     });
 });
+
+// Without storage (blocked, some embedded frames) the pad still starts and
+// the theme switch still works, it is only not kept.
+test('no storage: the pad starts and the switch works', async ({page}) => {
+    await page.addInitScript(() => {
+        const fail = () => { throw new DOMException('denied', 'SecurityError'); };
+        Storage.prototype.getItem = fail;
+        Storage.prototype.setItem = fail;
+    });
+    await goToNewPad(page);
+    await showSettings(page);
+    await page.locator('#theme-switcher [data-theme="dark"]').click();
+    await expect.poll(() => toolbarIsDark(page)).toBe(true);
+});
