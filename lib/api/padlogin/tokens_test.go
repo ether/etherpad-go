@@ -41,7 +41,7 @@ func (b *browser) call(t *testing.T, method, target string, body any, headers ma
 	for k, v := range b.cookies {
 		req.AddCookie(&http.Cookie{Name: k, Value: v})
 	}
-	resp, err := b.e.app.Test(req)
+	resp, err := b.e.app.Test(req, slowRunners)
 	require.NoError(t, err)
 	var out padlogin.OwnTokens
 	if resp.StatusCode == http.StatusOK {
