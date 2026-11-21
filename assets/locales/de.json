@@ -274,5 +274,10 @@
 	"pad.tokens.days": "{{n}} Tage",
 	"pad.tokens.create": "Token erstellen",
 	"pad.tokens.needName": "Gib dem Token einen Namen.",
-	"pad.tokens.needScope": "Wähle mindestens ein Recht."
+	"pad.tokens.needScope": "Wähle mindestens ein Recht.",
+	"pad.tokens.apps": "Verbundene Apps",
+	"pad.tokens.unnamedApp": "Eine App",
+	"pad.tokens.connected": "Verbunden",
+	"pad.tokens.disconnect": "Trennen",
+	"pad.tokens.disconnectSure": "Wirklich trennen?"
 }

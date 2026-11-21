@@ -74,7 +74,7 @@ func InitAPI(store *lib.InitStore) *oidc.Authenticator {
 	stats.Init(store)
 	initLegacyAPI(store, authenticator, ssoAdminClient)
 	// The MCP server (AI clients) with the same tokens.
-	mcp.New(store, keys).Register(store.C)
+	mcp.New(store, keys).WithOAuth(authenticator).Register(store.C)
 	return authenticator
 }
 

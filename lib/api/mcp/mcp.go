@@ -14,11 +14,14 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
 	"github.com/ether/etherpad-go/lib"
 	"github.com/ether/etherpad-go/lib/accounts"
+	"github.com/ether/etherpad-go/lib/api/oidc"
+	"github.com/ether/etherpad-go/lib/db"
 	"github.com/ether/etherpad-go/lib/tokens"
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/adaptor"
@@ -46,6 +49,20 @@ type Server struct {
 	tokens   *tokens.Manager
 	accounts *accounts.Manager
 	mcp      *sdk.Server
+	oauth    OAuth
+}
+
+// OAuth checks the access tokens of MCP clients that connected with a
+// login and the person's consent (lib/api/oidc).
+type OAuth interface {
+	MCPAccessToken(token string) (*oidc.MCPAccess, error)
+	MCPOAuthIssuer() (string, bool)
+}
+
+// WithOAuth lets MCP clients connect with OAuth, besides tokens.
+func (s *Server) WithOAuth(o OAuth) *Server {
+	s.oauth = o
+	return s
 }
 
 // New makes the MCP server; Register serves it.
@@ -81,16 +98,82 @@ func (s *Server) Register(app fiber.Router) {
 		if err := h(c); err != nil {
 			return err
 		}
-		// RFC 6750: a 401 names the scheme it wants.
-		if c.Response().StatusCode() == fiber.StatusUnauthorized && len(c.Response().Header.Peek(fiber.HeaderWWWAuthenticate)) == 0 {
-			c.Set(fiber.HeaderWWWAuthenticate, `Bearer realm="etherpad"`)
+		// RFC 6750: a 401 names the scheme it wants; with OAuth, where the
+		// client learns how to get a token (RFC 9728).
+		if c.Response().StatusCode() == fiber.StatusUnauthorized {
+			challenge := `Bearer realm="etherpad"`
+			if _, ok := s.resourceMetadata(); ok {
+				challenge += `, resource_metadata="` + s.publicBase() + ResourceMetadataPath + Path + `"`
+			}
+			c.Set(fiber.HeaderWWWAuthenticate, challenge)
 		}
 		return nil
 	})
+	// Protected resource metadata (RFC 9728), at the root and for /mcp.
+	for _, p := range []string{ResourceMetadataPath, ResourceMetadataPath + Path} {
+		app.Get(p, s.serveResourceMetadata)
+	}
 }
 
-// verify checks a token for the MCP server.
-func (s *Server) verify(_ context.Context, key string, r *http.Request) (*auth.TokenInfo, error) {
+// ResourceMetadataPath is OAuth 2.0 protected resource metadata (RFC 9728).
+const ResourceMetadataPath = "/.well-known/oauth-protected-resource"
+
+// publicBase is the address Etherpad is reached at: publicURL, else the
+// issuer's origin.
+func (s *Server) publicBase() string {
+	if u := strings.TrimRight(s.store.RetrievedSettings.PublicURL, "/"); u != "" {
+		return u
+	}
+	if s.oauth != nil {
+		if issuer, ok := s.oauth.MCPOAuthIssuer(); ok {
+			if u, err := url.Parse(issuer); err == nil && u.Host != "" {
+				return u.Scheme + "://" + u.Host
+			}
+		}
+	}
+	return ""
+}
+
+func (s *Server) resourceMetadata() (map[string]any, bool) {
+	if s.oauth == nil {
+		return nil, false
+	}
+	issuer, ok := s.oauth.MCPOAuthIssuer()
+	base := s.publicBase()
+	if !ok || base == "" {
+		return nil, false
+	}
+	return map[string]any{
+		"resource":                 base + Path,
+		"authorization_servers":    []string{issuer},
+		"scopes_supported":         oidc.MCPScopes,
+		"bearer_methods_supported": []string{"header"},
+		"resource_name":            "Etherpad",
+	}, true
+}
+
+func (s *Server) serveResourceMetadata(c fiber.Ctx) error {
+	doc, ok := s.resourceMetadata()
+	if !ok {
+		return c.SendStatus(fiber.StatusNotFound)
+	}
+	c.Set(fiber.HeaderCacheControl, "public, max-age=300")
+	c.Set(fiber.HeaderAccessControlAllowOrigin, "*")
+	return c.JSON(doc)
+}
+
+// verify checks a token for the MCP server: a token of the HTTP API, or an
+// OAuth access token of an MCP client.
+func (s *Server) verify(ctx context.Context, key string, r *http.Request) (*auth.TokenInfo, error) {
+	// Keys taken over from earlier releases may lack the ep_ prefix: what
+	// is no OAuth token is checked as a key.
+	if !strings.HasPrefix(key, tokens.KeyPrefix) && s.oauth != nil {
+		if info, err := s.verifyOAuth(key); err == nil {
+			return info, nil
+		} else if !errors.Is(err, errNotOAuth) {
+			return nil, err
+		}
+	}
 	use, err := s.tokens.Authenticate(key, r.Header.Get(clientIPHeader))
 	if err != nil {
 		if errors.Is(err, tokens.ErrInvalid) {
@@ -119,6 +202,7 @@ func useOf(req *sdk.CallToolRequest) (*tokens.Use, error) {
 }
 
 var (
+	errNotOAuth  = errors.New("not an OAuth access token")
 	errNoToken   = errors.New("no token")
 	errForbidden = errors.New("forbidden: the token may not do that on this pad")
 )
@@ -170,4 +254,26 @@ func ms(t *int64) string {
 		return ""
 	}
 	return time.UnixMilli(*t).UTC().Format(time.RFC3339)
+}
+
+// verifyOAuth checks an OAuth access token: the person's rights of the
+// moment, cut down to the scopes and pads they allowed the client.
+func (s *Server) verifyOAuth(key string) (*auth.TokenInfo, error) {
+	access, err := s.oauth.MCPAccessToken(key)
+	if err != nil {
+		return nil, errNotOAuth
+	}
+	g, err := s.accounts.GrantsFor(access.Account.ID)
+	if err != nil {
+		s.store.Logger.Warnf("mcp: rights of %s: %v", access.Account.ID, err)
+		return nil, fmt.Errorf("%w: the token could not be checked", auth.ErrInvalidToken)
+	}
+	expires := access.ExpiresAt
+	use := &tokens.Use{
+		Token: &db.Token{ID: "oauth:" + access.ClientID, AccountID: access.Account.ID, Name: access.ClientID,
+			Scopes: access.Scopes, PadPattern: access.PadPattern, ExpiresAt: &expires, ClientID: access.ClientID},
+		Account: access.Account,
+		Grants:  g.Restrict(access.Scopes, access.PadPattern, nil),
+	}
+	return &auth.TokenInfo{UserID: access.Account.ID, Expiration: expires, Extra: map[string]any{useKey: use}}, nil
 }

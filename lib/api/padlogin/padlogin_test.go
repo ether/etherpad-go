@@ -29,6 +29,7 @@ const issuer = "http://pads.test"
 
 type env struct {
 	app      *fiber.App
+	store    db.DataStore
 	accounts *accounts.Manager
 	cfg      *settings.Settings
 	// seen is the request user the last pad page saw.
@@ -46,7 +47,7 @@ func newEnv(t *testing.T) *env {
 	}
 	store := db.NewMemoryDataStore()
 	logger := zap.NewNop().Sugar()
-	e := &env{cfg: cfg, accounts: pad.AccountsOf(store, cfg)}
+	e := &env{cfg: cfg, accounts: pad.AccountsOf(store, cfg), store: store}
 	// Closed: visitors may do nothing.
 	require.NoError(t, e.accounts.ApplyTemplate(accounts.System, accounts.TemplateClosed))
 

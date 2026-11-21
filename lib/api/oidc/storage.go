@@ -35,6 +35,8 @@ type Storage struct {
 	accounts *accounts.Manager
 	key      *signingKey
 	now      func() time.Time
+	// mcp caches registered MCP clients (mcp_clients.go).
+	mcp mcpClients
 }
 
 var errNotFound = errors.New("not found")
@@ -76,6 +78,12 @@ type authRequest struct {
 	IsDone              bool      `json:"done"`
 	AuthTime            time.Time `json:"authTime"`
 	ExpiresAt           time.Time `json:"expiresAt"`
+	// ConsentFor is the account that logged in for an MCP client and
+	// still has to agree; ConsentToken the hash of the form's secret.
+	ConsentFor   string `json:"consentFor,omitempty"`
+	ConsentToken string `json:"consentToken,omitempty"`
+	// PadPattern: the pads the person allowed an MCP client ("" all).
+	PadPattern string `json:"padPattern,omitempty"`
 }
 
 func (a *authRequest) GetID() string          { return a.ID }
@@ -271,6 +279,7 @@ type accessToken struct {
 	Subject        string    `json:"subject"`
 	Audience       []string  `json:"audience"`
 	Scopes         []string  `json:"scopes"`
+	PadPattern     string    `json:"padPattern,omitempty"`
 	RefreshTokenID string    `json:"refreshTokenId,omitempty"`
 	IssuedAt       time.Time `json:"issuedAt"`
 	ExpiresAt      time.Time `json:"expiresAt"`
@@ -282,6 +291,7 @@ type refreshToken struct {
 	Subject       string    `json:"subject"`
 	Audience      []string  `json:"audience"`
 	Scopes        []string  `json:"scopes"`
+	PadPattern    string    `json:"padPattern,omitempty"`
 	AMR           []string  `json:"amr"`
 	AuthTime      time.Time `json:"authTime"`
 	AccessTokenID string    `json:"accessTokenId"`
@@ -327,6 +337,18 @@ func randomToken() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
+// padPatternOf is the pad pattern an MCP client's person allowed, carried
+// from the consent to every token of the grant.
+func padPatternOf(req op.TokenRequest) string {
+	switch r := req.(type) {
+	case *authRequest:
+		return r.PadPattern
+	case *refreshTokenRequest:
+		return r.PadPattern
+	}
+	return ""
+}
+
 func requestInfo(req op.TokenRequest) (clientID string, authTime time.Time, amr []string) {
 	switch r := req.(type) {
 	case *authRequest:
@@ -347,6 +369,7 @@ func (s *Storage) newAccessToken(clientID, refreshTokenID string, req op.TokenRe
 		Subject:        req.GetSubject(),
 		Audience:       req.GetAudience(),
 		Scopes:         req.GetScopes(),
+		PadPattern:     padPatternOf(req),
 		RefreshTokenID: refreshTokenID,
 		IssuedAt:       now,
 		ExpiresAt:      now.Add(accessTokenLifetime),
@@ -437,6 +460,7 @@ func (s *Storage) CreateAccessAndRefreshTokens(_ context.Context, req op.TokenRe
 		Subject:       req.GetSubject(),
 		Audience:      req.GetAudience(),
 		Scopes:        req.GetScopes(),
+		PadPattern:    padPatternOf(req),
 		AMR:           amr,
 		AuthTime:      authTime,
 		AccessTokenID: access.ID,
@@ -460,6 +484,10 @@ func (s *Storage) TokenRequestByRefreshToken(_ context.Context, token string) (o
 	// A disabled or deleted account gets no new tokens; a refresh brings
 	// the account's current roles into the new ones.
 	if _, isClient := s.clients[rt.Subject]; !isClient && s.activePerson(rt.Subject) == nil {
+		return nil, op.ErrInvalidRefreshToken
+	}
+	// An MCP client's grant may have been ended in "My tokens".
+	if c, ok := s.client(rt.ClientID); ok && c.mcp && !s.mcpGrantValid(rt.Subject, grantOf(rt.Scopes)) {
 		return nil, op.ErrInvalidRefreshToken
 	}
 	return &refreshTokenRequest{rt}, nil
@@ -539,7 +567,7 @@ func (s *Storage) KeySet(context.Context) ([]op.Key, error) {
 // --- clients and users -------------------------------------------------------
 
 func (s *Storage) GetClientByClientID(_ context.Context, clientID string) (op.Client, error) {
-	c, ok := s.clients[clientID]
+	c, ok := s.client(clientID)
 	if !ok {
 		return nil, fmt.Errorf("client %q: %w", clientID, errNotFound)
 	}

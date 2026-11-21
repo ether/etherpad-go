@@ -37,6 +37,9 @@ type Client struct {
 	confidential bool
 	devMode      bool
 	settings     settings.SSOClient
+	// mcp: a registered MCP client (mcp_clients.go); name is its own.
+	mcp  bool
+	name string
 }
 
 // newClient maps an SSO client from the settings. Clients that may use the
@@ -118,8 +121,14 @@ func (c *Client) RestrictAdditionalAccessTokenScopes() func(scopes []string) []s
 	return func(scopes []string) []string { return scopes }
 }
 
-// IsScopeAllowed is asked for scopes beyond the standard OIDC ones.
-func (c *Client) IsScopeAllowed(scope string) bool { return scope == legacyOfflineScope }
+// IsScopeAllowed is asked for scopes beyond the standard OIDC ones: MCP
+// clients ask for the MCP server's.
+func (c *Client) IsScopeAllowed(scope string) bool {
+	if c.mcp {
+		return slices.Contains(MCPScopes, scope)
+	}
+	return scope == legacyOfflineScope
+}
 
 // IDTokenUserinfoClaimsAssertion puts the userinfo claims into the ID token,
 // which the admin UI uses as its bearer token.

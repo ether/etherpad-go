@@ -337,6 +337,17 @@ type PluginSettings struct {
 	Enabled bool `json:"enabled" mapstructure:"enabled"`
 }
 
+// MCP configures the MCP server (lib/api/mcp).
+type MCP struct {
+	// OAuth lets AI clients register themselves and connect with a login
+	// and the person's consent (claude.ai connectors); default on. Tokens
+	// pasted by hand work either way.
+	OAuth *bool `json:"oauth" mapstructure:"oauth"`
+}
+
+// OAuthEnabled: unset means on.
+func (m MCP) OAuthEnabled() bool { return m.OAuth == nil || *m.OAuth }
+
 type Settings struct {
 	Title          string  `json:"title" mapstructure:"title"`
 	ShowRecentPads bool    `json:"showRecentPads" mapstructure:"showRecentPads"`
@@ -448,6 +459,8 @@ type Settings struct {
 	// Tokens are the rules for tokens: whether they must expire and how
 	// long they may live, for people and for service accounts.
 	Tokens Tokens `json:"tokens" mapstructure:"tokens"`
+	// MCP configures the MCP server at /mcp (AI clients).
+	MCP MCP `json:"mcp" mapstructure:"mcp"`
 
 	ShowSettingsInAdminPage bool `json:"showSettingsInAdminPage" mapstructure:"showSettingsInAdminPage"`
 

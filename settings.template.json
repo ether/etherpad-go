@@ -228,6 +228,17 @@
   },
 
   /*
+   * The MCP server at /mcp lets AI clients (Claude, ...) read and edit pads
+   * with a token. With "oauth" on, clients such as claude.ai connectors
+   * register themselves and connect after the person logs in and agrees
+   * (scopes and pads they allow, never more than their own rights); the
+   * issuer of "sso" must then be the address people reach Etherpad at.
+   */
+  "mcp": {
+    "oauth": true
+  },
+
+  /*
    * The built-in OpenID Connect provider. The client of type "admin" is the
    * admin UI; the client of type "user" lets people log in on the pads
    * ("Log in" in the toolbar, and pads visitors may not open lead to the

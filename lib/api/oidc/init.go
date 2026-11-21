@@ -26,6 +26,7 @@ func Init(store *lib.InitStore) *Authenticator {
 		store.C.All(path, provider)
 	}
 	store.C.All(loginPath, adaptor.HTTPHandler(http.HandlerFunc(authenticator.LoginHandler)))
+	store.C.All(registerPath, adaptor.HTTPHandler(http.HandlerFunc(authenticator.RegisterHandler)))
 	return authenticator
 }
 
