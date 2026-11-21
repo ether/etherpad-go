@@ -17,7 +17,7 @@ func TestSettingsPopupHeading(t *testing.T) {
 			t.Fatal(err)
 		}
 		html := buf.String()
-		if !bytes.Contains(buf.Bytes(), []byte(`<h1 id="padSettingsTitle">Settings</h1>`)) {
+		if !bytes.Contains(buf.Bytes(), []byte(`<h1 id="padSettingsTitle" data-l10n-id="pad.settings.title">Settings</h1>`)) {
 			t.Errorf("padWideSettings=%v: title is not Settings: %s", padWide, html)
 		}
 		hasSection := bytes.Contains(buf.Bytes(), []byte(`id="pad-settings-section"`))

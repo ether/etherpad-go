@@ -99,16 +99,29 @@ export const padeditor = (() => {
       // Deleting the pad is wired up by pad_deletion.ts once CLIENT_VARS
       // says what this session may do.
 
-      // theme switch
-      q('#theme-switcher')?.addEventListener('click', () => {
-          if (skinVariants.isDarkMode()) {
+      // theme switch: two buttons, the one in use is pressed
+      const markTheme = () => {
+        const dark = skinVariants.isDarkMode();
+        qa('#theme-switcher [data-theme]').forEach((b) => {
+          b.setAttribute('aria-pressed', String((b.getAttribute('data-theme') === 'dark') === dark));
+        });
+      };
+      q('#theme-switcher')?.addEventListener('click', (e) => {
+          const choice = (e.target as Element | null)?.closest('[data-theme]')?.getAttribute('data-theme');
+          if (!choice || (choice === 'dark') === skinVariants.isDarkMode()) return;
+          if (choice === 'light') {
             skinVariants.setDarkModeInLocalStorage(false);
             skinVariants.updateSkinVariantsClasses(['super-light-toolbar super-light-editor light-background']);
           } else {
             skinVariants.setDarkModeInLocalStorage(true);
             skinVariants.updateSkinVariantsClasses(['super-dark-editor', 'dark-background', 'super-dark-toolbar']);
           }
+          markTheme();
       });
+      // The skin classes on <html> say which theme is on; pad.ts may switch
+      // to dark on the first paint, after this.
+      markTheme();
+      new MutationObserver(markTheme).observe(document.documentElement, {attributes: true, attributeFilter: ['class']});
 
       // Language
       html10n.bind('localized', () => {

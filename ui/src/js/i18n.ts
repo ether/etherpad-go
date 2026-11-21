@@ -124,6 +124,8 @@ class I18n {
 
       if (node.hasAttribute('title')) node.setAttribute('title', value);
       if (node.hasAttribute('aria-label')) node.setAttribute('aria-label', value);
+      // Web components that take their text as an attribute (<ep-checkbox label>).
+      if (node.hasAttribute('label')) node.setAttribute('label', value);
     });
   }
 

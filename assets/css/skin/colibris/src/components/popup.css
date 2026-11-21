@@ -65,11 +65,199 @@
   border-color: var(--dark-color, #576273);
 }
 
-#delete-pad {
-  background-color: #ff7b72;
+/* ── Settings ─────────────────────────────────────────────────────────── */
+#settings > .popup-content {
+  width: 320px;
+  max-width: calc(100vw - 30px);
+  max-height: calc(100vh - 90px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  box-sizing: border-box;
+  padding: 20px 22px 16px;
+}
+#settings h1 {
+  margin: 0 0 14px;
+}
+#settings h2 {
+  margin: 18px 0 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-soft-color);
+}
+#settings h1 + h2 {
+  margin-top: 0;
+}
+/* The switches: one per row, evenly spaced. */
+#settings .popup-content > p,
+#settings .settings-section > p {
+  margin: 0;
+  padding: 5px 0;
+}
+#settings .settings-notice {
+  padding: 8px 10px;
+  border-radius: 4px;
+  background: var(--bg-soft-color);
+  font-size: 0.85rem;
+}
+/* Font, language, appearance: label left, control filling the right. */
+#settings .dropdowns-container {
+  margin-top: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-color, rgba(99, 114, 130, 0.16));
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+#settings .dropdowns-container .dropdown-line {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+#settings .dropdowns-container label,
+#settings .dropdowns-container .settings-label {
+  flex: 0 0 96px;
+  width: auto;
+}
+#settings .dropdowns-container ep-dropdown {
+  flex: 1;
+  min-width: 0;
   display: block;
-  margin-left: auto;
-  margin-right: auto;
+}
+#settings .dropdowns-container ep-dropdown::part(trigger) {
+  display: flex;
+}
+#settings .dropdowns-container ep-dropdown::part(trigger),
+#settings .dropdowns-container ep-dropdown [slot="trigger"] {
+  width: 100%;
+}
+#settings .dropdowns-container .dropdown-select-trigger {
+  width: 100%;
+  min-width: 0;
+  text-transform: none;
+  letter-spacing: normal;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+#settings .dropdowns-container .dropdown-select-trigger::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  margin-left: 8px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: translateY(-2px) rotate(45deg);
+  opacity: 0.6;
+}
+/* Light / dark as a two-part switch. */
+#settings .theme-choice {
+  flex: 1;
+  display: flex;
+  border: 1px solid var(--middle-color, #d2d2d2);
+  border-radius: 4px;
+  overflow: hidden;
+}
+#settings .theme-choice button {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 0;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-color);
+  font: inherit;
+  font-size: 14px;
+  text-transform: none;
+  letter-spacing: normal;
+  cursor: pointer;
+}
+#settings .theme-choice button + button {
+  border-left: 1px solid var(--middle-color, #d2d2d2);
+}
+#settings .theme-choice button[aria-pressed="true"] {
+  background: var(--primary-color, #64d29b);
+  color: #fff;
+}
+#settings .theme-choice button:focus-visible {
+  outline: 2px solid var(--primary-color, #64d29b);
+  outline-offset: -2px;
+}
+/* Deleting the pad: apart from the rest, gone when nothing in it is shown. */
+#settings .settings-danger {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-color, rgba(99, 114, 130, 0.16));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+#settings .settings-danger:not(:has(> :not([hidden]))) {
+  display: none;
+}
+#settings .settings-danger > p {
+  margin: 0;
+}
+#delete-pad,
+#delete-pad-token-submit {
+  width: 100%;
+  margin: 0;
+  padding: 7px 12px;
+  border: 1px solid #e5534b;
+  border-radius: 4px;
+  background: transparent;
+  color: #e5534b;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: normal;
+  cursor: pointer;
+}
+#delete-pad:hover,
+#delete-pad-token-submit:hover {
+  background: #e5534b;
+  color: #fff;
+}
+#delete-pad-with-token summary {
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--text-soft-color);
+  list-style: none;
+}
+#delete-pad-with-token summary::-webkit-details-marker {
+  display: none;
+}
+#delete-pad-with-token summary::before {
+  content: "▸";
+  display: inline-block;
+  width: 1em;
+  transition: transform 0.15s;
+}
+#delete-pad-with-token[open] summary::before {
+  transform: rotate(90deg);
+}
+#delete-pad-with-token[open] {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+#delete-pad-with-token input,
+#delete-pad-token-reveal-panel input {
+  width: 100%;
+  box-sizing: border-box;
+}
+/* About: a quiet footer. */
+#settings .settings-about {
+  margin-top: 16px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-color, rgba(99, 114, 130, 0.16));
+  font-size: 0.8rem;
+  color: var(--text-soft-color);
 }
 
 @media (prefers-reduced-motion) {
