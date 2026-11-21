@@ -209,7 +209,7 @@ func (l *Login) revokeOwnApp(c fiber.Ctx) error {
 	if l.authn == nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": tokens.ErrTokenNotFound.Error()})
 	}
-	if err := l.authn.RevokeMCPGrant(actor.ID, c.Params("id")); err != nil {
+	if err := l.authn.RevokeMCPGrant(actor, actor.ID, c.Params("id")); err != nil {
 		if errors.Is(err, oidc.ErrGrantNotFound) {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": tokens.ErrTokenNotFound.Error()})
 		}

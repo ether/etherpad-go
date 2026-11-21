@@ -3,6 +3,7 @@ package oidc
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"slices"
@@ -60,17 +61,11 @@ func (s *Storage) putMCPGrants(accountID string, grants []MCPGrant) error {
 	return s.db.SetOIDCStorageValue(mcpGrantsKeyPrefix+accountID, string(data))
 }
 
-// addMCPGrant records a consent; a new consent for the same client
-// replaces the old one (and so ends its tokens).
-func (s *Storage) addMCPGrant(accountID string, g MCPGrant) error {
-	return s.accounts.Locked(func() error {
-		grants, err := s.mcpGrants(accountID)
-		if err != nil {
-			return err
-		}
-		grants = slices.DeleteFunc(grants, func(x MCPGrant) bool { return x.ClientID == g.ClientID })
-		return s.putMCPGrants(accountID, append(grants, g))
-	})
+// withMCPGrant is the account's grants with g, replacing an earlier
+// consent for the same client (which so ends its tokens).
+func withMCPGrant(grants []MCPGrant, g MCPGrant) []MCPGrant {
+	grants = slices.DeleteFunc(slices.Clone(grants), func(x MCPGrant) bool { return x.ClientID == g.ClientID })
+	return append(grants, g)
 }
 
 // MCPGrants are the MCP clients a person allowed, newest first.
@@ -84,19 +79,34 @@ func (a *Authenticator) MCPGrants(accountID string) ([]MCPGrant, error) {
 }
 
 // RevokeMCPGrant ends a person's consent: the client's tokens stop at once.
-func (a *Authenticator) RevokeMCPGrant(accountID, grantID string) error {
-	return a.storage.accounts.Locked(func() error {
+// actor is who ends it (the person, or an admin).
+func (a *Authenticator) RevokeMCPGrant(actor accounts.Actor, accountID, grantID string) error {
+	var gone MCPGrant
+	err := a.storage.accounts.Locked(func() error {
 		grants, err := a.storage.mcpGrants(accountID)
 		if err != nil {
 			return err
 		}
-		n := len(grants)
-		grants = slices.DeleteFunc(grants, func(x MCPGrant) bool { return x.ID == grantID })
-		if len(grants) == n {
+		i := slices.IndexFunc(grants, func(x MCPGrant) bool { return x.ID == grantID })
+		if i < 0 {
 			return ErrGrantNotFound
 		}
-		return a.storage.putMCPGrants(accountID, grants)
+		gone = grants[i]
+		return a.storage.putMCPGrants(accountID, slices.Delete(slices.Clone(grants), i, i+1))
 	})
+	if err != nil {
+		return err
+	}
+	return a.storage.accounts.Record(actor, "app.disconnect", gone.ID, map[string]any{
+		"account": accountID, "client": gone.ClientID, "name": gone.ClientName,
+	})
+}
+
+// mayConnectApps: tokens:own, needed to connect an app and to see and end
+// the connection; taken away, the person's apps stop too.
+func (s *Storage) mayConnectApps(accountID string) bool {
+	g, err := s.accounts.GrantsFor(accountID)
+	return err == nil && g.HasGlobal(accounts.ScopeTokensOwn)
 }
 
 // mcpGrantValid reports whether the grant of an MCP token still exists.
@@ -123,7 +133,7 @@ func (a *Authenticator) finish(rw http.ResponseWriter, req *http.Request, ar *au
 		// Connecting an app gives it a token in the person's name: only for
 		// who may have tokens (tokens:own), who also sees and ends the
 		// access in "My tokens".
-		if g, err := a.storage.accounts.GrantsFor(accountID); err != nil || !g.HasGlobal(accounts.ScopeTokensOwn) {
+		if !a.storage.mayConnectApps(accountID) {
 			_ = a.storage.DeleteAuthRequest(req.Context(), ar.ID)
 			op.AuthRequestError(rw, req, ar, oidc.ErrAccessDenied().WithDescription("this account may not connect apps"), a.provider)
 			return
@@ -151,27 +161,46 @@ func (s *Storage) awaitConsent(id, accountID, token string) error {
 }
 
 // grantConsent finishes an auth request with the scopes and pads the person
-// allowed, and records the grant.
-func (s *Storage) grantConsent(id, accountID string, scopes []string, pads string, c *Client) error {
-	ar, err := s.getAuthRequest(id)
+// allowed, and records the grant. The check of the pending consent (once
+// only), the grant and the finished request are one step under the
+// accounts' write lock, shared by a cluster: a form sent twice makes one
+// grant. If the request cannot be written, the grants are put back.
+func (s *Storage) grantConsent(id, accountID, token string, scopes []string, pads string, c *Client) (MCPGrant, error) {
+	var g MCPGrant
+	err := s.accounts.Locked(func() error {
+		ar, err := s.getAuthRequest(id)
+		if err != nil {
+			return err
+		}
+		if ar.ConsentFor != accountID || !consentAllowed(ar, token) {
+			return errNotFound
+		}
+		before, err := s.mcpGrants(accountID)
+		if err != nil {
+			return err
+		}
+		g = MCPGrant{ID: utils.RandomString(24), ClientID: c.id, ClientName: c.name, Scopes: scopes, PadPattern: pads, CreatedAt: s.now()}
+		if err := s.putMCPGrants(accountID, withMCPGrant(before, g)); err != nil {
+			return err
+		}
+		// offline_access: the client renews its tokens without the person.
+		ar.Scopes = append(slices.Clone(scopes), oidc.ScopeOfflineAccess, mcpGrantScope+g.ID)
+		ar.PadPattern = pads
+		ar.UserID = accountID
+		ar.ConsentFor, ar.ConsentToken = "", ""
+		ar.IsDone = true
+		ar.AuthTime = s.now()
+		if err := s.putAuthRequest(ar); err != nil {
+			_ = s.putMCPGrants(accountID, before)
+			return err
+		}
+		return nil
+	})
 	if err != nil {
-		return err
+		return MCPGrant{}, err
 	}
-	if ar.ConsentFor != accountID || ar.IsDone {
-		return errNotFound
-	}
-	g := MCPGrant{ID: utils.RandomString(24), ClientID: c.id, ClientName: c.name, Scopes: scopes, PadPattern: pads, CreatedAt: s.now()}
-	if err := s.addMCPGrant(accountID, g); err != nil {
-		return err
-	}
-	// offline_access: the client renews its tokens without the person.
-	ar.Scopes = append(slices.Clone(scopes), oidc.ScopeOfflineAccess, mcpGrantScope+g.ID)
-	ar.PadPattern = pads
-	ar.UserID = accountID
-	ar.ConsentFor, ar.ConsentToken = "", ""
-	ar.IsDone = true
-	ar.AuthTime = s.now()
-	return s.putAuthRequest(ar)
+	s.markMCPClientUsed(c.id)
+	return g, nil
 }
 
 // mcpGrantScope carries the grant id in a token's scopes (internal: never
@@ -193,8 +222,8 @@ func consentAllowed(ar *authRequest, token string) bool {
 }
 
 // consentScopes are the scopes the page offers: the MCP scopes the person
-// has somewhere; checked the ones the client asked for (all, if it asked
-// for none of them).
+// has somewhere, of those the client asked for (all, if it asked for none
+// of them); all checked unless the person's choice is given.
 func (a *Authenticator) consentScopes(accountID string, requested []string, checked []string) []login.ConsentScope {
 	g, err := a.storage.accounts.GrantsFor(accountID)
 	if err != nil {
@@ -210,7 +239,12 @@ func (a *Authenticator) consentScopes(accountID string, requested []string, chec
 		if !g.HasAnywhere(s) {
 			continue
 		}
-		on := !asked || slices.Contains(requested, s)
+		// A client that named rights gets at most those: the person may
+		// narrow them, never widen them.
+		if asked && !slices.Contains(requested, s) {
+			continue
+		}
+		on := true
 		if checked != nil {
 			on = slices.Contains(checked, s)
 		}
@@ -278,9 +312,15 @@ func (a *Authenticator) consent(rw http.ResponseWriter, req *http.Request, ar *a
 			return
 		}
 	}
-	if err := a.storage.grantConsent(ar.ID, ar.ConsentFor, scopes, pads, c); err != nil {
+	g, err := a.storage.grantConsent(ar.ID, ar.ConsentFor, token, scopes, pads, c)
+	if err != nil {
 		http.Error(rw, "The login request is invalid or has expired. Please start the login again.", http.StatusBadRequest)
 		return
+	}
+	if err := a.storage.accounts.Record(accounts.Actor{ID: ar.ConsentFor}, "app.connect", g.ID, map[string]any{
+		"client": g.ClientID, "name": g.ClientName, "scopes": g.Scopes, "pads": g.PadPattern,
+	}); err != nil {
+		slog.Error("audit of an app connection", "err", err)
 	}
 	http.Redirect(rw, req, callbackPath+"?id="+url.QueryEscape(ar.ID), http.StatusFound)
 }
@@ -322,7 +362,7 @@ func (a *Authenticator) MCPAccessToken(token string) (*MCPAccess, error) {
 		return nil, ErrNotMCPToken
 	}
 	acc := a.storage.activePerson(t.Subject)
-	if acc == nil || !a.storage.mcpGrantValid(acc.ID, grantOf(t.Scopes)) {
+	if acc == nil || !a.storage.mcpGrantValid(acc.ID, grantOf(t.Scopes)) || !a.storage.mayConnectApps(acc.ID) {
 		return nil, ErrNotMCPToken
 	}
 	var scopes []string

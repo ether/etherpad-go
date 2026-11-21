@@ -6,7 +6,9 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/ether/etherpad-go/lib/accounts"
 	"github.com/ether/etherpad-go/lib/db"
@@ -195,12 +197,12 @@ func TestMCPConsentAndTokens(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, grants, 1)
 	assert.Equal(t, "Claude", grants[0].ClientName)
-	require.NoError(t, ts.auth.RevokeMCPGrant(admin.ID, grants[0].ID))
+	require.NoError(t, ts.auth.RevokeMCPGrant(accounts.System, admin.ID, grants[0].ID))
 	_, err = ts.auth.MCPAccessToken(out["access_token"].(string))
 	assert.ErrorIs(t, err, ErrNotMCPToken)
 	r = ts.post(t, tokenPath, url.Values{"grant_type": {"refresh_token"}, "refresh_token": {refresh}, "client_id": {clientID}}, "", "")
 	assert.NotEqual(t, http.StatusOK, r.StatusCode)
-	assert.ErrorIs(t, ts.auth.RevokeMCPGrant(admin.ID, grants[0].ID), ErrGrantNotFound)
+	assert.ErrorIs(t, ts.auth.RevokeMCPGrant(accounts.System, admin.ID, grants[0].ID), ErrGrantNotFound)
 
 	// A disabled account's tokens stop.
 	form = ts.mcpAuthorize(t, clientID, "pad:read pad:write", "admin", "adminpass")
@@ -276,4 +278,145 @@ func TestMCPOAuthOff(t *testing.T) {
 	assert.Nil(t, doc["registration_endpoint"])
 	_, ok := ts.auth.MCPOAuthIssuer()
 	assert.False(t, ok)
+}
+
+// A client that asked for reading gets at most reading: rights added to
+// the form are dropped.
+func TestMCPConsentNeverWidens(t *testing.T) {
+	ts := newMCPServer(t)
+	clientID := ts.register(t)
+	form := ts.mcpAuthorize(t, clientID, "pad:read", "admin", "adminpass")
+	assert.Equal(t, []string{accounts.ScopePadRead}, form["scope"], "only what the client asked for is offered")
+	form.Add("scope", accounts.ScopePadWrite)
+	form.Add("scope", accounts.ScopeChatWrite)
+	form.Set("decision", "allow")
+	access, _ := ts.mcpTokens(t, clientID, ts.decide(t, form).Query().Get("code"))
+	got, err := ts.auth.MCPAccessToken(access)
+	require.NoError(t, err)
+	assert.Equal(t, []string{accounts.ScopePadRead}, got.Scopes)
+}
+
+// The consent form sent twice at once makes one grant, and the token of
+// the one that went through works.
+func TestMCPDoubleConsent(t *testing.T) {
+	ts := newMCPServer(t)
+	clientID := ts.register(t)
+	admin, err := ts.auth.Accounts().AccountByUsername("admin")
+	require.NoError(t, err)
+	form := ts.mcpAuthorize(t, clientID, "pad:read", "admin", "adminpass")
+	form.Set("decision", "allow")
+	statuses := make(chan int, 2)
+	locations := make(chan string, 2)
+	for i := 0; i < 2; i++ {
+		go func() {
+			req, _ := http.NewRequest(http.MethodPost, ts.URL+loginPath, strings.NewReader(form.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			resp, err := ts.client.Do(req)
+			if err != nil {
+				statuses <- 0
+				locations <- ""
+				return
+			}
+			_ = resp.Body.Close()
+			statuses <- resp.StatusCode
+			locations <- resp.Header.Get("Location")
+		}()
+	}
+	var ok []string
+	for i := 0; i < 2; i++ {
+		st, loc := <-statuses, <-locations
+		if st == http.StatusFound {
+			ok = append(ok, loc)
+		}
+	}
+	require.Len(t, ok, 1, "one consent goes through")
+	grants, err := ts.auth.MCPGrants(admin.ID)
+	require.NoError(t, err)
+	assert.Len(t, grants, 1)
+	cb := ts.get(t, ok[0])
+	back, err := url.Parse(cb.Header.Get("Location"))
+	require.NoError(t, err)
+	access, _ := ts.mcpTokens(t, clientID, back.Query().Get("code"))
+	_, err = ts.auth.MCPAccessToken(access)
+	assert.NoError(t, err)
+}
+
+func TestMCPRegistrationLimits(t *testing.T) {
+	ts := newMCPServer(t)
+	for i := 0; i < registerPerIP; i++ {
+		resp := ts.postJSON(t, registerPath, `{"redirect_uris":["https://a.example/cb"]}`)
+		require.Equal(t, http.StatusCreated, resp.StatusCode)
+	}
+	resp := ts.postJSON(t, registerPath, `{"redirect_uris":["https://a.example/cb"]}`)
+	assert.Equal(t, http.StatusTooManyRequests, resp.StatusCode)
+
+	// Another address may still register; after the window, this one too.
+	c := &mcpClients{}
+	now := time.Now()
+	for i := 0; i < registerPerIP; i++ {
+		require.True(t, c.allowRegistration("a", now))
+	}
+	assert.False(t, c.allowRegistration("a", now))
+	assert.True(t, c.allowRegistration("b", now))
+	assert.True(t, c.allowRegistration("a", now.Add(registerWindow)))
+}
+
+// A registration nobody connected with goes away after a day; one a person
+// connected stays.
+func TestMCPUnusedClientsExpire(t *testing.T) {
+	ts := newMCPServer(t)
+	unused := ts.register(t)
+	used := ts.register(t)
+	form := ts.mcpAuthorize(t, used, "pad:read", "admin", "adminpass")
+	form.Set("decision", "allow")
+	ts.decide(t, form)
+
+	later := time.Now().Add(unusedClientLifetime + time.Hour)
+	ts.auth.storage.now = func() time.Time { return later }
+	ts.auth.storage.mcp.m = sync.Map{}
+	_, ok := ts.auth.storage.mcpClient(unused)
+	assert.False(t, ok)
+	raw, err := ts.store.GetOIDCStorageValue(mcpClientKeyPrefix + unused)
+	require.NoError(t, err)
+	assert.Nil(t, raw, "removed from the store")
+	_, ok = ts.auth.storage.mcpClient(used)
+	assert.True(t, ok)
+}
+
+// Taking tokens:own away stops the person's apps; connecting and ending
+// are audited.
+func TestMCPAppsNeedTokensOwnAndAreAudited(t *testing.T) {
+	ts := newMCPServer(t)
+	clientID := ts.register(t)
+	acc := ts.auth.Accounts()
+	role, err := acc.SaveRole(accounts.System, db.Role{Name: "connector", Scopes: []string{accounts.ScopeTokensOwn, accounts.ScopePadRead}})
+	require.NoError(t, err)
+	anna, err := acc.CreateAccount(accounts.System, accounts.NewAccount{Username: "anna", Kind: accounts.KindHuman, Password: "anna-password"})
+	require.NoError(t, err)
+	require.NoError(t, acc.Assign(accounts.System, anna.ID, role.ID, ""))
+
+	form := ts.mcpAuthorize(t, clientID, "pad:read", "anna", "anna-password")
+	form.Set("decision", "allow")
+	access, refresh := ts.mcpTokens(t, clientID, ts.decide(t, form).Query().Get("code"))
+	_, err = ts.auth.MCPAccessToken(access)
+	require.NoError(t, err)
+
+	require.NoError(t, acc.Unassign(accounts.System, anna.ID, role.ID, ""))
+	_, err = ts.auth.MCPAccessToken(access)
+	assert.ErrorIs(t, err, ErrNotMCPToken)
+	r := ts.post(t, tokenPath, url.Values{"grant_type": {"refresh_token"}, "refresh_token": {refresh}, "client_id": {clientID}}, "", "")
+	assert.NotEqual(t, http.StatusOK, r.StatusCode)
+
+	grants, err := ts.auth.MCPGrants(anna.ID)
+	require.NoError(t, err)
+	require.Len(t, grants, 1)
+	require.NoError(t, ts.auth.RevokeMCPGrant(accounts.Actor{ID: anna.ID}, anna.ID, grants[0].ID))
+	entries, err := acc.Audit(50)
+	require.NoError(t, err)
+	actions := map[string]bool{}
+	for _, e := range entries {
+		actions[e.Action] = true
+	}
+	assert.True(t, actions["app.connect"])
+	assert.True(t, actions["app.disconnect"])
 }

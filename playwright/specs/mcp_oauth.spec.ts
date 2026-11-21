@@ -64,7 +64,8 @@ test('an MCP client connects with OAuth and the person can disconnect it', async
     await expect(page.locator('.consent-app')).toHaveText(appName);
     await expect(page.locator('input[name="scope"][value="pad:read"]')).toBeChecked();
     await expect(page.locator('input[name="scope"][value="pad:write"]')).toBeChecked();
-    await expect(page.locator('input[name="scope"][value="chat:write"]')).not.toBeChecked();
+    // Only what the client asked for is offered.
+    await expect(page.locator('input[name="scope"][value="chat:write"]')).toHaveCount(0);
     await page.locator('input[name="scope"][value="pad:write"]').uncheck();
     await page.fill('input[name="pads"]', padId);
     await page.click('button[value="allow"]');

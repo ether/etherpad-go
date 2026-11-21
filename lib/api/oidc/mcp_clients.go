@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"slices"
@@ -34,6 +35,19 @@ const (
 	maxRegisterBody    = 16 << 10
 	maxRedirectURIs    = 10
 	maxClientNameRunes = 100
+
+	// unusedClientLifetime: a registration nobody connected with is
+	// removed after it (on its next lookup).
+	unusedClientLifetime = 24 * time.Hour
+	// Registrations per address and per instance in registerWindow.
+	registerPerIP       = 10
+	registerPerInstance = 200
+	registerWindow      = time.Hour
+
+	// ClientIPHeader carries the client's address, as fiber sees it behind
+	// trusted proxies, to the registration (overwritten, never taken from
+	// the request).
+	ClientIPHeader = "X-Etherpad-Oidc-Client-Ip"
 )
 
 // MCPScopes are the scopes an MCP client may ask for and a person may
@@ -46,11 +60,46 @@ type mcpClientRecord struct {
 	Name         string    `json:"name"`
 	RedirectURIs []string  `json:"redirectUris"`
 	CreatedAt    time.Time `json:"createdAt"`
+	// UsedAt: when a person first connected it; zero for a registration
+	// nobody used, which is removed after unusedClientLifetime.
+	UsedAt time.Time `json:"usedAt,omitempty"`
 }
 
-// mcpClients caches registered clients; they never change once made.
+// mcpClients caches registered clients and counts registrations.
 type mcpClients struct {
 	m sync.Map // id -> *Client
+
+	mu      sync.Mutex
+	recent  []time.Time            // registrations of this instance
+	perAddr map[string][]time.Time // by client address
+}
+
+// allowRegistration counts a registration from addr, unless the address
+// or the instance registered too many in registerWindow.
+func (c *mcpClients) allowRegistration(addr string, now time.Time) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	keep := func(ts []time.Time) []time.Time {
+		return slices.DeleteFunc(ts, func(t time.Time) bool { return now.Sub(t) >= registerWindow })
+	}
+	if c.perAddr == nil {
+		c.perAddr = map[string][]time.Time{}
+	}
+	c.recent = keep(c.recent)
+	mine := keep(c.perAddr[addr])
+	if len(c.recent) >= registerPerInstance || len(mine) >= registerPerIP {
+		c.perAddr[addr] = mine
+		return false
+	}
+	c.recent = append(c.recent, now)
+	c.perAddr[addr] = append(mine, now)
+	// Forget addresses that have nothing in the window.
+	for a, ts := range c.perAddr {
+		if len(keep(ts)) == 0 {
+			delete(c.perAddr, a)
+		}
+	}
+	return true
 }
 
 func newMCPClient(r mcpClientRecord) *Client {
@@ -60,6 +109,7 @@ func newMCPClient(r mcpClientRecord) *Client {
 		grantTypes:   []oidc.GrantType{oidc.GrantTypeCode, oidc.GrantTypeRefreshToken},
 		mcp:          true,
 		name:         r.Name,
+		record:       r,
 		settings:     settings.SSOClient{ClientId: r.ID, DisplayName: r.Name},
 	}
 	for _, uri := range c.redirectURIs {
@@ -76,7 +126,11 @@ func (s *Storage) mcpClient(id string) (*Client, bool) {
 		return nil, false
 	}
 	if c, ok := s.mcp.m.Load(id); ok {
-		return c.(*Client), true
+		client := c.(*Client)
+		if !s.unusedTooLong(client.record) {
+			return client, true
+		}
+		s.mcp.m.Delete(id)
 	}
 	raw, err := s.db.GetOIDCStorageValue(mcpClientKeyPrefix + id)
 	if err != nil || raw == nil {
@@ -86,9 +140,36 @@ func (s *Storage) mcpClient(id string) (*Client, bool) {
 	if json.Unmarshal([]byte(*raw), &r) != nil || r.ID != id {
 		return nil, false
 	}
+	if s.unusedTooLong(r) {
+		// Registered, never connected: gone, so registrations do not pile up.
+		_ = s.db.DeleteOIDCStorageValue(mcpClientKeyPrefix + id)
+		return nil, false
+	}
 	c := newMCPClient(r)
 	s.mcp.m.Store(id, c)
 	return c, true
+}
+
+func (s *Storage) unusedTooLong(r mcpClientRecord) bool {
+	return r.UsedAt.IsZero() && s.now().Sub(r.CreatedAt) > unusedClientLifetime
+}
+
+// markMCPClientUsed records that a person connected the client, which then
+// stays.
+func (s *Storage) markMCPClientUsed(id string) {
+	c, ok := s.mcpClient(id)
+	if !ok || !c.record.UsedAt.IsZero() {
+		return
+	}
+	r := c.record
+	r.UsedAt = s.now()
+	data, err := json.Marshal(r)
+	if err != nil {
+		return
+	}
+	if s.db.SetOIDCStorageValue(mcpClientKeyPrefix+id, string(data)) == nil {
+		s.mcp.m.Store(id, newMCPClient(r))
+	}
 }
 
 // client returns a client from the settings or a registered MCP client.
@@ -183,6 +264,18 @@ func (a *Authenticator) RegisterHandler(rw http.ResponseWriter, req *http.Reques
 	}
 	if !a.mcpOAuthEnabled() {
 		http.Error(rw, "dynamic client registration is off", http.StatusForbidden)
+		return
+	}
+	addr := req.Header.Get(ClientIPHeader)
+	if addr == "" {
+		addr = req.RemoteAddr
+		if host, _, err := net.SplitHostPort(addr); err == nil {
+			addr = host
+		}
+	}
+	if !a.storage.mcp.allowRegistration(addr, a.storage.now()) {
+		rw.Header().Set("Retry-After", "3600")
+		http.Error(rw, "too many registrations, try again later", http.StatusTooManyRequests)
 		return
 	}
 	body, err := io.ReadAll(io.LimitReader(req.Body, maxRegisterBody+1))

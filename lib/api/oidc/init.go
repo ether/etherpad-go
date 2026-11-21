@@ -6,6 +6,7 @@ import (
 
 	"github.com/ether/etherpad-go/lib"
 	"github.com/ether/etherpad-go/lib/settings"
+	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/adaptor"
 	"github.com/gofiber/fiber/v3/middleware/cors"
 )
@@ -26,7 +27,12 @@ func Init(store *lib.InitStore) *Authenticator {
 		store.C.All(path, provider)
 	}
 	store.C.All(loginPath, adaptor.HTTPHandler(http.HandlerFunc(authenticator.LoginHandler)))
-	store.C.All(registerPath, adaptor.HTTPHandler(http.HandlerFunc(authenticator.RegisterHandler)))
+	register := adaptor.HTTPHandler(http.HandlerFunc(authenticator.RegisterHandler))
+	store.C.All(registerPath, func(c fiber.Ctx) error {
+		// Registrations are counted per client address (trusted proxies).
+		c.Request().Header.Set(ClientIPHeader, c.IP())
+		return register(c)
+	})
 	return authenticator
 }
 

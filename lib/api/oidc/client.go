@@ -38,8 +38,9 @@ type Client struct {
 	devMode      bool
 	settings     settings.SSOClient
 	// mcp: a registered MCP client (mcp_clients.go); name is its own.
-	mcp  bool
-	name string
+	mcp    bool
+	name   string
+	record mcpClientRecord
 }
 
 // newClient maps an SSO client from the settings. Clients that may use the

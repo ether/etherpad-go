@@ -487,7 +487,7 @@ func (s *Storage) TokenRequestByRefreshToken(_ context.Context, token string) (o
 		return nil, op.ErrInvalidRefreshToken
 	}
 	// An MCP client's grant may have been ended in "My tokens".
-	if c, ok := s.client(rt.ClientID); ok && c.mcp && !s.mcpGrantValid(rt.Subject, grantOf(rt.Scopes)) {
+	if c, ok := s.client(rt.ClientID); ok && c.mcp && (!s.mcpGrantValid(rt.Subject, grantOf(rt.Scopes)) || !s.mayConnectApps(rt.Subject)) {
 		return nil, op.ErrInvalidRefreshToken
 	}
 	return &refreshTokenRequest{rt}, nil
