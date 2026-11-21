@@ -24,14 +24,17 @@
 .toolbar ul li[data-key=account] > a.account-button[aria-expanded=true] {
   background: #475569;
 }
-/* On the dark toolbar the slate circle would vanish: lighter, dark letter. */
-.super-dark-toolbar .toolbar ul li[data-key=account] > a.account-button {
+/* On the dark toolbars the slate circle would vanish: lighter, dark letter. */
+.super-dark-toolbar .toolbar ul li[data-key=account] > a.account-button,
+.dark-toolbar .toolbar ul li[data-key=account] > a.account-button {
   background: #94a3b8;
   border-color: #94a3b8;
   color: #1b2733;
 }
 .super-dark-toolbar .toolbar ul li[data-key=account] > a.account-button:hover,
-.super-dark-toolbar .toolbar ul li[data-key=account] > a.account-button[aria-expanded=true] {
+.super-dark-toolbar .toolbar ul li[data-key=account] > a.account-button[aria-expanded=true],
+.dark-toolbar .toolbar ul li[data-key=account] > a.account-button:hover,
+.dark-toolbar .toolbar ul li[data-key=account] > a.account-button[aria-expanded=true] {
   background: #cbd5e1;
 }
 /* In the toolbar, so it takes the toolbar's colours (light and dark). */
