@@ -8,12 +8,12 @@ require (
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/a-h/templ v0.3.1118
-	github.com/brianvoe/gofakeit/v7 v7.18.8
+	github.com/brianvoe/gofakeit/v7 v7.18.9
 	github.com/evanw/esbuild v0.28.2
 	github.com/go-jose/go-jose/v4 v4.1.9
 	github.com/go-playground/validator/v10 v10.30.6
 	github.com/go-sql-driver/mysql v1.10.2
-	github.com/gofiber/contrib/v3/websocket v1.2.14
+	github.com/gofiber/contrib/v3/websocket v1.2.16
 	github.com/gofiber/fiber/v3 v3.7.0
 	github.com/gofiber/utils/v2 v2.6.5
 	github.com/gofrs/flock v0.13.2
@@ -89,7 +89,7 @@ require (
 	github.com/go-playground/locales v0.14.2 // indirect
 	github.com/go-playground/universal-translator v0.18.2 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
-	github.com/gofiber/schema v1.9.4 // indirect
+	github.com/gofiber/schema v1.10.0 // indirect
 	github.com/google/btree v1.1.3 // indirect
 	github.com/google/jsonschema-go v0.4.3 // indirect
 	github.com/gorilla/securecookie v1.1.2 // indirect
