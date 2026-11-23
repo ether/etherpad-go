@@ -41,6 +41,42 @@ func ConfiguredToolbarColor(skinName, skinVariants string) string {
 	return ToolbarColorForTokens(strings.Fields(skinVariants))
 }
 
+// themeToolbarColors are the toolbar colours of the etherpad-go theme
+// (assets/css/theme/etherpad-go.css): light variants, then dark ones.
+var themeToolbarColors = map[string]string{
+	"super-light-toolbar": "#ffffff",
+	"light-toolbar":       "#f7f9fb",
+	"super-dark-toolbar":  "#111827",
+	"dark-toolbar":        "#1f2937",
+}
+
+// ConfiguredToolbarColorForTheme is ConfiguredToolbarColor for a pad theme.
+func ConfiguredToolbarColorForTheme(skinName, theme, skinVariants string) string {
+	if theme != "etherpad-go" || skinName != "colibris" {
+		return ConfiguredToolbarColor(skinName, skinVariants)
+	}
+	color := themeToolbarColors["super-light-toolbar"]
+	set := map[string]bool{}
+	for _, t := range strings.Fields(skinVariants) {
+		set[t] = true
+	}
+	// Same precedence as the CSS: the rule defined last wins.
+	for _, vc := range toolbarColorsInCSSOrder {
+		if set[vc[0]] {
+			color = themeToolbarColors[vc[0]]
+		}
+	}
+	return color
+}
+
+// DarkToolbarColorForTheme is DarkToolbarColor for a pad theme.
+func DarkToolbarColorForTheme(skinName, theme string) string {
+	if theme != "etherpad-go" || skinName != "colibris" {
+		return DarkToolbarColor(skinName)
+	}
+	return themeToolbarColors["super-dark-toolbar"]
+}
+
 // DarkToolbarColor is the toolbar colour colibris switches to on a client
 // in dark mode, or "" for another skin.
 func DarkToolbarColor(skinName string) string {

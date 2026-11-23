@@ -1,29 +1,9 @@
 // @ts-nocheck
+import {toolbarColorForTokens} from './toolbar_colors';
+
 
 const containers = ['editor', 'background', 'toolbar'];
 const colors = ['super-light', 'light', 'dark', 'super-dark'];
-
-// Toolbar background colors that the colibris skin variants resolve to.
-// Mirrors --bg-color in assets/css/skin/colibris/pad-variants.css. Order
-// matters: when skinVariants contains multiple *-toolbar tokens the CSS
-// cascade picks the rule defined last, so iterate in source order and let
-// the last matching token win. Upstream #7606 / #7690.
-const TOOLBAR_COLORS_IN_CSS_ORDER: Array<[string, string]> = [
-  ['super-light-toolbar', '#ffffff'],
-  ['light-toolbar', '#f2f3f4'],
-  ['super-dark-toolbar', '#485365'],
-  ['dark-toolbar', '#576273'],
-];
-const COLIBRIS_DEFAULT_TOOLBAR_COLOR = '#ffffff';
-
-const toolbarColorForTokens = (tokens: string[]): string => {
-  const set = new Set(tokens);
-  let color = COLIBRIS_DEFAULT_TOOLBAR_COLOR;
-  for (const [variant, c] of TOOLBAR_COLORS_IN_CSS_ORDER) {
-    if (set.has(variant)) color = c;
-  }
-  return color;
-};
 
 // Keep <meta name="theme-color"> in sync with the toolbar the user actually
 // sees. The server emits a baseline derived from settings.skinVariants, but

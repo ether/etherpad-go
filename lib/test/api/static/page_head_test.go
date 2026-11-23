@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	staticapi "github.com/ether/etherpad-go/lib/api/static"
+	"github.com/ether/etherpad-go/lib/settings"
 	"github.com/ether/etherpad-go/lib/test/testutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -45,6 +46,17 @@ func testThemeColor(t *testing.T, ds testutils.TestDataStore) {
 	ds.Settings.SkinName = "colibris"
 	ds.Settings.SkinVariants = lightVariants
 	ds.Settings.EnableDarkMode = true
+
+	// Default theme etherpad-go: its own toolbar colours.
+	for _, url := range []string{"/p/testpad", "/p/testpad/timeslider"} {
+		html := page(t, ds, url)
+		assert.Contains(t, html, `<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">`, url)
+		assert.Contains(t, html, `<meta name="theme-color" content="#111827" media="(prefers-color-scheme: dark)">`, url)
+	}
+
+	// The classic colibris look.
+	ds.Settings.PadTheme = settings.PadTheme{Name: settings.PadThemeColibris}
+	defer func() { ds.Settings.PadTheme = settings.PadTheme{} }()
 	for _, url := range []string{"/p/testpad", "/p/testpad/timeslider"} {
 		html := page(t, ds, url)
 		assert.Contains(t, html, `<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">`, url)
@@ -99,7 +111,18 @@ func testHeadBasics(t *testing.T, ds testutils.TestDataStore) {
 		assert.Contains(t, html, `lang="en"`, url)
 	}
 	pad := page(t, ds, "/p/testpad")
-	assert.Contains(t, pad, `class="pad dark-toolbar super-dark-editor dark-background"`, "the configured skin variants")
+	assert.Contains(t, pad, `class="pad theme-etherpad-go dark-toolbar super-dark-editor dark-background"`, "the theme and the configured skin variants")
+	assert.Contains(t, pad, `style=""`, "no accent colour configured")
+
+	ds.Settings.PadTheme = settings.PadTheme{Name: "colibris", AccentColor: "#7C3AED"}
+	for _, url := range []string{"/p/testpad", "/p/testpad/timeslider"} {
+		html := page(t, ds, url)
+		assert.Contains(t, html, `class="pad theme-colibris dark-toolbar super-dark-editor dark-background"`, url)
+		assert.Contains(t, html, `style="--primary-color: #7c3aed;"`, url)
+	}
+	ds.Settings.PadTheme = settings.PadTheme{AccentColor: "red; background: url(x)"}
+	assert.Contains(t, page(t, ds, "/p/testpad"), `style=""`, "invalid accent colours are dropped")
+	ds.Settings.PadTheme = settings.PadTheme{}
 	assert.Contains(t, pad, `<meta name="robots" content="noindex, nofollow">`)
 	assert.Contains(t, page(t, ds, "/p/testpad/timeslider"), "<title>My Pads Timeslider</title>")
 	assert.NotContains(t, page(t, ds, "/"), "noindex", "the start page may be indexed")

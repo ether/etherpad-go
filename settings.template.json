@@ -4,6 +4,16 @@
   "favicon": null,
   "skinName": "colibris",
   "skinVariants": "super-light-toolbar super-light-editor light-background",
+  /*
+   * Look of the pad and timeslider pages on the colibris skin:
+   * "etherpad-go" (default; grey, light and dark, like the admin UI) or
+   * "colibris" (classic Etherpad, light green). accentColor replaces the
+   * accent colour (#rgb or #rrggbb), empty keeps the theme's own.
+   */
+  "padTheme": {
+    "name": "etherpad-go",
+    "accentColor": ""
+  },
   "ip": "0.0.0.0",
   "port": "3000",
   "showSettingsInAdminPage": true,

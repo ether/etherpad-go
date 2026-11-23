@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 
 	clientVars2 "github.com/ether/etherpad-go/lib/models/clientVars"
 	"go.uber.org/zap"
@@ -348,6 +349,50 @@ type MCP struct {
 // OAuthEnabled: unset means on.
 func (m MCP) OAuthEnabled() bool { return m.OAuth == nil || *m.OAuth }
 
+// Pad themes on the colibris skin.
+const (
+	// PadThemeEtherpadGo is etherpad-go's own look (admin and start page
+	// design): grey surfaces, light and dark, blue accent.
+	PadThemeEtherpadGo = "etherpad-go"
+	// PadThemeColibris is the classic Etherpad look (light green).
+	PadThemeColibris = "colibris"
+)
+
+// PadTheme picks the look of the pad and timeslider pages.
+type PadTheme struct {
+	// Name is "etherpad-go" (default) or "colibris".
+	Name string `json:"name" mapstructure:"name"`
+	// AccentColor replaces the theme's accent colour, as #rgb or #rrggbb.
+	AccentColor string `json:"accentColor" mapstructure:"accentColor"`
+}
+
+var hexColor = regexp.MustCompile(`^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$`)
+
+// Resolved is the theme in use: unknown names fall back to etherpad-go.
+// The colibris look only exists on the colibris skin; other skins bring
+// their own colours and get no theme.
+func (t PadTheme) Resolved(skinName string) string {
+	if skinName != "" && skinName != "colibris" {
+		return ""
+	}
+	switch strings.ToLower(strings.TrimSpace(t.Name)) {
+	case PadThemeColibris:
+		return PadThemeColibris
+	default:
+		return PadThemeEtherpadGo
+	}
+}
+
+// Accent is the configured accent colour, or "" when unset or not a hex
+// colour (it is written into a style attribute, so nothing else passes).
+func (t PadTheme) Accent() string {
+	c := strings.TrimSpace(t.AccentColor)
+	if !hexColor.MatchString(c) {
+		return ""
+	}
+	return strings.ToLower(c)
+}
+
 type Settings struct {
 	Title          string  `json:"title" mapstructure:"title"`
 	ShowRecentPads bool    `json:"showRecentPads" mapstructure:"showRecentPads"`
@@ -461,6 +506,9 @@ type Settings struct {
 	Tokens Tokens `json:"tokens" mapstructure:"tokens"`
 	// MCP configures the MCP server at /mcp (AI clients).
 	MCP MCP `json:"mcp" mapstructure:"mcp"`
+
+	// PadTheme is the look of the pad pages (etherpad-go or colibris).
+	PadTheme PadTheme `json:"padTheme" mapstructure:"padTheme"`
 
 	ShowSettingsInAdminPage bool `json:"showSettingsInAdminPage" mapstructure:"showSettingsInAdminPage"`
 

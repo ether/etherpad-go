@@ -273,9 +273,9 @@ templ DeletionTokenModal(translations map[string]string) {
               <div class="deletiontoken-row">
                 <label for="deletiontoken-value" class="sr-only">{translations["pad.deletionToken.tokenValueLabel"]}</label>
                 <input type="text" id="deletiontoken-value" readonly/>
-                <button type="button" id="deletiontoken-copy">{translations["pad.deletionToken.copy"]}</button>
+                <button type="button" id="deletiontoken-copy" class="btn btn-default">{translations["pad.deletionToken.copy"]}</button>
               </div>
-              <button type="button" id="deletiontoken-ack">{translations["pad.deletionToken.acknowledge"]}</button>
+              <button type="button" id="deletiontoken-ack" class="btn btn-primary">{translations["pad.deletionToken.acknowledge"]}</button>
             </div>
           </div>
 }
@@ -514,7 +514,7 @@ templ ChatBox(translations map[string]string) {
 templ PadIndex(pad padModel.Model, jsScript string, translations map[string]string, settings *settings.Settings,
 availableFonts []string, buttonGroups []pluginTypes.ToolbarButtonGroup, settingsGroups []pluginTypes.SettingsMenuItemGroup, socialMetaHTML string, page head.Info) {
   <!DOCTYPE html>
-  <html lang={page.Lang} dir={page.Dir} translate="no" class={page.HTMLClass()}>
+  <html lang={page.Lang} dir={page.Dir} translate="no" class={page.HTMLClass()} style={page.HTMLStyle()}>
   <head>
     @head.Meta(page)
     <title>{settings.Title}</title>

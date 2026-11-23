@@ -24,6 +24,9 @@
 
 @import url("src/pad-variants.css");
 
+/* etherpad-go's own theme; only active on html.theme-etherpad-go. */
+@import url("../../theme/etherpad-go.css");
+
 /* -----------------------------------------------------------------
  * COLORS
  * If you want to change main colors, please replace following CSS variables

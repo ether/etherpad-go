@@ -308,3 +308,15 @@
 .skin-variant-container {
   text-transform: capitalize;
 }
+
+/* Deletion token dialog: token field and copy button side by side. */
+#deletiontoken-modal .deletiontoken-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 12px 0 16px;
+}
+#deletiontoken-modal .deletiontoken-row input {
+  flex: 1;
+  min-width: 0;
+}

@@ -24,3 +24,28 @@ func TestToolbarColors(t *testing.T) {
 		t.Errorf("DarkToolbarColor(no-skin) = %q", got)
 	}
 }
+
+func TestToolbarColorForTheme(t *testing.T) {
+	cases := []struct {
+		skin, theme, variants, want string
+	}{
+		{"colibris", "etherpad-go", "super-light-toolbar super-light-editor light-background", "#ffffff"},
+		{"colibris", "etherpad-go", "light-toolbar", "#f7f9fb"},
+		{"colibris", "etherpad-go", "super-dark-toolbar", "#111827"},
+		{"colibris", "etherpad-go", "", "#ffffff"},
+		// Classic look keeps the colibris colours.
+		{"colibris", "colibris", "super-dark-toolbar", "#485365"},
+		{"other", "", "super-dark-toolbar", ""},
+	}
+	for _, c := range cases {
+		if got := ConfiguredToolbarColorForTheme(c.skin, c.theme, c.variants); got != c.want {
+			t.Errorf("ConfiguredToolbarColorForTheme(%q, %q, %q) = %q, want %q", c.skin, c.theme, c.variants, got, c.want)
+		}
+	}
+	if got := DarkToolbarColorForTheme("colibris", "etherpad-go"); got != "#111827" {
+		t.Errorf("dark etherpad-go = %q", got)
+	}
+	if got := DarkToolbarColorForTheme("colibris", "colibris"); got != "#485365" {
+		t.Errorf("dark colibris = %q", got)
+	}
+}

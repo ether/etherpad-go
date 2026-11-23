@@ -1,0 +1,194 @@
+/*
+ * etherpad-go theme on top of the colibris skin.
+ *
+ * The look of the admin UI and the start page: grey surfaces, light and
+ * dark, blue accent. Everything is scoped to html.theme-etherpad-go, so the
+ * classic colibris look (padTheme.name = "colibris") stays untouched.
+ *
+ * The colibris variants (super-light-toolbar, dark-background, …) keep
+ * working: the light ones take their colours from the palette below, the
+ * dark ones get their own values further down. The accent colour can be
+ * replaced with padTheme.accentColor (set inline on <html>).
+ *
+ * The web components (@samtv12345/etherpad-webcomponents) read the same
+ * custom properties plus the shape tokens (--radius, --shadow, …).
+ */
+
+html.theme-etherpad-go {
+  /* Palette used by the light variants. */
+  --super-light-color: #ffffff;
+  --light-color: #f7f9fb;
+  --middle-color: #e5e7eb;
+  --dark-color: #4b5563;
+  --super-dark-color: #1a2230;
+
+  --primary-color: #4a6cf7;
+  --primary-text-color: #ffffff;
+  --danger-color: #dc2626;
+  --success-color: #16a34a;
+  --warning-color: #d97706;
+  --focus-color: var(--primary-color);
+
+  --radius: 6px;
+  --radius-large: 10px;
+  --shadow: 0 0 0 1px rgba(17, 24, 39, 0.06), 0 8px 24px rgba(17, 24, 39, 0.08);
+
+  --toolbar-border: 1px solid var(--border-color);
+  --main-font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+}
+
+/* ---------------------------------------------------------------------
+ * Dark variants: explicit values instead of the palette, which is tuned
+ * for light surfaces (the colibris mapping would use --dark-color, a text
+ * grey, as page background).
+ * ------------------------------------------------------------------- */
+
+html.theme-etherpad-go.super-dark-toolbar .toolbar,
+html.theme-etherpad-go.super-dark-toolbar .popup-content,
+html.theme-etherpad-go.super-dark-toolbar #pad_title {
+  --middle-color: #374151;
+  --text-color: #e5e7eb;
+  --text-soft-color: #9ca3af;
+  --border-color: #1f2937;
+  --bg-soft-color: #1f2937;
+  --bg-color: #111827;
+}
+
+html.theme-etherpad-go.dark-toolbar .toolbar,
+html.theme-etherpad-go.dark-toolbar .popup-content,
+html.theme-etherpad-go.dark-toolbar #pad_title {
+  --middle-color: #4b5563;
+  --text-color: #e5e7eb;
+  --text-soft-color: #9ca3af;
+  --border-color: #374151;
+  --bg-soft-color: #374151;
+  --bg-color: #1f2937;
+}
+
+html.theme-etherpad-go.super-dark-background,
+html.theme-etherpad-go.super-dark-background #editorcontainerbox,
+html.theme-etherpad-go.super-dark-background #sidediv,
+html.theme-etherpad-go.super-dark-background #chatbox,
+html.theme-etherpad-go.super-dark-background #outerdocbody {
+  --text-color: #e5e7eb;
+  --text-soft-color: #9ca3af;
+  --border-color: #1f2937;
+  --bg-soft-color: #111827;
+  --bg-color: #030712;
+}
+
+html.theme-etherpad-go.dark-background,
+html.theme-etherpad-go.dark-background #editorcontainerbox,
+html.theme-etherpad-go.dark-background #sidediv,
+html.theme-etherpad-go.dark-background #chatbox,
+html.theme-etherpad-go.dark-background #outerdocbody {
+  --text-color: #e5e7eb;
+  --text-soft-color: #9ca3af;
+  --border-color: #1f2937;
+  --bg-soft-color: #1f2937;
+  --bg-color: #0b1120;
+}
+
+html.theme-etherpad-go.super-dark-background body,
+html.theme-etherpad-go.dark-background body {
+  --scrollbar-bg: #0b1120;
+  --scrollbar-track: #111827;
+  --scrollbar-thumb: #374151;
+}
+
+html.theme-etherpad-go.super-dark-editor #outerdocbody iframe,
+html.theme-etherpad-go.super-dark-editor #outerdocbody > #innerdocbody {
+  --bg-color: #111827;
+}
+html.theme-etherpad-go.dark-editor #outerdocbody iframe,
+html.theme-etherpad-go.dark-editor #outerdocbody > #innerdocbody {
+  --bg-color: #1f2937;
+}
+html.theme-etherpad-go.super-dark-editor #innerdocbody,
+html.theme-etherpad-go.dark-editor #innerdocbody {
+  --text-color: #e5e7eb;
+}
+
+/* Dark surfaces: a subtle border instead of a shadow that cannot be seen. */
+html.theme-etherpad-go.super-dark-toolbar .popup-content,
+html.theme-etherpad-go.dark-toolbar .popup-content {
+  border: 1px solid var(--border-color);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+
+/* ---------------------------------------------------------------------
+ * Shapes and details shared by light and dark.
+ * ------------------------------------------------------------------- */
+
+html.theme-etherpad-go body {
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Headings stay in the text colour; colibris paints h1 green. */
+html.theme-etherpad-go h1 {
+  color: var(--text-color);
+}
+
+/* Toolbar: a thin line below it, rounded hover areas, accent when pressed. */
+html.theme-etherpad-go .toolbar {
+  border-bottom: 1px solid var(--border-color);
+}
+html.theme-etherpad-go .toolbar ul li a {
+  border-radius: var(--radius) !important;
+}
+html.theme-etherpad-go .toolbar ul li a.pressed {
+  background-color: color-mix(in srgb, var(--primary-color) 12%, transparent);
+}
+html.theme-etherpad-go .toolbar .menu_right li a.selected {
+  background-color: var(--bg-soft-color);
+  color: var(--primary-color);
+}
+
+/* Popups, chat and notifications use the shared shape tokens. */
+html.theme-etherpad-go .popup-content,
+html.theme-etherpad-go .chat-content,
+html.theme-etherpad-go #chaticon,
+html.theme-etherpad-go .gritter-item .popup-content {
+  border-radius: var(--radius-large);
+  box-shadow: var(--shadow);
+}
+
+/* Buttons: sentence case, accent with white text. */
+html.theme-etherpad-go button,
+html.theme-etherpad-go .btn {
+  text-transform: none;
+  border-radius: var(--radius);
+}
+html.theme-etherpad-go .btn-primary {
+  color: var(--primary-text-color);
+}
+html.theme-etherpad-go .btn-default {
+  border: 1px solid var(--middle-color);
+  background-color: var(--bg-color);
+}
+html.theme-etherpad-go .btn-default:hover {
+  background-color: var(--bg-soft-color);
+}
+html.theme-etherpad-go #settings .theme-choice button[aria-pressed="true"] {
+  color: var(--primary-text-color);
+}
+
+/* Form fields: a visible border like in the admin UI. */
+html.theme-etherpad-go input[type="text"],
+html.theme-etherpad-go textarea,
+html.theme-etherpad-go select {
+  border: 1px solid var(--border-color);
+  border-radius: calc(var(--radius) - 1px);
+}
+html.theme-etherpad-go input[type="text"]:focus,
+html.theme-etherpad-go textarea:focus,
+html.theme-etherpad-go select:focus {
+  border-color: var(--primary-color);
+  outline: 2px solid color-mix(in srgb, var(--primary-color) 25%, transparent);
+  outline-offset: 0;
+}
+
+/* Saved notifications: accent background needs white text. */
+html.theme-etherpad-go .gritter-item:not(.error):not(.chat-gritter-msg) .popup-content {
+  color: var(--primary-text-color);
+}
