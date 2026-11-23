@@ -118,7 +118,7 @@ templ SettingsPopup(translations map[string]string) {
 
 templ Timeslider(jsScript string, translations map[string]string, settings *settings.Settings, socialMetaHTML string, page head.Info) {
     <!DOCTYPE html>
-    <html lang={page.Lang} dir={page.Dir} translate="no" class={page.HTMLClass()}>
+    <html lang={page.Lang} dir={page.Dir} translate="no" class={page.HTMLClass()} style={page.HTMLStyle()}>
       <head>
         @head.Meta(page)
         <title>{strings.ReplaceAll(translations["timeslider.pageTitle"], "{{appTitle}}", settings.Title)}</title>
