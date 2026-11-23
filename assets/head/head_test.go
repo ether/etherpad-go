@@ -36,9 +36,14 @@ func TestThemeOnHTML(t *testing.T) {
 		t.Errorf("HTMLStyle with invalid accent = %q", got)
 	}
 
-	// Another skin: no theme class.
+	// Another skin: no theme class, and the accent does not override its colours.
 	s.SkinName = "custom"
-	if got := For(s, "en", "../", true).HTMLClass(); strings.Contains(got, "theme-") {
+	s.PadTheme.AccentColor = "#7c3aed"
+	custom := For(s, "en", "../", true)
+	if got := custom.HTMLClass(); strings.Contains(got, "theme-") {
 		t.Errorf("HTMLClass on custom skin = %q", got)
+	}
+	if got := custom.HTMLStyle(); got != "" {
+		t.Errorf("HTMLStyle on custom skin = %q", got)
 	}
 }

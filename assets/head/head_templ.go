@@ -63,9 +63,9 @@ func (i Info) HTMLClass() string {
 
 // HTMLStyle sets the configured accent colour on <html>; the theme CSS and
 // the web components read --primary-color. Accent is validated as a hex
-// colour in settings.
+// colour in settings. Skins without a pad theme keep their own colours.
 func (i Info) HTMLStyle() string {
-	if i.Accent == "" {
+	if i.Accent == "" || i.Theme == "" {
 		return ""
 	}
 	return "--primary-color: " + i.Accent + ";"
@@ -132,7 +132,7 @@ func Meta(i Info) templ.Component {
 				var templ_7745c5c3_Var2 string
 				templ_7745c5c3_Var2, templ_7745c5c3_Err = templruntime.NewAttributeExpression(i.ThemeColor()).Resolve(ctx)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `head/head.templ`, Line: 94, Col: 52}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `assets/head/head.templ`, Line: 94, Col: 52}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var2)
 				if templ_7745c5c3_Err != nil {
@@ -145,7 +145,7 @@ func Meta(i Info) templ.Component {
 				var templ_7745c5c3_Var3 string
 				templ_7745c5c3_Var3, templ_7745c5c3_Err = templruntime.NewAttributeExpression(i.DarkThemeColor()).Resolve(ctx)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `head/head.templ`, Line: 95, Col: 56}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `assets/head/head.templ`, Line: 95, Col: 56}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var3)
 				if templ_7745c5c3_Err != nil {
@@ -163,7 +163,7 @@ func Meta(i Info) templ.Component {
 				var templ_7745c5c3_Var4 string
 				templ_7745c5c3_Var4, templ_7745c5c3_Err = templruntime.NewAttributeExpression(i.ThemeColor()).Resolve(ctx)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `head/head.templ`, Line: 97, Col: 52}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `assets/head/head.templ`, Line: 97, Col: 52}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var4)
 				if templ_7745c5c3_Err != nil {
@@ -188,7 +188,7 @@ func Meta(i Info) templ.Component {
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templruntime.NewAttributeExpression(i.Root + "favicon.ico").ResolveURL(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `head/head.templ`, Line: 124, Col: 56}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `assets/head/head.templ`, Line: 124, Col: 56}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var5)
 		if templ_7745c5c3_Err != nil {
@@ -201,7 +201,7 @@ func Meta(i Info) templ.Component {
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templruntime.NewAttributeExpression(i.Root + "manifest.json").ResolveURL(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `head/head.templ`, Line: 125, Col: 53}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `assets/head/head.templ`, Line: 125, Col: 53}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var6)
 		if templ_7745c5c3_Err != nil {

@@ -363,6 +363,7 @@ type PadTheme struct {
 	// Name is "etherpad-go" (default) or "colibris".
 	Name string `json:"name" mapstructure:"name"`
 	// AccentColor replaces the theme's accent colour, as #rgb or #rrggbb.
+	// Only used with a pad theme, i.e. on the colibris skin.
 	AccentColor string `json:"accentColor" mapstructure:"accentColor"`
 }
 

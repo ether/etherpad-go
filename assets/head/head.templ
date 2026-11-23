@@ -53,9 +53,9 @@ func (i Info) HTMLClass() string {
 
 // HTMLStyle sets the configured accent colour on <html>; the theme CSS and
 // the web components read --primary-color. Accent is validated as a hex
-// colour in settings.
+// colour in settings. Skins without a pad theme keep their own colours.
 func (i Info) HTMLStyle() string {
-	if i.Accent == "" {
+	if i.Accent == "" || i.Theme == "" {
 		return ""
 	}
 	return "--primary-color: " + i.Accent + ";"
