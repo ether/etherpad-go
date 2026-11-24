@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/a-h/templ"
 	"github.com/ether/etherpad-go/assets/welcome"
@@ -73,14 +74,32 @@ func servePluginStatic(c fiber.Ctx) error {
 	}
 	// Served from an fs.FS, not by absolute path: fasthttp 1.79 refuses a
 	// path with a drive letter ("D:/...") on Windows as an NTFS stream.
-	if err := c.SendFile(filePath, fiber.SendFile{FS: pluginFiles}); err != nil {
+	if err := c.SendFile(filePath, fiber.SendFile{FS: pluginFiles()}); err != nil {
 		return c.SendStatus(fiber.StatusNotFound)
 	}
 	return nil
 }
 
-// pluginFiles is ./plugins, where the plugins' static files are.
-var pluginFiles = os.DirFS("plugins")
+// pluginFiles is where the plugins' static files are: ./plugins when the
+// server runs from a source checkout (edits show up without a rebuild),
+// otherwise the copy embedded in the binary. The release image ships only
+// the binary, so reading ./plugins there answered every plugin stylesheet
+// with 404 (e.g. the table of contents showed as an empty column).
+var pluginFiles = sync.OnceValue(func() fs.FS {
+	return choosePluginFiles(plugins.GetStoredPluginAssets())
+})
+
+// choosePluginFiles picks ./plugins if it exists, else embedded (whose
+// root holds the "plugins" folder).
+func choosePluginFiles(embedded fs.FS) fs.FS {
+	if info, err := os.Stat("plugins"); err == nil && info.IsDir() {
+		return os.DirFS("plugins")
+	}
+	if sub, err := fs.Sub(embedded, "plugins"); err == nil {
+		return sub
+	}
+	return os.DirFS("plugins")
+}
 
 var pluginNamePattern = regexp.MustCompile(`^ep_[A-Za-z0-9_-]+$`)
 
