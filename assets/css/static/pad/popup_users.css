@@ -44,7 +44,9 @@
   overflow-y: auto;
 }
 .popup#users.chatAndUsers ep-user-list {
-  max-height: none;
+  /* The sticky users panel is 250px high with 20px padding top and bottom
+     (skin users.css); the list scrolls inside it. */
+  max-height: 210px;
 }
 
 /* --------------------------- */

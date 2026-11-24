@@ -83,7 +83,8 @@ const getAuthorInfo = (authorId: string): { name: string; color: string } => {
   const list = document.getElementById('userlist') as (HTMLElement & { users?: Array<{ id: string; name?: string; color?: string }> }) | null
   for (const user of list?.users ?? []) {
     if (user.id.substring(0, 14) === shortId) {
-      const name = user.name?.trim() || getTranslation('ep_author_hover.unknow_author', 'Unknown Author')
+      // Connected but unnamed: the same label as in the user list.
+      const name = user.name?.trim() || list?.getAttribute('unnamed-label') || 'unnamed'
       return { name, color: user.color || '#fff' }
     }
   }
