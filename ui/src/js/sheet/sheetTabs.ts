@@ -15,12 +15,12 @@ export interface TabsCallbacks {
 
 const STYLE_ID = 'sheet-tabs-style';
 const CSS = `
-.sheet-tabs { display: flex; gap: 1px; align-items: center; padding: 0 6px; font: 12px/1.4 system-ui, sans-serif; background: #f5f6f7; border-top: 1px solid #d4d8dd; }
-.sheet-tabs button { border: none; border-bottom: 2px solid transparent; background: #fff; color: #5f6b7a; padding: 5px 14px 3px; cursor: pointer; }
-.sheet-tabs button:hover { color: #107c41; }
-.sheet-tabs button.sheet-tab-active { background: #fff; color: #107c41; font-weight: 600; border-bottom-color: #107c41; }
-.sheet-tabs button.sheet-tab-add { width: 22px; height: 22px; padding: 0; margin-left: 4px; border: none; border-radius: 50%; background: none; color: #5f6b7a; font-weight: 700; font-size: 14px; line-height: 1; }
-.sheet-tabs button.sheet-tab-add:hover { background: #e6f2ec; color: #107c41; }
+.sheet-tabs { display: flex; gap: 1px; align-items: center; padding: 0 6px; font: 12px/1.4 system-ui, sans-serif; background: var(--sheet-chrome, #f5f6f7); border-top: 1px solid var(--sheet-border, #d4d8dd); }
+.sheet-tabs button { border: none; border-bottom: 2px solid transparent; background: var(--sheet-bg, #fff); color: var(--sheet-text-soft, #5f6b7a); padding: 5px 14px 3px; cursor: pointer; }
+.sheet-tabs button:hover { color: var(--sheet-accent, #107c41); }
+.sheet-tabs button.sheet-tab-active { background: var(--sheet-bg, #fff); color: var(--sheet-accent, #107c41); font-weight: 600; border-bottom-color: var(--sheet-accent, #107c41); }
+.sheet-tabs button.sheet-tab-add { width: 22px; height: 22px; padding: 0; margin-left: 4px; border: none; border-radius: 50%; background: none; color: var(--sheet-text-soft, #5f6b7a); font-weight: 700; font-size: 14px; line-height: 1; }
+.sheet-tabs button.sheet-tab-add:hover { background: var(--sheet-accent-soft, #e6f2ec); color: var(--sheet-accent, #107c41); }
 `;
 
 export function createSheetTabs(cb: TabsCallbacks): { el: HTMLElement; refresh: () => void } {

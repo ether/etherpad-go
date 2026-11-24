@@ -394,7 +394,7 @@ func Init(store *lib.InitStore) {
 			return err
 		}
 		padManager.EnsureAuthorTokenCookie(ctx, store.RetrievedSettings)
-		return pad2.HandleSheetOpen(ctx)
+		return pad2.HandleSheetOpen(ctx, store.RetrievedSettings)
 	})
 
 	store.C.Get("/p/:pad/qr", func(ctx fiber.Ctx) error {

@@ -22,8 +22,9 @@ type Info struct {
 	EnableDarkMode bool
 	// Theme is the pad theme in use ("etherpad-go", "colibris" or "" for
 	// another skin); Accent its configured accent colour or "".
-	Theme  string
-	Accent string
+	Theme      string
+	Accent     string
+	AccentText string
 	// Pad marks the pad and timeslider pages: not indexed, no referrer.
 	Pad bool
 }
@@ -34,7 +35,7 @@ func For(s *settings.Settings, language, root string, pad bool) Info {
 	return Info{
 		Root: root, Lang: lang, Dir: dir,
 		SkinName: s.SkinName, SkinVariants: s.SkinVariants, EnableDarkMode: s.EnableDarkMode,
-		Theme: s.PadTheme.Resolved(s.SkinName), Accent: s.PadTheme.Accent(),
+		Theme: s.PadTheme.Resolved(s.SkinName), Accent: s.PadTheme.Accent(), AccentText: s.PadTheme.AccentText(),
 		Pad: pad,
 	}
 }
@@ -58,7 +59,7 @@ func (i Info) HTMLStyle() string {
 	if i.Accent == "" || i.Theme == "" {
 		return ""
 	}
-	return "--primary-color: " + i.Accent + ";"
+	return "--primary-color: " + i.Accent + "; --primary-text-color: " + i.AccentText + ";"
 }
 
 // ThemeColor is the light theme-color, "" when the skin's colours are not known.

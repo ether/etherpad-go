@@ -1,9 +1,11 @@
 package settings
 
 import (
+	"math"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
 	clientVars2 "github.com/ether/etherpad-go/lib/models/clientVars"
@@ -382,6 +384,33 @@ func (t PadTheme) Resolved(skinName string) string {
 	default:
 		return PadThemeEtherpadGo
 	}
+}
+
+// AccentText is the text colour on the configured accent (white or a dark
+// grey, whichever contrasts more), or "" without an accent.
+func (t PadTheme) AccentText() string {
+	c := t.Accent()
+	if c == "" {
+		return ""
+	}
+	h := c[1:]
+	if len(h) == 3 {
+		h = string([]byte{h[0], h[0], h[1], h[1], h[2], h[2]})
+	}
+	lin := func(i int) float64 {
+		v, _ := strconv.ParseUint(h[i:i+2], 16, 8)
+		f := float64(v) / 255
+		if f <= 0.03928 {
+			return f / 12.92
+		}
+		return math.Pow((f+0.055)/1.055, 2.4)
+	}
+	lum := 0.2126*lin(0) + 0.7152*lin(2) + 0.0722*lin(4)
+	// Contrast against white vs. against #1a2230 (luminance ~0.016).
+	if 1.05/(lum+0.05) >= (lum+0.05)/0.066 {
+		return "#ffffff"
+	}
+	return "#1a2230"
 }
 
 // Accent is the configured accent colour, or "" when unset or not a hex

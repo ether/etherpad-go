@@ -8,27 +8,27 @@ import { RENDER_CSS, renderSheetHtml, workbookEngine } from './sheetRender';
 import { WorkbookState, type WorkbookSnapshot } from './workbookState';
 
 const CSS = `
-.sheet-history { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; background: #fff; font: 13px system-ui, sans-serif; color: #333; }
-.sheet-history-head { display: flex; align-items: center; gap: 10px; height: 40px; flex: none; padding: 0 12px; background: #107c41; color: #fff; }
+.sheet-history { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; background: var(--sheet-bg, #fff); font: 13px system-ui, sans-serif; color: var(--sheet-text, #333); }
+.sheet-history-head { display: flex; align-items: center; gap: 10px; height: 40px; flex: none; padding: 0 12px; background: var(--sheet-accent, #107c41); color: var(--sheet-on-accent, #fff); }
 .sheet-history-head .sheet-history-title { font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sheet-history-head button { height: 28px; padding: 0 12px; border: 1px solid #fff; border-radius: 3px; background: #107c41; color: #fff; font: inherit; cursor: pointer; }
-.sheet-history-head button.primary { background: #fff; color: #107c41; font-weight: 600; }
+.sheet-history-head button { height: 28px; padding: 0 12px; border: 1px solid var(--sheet-bg, #fff); border-radius: 3px; background: var(--sheet-accent, #107c41); color: var(--sheet-on-accent, #fff); font: inherit; cursor: pointer; }
+.sheet-history-head button.primary { background: var(--sheet-bg, #fff); color: var(--sheet-accent, #107c41); font-weight: 600; }
 .sheet-history-head button[hidden] { display: none; }
 .sheet-history-main { flex: 1; display: flex; min-height: 0; }
-.sheet-history-preview { flex: 1; display: flex; flex-direction: column; min-width: 0; background: #f5f6f7; }
-.sheet-history-tabs { display: flex; gap: 2px; padding: 4px 8px 0; border-bottom: 1px solid #d4d8dd; flex: none; }
-.sheet-history-tabs button { border: 1px solid transparent; border-bottom: none; background: none; padding: 4px 12px; font: inherit; color: #5a5f66; cursor: pointer; border-radius: 3px 3px 0 0; }
-.sheet-history-tabs button.on { background: #fff; border-color: #d4d8dd; color: #107c41; font-weight: 600; }
-.sheet-history-sheet { flex: 1; overflow: auto; padding: 12px; background: #fff; }
-.sheet-history-list { width: 290px; flex: none; overflow: auto; border-left: 1px solid #d4d8dd; }
-.sheet-history-list button { display: block; width: 100%; text-align: left; border: none; border-bottom: 1px solid #eceef0; background: none; padding: 9px 12px; font: inherit; color: inherit; cursor: pointer; }
-.sheet-history-list button:hover { background: #e6f2ec; }
-.sheet-history-list button.on { background: #cce5d8; }
+.sheet-history-preview { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--sheet-chrome, #f5f6f7); }
+.sheet-history-tabs { display: flex; gap: 2px; padding: 4px 8px 0; border-bottom: 1px solid var(--sheet-border, #d4d8dd); flex: none; }
+.sheet-history-tabs button { border: 1px solid transparent; border-bottom: none; background: none; padding: 4px 12px; font: inherit; color: var(--sheet-text-soft, #5a5f66); cursor: pointer; border-radius: 3px 3px 0 0; }
+.sheet-history-tabs button.on { background: var(--sheet-bg, #fff); border-color: var(--sheet-border, #d4d8dd); color: var(--sheet-accent, #107c41); font-weight: 600; }
+.sheet-history-sheet { flex: 1; overflow: auto; padding: 12px; background: var(--sheet-bg, #fff); }
+.sheet-history-list { width: 290px; flex: none; overflow: auto; border-left: 1px solid var(--sheet-border, #d4d8dd); }
+.sheet-history-list button { display: block; width: 100%; text-align: left; border: none; border-bottom: 1px solid var(--sheet-chrome, #eceef0); background: none; padding: 9px 12px; font: inherit; color: inherit; cursor: pointer; }
+.sheet-history-list button:hover { background: var(--sheet-accent-soft, #e6f2ec); }
+.sheet-history-list button.on { background: var(--sheet-accent-soft-strong, #cce5d8); }
 .sheet-history-when { font-weight: 600; }
-.sheet-history-label { font-size: 11px; color: #107c41; margin-left: 6px; font-weight: 600; }
-.sheet-history-who { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 3px; font-size: 12px; color: #555; }
+.sheet-history-label { font-size: 11px; color: var(--sheet-accent, #107c41); margin-left: 6px; font-weight: 600; }
+.sheet-history-who { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 3px; font-size: 12px; color: var(--sheet-text-soft, #555); }
 .sheet-history-who span::before { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; background: var(--c, #999); }
-.sheet-history-note { padding: 16px; color: #666; }
+.sheet-history-note { padding: 16px; color: var(--sheet-text-soft, #666); }
 `;
 
 export interface HistoryPanelOptions {

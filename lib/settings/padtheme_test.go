@@ -41,3 +41,21 @@ func TestPadThemeAccent(t *testing.T) {
 		}
 	}
 }
+
+func TestPadThemeAccentText(t *testing.T) {
+	cases := map[string]string{
+		"":        "",
+		"#7c3aed": "#ffffff",
+		"#4a6cf7": "#ffffff",
+		"#000":    "#ffffff",
+		"#fff":    "#1a2230",
+		"#ffeb3b": "#1a2230",
+		"#64d29b": "#1a2230",
+		"bad":     "",
+	}
+	for in, want := range cases {
+		if got := (PadTheme{AccentColor: in}).AccentText(); got != want {
+			t.Errorf("AccentText(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

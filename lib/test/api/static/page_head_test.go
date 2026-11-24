@@ -118,7 +118,7 @@ func testHeadBasics(t *testing.T, ds testutils.TestDataStore) {
 	for _, url := range []string{"/p/testpad", "/p/testpad/timeslider"} {
 		html := page(t, ds, url)
 		assert.Contains(t, html, `class="pad theme-colibris dark-toolbar super-dark-editor dark-background"`, url)
-		assert.Contains(t, html, `style="--primary-color: #7c3aed;"`, url)
+		assert.Contains(t, html, `style="--primary-color: #7c3aed; --primary-text-color: #ffffff;"`, url)
 	}
 	ds.Settings.PadTheme = settings.PadTheme{AccentColor: "red; background: url(x)"}
 	assert.Contains(t, page(t, ds, "/p/testpad"), `style=""`, "invalid accent colours are dropped")

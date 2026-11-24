@@ -24,16 +24,16 @@ export interface DialogOptions {
 
 const CSS = `
 .sheet-dialog-back { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,0.15); display: flex; align-items: flex-start; justify-content: center; padding-top: 110px; }
-.sheet-dialog { width: 380px; background: #fff; border: 1px solid #d4d8dd; box-shadow: 0 6px 18px rgba(0,0,0,0.18); border-radius: 4px; font: 13px system-ui, sans-serif; color: #333; }
-.sheet-dialog-head { padding: 8px 10px; background: #107c41; color: #fff; border-radius: 3px 3px 0 0; font-weight: 600; }
+.sheet-dialog { width: 380px; background: var(--sheet-bg, #fff); border: 1px solid var(--sheet-border, #d4d8dd); box-shadow: 0 6px 18px rgba(0,0,0,0.18); border-radius: 4px; font: 13px system-ui, sans-serif; color: var(--sheet-text, #333); }
+.sheet-dialog-head { padding: 8px 10px; background: var(--sheet-accent, #107c41); color: var(--sheet-on-accent, #fff); border-radius: 3px 3px 0 0; font-weight: 600; }
 .sheet-dialog-body { padding: 10px; display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; }
 .sheet-dialog-body label { white-space: nowrap; }
-.sheet-dialog-body input, .sheet-dialog-body select, .sheet-dialog-body textarea { width: 100%; box-sizing: border-box; padding: 3px 6px; border: 1px solid #d4d8dd; border-radius: 2px; font: 13px system-ui, sans-serif; }
+.sheet-dialog-body input, .sheet-dialog-body select, .sheet-dialog-body textarea { width: 100%; box-sizing: border-box; padding: 3px 6px; border: 1px solid var(--sheet-border, #d4d8dd); border-radius: 2px; font: 13px system-ui, sans-serif; }
 .sheet-dialog-body textarea { min-height: 90px; resize: vertical; }
-.sheet-dialog-error { grid-column: 1 / -1; min-height: 16px; font-size: 12px; color: #c0392b; }
+.sheet-dialog-error { grid-column: 1 / -1; min-height: 16px; font-size: 12px; color: var(--sheet-danger, #c0392b); }
 .sheet-dialog-actions { display: flex; gap: 6px; justify-content: flex-end; padding: 0 10px 10px; }
-.sheet-dialog-actions button { height: 26px; padding: 0 12px; border: 1px solid #d4d8dd; border-radius: 3px; background: #f5f6f7; font: 13px system-ui, sans-serif; cursor: pointer; }
-.sheet-dialog-actions button.primary { background: #107c41; border-color: #107c41; color: #fff; }
+.sheet-dialog-actions button { height: 26px; padding: 0 12px; border: 1px solid var(--sheet-border, #d4d8dd); border-radius: 3px; background: var(--sheet-chrome, #f5f6f7); font: 13px system-ui, sans-serif; cursor: pointer; }
+.sheet-dialog-actions button.primary { background: var(--sheet-accent, #107c41); border-color: var(--sheet-accent, #107c41); color: var(--sheet-on-accent, #fff); }
 .sheet-dialog-actions .sheet-dialog-extra { margin-right: auto; }
 `;
 

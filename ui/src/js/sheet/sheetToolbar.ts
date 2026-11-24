@@ -61,37 +61,37 @@ export interface ToolbarCallbacks {
 }
 
 const CSS = `
-.sheet-toolbar { border-bottom: 1px solid #d4d8dd; background: #fff; font: 13px system-ui, sans-serif; user-select: none; }
+.sheet-toolbar { border-bottom: 1px solid var(--sheet-border, #d4d8dd); background: var(--sheet-bg, #fff); font: 13px system-ui, sans-serif; user-select: none; }
 /* Read-only: what changes the sheet is greyed out; the tabs, the File menu
    and the groups that only read (history, print, view) stay usable. */
 .sheet-ribbon-group[aria-disabled=true] { opacity: 0.5; pointer-events: none; }
-.sheet-ribbon-tabs { display: flex; align-items: flex-end; gap: 2px; padding: 4px 8px 0; background: #fff; border-bottom: 1px solid #d4d8dd; position: relative; }
-.sheet-ribbon-tabs button { border: 1px solid transparent; border-bottom: none; background: none; padding: 5px 16px 6px; font: 13px system-ui, sans-serif; color: #5a5f66; cursor: pointer; border-radius: 4px 4px 0 0; margin-bottom: -1px; }
-.sheet-ribbon-tabs button:hover { color: #107c41; background: #e6f2ec; }
-.sheet-ribbon-tabs button.on { background: #f5f6f7; border-color: #d4d8dd; border-bottom: 1px solid #f5f6f7; color: #107c41; font-weight: 600; }
-.sheet-ribbon-tabs .sheet-file-tab, .sheet-ribbon-tabs .sheet-file-tab:hover { background: #107c41; color: #fff; font-weight: 600; border-radius: 4px 4px 0 0; }
-.sheet-ribbon-tabs .sheet-file-tab:hover { background: #0e6a38; }
+.sheet-ribbon-tabs { display: flex; align-items: flex-end; gap: 2px; padding: 4px 8px 0; background: var(--sheet-bg, #fff); border-bottom: 1px solid var(--sheet-border, #d4d8dd); position: relative; }
+.sheet-ribbon-tabs button { border: 1px solid transparent; border-bottom: none; background: none; padding: 5px 16px 6px; font: 13px system-ui, sans-serif; color: var(--sheet-text-soft, #5a5f66); cursor: pointer; border-radius: 4px 4px 0 0; margin-bottom: -1px; }
+.sheet-ribbon-tabs button:hover { color: var(--sheet-accent, #107c41); background: var(--sheet-accent-soft, #e6f2ec); }
+.sheet-ribbon-tabs button.on { background: var(--sheet-chrome, #f5f6f7); border-color: var(--sheet-border, #d4d8dd); border-bottom: 1px solid var(--sheet-chrome, #f5f6f7); color: var(--sheet-accent, #107c41); font-weight: 600; }
+.sheet-ribbon-tabs .sheet-file-tab, .sheet-ribbon-tabs .sheet-file-tab:hover { background: var(--sheet-accent, #107c41); color: var(--sheet-on-accent, #fff); font-weight: 600; border-radius: 4px 4px 0 0; }
+.sheet-ribbon-tabs .sheet-file-tab:hover { background: var(--sheet-accent-hover, #0e6a38); }
 .sheet-file-wrap { position: relative; display: flex; }
-.sheet-file-menu { position: absolute; top: 100%; left: 0; z-index: 30; min-width: 170px; background: #fff; border: 1px solid #d4d8dd; box-shadow: 0 4px 10px rgba(0,0,0,0.15); padding: 4px 0; }
-.sheet-file-menu button { display: block; width: 100%; text-align: left; border: none; background: none; padding: 7px 14px; font: 13px system-ui, sans-serif; color: #333; cursor: pointer; }
-.sheet-file-menu button:hover { background: #e6f2ec; }
-.sheet-ribbon-body { display: flex; align-items: stretch; min-height: 66px; padding: 3px 6px 1px; background: #f5f6f7; overflow-x: auto; }
-.sheet-ribbon-group { display: flex; flex-direction: column; padding: 1px 8px; border-right: 1px solid #d9dde1; }
+.sheet-file-menu { position: absolute; top: 100%; left: 0; z-index: 30; min-width: 170px; background: var(--sheet-bg, #fff); border: 1px solid var(--sheet-border, #d4d8dd); box-shadow: 0 4px 10px rgba(0,0,0,0.15); padding: 4px 0; }
+.sheet-file-menu button { display: block; width: 100%; text-align: left; border: none; background: none; padding: 7px 14px; font: 13px system-ui, sans-serif; color: var(--sheet-text, #333); cursor: pointer; }
+.sheet-file-menu button:hover { background: var(--sheet-accent-soft, #e6f2ec); }
+.sheet-ribbon-body { display: flex; align-items: stretch; min-height: 66px; padding: 3px 6px 1px; background: var(--sheet-chrome, #f5f6f7); overflow-x: auto; }
+.sheet-ribbon-group { display: flex; flex-direction: column; padding: 1px 8px; border-right: 1px solid var(--sheet-border, #d9dde1); }
 .sheet-ribbon-group:last-child { border-right: none; }
 .sheet-ribbon-content { flex: 1; display: flex; gap: 3px; align-items: center; justify-content: center; }
 .sheet-ribbon-col { display: flex; flex-direction: column; gap: 2px; justify-content: center; }
 .sheet-ribbon-row { display: flex; gap: 3px; align-items: center; }
-.sheet-ribbon-label { font-size: 10.5px; color: #8a8f95; text-align: center; padding: 2px 2px 1px; }
-.sheet-ribbon-row button, .sheet-ribbon-big { border: 1px solid transparent; border-radius: 3px; background: none; font: 13px system-ui, sans-serif; color: #333; cursor: pointer; }
+.sheet-ribbon-label { font-size: 10.5px; color: var(--sheet-text-soft, #8a8f95); text-align: center; padding: 2px 2px 1px; }
+.sheet-ribbon-row button, .sheet-ribbon-big { border: 1px solid transparent; border-radius: 3px; background: none; font: 13px system-ui, sans-serif; color: var(--sheet-text, #333); cursor: pointer; }
 .sheet-ribbon-row button { height: 24px; min-width: 26px; padding: 0 5px; display: inline-flex; align-items: center; justify-content: center; gap: 3px; }
-.sheet-ribbon-row button:hover, .sheet-ribbon-big:hover { background: #e6f2ec; border-color: #bcd8c9; }
-.sheet-ribbon-row button.on, .sheet-ribbon-big.on { background: #cce5d8; border-color: #9fccb4; }
+.sheet-ribbon-row button:hover, .sheet-ribbon-big:hover { background: var(--sheet-accent-soft, #e6f2ec); border-color: var(--sheet-accent-soft-strong, #bcd8c9); }
+.sheet-ribbon-row button.on, .sheet-ribbon-big.on { background: var(--sheet-accent-soft-strong, #cce5d8); border-color: var(--sheet-accent-border, #9fccb4); }
 .sheet-ribbon-big { height: 62px; min-width: 48px; padding: 3px 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 11px; }
 .sheet-ribbon-big .sheet-big-glyph { font-size: 22px; line-height: 26px; }
-.sheet-ribbon-row select { height: 22px; border: 1px solid #d4d8dd; border-radius: 2px; background: #fff; font: 12px system-ui, sans-serif; color: #333; cursor: pointer; }
-.sheet-ribbon-row select:hover { border-color: #bcd8c9; }
+.sheet-ribbon-row select { height: 22px; border: 1px solid var(--sheet-border, #d4d8dd); border-radius: 2px; background: var(--sheet-bg, #fff); font: 12px system-ui, sans-serif; color: var(--sheet-text, #333); cursor: pointer; }
+.sheet-ribbon-row select:hover { border-color: var(--sheet-accent-soft-strong, #bcd8c9); }
 .sheet-ribbon-row input[type=color] { width: 26px; height: 24px; padding: 1px 2px; border: 1px solid transparent; border-radius: 3px; background: none; cursor: pointer; }
-.sheet-ribbon-row input[type=color]:hover { background: #e6f2ec; border-color: #bcd8c9; }
+.sheet-ribbon-row input[type=color]:hover { background: var(--sheet-accent-soft, #e6f2ec); border-color: var(--sheet-accent-soft-strong, #bcd8c9); }
 `;
 
 type TabName = 'Home' | 'Insert' | 'Data' | 'Review' | 'View';
@@ -614,7 +614,7 @@ export function createToolbar(cb: ToolbarCallbacks): ToolbarElement {
     const show = col(group('View', 'Show', true));
     for (const [opt, label] of [['gridlines', 'Gridlines'], ['headings', 'Headings']] as const) {
       const wrap = document.createElement('label');
-      wrap.style.cssText = 'display:flex;align-items:center;gap:4px;font-size:12px;color:#333;cursor:pointer';
+      wrap.style.cssText = 'display:flex;align-items:center;gap:4px;font-size:12px;color:var(--sheet-text, #333);cursor:pointer';
       const box = document.createElement('input');
       box.type = 'checkbox';
       box.checked = true;

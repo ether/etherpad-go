@@ -1,8 +1,32 @@
 package sheet
 
-templ SheetIndex(padName string, jsScript string) {
+// Page is the theme of the spreadsheet page: Theme is "etherpad-go" or
+// "colibris" (classic Excel-like look); DarkMode lets it follow the
+// system's dark mode; Style carries a validated accent colour.
+type Page struct {
+	Theme    string
+	DarkMode bool
+	Style    string
+}
+
+// HTMLClass is the class list of <html>.
+func (p Page) HTMLClass() string {
+	c := ""
+	if p.Theme != "" {
+		c = "theme-" + p.Theme
+	}
+	if p.DarkMode {
+		if c != "" {
+			c += " "
+		}
+		c += "sheet-dark-allowed"
+	}
+	return c
+}
+
+templ SheetIndex(padName string, jsScript string, page Page) {
 	<!DOCTYPE html>
-	<html lang="en">
+	<html lang="en" class={ page.HTMLClass() } style={ page.Style }>
 		<head>
 			<meta charset="utf-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1"/>

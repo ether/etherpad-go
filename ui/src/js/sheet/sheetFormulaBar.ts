@@ -19,18 +19,18 @@ export interface FormulaBarHandle {
 }
 
 const CSS = `
-.sheet-formula-bar { display: flex; align-items: stretch; gap: 6px; padding: 3px 4px; border-bottom: 1px solid #d4d8dd; background: #fff; font: 13px system-ui, sans-serif; position: relative; }
-.sheet-namebox { min-width: 72px; padding: 2px 6px; border: 1px solid #d4d8dd; background: #fff; text-align: center; align-self: center; border-radius: 3px; }
-.sheet-fx-sep { width: 1px; background: #d4d8dd; margin: 2px 0; }
-.sheet-fx-cancel, .sheet-fx-commit { align-self: center; width: 22px; height: 22px; padding: 0; border: none; border-radius: 2px; background: none; color: #8a8f95; font: 12px/1 system-ui, sans-serif; cursor: pointer; }
-.sheet-fx-cancel:hover, .sheet-fx-commit:hover { background: #e6f2ec; color: #107c41; }
+.sheet-formula-bar { display: flex; align-items: stretch; gap: 6px; padding: 3px 4px; border-bottom: 1px solid var(--sheet-border, #d4d8dd); background: var(--sheet-bg, #fff); font: 13px system-ui, sans-serif; position: relative; }
+.sheet-namebox { min-width: 72px; padding: 2px 6px; border: 1px solid var(--sheet-border, #d4d8dd); background: var(--sheet-bg, #fff); text-align: center; align-self: center; border-radius: 3px; }
+.sheet-fx-sep { width: 1px; background: var(--sheet-border, #d4d8dd); margin: 2px 0; }
+.sheet-fx-cancel, .sheet-fx-commit { align-self: center; width: 22px; height: 22px; padding: 0; border: none; border-radius: 2px; background: none; color: var(--sheet-text-soft, #8a8f95); font: 12px/1 system-ui, sans-serif; cursor: pointer; }
+.sheet-fx-cancel:hover, .sheet-fx-commit:hover { background: var(--sheet-accent-soft, #e6f2ec); color: var(--sheet-accent, #107c41); }
 .sheet-fx-cancel:disabled, .sheet-fx-commit:disabled { opacity: .4; cursor: default; }
-.sheet-fx-label { align-self: center; font: italic 13px Georgia, 'Times New Roman', serif; color: #8a8f95; pointer-events: none; user-select: none; }
-.sheet-fx-input { flex: 1; padding: 2px 6px; border: 1px solid #d4d8dd; background: #fff; font: 13px/1.4 ui-monospace, monospace; outline: none; }
-.sheet-fx-input:focus { border-color: #107c41; }
-.sheet-fx-ac { position: absolute; top: 100%; left: 152px; z-index: 20; background: #fff; border: 1px solid #bbb; box-shadow: 0 2px 6px rgba(0,0,0,.15); min-width: 180px; max-height: 180px; overflow-y: auto; }
+.sheet-fx-label { align-self: center; font: italic 13px Georgia, 'Times New Roman', serif; color: var(--sheet-text-soft, #8a8f95); pointer-events: none; user-select: none; }
+.sheet-fx-input { flex: 1; padding: 2px 6px; border: 1px solid var(--sheet-border, #d4d8dd); background: var(--sheet-bg, #fff); font: 13px/1.4 ui-monospace, monospace; outline: none; }
+.sheet-fx-input:focus { border-color: var(--sheet-accent, #107c41); }
+.sheet-fx-ac { position: absolute; top: 100%; left: 152px; z-index: 20; background: var(--sheet-bg, #fff); border: 1px solid var(--sheet-border, #bbb); box-shadow: 0 2px 6px rgba(0,0,0,.15); min-width: 180px; max-height: 180px; overflow-y: auto; }
 .sheet-fx-ac div { padding: 2px 8px; cursor: pointer; font: 12px/1.5 ui-monospace, monospace; }
-.sheet-fx-ac div.hl { background: #cfeede; }
+.sheet-fx-ac div.hl { background: var(--sheet-accent-soft, #cfeede); }
 `;
 
 export function createFormulaBar(cb: FormulaBarCallbacks): FormulaBarHandle {
