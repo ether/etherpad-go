@@ -19,24 +19,24 @@ export interface FindDialogHandle {
 }
 
 const CSS = `
-.sheet-find { position: fixed; top: 90px; right: 24px; z-index: 50; width: 320px; background: #fff;
-  border: 1px solid #d4d8dd; box-shadow: 0 6px 18px rgba(0,0,0,0.18); border-radius: 4px;
-  font: 13px system-ui, sans-serif; color: #333; }
+.sheet-find { position: fixed; top: 90px; right: 24px; z-index: 50; width: 320px; background: var(--sheet-bg, #fff);
+  border: 1px solid var(--sheet-border, #d4d8dd); box-shadow: 0 6px 18px rgba(0,0,0,0.18); border-radius: 4px;
+  font: 13px system-ui, sans-serif; color: var(--sheet-text, #333); }
 .sheet-find[hidden] { display: none; }
 .sheet-find-head { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px;
-  background: #107c41; color: #fff; border-radius: 3px 3px 0 0; font-weight: 600; }
-.sheet-find-head button { background: none; border: none; color: #fff; font-size: 15px; cursor: pointer; line-height: 1; }
+  background: var(--sheet-accent, #107c41); color: var(--sheet-on-accent, #fff); border-radius: 3px 3px 0 0; font-weight: 600; }
+.sheet-find-head button { background: none; border: none; color: var(--sheet-on-accent, #fff); font-size: 15px; cursor: pointer; line-height: 1; }
 .sheet-find-body { padding: 10px; display: grid; grid-template-columns: auto 1fr; gap: 6px 8px; align-items: center; }
 .sheet-find-body input[type=text] { width: 100%; box-sizing: border-box; height: 26px; padding: 0 6px;
-  border: 1px solid #d4d8dd; border-radius: 2px; font: 13px system-ui, sans-serif; }
+  border: 1px solid var(--sheet-border, #d4d8dd); border-radius: 2px; font: 13px system-ui, sans-serif; }
 .sheet-find-opts { grid-column: 1 / -1; display: flex; gap: 14px; padding-top: 2px; }
 .sheet-find-opts label { display: flex; align-items: center; gap: 4px; font-size: 12px; cursor: pointer; }
 .sheet-find-actions { grid-column: 1 / -1; display: flex; gap: 6px; justify-content: flex-end; padding-top: 4px; }
-.sheet-find-actions button { height: 26px; padding: 0 10px; border: 1px solid #d4d8dd; border-radius: 3px;
-  background: #f5f6f7; font: 13px system-ui, sans-serif; cursor: pointer; }
-.sheet-find-actions button:hover:enabled { background: #e6f2ec; border-color: #bcd8c9; }
+.sheet-find-actions button { height: 26px; padding: 0 10px; border: 1px solid var(--sheet-border, #d4d8dd); border-radius: 3px;
+  background: var(--sheet-chrome, #f5f6f7); font: 13px system-ui, sans-serif; cursor: pointer; }
+.sheet-find-actions button:hover:enabled { background: var(--sheet-accent-soft, #e6f2ec); border-color: var(--sheet-accent-soft-strong, #bcd8c9); }
 .sheet-find-actions button:disabled { opacity: 0.5; cursor: default; }
-.sheet-find-status { grid-column: 1 / -1; min-height: 16px; font-size: 12px; color: #5f6b7a; }
+.sheet-find-status { grid-column: 1 / -1; min-height: 16px; font-size: 12px; color: var(--sheet-text-soft, #5f6b7a); }
 .sheet-find-status.miss { color: #c0392b; }
 `;
 

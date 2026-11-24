@@ -73,43 +73,43 @@ const STYLE_ID = 'sheet-grid-style';
 // collapsed borders while a frozen row/col sticks. Right/bottom-only borders
 // keep the 1px grid look without doubling.
 const CSS = `
-.sheet-grid { border-collapse: separate; border-spacing: 0; border-top: 1px solid #d4d4d4; border-left: 1px solid #d4d4d4; font: 13px/1.4 system-ui, sans-serif; }
-.sheet-grid th, .sheet-grid td { border-right: 1px solid #d4d4d4; border-bottom: 1px solid #d4d4d4; min-width: 80px; height: 22px; padding: 2px 6px; }
-.sheet-grid th { background: #f5f6f7; color: #5f6b7a; font-weight: 600; text-align: center; position: relative; }
+.sheet-grid { border-collapse: separate; border-spacing: 0; border-top: 1px solid var(--sheet-grid, #d4d4d4); border-left: 1px solid var(--sheet-grid, #d4d4d4); font: 13px/1.4 system-ui, sans-serif; }
+.sheet-grid th, .sheet-grid td { border-right: 1px solid var(--sheet-grid, #d4d4d4); border-bottom: 1px solid var(--sheet-grid, #d4d4d4); min-width: 80px; height: 22px; padding: 2px 6px; }
+.sheet-grid th { background: var(--sheet-chrome, #f5f6f7); color: var(--sheet-text-soft, #5f6b7a); font-weight: 600; text-align: center; position: relative; }
 /* Excel keeps headers visible while the grid scrolls: column letters stick to
    the top, row numbers to the left of the scroll container (sheet-grid-host). */
 .sheet-grid thead th { position: sticky; top: 0; z-index: 8; }
 .sheet-grid thead th:first-child { left: 0; z-index: 9; }
 .sheet-grid tbody th { position: sticky; left: 0; z-index: 4; }
-.sheet-grid th.sheet-head-hl { background: #e6f2ec; color: #0f6b3a; }
-.sheet-grid thead th.sheet-head-hl { box-shadow: inset 0 -2px 0 #107c41; }
-.sheet-grid tbody th.sheet-head-hl { box-shadow: inset -2px 0 0 #107c41; }
-.sheet-grid td { outline: none; position: relative; background: #fff; white-space: nowrap; overflow: hidden; }
+.sheet-grid th.sheet-head-hl { background: var(--sheet-accent-soft, #e6f2ec); color: var(--sheet-accent-text, #0f6b3a); }
+.sheet-grid thead th.sheet-head-hl { box-shadow: inset 0 -2px 0 var(--sheet-accent, #107c41); }
+.sheet-grid tbody th.sheet-head-hl { box-shadow: inset -2px 0 0 var(--sheet-accent, #107c41); }
+.sheet-grid td { outline: none; position: relative; background: var(--sheet-bg, #fff); white-space: nowrap; overflow: hidden; }
 .sheet-resizer-col { position: absolute; top: 0; right: -3px; width: 6px; height: 100%; cursor: col-resize; z-index: 9; }
 .sheet-resizer-row { position: absolute; left: 0; bottom: -3px; height: 6px; width: 100%; cursor: row-resize; z-index: 9; }
-.sheet-grid thead th.sheet-head-filter::after { content: ' ▾'; color: #107c41; }
+.sheet-grid thead th.sheet-head-filter::after { content: ' ▾'; color: var(--sheet-accent, #107c41); }
 .sheet-grid tr.sheet-spacer td { padding: 0; border: none; background: transparent; min-width: 0; height: auto; }
-.sheet-grid td:focus { box-shadow: inset 0 0 0 2px #107c41; overflow: visible; z-index: 3; }
-.sheet-remote-tag { position: absolute; top: -15px; left: -1px; font: 10px/14px system-ui, sans-serif; padding: 0 4px; color: #fff; border-radius: 3px 3px 3px 0; white-space: nowrap; z-index: 5; pointer-events: none; }
+.sheet-grid td:focus { box-shadow: inset 0 0 0 2px var(--sheet-accent, #107c41); overflow: visible; z-index: 3; }
+.sheet-remote-tag { position: absolute; top: -15px; left: -1px; font: 10px/14px system-ui, sans-serif; padding: 0 4px; color: var(--sheet-on-accent, #fff); border-radius: 3px 3px 3px 0; white-space: nowrap; z-index: 5; pointer-events: none; }
 .sheet-remote-tag::after { content: attr(data-label); }
-.sheet-grid td.sheet-sel { background: rgba(16, 124, 65, 0.10); }
-.sheet-grid td.sheet-sel-focus { box-shadow: inset 0 0 0 2px #107c41; }
+.sheet-grid td.sheet-sel { background: var(--sheet-selection, rgba(16, 124, 65, 0.10)); }
+.sheet-grid td.sheet-sel-focus { box-shadow: inset 0 0 0 2px var(--sheet-accent, #107c41); }
 .sheet-grid td.sheet-remote-sel { box-shadow: inset 0 0 0 2px var(--rsel, #888); }
-.sheet-fill-handle { position: absolute; width: 8px; height: 8px; background: #107c41; border: 1px solid #fff; cursor: crosshair; z-index: 6; }
-.sheet-grid td.sheet-fill-target { box-shadow: inset 0 0 0 1px #107c41; }
+.sheet-fill-handle { position: absolute; width: 8px; height: 8px; background: var(--sheet-accent, #107c41); border: 1px solid var(--sheet-bg, #fff); cursor: crosshair; z-index: 6; }
+.sheet-grid td.sheet-fill-target { box-shadow: inset 0 0 0 1px var(--sheet-accent, #107c41); }
 .sheet-grid td.sheet-cell-error { color: #c0392b; }
 .sheet-grid td.sheet-link { color: #0563c1; text-decoration: underline; }
 .sheet-grid td.sheet-has-note::after { content: ''; position: absolute; top: 0; right: 0; border-left: 7px solid transparent; border-top: 7px solid #d9342b; pointer-events: none; }
-.sheet-chart { position: absolute; z-index: 5; box-sizing: border-box; border: 1px solid #c8cdd3; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.12); cursor: move; outline: none; }
-.sheet-chart.sel { border: 2px solid #107c41; }
+.sheet-chart { position: absolute; z-index: 5; box-sizing: border-box; border: 1px solid var(--sheet-control-border, #c8cdd3); background: var(--sheet-bg, #fff); box-shadow: 0 1px 3px rgba(0,0,0,0.12); cursor: move; outline: none; }
+.sheet-chart.sel { border: 2px solid var(--sheet-accent, #107c41); }
 .sheet-chart svg { display: block; width: 100%; height: 100%; pointer-events: none; }
-.sheet-chart-resize { position: absolute; right: -5px; bottom: -5px; width: 10px; height: 10px; background: #fff; border: 1px solid #107c41; cursor: nwse-resize; display: none; }
+.sheet-chart-resize { position: absolute; right: -5px; bottom: -5px; width: 10px; height: 10px; background: var(--sheet-bg, #fff); border: 1px solid var(--sheet-accent, #107c41); cursor: nwse-resize; display: none; }
 .sheet-chart.sel .sheet-chart-resize { display: block; }
-.sheet-list-btn { position: absolute; z-index: 6; width: 18px; height: 18px; padding: 0; border: 1px solid #c8cdd3; background: #fff; border-radius: 2px; font: 10px/16px system-ui, sans-serif; color: #444; cursor: pointer; }
-.sheet-list-btn:hover { background: #e6f2ec; }
-.sheet-list-menu { position: absolute; z-index: 20; min-width: 120px; max-height: 220px; overflow-y: auto; background: #fff; border: 1px solid #c8cdd3; box-shadow: 0 4px 10px rgba(0,0,0,0.15); padding: 2px 0; font: 13px system-ui, sans-serif; }
+.sheet-list-btn { position: absolute; z-index: 6; width: 18px; height: 18px; padding: 0; border: 1px solid var(--sheet-control-border, #c8cdd3); background: var(--sheet-bg, #fff); border-radius: 2px; font: 10px/16px system-ui, sans-serif; color: var(--sheet-text, #444); cursor: pointer; }
+.sheet-list-btn:hover { background: var(--sheet-accent-soft, #e6f2ec); }
+.sheet-list-menu { position: absolute; z-index: 20; min-width: 120px; max-height: 220px; overflow-y: auto; background: var(--sheet-bg, #fff); border: 1px solid var(--sheet-control-border, #c8cdd3); box-shadow: 0 4px 10px rgba(0,0,0,0.15); padding: 2px 0; font: 13px system-ui, sans-serif; }
 .sheet-list-menu button { display: block; width: 100%; text-align: left; border: none; background: none; padding: 4px 10px; cursor: pointer; font: inherit; }
-.sheet-list-menu button:hover, .sheet-list-menu button.on { background: #e6f2ec; }
+.sheet-list-menu button:hover, .sheet-list-menu button.on { background: var(--sheet-accent-soft, #e6f2ec); }
 `;
 
 export class DomSheetView {

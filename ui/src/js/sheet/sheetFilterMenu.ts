@@ -16,15 +16,15 @@ export interface FilterMenuOptions {
 }
 
 const CSS = `
-.sheet-filter-menu { position: fixed; z-index: 55; width: 240px; background: #fff; border: 1px solid #c8cdd3; box-shadow: 0 6px 16px rgba(0,0,0,0.18); border-radius: 3px; font: 13px system-ui, sans-serif; color: #333; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.sheet-filter-menu { position: fixed; z-index: 55; width: 240px; background: var(--sheet-bg, #fff); border: 1px solid var(--sheet-control-border, #c8cdd3); box-shadow: 0 6px 16px rgba(0,0,0,0.18); border-radius: 3px; font: 13px system-ui, sans-serif; color: var(--sheet-text, #333); padding: 8px; display: flex; flex-direction: column; gap: 6px; }
 .sheet-filter-menu .sheet-filter-title { font-weight: 600; }
-.sheet-filter-menu input[type=search] { width: 100%; box-sizing: border-box; padding: 3px 6px; border: 1px solid #d4d8dd; border-radius: 2px; font: inherit; }
-.sheet-filter-list { max-height: 220px; overflow-y: auto; border: 1px solid #e1e4e8; padding: 2px 4px; }
+.sheet-filter-menu input[type=search] { width: 100%; box-sizing: border-box; padding: 3px 6px; border: 1px solid var(--sheet-border, #d4d8dd); border-radius: 2px; font: inherit; }
+.sheet-filter-list { max-height: 220px; overflow-y: auto; border: 1px solid var(--sheet-border, #e1e4e8); padding: 2px 4px; }
 .sheet-filter-list label { display: flex; gap: 6px; align-items: center; padding: 1px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
-.sheet-filter-list label.sheet-filter-all { font-style: italic; border-bottom: 1px solid #eee; margin-bottom: 2px; }
+.sheet-filter-list label.sheet-filter-all { font-style: italic; border-bottom: 1px solid var(--sheet-border, #eee); margin-bottom: 2px; }
 .sheet-filter-actions { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
-.sheet-filter-actions button { height: 24px; padding: 0 10px; border: 1px solid #d4d8dd; border-radius: 3px; background: #f5f6f7; font: inherit; cursor: pointer; }
-.sheet-filter-actions button.primary { background: #107c41; border-color: #107c41; color: #fff; }
+.sheet-filter-actions button { height: 24px; padding: 0 10px; border: 1px solid var(--sheet-border, #d4d8dd); border-radius: 3px; background: var(--sheet-chrome, #f5f6f7); font: inherit; cursor: pointer; }
+.sheet-filter-actions button.primary { background: var(--sheet-accent, #107c41); border-color: var(--sheet-accent, #107c41); color: var(--sheet-on-accent, #fff); }
 .sheet-filter-links { display: flex; flex-direction: column; align-items: flex-start; }
 .sheet-filter-links button { border: none; background: none; padding: 2px 0; color: #0563c1; cursor: pointer; font: inherit; }
 .sheet-filter-links button:disabled { color: #aaa; cursor: default; }
