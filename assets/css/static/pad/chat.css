@@ -51,44 +51,15 @@
   height: 100%;
   width: 100%;
 }
-#chatbox.stickyChat .chat-content .stick-to-screen-btn {
+/* <ep-chat-panel id="chattext" class="chat-content">: header buttons */
+#chatbox.stickyChat #chattext::part(sticky-button) {
   display: none;
 }
-#chatbox.stickyChat.chatAndUsersChat .chat-content .hide-reduce-btn {
-  display:none;
-}
-
-/* -- TITLE BAR -- */
-#titlebar {
-  font-weight: bold;
-  padding: 5px;
-}
-#titlebar #titlelabel {
-  margin: 4px 0 0 4px;
-  display: inline;
-  font-size: 1.4rem;
-}
-#titlebar .stick-to-screen-btn,
-#titlebar .hide-reduce-btn {
-  font-size: 25px;
-  color: inherit;
-  float: right;
-  text-align: right;
-  text-decoration: none;
-  cursor: pointer;
-}
-#titlebar .stick-to-screen-btn {
-  font-size: 10px;
-  padding-top: 2px;
+#chatbox.stickyChat.chatAndUsersChat #chattext::part(close-button) {
+  display: none;
 }
 
 /* -- MESSAGES -- */
-#chattext {
-  background-color: white;
-  overflow-y: auto;
-  flex: 1 auto;
-  height: 0; /* strange bug on firefox, if height is not set, the chattext grow bigger than the maximum height */
-}
 #chattext p {
   padding: 3px;
   overflow-x: hidden;
@@ -108,16 +79,6 @@
   margin-left: 3px;
   margin-right: 2px;
 }
-
-/* -- INPUT BOX -- */
-#chatinputbox {
-  padding: 5px;
-}
-#chatinputbox #chatinput {
-  width: 100%;
-  resize: vertical;
-}
-
 
 /* -- CHAT ICON -- */
 #chaticon {
@@ -160,6 +121,9 @@
 }
 
 @media only screen and (max-width: 800px) {
+  #chattext::part(sticky-button) {
+    display: none;
+  }
   #chaticon {
     bottom: calc(var(--mobile-toolbar-height) + var(--mobile-safe-bottom));
     right: 8px;
@@ -180,4 +144,14 @@
   #chatbox .chat-content {
     height: min(68vh, 320px);
   }
+}
+
+/* Messages inside <ep-chat-panel>: the global reset (* { padding: 0 })
+   beats the component's own :host padding. */
+#chattext ep-chat-message,
+#chattext > p {
+  padding: 4px 12px;
+}
+#chattext ep-chat-message:first-of-type {
+  padding-top: 10px;
 }

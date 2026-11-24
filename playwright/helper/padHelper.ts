@@ -136,7 +136,7 @@ export const getChatTime = async (page: Page) => {
 
 export const sendChatMessage = async (page: Page, message: string) => {
     const currentChatCount = await getCurrentChatMessageCount(page)
-    const chatInput = page.locator('#chatinput')
+    const chatInput = page.locator('#chattext textarea')
     await chatInput.click()
     await chatInput.fill(message)
     await page.keyboard.press('Enter')
@@ -156,19 +156,19 @@ export const isChatBoxSticky = async (page: Page): Promise<boolean> => {
 
 export const hideChat = async (page: Page) => {
     if (!await isChatBoxShown(page) || await isChatBoxSticky(page)) return
-    await page.locator('#titlecross').click()
+    await page.locator('#chattext [part="close-button"]').click()
     await expect(page.locator('#chatbox')).not.toHaveClass(/stickyChat/, { timeout: 5000 })
 }
 
 export const enableStickyChatviaIcon = async (page: Page) => {
     if (await isChatBoxSticky(page)) return
-    await page.locator('#titlesticky').click()
+    await page.locator('#chattext [part="sticky-button"]').click()
     await expect(page.locator('#chatbox')).toHaveClass(/stickyChat/, { timeout: 5000 })
 }
 
 export const disableStickyChatviaIcon = async (page: Page) => {
     if (!await isChatBoxSticky(page)) return
-    await page.locator('#titlecross').click()
+    await page.locator('#chattext [part="close-button"]').click()
     await expect(page.locator('#chatbox')).not.toHaveClass(/stickyChat/, { timeout: 5000 })
 }
 

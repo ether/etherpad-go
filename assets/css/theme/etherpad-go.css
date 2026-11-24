@@ -70,6 +70,7 @@ html.theme-etherpad-go.super-dark-background #editorcontainerbox,
 html.theme-etherpad-go.super-dark-background #sidediv,
 html.theme-etherpad-go.super-dark-background #chatbox,
 html.theme-etherpad-go.super-dark-background #outerdocbody {
+  --middle-color: #374151;
   --text-color: #e5e7eb;
   --text-soft-color: #9ca3af;
   --border-color: #1f2937;
@@ -82,6 +83,7 @@ html.theme-etherpad-go.dark-background #editorcontainerbox,
 html.theme-etherpad-go.dark-background #sidediv,
 html.theme-etherpad-go.dark-background #chatbox,
 html.theme-etherpad-go.dark-background #outerdocbody {
+  --middle-color: #374151;
   --text-color: #e5e7eb;
   --text-soft-color: #9ca3af;
   --border-color: #1f2937;

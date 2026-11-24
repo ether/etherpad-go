@@ -490,22 +490,20 @@ templ ChatPopup(translations map[string]string){
 
 templ ChatBox(translations map[string]string) {
         <div id="chatbox">
-          <div class="chat-content">
-            <div id="titlebar">
-              <h1 id="titlelabel">{translations["pad.chat"]}</h1>
-              <a id="titlecross" class="hide-reduce-btn" onClick="chat.hide();return false;">-&nbsp;</a>
-              <a id="titlesticky" class="stick-to-screen-btn" onClick="chat.stickToScreen(true);return false;">█&nbsp;&nbsp;</a>
-            </div>
-            <div id="chattext" class="thin-scrollbar" aria-live="polite" aria-relevant="additions removals text" role="log" aria-atomic="false">
-                <div alt="loading.." id="chatloadmessagesball" class="chatloadmessages loadingAnimation" align="top"></div>
-                <button id="chatloadmessagesbutton" class="chatloadmessages">{translations["pad.chat.loadmessages"]}</button>
-            </div>
-            <div id="chatinputbox">
-                <form>
-                    <textarea id="chatinput" maxlength="999" placeholder={translations["pad.chat.writeMessage.placeholder"]}></textarea>
-                </form>
-            </div>
-          </div>
+          // <ep-chat-panel> from the web components package. It keeps the
+          // id "chattext" of the old message list: messages are its
+          // children (slot "messages"), so plugins, CSS and tests that look
+          // for "#chattext ep-chat-message" keep working. chat.ts wires the
+          // events (send, close, sticky).
+          <ep-chat-panel id="chattext" class="chat-content" show-close show-sticky maxlength="999"
+            heading={translations["pad.chat"]}
+            placeholder={translations["pad.chat.writeMessage.placeholder"]}
+            send-label={translations["pad.chat.send"]}
+            close-label={translations["pad.chat.close"]}
+            sticky-label={translations["pad.chat.stick.title"]}>
+                <div slot="messages" alt="loading.." id="chatloadmessagesball" class="chatloadmessages loadingAnimation"></div>
+                <button slot="messages" id="chatloadmessagesbutton" class="chatloadmessages">{translations["pad.chat.loadmessages"]}</button>
+          </ep-chat-panel>
         </div>
 }
 

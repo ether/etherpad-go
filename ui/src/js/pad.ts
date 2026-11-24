@@ -785,8 +785,8 @@ const pad = {
             chat.hide();
             const myusernameedit = byId('myusernameedit');
             if (myusernameedit instanceof HTMLInputElement) myusernameedit.disabled = true;
-            const chatinput = byId('chatinput');
-            if (chatinput instanceof HTMLInputElement) chatinput.disabled = true;
+            const chatPanel = byId('chattext') as (HTMLElement & {readonly?: boolean}) | null;
+            if (chatPanel) chatPanel.readonly = true;
             hideById('chaticon');
             byId('options-chatandusers')?.parentElement?.setAttribute('style', 'display: none;');
             byId('options-stickychat')?.parentElement?.setAttribute('style', 'display: none;');
