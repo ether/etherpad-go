@@ -35,7 +35,7 @@ test('transfers the author session to another browser', async ({page, browser}) 
 
         await goToPad(page2, padId);
         await toggleUserList(page2);
-        await expect(page2.locator('#myusernameedit')).toHaveValue(name);
+        await expect(page2.locator('#userlist input')).toHaveValue(name);
 
         // The code is single use.
         await page2.goto(`/?transfer=${code}`);

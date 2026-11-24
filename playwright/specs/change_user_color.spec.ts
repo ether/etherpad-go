@@ -1,9 +1,12 @@
-import {expect, test} from "@playwright/test";
+import {expect, Locator, test} from "@playwright/test";
 import {goToNewPad, sendChatMessage, setEpCheckbox, showChat} from "../helper/padHelper";
 
 test.beforeEach(async ({page}) => {
     await goToNewPad(page);
 })
+
+// Computed background colour, independent of how the style is written.
+const bg = (l: Locator) => l.evaluate((el) => getComputedStyle(el).backgroundColor);
 
 test.describe('change user color', function () {
 
@@ -14,7 +17,7 @@ test.describe('change user color', function () {
             let $userButton = page.locator('.buttonicon-showusers');
             await $userButton.click()
 
-            let $userSwatch = page.locator('#myswatch');
+            let $userSwatch = page.locator('#userlist .color-btn');
             await $userSwatch.click()
             // Change the color value of the Farbtastic color picker
 
@@ -28,7 +31,7 @@ test.describe('change user color', function () {
             // Check that the color picker matches the automatically assigned random color on the swatch.
             // NOTE: This has a tiny chance of creating a false positive for passing in the
             // off-chance the randomly assigned color is the same as the test color.
-            expect(await $colorPickerPreview.getAttribute('style')).toContain(await $userSwatch.getAttribute('style'));
+            expect(await bg($colorPickerPreview)).toBe(await bg($userSwatch));
 
             // The swatch updates as the test color is picked.
             await page.evaluate((testRGBColor) => {
@@ -53,7 +56,7 @@ test.describe('change user color', function () {
 
 
 
-            expect(await $colorPickerPreview.getAttribute('style')).toContain(await $userSwatch.getAttribute('style'));
+            expect(await bg($colorPickerPreview)).toBe(await bg($userSwatch));
         });
 
     test('Own user color is shown when you enter a chat', async function ({page}) {
@@ -65,7 +68,7 @@ test.describe('change user color', function () {
         const $userButton = page.locator('.buttonicon-showusers');
         await $userButton.click()
 
-        const $userSwatch = page.locator('#myswatch');
+        const $userSwatch = page.locator('#userlist .color-btn');
         await $userSwatch.click()
 
         const $colorPickerSave = page.locator('#mycolorpickersave');

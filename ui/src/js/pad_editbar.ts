@@ -498,7 +498,8 @@ export const padeditbar = new class {
 
     this.registerCommand('showusers', () => {
       this.toggleDropDown('users');
-      q('#myusernameedit')?.focus();
+      // The list renders asynchronously; focus once it is there.
+      requestAnimationFrame(() => document.getElementById('userlist')?.shadowRoot?.querySelector('input')?.focus());
     });
     this.registerCommand('embed', () => {
       this.setEmbedLinks();

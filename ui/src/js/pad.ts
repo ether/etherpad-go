@@ -783,8 +783,8 @@ const pad = {
 
         if (window.clientVars.readonly) {
             chat.hide();
-            const myusernameedit = byId('myusernameedit');
-            if (myusernameedit instanceof HTMLInputElement) myusernameedit.disabled = true;
+            const userList = byId('userlist') as (HTMLElement & {readonly?: boolean}) | null;
+            if (userList) userList.readonly = true;
             const chatinput = byId('chatinput');
             if (chatinput instanceof HTMLInputElement) chatinput.disabled = true;
             hideById('chaticon');
@@ -825,8 +825,7 @@ const pad = {
             console.error('NOTIFY change!! ' + settings.globalUserName);
             this.notifyChangeName(settings.globalUserName);
             this.myUserInfo.name = settings.globalUserName;
-            const myusernameedit = byId('myusernameedit');
-            if (myusernameedit instanceof HTMLInputElement) myusernameedit.value = String(settings.globalUserName);
+            paduserlist.setMyName(String(settings.globalUserName));
         }
 
         const mayBeGlobalUserColor = Boolean(settings.globalUserColor);

@@ -431,16 +431,13 @@ templ UserPopup(translations map[string]string) {
                           <span id="mycolorpickerpreview" class="myswatchboxhoverable"></span>
                         </div>
                     </div></div>
-                    <div id="myswatchbox"><div id="myswatch"></div></div>
-                    <div id="myusernameform">
-                      <input type="text" id="myusernameedit" maxlength="128" disabled="disabled" placeholder={translations["pad.userlist.entername"]}/>
-                    </div>
                 </div>
-                <div id="otherusers" aria-role="document">
-                    <table id="otheruserstable" cellspacing="0" cellpadding="0" border="0">
-                        <tr><td></td></tr>
-                    </table>
-                </div>
+                // Own entry (name, colour) and the other users; filled by
+                // pad_userlist.ts. Read-only until the pad is connected.
+                <ep-user-list id="userlist" readonly
+                  name-placeholder={translations["pad.userlist.entername"]}
+                  unnamed-label={translations["pad.userlist.unnamed"]}
+                  color-label={translations["pad.userlist.changeColor"]}></ep-user-list>
                 <div id="userlistbuttonarea"></div>
             </div></div>
 
