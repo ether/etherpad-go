@@ -89,11 +89,22 @@
 #settings h1 + h2 {
   margin-top: 0;
 }
-/* The switches: one per row, evenly spaced. */
+/* One setting per row (<ep-settings-row>: label left, control right). */
 #settings .popup-content > p,
 #settings .settings-section > p {
   margin: 0;
   padding: 5px 0;
+}
+#settings ep-settings-row {
+  padding: 4px 0;
+  min-height: 28px;
+}
+#settings ep-settings-row::part(label) {
+  font-weight: 500;
+}
+#settings ep-settings-row[hidden],
+#settings ep-settings-row.hide-for-mobile[hidden] {
+  display: none;
 }
 #settings .settings-notice {
   padding: 8px 10px;
