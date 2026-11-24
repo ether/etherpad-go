@@ -49,7 +49,7 @@ body { margin: 0; overflow: hidden; }
 /* View tab toggles (client-local, like Excel's Show checkboxes). */
 .sheet-no-gridlines .sheet-grid, .sheet-no-gridlines .sheet-grid td { border-color: transparent; }
 .sheet-no-headings .sheet-grid thead, .sheet-no-headings .sheet-grid tbody th { display: none; }
-.sheet-ctx-menu { position: fixed; z-index: 40; min-width: 170px; background: var(--sheet-bg, #fff); border: 1px solid var(--sheet-border, #d4d8dd); box-shadow: 0 4px 10px rgba(0,0,0,0.15); padding: 4px 0; font: 13px system-ui, sans-serif; }
+.sheet-ctx-menu { position: fixed; z-index: 40; min-width: 170px; box-sizing: border-box; max-height: calc(100vh - 16px); overflow-y: auto; overscroll-behavior: contain; background: var(--sheet-bg, #fff); border: 1px solid var(--sheet-border, #d4d8dd); box-shadow: 0 4px 10px rgba(0,0,0,0.15); padding: 4px 0; font: 13px system-ui, sans-serif; }
 .sheet-ctx-menu button { display: block; width: 100%; text-align: left; border: none; background: none; padding: 7px 14px; font: inherit; color: var(--sheet-text, #333); cursor: pointer; }
 .sheet-ctx-menu button:hover { background: var(--sheet-accent-soft, #e6f2ec); }
 .sheet-ctx-menu hr { border: none; border-top: 1px solid var(--sheet-border, #e3e6e9); margin: 4px 0; }
@@ -853,10 +853,16 @@ export function startSheetEditor(root: HTMLElement): void {
         b.addEventListener('click', () => { close(); run(); });
         menu.appendChild(b);
       }
-      // Positioned inside the viewport (fixed coordinates, so no scroll math).
-      menu.style.left = `${Math.min(e.clientX, window.innerWidth - 180)}px`;
-      menu.style.top = `${Math.min(e.clientY, window.innerHeight - menu.childElementCount * 30 - 16)}px`;
+      // Positioned inside the viewport (fixed coordinates, so no scroll math),
+      // measured after rendering: entries are taller on phones. A menu taller
+      // than the screen scrolls (max-height in CHROME_CSS).
+      menu.style.visibility = 'hidden';
       document.body.appendChild(menu);
+      const margin = 8;
+      const { width, height } = menu.getBoundingClientRect();
+      menu.style.left = `${Math.max(margin, Math.min(e.clientX, window.innerWidth - width - margin))}px`;
+      menu.style.top = `${Math.max(margin, Math.min(e.clientY, window.innerHeight - height - margin))}px`;
+      menu.style.visibility = '';
       document.addEventListener('mousedown', outside, true);
     });
 

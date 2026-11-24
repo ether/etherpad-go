@@ -33,4 +33,22 @@ test.describe('sheet on a phone', () => {
     if (header) expect(header.width).toBeLessThanOrEqual(50);
     expect(await page.locator('.sheet-fx-input').evaluate((el) => getComputedStyle(el).fontSize)).toBe('16px');
   });
+
+  test('the context menu stays on a short screen', async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 420 });
+    await page.locator('.sheet-grid tbody tr:nth-child(8) td:nth-child(3)').click({ button: 'right' });
+    const menu = page.locator('.sheet-ctx-menu');
+    await expect(menu).toBeVisible();
+    const box = await menu.boundingBox();
+    expect(box).not.toBeNull();
+    if (box) {
+      expect(box.y).toBeGreaterThanOrEqual(0);
+      expect(box.y + box.height).toBeLessThanOrEqual(420);
+      expect(box.x + box.width).toBeLessThanOrEqual(360);
+    }
+    // Every entry can be reached: the menu scrolls if it is taller than the screen.
+    const last = menu.locator('button').last();
+    await last.scrollIntoViewIfNeeded();
+    await expect(last).toBeInViewport();
+  });
 });
