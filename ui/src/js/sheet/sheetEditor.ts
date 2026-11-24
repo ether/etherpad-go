@@ -56,16 +56,16 @@ body { margin: 0; overflow: hidden; }
 .sheet-titlebar { display: flex; align-items: center; gap: 8px; height: 36px; flex: none; padding: 0 12px; background: var(--sheet-accent, #107c41); color: var(--sheet-on-accent, #fff); font: 14px system-ui, sans-serif; }
 .sheet-titlebar svg { flex: none; display: block; }
 .sheet-title-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sheet-connection[data-state="reconnecting"], .sheet-connection[data-state="offline"] { color: #a4262c; font-weight: 600; }
-.sheet-reconnect { font: inherit; padding: 0 6px; border: 1px solid #a4262c; border-radius: 3px; background: var(--sheet-bg, #fff); color: #a4262c; cursor: pointer; }
+.sheet-connection[data-state="reconnecting"], .sheet-connection[data-state="offline"] { color: var(--sheet-danger, #a4262c); font-weight: 600; }
+.sheet-reconnect { font: inherit; padding: 0 6px; border: 1px solid var(--sheet-danger, #a4262c); border-radius: 3px; background: var(--sheet-bg, #fff); color: var(--sheet-danger, #a4262c); cursor: pointer; }
 .sheet-statusbar { display: flex; align-items: center; justify-content: space-between; height: 22px; padding: 0 10px; background: var(--sheet-chrome, #f5f6f7); border-top: 1px solid var(--sheet-border, #d4d8dd); font: 12px system-ui, sans-serif; color: var(--sheet-text, #444); }
 .sheet-stats { display: flex; gap: 16px; }
-.sheet-flash { color: #a4262c; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sheet-flash { color: var(--sheet-danger, #a4262c); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 `;
 const TITLE_ICON_SVG =
   '<svg width="18" height="18" viewBox="0 0 16 16" aria-hidden="true">' +
-  '<rect x="1" y="1" width="14" height="14" rx="1.5" fill="none" stroke="#fff" stroke-width="1.4"/>' +
-  '<path d="M1 5.7h14M1 10.3h14M5.7 1v14M10.3 1v14" stroke="#fff" stroke-width="1" fill="none"/></svg>';
+  '<rect x="1" y="1" width="14" height="14" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4"/>' +
+  '<path d="M1 5.7h14M1 10.3h14M5.7 1v14M10.3 1v14" stroke="currentColor" stroke-width="1" fill="none"/></svg>';
 
 // startSheetEditor connects to the collaborative spreadsheet backend, performs
 // the CLIENT_READY handshake (component "sheet"), and wires the collaboration

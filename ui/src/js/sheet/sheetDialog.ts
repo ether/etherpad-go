@@ -30,7 +30,7 @@ const CSS = `
 .sheet-dialog-body label { white-space: nowrap; }
 .sheet-dialog-body input, .sheet-dialog-body select, .sheet-dialog-body textarea { width: 100%; box-sizing: border-box; padding: 3px 6px; border: 1px solid var(--sheet-border, #d4d8dd); border-radius: 2px; font: 13px system-ui, sans-serif; }
 .sheet-dialog-body textarea { min-height: 90px; resize: vertical; }
-.sheet-dialog-error { grid-column: 1 / -1; min-height: 16px; font-size: 12px; color: #c0392b; }
+.sheet-dialog-error { grid-column: 1 / -1; min-height: 16px; font-size: 12px; color: var(--sheet-danger, #c0392b); }
 .sheet-dialog-actions { display: flex; gap: 6px; justify-content: flex-end; padding: 0 10px 10px; }
 .sheet-dialog-actions button { height: 26px; padding: 0 12px; border: 1px solid var(--sheet-border, #d4d8dd); border-radius: 3px; background: var(--sheet-chrome, #f5f6f7); font: 13px system-ui, sans-serif; cursor: pointer; }
 .sheet-dialog-actions button.primary { background: var(--sheet-accent, #107c41); border-color: var(--sheet-accent, #107c41); color: var(--sheet-on-accent, #fff); }

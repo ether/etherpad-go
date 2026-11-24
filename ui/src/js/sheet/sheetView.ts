@@ -1,3 +1,4 @@
+import { readableTextOn } from './sheetTheme';
 import type { Chart } from './chart';
 // DomSheetView is a minimal, framework-agnostic spreadsheet grid rendered as an
 // HTML table with contenteditable cells. The SheetView contract lets a canvas
@@ -97,8 +98,8 @@ const CSS = `
 .sheet-grid td.sheet-remote-sel { box-shadow: inset 0 0 0 2px var(--rsel, #888); }
 .sheet-fill-handle { position: absolute; width: 8px; height: 8px; background: var(--sheet-accent, #107c41); border: 1px solid var(--sheet-bg, #fff); cursor: crosshair; z-index: 6; }
 .sheet-grid td.sheet-fill-target { box-shadow: inset 0 0 0 1px var(--sheet-accent, #107c41); }
-.sheet-grid td.sheet-cell-error { color: #c0392b; }
-.sheet-grid td.sheet-link { color: #0563c1; text-decoration: underline; }
+.sheet-grid td.sheet-cell-error { color: var(--sheet-danger, #c0392b); }
+.sheet-grid td.sheet-link { color: var(--sheet-link, #0563c1); text-decoration: underline; }
 .sheet-grid td.sheet-has-note::after { content: ''; position: absolute; top: 0; right: 0; border-left: 7px solid transparent; border-top: 7px solid #d9342b; pointer-events: none; }
 .sheet-chart { position: absolute; z-index: 5; box-sizing: border-box; border: 1px solid var(--sheet-control-border, #c8cdd3); background: var(--sheet-bg, #fff); box-shadow: 0 1px 3px rgba(0,0,0,0.12); cursor: move; outline: none; }
 .sheet-chart.sel { border: 2px solid var(--sheet-accent, #107c41); }
@@ -966,6 +967,12 @@ export class DomSheetView {
         if (cond.bg) td.style.background = cond.bg;
         if (cond.color) td.style.color = cond.color;
         if (cond.bold) td.style.fontWeight = 'bold';
+        // A fill without a text colour: pick black or white for contrast, so a
+        // light fill stays readable when the page text is light (dark theme).
+        if (!td.style.color) {
+          const fill = cond.bg || (this.opts.styleOf ? styleToCss(this.opts.styleOf(r, c)).background : undefined);
+          if (fill) td.style.color = readableTextOn(fill);
+        }
         const meta = this.opts.metaOf?.(r, c) ?? {};
         td.classList.toggle('sheet-link', !!meta.link);
         td.classList.toggle('sheet-has-note', !!meta.note);

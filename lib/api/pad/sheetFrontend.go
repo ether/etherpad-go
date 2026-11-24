@@ -31,7 +31,7 @@ func SheetPage(s *settings.Settings) sheetAsset.Page {
 	theme := s.PadTheme.Resolved("colibris")
 	p := sheetAsset.Page{Theme: theme, DarkMode: s.EnableDarkMode}
 	if accent := s.PadTheme.Accent(); accent != "" {
-		p.Style = "--primary-color: " + accent + ";"
+		p.Style = "--primary-color: " + accent + "; --primary-text-color: " + s.PadTheme.AccentText() + ";"
 	}
 	return p
 }

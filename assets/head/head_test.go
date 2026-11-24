@@ -26,7 +26,7 @@ func TestThemeOnHTML(t *testing.T) {
 	if got := i.HTMLClass(); got != "pad theme-colibris super-dark-toolbar" {
 		t.Errorf("HTMLClass = %q", got)
 	}
-	if got := i.HTMLStyle(); got != "--primary-color: #7c3aed;" {
+	if got := i.HTMLStyle(); got != "--primary-color: #7c3aed; --primary-text-color: #ffffff;" {
 		t.Errorf("HTMLStyle = %q", got)
 	}
 

@@ -70,7 +70,7 @@ const CSS = `
 .sheet-ribbon-tabs button:hover { color: var(--sheet-accent, #107c41); background: var(--sheet-accent-soft, #e6f2ec); }
 .sheet-ribbon-tabs button.on { background: var(--sheet-chrome, #f5f6f7); border-color: var(--sheet-border, #d4d8dd); border-bottom: 1px solid var(--sheet-chrome, #f5f6f7); color: var(--sheet-accent, #107c41); font-weight: 600; }
 .sheet-ribbon-tabs .sheet-file-tab, .sheet-ribbon-tabs .sheet-file-tab:hover { background: var(--sheet-accent, #107c41); color: var(--sheet-on-accent, #fff); font-weight: 600; border-radius: 4px 4px 0 0; }
-.sheet-ribbon-tabs .sheet-file-tab:hover { background: #0e6a38; }
+.sheet-ribbon-tabs .sheet-file-tab:hover { background: var(--sheet-accent-hover, #0e6a38); }
 .sheet-file-wrap { position: relative; display: flex; }
 .sheet-file-menu { position: absolute; top: 100%; left: 0; z-index: 30; min-width: 170px; background: var(--sheet-bg, #fff); border: 1px solid var(--sheet-border, #d4d8dd); box-shadow: 0 4px 10px rgba(0,0,0,0.15); padding: 4px 0; }
 .sheet-file-menu button { display: block; width: 100%; text-align: left; border: none; background: none; padding: 7px 14px; font: 13px system-ui, sans-serif; color: var(--sheet-text, #333); cursor: pointer; }
@@ -85,7 +85,7 @@ const CSS = `
 .sheet-ribbon-row button, .sheet-ribbon-big { border: 1px solid transparent; border-radius: 3px; background: none; font: 13px system-ui, sans-serif; color: var(--sheet-text, #333); cursor: pointer; }
 .sheet-ribbon-row button { height: 24px; min-width: 26px; padding: 0 5px; display: inline-flex; align-items: center; justify-content: center; gap: 3px; }
 .sheet-ribbon-row button:hover, .sheet-ribbon-big:hover { background: var(--sheet-accent-soft, #e6f2ec); border-color: var(--sheet-accent-soft-strong, #bcd8c9); }
-.sheet-ribbon-row button.on, .sheet-ribbon-big.on { background: var(--sheet-accent-soft-strong, #cce5d8); border-color: #9fccb4; }
+.sheet-ribbon-row button.on, .sheet-ribbon-big.on { background: var(--sheet-accent-soft-strong, #cce5d8); border-color: var(--sheet-accent-border, #9fccb4); }
 .sheet-ribbon-big { height: 62px; min-width: 48px; padding: 3px 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 11px; }
 .sheet-ribbon-big .sheet-big-glyph { font-size: 22px; line-height: 26px; }
 .sheet-ribbon-row select { height: 22px; border: 1px solid var(--sheet-border, #d4d8dd); border-radius: 2px; background: var(--sheet-bg, #fff); font: 12px system-ui, sans-serif; color: var(--sheet-text, #333); cursor: pointer; }

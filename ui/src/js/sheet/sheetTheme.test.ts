@@ -1,7 +1,8 @@
+// @ts-nocheck -- runs in Node (vitest); the UI tsconfig has no Node types.
 import {describe, expect, it} from 'vitest';
 import {readdirSync, readFileSync} from 'node:fs';
 import {join} from 'node:path';
-import {THEME_CSS} from './sheetTheme';
+import {readableTextOn, THEME_CSS} from './sheetTheme';
 
 describe('sheet theme tokens', () => {
   const dir = __dirname;
@@ -26,5 +27,16 @@ describe('sheet theme tokens', () => {
       const src = readFileSync(join(dir, f), 'utf8');
       expect(src.match(/var\(--sheet-[a-z-]+\)/g) ?? [], f).toEqual([]);
     }
+  });
+});
+
+describe('readableTextOn', () => {
+  it('black on light fills, white on dark ones', () => {
+    expect(readableTextOn('#ffc7ce')).toBe('#000000');
+    expect(readableTextOn('#ffff00')).toBe('#000000');
+    expect(readableTextOn('#fff')).toBe('#000000');
+    expect(readableTextOn('#000')).toBe('#ffffff');
+    expect(readableTextOn('#1f4e78')).toBe('#ffffff');
+    expect(readableTextOn('red; x')).toBe('');
   });
 });

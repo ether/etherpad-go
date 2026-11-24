@@ -26,7 +26,7 @@ const CSS = `
 .sheet-history-list button.on { background: var(--sheet-accent-soft-strong, #cce5d8); }
 .sheet-history-when { font-weight: 600; }
 .sheet-history-label { font-size: 11px; color: var(--sheet-accent, #107c41); margin-left: 6px; font-weight: 600; }
-.sheet-history-who { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 3px; font-size: 12px; color: #555; }
+.sheet-history-who { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 3px; font-size: 12px; color: var(--sheet-text-soft, #555); }
 .sheet-history-who span::before { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; background: var(--c, #999); }
 .sheet-history-note { padding: 16px; color: var(--sheet-text-soft, #666); }
 `;

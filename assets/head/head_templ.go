@@ -32,8 +32,9 @@ type Info struct {
 	EnableDarkMode bool
 	// Theme is the pad theme in use ("etherpad-go", "colibris" or "" for
 	// another skin); Accent its configured accent colour or "".
-	Theme  string
-	Accent string
+	Theme      string
+	Accent     string
+	AccentText string
 	// Pad marks the pad and timeslider pages: not indexed, no referrer.
 	Pad bool
 }
@@ -44,7 +45,7 @@ func For(s *settings.Settings, language, root string, pad bool) Info {
 	return Info{
 		Root: root, Lang: lang, Dir: dir,
 		SkinName: s.SkinName, SkinVariants: s.SkinVariants, EnableDarkMode: s.EnableDarkMode,
-		Theme: s.PadTheme.Resolved(s.SkinName), Accent: s.PadTheme.Accent(),
+		Theme: s.PadTheme.Resolved(s.SkinName), Accent: s.PadTheme.Accent(), AccentText: s.PadTheme.AccentText(),
 		Pad: pad,
 	}
 }
@@ -68,7 +69,7 @@ func (i Info) HTMLStyle() string {
 	if i.Accent == "" || i.Theme == "" {
 		return ""
 	}
-	return "--primary-color: " + i.Accent + ";"
+	return "--primary-color: " + i.Accent + "; --primary-text-color: " + i.AccentText + ";"
 }
 
 // ThemeColor is the light theme-color, "" when the skin's colours are not known.
@@ -132,7 +133,7 @@ func Meta(i Info) templ.Component {
 				var templ_7745c5c3_Var2 string
 				templ_7745c5c3_Var2, templ_7745c5c3_Err = templruntime.NewAttributeExpression(i.ThemeColor()).Resolve(ctx)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `assets/head/head.templ`, Line: 94, Col: 52}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `assets/head/head.templ`, Line: 95, Col: 52}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var2)
 				if templ_7745c5c3_Err != nil {
@@ -145,7 +146,7 @@ func Meta(i Info) templ.Component {
 				var templ_7745c5c3_Var3 string
 				templ_7745c5c3_Var3, templ_7745c5c3_Err = templruntime.NewAttributeExpression(i.DarkThemeColor()).Resolve(ctx)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `assets/head/head.templ`, Line: 95, Col: 56}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `assets/head/head.templ`, Line: 96, Col: 56}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var3)
 				if templ_7745c5c3_Err != nil {
@@ -163,7 +164,7 @@ func Meta(i Info) templ.Component {
 				var templ_7745c5c3_Var4 string
 				templ_7745c5c3_Var4, templ_7745c5c3_Err = templruntime.NewAttributeExpression(i.ThemeColor()).Resolve(ctx)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `assets/head/head.templ`, Line: 97, Col: 52}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `assets/head/head.templ`, Line: 98, Col: 52}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var4)
 				if templ_7745c5c3_Err != nil {
@@ -188,7 +189,7 @@ func Meta(i Info) templ.Component {
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templruntime.NewAttributeExpression(i.Root + "favicon.ico").ResolveURL(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `assets/head/head.templ`, Line: 124, Col: 56}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `assets/head/head.templ`, Line: 125, Col: 56}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var5)
 		if templ_7745c5c3_Err != nil {
@@ -201,7 +202,7 @@ func Meta(i Info) templ.Component {
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templruntime.NewAttributeExpression(i.Root + "manifest.json").ResolveURL(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `assets/head/head.templ`, Line: 125, Col: 53}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `assets/head/head.templ`, Line: 126, Col: 53}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var6)
 		if templ_7745c5c3_Err != nil {

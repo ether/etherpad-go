@@ -26,8 +26,8 @@ const CSS = `
 .sheet-filter-actions button { height: 24px; padding: 0 10px; border: 1px solid var(--sheet-border, #d4d8dd); border-radius: 3px; background: var(--sheet-chrome, #f5f6f7); font: inherit; cursor: pointer; }
 .sheet-filter-actions button.primary { background: var(--sheet-accent, #107c41); border-color: var(--sheet-accent, #107c41); color: var(--sheet-on-accent, #fff); }
 .sheet-filter-links { display: flex; flex-direction: column; align-items: flex-start; }
-.sheet-filter-links button { border: none; background: none; padding: 2px 0; color: #0563c1; cursor: pointer; font: inherit; }
-.sheet-filter-links button:disabled { color: #aaa; cursor: default; }
+.sheet-filter-links button { border: none; background: none; padding: 2px 0; color: var(--sheet-link, #0563c1); cursor: pointer; font: inherit; }
+.sheet-filter-links button:disabled { color: var(--sheet-text-disabled, #aaa); cursor: default; }
 `;
 
 let current: { close: () => void } | null = null;

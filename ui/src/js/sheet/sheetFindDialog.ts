@@ -37,7 +37,7 @@ const CSS = `
 .sheet-find-actions button:hover:enabled { background: var(--sheet-accent-soft, #e6f2ec); border-color: var(--sheet-accent-soft-strong, #bcd8c9); }
 .sheet-find-actions button:disabled { opacity: 0.5; cursor: default; }
 .sheet-find-status { grid-column: 1 / -1; min-height: 16px; font-size: 12px; color: var(--sheet-text-soft, #5f6b7a); }
-.sheet-find-status.miss { color: #c0392b; }
+.sheet-find-status.miss { color: var(--sheet-danger, #c0392b); }
 `;
 
 export function createFindDialog(cb: FindDialogCallbacks): FindDialogHandle {

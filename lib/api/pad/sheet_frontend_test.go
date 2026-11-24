@@ -40,7 +40,7 @@ func TestSheetPageTheme(t *testing.T) {
 	if got := p.HTMLClass(); got != "theme-colibris" {
 		t.Errorf("colibris = %q", got)
 	}
-	if p.Style != "--primary-color: #7c3aed;" {
+	if p.Style != "--primary-color: #7c3aed; --primary-text-color: #ffffff;" {
 		t.Errorf("style = %q", p.Style)
 	}
 	s.PadTheme.AccentColor = "red; x: y"
