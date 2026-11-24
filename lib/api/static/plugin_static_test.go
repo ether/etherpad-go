@@ -2,10 +2,12 @@ package static
 
 import (
 	"io"
+	"io/fs"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
+	"testing/fstest"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
@@ -79,4 +81,26 @@ func TestAdminLocaleName(t *testing.T) {
 	} {
 		assert.False(t, adminLocaleName.MatchString(bad), "%q", bad)
 	}
+}
+
+// The release image has no ./plugins next to the binary: the files embedded
+// in the binary are served then.
+func TestPluginFilesFallBackToEmbedded(t *testing.T) {
+	embedded := fstest.MapFS{"plugins/ep_x/static/css/a.css": {Data: []byte("embedded css")}}
+
+	empty := t.TempDir()
+	cwd, _ := os.Getwd()
+	require.NoError(t, os.Chdir(empty))
+	t.Cleanup(func() { _ = os.Chdir(cwd) })
+
+	data, err := fs.ReadFile(choosePluginFiles(embedded), "ep_x/static/css/a.css")
+	require.NoError(t, err)
+	assert.Equal(t, "embedded css", string(data))
+
+	// A source checkout (./plugins exists) wins over the embedded copy.
+	require.NoError(t, os.MkdirAll(filepath.Join(empty, "plugins/ep_x/static/css"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(empty, "plugins/ep_x/static/css/a.css"), []byte("disk css"), 0o644))
+	data, err = fs.ReadFile(choosePluginFiles(embedded), "ep_x/static/css/a.css")
+	require.NoError(t, err)
+	assert.Equal(t, "disk css", string(data))
 }
