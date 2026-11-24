@@ -19,9 +19,15 @@
   display: none;
 }
 
-/* Phones: the column would take a third of the screen from the text. */
+/* Phones: the column would take a third of the screen from the text, so
+   there is no table of contents there, and its switch in the settings is
+   hidden too instead of doing nothing. */
 @media only screen and (max-width: 800px) {
   #toc.active {
+    display: none;
+  }
+  ep-settings-row:has(#options-toc),
+  p:has(> #options-toc) {
     display: none;
   }
 }
