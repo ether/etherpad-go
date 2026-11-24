@@ -111,28 +111,15 @@ templ SettingsPopup(translations map[string]string, availablefonts []string, set
                 // the pad-wide settings.
                 <p id="enforce-settings-notice" class="settings-notice" hidden>{translations["pad.settings.enforcedNotice"]}</p>
               }
-              <p>
-                  <ep-checkbox id="options-disablechat" data-l10n-id="pad.settings.disablechat" label={translations["pad.settings.disablechat"]}></ep-checkbox>
-              </p>
-              <p class="hide-for-mobile">
-                  <ep-checkbox id="options-stickychat" data-l10n-id="pad.settings.stickychat" label={translations["pad.settings.stickychat"]}></ep-checkbox>
-              </p>
-              <p class="hide-for-mobile">
-                  <ep-checkbox id="options-chatandusers" data-l10n-id="pad.settings.chatandusers" label={translations["pad.settings.chatandusers"]}></ep-checkbox>
-              </p>
-              <p>
-                  <ep-checkbox id="options-colorscheck" data-l10n-id="pad.settings.colorcheck" label={translations["pad.settings.colorcheck"]}></ep-checkbox>
-              </p>
-              <p>
-                  <ep-checkbox id="options-linenoscheck" checked data-l10n-id="pad.settings.linenocheck" label={translations["pad.settings.linenocheck"]}></ep-checkbox>
-              </p>
-              <p>
-                  <ep-checkbox id="options-rtlcheck" data-l10n-id="pad.settings.rtlcheck" label={translations["pad.settings.rtlcheck"]}></ep-checkbox>
-              </p>
+              <ep-settings-row data-l10n-id="pad.settings.disablechat" label={translations["pad.settings.disablechat"]}><ep-checkbox id="options-disablechat"></ep-checkbox></ep-settings-row>
+              <ep-settings-row class="hide-for-mobile" data-l10n-id="pad.settings.stickychat" label={translations["pad.settings.stickychat"]}><ep-checkbox id="options-stickychat"></ep-checkbox></ep-settings-row>
+              <ep-settings-row class="hide-for-mobile" data-l10n-id="pad.settings.chatandusers" label={translations["pad.settings.chatandusers"]}><ep-checkbox id="options-chatandusers"></ep-checkbox></ep-settings-row>
+              <ep-settings-row data-l10n-id="pad.settings.colorcheck" label={translations["pad.settings.colorcheck"]}><ep-checkbox id="options-colorscheck"></ep-checkbox></ep-settings-row>
+              <ep-settings-row data-l10n-id="pad.settings.linenocheck" label={translations["pad.settings.linenocheck"]}><ep-checkbox id="options-linenoscheck" checked></ep-checkbox></ep-settings-row>
+              <ep-settings-row data-l10n-id="pad.settings.rtlcheck" label={translations["pad.settings.rtlcheck"]}><ep-checkbox id="options-rtlcheck"></ep-checkbox></ep-settings-row>
 
               <div class="dropdowns-container">
-                <div class="dropdown-line">
-                  <label data-l10n-id="pad.settings.fontType">{translations["pad.settings.fontType"]}</label>
+                <ep-settings-row class="dropdown-line" data-l10n-id="pad.settings.fontType" label={translations["pad.settings.fontType"]}>
                   <ep-dropdown id="viewfontmenu" align="left" trigger="click">
                     <button slot="trigger" type="button" class="dropdown-select-trigger">{translations["pad.settings.fontType.normal"]}</button>
                     <div slot="content">
@@ -142,10 +129,9 @@ templ SettingsPopup(translations map[string]string, availablefonts []string, set
                       }
                     </div>
                   </ep-dropdown>
-                </div>
+                </ep-settings-row>
 
-                <div class="dropdown-line">
-                  <label data-l10n-id="pad.settings.language">{translations["pad.settings.language"]}</label>
+                <ep-settings-row class="dropdown-line" data-l10n-id="pad.settings.language" label={translations["pad.settings.language"]}>
                   <ep-dropdown id="languagemenu" align="left" trigger="click">
                     <button slot="trigger" type="button" class="dropdown-select-trigger">{translations["pad.settings.language"]}</button>
                     <div slot="content">
@@ -154,11 +140,10 @@ templ SettingsPopup(translations map[string]string, availablefonts []string, set
                       }
                     </div>
                   </ep-dropdown>
-                </div>
+                </ep-settings-row>
               // Light or dark; pad.ts shows it when enableDarkMode is on,
               // pad_editor.ts switches and marks the chosen one.
-              <div id="theme-switcher" class="dropdown-line theme-line" style="display: none;">
-                <span class="settings-label" data-l10n-id="pad.settings.appearance">{translations["pad.settings.appearance"]}</span>
+              <ep-settings-row id="theme-switcher" class="dropdown-line theme-line" style="display: none;" data-l10n-id="pad.settings.appearance" label={translations["pad.settings.appearance"]}>
                 <div class="theme-choice" role="group" data-l10n-id="pad.settings.appearance" aria-label={translations["pad.settings.appearance"]}>
                   <button type="button" data-theme="light" aria-pressed="true">
                     <svg aria-hidden="true" width="18" height="18" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
@@ -173,37 +158,22 @@ templ SettingsPopup(translations map[string]string, availablefonts []string, set
                     <span data-l10n-id="pad.settings.theme.dark">{translations["pad.settings.theme.dark"]}</span>
                   </button>
                 </div>
-              </div>
+              </ep-settings-row>
               </div>
               if padWideSettings {
                 // Only for the pad's creator; pad_settings.ts unhides it.
                 <div id="pad-settings-section" class="settings-section" hidden>
                   <h2 data-l10n-id="pad.settings.padSettings">{translations["pad.settings.padSettings"]}</h2>
-                  <p>
-                      <ep-checkbox id="padsettings-options-disablechat" data-l10n-id="pad.settings.disablechat" label={translations["pad.settings.disablechat"]}></ep-checkbox>
-                  </p>
-                  <p class="hide-for-mobile">
-                      <ep-checkbox id="padsettings-options-stickychat" data-l10n-id="pad.settings.stickychat" label={translations["pad.settings.stickychat"]}></ep-checkbox>
-                  </p>
-                  <p class="hide-for-mobile">
-                      <ep-checkbox id="padsettings-options-chatandusers" data-l10n-id="pad.settings.chatandusers" label={translations["pad.settings.chatandusers"]}></ep-checkbox>
-                  </p>
-                  <p>
-                      <ep-checkbox id="padsettings-options-colorscheck" checked data-l10n-id="pad.settings.colorcheck" label={translations["pad.settings.colorcheck"]}></ep-checkbox>
-                  </p>
-                  <p>
-                      <ep-checkbox id="padsettings-options-linenoscheck" checked data-l10n-id="pad.settings.linenocheck" label={translations["pad.settings.linenocheck"]}></ep-checkbox>
-                  </p>
-                  <p>
-                      <ep-checkbox id="padsettings-options-rtlcheck" data-l10n-id="pad.settings.rtlcheck" label={translations["pad.settings.rtlcheck"]}></ep-checkbox>
-                  </p>
-                  <p>
-                      <ep-checkbox id="padsettings-enforcecheck" data-l10n-id="pad.settings.enforceSettings" label={translations["pad.settings.enforceSettings"]}></ep-checkbox>
-                  </p>
+                  <ep-settings-row data-l10n-id="pad.settings.disablechat" label={translations["pad.settings.disablechat"]}><ep-checkbox id="padsettings-options-disablechat"></ep-checkbox></ep-settings-row>
+                  <ep-settings-row class="hide-for-mobile" data-l10n-id="pad.settings.stickychat" label={translations["pad.settings.stickychat"]}><ep-checkbox id="padsettings-options-stickychat"></ep-checkbox></ep-settings-row>
+                  <ep-settings-row class="hide-for-mobile" data-l10n-id="pad.settings.chatandusers" label={translations["pad.settings.chatandusers"]}><ep-checkbox id="padsettings-options-chatandusers"></ep-checkbox></ep-settings-row>
+                  <ep-settings-row data-l10n-id="pad.settings.colorcheck" label={translations["pad.settings.colorcheck"]}><ep-checkbox id="padsettings-options-colorscheck" checked></ep-checkbox></ep-settings-row>
+                  <ep-settings-row data-l10n-id="pad.settings.linenocheck" label={translations["pad.settings.linenocheck"]}><ep-checkbox id="padsettings-options-linenoscheck" checked></ep-checkbox></ep-settings-row>
+                  <ep-settings-row data-l10n-id="pad.settings.rtlcheck" label={translations["pad.settings.rtlcheck"]}><ep-checkbox id="padsettings-options-rtlcheck"></ep-checkbox></ep-settings-row>
+                  <ep-settings-row data-l10n-id="pad.settings.enforceSettings" label={translations["pad.settings.enforceSettings"]}><ep-checkbox id="padsettings-enforcecheck"></ep-checkbox></ep-settings-row>
                   <div class="dropdowns-container">
-                    <div class="dropdown-line">
-                      <label data-l10n-id="pad.settings.fontType">{translations["pad.settings.fontType"]}</label>
-                      <ep-dropdown id="padsettings-viewfontmenu" align="left" trigger="click">
+                    <ep-settings-row class="dropdown-line" data-l10n-id="pad.settings.fontType" label={translations["pad.settings.fontType"]}>
+                  <ep-dropdown id="padsettings-viewfontmenu" align="left" trigger="click">
                         <button slot="trigger" type="button" class="dropdown-select-trigger">{translations["pad.settings.fontType.normal"]}</button>
                         <div slot="content">
                           <ep-dropdown-item value="" data-l10n-id="pad.settings.fontType.normal">{translations["pad.settings.fontType.normal"]}</ep-dropdown-item>
@@ -212,10 +182,9 @@ templ SettingsPopup(translations map[string]string, availablefonts []string, set
                           }
                         </div>
                       </ep-dropdown>
-                    </div>
-                    <div class="dropdown-line">
-                      <label data-l10n-id="pad.settings.language">{translations["pad.settings.language"]}</label>
-                      <ep-dropdown id="padsettings-languagemenu" align="left" trigger="click">
+                </ep-settings-row>
+                    <ep-settings-row class="dropdown-line" data-l10n-id="pad.settings.language" label={translations["pad.settings.language"]}>
+                  <ep-dropdown id="padsettings-languagemenu" align="left" trigger="click">
                         <button slot="trigger" type="button" class="dropdown-select-trigger">{translations["pad.settings.language"]}</button>
                         <div slot="content">
                           for _, entry := range hooks.SortedAvailableLangs {
@@ -223,15 +192,15 @@ templ SettingsPopup(translations map[string]string, availablefonts []string, set
                           }
                         </div>
                       </ep-dropdown>
-                    </div>
+                </ep-settings-row>
                   </div>
                 </div>
               }
               for _, group := range settingsGroups {
                   for _, item := range group.Items {
-                      <p>
-                          <ep-checkbox id={item.Id} class="settings-plugin-item" data-key={item.Key} label={getTranslation(translations, item.Title)}></ep-checkbox>
-                      </p>
+                      <ep-settings-row label={getTranslation(translations, item.Title)}>
+                          <ep-checkbox id={item.Id} class="settings-plugin-item" data-key={item.Key}></ep-checkbox>
+                      </ep-settings-row>
                       }
                 }
 
@@ -462,16 +431,13 @@ templ UserPopup(translations map[string]string) {
                           <span id="mycolorpickerpreview" class="myswatchboxhoverable"></span>
                         </div>
                     </div></div>
-                    <div id="myswatchbox"><div id="myswatch"></div></div>
-                    <div id="myusernameform">
-                      <input type="text" id="myusernameedit" maxlength="128" disabled="disabled" placeholder={translations["pad.userlist.entername"]}/>
-                    </div>
                 </div>
-                <div id="otherusers" aria-role="document">
-                    <table id="otheruserstable" cellspacing="0" cellpadding="0" border="0">
-                        <tr><td></td></tr>
-                    </table>
-                </div>
+                // Own entry (name, colour) and the other users; filled by
+                // pad_userlist.ts. Read-only until the pad is connected.
+                <ep-user-list id="userlist" readonly
+                  name-placeholder={translations["pad.userlist.entername"]}
+                  unnamed-label={translations["pad.userlist.unnamed"]}
+                  color-label={translations["pad.userlist.changeColor"]}></ep-user-list>
                 <div id="userlistbuttonarea"></div>
             </div></div>
 

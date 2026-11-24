@@ -44,7 +44,7 @@ test.describe('pad login', () => {
         await expect(menu).toBeHidden()
 
         // the pad's author is the account's, also in another browser tab
-        await expect(page.locator('#myusernameedit')).toHaveValue('admin')
+        await expect(page.locator('#userlist input')).toHaveValue('admin')
 
         // the same pad open in a second tab of this browser
         const other = await page.context().newPage()

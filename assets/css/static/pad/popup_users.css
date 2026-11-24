@@ -11,11 +11,6 @@
   display: flex;
   flex-shrink: 0;
 }
-.popup#users #otherusers {
-  flex: 1 auto;
-  overflow: auto;
-  max-height: 200px;
-}
 
 .popup#users.chatAndUsers {
   display: flex !important; /* always visible */
@@ -38,57 +33,21 @@
 }
 
 
-/* --------------- */
-/* --- MY USER --- */
-/* --------------- */
+/* ------------------------------------------- */
+/* --- USER LIST (<ep-user-list id=userlist>) --- */
+/* ------------------------------------------- */
 
-#myswatchbox {
-  width: 24px;
-  height: 24px;
-  border: 1px solid #ccc;
-  background: transparent;
-  cursor: pointer;
-  flex-shrink: 0;
+#users ep-user-list {
+  display: block;
+  min-width: 240px;
+  max-height: 320px;
+  overflow-y: auto;
 }
-#myswatch {
-  width: 100%;
-  height: 100%;
-  background: transparent; /*...initially*/
+.popup#users.chatAndUsers ep-user-list {
+  /* The sticky users panel is 250px high with 20px padding top and bottom
+     (skin users.css); the list scrolls inside it. */
+  max-height: 210px;
 }
-
-#myusernameform {
-  margin-left: 10px;
-}
-input#myusernameedit {
-  height: 26px;
-  font-size: 1.3em;
-  padding: 3px;
-  border: 1px solid #ccc;
-  background-color: transparent;
-  margin: 0;
-}
-input#myusernameedit:not(.editable) {
-  color: grey;
-}
-#myuser .myusernameedithoverable:hover {
-  background: white;
-}
-#myusernameform .editactive,
-#myusernameform .editempty {
-  background: white;
-  border-left: 1px solid #c3c3c3;
-  border-top: 1px solid #c3c3c3;
-  border-right: 1px solid #e6e6e6;
-  border-bottom: 1px solid #e6e6e6;
-}
-
-#myusernameedit, #otheruserstable .swatch {
-  border: 1px solid #ccc;
-}
-#myusernameform .editempty {
-  opacity: .8;
-}
-
 
 /* --------------------------- */
 /* --- MY USER COLORPICKER --- */
@@ -119,26 +78,4 @@ input#myusernameedit:not(.editable) {
   height: 24px;
   border-radius: 5px;
   float: right;
-}
-
-/* ------------------- */
-/* --- OTHER USERS --- */
-/* ------------------- */
-#otheruserstable {
-  display: none;
-}
-#otheruserstable td {
-  height: 26px;
-  padding: 0 2px;
-}
-#otheruserstable .swatch {
-  border: 1px solid #ccc;
-  width: 13px;
-  height: 13px;
-  overflow: hidden;
-  margin: 0 4px;
-  user-select: none;
-}
-.usertdname {
-  font-size: 1.2rem;
 }

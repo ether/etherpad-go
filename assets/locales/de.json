@@ -227,6 +227,7 @@
 	"pad.savedrevs.timeslider": "Du kannst gespeicherte Versionen durch den Aufruf des Bearbeitungsverlaufs ansehen.",
 	"pad.userlist.entername": "Dein Name?",
 	"pad.userlist.unnamed": "unbenannt",
+	"pad.userlist.changeColor": "Eigene Farbe ändern",
 	"pad.editbar.clearcolors": "Autorenfarben im gesamten Dokument zurücksetzen? Dies kann nicht rückgängig gemacht werden",
 	"pad.impexp.importbutton": "Jetzt importieren",
 	"pad.impexp.importing": "Importiere …",

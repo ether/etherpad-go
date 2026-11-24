@@ -241,6 +241,7 @@
   "pad.savedrevs.timeslider": "You can see saved revisions by visiting the timeslider",
   "pad.userlist.entername": "Enter your name",
   "pad.userlist.unnamed": "unnamed",
+  "pad.userlist.changeColor": "Change your colour",
   "pad.userlist.onlineCount": "{[ plural(count) one: {{count}} connected user, other: {{count}} connected users ]}",
   "pad.editor.skipToContent": "Skip to editor",
   "pad.editor.keyboardHint": "Press Escape to exit the editor. Press Alt+F9 to access the toolbar.",

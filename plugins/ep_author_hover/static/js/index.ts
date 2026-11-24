@@ -79,16 +79,13 @@ const getAuthorInfo = (authorId: string): { name: string; color: string } => {
     return { name: getTranslation('ep_author_hover.me', 'Me'), color: '#fff' }
   }
 
-  // Look up in the connected-users table
-  const rows = document.querySelectorAll<HTMLTableRowElement>('#otheruserstable > tbody > tr')
-  for (const row of rows) {
-    const rowAuthorId = row.dataset.authorid ?? ''
-    if (rowAuthorId.substring(0, 14) === shortId) {
-      const nameEl = row.querySelector('.usertdname')
-      const colorEl = row.querySelector<HTMLElement>('.usertdswatch > div')
-      const name = nameEl?.textContent?.trim() || getTranslation('ep_author_hover.unknow_author', 'Unknown Author')
-      const color = colorEl?.style.backgroundColor ?? '#fff'
-      return { name, color }
+  // Look up in the list of connected users (<ep-user-list id="userlist">)
+  const list = document.getElementById('userlist') as (HTMLElement & { users?: Array<{ id: string; name?: string; color?: string }> }) | null
+  for (const user of list?.users ?? []) {
+    if (user.id.substring(0, 14) === shortId) {
+      // Connected but unnamed: the same label as in the user list.
+      const name = user.name?.trim() || list?.getAttribute('unnamed-label') || 'unnamed'
+      return { name, color: user.color || '#fff' }
     }
   }
 

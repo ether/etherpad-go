@@ -42,7 +42,7 @@ test('chat and user names reach the other instance', async ({page, browser}) => 
         await toggleUserList(page);
 
         await toggleUserList(onB);
-        await expect(onB.locator('#otheruserstable')).toContainText(name);
+        await expect(onB.locator('#userlist .name', {hasText: name})).toHaveCount(1);
         await toggleUserList(onB);
 
         await showChat(page);
