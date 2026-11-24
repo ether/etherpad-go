@@ -83,7 +83,7 @@ html.theme-etherpad-go body {
 // injected later.
 export const MOBILE_CSS = `
 @media (max-width: 600px) {
-  html body .sheet-titlebar { height: 32px; padding: 0 10px; font-size: 13px; }
+  html body .sheet-titlebar { height: calc(32px + env(safe-area-inset-top, 0px)); padding-left: calc(10px + env(safe-area-inset-left, 0px)); padding-right: calc(10px + env(safe-area-inset-right, 0px)); font-size: 13px; }
   html body .sheet-ribbon-tabs { padding: 2px 4px 0; gap: 0; }
   html body .sheet-ribbon-tabs button { padding: 5px 8px 6px; font-size: 12.5px; }
   html body .sheet-ribbon-body { min-height: 0; padding: 2px 2px 1px; scrollbar-width: none; overscroll-behavior-x: contain; }

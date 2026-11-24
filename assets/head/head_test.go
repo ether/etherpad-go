@@ -1,6 +1,7 @@
 package head
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -45,5 +46,19 @@ func TestThemeOnHTML(t *testing.T) {
 	}
 	if got := custom.HTMLStyle(); got != "" {
 		t.Errorf("HTMLStyle on custom skin = %q", got)
+	}
+}
+
+func TestViewportReachesUnderTheNotch(t *testing.T) {
+	var b strings.Builder
+	s := &settings.Settings{SkinName: "colibris"}
+	if err := Meta(For(s, "en", "../", true)).Render(context.Background(), &b); err != nil {
+		t.Fatal(err)
+	}
+	html := b.String()
+	for _, want := range []string{"viewport-fit=cover", `name="apple-mobile-web-app-capable"`, "apple-mobile-web-app-status-bar-style"} {
+		if !strings.Contains(html, want) {
+			t.Errorf("head misses %s", want)
+		}
 	}
 }

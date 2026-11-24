@@ -158,4 +158,25 @@ test.describe('mobile layout', () => {
             expect(box.y + box.height).toBeLessThanOrEqual(bar.y);
         }
     });
+
+    test('a tap below the text puts the caret at the end and typing reaches the pad', async ({page}) => {
+        await page.setViewportSize({width: 390, height: 844});
+        await goToNewPad(page);
+        const container = await page.locator('#editorcontainer').boundingBox();
+        expect(container).not.toBeNull();
+        if (!container) return;
+        await page.mouse.click(container.x + container.width / 2, container.y + container.height - 80);
+        const where = await page.evaluate(() => {
+            const sel = window.getSelection();
+            const node = sel?.anchorNode;
+            const inner = document.getElementById('innerdocbody');
+            return {
+                focused: document.activeElement === inner,
+                inLine: !!node && !!inner && inner.contains(node) && node !== inner,
+            };
+        });
+        expect(where).toEqual({focused: true, inLine: true});
+        await page.keyboard.type('XYZ');
+        await expect(page.locator('#innerdocbody')).toContainText('XYZ');
+    });
 });

@@ -89,7 +89,12 @@ templ Meta(i Info) {
 		<meta name="robots" content="noindex, nofollow"/>
 		<meta name="referrer" content="no-referrer"/>
 	}
-	<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0"/>
+	// viewport-fit=cover: the page reaches under the notch / Dynamic Island
+	// and the home indicator; the toolbars keep their content clear of them
+	// with env(safe-area-inset-*) (static/pad/mobile.css).
+	<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0, viewport-fit=cover"/>
+	<meta name="apple-mobile-web-app-capable" content="yes"/>
+	<meta name="mobile-web-app-capable" content="yes"/>
 	if i.ThemeColor() != "" {
 		if i.DarkThemeColor() != "" {
 			<meta name="theme-color" content={ i.ThemeColor() } media="(prefers-color-scheme: light)"/>
@@ -119,6 +124,25 @@ templ Meta(i Info) {
 					});
 					el.classList.add('super-dark-editor', 'dark-background', 'super-dark-toolbar');
 				} catch (e) { /* no localStorage or matchMedia: stay light */ }
+			})();
+		</script>
+	}
+	if i.Pad {
+		// Home-screen app on iOS: its status bar is white unless the page
+		// draws under it (black-translucent). Do that when the pad starts
+		// dark, so the dark toolbar shows behind the clock and the Dynamic
+		// Island; a light pad keeps the white bar with dark text.
+		<script>
+			(function () {
+				try {
+					var el = document.documentElement;
+					var dark = el.classList.contains('super-dark-toolbar') || el.classList.contains('dark-toolbar') ||
+						localStorage.getItem('ep_darkMode') === 'true';
+					var m = document.createElement('meta');
+					m.name = 'apple-mobile-web-app-status-bar-style';
+					m.content = dark ? 'black-translucent' : 'default';
+					document.head.appendChild(m);
+				} catch (e) { /* keep the default status bar */ }
 			})();
 		</script>
 	}

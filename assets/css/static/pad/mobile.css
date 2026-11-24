@@ -191,6 +191,32 @@
   }
   /* Was 10px with 5px at the bottom (skin). */
   html.pad body.timeslider #editbar {
-    padding: 8px 8px 4px;
+    padding: calc(8px + env(safe-area-inset-top, 0px)) 8px 4px;
+  }
+}
+
+/* --- Notch, Dynamic Island, home indicator (viewport-fit=cover) -------- */
+/* The page reaches under them; the bars keep their content clear and
+   paint their background behind them. All insets are 0 where there is
+   nothing to avoid. */
+html.pad body {
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+html.pad body:not(.timeslider) #editbar {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+html.pad body.timeslider #editbar {
+  padding-top: calc(10px + env(safe-area-inset-top, 0px));
+}
+@media only screen and (max-width: 1000px) {
+  .toolbar .menu_right {
+    padding-left: calc(6px + env(safe-area-inset-left, 0px));
+    padding-right: calc(6px + env(safe-area-inset-right, 0px));
+  }
+}
+@media only screen and (max-width: 800px) {
+  html.pad body #chaticon {
+    right: calc(12px + env(safe-area-inset-right, 0px));
   }
 }

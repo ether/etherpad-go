@@ -47,6 +47,36 @@ export const padeditor = (() => {
       // editor:ace:initialized is emitted by ace.ts with the shared info object
       const editorLoading = q('#editorloadingbox');
       if (editorLoading) editorLoading.style.display = 'none';
+      // A tap on empty space (below the text, the margins) puts the caret at
+      // the end of the text. iOS Safari otherwise neither focuses the editor
+      // nor opens the keyboard there, or leaves the caret outside any line.
+      // Runs synchronously in the click so iOS accepts the focus as a user
+      // gesture and shows the keyboard.
+      q('#editorcontainer')?.addEventListener('click', (event) => {
+        const inner = q('#innerdocbody');
+        if (!inner || inner.contentEditable !== 'true') return;
+        const target = event.target;
+        if (!(target instanceof Node)) return;
+        // Taps on the line numbers have their own meaning (link to the line).
+        if (q('#sidediv')?.contains(target)) return;
+        const sel = window.getSelection();
+        const caretInLine = () => {
+          const node = sel?.anchorNode;
+          if (!node || !inner.contains(node) || node === inner) return false;
+          return true;
+        };
+        if (target !== inner && inner.contains(target) && caretInLine()) return;
+        if (document.activeElement === inner && caretInLine()) return;
+        const last = inner.lastElementChild;
+        if (!last || !sel) return;
+        const range = document.createRange();
+        range.selectNodeContents(last);
+        range.collapse(false);
+        inner.focus({preventScroll: true});
+        sel.removeAllRanges();
+        sel.addRange(range);
+      });
+
       // Listen for clicks on sidediv items (now in main document, not iframe)
       const sideDivInner = q('#sidedivinner');
       sideDivInner?.addEventListener('click', (event) => {
