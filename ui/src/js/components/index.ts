@@ -13,6 +13,7 @@ import '@samtv12345/etherpad-webcomponents/EpColorPicker.js';
 import '@samtv12345/etherpad-webcomponents/EpDropdown.js';
 import '@samtv12345/etherpad-webcomponents/EpToolbarSelect.js';
 import '@samtv12345/etherpad-webcomponents/EpCheckbox.js';
+import '@samtv12345/etherpad-webcomponents/EpSettings.js';
 import './EpPluginToolbar';
 
 export {EpNotification} from '@samtv12345/etherpad-webcomponents';
