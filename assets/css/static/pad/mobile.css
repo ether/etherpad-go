@@ -179,7 +179,8 @@
 }
 
 /* --- Timeslider ------------------------------------------------------- */
-@media only screen and (max-width: 800px) {
+/* Phones only (tablets keep the skin's title size). */
+@media only screen and (max-width: 600px) {
   /* body.timeslider: beats the skin's timeslider.css, loaded after this. */
   body.timeslider .timeslider-title {
     font-size: 1.15rem !important;
@@ -188,7 +189,8 @@
   body.timeslider .timeslider-subtitle {
     margin-top: 4px;
   }
+  /* Was 10px with 5px at the bottom (skin). */
   html.pad body.timeslider #editbar {
-    padding: 8px 12px;
+    padding: 8px 8px 4px;
   }
 }
