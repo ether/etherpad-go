@@ -91,7 +91,8 @@ export const toggleUserList = async (page: Page) => {
 
 export const setUserName = async (page: Page, userName: string) => {
     await page.waitForSelector('[class="popup popup-show"]')
-    await page.click("#myusernameedit");
+    // The own name field lives in <ep-user-list> (Playwright CSS pierces shadow DOM).
+    await page.click("#userlist input");
     await page.keyboard.type(userName);
 }
 
