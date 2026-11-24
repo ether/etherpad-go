@@ -8,10 +8,14 @@ allowBuilds:
   esbuild: true
 
 overrides:
-  "@samtv12345/etherpad-webcomponents": 0.0.15
+  "@samtv12345/etherpad-webcomponents": 0.0.16
 
 minimumReleaseAgeExclude:
-  - "@samtv12345/etherpad-webcomponents@0.0.15"
+  # Our own editor components, published from ether/webcomponents by its
+  # publish workflow with npm provenance. Pinned to the exact version (also via
+  # the override above), so only the release we reviewed and tested here skips
+  # the 24h gate; any later version still has to wait.
+  - "@samtv12345/etherpad-webcomponents@0.0.16"
   # Pure browser-data packages that publish multiple times a day, so a fresh
   # lockfile resolution always pulls a version newer than the 24h release-age
   # gate. Low supply-chain risk (data only); exclude all versions from the gate.
