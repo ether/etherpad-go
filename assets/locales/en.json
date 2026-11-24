@@ -205,6 +205,8 @@
   "pad.chat.loadmessages": "Load more messages",
   "pad.chat.stick.title": "Stick chat to screen",
   "pad.chat.writeMessage.placeholder": "Write your message here",
+  "pad.chat.send": "Send",
+  "pad.chat.close": "Close chat",
 
   "timeslider.followContents": "Follow pad content updates",
   "timeslider.pageTitle": "{{appTitle}} Timeslider",

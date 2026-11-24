@@ -195,6 +195,8 @@
 	"pad.chat.loadmessages": "Weitere Nachrichten laden",
 	"pad.chat.stick.title": "Chat an den Bildschirm anheften",
 	"pad.chat.writeMessage.placeholder": "Schreibe hier deine Nachricht",
+	"pad.chat.send": "Senden",
+	"pad.chat.close": "Chat schließen",
 	"timeslider.followContents": "Aktualisierungen des Pad-Inhalts verfolgen",
 	"timeslider.pageTitle": "{{appTitle}} Bearbeitungsverlauf",
 	"timeslider.toolbar.returnbutton": "Zurück zum Pad",

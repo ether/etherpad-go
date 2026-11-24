@@ -5,6 +5,8 @@ import {editorBus} from './core/EventBus';
 import {padeditor} from './pad_editor';
 import {paduserlist} from './pad_userlist';
 import '@samtv12345/etherpad-webcomponents/EpChatMessage.js';
+import '@samtv12345/etherpad-webcomponents/EpChatPanel.js';
+import type {EpChatPanel} from '@samtv12345/etherpad-webcomponents';
 
 // ---------------------------------------------------------------------------
 // Inline helpers (replaces padutils + padcookie dependencies)
@@ -190,7 +192,6 @@ class ChatController {
   private isStuck = false;
   private userAndChat = false;
   private chatMentions = 0;
-  private lastMessage: HTMLElement | null = null;
   private historyPointer = 0;
   private pad!: PadLike;
 
@@ -198,11 +199,12 @@ class ChatController {
 
   private get chatBox(): HTMLElement | null { return byId('chatbox'); }
   private get chatIcon(): HTMLElement | null { return byId('chaticon'); }
-  private get chatInput(): HTMLTextAreaElement | HTMLInputElement | null {
-    const el = byId('chatinput');
-    return el instanceof HTMLTextAreaElement || el instanceof HTMLInputElement ? el : null;
+  /** The <ep-chat-panel> (id "chattext"); messages are its children. */
+  private get chatText(): EpChatPanel | null { return byId<EpChatPanel>('chattext'); }
+  /** The input inside the panel (shadow DOM). */
+  private get chatInput(): HTMLTextAreaElement | null {
+    return this.chatText?.shadowRoot?.querySelector('textarea') ?? null;
   }
-  private get chatText(): HTMLElement | null { return byId('chattext'); }
   private get chatCounter(): HTMLElement | null { return byId('chatcounter'); }
 
   // --- Public API ----------------------------------------------------------
@@ -339,35 +341,31 @@ class ChatController {
     editorBus.emit('chat:visibility:changed', { visible: false });
   }
 
+  /**
+   * The panel follows new messages by itself while the reader is at the
+   * bottom; `force` jumps there (opening the chat, initial history).
+   */
   scrollDown(force?: boolean): void {
     const chatBox = this.chatBox;
-    const chatText = this.chatText;
-    if (chatBox == null || chatText == null || !chatBox.classList.contains('visible')) return;
-
-    const shouldScroll = (() => {
-      if (force) return true;
-      if (this.lastMessage == null) return true;
-      const top = this.lastMessage.getBoundingClientRect().top - chatText.getBoundingClientRect().top;
-      return top < (chatText.clientHeight + 20);
-    })();
-    if (!shouldScroll) return;
-
-    chatText.scrollTo({ top: chatText.scrollHeight, behavior: 'smooth' });
-    const messages = chatText.querySelectorAll('ep-chat-message');
-    this.lastMessage = messages.length > 0 ? messages[messages.length - 1] as HTMLElement : null;
+    const panel = this.chatText;
+    if (chatBox == null || panel == null || !chatBox.classList.contains('visible')) return;
+    if (force) void panel.updateComplete.then(() => panel.scrollToBottom());
   }
 
-  async send(): Promise<void> {
+  /** Sends `text` (from the panel's ep-chat-send) or the input's content. */
+  async send(text?: string): Promise<void> {
     const input = this.chatInput;
-    if (input == null) return;
-    const text = input.value;
+    if (text == null) {
+      if (input == null) return;
+      text = input.value;
+    }
     if (text.replace(/\s+/, '').length === 0) return;
 
     const message = new ChatMessage(text);
     // EventBus: emit chat:message:sending before the hook call
     editorBus.emit('chat:message:sending', {message});
     editorBus.emit('chat:message:send', {text, message});
-    input.value = '';
+    if (input != null) input.value = '';
     editorBus.emit('chat:message:sent', { text });
   }
 
@@ -399,7 +397,7 @@ class ChatController {
       duration: 4000,
     };
 
-    const alreadyFocused = document.activeElement === this.chatInput;
+    const alreadyFocused = this.chatInput != null && this.chatText?.shadowRoot?.activeElement === this.chatInput;
     const chatOpen = this.chatBox?.classList.contains('visible') === true;
 
     const wasMentioned =
@@ -472,6 +470,8 @@ class ChatController {
       chatMsg.append(...Array.from(textContainer.childNodes));
     }
 
+    // Messages are children of <ep-chat-panel>, shown in its messages slot.
+    chatMsg.setAttribute('slot', 'messages');
     if (isHistoryAdd) {
       const loadButton = byId('chatloadmessagesbutton');
       loadButton?.insertAdjacentElement('afterend', chatMsg);
@@ -507,24 +507,45 @@ class ChatController {
 
   init(pad: PadLike): void {
     this.pad = pad;
-    const input = this.chatInput;
+    const panel = this.chatText;
     const chatCounter = this.chatCounter;
-    if (input == null) return;
+    if (panel == null) return;
+
+    // --- Panel events --------------------------------------------------------
+
+    panel.addEventListener('ep-chat-send', (evt: Event) => {
+      void this.send(String((evt as CustomEvent).detail?.text ?? ''));
+    });
+    panel.addEventListener('ep-chat-close', () => this.hide());
+    panel.addEventListener('ep-chat-sticky', () => this.stickToScreen(true));
+
+    // Texts set as attributes follow a language switch.
+    html10n.bind('localized', () => {
+      const set = (attr: string, key: string) => {
+        const v = html10n.get(key) as string | undefined;
+        if (v) panel.setAttribute(attr, v);
+      };
+      set('heading', 'pad.chat');
+      set('placeholder', 'pad.chat.writeMessage.placeholder');
+      set('send-label', 'pad.chat.send');
+      set('close-label', 'pad.chat.close');
+      set('sticky-label', 'pad.chat.stick.title');
+    });
 
     // --- Keyboard shortcuts ------------------------------------------------
 
-    // addEventListener on the textarea|input union loses the per-event
-    // typing, so attach the key handlers through the common HTMLElement type.
-    const keyTarget: HTMLElement = input;
-    keyTarget.addEventListener('keydown', (evt: KeyboardEvent) => {
+    const fromInput = (evt: Event) => evt.composedPath()[0] === this.chatInput;
+    panel.addEventListener('keydown', (evt: KeyboardEvent) => {
+      if (!fromInput(evt)) return;
       if ((evt.altKey && evt.key.toLowerCase() === 'c') || evt.key === 'Escape') {
-        asHtmlElement(document.activeElement)?.blur();
+        this.chatInput?.blur();
         (padeditor as any).ace?.focus();
         evt.preventDefault();
       }
     });
 
-    input.addEventListener('click', () => {
+    panel.addEventListener('click', (evt: Event) => {
+      if (!fromInput(evt)) return;
       this.chatMentions = 0;
       titleBadge.setBubble(0);
     });
@@ -533,15 +554,8 @@ class ChatController {
       if (!(evt.altKey && evt.key.toLowerCase() === 'c')) return;
       asHtmlElement(evt.currentTarget)?.blur();
       this.show();
-      this.chatInput?.focus();
+      panel.focus();
       evt.preventDefault();
-    });
-
-    keyTarget.addEventListener('keypress', (evt: KeyboardEvent) => {
-      if (evt.key === 'Enter' && !evt.shiftKey) {
-        evt.preventDefault();
-        void this.send();
-      }
     });
 
     if (chatCounter != null) chatCounter.textContent = '0';

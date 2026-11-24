@@ -32,31 +32,12 @@
   background-color: var(--bg-soft-color);
 }
 
-#titlebar {
-  bottom: 0;
-  line-height: 44px;
-  height: 44px;
-  padding: 0 7px;
-  z-index: 20000;
-}
-
-#titlelabel, #chatlabel {
+#chatlabel {
   text-transform: uppercase;
   font-weight: bold;
+  margin-right: 15px;
 }
 
-#titlebar #titlelabel { font-size: 16px; }
-#chatlabel { margin-right: 15px; }
-
-#chattext {
-  padding: 0;
-  border-top: 1px solid #ffffff;
-  border-top: 1px solid var(--bg-color);
-  border-bottom: 1px solid #ffffff;
-  border-bottom: 1px solid var(--bg-color);
-  background-color: inherit;
-  color: inherit;
-}
 #chattext p {
   padding: 4px 10px;
 }
@@ -65,14 +46,6 @@
 }
 #chattext:not(.authorColors) p:last-child {
   padding-bottom: 10px;
-}
-
-#chatinputbox {
-  padding: 8px;
-}
-#chatinputbox #chatinput {
-  background-color: #ffffff;
-  background-color: var(--bg-color);
 }
 
 @media (prefers-reduced-motion) {
@@ -87,5 +60,4 @@
     right: 0;
   }
 
-  .stick-to-screen-btn { display: none; }
 }
