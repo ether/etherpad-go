@@ -29,7 +29,13 @@ templ SheetIndex(padName string, jsScript string, page Page) {
 	<html lang="en" class={ page.HTMLClass() } style={ page.Style }>
 		<head>
 			<meta charset="utf-8"/>
-			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			// viewport-fit=cover + black-translucent: the accent title bar runs
+			// behind the clock and the Dynamic Island (home-screen app on iOS);
+			// it keeps its content clear with env(safe-area-inset-top).
+			<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+			<meta name="apple-mobile-web-app-capable" content="yes"/>
+			<meta name="mobile-web-app-capable" content="yes"/>
+			<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 			<title>{ padName } — Spreadsheet</title>
 		</head>
 		<body>

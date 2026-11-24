@@ -53,7 +53,7 @@ body { margin: 0; overflow: hidden; }
 .sheet-ctx-menu button { display: block; width: 100%; text-align: left; border: none; background: none; padding: 7px 14px; font: inherit; color: var(--sheet-text, #333); cursor: pointer; }
 .sheet-ctx-menu button:hover { background: var(--sheet-accent-soft, #e6f2ec); }
 .sheet-ctx-menu hr { border: none; border-top: 1px solid var(--sheet-border, #e3e6e9); margin: 4px 0; }
-.sheet-titlebar { display: flex; align-items: center; gap: 8px; height: 36px; flex: none; padding: 0 12px; background: var(--sheet-accent, #107c41); color: var(--sheet-on-accent, #fff); font: 14px system-ui, sans-serif; }
+.sheet-titlebar { display: flex; align-items: center; gap: 8px; height: calc(36px + env(safe-area-inset-top, 0px)); box-sizing: border-box; flex: none; padding: env(safe-area-inset-top, 0px) calc(12px + env(safe-area-inset-right, 0px)) 0 calc(12px + env(safe-area-inset-left, 0px)); background: var(--sheet-accent, #107c41); color: var(--sheet-on-accent, #fff); font: 14px system-ui, sans-serif; }
 .sheet-titlebar svg { flex: none; display: block; }
 .sheet-title-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sheet-connection[data-state="reconnecting"], .sheet-connection[data-state="offline"] { color: var(--sheet-danger, #a4262c); font-weight: 600; }

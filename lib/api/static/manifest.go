@@ -31,6 +31,12 @@ func buildManifest(s *settings.Settings, proxyPath string) webManifest {
 	if name == "" {
 		name = "Etherpad"
 	}
+	// Splash screen and window colour of the installed app: the etherpad-go
+	// theme's toolbar instead of colibris green.
+	themeColor := "#0f775b"
+	if s.PadTheme.Resolved(s.SkinName) == settings.PadThemeEtherpadGo {
+		themeColor = "#ffffff"
+	}
 	return webManifest{
 		Name:        name,
 		ShortName:   s.Title,
@@ -41,8 +47,8 @@ func buildManifest(s *settings.Settings, proxyPath string) webManifest {
 		},
 		StartURL:        proxyPath + "/",
 		Display:         "fullscreen",
-		ThemeColor:      "#0f775b",
-		BackgroundColor: "#0f775b",
+		ThemeColor:      themeColor,
+		BackgroundColor: themeColor,
 	}
 }
 
