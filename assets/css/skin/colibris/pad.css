@@ -27,6 +27,9 @@
 /* etherpad-go's own theme; only active on html.theme-etherpad-go. */
 @import url("../../theme/etherpad-go.css");
 
+/* Phones and tablets; last, so it wins over everything above. */
+@import url("../../static/pad/mobile.css");
+
 /* -----------------------------------------------------------------
  * COLORS
  * If you want to change main colors, please replace following CSS variables

@@ -93,4 +93,69 @@ test.describe('mobile layout', () => {
             return await menuLeft.evaluate((node) => node.scrollLeft);
         }).toBeGreaterThan(0);
     });
+
+    test('fits every bottom bar button on a small Android phone', async ({page}) => {
+        await page.setViewportSize({width: 360, height: 640});
+        await goToNewPad(page);
+
+        const boxes = await page.evaluate(() =>
+            [...document.querySelectorAll('.toolbar ul.menu_right > li')]
+                .filter((li) => getComputedStyle(li).display !== 'none')
+                .map((li) => {
+                    const r = li.getBoundingClientRect();
+                    return {key: (li as HTMLElement).dataset.key ?? '', left: r.left, right: r.right};
+                }));
+        expect(boxes.length).toBeGreaterThan(3);
+        for (const b of boxes) {
+            expect(b.left, b.key).toBeGreaterThanOrEqual(0);
+            expect(b.right, b.key).toBeLessThanOrEqual(360);
+        }
+        // No button sits on top of another (the users button used to cover the last one).
+        const sorted = [...boxes].sort((a, b) => a.left - b.left);
+        for (let i = 1; i < sorted.length; i++) {
+            expect(sorted[i].left, sorted[i].key).toBeGreaterThanOrEqual(sorted[i - 1].right - 0.5);
+        }
+        expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
+    });
+
+    test('text uses the screen width and the chat is a round button above the bar', async ({page}) => {
+        await page.setViewportSize({width: 360, height: 640});
+        await goToNewPad(page);
+
+        const text = await page.locator('#innerdocbody').boundingBox();
+        expect(text).not.toBeNull();
+        if (text) {
+            expect(text.x).toBeLessThan(10);
+            expect(text.width).toBeGreaterThan(340);
+        }
+
+        const icon = page.locator('#chaticon');
+        await expect(icon).toBeVisible();
+        const box = await icon.boundingBox();
+        const bar = await page.locator('.toolbar .menu_right').boundingBox();
+        expect(box).not.toBeNull();
+        expect(bar).not.toBeNull();
+        if (box && bar) {
+            expect(box.width).toBeLessThanOrEqual(56);
+            expect(box.y + box.height).toBeLessThanOrEqual(bar.y);
+            expect(box.x + box.width).toBeLessThanOrEqual(360);
+        }
+    });
+
+    test('settings popup stays on screen on a small phone', async ({page}) => {
+        await page.setViewportSize({width: 360, height: 640});
+        await goToNewPad(page);
+        await showSettings(page);
+
+        const box = await page.locator('#settings').boundingBox();
+        const bar = await page.locator('.toolbar .menu_right').boundingBox();
+        expect(box).not.toBeNull();
+        expect(bar).not.toBeNull();
+        if (box && bar) {
+            expect(box.y).toBeGreaterThanOrEqual(0);
+            expect(box.x).toBeGreaterThanOrEqual(0);
+            expect(box.x + box.width).toBeLessThanOrEqual(360);
+            expect(box.y + box.height).toBeLessThanOrEqual(bar.y);
+        }
+    });
 });

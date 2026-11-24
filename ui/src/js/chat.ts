@@ -207,6 +207,12 @@ class ChatController {
   }
   private get chatCounter(): HTMLElement | null { return byId('chatcounter'); }
 
+  /** Unread counter on the chat icon; has-unread lets CSS hide a zero. */
+  private setCounter(n: number): void {
+    if (this.chatCounter != null) this.chatCounter.textContent = `${n}`;
+    this.chatIcon?.classList.toggle('has-unread', n > 0);
+  }
+
   // --- Public API ----------------------------------------------------------
 
   show(): void {
@@ -335,7 +341,7 @@ class ChatController {
       stickyOption.checked = false;
       return;
     }
-    if (this.chatCounter != null) this.chatCounter.textContent = '0';
+    this.setCounter(0);
     this.chatIcon?.classList.add('visible');
     this.chatBox?.classList.remove('visible');
     editorBus.emit('chat:visibility:changed', { visible: false });
@@ -481,8 +487,7 @@ class ChatController {
     html10n.translateElement(html10n.translations, chatMsg);
 
     if (increment && !isHistoryAdd) {
-      const currentCount = Number(this.chatCounter?.textContent ?? '0');
-      if (this.chatCounter != null) this.chatCounter.textContent = `${currentCount + 1}`;
+      this.setCounter(Number(this.chatCounter?.textContent ?? '0') + 1);
 
       if (!chatOpen && ctx.duration > 0) {
         const text = document.createElement('p');
@@ -558,7 +563,7 @@ class ChatController {
       evt.preventDefault();
     });
 
-    if (chatCounter != null) chatCounter.textContent = '0';
+    if (chatCounter != null) this.setCounter(0);
 
     // --- Load-more history button ------------------------------------------
 
