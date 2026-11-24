@@ -3,14 +3,27 @@
   width: 200px;
   min-width: 200px;
   overflow-y: auto;
-  background: #f7f7f7;
-  border-right: 1px solid #ddd;
+  background: var(--bg-soft-color, #f7f7f7);
+  border-right: 1px solid var(--border-color, #ddd);
+  color: var(--text-color, inherit);
   padding: 8px;
   font-size: 13px;
 }
 
 #toc.active {
   display: block;
+}
+
+/* Nothing to show (no headings): no empty column. */
+#toc.active:has(#tocItems:empty) {
+  display: none;
+}
+
+/* Phones: the column would take a third of the screen from the text. */
+@media only screen and (max-width: 800px) {
+  #toc.active {
+    display: none;
+  }
 }
 
 .tocItem {
@@ -23,12 +36,12 @@
 }
 
 .tocItem:hover {
-  background: #e8e8e8;
+  background: color-mix(in srgb, var(--text-color, #000) 8%, transparent);
 }
 
 .tocItem.activeTOC {
   font-weight: bold;
-  background: #dde8f0;
+  background: color-mix(in srgb, var(--primary-color, #4a6cf7) 15%, transparent);
 }
 
 .tocDepth1 { margin-left: 0; font-size: 14px; font-weight: bold; }

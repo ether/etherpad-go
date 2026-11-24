@@ -1,0 +1,177 @@
+/*
+ * Phones and small tablets. Loaded last (from the skin's pad.css) so it
+ * wins over the desktop rules of the static CSS, the colibris skin and the
+ * etherpad-go theme. Goal: nothing wider than the screen, every control
+ * reachable, from small Android phones (360px) to iPhones and tablets.
+ */
+
+/* --- Bottom bar (menu_right) ------------------------------------------- */
+@media only screen and (max-width: 1000px) {
+  .toolbar .menu_right {
+    display: flex;
+    justify-content: space-between;
+    gap: 0;
+    padding: 4px 6px calc(4px + var(--mobile-safe-bottom));
+    overflow-x: auto;
+    scrollbar-width: none;
+    background-color: var(--bg-color, #f4f4f4);
+    border-top: 1px solid var(--border-color, #ccc);
+  }
+  .toolbar .menu_right::-webkit-scrollbar { display: none; }
+  .toolbar ul.menu_right > li {
+    margin: 0;
+    flex: 1 1 0;
+    min-width: 0;
+    justify-content: center;
+  }
+  .toolbar ul.menu_right > li.separator {
+    display: none;
+  }
+  /* The users button was pinned over the last item; now it is the last item. */
+  .toolbar ul.menu_right > li[data-key="showusers"] {
+    position: static;
+    flex: 0 0 auto;
+  }
+  .toolbar ul.menu_right > li[data-key="showusers"] a {
+    width: auto;
+    min-width: 44px;
+    height: 40px;
+    padding: 0 8px;
+    border-radius: 8px;
+  }
+  .toolbar ul.menu_right > li a {
+    min-width: 40px;
+    height: 40px;
+    margin: 0;
+  }
+}
+
+@media only screen and (max-width: 360px) {
+  .toolbar .menu_right {
+    padding-left: 2px;
+    padding-right: 2px;
+  }
+  .toolbar ul.menu_right > li a {
+    min-width: 36px;
+    height: 36px;
+  }
+  .toolbar ul.menu_right > li[data-key="showusers"] a {
+    min-width: 40px;
+    height: 36px;
+    padding: 0 6px;
+  }
+}
+
+/* --- Top bar (formatting) ---------------------------------------------- */
+@media only screen and (max-width: 800px) {
+  .toolbar .menu_left {
+    padding: 0 2px 4px;
+    scrollbar-width: none;
+  }
+  .toolbar .menu_left::-webkit-scrollbar { display: none; }
+  /* Touch targets: at least 32px wide where there is room. */
+  .toolbar ul.menu_left > li:not(.separator) > a {
+    min-width: 30px;
+  }
+}
+@media only screen and (max-width: 380px) {
+  .toolbar ul.menu_left > li:not(.separator) > a {
+    min-width: 28px;
+  }
+  .toolbar ul.menu_left > li.separator {
+    width: 2px;
+    margin: 0;
+  }
+}
+
+/* --- Popups as sheets above the bottom bar ----------------------------- */
+@media only screen and (max-width: 800px) {
+  /* Fixed to the viewport: inside #editorcontainerbox (which already ends
+     above the bottom bar) the bottom offset counted the bar twice. */
+  .popup:not(.toolbar-popup):not(#share_qr) {
+    position: fixed;
+    top: auto !important;
+    right: .75rem !important;
+    bottom: calc(.75rem + var(--mobile-toolbar-height) + var(--mobile-safe-bottom));
+  }
+  /* The desktop popups have fixed widths and a height for a big screen;
+     here they end below the top bar (about 3rem). */
+  #settings > .popup-content,
+  .popup > .popup-content {
+    width: auto;
+    max-width: none;
+    max-height: calc(100dvh - var(--mobile-toolbar-height) - var(--mobile-safe-bottom) - 5rem);
+    box-sizing: border-box;
+  }
+  #settings > .popup-content {
+    padding: 16px 16px 12px;
+  }
+  #users ep-user-list {
+    min-width: 0;
+  }
+}
+@media only screen and (max-width: 360px) {
+  .popup:not(.toolbar-popup):not(#share_qr) {
+    right: .5rem !important;
+  }
+}
+
+/* --- Chat ---------------------------------------------------------------- */
+@media only screen and (max-width: 800px) {
+  /* A round button instead of the "CHAT" box over the text. */
+  html.pad body #chaticon {
+    right: 12px;
+    bottom: calc(var(--mobile-toolbar-height) + var(--mobile-safe-bottom) + 12px);
+    width: 48px;
+    height: 48px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    text-align: center;
+    line-height: 48px;
+    box-shadow: var(--shadow, 0 4px 12px rgba(0, 0, 0, 0.18));
+  }
+  #chaticon #chatlabel {
+    display: none;
+  }
+  #chaticon .buttonicon {
+    font-size: 20px;
+    line-height: 48px;
+    vertical-align: middle;
+  }
+  #chaticon #chatcounter {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    margin: 0;
+    box-sizing: border-box;
+    border-radius: 9px;
+    background: var(--primary-color, #64d29b);
+    color: var(--primary-text-color, #ffffff);
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 18px;
+  }
+  #chaticon:not(.has-unread) #chatcounter {
+    display: none;
+  }
+  /* The chat sheet spans the width above the bottom bar. */
+  #chatbox .chat-content {
+    border-radius: var(--radius-large, 10px) var(--radius-large, 10px) 0 0;
+  }
+}
+
+/* --- Editor -------------------------------------------------------------- */
+@media only screen and (max-width: 800px) {
+  /* Text with a small margin instead of the desktop page layout. */
+  #editorcontainerbox #editorcontainer > #outerdocbody {
+    padding-left: 0;
+    padding-right: 0;
+  }
+  #innerdocbody {
+    padding: 12px 14px !important;
+  }
+}
