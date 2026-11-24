@@ -5,15 +5,15 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
-  '@samtv12345/etherpad-webcomponents': 0.0.15
+  '@samtv12345/etherpad-webcomponents': 0.0.16
 
 importers:
 
   .:
     dependencies:
       '@samtv12345/etherpad-webcomponents':
-        specifier: 0.0.15
-        version: 0.0.15
+        specifier: 0.0.16
+        version: 0.0.16
     devDependencies:
       typescript:
         specifier: ^7.0.2
@@ -116,8 +116,8 @@ importers:
         version: 3.5.0
     devDependencies:
       '@samtv12345/etherpad-webcomponents':
-        specifier: 0.0.15
-        version: 0.0.15
+        specifier: 0.0.16
+        version: 0.0.16
       '@types/node':
         specifier: ^26.6.6
         version: 26.6.6
@@ -580,8 +580,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@samtv12345/etherpad-webcomponents@0.0.15':
-    resolution: {integrity: sha512-aaYVeoA/sqJ6TEVxOaTeqRt7njtZeUbT/4yec7oI8yzanQobHg8pDqNKhqMF+NPQSiBDHvAhF8DaVzpDKbIJ6Q==}
+  '@samtv12345/etherpad-webcomponents@0.0.16':
+    resolution: {integrity: sha512-S0xpgFvOMv3ARf4N05e3TSM1AarS1CbobfqfOgKoPtZnvrsTD7+QBLdZDj80GkZOZTLmnkmjirmS/MTQcqfO8w==}
 
   '@tailwindcss/node@4.3.5':
     resolution: {integrity: sha512-yT53FzV4ke0cr/BguDxhWMpm5MJu1O2muzk+tKw6lKHjODAsYArBbWwFbJiaksfzFv1tpkO9QHGzmfs1hJT66g==}
@@ -1540,7 +1540,7 @@ snapshots:
   '@rollup/rollup-win32-x64-msvc@4.59.0':
     optional: true
 
-  '@samtv12345/etherpad-webcomponents@0.0.15':
+  '@samtv12345/etherpad-webcomponents@0.0.16':
     dependencies:
       '@lit/reactive-element': 2.1.2
       lit: 3.3.3

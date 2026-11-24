@@ -12,6 +12,6 @@
     "typescript": "^7.0.2"
   },
   "dependencies": {
-    "@samtv12345/etherpad-webcomponents": "^0.0.15"
+    "@samtv12345/etherpad-webcomponents": "^0.0.16"
   }
 }
