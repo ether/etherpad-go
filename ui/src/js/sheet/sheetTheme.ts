@@ -76,6 +76,37 @@ html.theme-etherpad-go body {
 }
 `;
 
+// Phones: the Excel chrome on a small screen. The ribbon scrolls sideways
+// (as before) and drops its group labels, the tabs fit one row, the grid
+// gets narrower columns, and inputs use 16px so iOS does not zoom in.
+// "html body" lifts the rules above the component styles, which are
+// injected later.
+export const MOBILE_CSS = `
+@media (max-width: 600px) {
+  html body .sheet-titlebar { height: 32px; padding: 0 10px; font-size: 13px; }
+  html body .sheet-ribbon-tabs { padding: 2px 4px 0; gap: 0; }
+  html body .sheet-ribbon-tabs button { padding: 5px 8px 6px; font-size: 12.5px; }
+  html body .sheet-ribbon-body { min-height: 0; padding: 2px 2px 1px; scrollbar-width: none; overscroll-behavior-x: contain; }
+  html body .sheet-ribbon-body::-webkit-scrollbar { display: none; }
+  html body .sheet-ribbon-label { display: none; }
+  html body .sheet-ribbon-group { padding: 2px 5px; }
+  html body .sheet-ribbon-big { height: 52px; min-width: 42px; padding: 2px 4px; }
+  html body .sheet-ribbon-row button { height: 28px; min-width: 28px; }
+  html body .sheet-ribbon-row select { height: 26px; }
+  html body .sheet-formula-bar { gap: 4px; padding: 3px; }
+  html body .sheet-namebox { min-width: 52px; padding: 2px 4px; }
+  html body .sheet-fx-cancel, html body .sheet-fx-commit { width: 28px; height: 28px; }
+  html body .sheet-fx-input, html body .sheet-namebox, html body .sheet-dialog input, html body .sheet-find input { font-size: 16px; }
+  html body .sheet-fx-ac { left: 4px; right: 4px; min-width: 0; }
+  html body .sheet-grid-host { -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+  html body .sheet-grid th, html body .sheet-grid td { padding: 2px 4px; }
+  html body .sheet-grid tbody th, html body .sheet-grid thead th:first-child { min-width: 36px; width: 36px; }
+  html body .sheet-statusbar { height: calc(22px + env(safe-area-inset-bottom, 0px)); padding-bottom: env(safe-area-inset-bottom, 0px); }
+  html body .sheet-stats { gap: 8px; overflow: hidden; }
+  html body .sheet-ctx-menu button { padding: 10px 16px; }
+}
+`;
+
 /** Black or white text, whichever contrasts more with a #rgb / #rrggbb fill. */
 export function readableTextOn(hex: string): string {
   const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(hex.trim());

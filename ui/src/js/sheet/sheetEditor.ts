@@ -17,7 +17,7 @@ import { mergeProps } from './styleCss';
 import { createMetaActions } from './sheetMetaActions';
 import { openFilterMenu } from './sheetFilterMenu';
 import { SHEET_OPS_VERSION } from './op';
-import { THEME_CSS } from './sheetTheme';
+import { MOBILE_CSS, THEME_CSS } from './sheetTheme';
 import { chartRangeError, CHART_TYPES, MAX_CHARTS_PER_SHEET, MAX_CHART_TITLE, newChartId, type Chart, type ChartType } from './chart';
 import { chartData, renderChart } from './chartRender';
 import { openDialog } from './sheetDialog';
@@ -539,7 +539,8 @@ export function startSheetEditor(root: HTMLElement): void {
     if (!document.getElementById('sheet-chrome-style')) {
       const s = document.createElement('style');
       s.id = 'sheet-chrome-style';
-      s.textContent = THEME_CSS + CHROME_CSS;
+      s.textContent = THEME_CSS + CHROME_CSS + MOBILE_CSS;
+
       document.head.appendChild(s);
     }
     root.classList.add('sheet-app');
