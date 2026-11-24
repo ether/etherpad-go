@@ -88,7 +88,9 @@
 @media only screen and (max-width: 800px) {
   /* Fixed to the viewport: inside #editorcontainerbox (which already ends
      above the bottom bar) the bottom offset counted the bar twice. */
-  .popup:not(.toolbar-popup):not(#share_qr) {
+  /* Not notifications (.gritter-item, stacked in their own container) and
+     not the users panel docked next to the chat (#users.chatAndUsers). */
+  .popup:not(.toolbar-popup):not(#share_qr):not(.gritter-item):not(#users.chatAndUsers) {
     position: fixed;
     top: auto !important;
     right: .75rem !important;
@@ -97,7 +99,7 @@
   /* The desktop popups have fixed widths and a height for a big screen;
      here they end below the top bar (about 3rem). */
   #settings > .popup-content,
-  .popup > .popup-content {
+  .popup:not(.gritter-item):not(#users.chatAndUsers) > .popup-content {
     width: auto;
     max-width: none;
     max-height: calc(100dvh - var(--mobile-toolbar-height) - var(--mobile-safe-bottom) - 5rem);
@@ -111,7 +113,7 @@
   }
 }
 @media only screen and (max-width: 360px) {
-  .popup:not(.toolbar-popup):not(#share_qr) {
+  .popup:not(.toolbar-popup):not(#share_qr):not(.gritter-item):not(#users.chatAndUsers) {
     right: .5rem !important;
   }
 }
