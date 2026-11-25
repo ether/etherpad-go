@@ -82,3 +82,31 @@ test('no storage: the pad starts and the switch works', async ({page}) => {
     await page.locator('#theme-switcher [data-theme="dark"]').click();
     await expect.poll(() => toolbarIsDark(page)).toBe(true);
 });
+
+// Safari on iOS 26 ignores theme-color and tints the area around the notch /
+// Dynamic Island with the page background, so that follows the toolbar too.
+// The home-screen app's status bar style follows it as well.
+test.describe('page background behind the iOS status bar', () => {
+    test.use({colorScheme: 'light'});
+
+    const chrome = (page: Page) => page.evaluate(() => ({
+        page: getComputedStyle(document.documentElement).backgroundColor,
+        toolbar: getComputedStyle(document.getElementById('editbar')!).backgroundColor,
+        statusBar: document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]')?.getAttribute('content'),
+    }));
+
+    test('matches the toolbar, light and dark', async ({page}) => {
+        await goToNewPad(page);
+        const light = await chrome(page);
+        expect(light.page).toBe(light.toolbar);
+        expect(light.statusBar).toBe('default');
+
+        await showSettings(page);
+        await page.locator('#theme-switcher [data-theme="dark"]').click();
+        await expect.poll(() => toolbarIsDark(page)).toBe(true);
+        const dark = await chrome(page);
+        expect(dark.page).toBe(dark.toolbar);
+        expect(dark.page).not.toBe(light.page);
+        expect(dark.statusBar).toBe('black-translucent');
+    });
+});
