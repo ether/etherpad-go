@@ -230,6 +230,8 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Type-check
         run: pnpm typecheck
+      - name: UI unit tests (vitest, also plugin tests)
+        run: pnpm --filter ./ui test
 
   playwright:
     needs:

@@ -149,6 +149,11 @@ type ChatContext = {
   timestamp: number;
   timeStr: string;
   duration: number;
+  // From the chat history (loaded on open / "load more"), not live.
+  isHistoryAdd: boolean;
+  // Counts towards the unread badge. Plugins showing system lines (join /
+  // leave) set it to false.
+  unread: boolean;
 };
 
 // ---------------------------------------------------------------------------
@@ -401,6 +406,8 @@ class ChatController {
         return `${hours}:${minutes}`;
       })(),
       duration: 4000,
+      isHistoryAdd,
+      unread: true,
     };
 
     const alreadyFocused = this.chatInput != null && this.chatText?.shadowRoot?.activeElement === this.chatInput;
@@ -486,7 +493,7 @@ class ChatController {
     }
     html10n.translateElement(html10n.translations, chatMsg);
 
-    if (increment && !isHistoryAdd) {
+    if (increment && !isHistoryAdd && ctx.unread) {
       this.setCounter(Number(this.chatCounter?.textContent ?? '0') + 1);
 
       if (!chatOpen && ctx.duration > 0) {

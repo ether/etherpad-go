@@ -1,17 +1,37 @@
 /**
  * ep_chat_log_join_leave — Self-initializing EventBus subscriber.
  *
- * Renders join/leave notifications in the chat log and as top-right toasts.
+ * Renders join/leave lines in the chat log and shows a short toast for them.
  * No hook exports — all behavior is registered via editorBus.on(...).
+ *
+ * The source is the server's join/leave chat message (lib/plugins/
+ * ep_chat_log_join_leave): it is sent once when someone really joins or
+ * leaves, and a quick reconnect (a phone waking up, a network switch) sends
+ * nothing. The collab layer's user:join event is not used for toasts: it
+ * also fires for every user who was already in the pad when this client
+ * connects, and on every reconnect.
  */
 
 import notifications from 'ep_etherpad-lite/static/js/notifications'
+import html10n from 'ep_etherpad-lite/static/js/i18n'
 import { editorBus } from 'ep_etherpad-lite/static/js/core/EventBus'
 import { siteUrl } from 'ep_etherpad-lite/static/js/core/basePath'
+import { joinLeaveOf, pickName, type JoinLeave } from './joinLeave'
 
-const defaultMsg: Record<string, string> = {
+const defaultMsg: Record<JoinLeave, string> = {
   join: 'joined the pad',
   leave: 'left the pad',
+}
+
+const t = (type: JoinLeave): string => {
+  const key = `ep_chat_log_join_leave-${type}`
+  try {
+    const text = html10n.get(key)
+    if (text && text !== key) return text
+  } catch {
+    // translations not loaded yet
+  }
+  return defaultMsg[type]
 }
 
 // ---------------------------------------------------------------------------
@@ -24,10 +44,28 @@ link.href = siteUrl('/static/plugins/ep_chat_log_join_leave/static/css/index.css
 document.head.appendChild(link)
 
 // ---------------------------------------------------------------------------
-// Internal helpers
+// Names: the server's message carries only the author id
 // ---------------------------------------------------------------------------
 
-const renderJoinLeaveMessage = (context: {
+const names = new Map<string, string>()
+const remember = (data: { userId?: string; name?: string | null }) => {
+  if (data?.userId && data.name) names.set(data.userId, data.name)
+}
+editorBus.on('user:join' as any, remember)
+editorBus.on('user:info:updated' as any, remember)
+
+const nameOf = (authorId: string, fallback: string): string => {
+  const cv: any = (window as any).clientVars ?? {}
+  return pickName(authorId, fallback, names, cv.collab_client_vars?.historicalAuthorData)
+}
+
+const ownUserId = (): string => String((window as any).clientVars?.userId ?? '')
+
+// ---------------------------------------------------------------------------
+// Chat log line + toast
+// ---------------------------------------------------------------------------
+
+export const renderJoinLeaveMessage = (context: {
   authorName: string
   author: string
   text: string
@@ -37,25 +75,31 @@ const renderJoinLeaveMessage = (context: {
   timestamp: number
   timeStr: string
   duration: number
+  isHistoryAdd?: boolean
+  unread?: boolean
 }) => {
-  const type: string | undefined = context.message?.ep_chat_log_join_leave
-  if (type == null) return
-  if (type !== 'join' && type !== 'leave') return
+  const info = joinLeaveOf(context.message, context.author, !!context.isHistoryAdd, ownUserId())
+  if (!info) return
+  const type = info.type
 
   const typeId = `ep_chat_log_join_leave-${type}`
+  // chat.ts already put the message's display name or "Unnamed" there.
+  const authorName = nameOf(context.author, context.message?.displayName ?? context.authorName)
+  context.authorName = authorName
 
-  if (!context.authorName) context.authorName = context.author
-
-  // Suppress the default chat bottom popup — we show our own top-right notification instead.
+  // A system line: no chat popup, not an unread message.
   context.duration = 0
+  context.unread = false
 
-  // Show a clean top-right notification like "Connected" or "Saved revision".
-  notifications.add({
-    text: `${context.authorName} ${defaultMsg[type]}`,
-    sticky: false,
-    time: 4000,
-    position: 'top',
-  })
+  // Live and about someone else: a short toast. Never for oneself.
+  if (info.toast) {
+    notifications.add({
+      text: `${authorName} ${t(type)}`,
+      sticky: false,
+      time: 4000,
+      position: 'top',
+    })
+  }
 
   // Override the default chat log rendering.
   const timeElt = document.createElement('span')
@@ -64,12 +108,12 @@ const renderJoinLeaveMessage = (context: {
 
   const nameElt = document.createElement('span')
   nameElt.classList.add('ep_chat_log_join_leave-name')
-  nameElt.append(context.authorName)
+  nameElt.append(authorName)
 
   const msgElt = document.createElement('span')
   msgElt.classList.add('ep_chat_log_join_leave-message')
   msgElt.dataset.l10nId = typeId
-  msgElt.append(defaultMsg[type])
+  msgElt.append(t(type))
 
   context.rendered = document.createElement('p')
   const rendered = context.rendered as HTMLParagraphElement
@@ -89,29 +133,7 @@ const renderJoinLeaveMessage = (context: {
 // EventBus subscriptions
 // ---------------------------------------------------------------------------
 
-// Handle chat messages that may be join/leave notifications
-editorBus.on('chat:message:received' as any, (context: any) => {
+// chat:new:message carries the mutable chat context (chat.ts addMessage).
+editorBus.on('chat:new:message' as any, (context: any) => {
   renderJoinLeaveMessage(context)
-})
-
-// Show notification when a user joins via the bus
-editorBus.on('user:join' as any, (data: { userId: string; name?: string }) => {
-  const authorName = data.name || data.userId
-  notifications.add({
-    text: `${authorName} ${defaultMsg.join}`,
-    sticky: false,
-    time: 4000,
-    position: 'top',
-  })
-})
-
-// Show notification when a user leaves via the bus
-editorBus.on('user:leave' as any, (data: { userId: string; name?: string }) => {
-  const authorName = data.name || data.userId
-  notifications.add({
-    text: `${authorName} ${defaultMsg.leave}`,
-    sticky: false,
-    time: 4000,
-    position: 'top',
-  })
 })

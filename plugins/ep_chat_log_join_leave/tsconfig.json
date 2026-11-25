@@ -3,5 +3,9 @@
   "include": [
     "../typings/**/*.d.ts",
     "./static/js/**/*.ts"
+  ],
+  // Tests run with ui's vitest (ui/vitest.config.ts).
+  "exclude": [
+    "./static/js/**/*.test.ts"
   ]
 }
