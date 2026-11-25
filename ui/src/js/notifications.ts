@@ -3,7 +3,7 @@ import { EpNotification } from '@samtv12345/etherpad-webcomponents'
 
 export const notifications = {
   add(args: { title?: string; text: string | Node; class_name?: string; sticky?: boolean; time?: number; position?: 'top' | 'bottom' }): EpNotification {
-    const type = args.class_name?.includes('error') ? 'error' : 'success'
+    const type = args.class_name?.includes('error') ? 'error' : args.class_name?.includes('info') ? 'info' : 'success'
     const textContent = args.text instanceof Node ? (args.text as HTMLElement).textContent || '' : String(args.text)
     return EpNotification.show({
       text: textContent,

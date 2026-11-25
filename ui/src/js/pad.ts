@@ -51,7 +51,8 @@ import {createPadSettings, creatorDefaults, myViewOverrides} from './pad_setting
 import {createPadDeletion} from './pad_deletion';
 import {getHomeUrl} from './getHomeUrl';
 import {maybeShowOutdatedNotice} from './pad_outdated_notice';
-import {initAccountMenu} from './account_menu';
+import {initAccountMenu, type Me} from './account_menu';
+import {offerLogin, showReadOnlyHint, tellOnTap, type ReadOnlyHintDeps} from './readonly_hint';
 import {openTokensDialog} from './account_tokens';
 
 const showPadRetentionNotice = (info: any) => {
@@ -523,6 +524,8 @@ const pad = {
     padSettings: null as ReturnType<typeof createPadSettings> | null,
     padDeletion: null as ReturnType<typeof createPadDeletion> | null,
     _messageQ: new MessageQueue(),
+    _accountInfo: null as Me | null,
+    _readOnlyHint: null as HTMLElement | null,
 
     // Accessors
     getPadId: () => clientVars.padId,
@@ -534,6 +537,39 @@ const pad = {
     userList: () => paduserlist.users(),
     sendClientMessage: (msg) => {
         pad.collabClient.sendClientMessage(msg);
+    },
+
+    _readOnlyHintDeps(): ReadOnlyHintDeps {
+        return {
+            document,
+            href: () => window.location.href,
+            t: (key, fallback) => {
+                const text = html10n.get(key);
+                return text && text !== key ? text : fallback;
+            },
+            toolbar: () => byId('editbar'),
+            notify: (text) => notifications.add({
+                text,
+                position: 'bottom',
+                time: 3000,
+                class_name: 'readonly-notice info',
+            }),
+        };
+    },
+
+    // Read-only pad: a hint instead of the formatting buttons, and a short
+    // notice when someone taps into the text (readonly_hint.ts).
+    showReadOnlyHint() {
+        if (pad._readOnlyHint) return;
+        const deps = pad._readOnlyHintDeps();
+        pad._readOnlyHint = showReadOnlyHint(deps);
+        tellOnTap(byId('editorcontainer'), deps);
+        if (pad._readOnlyHint && pad._accountInfo) offerLogin(pad._readOnlyHint, pad._accountInfo, deps);
+    },
+
+    onAccountInfo(me: Me) {
+        pad._accountInfo = me;
+        if (pad._readOnlyHint) offerLogin(pad._readOnlyHint, me, pad._readOnlyHintDeps());
     },
 
     init() {
@@ -693,6 +729,7 @@ const pad = {
             pad.padDeletion.init();
 
             void initAccountMenu({
+                onMe: (me) => pad.onAccountInfo(me),
                 href: () => window.location.href,
                 fetch: (url) => fetch(url, {credentials: 'same-origin'}),
                 t: (key, fallback) => {
@@ -795,6 +832,7 @@ const pad = {
         }
 
         document.body.classList.add(window.clientVars.readonly ? 'readonly' : 'readwrite');
+        if (window.clientVars.readonly) this.showReadOnlyHint();
 
         padeditor.ace.callWithAce((ace) => {
             ace.ace_setEditable(!window.clientVars.readonly);

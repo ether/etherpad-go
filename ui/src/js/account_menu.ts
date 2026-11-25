@@ -23,6 +23,8 @@ export interface AccountMenuDeps {
   document: Document
   // openTokens shows "My tokens" (account_tokens.ts).
   openTokens?: () => void
+  // onMe gets what the server said, also when there is no menu to show.
+  onMe?: (me: Me) => void
 }
 
 export const authUrl = (href: string, page: 'login' | 'logout' | 'me'): string =>
@@ -136,6 +138,7 @@ export const initAccountMenu = async (d: AccountMenuDeps): Promise<boolean> => {
     const res = await d.fetch(authUrl(d.href(), 'me'))
     if (!res.ok) return false
     const me = (await res.json()) as Me
+    try { d.onMe?.(me) } catch { /* the menu does not depend on it */ }
     const li = render(me, d)
     const toolbar = d.toolbar()
     if (!li || !toolbar) return false

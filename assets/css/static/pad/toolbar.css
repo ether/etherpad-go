@@ -252,3 +252,49 @@
     height: 36px;
   }
 }
+
+/* Read-only pads: a hint instead of the formatting buttons
+   (ui/src/js/readonly_hint.ts). */
+body.readonly .toolbar ul.menu_left,
+body.readonly .toolbar .show-more-icon-btn {
+  display: none;
+}
+.toolbar .readonly-hint {
+  display: none;
+}
+body.readonly .toolbar .readonly-hint {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  align-self: center;
+  margin: 5px 10px;
+  font-size: 13px;
+  line-height: 20px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-soft-color, #576273);
+}
+.toolbar .readonly-hint-icon {
+  display: inline-flex;
+  flex: none;
+}
+.toolbar .readonly-hint-label {
+  font-weight: 600;
+}
+.toolbar .readonly-hint-sep {
+  opacity: .6;
+}
+.toolbar .readonly-hint a.readonly-hint-login {
+  color: var(--primary-color, #64d29b);
+  font-weight: 600;
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.toolbar .readonly-hint a.readonly-hint-login:hover,
+.toolbar .readonly-hint a.readonly-hint-login:focus-visible {
+  text-decoration: underline;
+}
