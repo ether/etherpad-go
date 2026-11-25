@@ -8,7 +8,7 @@ require (
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/a-h/templ v0.3.1118
-	github.com/brianvoe/gofakeit/v7 v7.18.10
+	github.com/brianvoe/gofakeit/v7 v7.18.11
 	github.com/evanw/esbuild v0.28.2
 	github.com/go-jose/go-jose/v4 v4.1.9
 	github.com/go-playground/validator/v10 v10.30.6
@@ -34,7 +34,7 @@ require (
 	github.com/swaggo/files/v2 v2.0.2
 	github.com/swaggo/swag v1.16.6
 	github.com/testcontainers/testcontainers-go v0.45.0
-	github.com/valyala/fasthttp v1.79.0
+	github.com/valyala/fasthttp v1.80.0
 	github.com/xuri/excelize/v2 v2.11.1
 	github.com/zitadel/oidc/v3 v3.52.0
 	go.uber.org/zap v1.28.0
@@ -43,7 +43,7 @@ require (
 	golang.org/x/sync v0.25.0
 	golang.org/x/sys v0.50.0
 	golang.org/x/text v0.44.0
-	modernc.org/sqlite v1.62.0
+	modernc.org/sqlite v1.63.0
 	mvdan.cc/xurls/v2 v2.6.0
 )
 
