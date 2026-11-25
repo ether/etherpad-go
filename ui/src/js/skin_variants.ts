@@ -19,6 +19,15 @@ const colors = ['super-light', 'light', 'dark', 'super-dark'];
 // meta remains, without media, so a dark OS does not keep the dark one
 // above a light toolbar.
 export const updateThemeColorMeta = (newClasses: string[]) => {
+  // Home-screen app on iOS: draw under the status bar when the toolbar is
+  // dark (see head.templ). iOS may only read this at launch; it is kept in
+  // sync so the next launch matches.
+  const statusBar = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
+  if (statusBar) {
+    const tokens = newClasses.join(' ').split(/\s+/);
+    const dark = tokens.includes('super-dark-toolbar') || tokens.includes('dark-toolbar');
+    statusBar.setAttribute('content', dark ? 'black-translucent' : 'default');
+  }
   const metas = Array.from(document.querySelectorAll('meta[name="theme-color"]'));
   if (metas.length === 0) return;
   const [meta, ...rest] = metas;

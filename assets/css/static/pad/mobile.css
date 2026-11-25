@@ -220,3 +220,21 @@ html.pad body.timeslider #editbar {
     right: calc(12px + env(safe-area-inset-right, 0px));
   }
 }
+
+/* ---------------------------------------------------------------------
+ * Page background = toolbar colour.
+ *
+ * Safari on iOS 26 no longer uses <meta name="theme-color">: it tints the
+ * area around the notch / Dynamic Island (and the overscroll at the top)
+ * with the page background. <html> and <body> had none, so that area stayed
+ * white above a dark toolbar. Every visible part of the pad paints its own
+ * background, so this only shows where the browser chrome samples the page.
+ * Values mirror ui/src/js/toolbar_colors.ts.
+ * ------------------------------------------------------------------- */
+html.pad { background-color: #ffffff; }
+html.pad.light-toolbar { background-color: #f2f3f4; }
+html.pad.super-dark-toolbar { background-color: #485365; }
+html.pad.dark-toolbar { background-color: #576273; }
+html.pad.theme-etherpad-go.light-toolbar { background-color: #f7f9fb; }
+html.pad.theme-etherpad-go.super-dark-toolbar { background-color: #111827; }
+html.pad.theme-etherpad-go.dark-toolbar { background-color: #1f2937; }
