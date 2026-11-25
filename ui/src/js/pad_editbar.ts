@@ -396,7 +396,10 @@ export const padeditbar = new class {
     const availableLeftWidth = isCompactLayout
       ? toolbarWidth
       : Math.max(0, toolbarWidth - menuRightWidth - 10);
-    const canUseScrollableToolbar = menuLeft.scrollWidth > availableLeftWidth;
+    // Read-only pads hide the editing buttons (readonly_hint.ts): nothing
+    // left to scroll.
+    const readOnly = document.body.classList.contains('readonly');
+    const canUseScrollableToolbar = !readOnly && menuLeft.scrollWidth > availableLeftWidth;
     toolbar.style.setProperty('--toolbar-right-width', `${menuRightWidth}px`);
     toolbar.classList.toggle('toolbar-scrollable', canUseScrollableToolbar);
     toolbar.classList.remove('toolbar-can-scroll-left', 'toolbar-can-scroll-right');
