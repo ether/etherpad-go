@@ -16,8 +16,7 @@ import notifications from 'ep_etherpad-lite/static/js/notifications'
 import html10n from 'ep_etherpad-lite/static/js/i18n'
 import { editorBus } from 'ep_etherpad-lite/static/js/core/EventBus'
 import { siteUrl } from 'ep_etherpad-lite/static/js/core/basePath'
-
-type JoinLeave = 'join' | 'leave'
+import { joinLeaveOf, pickName, type JoinLeave } from './joinLeave'
 
 const defaultMsg: Record<JoinLeave, string> = {
   join: 'joined the pad',
@@ -56,12 +55,8 @@ editorBus.on('user:join' as any, remember)
 editorBus.on('user:info:updated' as any, remember)
 
 const nameOf = (authorId: string, fallback: string): string => {
-  const known = names.get(authorId)
-  if (known) return known
   const cv: any = (window as any).clientVars ?? {}
-  const historical = cv.collab_client_vars?.historicalAuthorData?.[authorId]?.name
-  if (historical) return historical
-  return fallback || authorId
+  return pickName(authorId, fallback, names, cv.collab_client_vars?.historicalAuthorData)
 }
 
 const ownUserId = (): string => String((window as any).clientVars?.userId ?? '')
@@ -83,8 +78,9 @@ export const renderJoinLeaveMessage = (context: {
   isHistoryAdd?: boolean
   unread?: boolean
 }) => {
-  const type: string | undefined = context.message?.ep_chat_log_join_leave
-  if (type !== 'join' && type !== 'leave') return
+  const info = joinLeaveOf(context.message, context.author, !!context.isHistoryAdd, ownUserId())
+  if (!info) return
+  const type = info.type
 
   const typeId = `ep_chat_log_join_leave-${type}`
   // chat.ts already put the message's display name or "Unnamed" there.
@@ -96,7 +92,7 @@ export const renderJoinLeaveMessage = (context: {
   context.unread = false
 
   // Live and about someone else: a short toast. Never for oneself.
-  if (!context.isHistoryAdd && context.author !== ownUserId()) {
+  if (info.toast) {
     notifications.add({
       text: `${authorName} ${t(type)}`,
       sticky: false,
