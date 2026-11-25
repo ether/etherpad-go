@@ -10,6 +10,9 @@ type ToolbarButton struct {
 	Type        string    `json:"type"` // "button", "toggle", "dropdown"
 	SelectClass string    `json:"selectClass,omitempty"`
 	Options     []Options `json:"options"`
+	// ReadOnly: the button does not change the pad (e.g. print), so it stays
+	// on read-only pads, where the editing buttons are hidden.
+	ReadOnly bool `json:"readOnly,omitempty"`
 }
 
 type Options struct {

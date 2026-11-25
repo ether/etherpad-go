@@ -17,7 +17,22 @@ test.describe('read-only pad', () => {
         const hint = page.getByTestId('readonly-hint');
         await expect(hint).toBeVisible();
         await expect(hint).toContainText(/read only|nur lesen/i);
-        await expect(page.locator('#editbar ul.menu_left')).toBeHidden();
+        // The editing buttons are gone, print (a plugin button that does not
+        // change the pad) stays.
+        await expect(page.locator('#editbar ul.menu_left li[data-key="bold"]')).toBeHidden();
+        await expect(page.locator('#editbar ul.menu_left li[data-key="undo"]')).toBeHidden();
+        // A plugin button marked as fine for read-only pads (data-readonly-ok,
+        // e.g. ep_print) stays visible.
+        await page.evaluate(() => {
+            const li = document.createElement('li');
+            li.dataset.type = 'button';
+            li.dataset.key = 'print';
+            li.setAttribute('data-readonly-ok', '');
+            li.innerHTML = '<a title="Print"><button class="buttonicon buttonicon-print"></button></a>';
+            document.querySelector('#editbar ul.menu_left')!.appendChild(li);
+        });
+        await expect(page.locator('#editbar ul.menu_left li[data-key="print"]')).toBeVisible();
+        await expect(page.locator('#editbar')).not.toHaveClass(/toolbar-scrollable/);
         await expect(page.getByTestId('readonly-hint-login')).toHaveCount(0);
         // The pad actions stay.
         await expect(page.locator('#editbar ul.menu_right li[data-key="showTimeSlider"]')).toBeVisible();

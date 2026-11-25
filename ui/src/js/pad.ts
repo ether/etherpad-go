@@ -563,6 +563,9 @@ const pad = {
         if (pad._readOnlyHint) return;
         const deps = pad._readOnlyHintDeps();
         pad._readOnlyHint = showReadOnlyHint(deps);
+        // The editing buttons are gone now: drop the scroll arrows that were
+        // measured for them.
+        padeditbar.checkAllIconsAreDisplayedInToolbar();
         tellOnTap(byId('editorcontainer'), deps);
         if (pad._readOnlyHint && pad._accountInfo) offerLogin(pad._readOnlyHint, pad._accountInfo, deps);
     },

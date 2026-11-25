@@ -565,7 +565,8 @@
           "title": "ep_print.title",
           "icon": "buttonicon-print",
           "group": "right",
-          "type": "button"
+          "type": "button",
+          "readOnly": true
         }
       ],
       "plugin": "ep_print",
