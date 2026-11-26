@@ -36,7 +36,7 @@ require (
 	github.com/testcontainers/testcontainers-go v0.45.0
 	github.com/valyala/fasthttp v1.80.0
 	github.com/xuri/excelize/v2 v2.11.1
-	github.com/zitadel/oidc/v3 v3.52.0
+	github.com/zitadel/oidc/v3 v3.53.0
 	go.uber.org/zap v1.28.0
 	golang.org/x/crypto v0.59.0
 	golang.org/x/net v0.63.0
